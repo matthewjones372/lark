@@ -15,13 +15,13 @@ interface Flock<E> : Raise<E> {
  * Opens a scope on the calling thread and closes it when [block] leaves — by return, raise or throw —
  * interrupting every fork still running and joining all of them before this returns.
  */
-fun <E, A> flock(block: Flock<E>.() -> A): Either<E, A> = either { owning(block) }
+fun <E, A> flock(block: Flock<E>.() -> A): Either<E, A> = either { flock(block) }
 
 /**
- * Arrow's `either` is the boundary on whichever thread this runs on, so a `Raise` never crosses one:
- * a fork opens its own boundary and hands back an outcome instead.
+ * The same scope inside a `Raise` already in hand, so `either { flock { async { } } }` needs no second
+ * boundary; a fork still opens one of its own, because a `Raise` never crosses a thread.
  */
-private fun <E, A> Raise<E>.owning(block: Flock<E>.() -> A): A {
+fun <E, A> Raise<E>.flock(block: Flock<E>.() -> A): A {
     val nest = Nest(this)
     val value = try {
         nest.block()
@@ -39,10 +39,18 @@ private fun <E, A> Raise<E>.owning(block: Flock<E>.() -> A): A {
  */
 private fun <E, T> capture(block: Flock<E>.() -> T): Outcome<E, T> =
     try {
-        either { owning(block) }.fold({ Raised(it) }, { Returned(it) })
+        either { flock(block) }.fold({ Raised(it) }, { Returned(it) })
     } catch (t: Throwable) {
         Thrown(t)
     }
+
+/**
+ * The owner the top-level combinators fork under: `Nothing` has no value, so nothing running inside one
+ * can hand it an error to raise.
+ */
+internal object Unraisable : Raise<Nothing> {
+    override fun raise(r: Nothing): Nothing = r
+}
 
 private fun <E> Raise<E>.surface(failure: Failure<E>): Nothing = when (failure) {
     is Raised -> raise(failure.error)
@@ -88,12 +96,12 @@ private class Nest<E>(raise: Raise<E>) : Flock<E>, Raise<E> by raise {
  * The forks a combinator owns rather than the scope: it opens them, waits on the calling thread, and does
  * not return until every one has ended, so none of them is left for the scope to notice at close.
  */
-internal class Flight<E>(private val owner: Flock<E>) {
+internal class Flight<E>(private val owner: Raise<E>) {
 
     private val ended = Semaphore(0)
     private val forks = mutableListOf<Fork<E, *>>()
 
-    fun <T> fork(block: Flock<E>.() -> T): Fork<E, T> = Fork(owner, block, ended::release).also { forks += it }
+    fun <T> fork(block: Raise<E>.() -> T): Fork<E, T> = Fork(owner, block, ended::release).also { forks += it }
 
     /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
     fun settleAll(): Unit = settle { forks.none { fork -> fork.hasFailed() } }
@@ -114,7 +122,7 @@ internal class Flight<E>(private val owner: Flock<E>) {
 }
 
 internal class Fork<E, T>(
-    private val owner: Flock<E>,
+    private val owner: Raise<E>,
     block: Flock<E>.() -> T,
     ended: () -> Unit = {},
 ) : Deferred<T> {

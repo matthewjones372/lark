@@ -2,13 +2,14 @@ package io.github.matthewjones372.lark
 
 import arrow.core.Either
 import arrow.core.left
+import arrow.core.raise.Raise
 import arrow.core.right
 
 /**
  * Runs both branches on forks of their own and answers with the first to return; the losers are interrupted
  * and their outcomes dropped, and a branch that fails first loses the race for everyone.
  */
-fun <E, A, B> Flock<E>.raceN(fa: Flock<E>.() -> A, fb: Flock<E>.() -> B): Either<A, B> {
+fun <E, A, B> Raise<E>.raceN(fa: Raise<E>.() -> A, fb: Raise<E>.() -> B): Either<A, B> {
     val flight = Flight(this)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
@@ -17,10 +18,10 @@ fun <E, A, B> Flock<E>.raceN(fa: Flock<E>.() -> A, fb: Flock<E>.() -> B): Either
 }
 
 /** Three branches, the winner on the side it was given. */
-fun <E, A, B, C> Flock<E>.raceN(
-    fa: Flock<E>.() -> A,
-    fb: Flock<E>.() -> B,
-    fc: Flock<E>.() -> C,
+fun <E, A, B, C> Raise<E>.raceN(
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
 ): Either<A, Either<B, C>> {
     val flight = Flight(this)
     val a = flight.fork(fa)
@@ -33,3 +34,10 @@ fun <E, A, B, C> Flock<E>.raceN(
         else -> c.await().right().right()
     }
 }
+
+/** The same race for code outside any `Raise`, with plain branches. */
+fun <A, B> raceN(fa: () -> A, fb: () -> B): Either<A, B> = Unraisable.raceN({ fa() }, { fb() })
+
+/** Three branches, the winner on the side it was given. */
+fun <A, B, C> raceN(fa: () -> A, fb: () -> B, fc: () -> C): Either<A, Either<B, C>> =
+    Unraisable.raceN({ fa() }, { fb() }, { fc() })

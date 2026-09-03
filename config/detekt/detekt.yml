@@ -19,8 +19,10 @@ comments:
 complexity:
   LongParameterList:
     # An endpoint description is a list of inputs; `endpoint(a, b, c, d, e, f)`
-    # is the shape, not an accident.
-    allowedFunctionParameters: 7
+    # is the shape, not an accident. Ten because `parZip` mirrors
+    # arrow-fx-coroutines up to nine branches plus the function combining them,
+    # and a drop-in that stops at the fifth branch is not one.
+    allowedFunctionParameters: 10
     allowedConstructorParameters: 8
     ignoreDefaultParameters: true
   TooManyFunctions:
