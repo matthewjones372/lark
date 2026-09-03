@@ -1,4 +1,4 @@
-# Dipper
+# lark-stream
 
 **A stream that names its failure.** A typed Kotlin view over Pekko Streams:
 `Stream<E, A>` carries the failure type a pipeline can end with, the element
@@ -8,6 +8,10 @@ future nobody read.
 
 Every operator delegates to Pekko. `toSource()` and `Stream.from(source)` are
 the way in and out, so nothing Pekko can do is out of reach.
+
+The module is `lark-stream` and everything below is in
+`io.github.matthewjones372.lark.stream`. It was its own library, dipper, until
+lark's [spec 0005](../specs/0005-dipper-comes-home.md) brought it here.
 
 ## The problem
 
@@ -28,13 +32,13 @@ so.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    // Pekko Streams and arrow-core arrive with it; nothing else does.
-    implementation("io.github.matthewjones372:dipper-core:0.1.0")
+    // Pekko Streams, lark and arrow-core arrive with it; nothing else does.
+    implementation("io.github.matthewjones372:lark-stream:0.1.0-SNAPSHOT")
 }
 ```
 
-Nothing is on Maven Central yet; that is the coordinate the first release will
-carry.
+An untagged commit publishes `0.1.0-SNAPSHOT`, which is what
+`./gradlew publishToMavenLocal` installs.
 
 Rows in, receipts counted, declines diverted, and every import it takes:
 
@@ -148,21 +152,21 @@ a pipeline through a named sink or not at all.
 
 ## What is in the box
 
-`dipper-core` puts the Kotlin standard library, `pekko-stream` with the Scala
-runtime, Typesafe Config, the Reactive Streams interfaces and the
+`lark-stream` puts the Kotlin standard library, `lark`, `pekko-stream` with the
+Scala runtime, Typesafe Config, the Reactive Streams interfaces and the
 `ssl-config-core` it brings, and `arrow-core` on a consumer's classpath, and
 nothing else — no HTTP library, no JSON library, no coroutines, no second
 functional stack. `NoOtherDependenciesTest` asserts exactly that list against
-the module's real runtime classpath, so a dependency added to core is a build
+the module's real runtime classpath, so a dependency added here is a build
 failure rather than a judgement call.
 
 ## Pelican
 
 The bridge for a [Pelican](https://github.com/matthewjones372/pelican) streaming
-endpoint is Pelican's spec 0037 and lives there, because nothing in it is HTTP
-and nothing in this library is either. `Stream<Nothing, T>.toSource()` already
-fits `streamedNow`, so what that spec adds is the conversion in the other
-direction and no operators at all.
+endpoint is a Pelican spec still to be written, and lives there, because nothing
+in it is HTTP and nothing in this module is either.
+`Stream<Nothing, T>.toSource()` already fits `streamedNow`, so what that spec
+adds is the conversion in the other direction and no operators at all.
 
 ## Working on it
 
@@ -170,12 +174,13 @@ direction and no operators at all.
 ./gradlew build
 ```
 
-Tests, detekt, spotless, Kover's floor and the classpath test, in one command.
-The library is what [spec 0001](specs/0001-a-stream-that-names-its-failure.md)
+Tests, detekt, spotless, Kover's floor and the classpath test, in one command,
+for the whole build. The module is what
+[dipper's spec 0001](../specs/dipper/0001-a-stream-that-names-its-failure.md)
 describes and nothing more; later specs say what is added, and `specs/` says
-what is coming and in what order. Read [AGENTS.md](AGENTS.md) before working on
-it.
+what is coming and in what order. Read [AGENTS.md](../AGENTS.md) before working
+on it.
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0 — see [LICENSE](../LICENSE).

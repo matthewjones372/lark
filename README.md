@@ -204,6 +204,88 @@ stayed, and all of
 - `pelican-lark` — the binder that runs a
   [Pelican](https://github.com/matthewjones372/pelican) handler in `Raise` on a
   virtual thread, in that repository rather than this one.
+- [Dipper](https://github.com/matthewjones372/dipper) — a stream that names its
+  failure, over Pekko Streams. It is the `lark-stream` module here now, brought
+  in with its history.
+
+## Streams
+
+`lark-stream` is `Stream<E, A>` over Pekko Streams: the failure a pipeline
+can end with is in the type, an element can never be null, and running one
+answers an `Exit` that is `Done`, `Failed(e)` or `Died(cause)` rather than a
+stage nobody read. Every operator delegates to Pekko, and `toSource()` and
+`Stream.from(source)` are the way out and in, so nothing Pekko can do is out
+of reach.
+
+It was a library of its own, dipper, until this repository took it in; the
+code is the same under `io.github.matthewjones372.lark.stream`, and it depends
+on `lark`, so a handler and the stream it runs share one vocabulary:
+
+```kotlin
+dependencies {
+    // Pekko Streams, lark and arrow-core come with it; nothing else does
+    implementation("io.github.matthewjones372:lark-stream:0.1.0-SNAPSHOT")
+}
+```
+
+Rows in, receipts counted, declines diverted, and every import it takes:
+
+<!-- readme-example -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.stream.Exit
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.divertLefts
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapAsync
+import io.github.matthewjones372.lark.stream.mapOrFail
+import io.github.matthewjones372.lark.stream.run
+import io.github.matthewjones372.lark.stream.runFold
+import org.apache.pekko.Done
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.stream.javadsl.Sink
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+
+data class Row(val id: Int, val customer: String?)
+
+data class Customer(val id: Int, val name: String)
+
+data class Receipt(val id: Int)
+
+sealed interface IngestError
+
+data class NoCustomer(val id: Int) : IngestError
+
+data class Declined(val id: Int) : IngestError
+
+class Ledger {
+    fun settle(customer: Customer): CompletionStage<Either<Declined, Receipt>> =
+        CompletableFuture.completedFuture(Either.Right(Receipt(customer.id)))
+}
+
+val system: ActorSystem = ActorSystem.create("ingest")
+val ledger = Ledger()
+val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
+
+// Where a decline goes: a sink with a name, rather than a decider that drops it.
+val declinedSink: Sink<Declined, CompletionStage<Done>> =
+    Sink.foreach { declined -> println("declined ${declined.id}") }
+
+val settled: CompletionStage<Exit<IngestError, Int>> =
+    Stream.from(rows)                                                  // Stream<Nothing, Row>
+        .mapOrFail { row ->                                            // Stream<IngestError, Customer>
+            Customer(row.id, row.customer ?: fail(NoCustomer(row.id)))
+        }
+        .mapAsync(4) { customer -> ledger.settle(customer) }           // Stream<IngestError, Either<Declined, Receipt>>
+        .divertLefts(to = declinedSink)                                // Stream<IngestError, Receipt>
+        .runFold(0) { n, _ -> n + 1 }                                  // Run<IngestError, Int>
+        .run(system)                                                   // CompletionStage<Exit<IngestError, Int>>
+```
+
+[`docs/stream.md`](docs/stream.md) is the operator table — every builder,
+combinator and way out with what it answers — and how a declared failure
+travels.
 
 ## Licence
 

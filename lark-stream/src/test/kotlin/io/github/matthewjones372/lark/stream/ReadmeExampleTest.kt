@@ -24,6 +24,9 @@ import java.util.concurrent.TimeUnit
  * beside it: the fence marked `<!-- readme-example -->`, because the marker
  * renders as nothing on the page and survives the heading above it being
  * reworded.
+ *
+ * The README's Streams section shows the same pipeline, and is held to the same
+ * text here, so that one compilation covers both pages.
  */
 class ReadmeExampleTest {
 
@@ -40,28 +43,42 @@ class ReadmeExampleTest {
 
     private val marked = Regex("""$MARKER\s*```kotlin\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
 
-    /** The build hands the root over, so the document read here is the one the repository ships. */
-    private fun document(): File {
+    /** The build hands the root over, so the pages read here are the ones the repository ships. */
+    private fun page(name: String): File {
         val root = System.getProperty("lark.stream.repoRoot")
         withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream/build.gradle.kts") {
             root.shouldNotBeNull()
         }
-        return File(root!!, "docs/stream.md")
+        return File(root!!, name)
     }
 
-    private fun examples(): List<String> =
-        marked.findAll(document().readText()).map { match -> match.groupValues[1] }.toList()
+    private fun document(): File = page("docs/stream.md")
+
+    private fun readme(): File = page("README.md")
+
+    private fun examples(page: File): List<String> =
+        marked.findAll(page.readText()).map { match -> match.groupValues[1] }.toList()
 
     @Test
     fun `the document marks exactly one example to compile`() {
         withClue("${document()} must hold one kotlin fence marked $MARKER") {
-            examples().size shouldBe 1
+            examples(document()).size shouldBe 1
+        }
+    }
+
+    @Test
+    fun `the README's Streams section shows the example the document compiles`() {
+        withClue("${readme()} must hold one kotlin fence marked $MARKER") {
+            examples(readme()).size shouldBe 1
+        }
+        withClue("the two pages must show the same pipeline, so that compiling it covers both") {
+            examples(readme()).single() shouldBe examples(document()).single()
         }
     }
 
     @Test
     fun `the example the document shows compiles against the library`() {
-        val (exit, errors) = EmbeddedKotlin(workspace).compile(examples().single())
+        val (exit, errors) = EmbeddedKotlin(workspace).compile(examples(document()).single())
 
         withClue(errors.joinToString("\n")) {
             errors.shouldBeEmpty()
