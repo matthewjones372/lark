@@ -1,4 +1,4 @@
-package io.github.matthewjones372.dipper
+package io.github.matthewjones372.lark.stream
 
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Source

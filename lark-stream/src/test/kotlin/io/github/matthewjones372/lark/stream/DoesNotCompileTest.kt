@@ -1,4 +1,4 @@
-package io.github.matthewjones372.dipper
+package io.github.matthewjones372.lark.stream
 
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -34,13 +34,13 @@ class DoesNotCompileTest {
     }
 
     private val preamble = """
-        import io.github.matthewjones372.dipper.Stream
-        import io.github.matthewjones372.dipper.divertLefts
-        import io.github.matthewjones372.dipper.from
-        import io.github.matthewjones372.dipper.map
-        import io.github.matthewjones372.dipper.mapAsync
-        import io.github.matthewjones372.dipper.mapOrFail
-        import io.github.matthewjones372.dipper.toSource
+        import io.github.matthewjones372.lark.stream.Stream
+        import io.github.matthewjones372.lark.stream.divertLefts
+        import io.github.matthewjones372.lark.stream.from
+        import io.github.matthewjones372.lark.stream.map
+        import io.github.matthewjones372.lark.stream.mapAsync
+        import io.github.matthewjones372.lark.stream.mapOrFail
+        import io.github.matthewjones372.lark.stream.toSource
         import org.apache.pekko.stream.javadsl.Sink
         import java.util.concurrent.CompletableFuture
         import java.util.concurrent.CompletionStage

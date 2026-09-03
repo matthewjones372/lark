@@ -1,4 +1,4 @@
-package io.github.matthewjones372.dipper
+package io.github.matthewjones372.lark.stream
 
 /** How a run ended. `run` completes normally with one of these three, never with a failed stage. */
 sealed interface Exit<out E, out A> {

@@ -1,4 +1,4 @@
-package io.github.matthewjones372.dipper
+package io.github.matthewjones372.lark.stream
 
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments

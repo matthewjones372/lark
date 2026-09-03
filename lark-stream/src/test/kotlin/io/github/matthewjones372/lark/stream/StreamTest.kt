@@ -1,4 +1,4 @@
-package io.github.matthewjones372.dipper
+package io.github.matthewjones372.lark.stream
 
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe

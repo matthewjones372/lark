@@ -41,14 +41,14 @@ Rows in, receipts counted, declines diverted, and every import it takes:
 <!-- readme-example -->
 ```kotlin
 import arrow.core.Either
-import io.github.matthewjones372.dipper.Exit
-import io.github.matthewjones372.dipper.Stream
-import io.github.matthewjones372.dipper.divertLefts
-import io.github.matthewjones372.dipper.from
-import io.github.matthewjones372.dipper.mapAsync
-import io.github.matthewjones372.dipper.mapOrFail
-import io.github.matthewjones372.dipper.run
-import io.github.matthewjones372.dipper.runFold
+import io.github.matthewjones372.lark.stream.Exit
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.divertLefts
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapAsync
+import io.github.matthewjones372.lark.stream.mapOrFail
+import io.github.matthewjones372.lark.stream.run
+import io.github.matthewjones372.lark.stream.runFold
 import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.javadsl.Sink
