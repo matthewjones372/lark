@@ -52,7 +52,7 @@ nothing to wait for and nothing to fail with, and `Sink.ignore`, `foreach`,
 
 ## Stack
 
-- [ ] **`spec-0007-runwith`** — `runWith`; `runCollect`/`runFold` rewritten
+- [x] **`spec-0007-runwith`** (`main`, 5e30010) — `runWith`; `runCollect`/`runFold` rewritten
       over it; the table row; the README example.
       Done when: lefts reach one named sink and rights another in one run, the
       run's `Exit` is `Failed(e)` when an element fails after both sinks have
@@ -66,6 +66,6 @@ nothing to wait for and nothing to fail with, and `Sink.ignore`, `foreach`,
 
 ## Open questions
 
-1. **A sink whose materialised value is not a `CompletionStage`** — refuse at
-   the type (recommended: the signature above says so) or wrap it in a
-   completed stage?
+None — decided building it: a sink whose materialised value is not a
+`CompletionStage` is refused at the type, since `run` would have nothing to
+wait on.
