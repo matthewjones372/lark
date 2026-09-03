@@ -19,8 +19,11 @@ val settled: CompletionStage<Exit<IngestError, Int>> =
         .run(system)
 ```
 
-Nothing is built yet. `specs/` says what will be, and in what order; read
-[AGENTS.md](AGENTS.md) before working on it.
+The first entry of [spec 0001](specs/0001-a-stream-that-names-its-failure.md)
+is built: `Stream`, `Exit`, `map`, `mapOrFail`, `filter`, `runFold`,
+`runCollect`, `run` and `toSource`. The `mapAsync` and `divertLefts` lines
+above are the entry after it. `specs/` says what is coming and in what order;
+read [AGENTS.md](AGENTS.md) before working on it.
 
 ## License
 
