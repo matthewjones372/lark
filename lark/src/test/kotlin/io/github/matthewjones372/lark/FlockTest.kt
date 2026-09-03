@@ -13,41 +13,6 @@ import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
-
-// Long enough that a scope which waited a fork out instead of interrupting it
-// would blow the bound below, rather than pass by luck on a slow machine.
-private const val NEVER_FINISHES_MILLIS = 20_000L
-private const val PROMPT_MILLIS = 10_000L
-
-private data class Bad(val why: String)
-
-private class Boom : RuntimeException("boom")
-
-/** A fork that reports whether it was interrupted, so no test has to time one. */
-private class Sleeper {
-    private val started = CountDownLatch(1)
-    private val thread = AtomicReference<Thread?>(null)
-    private val interrupted = AtomicBoolean(false)
-
-    fun body(): String {
-        thread.set(Thread.currentThread())
-        started.countDown()
-        return try {
-            Thread.sleep(NEVER_FINISHES_MILLIS)
-            "slept"
-        } catch (stop: InterruptedException) {
-            interrupted.set(true)
-            "interrupted"
-        }
-    }
-
-    fun awaitStart(): Unit = started.await()
-
-    fun wasInterrupted(): Boolean = interrupted.get()
-
-    fun isAlive(): Boolean = thread.get().shouldNotBeNull().isAlive
-}
 
 class FlockTest {
 

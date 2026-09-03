@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark
 import arrow.core.Either
 import arrow.core.raise.Raise
 import arrow.core.raise.either
+import java.util.concurrent.Semaphore
 
 /** A `Raise` scope that owns every thread forked in it: no fork outlives the block that opened it. */
 interface Flock<E> : Raise<E> {
@@ -48,6 +49,9 @@ private fun <E> Raise<E>.surface(failure: Failure<E>): Nothing = when (failure) 
     is Thrown -> throw failure.throwable
 }
 
+/** What a fork interrupted by a combinator answers with, as against a failure the caller's work ran into. */
+private fun Failure<*>.isInterrupt(): Boolean = this is Thrown && throwable is InterruptedException
+
 /**
  * An interrupt landing on the closing thread must not leave a fork running, so the join is retried
  * and the flag handed back to the caller afterwards.
@@ -80,7 +84,35 @@ private class Nest<E>(raise: Raise<E>) : Flock<E>, Raise<E> by raise {
     fun unnoticedFailure(): Failure<E>? = forks.firstNotNullOfOrNull { it.unnoticedFailure() }
 }
 
-private class Fork<E, T>(private val owner: Flock<E>, block: Flock<E>.() -> T) : Deferred<T> {
+/**
+ * The forks a combinator owns rather than the scope: it opens them, waits on the calling thread, and does
+ * not return until every one has ended, so none of them is left for the scope to notice at close.
+ */
+internal class Flight<E>(private val owner: Flock<E>) {
+
+    private val ended = Semaphore(0)
+    private val forks = mutableListOf<Fork<E, *>>()
+
+    fun <T> fork(block: Flock<E>.() -> T): Fork<E, T> = Fork(owner, block, ended::release).also { forks += it }
+
+    /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
+    fun settle() {
+        try {
+            // A fork that has failed ends the wait; its siblings are interrupted below rather than waited out.
+            repeat(forks.size) { if (forks.none { fork -> fork.hasFailed() }) ended.acquire() }
+        } finally {
+            forks.forEach { it.interrupt() }
+            forks.forEach { it.join() }
+        }
+        forks.firstNotNullOfOrNull { it.ownFailure() }?.let { owner.surface(it) }
+    }
+}
+
+internal class Fork<E, T>(
+    private val owner: Flock<E>,
+    block: Flock<E>.() -> T,
+    ended: () -> Unit = {},
+) : Deferred<T> {
 
     @Volatile
     private var outcome: Outcome<E, T>? = null
@@ -88,7 +120,15 @@ private class Fork<E, T>(private val owner: Flock<E>, block: Flock<E>.() -> T) :
     @Volatile
     private var noticed = false
 
-    private val thread: Thread = Thread.ofVirtual().start { outcome = capture(block) }
+    // An interrupt sent to a fork that had not answered yet: what comes back is that interrupt rather than
+    // anything the caller asked for, so a combinator drops it.
+    @Volatile
+    private var cutShort = false
+
+    private val thread: Thread = Thread.ofVirtual().start {
+        outcome = capture(block)
+        ended()
+    }
 
     override fun await(): T {
         thread.joinFully()
@@ -99,9 +139,17 @@ private class Fork<E, T>(private val owner: Flock<E>, block: Flock<E>.() -> T) :
         }
     }
 
-    fun interrupt(): Unit = thread.interrupt()
+    fun interrupt() {
+        cutShort = outcome == null
+        thread.interrupt()
+    }
 
     fun join(): Unit = thread.joinFully()
+
+    fun hasFailed(): Boolean = outcome is Failure
+
+    /** The failure this fork answered with of its own accord, rather than the interrupt a combinator sent it. */
+    fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort && it.isInterrupt() }
 
     /** The failure of a fork whose outcome nobody asked for; the scope answers with it at close. */
     fun unnoticedFailure(): Failure<E>? = settled().takeUnless { noticed } as? Failure<E>
@@ -109,12 +157,12 @@ private class Fork<E, T>(private val owner: Flock<E>, block: Flock<E>.() -> T) :
     private fun settled(): Outcome<E, T> = checkNotNull(outcome) { "a joined fork always has an outcome" }
 }
 
-private sealed interface Outcome<out E, out T>
+internal sealed interface Outcome<out E, out T>
 
-private class Returned<T>(val value: T) : Outcome<Nothing, T>
+internal class Returned<T>(val value: T) : Outcome<Nothing, T>
 
-private sealed interface Failure<out E> : Outcome<E, Nothing>
+internal sealed interface Failure<out E> : Outcome<E, Nothing>
 
-private class Raised<E>(val error: E) : Failure<E>
+internal class Raised<E>(val error: E) : Failure<E>
 
-private class Thrown(val throwable: Throwable) : Failure<Nothing>
+internal class Thrown(val throwable: Throwable) : Failure<Nothing>
