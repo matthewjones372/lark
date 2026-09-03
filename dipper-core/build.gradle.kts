@@ -26,6 +26,7 @@ dependencies {
 // execution time would not survive the configuration cache.
 val repoRoot = rootProject.projectDir.absolutePath
 val judgedSources = files(layout.projectDirectory.dir("src/main/kotlin"))
+val readme = files(rootProject.layout.projectDirectory.file("README.md"))
 
 tasks.test {
     // The main runtime classpath, so the dependency test can assert on what is
@@ -37,6 +38,10 @@ tasks.test {
     // read files Gradle knows nothing about, and a violation would ride green
     // builds until `--rerun-tasks`.
     inputs.files(judgedSources).withPropertyName("judgedSources")
+    // ReadmeExampleTest compiles the example out of the README, so an edit to
+    // it is a change to what this task tests: without this the example would
+    // ride a cached green until something else in the module moved.
+    inputs.files(readme).withPropertyName("readme")
     jvmArgumentProviders.add(
         CommandLineArgumentProvider {
             listOf(
