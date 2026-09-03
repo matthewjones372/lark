@@ -61,7 +61,8 @@ spotless {
 
 /** One line per module, so a Maven search result says what the artifact is. */
 val moduleDescriptions = mapOf(
-    "lark" to "Pelican handlers in Arrow's Raise, each on a virtual thread of its own.",
+    "lark" to "Arrow's Raise, forked and awaited on virtual threads.",
+    "lark-pelican" to "Pelican handlers in Arrow's Raise, each on a virtual thread of its own.",
 )
 
 // The floor is a ratchet against regression, not a target to code towards — a

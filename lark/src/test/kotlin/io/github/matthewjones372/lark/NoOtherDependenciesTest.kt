@@ -8,16 +8,15 @@ import java.io.File
 
 /**
  * What this module is allowed to put on a consumer's classpath, stated as a
- * test — the claim `AGENTS.md` makes for it: core, Arrow, and nothing else. No
- * JSON library, no HTTP library, no coroutines.
+ * test — the claim `AGENTS.md` makes for it: Arrow and the JDK, and nothing
+ * else. No Pelican, no JSON library, no HTTP library, no coroutines.
  */
 class NoOtherDependenciesTest {
 
-    private val allowed =
-        listOf("kotlin-stdlib", "annotations-", "pelican-core", "pelican-arrow", "arrow-")
+    private val allowed = listOf("kotlin-stdlib", "annotations-", "arrow-")
 
     @Test
-    fun `the main runtime classpath is core plus arrow, and nothing else`() {
+    fun `the main runtime classpath is arrow, and nothing else`() {
         val raw = System.getProperty("lark.runtimeClasspath")
         withClue("the build must pass -Dlark.runtimeClasspath; see build.gradle.kts") {
             raw.shouldNotBeNull()
@@ -27,7 +26,7 @@ class NoOtherDependenciesTest {
             .filter { it.isNotBlank() }
             .filterNot { entry -> allowed.any { entry.startsWith(it) } }
 
-        withClue("lark must stay core plus arrow, but found: $unexpected") {
+        withClue("lark must stay Arrow and the JDK, but found: $unexpected") {
             unexpected.shouldBeEmpty()
         }
     }

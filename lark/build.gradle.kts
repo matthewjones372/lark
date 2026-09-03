@@ -1,17 +1,8 @@
-// Pelican handlers written in Arrow's Raise, each on a virtual thread of its
-// own. `pelican-arrow` plus the JDK and nothing else, which is what
-// NoOtherDependenciesTest asserts: a blocking port stays blocking, and no
-// second effect system arrives with the binder.
+// Arrow's Raise, forked and awaited on virtual threads. Arrow and the JDK and
+// nothing else, which is what NoOtherDependenciesTest asserts: a fork answers
+// with an Either, so nothing here needs to know what is being served.
 dependencies {
-    api("io.github.matthewjones372:pelican-arrow:1.0.0-RC1")
-
-    // Test only, so that the contract tests can run an `Api` in memory through
-    // Pelican's typed test client: a real backend and a real codec, neither of
-    // which a consumer of this module inherits.
-    testImplementation("io.github.matthewjones372:pelican-test:1.0.0-RC1")
-    testImplementation("io.github.matthewjones372:pelican-test-pekko:1.0.0-RC1")
-    testImplementation("io.github.matthewjones372:pelican-jackson:1.0.0-RC1")
-    testImplementation("io.github.matthewjones372:pelican-pekko:1.0.0-RC1")
+    api("io.arrow-kt:arrow-core:2.1.2")
 }
 
 tasks.test {
