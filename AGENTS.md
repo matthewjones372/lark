@@ -137,10 +137,12 @@ that grows an import grows a line in its block.
 
 `lark` depends on `arrow-core` and on the JDK, and on nothing else. No HTTP
 library, no JSON library, no coroutines. Virtual threads come from
-`java.lang.Thread`.
+`java.lang.Thread`. `lark-pekko` is the one module allowed a dependency beyond
+that, and only `pekko-actor`: it exists to hand a Pekko dispatcher to `lark` as
+the executor its forks run on.
 
-That claim is a test. `NoOtherDependenciesTest` asserts the main runtime
-classpath.
+That claim is a test in each module. `NoOtherDependenciesTest` asserts the main
+runtime classpath.
 
 A dependency added to `lark` is a build failure, not a judgement call.
 

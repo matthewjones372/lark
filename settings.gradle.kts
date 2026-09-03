@@ -7,3 +7,4 @@ plugins {
 
 rootProject.name = "lark"
 include("lark")
+include("lark-pekko")

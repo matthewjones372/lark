@@ -78,6 +78,49 @@ virtual thread per fork, as above. A fork clears the interrupt flag as its body
 leaves, so a cancelled branch never hands the flag to whatever the executor runs
 next.
 
+## Pekko
+
+A Pekko application already has one place that names, sizes and instruments its
+threads — the dispatcher config — and `lark-pekko` makes a dispatcher there the
+executor lark forks on:
+
+```kotlin
+dependencies {
+    // lark and pekko-actor come with it; nothing else does
+    implementation("io.github.matthewjones372:lark-pekko:0.1.0-SNAPSHOT")
+}
+```
+
+The dispatcher is configured beside Pekko's own, and named by the part after
+`pekko.actor.`:
+
+```hocon
+pekko.actor.lark {
+  executor = "virtual-thread-executor"
+}
+```
+
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.lark.pekko.larkDispatcher
+import org.apache.pekko.actor.ActorSystem
+
+fun dashboard(system: ActorSystem, id: Id): Either<Err, Dashboard> = either {
+    val lark = system.larkDispatcher()          // pekko.actor.lark; larkDispatcher("other") for another
+    parZip(on = lark, { users.find(id).bind() }, { orders.forUser(id).bind() }) { u, o -> Dashboard(u, o) }
+}
+```
+
+`larkDispatcher` refuses a dispatcher whose executor is `fork-join-executor` or
+`thread-pool-executor`, naming `pekko.actor.<id>.executor` in the message: a
+lark fork blocks, and blocking the pool Pekko sizes for its actors is the
+starvation Pekko's own documentation warns about. `virtual-thread-executor` is
+accepted, and so is a `type = PinnedDispatcher`, whose thread is handed to
+nothing else. Both the classic `ActorSystem` and the typed one are
+`ClassicActorSystemProvider`, so either takes the extension.
+
 ## Every error, not the first one
 
 `parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion and
