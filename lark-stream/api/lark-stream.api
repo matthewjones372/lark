@@ -1,3 +1,7 @@
+public final class io/github/matthewjones372/lark/stream/AwaitExitKt {
+	public static final fun awaitExit (Larrow/core/raise/Raise;Ljava/util/concurrent/CompletionStage;)Ljava/lang/Object;
+}
+
 public abstract interface class io/github/matthewjones372/lark/stream/Exit {
 }
 

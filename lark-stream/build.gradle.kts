@@ -10,6 +10,10 @@ val scalaBinary = "2.13"
 
 dependencies {
     api(project(":lark"))
+    // `awaitExit` waits through lark-pekko's `await`, so the cancellation bridge a handler gets
+    // and the one a run gets are the same code. It adds pekko-actor, which pekko-stream brings
+    // anyway.
+    api(project(":lark-pekko"))
     api(platform("org.apache.pekko:pekko-bom_$scalaBinary:$pekkoVersion"))
     api("org.apache.pekko:pekko-stream_$scalaBinary")
 

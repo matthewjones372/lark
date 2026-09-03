@@ -32,7 +32,7 @@ so.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    // Pekko Streams, lark and arrow-core arrive with it; nothing else does.
+    // Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
     implementation("io.github.matthewjones372:lark-stream:0.1.0-SNAPSHOT")
 }
 ```
@@ -45,15 +45,16 @@ Rows in, receipts counted, declines diverted, and every import it takes:
 <!-- readme-example -->
 ```kotlin
 import arrow.core.Either
-import io.github.matthewjones372.lark.stream.Exit
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.pekko.await
 import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.awaitExit
 import io.github.matthewjones372.lark.stream.divertLefts
 import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapAsync
 import io.github.matthewjones372.lark.stream.mapOrFail
+import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runFold
-import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletableFuture
@@ -81,18 +82,20 @@ val ledger = Ledger()
 val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
 
 // Where a decline goes: a sink with a name, rather than a decider that drops it.
-val declinedSink: Sink<Declined, CompletionStage<Done>> =
-    Sink.foreach { declined -> println("declined ${declined.id}") }
+val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
 
-val settled: CompletionStage<Exit<IngestError, Int>> =
-    Stream.from(rows)                                                  // Stream<Nothing, Row>
-        .mapOrFail { row ->                                            // Stream<IngestError, Customer>
-            Customer(row.id, row.customer ?: fail(NoCustomer(row.id)))
-        }
-        .mapAsync(4) { customer -> ledger.settle(customer) }           // Stream<IngestError, Either<Declined, Receipt>>
-        .divertLefts(to = declinedSink)                                // Stream<IngestError, Receipt>
-        .runFold(0) { n, _ -> n + 1 }                                  // Run<IngestError, Int>
-        .run(system)                                                   // CompletionStage<Exit<IngestError, Int>>
+val counted: Either<IngestError, Int> = either {
+    awaitExit(
+        Stream.from(rows)                                              // Stream<Nothing, Row>
+            .mapOrFail { row ->                                        // Stream<IngestError, Customer>
+                Customer(row.id, row.customer ?: raise(NoCustomer(row.id)))
+            }
+            .mapPar(4) { customer -> ledger.settle(customer).await() }  // one virtual thread per element
+            .divertLefts(to = declinedSink)                            // Stream<IngestError, Receipt>
+            .runFold(0) { n, _ -> n + 1 }                              // Run<IngestError, Int>
+            .run(system),                                              // CompletionStage<Exit<IngestError, Int>>
+    )                                                                  // Done → Int, Failed → raise, Died → throw
+}
 ```
 
 `Row.customer` is nullable, so the `map` that reaches for it has nowhere to go:
@@ -138,6 +141,7 @@ rather than persuade.
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | the one call that materialises, on the system it names |
+| `Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Raise`: `Done` is the value, `Failed` raises, `Died` throws |
 | **The way out** | |
 | `Stream<Nothing, A>.toSource(): Source<A, NotUsed>` | Pekko's own `Source`, once nothing is left to declare |
 
@@ -163,10 +167,11 @@ because Pekko never cancels the stage its `mapAsync` is waiting on.
 
 ## What is in the box
 
-`lark-stream` puts the Kotlin standard library, `lark`, `pekko-stream` with the
-Scala runtime, Typesafe Config, the Reactive Streams interfaces and the
-`ssl-config-core` it brings, and `arrow-core` on a consumer's classpath, and
-nothing else — no HTTP library, no JSON library, no coroutines, no second
+`lark-stream` puts the Kotlin standard library, `lark`, `lark-pekko` — whose
+`await` is how `awaitExit` waits, so an interrupt cancels the run rather than
+abandoning it — `pekko-stream` with the Scala runtime, Typesafe Config, the
+Reactive Streams interfaces and the `ssl-config-core` it brings, and
+`arrow-core` on a consumer's classpath, and nothing else — no HTTP library, no JSON library, no coroutines, no second
 functional stack. `NoOtherDependenciesTest` asserts exactly that list against
 the module's real runtime classpath, so a dependency added here is a build
 failure rather than a judgement call.

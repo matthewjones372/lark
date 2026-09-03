@@ -1,11 +1,13 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
+import arrow.core.raise.either
+import arrow.core.right
+import io.github.matthewjones372.lark.pekko.await
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import org.apache.pekko.Done
 import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.stream.javadsl.Sink
 import org.jetbrains.kotlin.cli.common.ExitCode
@@ -89,26 +91,29 @@ class ReadmeExampleTest {
     /** The same pipeline, line for line, run: what the document shows is compiled and also true. */
     @Test
     fun `the pipeline the document shows counts the receipts and diverts the declines`() {
-        val counted = ConcurrentLinkedQueue<Declined>()
+        val declines = ConcurrentLinkedQueue<Declined>()
         val bothDeclines = CountDownLatch(2)
-        val declinedSink: Sink<Declined, CompletionStage<Done>> = Sink.foreach { declined ->
-            counted.add(declined)
+        val declinedSink = Sink.foreach<Declined> { declined ->
+            declines.add(declined)
             bothDeclines.countDown()
         }
 
-        val settled: CompletionStage<Exit<IngestError, Int>> =
-            Stream.from(rows)
-                .mapOrFail { row -> Customer(row.id, row.customer ?: fail(NoCustomer(row.id))) }
-                .mapAsync(4) { customer -> ledger.settle(customer) }
-                .divertLefts(to = declinedSink)
-                .runFold(0) { n, _ -> n + 1 }
-                .run(system)
+        val counted: Either<IngestError, Int> = either {
+            awaitExit(
+                Stream.from(rows)
+                    .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
+                    .mapPar(4) { customer -> ledger.settle(customer).await() }
+                    .divertLefts(to = declinedSink)
+                    .runFold(0) { n, _ -> n + 1 }
+                    .run(system),
+            )
+        }
 
-        settled.toCompletableFuture().join() shouldBe Exit.Done(3)
+        counted shouldBe 3.right()
         withClue("the diverted branch is a branch of its own and can outlive the run") {
             bothDeclines.await(30, TimeUnit.SECONDS) shouldBe true
         }
-        counted.toList() shouldBe listOf(Declined(2), Declined(4))
+        declines.toList() shouldBe listOf(Declined(2), Declined(4))
     }
 
     private data class Row(val id: Int, val customer: String?)
