@@ -80,16 +80,16 @@ Pekko alone and a Pekko application without Pelican wants it too.
 
 ## Stack
 
-- [ ] **`spec-0004-on`** — `on: Executor` on every forking combinator;
+- [x] **`spec-0004-on`** (`main`, 1db9b0a) — `on: Executor` on every forking combinator;
       `Fork` clears the flag on a borrowed thread.
       Done when: a `parZip(on = singleThreadExecutor)` runs its branches
       there, a cancelled fork leaves the executor's next task uninterrupted,
       and every 0003 test passes unedited.
-- [ ] **`spec-0004-pekko-dispatcher`** — the module, `larkDispatcher`, the
+- [x] **`spec-0004-pekko-dispatcher`** (`main`, b9538dc) — the module, `larkDispatcher`, the
       refusal, the classpath test.
       Done when: a `virtual-thread-executor` dispatcher is accepted and a
       `fork-join-executor` one refused with the config key in the message.
-- [ ] **`spec-0004-await`** — `await()` for `CompletionStage` and `Future`,
+- [x] **`spec-0004-await`** (`main`, 5deb603) — `await()` for `CompletionStage` and `Future`,
       the cancellation bridge, the README section.
       Done when: a handler awaiting a never-completing stage, interrupted,
       cancels that stage; and a stage failing with `X` reaches the body as
@@ -114,3 +114,9 @@ Pelican follows: spec 0038 becomes "depend on `lark-pekko`", and
    through `classicSystem()` rather than adding `pekko-actor-typed`.
 4. **Does `timeout` take `on:`?** Its sleeper is a fork too. Recommended: yes,
    for consistency, defaulted like the rest.
+
+Decided while building (2026-09-03): `on:` is a sibling overload ahead of the
+branches rather than a defaulted first parameter, because Kotlin never skips a
+defaulted parameter to reach a positional lambda — the same reason arrow-fx's
+`context` is an overload. `flock` and `async` keep the default, their block
+being trailing. `Flock` carries `on`, so `async` inherits its scope's executor.
