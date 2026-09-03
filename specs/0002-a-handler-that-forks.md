@@ -68,11 +68,11 @@ interruptible blocking call, and a scope closes only when its forks have.
       scope close joins and interrupts.
       Done when: a raise in a fork surfaces at `await()` as the block's `Left`,
       and after the block returns no forked thread is alive.
-- [ ] **`spec-0002-par`** — `parZip` and `parMap`; the first failure
+- [x] **`spec-0002-par`** (`main`, 1fe019e) — `parZip` and `parMap`; the first failure
       interrupts the siblings.
       Done when: a branch that raises returns before its sibling's sleep would
       have ended, and the sibling was interrupted.
-- [ ] **`spec-0002-race`** — `raceN`; the losers interrupted.
+- [x] **`spec-0002-race`** (`main`, 1fe019e) — `raceN`; the losers interrupted.
       Done when: the winner's value is the result and the losers are
       interrupted before they finish.
 - [ ] **`spec-0002-rising`** — `Rising<E> : Flock<E>` in `lark-pelican`.
