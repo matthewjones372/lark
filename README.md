@@ -71,6 +71,13 @@ the losers. Interrupt is the only cancellation the JDK has, so a cancelled
 branch ends at its next interruptible blocking call, and a combinator returns
 only once every fork it opened has ended.
 
+Every forking combinator also takes the executor to fork on, ahead of its
+branches — `parZip(on = pool, { … }, { … }) { … }`, `flock(on = pool) { }`,
+`timeout(on = pool, 2.seconds) { }` — and a call that names none gets a new
+virtual thread per fork, as above. A fork clears the interrupt flag as its body
+leaves, so a cancelled branch never hands the flag to whatever the executor runs
+next.
+
 ## Every error, not the first one
 
 `parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion and

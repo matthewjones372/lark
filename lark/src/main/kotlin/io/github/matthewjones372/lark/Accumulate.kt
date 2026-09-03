@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark
 import arrow.core.NonEmptyList
 import arrow.core.raise.Raise
 import arrow.core.toNonEmptyListOrNull
+import java.util.concurrent.Executor
 
 /**
  * Runs both branches on forks of their own and keeps every raise: a raise does not end a sibling, so
@@ -12,8 +13,16 @@ fun <E, A, B, C> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     fa: Raise<E>.() -> A,
     fb: Raise<E>.() -> B,
     transform: (A, B) -> C,
+): C = parZipOrAccumulate(VirtualThreads, fa, fb, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    transform: (A, B) -> C,
 ): C {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     raiseAll(flight.settleEvery())
@@ -26,8 +35,17 @@ fun <E, A, B, C> Raise<E>.parZipOrAccumulate(
     fa: Raise<E>.() -> A,
     fb: Raise<E>.() -> B,
     transform: (A, B) -> C,
+): C = parZipOrAccumulate(VirtualThreads, combine, fa, fb, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    transform: (A, B) -> C,
 ): C {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     raiseCombined(flight.settleEvery(), combine)
@@ -40,8 +58,17 @@ fun <E, A, B, C, D> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     fb: Raise<E>.() -> B,
     fc: Raise<E>.() -> C,
     transform: (A, B, C) -> D,
+): D = parZipOrAccumulate(VirtualThreads, fa, fb, fc, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    transform: (A, B, C) -> D,
 ): D {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -56,8 +83,18 @@ fun <E, A, B, C, D> Raise<E>.parZipOrAccumulate(
     fb: Raise<E>.() -> B,
     fc: Raise<E>.() -> C,
     transform: (A, B, C) -> D,
+): D = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    transform: (A, B, C) -> D,
 ): D {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -72,8 +109,18 @@ fun <E, A, B, C, D, F> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     fc: Raise<E>.() -> C,
     fd: Raise<E>.() -> D,
     transform: (A, B, C, D) -> F,
+): F = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    transform: (A, B, C, D) -> F,
 ): F {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -90,8 +137,19 @@ fun <E, A, B, C, D, F> Raise<E>.parZipOrAccumulate(
     fc: Raise<E>.() -> C,
     fd: Raise<E>.() -> D,
     transform: (A, B, C, D) -> F,
+): F = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    transform: (A, B, C, D) -> F,
 ): F {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -108,8 +166,19 @@ fun <E, A, B, C, D, F, G> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     fd: Raise<E>.() -> D,
     fe: Raise<E>.() -> F,
     transform: (A, B, C, D, F) -> G,
+): G = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    transform: (A, B, C, D, F) -> G,
 ): G {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -128,8 +197,20 @@ fun <E, A, B, C, D, F, G> Raise<E>.parZipOrAccumulate(
     fd: Raise<E>.() -> D,
     fe: Raise<E>.() -> F,
     transform: (A, B, C, D, F) -> G,
+): G = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    transform: (A, B, C, D, F) -> G,
 ): G {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -148,8 +229,20 @@ fun <E, A, B, C, D, F, G, H> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     fe: Raise<E>.() -> F,
     ff: Raise<E>.() -> G,
     transform: (A, B, C, D, F, G) -> H,
+): H = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    transform: (A, B, C, D, F, G) -> H,
 ): H {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -170,8 +263,21 @@ fun <E, A, B, C, D, F, G, H> Raise<E>.parZipOrAccumulate(
     fe: Raise<E>.() -> F,
     ff: Raise<E>.() -> G,
     transform: (A, B, C, D, F, G) -> H,
+): H = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    transform: (A, B, C, D, F, G) -> H,
 ): H {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -192,8 +298,21 @@ fun <E, A, B, C, D, F, G, H, I> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     ff: Raise<E>.() -> G,
     fg: Raise<E>.() -> H,
     transform: (A, B, C, D, F, G, H) -> I,
+): I = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H, I> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    fg: Raise<E>.() -> H,
+    transform: (A, B, C, D, F, G, H) -> I,
 ): I {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -216,8 +335,22 @@ fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZipOrAccumulate(
     ff: Raise<E>.() -> G,
     fg: Raise<E>.() -> H,
     transform: (A, B, C, D, F, G, H) -> I,
+): I = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, fg, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    fg: Raise<E>.() -> H,
+    transform: (A, B, C, D, F, G, H) -> I,
 ): I {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -240,8 +373,22 @@ fun <E, A, B, C, D, F, G, H, I, J> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     fg: Raise<E>.() -> H,
     fh: Raise<E>.() -> I,
     transform: (A, B, C, D, F, G, H, I) -> J,
+): J = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, fh, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H, I, J> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    fg: Raise<E>.() -> H,
+    fh: Raise<E>.() -> I,
+    transform: (A, B, C, D, F, G, H, I) -> J,
 ): J {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -266,8 +413,23 @@ fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZipOrAccumulate(
     fg: Raise<E>.() -> H,
     fh: Raise<E>.() -> I,
     transform: (A, B, C, D, F, G, H, I) -> J,
+): J = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, fg, fh, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    fg: Raise<E>.() -> H,
+    fh: Raise<E>.() -> I,
+    transform: (A, B, C, D, F, G, H, I) -> J,
 ): J {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -292,8 +454,23 @@ fun <E, A, B, C, D, F, G, H, I, J, K> Raise<NonEmptyList<E>>.parZipOrAccumulate(
     fh: Raise<E>.() -> I,
     fi: Raise<E>.() -> J,
     transform: (A, B, C, D, F, G, H, I, J) -> K,
+): K = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, fh, fi, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H, I, J, K> Raise<NonEmptyList<E>>.parZipOrAccumulate(
+    on: Executor,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    fg: Raise<E>.() -> H,
+    fh: Raise<E>.() -> I,
+    fi: Raise<E>.() -> J,
+    transform: (A, B, C, D, F, G, H, I, J) -> K,
 ): K {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -320,8 +497,24 @@ fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZipOrAccumulate(
     fh: Raise<E>.() -> I,
     fi: Raise<E>.() -> J,
     transform: (A, B, C, D, F, G, H, I, J) -> K,
+): K = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, fg, fh, fi, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZipOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    fa: Raise<E>.() -> A,
+    fb: Raise<E>.() -> B,
+    fc: Raise<E>.() -> C,
+    fd: Raise<E>.() -> D,
+    fe: Raise<E>.() -> F,
+    ff: Raise<E>.() -> G,
+    fg: Raise<E>.() -> H,
+    fh: Raise<E>.() -> I,
+    fi: Raise<E>.() -> J,
+    transform: (A, B, C, D, F, G, H, I, J) -> K,
 ): K {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -336,11 +529,16 @@ fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZipOrAccumulate(
 }
 
 /** Runs [transform] over every element on a fork of its own, keeping the raise of each element that raised. */
+fun <E, A, B> Raise<NonEmptyList<E>>.parMapOrAccumulate(iterable: Iterable<A>, transform: Raise<E>.(A) -> B): List<B> =
+    parMapOrAccumulate(VirtualThreads, iterable, transform)
+
+/** The same, with every fork run on [on]. */
 fun <E, A, B> Raise<NonEmptyList<E>>.parMapOrAccumulate(
+    on: Executor,
     iterable: Iterable<A>,
     transform: Raise<E>.(A) -> B,
 ): List<B> {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val forks = iterable.map { element -> flight.fork { transform(element) } }
     raiseAll(flight.settleEvery())
     return forks.map { it.await() }
@@ -351,8 +549,16 @@ fun <E, A, B> Raise<E>.parMapOrAccumulate(
     combine: (E, E) -> E,
     iterable: Iterable<A>,
     transform: Raise<E>.(A) -> B,
+): List<B> = parMapOrAccumulate(VirtualThreads, combine, iterable, transform)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B> Raise<E>.parMapOrAccumulate(
+    on: Executor,
+    combine: (E, E) -> E,
+    iterable: Iterable<A>,
+    transform: Raise<E>.(A) -> B,
 ): List<B> {
-    val flight = Flight<E>(Uncollected)
+    val flight = Flight<E>(Uncollected, on)
     val forks = iterable.map { element -> flight.fork { transform(element) } }
     raiseCombined(flight.settleEvery(), combine)
     return forks.map { it.await() }

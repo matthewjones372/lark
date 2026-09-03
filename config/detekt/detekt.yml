@@ -22,12 +22,17 @@ complexity:
     # is the shape, not an accident. Eleven because `parZipOrAccumulate` mirrors
     # arrow-fx-coroutines up to nine branches plus the function combining them,
     # with the fold over the errors ahead of all of them, and a drop-in that
-    # stops at the fifth branch is not one.
-    allowedFunctionParameters: 11
+    # stops at the fifth branch is not one. Twelve since the executor the forks
+    # run on sits ahead of all of them, where arrow-fx gives its context.
+    allowedFunctionParameters: 12
     allowedConstructorParameters: 8
     ignoreDefaultParameters: true
   TooManyFunctions:
-    allowedFunctionsPerFile: 19
+    # Nine arities of a combinator, each in a form that names the executor its
+    # forks run on and one that does not, is thirty-six functions in a file
+    # that holds one idea. Splitting them by arity or by executor would put
+    # `parZip` in four places.
+    allowedFunctionsPerFile: 40
     allowedFunctionsPerClass: 19
     # `Schedule` is arrow-fx's combinator vocabulary — and, or, andThen, zipLeft,
     # zipRight, map, collect, jittered — and a drop-in that offers half of it
