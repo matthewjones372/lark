@@ -1,5 +1,8 @@
 # 0001 — A stream that names its failure
 
+*Dipper's spec 0001, imported with the code it describes; the module it
+names is `lark-stream` here.*
+
 ## Problem
 
 A Kotlin service on Pekko Streams writes the `javadsl`: `japi.Pair`,
