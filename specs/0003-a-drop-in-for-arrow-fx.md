@@ -64,11 +64,11 @@ forks of one combinator, and a `Raise<E>` is all it ever needed from its owner.
 
 ## Stack
 
-- [ ] **`spec-0003-unpelican`** — `lark-pelican` removed; README reframed
+- [x] **`spec-0003-unpelican`** (`main`, 4413054) — `lark-pelican` removed; README reframed
       around the swap above; `main`'s spec 0002 last entry struck.
       Done when: `./gradlew build` is green with one module, and the README
       names no Pelican.
-- [ ] **`spec-0003-raise-par`** — `Raise<E>.parZip` (2–9), `parMap`, `raceN`,
+- [x] **`spec-0003-raise-par`** (`main`, 11b9929) — `Raise<E>.parZip` (2–9), `parMap`, `raceN`,
       and the top-level forms; `Flock<E>.` overloads become these.
       Done when: the dashboard above compiles inside a plain `either { }`,
       and `FlockTest`/`ParTest`/`RaceTest` pass unchanged.
