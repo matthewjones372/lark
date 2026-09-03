@@ -121,6 +121,36 @@ accepted, and so is a `type = PinnedDispatcher`, whose thread is handed to
 nothing else. Both the classic `ActorSystem` and the typed one are
 `ClassicActorSystemProvider`, so either takes the extension.
 
+A body forking there gets a `CompletionStage` back from everything Pekko has —
+an HTTP request, an `ask`, a stream run into a sink — and `await()` is how a
+fork waits for one:
+
+```kotlin
+import io.github.matthewjones372.lark.pekko.await
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.pattern.Patterns
+import java.time.Duration
+import java.util.concurrent.CompletionStage
+
+// `pricing.quote` is the application's own client, answering with a stage as Pekko's own APIs do
+fun quote(system: ActorSystem, id: Id): Quote {
+    val late: CompletionStage<Quote> = Patterns.after(Duration.ofMillis(50), system) { pricing.quote(id) }
+    return late.await()
+}
+```
+
+What parks is the fork that called it, and on a virtual thread that costs a
+carrier nothing. A stage that failed rethrows the cause it was completed with
+rather than the `CompletionException` or `ExecutionException` around it, so a
+body catches what it declared. An interrupt — a closing scope, a `raceN` loser,
+a `timeout` — cancels the stage with `cancel(true)` and rethrows the
+`InterruptedException`, so a value that arrives afterwards is dropped rather
+than answered to nobody. Pekko's Scala futures take `await()` too.
+
+What `await()` does not change is what a stage holds: a stream run into
+`Sink.seq` still buffers every element before completing, so awaiting one is
+waiting for the whole collection, not reading a stream.
+
 ## Every error, not the first one
 
 `parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion and
