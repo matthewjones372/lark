@@ -1,4 +1,5 @@
 public final class io/github/matthewjones372/lark/pelican/HandlersKt {
+	public static final fun handledRaising (Lio/github/matthewjones372/pelican/Endpoint;Ljava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/pelican/ServerEndpoint;
 	public static final fun handledRaising (Lio/github/matthewjones372/pelican/Endpoint;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/pelican/ServerEndpoint;
 }
 

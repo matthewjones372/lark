@@ -138,13 +138,27 @@ A bare `raise(error)` names no failure, which is what an endpoint declaring one
 means. On this endpoint it is refused where the response is written — a 500 and
 a report to `onError`, in the words bare `err(error)` is refused in.
 
+## An executor of your own
+
+`handledRaising(on = executor)` runs the body on a `java.util.concurrent.Executor`
+the caller owns — the pool a service already sizes against the resource it
+guards, or a direct one in a test — rather than on a virtual thread of its own:
+
+```kotlin
+getUser.handledRaising(on = jdbcPool) { id -> findUser(id).bind() }
+```
+
+Cancelling the stage the handler answered with interrupts the body, so it ends
+at its next interruptible call; a body that has already finished is left alone,
+and the cancelled stage stays cancelled.
+
 ## Status
 
-`handledRaising` is here: it binds an endpoint to a handler in `Raise`, one
-virtual thread per request, answering either the single declared failure or the
-one a declaration names. Choosing the executor is the rest of
-[`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md);
-forking — `async`/`await`, `parZip`, `parMap`, `raceN` — is
+`handledRaising` is here, which is the whole of
+[`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md): it
+binds an endpoint to a handler in `Raise`, on a virtual thread per request or on
+an executor you name, answering either the single declared failure or the one a
+declaration names. Forking — `async`/`await`, `parZip`, `parMap`, `raceN` — is
 [`specs/0002-a-handler-that-forks.md`](specs/0002-a-handler-that-forks.md).
 [`AGENTS.md`](AGENTS.md) says how work here proceeds.
 

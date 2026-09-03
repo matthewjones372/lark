@@ -6,7 +6,9 @@ import io.github.matthewjones372.pelican.Outcome
 import io.github.matthewjones372.pelican.Params
 import io.github.matthewjones372.pelican.ResponseHeader
 import io.github.matthewjones372.pelican.ok
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The scope one request's handler runs in: Arrow's [Raise] over the failure the
@@ -47,6 +49,7 @@ class Rising<E : Any> internal constructor(
 /**
  * Runs [body] on the calling thread and answers [stage] with what it did: a
  * return with `ok`, a raise with the failure it named, a throw exceptionally.
+ * A [stage] cancelled while the body runs interrupts it.
  *
  * The only `catch (t: Throwable)` in the module, and it catches everything
  * rather than what Arrow calls non-fatal: a throwable that escaped here would
@@ -58,10 +61,24 @@ internal fun <E : Any, T : Any> runRising(
     params: Params,
     body: Rising<E>.() -> T,
 ) {
+    // Interrupt is the only cancellation the JDK has, and an executor hands out
+    // no thread of its own, so the body publishes the one it was given. Taken
+    // rather than read, so a cancel and the body's own end cannot both act on
+    // it, and cleared at the end so a late cancel finds nothing to interrupt.
+    val running = AtomicReference<Thread?>(Thread.currentThread())
+    stage.whenComplete { _, failure ->
+        if (failure is CancellationException) running.getAndSet(null)?.interrupt()
+    }
+
     try {
         either<Outcome.Err<E>, T> { Rising(this, params).body() }
             .fold({ failure -> stage.complete(failure) }, { value -> stage.complete(ok(value)) })
     } catch (t: Throwable) {
         stage.completeExceptionally(t)
+    } finally {
+        running.set(null)
+        // An interrupt that arrived as the body was leaving is nobody's news
+        // now; left set, it would end the executor's next task instead.
+        Thread.interrupted()
     }
 }
