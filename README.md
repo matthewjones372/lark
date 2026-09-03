@@ -85,12 +85,65 @@ inside a `synchronized` block — which some JDBC drivers still make — pins it
 carrier thread instead of parking it, so a service on 21 can still run out of
 carriers; JEP 491 removes that pinning in 24.
 
+## Naming one of several failures
+
+The declaration is what fixes the status, so an endpoint declaring more than
+one failure needs the handler to name the one it means. A declaration is
+callable, and `raise` takes what it produces — with values for the headers that
+failure declares.
+
+```kotlin
+import io.github.matthewjones372.lark.pelican.handledRaising
+import io.github.matthewjones372.pelican.div
+import io.github.matthewjones372.pelican.endpoint
+import io.github.matthewjones372.pelican.errorJson
+import io.github.matthewjones372.pelican.of
+import io.github.matthewjones372.pelican.orFail
+import io.github.matthewjones372.pelican.pathParam
+import io.github.matthewjones372.pelican.responseHeader
+
+data class Order(val id: Long)
+
+sealed interface OrderError {
+    data class NoSuchOrder(val id: Long) : OrderError
+
+    data class OrderHidden(val id: Long) : OrderError
+}
+
+val orderId = pathParam<Long>("orderId")
+
+val retryAfter = responseHeader<Long>("Retry-After")
+
+val noSuchOrder = errorJson<OrderError.NoSuchOrder>(404, "No order with that id")
+
+val forbidden = errorJson<OrderError.OrderHidden>(403, "The order is not the caller's", retryAfter)
+
+// E widens to OrderError, the failures' common supertype, so a `when` over the
+// hierarchy in the handler is exhaustive.
+val getOrder = endpoint(orderId) {
+    get("orders" / orderId)
+    json<Order>().orFail(noSuchOrder, forbidden)
+}
+
+val orders = mapOf(1L to Order(1), 2L to Order(2))
+
+val route = getOrder handledRaising { id ->
+    val order = orders[id] ?: raise(noSuchOrder(OrderError.NoSuchOrder(id)))
+    if (id == 2L) raise(forbidden(OrderError.OrderHidden(id), retryAfter of 60L))
+    order
+}
+```
+
+A bare `raise(error)` names no failure, which is what an endpoint declaring one
+means. On this endpoint it is refused where the response is written — a 500 and
+a report to `onError`, in the words bare `err(error)` is refused in.
+
 ## Status
 
 `handledRaising` is here: it binds an endpoint to a handler in `Raise`, one
-virtual thread per request, with the single declared failure answered from a
-`raise`. Naming one of several declared failures and choosing the executor are
-the rest of [`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md);
+virtual thread per request, answering either the single declared failure or the
+one a declaration names. Choosing the executor is the rest of
+[`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md);
 forking — `async`/`await`, `parZip`, `parMap`, `raceN` — is
 [`specs/0002-a-handler-that-forks.md`](specs/0002-a-handler-that-forks.md).
 [`AGENTS.md`](AGENTS.md) says how work here proceeds.

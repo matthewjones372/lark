@@ -46,12 +46,17 @@ private fun findUser(id: Long): Either<Problem, User> =
     if (id == 1L) User(id).right() else Problem("no user $id").left()
 
 /**
- * One app for one test, through Pelican's typed client. The error hook is
- * empty because the throwing test throws on purpose, and the stack trace the
- * interpreter logs instead reads as a failure in the build output.
+ * One app for one test, through Pelican's typed client. [onFailure] takes what
+ * the interpreter treats as unexpected; it swallows by default because the
+ * throwing test throws on purpose, and the stack trace the interpreter logs
+ * instead reads as a failure in the build output.
  */
-private fun <T> served(vararg bound: ServerEndpoint, block: (ApiClient) -> T): T =
-    api(endpoints = bound.toList(), codecs = JacksonCodecs) { onError { _, _, _ -> } }
+internal fun <T> served(
+    vararg bound: ServerEndpoint,
+    onFailure: (Throwable) -> Unit = {},
+    block: (ApiClient) -> T,
+): T =
+    api(endpoints = bound.toList(), codecs = JacksonCodecs) { onError { _, _, failure -> onFailure(failure) } }
         .inMemory("lark-rising")
         .use(block)
 

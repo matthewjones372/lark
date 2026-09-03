@@ -13,6 +13,7 @@ public final class io/github/matthewjones372/lark/pelican/Rising : arrow/core/ra
 	public final fun getParams ()Lio/github/matthewjones372/pelican/Params;
 	public fun invoke (Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
 	public fun invoke (Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun raise (Lio/github/matthewjones372/pelican/Outcome;)Ljava/lang/Void;
 	public fun raise (Ljava/lang/Object;)Ljava/lang/Void;
 	public final fun setHeader (Lio/github/matthewjones372/pelican/ResponseHeader;Ljava/lang/Object;)V
 }

@@ -27,6 +27,19 @@ class Rising<E : Any> internal constructor(
      */
     override fun raise(r: E): Nothing = boundary.raise(Outcome.Err(null, r))
 
+    /**
+     * The failure a declaration names — `raise(forbidden(OrderHidden(id)))`.
+     * Calling the declaration is what fixes the status, which is what an
+     * endpoint declaring several failures needs from its handler.
+     */
+    fun raise(failure: Outcome<E, Nothing>): Nothing = when (failure) {
+        is Outcome.Err -> boundary.raise(failure)
+
+        // Unreachable, and the compiler agrees: a success here carries a value
+        // of type Nothing, which nothing can have produced.
+        is Outcome.Ok -> failure.value
+    }
+
     /** [Params.setHeader], so a declared response header needs no second receiver. */
     fun <T : Any> setHeader(header: ResponseHeader<T>, value: T) = params.setHeader(header, value)
 }
