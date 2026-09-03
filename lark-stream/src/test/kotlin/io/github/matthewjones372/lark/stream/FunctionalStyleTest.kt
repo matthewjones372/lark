@@ -17,7 +17,7 @@ import java.io.File
  *
  * Which sources it judges is not decided here: the build hands them over and
  * declares the same directories as inputs of the task that runs this test. See
- * `dipper-core/build.gradle.kts`.
+ * `lark-stream/build.gradle.kts`.
  */
 class FunctionalStyleTest {
 
@@ -31,13 +31,13 @@ class FunctionalStyleTest {
     /** Absent means the build's wiring is gone, which is the failure this test cannot survive. */
     private fun handedOver(name: String): String {
         val value = System.getProperty(name)
-        withClue("the build must pass -D$name; see dipper-core/build.gradle.kts") { value.shouldNotBeNull() }
+        withClue("the build must pass -D$name; see lark-stream/build.gradle.kts") { value.shouldNotBeNull() }
         return value!!
     }
 
-    private fun repoRoot(): File = File(handedOver("dipper.style.repoRoot"))
+    private fun repoRoot(): File = File(handedOver("lark.stream.repoRoot"))
 
-    private fun sourceRoots(): List<File> = handedOver("dipper.style.sources")
+    private fun sourceRoots(): List<File> = handedOver("lark.stream.sources")
         .split(File.pathSeparator)
         .filter { it.isNotBlank() }
         .map(::File)

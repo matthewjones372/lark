@@ -7,10 +7,10 @@ import org.junit.jupiter.api.Test
 import java.io.File
 
 /**
- * What this library is allowed to put on a consumer's classpath, stated as a
- * test: the Kotlin standard library, Pekko Streams with the Scala runtime and
- * the two libraries Pekko itself needs, and Arrow. No HTTP library, no JSON
- * library, no coroutines, no second functional stack.
+ * What lark-stream is allowed to put on a consumer's classpath, stated as a
+ * test: the Kotlin standard library, lark, Pekko Streams with the Scala
+ * runtime and the libraries Pekko itself needs, and Arrow. No HTTP library, no
+ * JSON library, no coroutines, no second functional stack.
  */
 class NoOtherDependenciesTest {
 
@@ -18,6 +18,8 @@ class NoOtherDependenciesTest {
         "kotlin-stdlib",
         "annotations-",
         "arrow-",
+        // The module this one is a stream over; Arrow arrives through it.
+        "lark",
         "pekko-",
         // What pekko-stream brings with it: the Scala runtime it is written
         // in, Typesafe Config, the Reactive Streams interfaces its operators
@@ -31,9 +33,9 @@ class NoOtherDependenciesTest {
     )
 
     @Test
-    fun `the main runtime classpath is pekko-stream and arrow, and nothing else`() {
-        val raw = System.getProperty("dipper.core.runtimeClasspath")
-        withClue("the build must pass -Ddipper.core.runtimeClasspath; see dipper-core/build.gradle.kts") {
+    fun `the main runtime classpath is lark, pekko-stream and arrow, and nothing else`() {
+        val raw = System.getProperty("lark.stream.runtimeClasspath")
+        withClue("the build must pass -Dlark.stream.runtimeClasspath; see lark-stream/build.gradle.kts") {
             raw.shouldNotBeNull()
         }
 
@@ -41,7 +43,7 @@ class NoOtherDependenciesTest {
             .filter { it.isNotBlank() }
             .filterNot { entry -> allowed.any { entry.startsWith(it) } }
 
-        withClue("dipper-core must stay pekko-stream plus arrow, but found: $unexpected") {
+        withClue("lark-stream must stay pekko-stream, lark and arrow, but found: $unexpected") {
             unexpected.shouldBeEmpty()
         }
     }

@@ -1,16 +1,17 @@
+// A stream that names its failure: Pekko Streams, lark, and the Arrow that
+// arrives with it. NoOtherDependenciesTest asserts exactly that, on the
+// classpath a consumer actually gets.
+
+// Pekko publishes one artifact per Scala binary version, so the two spellings
+// are a single coordinate and live beside each other rather than in
+// gradle.properties, which no other module reads.
 val pekkoVersion = "1.2.1"
 val scalaBinary = "2.13"
 
-// The whole library: the Kotlin standard library, pekko-stream and arrow-core.
-// NoOtherDependenciesTest asserts exactly that, on the classpath a consumer
-// actually gets. Arrow is `api` here and unused so far — the split operators
-// the next spec entry adds are written in `Either`, and a module that grew a
-// dependency between two releases is a worse surprise than one that declared
-// it up front.
 dependencies {
+    api(project(":lark"))
     api(platform("org.apache.pekko:pekko-bom_$scalaBinary:$pekkoVersion"))
     api("org.apache.pekko:pekko-stream_$scalaBinary")
-    api("io.arrow-kt:arrow-core:2.1.2")
 
     // The actor system a contract test runs on, owned by a JUnit 5 extension.
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary")
@@ -26,7 +27,7 @@ dependencies {
 // execution time would not survive the configuration cache.
 val repoRoot = rootProject.projectDir.absolutePath
 val judgedSources = files(layout.projectDirectory.dir("src/main/kotlin"))
-val readme = files(rootProject.layout.projectDirectory.file("README.md"))
+val streamDoc = files(rootProject.layout.projectDirectory.file("docs/stream.md"))
 
 tasks.test {
     // The main runtime classpath, so the dependency test can assert on what is
@@ -38,17 +39,21 @@ tasks.test {
     // read files Gradle knows nothing about, and a violation would ride green
     // builds until `--rerun-tasks`.
     inputs.files(judgedSources).withPropertyName("judgedSources")
-    // ReadmeExampleTest compiles the example out of the README, so an edit to
-    // it is a change to what this task tests: without this the example would
+    // ReadmeExampleTest compiles the example out of docs/stream.md, so an edit
+    // to it is a change to what this task tests: without this the example would
     // ride a cached green until something else in the module moved.
-    inputs.files(readme).withPropertyName("readme")
+    inputs.files(streamDoc).withPropertyName("streamDoc")
+    // DoesNotCompileTest runs the Kotlin compiler inside the test JVM. Gradle's
+    // default heap turns that into a garbage-collection stall long enough to
+    // trip the suite's 60s timeout.
+    maxHeapSize = "2g"
     jvmArgumentProviders.add(
         CommandLineArgumentProvider {
             listOf(
-                "-Ddipper.core.runtimeClasspath=" +
+                "-Dlark.stream.runtimeClasspath=" +
                     mainRuntime.get().joinToString(File.pathSeparator) { it.name },
-                "-Ddipper.style.repoRoot=$repoRoot",
-                "-Ddipper.style.sources=" +
+                "-Dlark.stream.repoRoot=$repoRoot",
+                "-Dlark.stream.sources=" +
                     judgedSources.joinToString(File.pathSeparator) { it.absolutePath },
             )
         },

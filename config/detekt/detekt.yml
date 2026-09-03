@@ -64,7 +64,9 @@ exceptions:
 naming:
   MatchingDeclarationName:
     # See .editorconfig: ResponseHeaders.kt holds ResponseHeader and the
-    # declarations that belong with it, which is the name a reader wants.
+    # declarations that belong with it, which is the name a reader wants. The
+    # same in lark-stream, where Stream.kt holds Stream and the operators that
+    # belong with it.
     active: false
   FunctionNaming:
     # Test names are sentences in backticks.
