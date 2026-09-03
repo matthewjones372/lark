@@ -160,14 +160,6 @@ functional stack. `NoOtherDependenciesTest` asserts exactly that list against
 the module's real runtime classpath, so a dependency added here is a build
 failure rather than a judgement call.
 
-## Pelican
-
-The bridge for a [Pelican](https://github.com/matthewjones372/pelican) streaming
-endpoint is a Pelican spec still to be written, and lives there, because nothing
-in it is HTTP and nothing in this module is either.
-`Stream<Nothing, T>.toSource()` already fits `streamedNow`, so what that spec
-adds is the conversion in the other direction and no operators at all.
-
 ## Working on it
 
 ```bash

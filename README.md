@@ -281,9 +281,6 @@ stayed, and all of
 
 - [Kestrel](https://github.com/matthewjones372/kestrel) — load simulations on
   virtual threads.
-- `pelican-lark` — the binder that runs a
-  [Pelican](https://github.com/matthewjones372/pelican) handler in `Raise` on a
-  virtual thread, in that repository rather than this one.
 - [Dipper](https://github.com/matthewjones372/dipper) — a stream that names its
   failure, over Pekko Streams. It is the `lark-stream` module here now, brought
   in with its history.
