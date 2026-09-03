@@ -6,7 +6,4 @@ plugins {
 }
 
 rootProject.name = "lark"
-include(
-    "lark",
-    "lark-pelican",
-)
+include("lark")

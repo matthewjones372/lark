@@ -75,9 +75,7 @@ interruptible blocking call, and a scope closes only when its forks have.
 - [x] **`spec-0002-race`** (`main`, 1fe019e) — `raceN`; the losers interrupted.
       Done when: the winner's value is the result and the losers are
       interrupted before they finish.
-- [ ] **`spec-0002-rising`** — `Rising<E> : Flock<E>` in `lark-pelican`.
-      Done when: the dashboard handler above answers through
-      `api.inMemory()`, and a raise in a fork answers the declared status.
+- [ ] ~~**`spec-0002-rising`**~~ — moved to Pelican (`pelican-lark`), by spec 0003.
 
 ## Acceptance
 

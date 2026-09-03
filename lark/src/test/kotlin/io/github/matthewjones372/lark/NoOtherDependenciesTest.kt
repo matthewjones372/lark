@@ -9,7 +9,7 @@ import java.io.File
 /**
  * What this module is allowed to put on a consumer's classpath, stated as a
  * test — the claim `AGENTS.md` makes for it: Arrow and the JDK, and nothing
- * else. No Pelican, no JSON library, no HTTP library, no coroutines.
+ * else. No JSON library, no HTTP library, no coroutines.
  */
 class NoOtherDependenciesTest {
 

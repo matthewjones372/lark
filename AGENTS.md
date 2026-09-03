@@ -135,15 +135,12 @@ that grows an import grows a line in its block.
 
 ## Layout
 
-Lark is a leaf module beside [Pelican](https://github.com/matthewjones372/pelican).
-`lark` depends on `pelican-arrow` — which is `pelican-core` plus `arrow-core`
-— and on the JDK, and on nothing else. No HTTP library, no JSON library, no
-coroutines. Virtual threads come from `java.lang.Thread`.
+`lark` depends on `arrow-core` and on the JDK, and on nothing else. No HTTP
+library, no JSON library, no coroutines. Virtual threads come from
+`java.lang.Thread`.
 
 That claim is a test. `NoOtherDependenciesTest` asserts the main runtime
-classpath, the way every Pelican leaf module asserts its own. Pekko and Jackson
-appear on the *test* classpath only, so that the contract tests can run an
-`Api` in memory through Pelican's typed test client.
+classpath.
 
 A dependency added to `lark` is a build failure, not a judgement call.
 
@@ -193,8 +190,6 @@ where a bare boolean would not explain itself.
 
 Work out which of these a change can break:
 
-- **Contract tests** through the typed client — `api.inMemory().use { it.call(getUser, 1L) }`
-  from `pelican-test-pekko`. No path strings, no hand-written JSON.
 - **Thread claims.** A test that says the body ran on a virtual thread reads
   `Thread.currentThread().isVirtual` inside the body and asserts on it
   afterwards; it does not count threads or time sleeps.
