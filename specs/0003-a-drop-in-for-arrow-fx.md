@@ -4,17 +4,18 @@
 
 An Arrow codebase on coroutines writes `either { parZip(…) }` and imports
 `arrow.fx.coroutines`. Lark asks that code to wrap itself in `flock { }` and
-to take a `Flock<E>` receiver, and its README leads with a Pelican binder. So
-it is a library with an idea in it rather than a drop-in: a service that wants
-Arrow on virtual threads has to learn a scope and pull in Pelican's shape of
-the world. The maintainer's direction (chat, 2026-09-03): lark is what you
-reach for *when using Arrow*, and nothing in it should be tied to Pelican.
+to take a `Flock<E>` receiver, and its README leads with a request-handler
+binder for a web framework. So it is a library with an idea in it rather than
+a drop-in: a service that wants Arrow on virtual threads has to learn a scope
+and take on a framework's shape of the world. The maintainer's direction
+(chat, 2026-09-03): lark is what you reach for *when using Arrow*, and nothing
+in it is tied to any framework.
 
 ## Not doing
 
-- **Nothing of Pelican in this repository.** `lark-pelican` leaves; if the
-  binder is wanted it is `pelican-lark` in Pelican's repo, depending on lark —
-  the specific depending on the general, never the reverse.
+- **No framework binding in this repository.** The handler binder built
+  under specs 0001–0002 leaves. A framework that wants one depends on lark —
+  the specific on the general, never the reverse.
 - **No coroutine interop.** Nothing `suspend`, no `Flow`, no dispatcher. A
   codebase adopting lark drops `suspend` on the way in.
 - **No `Atomic`, `CountDownLatch`, `CyclicBarrier`.** The JDK has them.
@@ -64,10 +65,10 @@ forks of one combinator, and a `Raise<E>` is all it ever needed from its owner.
 
 ## Stack
 
-- [x] **`spec-0003-unpelican`** (`main`, 4413054) — `lark-pelican` removed; README reframed
+- [x] **`spec-0003-one-module`** (`main`, 4413054) — the binder module removed; README reframed
       around the swap above; `main`'s spec 0002 last entry struck.
       Done when: `./gradlew build` is green with one module, and the README
-      names no Pelican.
+      names no framework.
 - [x] **`spec-0003-raise-par`** (`main`, 11b9929) — `Raise<E>.parZip` (2–9), `parMap`, `raceN`,
       and the top-level forms; `Flock<E>.` overloads become these.
       Done when: the dashboard above compiles inside a plain `either { }`,
@@ -88,9 +89,8 @@ forks of one combinator, and a `Raise<E>` is all it ever needed from its owner.
 
 ## Open questions
 
-1. **`lark-pelican`: delete here and re-home as `pelican-lark`, or keep as an
-   optional module?** Recommended: delete here. Its two commits stay in
-   history and Pelican already has `pelican-arrow` as the pattern.
+1. **The binder module: delete here, or keep as an optional module?**
+   Recommended: delete here. Its commits stay in history.
 2. **Arity 9 or stop at 4?** Recommended: 9. A drop-in that fails to compile
    on the fifth branch is not one.
 3. **`Resource<A>` the type, or `resourceScope` only?** Recommended: both, as

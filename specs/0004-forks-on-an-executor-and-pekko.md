@@ -9,9 +9,8 @@ there should be on threads that config owns, not on unnamed ones beside them.
 The same body, calling Pekko, gets a `CompletionStage` back from everything
 (the HTTP client, a `Source` run to a `Sink`, an `ask`) and joins it by hand,
 unwrapping `CompletionException` and leaking the stage when the request is
-cancelled. Spec 0003 named the first as `on:` and left it; Pelican's spec 0038
-drafted the second in `pelican-lark`, which is the wrong home — it needs
-Pekko, not Pelican.
+cancelled. Spec 0003 named the first as `on:` and left it; the second has no
+home yet, and it needs Pekko and nothing else.
 
 ## Not doing
 
@@ -20,7 +19,7 @@ Pekko, not Pelican.
   `raise`/`bind` in a branch and without "drop the `suspend`". Pekko 1.1's
   virtual-thread executor makes "on Pekko" mean "virtual threads Pekko's
   config owns", and that is what this spec delivers.
-- **Nothing of Pelican.** `pelican-lark` will depend on `lark-pekko`.
+- **No framework binding.** `lark-pekko` is Pekko and lark, nothing else.
 - **No Streams combinators.** `Source.parMap` has backpressure and partial
   results in it; its own spec if a pipeline asks.
 - **No `default-dispatcher`.** A blocking body on a fork-join pool is the
@@ -75,8 +74,8 @@ would have to be re-established on every fork — one more thing to get wrong,
 for the benefit of not typing `on =`. A leaf module rather than a second
 implementation, because the virtual-thread code is a dozen lines and the
 combinators are not; the executor is the only thing Pekko needs to supply.
-The `await()` bridge moves here from Pelican's 0038 because it depends on
-Pekko alone and a Pekko application without Pelican wants it too.
+The `await()` bridge lives here because it depends on Pekko alone, and any
+Pekko application wants it.
 
 ## Stack
 
@@ -94,9 +93,6 @@ Pekko alone and a Pekko application without Pelican wants it too.
       Done when: a handler awaiting a never-completing stage, interrupted,
       cancels that stage; and a stage failing with `X` reaches the body as
       `X`.
-
-Pelican follows: spec 0038 becomes "depend on `lark-pekko`", and
-`handledRaising(on = system.larkDispatcher())` is its example.
 
 ## Acceptance
 

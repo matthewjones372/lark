@@ -15,7 +15,7 @@ that is a version dance; in one it is a spec. The maintainer decided (chat,
 
 - **No behaviour change.** This spec moves code; spec 0006 changes it. Every
   dipper test passes in its new home unedited but for the package line.
-- **No Pelican.** Pelican's streaming bridge is Pelican's spec, later.
+- **No HTTP.** A bridge to a web framework is that framework's concern.
 - **No renaming of the API.** `Stream`, `Exit`, `Run`, `mapOrFail`,
   `divertLefts` keep their names; only the package and the artifact move.
 
@@ -30,7 +30,7 @@ lark-stream/     + pekko-stream         (dipper-core)         io.github.matthewj
 - `git subtree add --prefix=lark-stream` of dipper's `main`, so its history
   arrives with it; then `dipper-core/` becomes the module root, its own
   wrapper, root build, `config/`, `AGENTS.md`, `CLAUDE.md`, `LICENSE` go
-  (they are Pelican's, as lark's are), and the package is renamed.
+  (lark's root carries the same), and the package is renamed.
 - `lark-stream/build.gradle.kts`: the Pekko BOM and `pekko-stream` as dipper
   declares them, `api(project(":lark"))`, and the classpath test with dipper's
   own allow-list plus `lark`.
@@ -41,7 +41,7 @@ lark-stream/     + pekko-stream         (dipper-core)         io.github.matthewj
 ## Why this shape
 
 One build, one spec sequence, one release train, and a classpath test per
-module so a `lark` user never sees Pekko — the discipline Pelican's modules
+module so a `lark` user never sees Pekko — the discipline the family's builds
 already run on. Subtree rather than a fresh copy because the commits are the
 record of why the code looks as it does, which is what the spec process says
 source comments do not have to be.

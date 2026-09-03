@@ -18,8 +18,7 @@ coroutines and arrow, but with virtual threads".
 - **No `Resource`, no `Schedule`, no timeouts.** Each is its own spec.
 - **No forking across a `Raise` boundary.** A fork opens its own; only values
   cross back.
-- **Nothing Pelican in `lark`.** The scope lives in `lark`; `lark-pelican`
-  only makes the handler scope one.
+- **One module.** The scope lives in `lark`.
 
 ## Shape
 
@@ -75,7 +74,7 @@ interruptible blocking call, and a scope closes only when its forks have.
 - [x] **`spec-0002-race`** (`main`, 1fe019e) — `raceN`; the losers interrupted.
       Done when: the winner's value is the result and the losers are
       interrupted before they finish.
-- [ ] ~~**`spec-0002-rising`**~~ — moved to Pelican (`pelican-lark`), by spec 0003.
+- [ ] ~~**`spec-0002-rising`**~~ — withdrawn by spec 0003: the scope is a `Raise`, and nothing outside lark binds it.
 
 ## Acceptance
 
@@ -92,5 +91,5 @@ None — decided by the maintainer in chat, 2026-09-03:
    says which JDBC calls honour interrupt.
 2. **Exceptions in a fork** re-throw at `await()` as the same instance, no
    wrapping; the interpreter answers as spec 0001 says.
-3. **Two modules.** `lark` (arrow-core and the JDK) holds `Flock`;
-   `lark-pelican` holds `Rising` and the binder. Each asserts its classpath.
+3. **One module.** `lark` (arrow-core and the JDK) holds `Flock`, and asserts
+   its classpath.

@@ -27,12 +27,12 @@ production this way and left no evidence of where.
   written as `divertLefts(to = sink)`, with the sink named.
 - **No coroutines.** `run` answers a `CompletionStage`; a `Flow` bridge waits
   for a use to demand it.
-- **No HTTP.** The Pelican bridge is Pelican's spec 0037, in Pelican.
+- **No HTTP.** A bridge to a web framework is that framework's concern.
 
 ## Shape
 
 One module: the Kotlin standard library, `pekko-stream` and `arrow-core`,
-asserted by a classpath test in the Pelican and Kestrel manner.
+asserted by a classpath test in the Kestrel manner.
 
 ```kotlin
 val settled: CompletionStage<Exit<IngestError, Int>> =
@@ -92,7 +92,7 @@ no other.
 ## Open questions
 
 1. **The name.** A dipper is the bird that walks the bed of fast streams.
-   Recommend `dipper`, beside `kestrel` and `pelican`.
+   Recommend `dipper`, beside `kestrel`.
 2. **`arrow-core` in the one module, or a stdlib-only core with an `arrow`
    leaf?** Recommend the one module: the split operators are the library's
    reason to exist, and every one of them is written in `Either`.
@@ -100,6 +100,6 @@ no other.
    Recommend keeping it; `Flow` collides with two libraries.
 4. **`Died` or a failed stage for defects?** Recommend `Died`: the swallowed
    null is the case for a defect being a value the caller must match.
-5. **Which of Pelican's build gates come across?** Recommend detekt, spotless,
+5. **Which of the family's build gates come across?** Recommend detekt, spotless,
    Kover and the classpath test, with `AGENTS.md` and `specs/README.md`
    copied as they are.

@@ -59,7 +59,7 @@ meet, and it is three lines.
       `raise` fails the stream with its `E`, and order is preserved.
 - [ ] **`spec-0006-exit`** — `awaitExit`.
       Done when: each `Exit` case reaches a `handledRaising` body the way the
-      shape says, through `pelican-lark`'s contract tests or an in-repo one.
+      shape says, through an in-repo test.
 
 ## Acceptance
 
