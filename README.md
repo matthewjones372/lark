@@ -100,6 +100,47 @@ answer in branch order, and in the iterable's order, whichever branch raised
 first. A throw is not accumulated: it ends the other branches as `parZip`'s
 does, and the same instance is rethrown.
 
+## Things that have to be given back
+
+`resourceScope { }` runs a block with resources acquired in it, and releases
+them in reverse acquisition order on the way out — by return, raise, throw or
+interrupt. `install` names the pair, and the release is told which of those
+happened:
+
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.ExitCase
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.lark.resourceScope
+import io.github.matthewjones372.lark.use
+
+val connection: Resource<Connection> = resource {
+    install({ pool.take() }) { held, exit ->
+        if (exit is ExitCase.Failure) held.rollback() else held.commit()
+        held.close()
+    }
+}
+
+fun report(id: Id): Either<Err, Report> = either {
+    resourceScope {
+        val db = connection.bind()          // its release joins this scope's
+        val file = install({ open(path) }) { it, _ -> it.close() }
+        render(db.rows(id).bind(), file)    // a raise here releases both, in reverse
+    }
+}
+
+fun rows(id: Id): List<Row> = connection use { it.rows(id) }
+```
+
+`ExitCase.Cancelled` carries the `InterruptedException`, because interrupt is
+the only cancellation the JDK has. A raise gets `ExitCase.Completed`: it is not
+an interrupt, and the `either` it leaves through answers its caller with a
+value, so nothing about the scope failed. A release that throws when nothing
+else had is the failure the caller sees, and one that throws after a failure is
+suppressed onto it; either way the releases after it still run.
+
 Virtual threads are why the floor is JDK 21. Before JDK 24 a blocking call
 inside a `synchronized` block — which some JDBC drivers still make — pins its
 carrier thread instead of parking it, so a service on 21 can still run out of
@@ -108,12 +149,12 @@ carriers; JEP 491 removes that pinning in 24.
 ## Status
 
 `flock { }`, `async`/`await`, `parZip`, `parMap` and `raceN` on `Raise`, and
-`parZipOrAccumulate`/`parMapOrAccumulate` are here — all of
+`parZipOrAccumulate`/`parMapOrAccumulate` and `resourceScope` are here — all of
 [`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md) and
 [`specs/0002-a-handler-that-forks.md`](specs/0002-a-handler-that-forks.md) that
-stayed, and the first three entries of
+stayed, and the first four entries of
 [`specs/0003-a-drop-in-for-arrow-fx.md`](specs/0003-a-drop-in-for-arrow-fx.md).
-`resourceScope` and `Schedule` are the rest of it.
+`Schedule` and `timeout` are the rest of it.
 [`AGENTS.md`](AGENTS.md) says how work here proceeds.
 
 ## Family

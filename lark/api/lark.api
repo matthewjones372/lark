@@ -23,6 +23,38 @@ public abstract interface class io/github/matthewjones372/lark/Deferred {
 	public abstract fun await ()Ljava/lang/Object;
 }
 
+public abstract class io/github/matthewjones372/lark/ExitCase {
+}
+
+public final class io/github/matthewjones372/lark/ExitCase$Cancelled : io/github/matthewjones372/lark/ExitCase {
+	public fun <init> (Ljava/lang/InterruptedException;)V
+	public final fun component1 ()Ljava/lang/InterruptedException;
+	public final fun copy (Ljava/lang/InterruptedException;)Lio/github/matthewjones372/lark/ExitCase$Cancelled;
+	public static synthetic fun copy$default (Lio/github/matthewjones372/lark/ExitCase$Cancelled;Ljava/lang/InterruptedException;ILjava/lang/Object;)Lio/github/matthewjones372/lark/ExitCase$Cancelled;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getInterrupt ()Ljava/lang/InterruptedException;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/matthewjones372/lark/ExitCase$Completed : io/github/matthewjones372/lark/ExitCase {
+	public static final field INSTANCE Lio/github/matthewjones372/lark/ExitCase$Completed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/matthewjones372/lark/ExitCase$Failure : io/github/matthewjones372/lark/ExitCase {
+	public fun <init> (Ljava/lang/Throwable;)V
+	public final fun component1 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/Throwable;)Lio/github/matthewjones372/lark/ExitCase$Failure;
+	public static synthetic fun copy$default (Lio/github/matthewjones372/lark/ExitCase$Failure;Ljava/lang/Throwable;ILjava/lang/Object;)Lio/github/matthewjones372/lark/ExitCase$Failure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFailure ()Ljava/lang/Throwable;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class io/github/matthewjones372/lark/Flock : arrow/core/raise/Raise {
 	public abstract fun async (Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/Deferred;
 }
@@ -70,5 +102,17 @@ public final class io/github/matthewjones372/lark/RaceKt {
 	public static final fun raceN (Larrow/core/raise/Raise;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Larrow/core/Either;
 	public static final fun raceN (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)Larrow/core/Either;
 	public static final fun raceN (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)Larrow/core/Either;
+}
+
+public final class io/github/matthewjones372/lark/ResourceKt {
+	public static final fun resource (Lkotlin/jvm/functions/Function1;)Lkotlin/jvm/functions/Function1;
+	public static final fun resourceScope (Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+	public static final fun use (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+}
+
+public abstract interface class io/github/matthewjones372/lark/ResourceScope {
+	public fun bind (Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+	public fun install (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;)Ljava/lang/Object;
+	public abstract fun onRelease (Lkotlin/jvm/functions/Function1;)V
 }
 

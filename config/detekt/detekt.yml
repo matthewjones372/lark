@@ -49,7 +49,9 @@ exceptions:
     # The one function that completes the stage from the virtual thread catches
     # Throwable on purpose: an undeclared failure has to reach the interpreter
     # as an exceptionally-completed stage rather than killing the thread.
-    excludes: ['**/Flock.kt']
+    # Resource.kt is the other: a release that throws must not strand the
+    # releases after it, so its throw is caught and suppressed onto the failure.
+    excludes: ['**/Flock.kt', '**/Resource.kt']
   SwallowedException:
     excludes: ['**/test/**']
 
