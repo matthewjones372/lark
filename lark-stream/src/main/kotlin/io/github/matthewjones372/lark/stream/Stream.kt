@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
+import arrow.core.raise.Raise
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Source
 
@@ -34,10 +35,18 @@ internal class DeclaredFailure(val error: Any?) : RuntimeException(null, null, f
 @Suppress("UNCHECKED_CAST")
 internal fun <E> DeclaredFailure.declared(): E = error as E
 
-/** The scope `mapOrFail` runs in: `fail` returns Nothing, so it sits after an Elvis. */
-class Failing<in E> internal constructor() {
+/**
+ * The scope `mapOrFail` runs in: a `Raise<E>`, so `bind`, `ensure` and lark's
+ * own combinators are in reach of an element body, and `fail` returns Nothing,
+ * so it sits after an Elvis.
+ */
+class Failing<in E> internal constructor() : Raise<E> {
 
-    fun fail(error: E): Nothing = throw DeclaredFailure(error)
+    /** The failure travels as it always has: the wrapper only `run` unwraps. */
+    override fun raise(r: E): Nothing = throw DeclaredFailure(r)
+
+    /** The name dipper gave [raise], kept so every caller written against it still reads. */
+    fun fail(error: E): Nothing = raise(error)
 }
 
 fun <A : Any> Stream.Companion.from(source: Source<A, NotUsed>): Stream<Nothing, A> = Stream(source)

@@ -122,7 +122,7 @@ rather than persuade.
 | `Stream.empty(): Stream<Nothing, Nothing>` | no elements and no failure |
 | **Element by element** | |
 | `Stream<E, A>.map(f: (A) -> B): Stream<E, B>` | `B` is bound to `Any`, so a nullable body does not compile |
-| `Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B>` | as `map`, and the body may answer `fail(e)` |
+| `Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B>` | as `map`, with the body in a `Raise<E>`: `fail(e)`, `raise`, `bind` and `ensure` |
 | `Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A>` | the elements that match, the only place one is dropped on purpose |
 | `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | up to `parallelism` stages at once, in the input's order; a `null` completion dies |
 | **The split in `Either`** | |
@@ -149,6 +149,12 @@ Pekko gives. Every other throwable is something nobody declared and arrives as
 and `Died(cause)` are three cases of one value, and the `when` over them has no
 `else`. There is no supervision strategy and no `resume`, so an element leaves
 a pipeline through a named sink or not at all.
+
+`Failing<E>` is an Arrow `Raise<E>`, so `raise(e)` is that same call under
+lark's name for it and a `bind()` on a `Left` ends the stream with what the
+`Left` holds. Everything a lark handler writes — `ensure`, `parZip`, a fork
+awaited — an element body can write too, and the failure it names is the one
+the stream already declares.
 
 ## What is in the box
 

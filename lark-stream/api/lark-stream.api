@@ -34,8 +34,18 @@ public final class io/github/matthewjones372/lark/stream/Exit$Failed : io/github
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/matthewjones372/lark/stream/Failing {
+public final class io/github/matthewjones372/lark/stream/Failing : arrow/core/raise/Raise {
+	public fun bind (Larrow/core/Either;)Ljava/lang/Object;
+	public fun bind (Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+	public fun bind (Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun bindAll (Ljava/lang/Iterable;)Ljava/util/List;
+	public fun bindAll (Ljava/util/Map;)Ljava/util/Map;
+	public fun bindAll-1TN0_VU (Ljava/util/Set;)Ljava/util/Set;
+	public fun bindAll-vcjLgH4 (Ljava/util/List;)Ljava/util/List;
 	public final fun fail (Ljava/lang/Object;)Ljava/lang/Void;
+	public fun invoke (Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+	public fun invoke (Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun raise (Ljava/lang/Object;)Ljava/lang/Void;
 }
 
 public final class io/github/matthewjones372/lark/stream/OperatorsKt {
