@@ -64,18 +64,18 @@ parameters because it needs nothing past what `pelican-arrow` compiles against.
 
 ## Stack
 
-- [ ] **`spec-0001-scaffold`** — Gradle build, the `lark` module on
+- [x] **`spec-0001-scaffold`** ([#1](https://github.com/matthewjones372/lark/pull/1)) — Gradle build, the `lark` module on
       `pelican-arrow`, `NoOtherDependenciesTest`, README.
       Done when: `./gradlew build` is green and the classpath test lists core,
       arrow and nothing else.
-- [ ] **`spec-0001-rising`** — `Rising<E>`, `handledRaising`, the single
+- [x] **`spec-0001-rising`** ([#2](https://github.com/matthewjones372/lark/pull/2)) — `Rising<E>`, `handledRaising`, the single
       declared failure, one virtual thread per request.
       Done when: `app.call(getUser, 1L)` answers the declared 404 from a
       `raise`, and a test sees `Thread.currentThread().isVirtual` in the body.
-- [ ] **`spec-0001-naming`** — `raise(declared(error))` with several failures.
+- [x] **`spec-0001-naming`** ([#4](https://github.com/matthewjones372/lark/pull/4)) — `raise(declared(error))` with several failures.
       Done when: each declared status is answered, and a bare raise on a
       two-failure endpoint is refused with bare `err`'s message.
-- [ ] **`spec-0001-executor`** — `on: Executor`; a cancelled stage interrupts
+- [x] **`spec-0001-executor`** ([#5](https://github.com/matthewjones372/lark/pull/5)) — `on: Executor`; a cancelled stage interrupts
       the thread.
       Done when: a handler on a supplied executor runs there, and a cancelled
       stage ends its thread at the body's next blocking call.

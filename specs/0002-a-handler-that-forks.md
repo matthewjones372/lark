@@ -64,7 +64,7 @@ interruptible blocking call, and a scope closes only when its forks have.
 
 ## Stack
 
-- [ ] **`spec-0002-flock`** — `Flock<E>`, `flock { }`, `async`/`await`,
+- [x] **`spec-0002-flock`** ([#3](https://github.com/matthewjones372/lark/pull/3)) — `Flock<E>`, `flock { }`, `async`/`await`,
       scope close joins and interrupts.
       Done when: a raise in a fork surfaces at `await()` as the block's `Left`,
       and after the block returns no forked thread is alive.
