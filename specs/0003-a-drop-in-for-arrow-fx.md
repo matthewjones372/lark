@@ -72,11 +72,11 @@ forks of one combinator, and a `Raise<E>` is all it ever needed from its owner.
       and the top-level forms; `Flock<E>.` overloads become these.
       Done when: the dashboard above compiles inside a plain `either { }`,
       and `FlockTest`/`ParTest`/`RaceTest` pass unchanged.
-- [ ] **`spec-0003-accumulate`** — `parZipOrAccumulate`, `parMapOrAccumulate`.
+- [x] **`spec-0003-accumulate`** (`main`, a13c508) — `parZipOrAccumulate`, `parMapOrAccumulate`.
       Done when: two raising branches answer a `NonEmptyList` of both.
-- [ ] **`spec-0003-resource`** — `resourceScope`, `install`, `Resource`.
+- [x] **`spec-0003-resource`** (`main`, 24b5ddc) — `resourceScope`, `install`, `Resource`.
       Done when: releases run in reverse on return, raise and throw.
-- [ ] **`spec-0003-schedule`** — `Schedule.retry`/`repeat`, `timeout`.
+- [x] **`spec-0003-schedule`** (`main`, 913a451) — `Schedule.retry`/`repeat`, `timeout`.
       Done when: a retried raise stops after the schedule's last step, and a
       `timeout` interrupts the loser.
 
@@ -98,3 +98,9 @@ forks of one combinator, and a `Raise<E>` is all it ever needed from its owner.
 4. **Should `Flock` keep its name once `Raise` is the front door?**
    Recommended: yes; it is the scope for `async`/`await` only, and renaming it
    buys nothing.
+
+Decided while building (2026-09-03), where arrow-fx and the JDK disagree:
+a `raise` leaving a `resourceScope` is `ExitCase.Completed`, since `Cancelled`
+here names an interrupt; `Decision.delayed` carries its transform into the
+continuation so `jittered` jitters every delay, which arrow's does not; and
+the arrow names win over the draft's (`Raise<E>.retry` / `retryRaise`).
