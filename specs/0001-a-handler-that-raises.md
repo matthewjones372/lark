@@ -12,11 +12,11 @@ service written in `Raise` whose ports block.
 
 ## Not doing
 
-- **Nothing in `pelican-core`.** Lark is its own repository and a leaf module:
-  `pelican-arrow` plus the JDK.
+- **Nothing in `pelican-core`.** Lark is its own repository; the binder is the
+  `lark-pelican` module, `lark` plus `pelican-arrow` plus the JDK.
 - **No coroutines.** The body runs on a virtual thread and blocks.
-- **No fork/join** — no `parZip`, `Resource`, `Schedule`. A second spec, once
-  a handler needs to fork.
+- **No fork/join** — no `parZip`, `Resource`, `Schedule`. Spec 0002 does the
+  forking; `Rising<E>` is designed to become its scope.
 - **No streams, no several-successes.** `streamedOrFail` and `handledOneOf`
   stay; a lark answers with one success or one declared failure.
 - **No client side.** `Outcome.toEither()` already exists.

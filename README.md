@@ -15,8 +15,8 @@ JDK, and nothing else — no coroutines, no second effect system.
 
 ## Status
 
-A spec, not yet a library. [`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md)
-says what will be true when it is one; [`AGENTS.md`](AGENTS.md) says how work
+The build is here and the binder is on its way. [`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md)
+says what will be true when it lands; [`AGENTS.md`](AGENTS.md) says how work
 here proceeds.
 
 ## Family
