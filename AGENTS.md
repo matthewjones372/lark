@@ -135,14 +135,16 @@ that grows an import grows a line in its block.
 
 ## Layout
 
-Two modules. `lark` depends on `arrow-core` and on the JDK, and on nothing
+Three modules. `lark` depends on `arrow-core` and on the JDK, and on nothing
 else: no HTTP library, no JSON library, no coroutines, and virtual threads come
-from `java.lang.Thread`. `lark-stream` is `Stream<E, A>` over Pekko Streams,
-and depends on `lark`, on `pekko-stream` and on the Arrow that arrives with
-`lark`, and on nothing else.
+from `java.lang.Thread`. `lark-pekko` adds `pekko-actor` and only that: it
+exists to hand a Pekko dispatcher to `lark` as the executor its forks run on,
+and to await Pekko's stages from a virtual thread. `lark-stream` is
+`Stream<E, A>` over Pekko Streams, and depends on `lark`, on `pekko-stream` and
+on the Arrow that arrives with `lark`, and on nothing else.
 
 Each claim is a test. `NoOtherDependenciesTest` asserts the module's main
-runtime classpath, in `lark` and in `lark-stream` alike.
+runtime classpath, in every module alike.
 
 A dependency added to either is a build failure, not a judgement call.
 

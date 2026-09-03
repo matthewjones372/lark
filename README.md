@@ -71,6 +71,86 @@ the losers. Interrupt is the only cancellation the JDK has, so a cancelled
 branch ends at its next interruptible blocking call, and a combinator returns
 only once every fork it opened has ended.
 
+Every forking combinator also takes the executor to fork on, ahead of its
+branches — `parZip(on = pool, { … }, { … }) { … }`, `flock(on = pool) { }`,
+`timeout(on = pool, 2.seconds) { }` — and a call that names none gets a new
+virtual thread per fork, as above. A fork clears the interrupt flag as its body
+leaves, so a cancelled branch never hands the flag to whatever the executor runs
+next.
+
+## Pekko
+
+A Pekko application already has one place that names, sizes and instruments its
+threads — the dispatcher config — and `lark-pekko` makes a dispatcher there the
+executor lark forks on:
+
+```kotlin
+dependencies {
+    // lark and pekko-actor come with it; nothing else does
+    implementation("io.github.matthewjones372:lark-pekko:0.1.0-SNAPSHOT")
+}
+```
+
+The dispatcher is configured beside Pekko's own, and named by the part after
+`pekko.actor.`:
+
+```hocon
+pekko.actor.lark {
+  executor = "virtual-thread-executor"
+}
+```
+
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.lark.pekko.larkDispatcher
+import org.apache.pekko.actor.ActorSystem
+
+fun dashboard(system: ActorSystem, id: Id): Either<Err, Dashboard> = either {
+    val lark = system.larkDispatcher()          // pekko.actor.lark; larkDispatcher("other") for another
+    parZip(on = lark, { users.find(id).bind() }, { orders.forUser(id).bind() }) { u, o -> Dashboard(u, o) }
+}
+```
+
+`larkDispatcher` refuses a dispatcher whose executor is `fork-join-executor` or
+`thread-pool-executor`, naming `pekko.actor.<id>.executor` in the message: a
+lark fork blocks, and blocking the pool Pekko sizes for its actors is the
+starvation Pekko's own documentation warns about. `virtual-thread-executor` is
+accepted, and so is a `type = PinnedDispatcher`, whose thread is handed to
+nothing else. Both the classic `ActorSystem` and the typed one are
+`ClassicActorSystemProvider`, so either takes the extension.
+
+A body forking there gets a `CompletionStage` back from everything Pekko has —
+an HTTP request, an `ask`, a stream run into a sink — and `await()` is how a
+fork waits for one:
+
+```kotlin
+import io.github.matthewjones372.lark.pekko.await
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.pattern.Patterns
+import java.time.Duration
+import java.util.concurrent.CompletionStage
+
+// `pricing.quote` is the application's own client, answering with a stage as Pekko's own APIs do
+fun quote(system: ActorSystem, id: Id): Quote {
+    val late: CompletionStage<Quote> = Patterns.after(Duration.ofMillis(50), system) { pricing.quote(id) }
+    return late.await()
+}
+```
+
+What parks is the fork that called it, and on a virtual thread that costs a
+carrier nothing. A stage that failed rethrows the cause it was completed with
+rather than the `CompletionException` or `ExecutionException` around it, so a
+body catches what it declared. An interrupt — a closing scope, a `raceN` loser,
+a `timeout` — cancels the stage with `cancel(true)` and rethrows the
+`InterruptedException`, so a value that arrives afterwards is dropped rather
+than answered to nobody. Pekko's Scala futures take `await()` too.
+
+What `await()` does not change is what a stage holds: a stream run into
+`Sink.seq` still buffers every element before completing, so awaiting one is
+waiting for the whole collection, not reading a stream.
+
 ## Every error, not the first one
 
 `parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion and

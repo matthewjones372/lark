@@ -62,6 +62,7 @@ spotless {
 /** One line per module, so a Maven search result says what the artifact is. */
 val moduleDescriptions = mapOf(
     "lark" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
+    "lark-pekko" to "lark on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
     "lark-stream" to "A stream that names its failure: Stream<E, A> over Pekko Streams, formerly dipper.",
 )
 

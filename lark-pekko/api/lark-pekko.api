@@ -1,0 +1,10 @@
+public final class io/github/matthewjones372/lark/pekko/AwaitKt {
+	public static final fun await (Ljava/util/concurrent/CompletionStage;)Ljava/lang/Object;
+	public static final fun await (Lscala/concurrent/Future;)Ljava/lang/Object;
+}
+
+public final class io/github/matthewjones372/lark/pekko/LarkDispatcherKt {
+	public static final fun larkDispatcher (Lorg/apache/pekko/actor/ClassicActorSystemProvider;Ljava/lang/String;)Ljava/util/concurrent/Executor;
+	public static synthetic fun larkDispatcher$default (Lorg/apache/pekko/actor/ClassicActorSystemProvider;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/Executor;
+}
+
