@@ -68,15 +68,15 @@ no other.
 
 ## Stack
 
-- [ ] **`spec-0001-stream`** — module, `Stream`, `Exit`, `from`, `map`,
+- [x] **`spec-0001-stream`** ([#2](https://github.com/matthewjones372/dipper/pull/2)) — module, `Stream`, `Exit`, `from`, `map`,
       `mapOrFail`, `filter`, `runFold`, `runCollect`, `run`, `toSource`.
       Done when: a nullable `mapOrFail` body is in a does-not-compile test and
       `fail(e)` arrives at `run` as `Exit.Failed(e)`.
-- [ ] **`spec-0001-async-and-split`** — `mapAsync`, `either`, `absolve`,
+- [x] **`spec-0001-async-and-split`** ([#3](https://github.com/matthewjones372/dipper/pull/3)) — `mapAsync`, `either`, `absolve`,
       `divertLefts`, `catchAll`, `orElse`.
       Done when: a `null` completion yields `Exit.Died`, and every `Left`
       through `divertLefts` is counted at the sink.
-- [ ] **`spec-0001-docs`** — README with the sketch above and its imports,
+- [x] **`spec-0001-docs`** ([#4](https://github.com/matthewjones372/dipper/pull/4)) — README with the sketch above and its imports,
       and the classpath test's claim written down.
       Done when: the README example compiles as a test.
 
