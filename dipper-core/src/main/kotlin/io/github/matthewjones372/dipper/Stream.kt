@@ -24,6 +24,16 @@ class Stream<out E, out A : Any> internal constructor(
  */
 internal class DeclaredFailure(val error: Any?) : RuntimeException(null, null, false, false)
 
+/**
+ * The error a [DeclaredFailure] carries, read back as the stream's own `E`.
+ *
+ * The cast is unchecked because the channel the error travelled in carries a
+ * `Throwable` and nothing narrower; the stream's own type is what says what
+ * came back out of it.
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun <E> DeclaredFailure.declared(): E = error as E
+
 /** The scope `mapOrFail` runs in: `fail` returns Nothing, so it sits after an Elvis. */
 class Failing<in E> internal constructor() {
 

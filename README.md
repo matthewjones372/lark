@@ -19,11 +19,13 @@ val settled: CompletionStage<Exit<IngestError, Int>> =
         .run(system)
 ```
 
-The first entry of [spec 0001](specs/0001-a-stream-that-names-its-failure.md)
-is built: `Stream`, `Exit`, `map`, `mapOrFail`, `filter`, `runFold`,
-`runCollect`, `run` and `toSource`. The `mapAsync` and `divertLefts` lines
-above are the entry after it. `specs/` says what is coming and in what order;
-read [AGENTS.md](AGENTS.md) before working on it.
+The first two entries of [spec 0001](specs/0001-a-stream-that-names-its-failure.md)
+are built: `Stream`, `Exit`, `map`, `mapOrFail`, `filter`, `runFold`,
+`runCollect`, `run` and `toSource`, and beside them `mapAsync`, `either`,
+`absolve`, `divertLefts`, `catchAll` and `orElse` — every operator the sketch
+above names. The entry after them writes that sketch down as a test, with the
+imports it needs. `specs/` says what is coming and in what order; read
+[AGENTS.md](AGENTS.md) before working on it.
 
 ## License
 

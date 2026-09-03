@@ -75,15 +75,25 @@ class DoesNotCompileTest {
 
     private val preamble = """
         import io.github.matthewjones372.dipper.Stream
+        import io.github.matthewjones372.dipper.divertLefts
         import io.github.matthewjones372.dipper.from
         import io.github.matthewjones372.dipper.map
+        import io.github.matthewjones372.dipper.mapAsync
         import io.github.matthewjones372.dipper.mapOrFail
         import io.github.matthewjones372.dipper.toSource
+        import org.apache.pekko.stream.javadsl.Sink
+        import java.util.concurrent.CompletableFuture
+        import java.util.concurrent.CompletionStage
 
         data class Row(val id: Int, val customer: String?)
         data class NoCustomer(val id: Int)
+        data class Receipt(val id: Int)
 
         val rows = listOf(Row(1, "ada"))
+
+        // A ledger whose answer is a receipt or nothing, which is the shape of
+        // every lookup lifted into a future.
+        fun settle(id: Int): CompletionStage<Receipt?> = CompletableFuture.completedFuture(null)
     """.trimIndent()
 
     @Test
@@ -116,6 +126,28 @@ class DoesNotCompileTest {
 
         withClue(errors.joinToString("\n")) {
             errors.joinToString("\n") shouldContain "toSource"
+        }
+    }
+
+    @Test
+    fun `a mapAsync stage that can complete with null is refused by the element bound`() {
+        val errors = compile("$preamble\nval broken = Stream.from(rows).mapAsync(1) { row -> settle(row.id) }")
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain
+                "Return type mismatch: expected 'CompletionStage<uninferred B (of fun " +
+                "<E, A : Any, B : Any> Stream<E, A>.mapAsync)>', actual 'CompletionStage<Receipt?>'."
+        }
+    }
+
+    @Test
+    fun `divertLefts has nothing to split on a stream whose elements are not Either`() {
+        val errors = compile("$preamble\nval broken = Stream.from(rows).divertLefts(to = Sink.ignore())")
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain
+                "None of the following candidates is applicable because of a receiver type mismatch:\n" +
+                "fun <E, L : Any, R : Any> Stream<E, Either<L, R>>.divertLefts(to: Sink<L, *>): Stream<E, R>"
         }
     }
 

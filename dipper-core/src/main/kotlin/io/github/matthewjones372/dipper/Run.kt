@@ -24,14 +24,8 @@ fun <E, R> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Ex
         .thenApply<Exit<E, R>> { value -> Exit.Done(value) }
         .exceptionally { thrown -> thrown.asExit() }
 
-/**
- * The cast is unchecked because the error was erased into [DeclaredFailure] on
- * its way through Pekko's failure channel, where a `Throwable` is all the
- * channel can carry; the stream's own `E` is what says what came back.
- */
-@Suppress("UNCHECKED_CAST")
 private fun <E, R> Throwable.asExit(): Exit<E, R> {
     // A CompletableFuture reports what failed it wrapped in a CompletionException.
     val cause = if (this is CompletionException) this.cause ?: this else this
-    return if (cause is DeclaredFailure) Exit.Failed(cause.error as E) else Exit.Died(cause)
+    return if (cause is DeclaredFailure) Exit.Failed(cause.declared()) else Exit.Died(cause)
 }
