@@ -29,6 +29,10 @@ complexity:
   TooManyFunctions:
     allowedFunctionsPerFile: 19
     allowedFunctionsPerClass: 19
+    # `Schedule` is arrow-fx's combinator vocabulary — and, or, andThen, zipLeft,
+    # zipRight, map, collect, jittered — and a drop-in that offers half of it
+    # sends the caller back to the library it replaced.
+    allowedFunctionsPerInterface: 19
     ignorePrivate: true
     ignoreOverridden: true
     ignoreDeprecated: true
@@ -49,9 +53,11 @@ exceptions:
     # The one function that completes the stage from the virtual thread catches
     # Throwable on purpose: an undeclared failure has to reach the interpreter
     # as an exceptionally-completed stage rather than killing the thread.
-    # Resource.kt is the other: a release that throws must not strand the
+    # Resource.kt is the second: a release that throws must not strand the
     # releases after it, so its throw is caught and suppressed onto the failure.
-    excludes: ['**/Flock.kt', '**/Resource.kt']
+    # Retry.kt is the third: a Schedule<Throwable, *> is asked about whatever the
+    # action threw, and `nonFatalOrThrow` puts back what must not be retried.
+    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt']
   SwallowedException:
     excludes: ['**/test/**']
 
@@ -169,8 +175,10 @@ style:
       - reason: 'Thread.sleep in library code turns a timeout into a stall; schedule instead.'
         value: 'java.lang.Thread.sleep'
     # The example services sleep on purpose, to have something slow to stream,
-    # and the timing tests sleep to make a gap they can measure.
-    excludes: ['**/test/**', '**/example/**']
+    # and the timing tests sleep to make a gap they can measure. Schedule.kt is
+    # where "schedule instead" lands: it holds the one sleep, waited out on the
+    # calling virtual thread so an interrupt ends the schedule where it is.
+    excludes: ['**/test/**', '**/example/**', '**/Schedule.kt']
 
 # ------------------------------------------------------------- what is meant
 #

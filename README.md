@@ -141,6 +141,46 @@ value, so nothing about the scope failed. A release that throws when nothing
 else had is the failure the caller sees, and one that throws after a failure is
 suppressed onto it; either way the releases after it still run.
 
+## Trying again, and giving up
+
+A `Schedule<Input, Output>` is a value that answers each input with a decision:
+carry on after a delay, or stop. `retry` feeds it what the action threw and
+`repeat` feeds it what the action returned; the delays are waited out on the
+calling virtual thread, so an interrupt ends the schedule where it is.
+
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.retry
+import io.github.matthewjones372.lark.retryRaise
+import io.github.matthewjones372.lark.timeout
+import io.github.matthewjones372.lark.timeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+val backoff = Schedule.exponential<Throwable>(100.milliseconds).jittered() and Schedule.recurs(5)
+
+fun fetch(id: Id): Row = backoff.retry { client.row(id) }        // rethrows the last failure
+
+// the same over a declared error: the last raise is the Left
+fun row(id: Id): Either<Err, Row> = Schedule.recurs<Err>(5).retryRaise { rows.find(id).bind() }
+
+fun quote(id: Id): Either<Err, Quote> = either {
+    timeout(2.seconds) { slow.quote(id).bind() }              // throws TimeoutException
+}
+
+fun maybe(id: Id): Either<Err, Quote?> = either {
+    timeoutOrNull(2.seconds) { slow.quote(id).bind() }        // null instead
+}
+```
+
+`recurs`, `spaced`, `exponential`, `linear`, `fibonacci`, `forever`, `identity`,
+`doWhile` and `doUntil` build one; `and`, `or`, `andThen`, `zipLeft`, `zipRight`,
+`map`, `collect`, `delayed` and `jittered` combine them. `timeout` is a `raceN`
+against a sleeper with the loser interrupted, so a block that does not answer in
+time ends at its next interruptible call rather than being abandoned.
+
 Virtual threads are why the floor is JDK 21. Before JDK 24 a blocking call
 inside a `synchronized` block — which some JDBC drivers still make — pins its
 carrier thread instead of parking it, so a service on 21 can still run out of
@@ -148,13 +188,13 @@ carriers; JEP 491 removes that pinning in 24.
 
 ## Status
 
-`flock { }`, `async`/`await`, `parZip`, `parMap` and `raceN` on `Raise`, and
-`parZipOrAccumulate`/`parMapOrAccumulate` and `resourceScope` are here — all of
+`flock { }`, `async`/`await`, `parZip`, `parMap`, `raceN`,
+`parZipOrAccumulate`/`parMapOrAccumulate`, `resourceScope`, `Schedule` and
+`timeout` are here — all of
 [`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md) and
 [`specs/0002-a-handler-that-forks.md`](specs/0002-a-handler-that-forks.md) that
-stayed, and the first four entries of
+stayed, and all of
 [`specs/0003-a-drop-in-for-arrow-fx.md`](specs/0003-a-drop-in-for-arrow-fx.md).
-`Schedule` and `timeout` are the rest of it.
 [`AGENTS.md`](AGENTS.md) says how work here proceeds.
 
 ## Family
