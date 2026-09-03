@@ -307,7 +307,7 @@ dependencies {
 }
 ```
 
-Rows in, receipts counted, declines diverted, and every import it takes:
+Rows in, receipts to one sink, declines to another, and every import it takes:
 
 <!-- readme-example -->
 ```kotlin
@@ -321,7 +321,8 @@ import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.mapOrFail
 import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.run
-import io.github.matthewjones372.lark.stream.runFold
+import io.github.matthewjones372.lark.stream.runWith
+import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletableFuture
@@ -348,10 +349,11 @@ val system: ActorSystem = ActorSystem.create("ingest")
 val ledger = Ledger()
 val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
 
-// Where a decline goes: a sink with a name, rather than a decider that drops it.
+// Where a decline goes and where a receipt goes: two sinks with names, rather than a decider that drops one.
 val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
+val receiptSink = Sink.foreach<Receipt> { receipt -> println("receipt ${receipt.id}") }
 
-val counted: Either<IngestError, Int> = either {
+val settled: Either<IngestError, Done> = either {
     awaitExit(
         Stream.from(rows)                                              // Stream<Nothing, Row>
             .mapOrFail { row ->                                        // Stream<IngestError, Customer>
@@ -359,9 +361,9 @@ val counted: Either<IngestError, Int> = either {
             }
             .mapPar(4) { customer -> ledger.settle(customer).await() }  // one virtual thread per element
             .divertLefts(to = declinedSink)                            // Stream<IngestError, Receipt>
-            .runFold(0) { n, _ -> n + 1 }                              // Run<IngestError, Int>
-            .run(system),                                              // CompletionStage<Exit<IngestError, Int>>
-    )                                                                  // Done → Int, Failed → raise, Died → throw
+            .runWith(receiptSink)                                      // Run<IngestError, Done>
+            .run(system),                                              // CompletionStage<Exit<IngestError, Done>>
+    )                                                                  // Done → the value, Failed → raise, Died → throw
 }
 ```
 

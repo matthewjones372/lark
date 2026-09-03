@@ -40,7 +40,7 @@ dependencies {
 An untagged commit publishes `0.1.0-SNAPSHOT`, which is what
 `./gradlew publishToMavenLocal` installs.
 
-Rows in, receipts counted, declines diverted, and every import it takes:
+Rows in, receipts to one sink, declines to another, and every import it takes:
 
 <!-- readme-example -->
 ```kotlin
@@ -54,7 +54,8 @@ import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.mapOrFail
 import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.run
-import io.github.matthewjones372.lark.stream.runFold
+import io.github.matthewjones372.lark.stream.runWith
+import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletableFuture
@@ -81,10 +82,11 @@ val system: ActorSystem = ActorSystem.create("ingest")
 val ledger = Ledger()
 val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
 
-// Where a decline goes: a sink with a name, rather than a decider that drops it.
+// Where a decline goes and where a receipt goes: two sinks with names, rather than a decider that drops one.
 val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
+val receiptSink = Sink.foreach<Receipt> { receipt -> println("receipt ${receipt.id}") }
 
-val counted: Either<IngestError, Int> = either {
+val settled: Either<IngestError, Done> = either {
     awaitExit(
         Stream.from(rows)                                              // Stream<Nothing, Row>
             .mapOrFail { row ->                                        // Stream<IngestError, Customer>
@@ -92,9 +94,9 @@ val counted: Either<IngestError, Int> = either {
             }
             .mapPar(4) { customer -> ledger.settle(customer).await() }  // one virtual thread per element
             .divertLefts(to = declinedSink)                            // Stream<IngestError, Receipt>
-            .runFold(0) { n, _ -> n + 1 }                              // Run<IngestError, Int>
-            .run(system),                                              // CompletionStage<Exit<IngestError, Int>>
-    )                                                                  // Done → Int, Failed → raise, Died → throw
+            .runWith(receiptSink)                                      // Run<IngestError, Done>
+            .run(system),                                              // CompletionStage<Exit<IngestError, Done>>
+    )                                                                  // Done → the value, Failed → raise, Died → throw
 }
 ```
 
@@ -140,6 +142,7 @@ rather than persuade.
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
+| `Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M>` | a run described, to the sink named; the sink's materialised value is the run's |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | the one call that materialises, on the system it names |
 | `Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Raise`: `Done` is the value, `Failed` raises, `Died` throws |
 | **The way out** | |

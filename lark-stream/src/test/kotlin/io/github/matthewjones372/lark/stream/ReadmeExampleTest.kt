@@ -8,6 +8,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import org.apache.pekko.Done
 import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.stream.javadsl.Sink
 import org.jetbrains.kotlin.cli.common.ExitCode
@@ -90,26 +91,31 @@ class ReadmeExampleTest {
 
     /** The same pipeline, line for line, run: what the document shows is compiled and also true. */
     @Test
-    fun `the pipeline the document shows counts the receipts and diverts the declines`() {
+    fun `the pipeline the document shows sends the receipts and diverts the declines`() {
         val declines = ConcurrentLinkedQueue<Declined>()
         val bothDeclines = CountDownLatch(2)
         val declinedSink = Sink.foreach<Declined> { declined ->
             declines.add(declined)
             bothDeclines.countDown()
         }
+        val receipts = ConcurrentLinkedQueue<Receipt>()
+        val receiptSink = Sink.foreach<Receipt> { receipt -> receipts.add(receipt) }
 
-        val counted: Either<IngestError, Int> = either {
+        val settled: Either<IngestError, Done> = either {
             awaitExit(
                 Stream.from(rows)
                     .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
                     .mapPar(4) { customer -> ledger.settle(customer).await() }
                     .divertLefts(to = declinedSink)
-                    .runFold(0) { n, _ -> n + 1 }
+                    .runWith(receiptSink)
                     .run(system),
             )
         }
 
-        counted shouldBe 3.right()
+        settled shouldBe Done.getInstance().right()
+        withClue("the run ends when its own sink does, so every receipt has been sent by now") {
+            receipts.toList() shouldBe listOf(Receipt(1), Receipt(3), Receipt(5))
+        }
         withClue("the diverted branch is a branch of its own and can outlive the run") {
             bothDeclines.await(30, TimeUnit.SECONDS) shouldBe true
         }

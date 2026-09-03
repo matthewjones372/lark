@@ -14,10 +14,18 @@ class Run<out E, out R> internal constructor(
     internal val graph: RunnableGraph<CompletionStage<@UnsafeVariance R>>,
 )
 
-fun <E, A : Any> Stream<E, A>.runCollect(): Run<E, List<A>> = Run(source.toMat(Sink.seq(), Keep.right()))
+/**
+ * A run described, to the sink named: the sink's materialised value is the run's.
+ *
+ * A materialised value that is not a `CompletionStage` is refused at the type: [run] would have nothing to wait on.
+ */
+fun <E, A : Any, M> Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M> =
+    Run(source.toMat(sink, Keep.right()))
+
+fun <E, A : Any> Stream<E, A>.runCollect(): Run<E, List<A>> = runWith(Sink.seq())
 
 fun <E, A : Any, R> Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R> =
-    Run(source.toMat(Sink.fold(zero) { total, a -> f(total, a) }, Keep.right()))
+    runWith(Sink.fold(zero) { total, a -> f(total, a) })
 
 fun <E, R> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> =
     graph.run(system)

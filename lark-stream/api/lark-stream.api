@@ -75,6 +75,7 @@ public final class io/github/matthewjones372/lark/stream/RunKt {
 	public static final fun run (Lio/github/matthewjones372/lark/stream/Run;Lorg/apache/pekko/actor/ClassicActorSystemProvider;)Ljava/util/concurrent/CompletionStage;
 	public static final fun runCollect (Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Run;
 	public static final fun runFold (Lio/github/matthewjones372/lark/stream/Stream;Ljava/lang/Object;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Run;
+	public static final fun runWith (Lio/github/matthewjones372/lark/stream/Stream;Lorg/apache/pekko/stream/javadsl/Sink;)Lio/github/matthewjones372/lark/stream/Run;
 }
 
 public final class io/github/matthewjones372/lark/stream/Stream {
