@@ -88,13 +88,14 @@ parameters because it needs nothing past what `pelican-arrow` compiles against.
 
 ## Open questions
 
-1. **Which Pelican?** `pelican-arrow` is new since 0.2.0 and 1.0.0 is
-   unreleased. Recommended: pin the 1.0.0 candidate; `includeBuild` until then.
-2. **Toolchain 21 or 25?** 21 is the floor; `synchronized` in a JDBC driver
-   pins the carrier before 24 (JEP 491). Recommended: build on 21, document
-   the pinning, test on both.
-3. **Default executor: a module-level per-task executor, or
-   `Thread.ofVirtual().start` per request?** Recommended: `Thread.ofVirtual()`,
-   so there is no global until `on:` names one.
-4. **A throw in the body: unwind as today, or a 500 naming the thread?**
-   Recommended: as today — the interpreter owns undeclared failures.
+None — decided by the maintainer in chat, 2026-09-03:
+
+1. **Which Pelican?** `1.0.0-RC1` from Maven Central, which ships
+   `pelican-arrow`, `pelican-test` and `pelican-test-pekko`.
+2. **Toolchain.** 21, the floor for virtual threads; CI runs the build on 21
+   and 25. `synchronized` in a JDBC driver pins the carrier before JDK 24
+   (JEP 491) — the README says so.
+3. **Default executor.** `Thread.ofVirtual().start` per request, so there is
+   no global until `on:` names an executor.
+4. **A throw in the body** unwinds as today: the stage completes
+   exceptionally and the interpreter owns the undeclared failure.
