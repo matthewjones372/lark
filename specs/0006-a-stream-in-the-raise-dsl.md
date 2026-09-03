@@ -51,13 +51,13 @@ meet, and it is three lines.
 
 ## Stack
 
-- [ ] **`spec-0006-raise`** — `Failing<E> : Raise<E>`.
+- [x] **`spec-0006-raise`** (`main`, 8384dce) — `Failing<E> : Raise<E>`.
       Done when: `bind()` and `parZip` compile and run inside `mapOrFail`, and
       dipper's suite passes unedited.
-- [ ] **`spec-0006-mappar`** — `mapPar`, on lark's forks, `on:` honoured.
+- [x] **`spec-0006-mappar`** (`main`, e6d7017) — `mapPar`, on lark's forks, `on:` honoured.
       Done when: a blocking body per element runs on a virtual thread, a
       `raise` fails the stream with its `E`, and order is preserved.
-- [ ] **`spec-0006-exit`** — `awaitExit`.
+- [x] **`spec-0006-exit`** (`main`, c8b80be) — `awaitExit`.
       Done when: each `Exit` case reaches a `handledRaising` body the way the
       shape says, through an in-repo test.
 
@@ -74,3 +74,10 @@ meet, and it is three lines.
    `lark-pekko` is where a dispatcher becomes one.
 2. **`awaitExit` in `lark-stream` or `lark-pekko`?** Recommended:
    `lark-stream`; `Exit` is its type.
+
+Decided while building (2026-09-03): `awaitExit` takes the stage as an
+argument (`awaitExit(pipeline.run(system))`), since an extension on the stage
+with a `Raise` receiver needs context parameters; `mapPar` has a
+`Stream<Nothing, A>` twin as `mapOrFail` does, so a first `raise` can name
+`E`; a body is cancelled by the run, at stream termination, not by Pekko;
+`lark-stream` depends on `lark-pekko` so the wait is `await()`'s one code.
