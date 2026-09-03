@@ -52,6 +52,14 @@ internal object Unraisable : Raise<Nothing> {
     override fun raise(r: Nothing): Nothing = r
 }
 
+/**
+ * The owner an accumulating combinator forks under: it keeps its branches' errors and answers with all of
+ * them at once, so no fork ever hands one back to be surfaced on its own.
+ */
+internal object Uncollected : Raise<Any?> {
+    override fun raise(r: Any?): Nothing = error("an accumulated error is answered by its combinator")
+}
+
 private fun <E> Raise<E>.surface(failure: Failure<E>): Nothing = when (failure) {
     is Raised -> raise(failure.error)
     is Thrown -> throw failure.throwable
@@ -104,10 +112,30 @@ internal class Flight<E>(private val owner: Raise<E>) {
     fun <T> fork(block: Raise<E>.() -> T): Fork<E, T> = Fork(owner, block, ended::release).also { forks += it }
 
     /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
-    fun settleAll(): Unit = settle { forks.none { fork -> fork.hasFailed() } }
+    fun settleAll() {
+        settle { forks.none { fork -> fork.hasFailed() } }
+        surfaceFirstFailure()
+    }
 
     /** Waits for the first fork to answer, whatever it answers, then ends the rest and surfaces a failure. */
-    fun settleFirst(): Unit = settle { forks.none { fork -> fork.hasEnded() } }
+    fun settleFirst() {
+        settle { forks.none { fork -> fork.hasEnded() } }
+        surfaceFirstFailure()
+    }
+
+    /**
+     * Waits for every fork to answer, or for the first of them to throw; a raise does not end a sibling here,
+     * so the errors come back in start order for the caller to answer with together.
+     */
+    fun settleEvery(): List<E> {
+        settle { forks.none { fork -> fork.hasThrown() } }
+        forks.firstNotNullOfOrNull { it.ownThrow() }?.let { owner.surface(it) }
+        return forks.mapNotNull { it.raisedError() }
+    }
+
+    private fun surfaceFirstFailure() {
+        forks.firstNotNullOfOrNull { it.ownFailure() }?.let { owner.surface(it) }
+    }
 
     private fun settle(waiting: () -> Boolean) {
         try {
@@ -117,7 +145,6 @@ internal class Flight<E>(private val owner: Raise<E>) {
             forks.forEach { it.interrupt() }
             forks.forEach { it.join() }
         }
-        forks.firstNotNullOfOrNull { it.ownFailure() }?.let { owner.surface(it) }
     }
 }
 
@@ -163,11 +190,23 @@ internal class Fork<E, T>(
 
     fun hasEnded(): Boolean = outcome != null
 
+    fun hasThrown(): Boolean = outcome is Thrown
+
     /** Whether this fork answered of its own accord, rather than being cut short by a combinator's interrupt. */
     fun answered(): Boolean = !cutShort
 
     /** The failure this fork answered with of its own accord, rather than the interrupt a combinator sent it. */
     fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort && it.isInterrupt() }
+
+    /** The throwable this fork threw of its own accord: a throw ends an accumulating combinator's siblings. */
+    fun ownThrow(): Thrown? = ownFailure() as? Thrown
+
+    /** The error this fork raised of its own accord, for the combinator that accumulates rather than surfaces. */
+    fun raisedError(): E? = when (val failure = ownFailure()) {
+        is Raised -> failure.error
+        is Thrown -> null
+        null -> null
+    }
 
     /** The failure of a fork whose outcome nobody asked for; the scope answers with it at close. */
     fun unnoticedFailure(): Failure<E>? = settled().takeUnless { noticed } as? Failure<E>

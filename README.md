@@ -71,6 +71,35 @@ the losers. Interrupt is the only cancellation the JDK has, so a cancelled
 branch ends at its next interruptible blocking call, and a combinator returns
 only once every fork it opened has ended.
 
+## Every error, not the first one
+
+`parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion and
+answer with all of the raises rather than the first: a form asking whether each
+field is valid wants every complaint at once, not the earliest one. The scope
+declares a `NonEmptyList` of the branches' error, and these are every import:
+
+```kotlin
+import arrow.core.Either
+import arrow.core.NonEmptyList
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.parMapOrAccumulate
+import io.github.matthewjones372.lark.parZipOrAccumulate
+
+fun validate(form: Form): Either<NonEmptyList<Err>, Account> = either {
+    parZipOrAccumulate({ name(form).bind() }, { email(form).bind() }) { n, e -> Account(n, e) }
+}
+
+fun accept(rows: List<Row>): Either<NonEmptyList<Err>, List<Entry>> = either {
+    parMapOrAccumulate(rows) { entry(it).bind() }
+}
+```
+
+Both take a `combine: (Err, Err) -> Err` as their first argument instead, for a
+scope that declares one error and knows how to fold two into it. The errors
+answer in branch order, and in the iterable's order, whichever branch raised
+first. A throw is not accumulated: it ends the other branches as `parZip`'s
+does, and the same instance is rethrown.
+
 Virtual threads are why the floor is JDK 21. Before JDK 24 a blocking call
 inside a `synchronized` block — which some JDBC drivers still make — pins its
 carrier thread instead of parking it, so a service on 21 can still run out of
@@ -78,13 +107,13 @@ carriers; JEP 491 removes that pinning in 24.
 
 ## Status
 
-`flock { }`, `async`/`await`, and `parZip`, `parMap` and `raceN` on `Raise` are
-here — all of
+`flock { }`, `async`/`await`, `parZip`, `parMap` and `raceN` on `Raise`, and
+`parZipOrAccumulate`/`parMapOrAccumulate` are here — all of
 [`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md) and
 [`specs/0002-a-handler-that-forks.md`](specs/0002-a-handler-that-forks.md) that
-stayed, and the first two entries of
+stayed, and the first three entries of
 [`specs/0003-a-drop-in-for-arrow-fx.md`](specs/0003-a-drop-in-for-arrow-fx.md).
-`parZipOrAccumulate`, `resourceScope` and `Schedule` are the rest of it.
+`resourceScope` and `Schedule` are the rest of it.
 [`AGENTS.md`](AGENTS.md) says how work here proceeds.
 
 ## Family
