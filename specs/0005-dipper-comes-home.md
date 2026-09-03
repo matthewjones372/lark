@@ -48,11 +48,11 @@ source comments do not have to be.
 
 ## Stack
 
-- [ ] **`spec-0005-import`** — the subtree, the module root, the package
+- [x] **`spec-0005-import`** (`main`, c82da6d) — the subtree, the module root, the package
       rename, the build wiring, the classpath test.
       Done when: `./gradlew build` is green with three modules and every
       dipper test runs under `lark-stream`.
-- [ ] **`spec-0005-docs`** — the README section, `docs/stream.md`, the spec
+- [x] **`spec-0005-docs`** (`main`, 76061d5) — the README section, `docs/stream.md`, the spec
       copied, AGENTS.md's layout paragraph.
       Done when: the README's stream example compiles against the module.
 
