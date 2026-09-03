@@ -42,6 +42,12 @@ internal class Sleeper {
     fun isAlive(): Boolean = thread.get().shouldNotBeNull().isAlive
 }
 
+/** A branch meant to lose a race: parked until it is interrupted, and then of the type the race wants. */
+internal fun <T> Sleeper.losingWith(answer: T): T {
+    body()
+    return answer
+}
+
 /**
  * Every branch has to arrive before any of them leaves, so branches run one after another never get past
  * this; the bound is there to fail such a test rather than hang it.

@@ -96,10 +96,15 @@ internal class Flight<E>(private val owner: Flock<E>) {
     fun <T> fork(block: Flock<E>.() -> T): Fork<E, T> = Fork(owner, block, ended::release).also { forks += it }
 
     /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
-    fun settle() {
+    fun settleAll(): Unit = settle { forks.none { fork -> fork.hasFailed() } }
+
+    /** Waits for the first fork to answer, whatever it answers, then ends the rest and surfaces a failure. */
+    fun settleFirst(): Unit = settle { forks.none { fork -> fork.hasEnded() } }
+
+    private fun settle(waiting: () -> Boolean) {
         try {
-            // A fork that has failed ends the wait; its siblings are interrupted below rather than waited out.
-            repeat(forks.size) { if (forks.none { fork -> fork.hasFailed() }) ended.acquire() }
+            // Once the answer is in, the forks still running are interrupted below rather than waited out.
+            repeat(forks.size) { if (waiting()) ended.acquire() }
         } finally {
             forks.forEach { it.interrupt() }
             forks.forEach { it.join() }
@@ -147,6 +152,11 @@ internal class Fork<E, T>(
     fun join(): Unit = thread.joinFully()
 
     fun hasFailed(): Boolean = outcome is Failure
+
+    fun hasEnded(): Boolean = outcome != null
+
+    /** Whether this fork answered of its own accord, rather than being cut short by a combinator's interrupt. */
+    fun answered(): Boolean = !cutShort
 
     /** The failure this fork answered with of its own accord, rather than the interrupt a combinator sent it. */
     fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort && it.isInterrupt() }

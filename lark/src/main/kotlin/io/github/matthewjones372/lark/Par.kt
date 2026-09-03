@@ -8,7 +8,7 @@ fun <E, A, B, C> Flock<E>.parZip(fa: Flock<E>.() -> A, fb: Flock<E>.() -> B, f: 
     val flight = Flight(this)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
-    flight.settle()
+    flight.settleAll()
     return f(a.await(), b.await())
 }
 
@@ -23,7 +23,7 @@ fun <E, A, B, C, D> Flock<E>.parZip(
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
-    flight.settle()
+    flight.settleAll()
     return f(a.await(), b.await(), c.await())
 }
 
@@ -40,7 +40,7 @@ fun <E, A, B, C, D, F> Flock<E>.parZip(
     val b = flight.fork(fb)
     val c = flight.fork(fc)
     val d = flight.fork(fd)
-    flight.settle()
+    flight.settleAll()
     return f(a.await(), b.await(), c.await(), d.await())
 }
 
@@ -48,6 +48,6 @@ fun <E, A, B, C, D, F> Flock<E>.parZip(
 fun <E, A, B> Flock<E>.parMap(iterable: Iterable<A>, f: Flock<E>.(A) -> B): List<B> {
     val flight = Flight(this)
     val forks = iterable.map { element -> flight.fork { f(element) } }
-    flight.settle()
+    flight.settleAll()
     return forks.map { it.await() }
 }
