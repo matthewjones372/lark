@@ -125,6 +125,8 @@ rather than persuade.
 | `Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B>` | as `map`, with the body in a `Raise<E>`: `fail(e)`, `raise`, `bind` and `ensure` |
 | `Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A>` | the elements that match, the only place one is dropped on purpose |
 | `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | up to `parallelism` stages at once, in the input's order; a `null` completion dies |
+| `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | as `mapAsync`, with a blocking body per element on a virtual thread of its own; `B : Any`, so no completion drops an element |
+| `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
 | **The split in `Either`** | |
 | `Stream<E, A>.either(): Stream<Nothing, Either<E, A>>` | the failure as the last element, leaving none in the type |
 | `Stream<E, Either<L, R>>.absolve(): Stream<E, R>` | back again: a `Left` fails the stream, for `L : E` |
@@ -154,7 +156,10 @@ a pipeline through a named sink or not at all.
 lark's name for it and a `bind()` on a `Left` ends the stream with what the
 `Left` holds. Everything a lark handler writes — `ensure`, `parZip`, a fork
 awaited — an element body can write too, and the failure it names is the one
-the stream already declares.
+the stream already declares. A `mapPar` body is that scope on a fork: a raise
+is the stream's declared failure, anything thrown is `Died(cause)`, and a body
+still running when the stream is torn down is interrupted where it blocked,
+because Pekko never cancels the stage its `mapAsync` is waiting on.
 
 ## What is in the box
 

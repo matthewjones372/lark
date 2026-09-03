@@ -48,6 +48,13 @@ public final class io/github/matthewjones372/lark/stream/Failing : arrow/core/ra
 	public fun raise (Ljava/lang/Object;)Ljava/lang/Void;
 }
 
+public final class io/github/matthewjones372/lark/stream/MapParKt {
+	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Stream;ILjava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Stream;ILkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun mapParDeclaring (Lio/github/matthewjones372/lark/stream/Stream;ILkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun mapParDeclaringOn (Lio/github/matthewjones372/lark/stream/Stream;ILjava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
+}
+
 public final class io/github/matthewjones372/lark/stream/OperatorsKt {
 	public static final fun absolve (Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun catchAll (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;

@@ -62,7 +62,9 @@ exceptions:
     # releases after it, so its throw is caught and suppressed onto the failure.
     # Retry.kt is the third: a Schedule<Throwable, *> is asked about whatever the
     # action threw, and `nonFatalOrThrow` puts back what must not be retried.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt']
+    # MapPar.kt is the fourth: an element body that ended its thread with a throw
+    # would leave `mapAsync` waiting on a stage nobody is left to complete.
+    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapPar.kt']
   SwallowedException:
     excludes: ['**/test/**']
 
