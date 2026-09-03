@@ -22,3 +22,15 @@ public final class io/github/matthewjones372/lark/FlockKt {
 	public static final fun flock (Lkotlin/jvm/functions/Function1;)Larrow/core/Either;
 }
 
+public final class io/github/matthewjones372/lark/ParKt {
+	public static final fun parMap (Lio/github/matthewjones372/lark/Flock;Ljava/lang/Iterable;Lkotlin/jvm/functions/Function2;)Ljava/util/List;
+	public static final fun parZip (Lio/github/matthewjones372/lark/Flock;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;)Ljava/lang/Object;
+	public static final fun parZip (Lio/github/matthewjones372/lark/Flock;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;)Ljava/lang/Object;
+	public static final fun parZip (Lio/github/matthewjones372/lark/Flock;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)Ljava/lang/Object;
+}
+
+public final class io/github/matthewjones372/lark/RaceKt {
+	public static final fun raceN (Lio/github/matthewjones372/lark/Flock;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Larrow/core/Either;
+	public static final fun raceN (Lio/github/matthewjones372/lark/Flock;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Larrow/core/Either;
+}
+
