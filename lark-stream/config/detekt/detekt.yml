@@ -1,0 +1,98 @@
+# detekt, layered on top of its default rule set (`buildUponDefaultConfig`).
+# Only the deviations are written here, so this file reads as a list of
+# decisions rather than a copy of somebody else's defaults.
+#
+# There is no free allowance to configure: detekt 2 fails the build on any
+# finding.
+#
+# Two of those decisions are already made elsewhere: .editorconfig turns off
+# the ktlint rules for wildcard imports and for filenames, with the reasoning
+# beside them. They are turned on here rather than fought twice.
+
+comments:
+  active: true
+  UndocumentedPublicClass:
+    active: false        # KDoc is one line where there is a why, and absent otherwise.
+  UndocumentedPublicFunction:
+    active: false
+
+naming:
+  MatchingDeclarationName:
+    # Stream.kt holds Stream and the operators that belong with it, which is
+    # the name a reader wants.
+    active: false
+  FunctionNaming:
+    # Test names are sentences in backticks.
+    excludes: ['**/test/**']
+
+exceptions:
+  SwallowedException:
+    excludes: ['**/test/**']
+
+style:
+  UnusedImport:
+    # The other half of the no-wildcard rule: an explicit import list is only
+    # an inventory of what a file uses if the names it no longer uses are gone.
+    # ktlint removes them on `spotlessApply`; this fails the build for one that
+    # reached a commit anyway.
+    active: true
+  WildcardImport:
+    # A project principle: an explicit import list is the one place a reader
+    # sees where every name in a file comes from, and it is what keeps the
+    # documentation's examples honest — each one names exactly what it needs.
+    # `.editorconfig` tells ktlint and the IDE the same thing, so an
+    # optimize-imports cannot put one back.
+    active: true
+  MagicNumber:
+    # A number in a test is the assertion, not a constant needing a name.
+    excludes: ['**/test/**']
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreNamedArgument: true
+  MaxLineLength:
+    maxLineLength: 120
+  ForbiddenComment:
+    active: true
+    comments:
+      - reason: 'Unfinished work does not belong on main.'
+        value: 'TODO:'
+      - reason: 'Unfinished work does not belong on main.'
+        value: 'FIXME:'
+  UnusedParameter:
+    # A JUnit 5 callback takes an ExtensionContext whether it reads it or not.
+    excludes: ['**/test/**']
+
+  # ---------------------------------------------------------------- functional
+  #
+  # The rules below are off in detekt's defaults and on here. They are what
+  # "written functionally" is checkable as: a value once bound stays bound,
+  # a function is an expression, and a lambda is not a place to hide a loop.
+  ExpressionBodySyntax:
+    active: true
+    includeLineWrapping: false
+  VarCouldBeVal:
+    active: true
+    ignoreLateinitVar: false
+  UnnecessaryLet:
+    active: true
+  UnnecessaryApply:
+    active: true
+  UnnecessaryFilter:
+    active: true
+  CollapsibleIfStatements:
+    active: true
+  UseIfEmptyOrIfBlank:
+    active: true
+  ForbiddenMethodCall:
+    active: true
+    methods:
+      - reason: 'Thread.sleep in library code turns a timeout into a stall; schedule instead.'
+        value: 'java.lang.Thread.sleep'
+    # The timing tests sleep to make a gap they can measure.
+    excludes: ['**/test/**']
+
+potential-bugs:
+  ImplicitDefaultLocale:
+    # Test fixtures that case an ASCII name. No locale any of these tests runs
+    # in changes that answer, and naming one would be ceremony.
+    excludes: ['**/test/**']
