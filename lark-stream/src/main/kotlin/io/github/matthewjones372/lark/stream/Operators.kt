@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
 import org.apache.pekko.stream.javadsl.Sink
+import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletionStage
 
 /**
@@ -29,3 +30,15 @@ fun <E, E2, A : Any> Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, 
 
 /** ZIO's `orElse` rather than Pekko's: [other] takes over on a failure, not on an empty stream. */
 fun <E, A : Any> Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A> = through(Pipe.orElse(other))
+
+/**
+ * A stream that ends having emitted nothing fails with [error] instead; one that emitted is untouched.
+ *
+ * Pekko's `orElse` switches to the alternative only where the primary completed without an element, so
+ * a failure of its own reaches `run` as itself. On `Stream` alone: a pipe is spliced into a source it
+ * cannot see, so it has no way to know whether that source emitted.
+ */
+fun <E : E2, E2, A : Any> Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A> =
+    // The alternative is deferred because a plain `Source.failed` fails at materialisation, which would
+    // fail every stream through here rather than the empty ones.
+    Stream(source.orElse(Source.lazySource { Source.failed<A>(DeclaredFailure(error)) }))

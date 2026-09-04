@@ -182,6 +182,22 @@ style:
     methods:
       - reason: 'Thread.sleep in library code turns a timeout into a stall; schedule instead.'
         value: 'java.lang.Thread.sleep'
+      # Every builder below turns an absent value into a source with no elements, so a lookup that
+      # missed runs to Done having processed nothing. `Stream.fromStage` and `orFailIfEmpty` are what
+      # to write instead, and docs/stream.md ships this same list for a consumer to paste into theirs.
+      # The name alone is the match, and it covers every overload of it.
+      - reason: 'A stage that completes with null emits nothing: Stream.fromStage names the absence.'
+        value: 'org.apache.pekko.stream.javadsl.Source.completionStage'
+      - reason: 'The older name for the same builder, and the same null completion.'
+        value: 'org.apache.pekko.stream.javadsl.Source.fromCompletionStage'
+      - reason: 'The Scala half of it: a Future completed with null emits nothing either.'
+        value: 'org.apache.pekko.stream.javadsl.Source.future'
+      - reason: 'The older name for the Future form, with the same completion.'
+        value: 'org.apache.pekko.stream.javadsl.Source.fromFuture'
+      - reason: 'A java.util.stream over ofNullable or an empty Optional is a source of no elements.'
+        value: 'org.apache.pekko.stream.javadsl.Source.fromJavaStream'
+      - reason: 'An iterator over an empty Optional is a source of no elements.'
+        value: 'org.apache.pekko.stream.javadsl.Source.fromIterator'
     # The example services sleep on purpose, to have something slow to stream,
     # and the timing tests sleep to make a gap they can measure. Schedule.kt is
     # where "schedule instead" lands: it holds the one sleep, waited out on the

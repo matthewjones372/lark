@@ -43,10 +43,13 @@ class ReadmeExampleTest {
         private const val BEFORE = "<!-- before-example -->"
         private const val AFTER = "<!-- after-example -->"
 
+        /** The four lines that say what absence is, on both pages. */
+        private const val MISSING = "<!-- missing-example -->"
+
         /** The one that only the document carries, since the README sends the reader there for it. */
         private const val BLOCKING = "<!-- mappar-example -->"
 
-        private val shownOnBothPages = listOf(MARKER, FIXTURES, BEFORE, AFTER)
+        private val shownOnBothPages = listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING)
     }
 
     @TempDir
@@ -112,6 +115,11 @@ class ReadmeExampleTest {
 
         compiles("$fixtures\n\n${only(document(), BEFORE)}")
         compiles("$fixtures\n\n${only(document(), AFTER)}")
+    }
+
+    @Test
+    fun `the builders that name an absence compile as the document shows them`() {
+        compiles(only(document(), MISSING))
     }
 
     @Test

@@ -69,11 +69,11 @@ fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stre
  * source with nothing in it — the empty stream this builder exists so that nobody gets by accident.
  */
 fun <A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>): Stream<Nothing, A> =
-    Stream(Source.completionStage(stage.checked { NullPointerException(NULL_COMPLETION) }))
+    Stream(stage.asSource { NullPointerException(NULL_COMPLETION) })
 
 /** As above, with the absence named: a completion with `null` is the declared failure [ifNull]. */
 fun <E, A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A> =
-    Stream(Source.completionStage(stage.checked { DeclaredFailure(ifNull) }))
+    Stream(stage.asSource { DeclaredFailure(ifNull) })
 
 fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Source.failed(DeclaredFailure(error)))
 
@@ -107,6 +107,14 @@ fun <A : Any> Stream<Nothing, A>.toSource(): Source<A, NotUsed> = source
 
 /** A defect that does not say where it came from is the disappearance again, so the builder is in the message. */
 private const val NULL_COMPLETION = "Stream.fromStage: the stage completed with null"
+
+/**
+ * Pekko's own builder, on a stage that cannot complete with `null` — the one call to it this library
+ * makes, and the reason the ban on it in `config/detekt/detekt.yml` is a ban with an exception.
+ */
+@Suppress("ForbiddenMethodCall")
+private fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Source<A, NotUsed> =
+    Source.completionStage(checked(onNull))
 
 /**
  * The stage a source can be built on: one that fails where the given one completes with `null`.

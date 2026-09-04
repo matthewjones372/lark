@@ -213,6 +213,11 @@ what changes is what the type says, and what it will not let you write.
 | `Stream.from(source: Source<A, NotUsed>): Stream<Nothing, A>` | the way in from Pekko |
 | `Stream.fail(error: E): Stream<E, Nothing>` | a stream that ends with the failure it names |
 | `Stream.empty(): Stream<Nothing, Nothing>` | no elements and no failure |
+| `Stream.single(element: A): Stream<Nothing, A>` | the one element named; `A : Any`, so a nullable does not compile |
+| `Stream.of(vararg elements: A): Stream<Nothing, A>` | the elements named, in order; with none of them, `empty()` |
+| `Stream.fromStage(stage: CompletionStage<A>): Stream<Nothing, A>` | the stage's value as one element; a `null` completion is `Died(NullPointerException)`, never `Done` with nothing |
+| `Stream.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A>` | the same, with the absence named: a `null` completion is `Failed(ifNull)` |
+| `Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A>` | a stream that emitted nothing fails with `error`, for `E : E2`; one that emitted is untouched |
 | **Element by element** | |
 | `Stream<E, A>.map(f: (A) -> B): Stream<E, B>` | `B` is bound to `Any`, so a nullable body does not compile |
 | `Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B>` | as `map`, with the body in a `Raise<E>`: `fail(e)`, `raise`, `bind` and `ensure` |
@@ -284,6 +289,90 @@ in 24. A raise is the stream's declared failure, anything thrown is
 `Died(cause)`, and a body still running when the stream is torn down is
 interrupted where it blocked, because Pekko never cancels the stage its
 `mapAsync` is waiting on.
+
+## Missing is a failure, not an empty stream
+
+A stage that completed with `null`, an empty `Optional`, a lookup that found
+nothing: every builder that reads absence as emptiness makes a source with no
+elements out of a miss, and a run over one answers `Done` having processed
+nothing — which is what a run that had nothing to process answers too. Nothing
+in the types said the start was a lookup that could miss, and nothing at
+runtime said that zero elements was the wrong answer.
+
+<!-- missing-example -->
+```kotlin
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.fail
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.fromStage
+import io.github.matthewjones372.lark.stream.orFailIfEmpty
+import io.github.matthewjones372.lark.stream.single
+import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.javadsl.Source
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+
+data class Customer(val id: Int, val name: String)
+
+data class Missing(val id: Int)
+
+// A directory that answers with a customer or with nothing at all, which is the shape of every lookup.
+fun lookup(id: Int): Customer? = if (id == 1) Customer(1, "ada") else null
+
+val id = 1
+val stage: CompletionStage<Customer> = CompletableFuture.completedFuture(Customer(id, "ada"))
+val rows: Source<Customer, NotUsed> = Source.empty()                    // a source lark did not build
+
+val one: Stream<Missing, Customer> =
+    lookup(id)?.let { Stream.single(it) } ?: Stream.fail(Missing(id))   // absence is a failure with a name
+
+val everything: Stream<Missing, Customer> =
+    Stream.from(rows).orFailIfEmpty(Missing(id))                        // zero elements → Failed(Missing(id))
+
+val answered: Stream<Nothing, Customer> = Stream.fromStage(stage)       // a null completion → Died(NullPointerException)
+
+val declared: Stream<Missing, Customer> =
+    Stream.fromStage(stage, ifNull = Missing(id))                       // a null completion → Failed(Missing(id))
+```
+
+`single` and `of` take `A : Any`, so the nullable is refused where the value
+is and the `?:` naming the failure is written at the lookup rather than
+somewhere downstream. `fromStage` checks at runtime, because a stage from Java
+can complete with `null` whatever its type argument says — the first form dies
+with a `NullPointerException` naming the builder, the second fails with the
+error given. `orFailIfEmpty` is the word a caller says over a source lark did
+not build: one built elsewhere is opaque, so zero elements is all there is to
+go on, and saying it is a decision rather than a default. There is no
+`fromNullable`: the builder that turns absence into emptiness is the mistake.
+
+The one thing a library cannot reach is code that never enters it. detekt's
+`ForbiddenMethodCall` can, with type resolution on — `detektMain` rather than
+`detekt`. This is the list this repository holds itself to, in
+[`config/detekt/detekt.yml`](../config/detekt/detekt.yml); paste it into
+yours:
+
+```yaml
+ForbiddenMethodCall:
+  active: true
+  methods:
+    - reason: 'A stage that completes with null emits nothing: Stream.fromStage names the absence.'
+      value: 'org.apache.pekko.stream.javadsl.Source.completionStage'
+    - reason: 'The older name for the same builder, and the same null completion.'
+      value: 'org.apache.pekko.stream.javadsl.Source.fromCompletionStage'
+    - reason: 'The Scala half of it: a Future completed with null emits nothing either.'
+      value: 'org.apache.pekko.stream.javadsl.Source.future'
+    - reason: 'The older name for the Future form, with the same completion.'
+      value: 'org.apache.pekko.stream.javadsl.Source.fromFuture'
+    - reason: 'A java.util.stream over ofNullable or an empty Optional is a source of no elements.'
+      value: 'org.apache.pekko.stream.javadsl.Source.fromJavaStream'
+    - reason: 'An iterator over an empty Optional is a source of no elements.'
+      value: 'org.apache.pekko.stream.javadsl.Source.fromIterator'
+```
+
+The name on its own is the match, so every overload of it is covered. Pekko's
+javadsl has no `Source.from(Optional)` to name — an `Optional` reaches a source
+through `fromJavaStream` over `Optional.stream()` or through `fromIterator`,
+which is what those two entries are for.
 
 ## How a failure travels
 

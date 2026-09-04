@@ -455,6 +455,55 @@ own `Either`, `divertLefts` splits on that rather than on a predicate, and what
 is left at the end is a `Receipt`. Pekko runs the same three stages either way:
 what changes is what the type says, and what it will not let you write.
 
+### Missing is a failure, not an empty stream
+
+A stage that completed with `null`, an empty `Optional`, a lookup that found
+nothing: every builder that reads absence as emptiness makes a source with no
+elements out of a miss, and the run answers `Done` having processed nothing.
+`single` and `of` refuse the nullable where the value is, `fromStage` checks
+the completion the type argument lied about, and `orFailIfEmpty` is the word a
+caller says over a source lark did not build:
+
+<!-- missing-example -->
+```kotlin
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.fail
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.fromStage
+import io.github.matthewjones372.lark.stream.orFailIfEmpty
+import io.github.matthewjones372.lark.stream.single
+import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.javadsl.Source
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+
+data class Customer(val id: Int, val name: String)
+
+data class Missing(val id: Int)
+
+// A directory that answers with a customer or with nothing at all, which is the shape of every lookup.
+fun lookup(id: Int): Customer? = if (id == 1) Customer(1, "ada") else null
+
+val id = 1
+val stage: CompletionStage<Customer> = CompletableFuture.completedFuture(Customer(id, "ada"))
+val rows: Source<Customer, NotUsed> = Source.empty()                    // a source lark did not build
+
+val one: Stream<Missing, Customer> =
+    lookup(id)?.let { Stream.single(it) } ?: Stream.fail(Missing(id))   // absence is a failure with a name
+
+val everything: Stream<Missing, Customer> =
+    Stream.from(rows).orFailIfEmpty(Missing(id))                        // zero elements → Failed(Missing(id))
+
+val answered: Stream<Nothing, Customer> = Stream.fromStage(stage)       // a null completion → Died(NullPointerException)
+
+val declared: Stream<Missing, Customer> =
+    Stream.fromStage(stage, ifNull = Missing(id))                       // a null completion → Failed(Missing(id))
+```
+
+The document carries the rest, with the detekt snippet for the builders that
+read absence as emptiness — the code a library cannot reach is the code that
+never enters it.
+
 [`docs/stream.md`](docs/stream.md) is the operator table — every builder,
 combinator and way out with what it answers — and how a declared failure
 travels.
