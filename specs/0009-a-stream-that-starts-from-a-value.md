@@ -2,10 +2,12 @@
 
 ## Problem
 
-A pipeline that began as `Source.from(Optional.ofNullable(x))` — or any
-builder that reads absence as emptiness — ran to `Done` having processed
-nothing, because the `null` became an empty source and an empty source is a
-normal outcome. Nothing in the types said the start was a lookup that could
+A pipeline that began as `Source.completionStage(stage)` — the older name is
+`fromCompletionStage` — ran to `Done` having processed nothing, because the
+stage completed with `null`, Pekko emits nothing for a null value, and an
+empty source is a normal outcome. Every builder that reads absence as
+emptiness (`from(Optional)`, `fromJavaStream` over `ofNullable`, the stage
+ones) has the same shape of failure. Nothing in the types said the start was a lookup that could
 miss, and nothing at runtime said that zero elements was the wrong answer.
 The maintainer's instruction (chat, 2026-09-04): do as much as the library
 can against that.
@@ -29,6 +31,9 @@ val one: Stream<Missing, Customer> =
     lookup(id)?.let { Stream.single(it) } ?: Stream.fail(Missing(id))     // absence is a failure with a name
 
 Stream.from(source).orFailIfEmpty(Missing(id))                            // a source lark did not build: zero elements → Failed(Missing)
+
+Stream.fromStage(stage)                                                    // Stream<Nothing, A>: a null completion is Died(NullPointerException), never Done with nothing
+Stream.fromStage(stage, ifNull = Missing(id))                              // Stream<Missing, A>: a null completion is Failed(Missing(id))
 ```
 
 - `Stream.single(element: A): Stream<Nothing, A>` and
@@ -39,12 +44,19 @@ Stream.from(source).orFailIfEmpty(Missing(id))                            // a s
   `via` does): Pekko's `Source.orElse`, which switches to the alternative only
   when the primary completes without emitting, with the alternative
   `Source.failed(DeclaredFailure(error))`. `run` answers `Failed(error)`.
+- `Stream.fromStage(stage: CompletionStage<A>): Stream<Nothing, A>` and
+  `Stream.fromStage(stage, ifNull: E): Stream<E, A>`, `A : Any`. The check is
+  at runtime, because a stage from Java may complete with `null` whatever its
+  type argument says: the first form dies with a `NullPointerException` whose
+  message names the builder, the second fails with the error named. A failed
+  stage is `Died(cause)`, unwrapped as `await()` unwraps.
 - `DoesNotCompileTest` gains two fixtures asserting the compiler's own words:
   `Stream.single(x)` with `x: String?`, and `Stream.from(listOf(x))`.
 - Docs: a paragraph under **Building** — *missing is a failure, not an empty
   stream* — with the three lines above; and a detekt snippet a consumer can
   paste into `ForbiddenMethodCall` naming the builders that read absence as
-  emptiness (`Source.from(Optional)`, `Source.fromJavaStream` over
+  emptiness (`Source.completionStage`, `Source.fromCompletionStage`,
+  `Source.future`, `Source.from(Optional)`, `Source.fromJavaStream` over
   `Stream.ofNullable`, `Source.fromIterator` over an `Optional`), since the
   one thing lark cannot reach is code that never enters it.
 
@@ -61,6 +73,10 @@ every legitimately empty pipeline say so, which is most of them.
 - [ ] **`spec-0009-single`** — `single`, `of`, the two fixtures.
       Done when: both fixtures fail to compile with the asserted wording, and
       `Stream.of()` with no arguments is `Stream.empty()`'s twin.
+- [ ] **`spec-0009-stage`** — `fromStage`, both forms.
+      Done when: a stage completing with `null` is `Died` in the first form
+      and `Failed(error)` in the second, a value is one element, and a failed
+      stage is `Died(cause)` with the same instance.
 - [ ] **`spec-0009-if-empty`** — `orFailIfEmpty`, the docs paragraph, the
       detekt snippet.
       Done when: an empty raw source through `orFailIfEmpty` runs to
