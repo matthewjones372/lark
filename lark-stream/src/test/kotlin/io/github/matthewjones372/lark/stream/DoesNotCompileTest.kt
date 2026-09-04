@@ -34,13 +34,16 @@ class DoesNotCompileTest {
     }
 
     private val preamble = """
+        import io.github.matthewjones372.lark.stream.Pipe
         import io.github.matthewjones372.lark.stream.Stream
         import io.github.matthewjones372.lark.stream.divertLefts
         import io.github.matthewjones372.lark.stream.from
         import io.github.matthewjones372.lark.stream.map
         import io.github.matthewjones372.lark.stream.mapAsync
         import io.github.matthewjones372.lark.stream.mapOrFail
+        import io.github.matthewjones372.lark.stream.toFlow
         import io.github.matthewjones372.lark.stream.toSource
+        import org.apache.pekko.stream.javadsl.Flow
         import org.apache.pekko.stream.javadsl.Sink
         import java.util.concurrent.CompletableFuture
         import java.util.concurrent.CompletionStage
@@ -86,6 +89,23 @@ class DoesNotCompileTest {
 
         withClue(errors.joinToString("\n")) {
             errors.joinToString("\n") shouldContain "toSource"
+        }
+    }
+
+    @Test
+    fun `a pipe still carrying a failure has no toFlow to call`() {
+        val errors = compile(
+            """
+            $preamble
+            val failing: Pipe<NoCustomer, Row, Row> = Pipe.from(Flow.of(Row::class.java))
+            val escaped = failing.toFlow()
+            """.trimIndent(),
+        )
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain
+                "None of the following candidates is applicable because of a receiver type mismatch:\n" +
+                "fun <In, Out : Any> Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed>"
         }
     }
 

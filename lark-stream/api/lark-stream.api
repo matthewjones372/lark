@@ -68,6 +68,21 @@ public final class io/github/matthewjones372/lark/stream/OperatorsKt {
 	public static final fun orElse (Lio/github/matthewjones372/lark/stream/Stream;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
 }
 
+public final class io/github/matthewjones372/lark/stream/Pipe {
+	public static final field Companion Lio/github/matthewjones372/lark/stream/Pipe$Companion;
+}
+
+public final class io/github/matthewjones372/lark/stream/Pipe$Companion {
+}
+
+public final class io/github/matthewjones372/lark/stream/PipeKt {
+	public static final fun from (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lorg/apache/pekko/stream/javadsl/Flow;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun identity (Lio/github/matthewjones372/lark/stream/Pipe$Companion;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun toFlow (Lio/github/matthewjones372/lark/stream/Pipe;)Lorg/apache/pekko/stream/javadsl/Flow;
+	public static final fun via (Lio/github/matthewjones372/lark/stream/Pipe;Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun via (Lio/github/matthewjones372/lark/stream/Stream;Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Stream;
+}
+
 public final class io/github/matthewjones372/lark/stream/Run {
 }
 
