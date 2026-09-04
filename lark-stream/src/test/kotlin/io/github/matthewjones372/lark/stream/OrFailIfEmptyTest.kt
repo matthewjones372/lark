@@ -14,7 +14,7 @@ class OrFailIfEmptyTest {
     companion object {
         @JvmField
         @RegisterExtension
-        val pekko = PekkoActorSystem("dipper-or-fail-if-empty-test")
+        val pekko = PekkoActorSystem("lark-stream-or-fail-if-empty-test")
     }
 
     private data class Missing(val id: Int)

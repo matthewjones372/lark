@@ -17,7 +17,7 @@ class StreamTest {
     companion object {
         @JvmField
         @RegisterExtension
-        val pekko = PekkoActorSystem("dipper-stream-test")
+        val pekko = PekkoActorSystem("lark-stream-stream-test")
     }
 
     private data class Row(val id: Int, val customer: String?)

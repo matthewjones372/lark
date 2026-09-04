@@ -34,7 +34,7 @@ class ReadmeExampleTest {
     companion object {
         @JvmField
         @RegisterExtension
-        val pekko = PekkoActorSystem("dipper-readme-test")
+        val pekko = PekkoActorSystem("lark-stream-readme-test")
 
         private const val MARKER = "<!-- readme-example -->"
 

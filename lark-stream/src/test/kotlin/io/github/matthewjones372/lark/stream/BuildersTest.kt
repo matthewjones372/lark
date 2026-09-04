@@ -12,7 +12,7 @@ class BuildersTest {
     companion object {
         @JvmField
         @RegisterExtension
-        val pekko = PekkoActorSystem("dipper-builders-test")
+        val pekko = PekkoActorSystem("lark-stream-builders-test")
     }
 
     private data class Customer(val id: Int, val name: String)

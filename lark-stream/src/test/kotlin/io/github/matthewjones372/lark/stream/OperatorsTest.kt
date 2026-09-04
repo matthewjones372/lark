@@ -20,7 +20,7 @@ class OperatorsTest {
     companion object {
         @JvmField
         @RegisterExtension
-        val pekko = PekkoActorSystem("dipper-operators-test")
+        val pekko = PekkoActorSystem("lark-stream-operators-test")
     }
 
     private data class Receipt(val id: Int)

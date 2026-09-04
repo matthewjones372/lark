@@ -17,7 +17,7 @@ class FromStageTest {
     companion object {
         @JvmField
         @RegisterExtension
-        val pekko = PekkoActorSystem("dipper-from-stage-test")
+        val pekko = PekkoActorSystem("lark-stream-from-stage-test")
     }
 
     private data class Missing(val id: Int)

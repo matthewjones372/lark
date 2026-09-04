@@ -102,6 +102,8 @@ subprojects {
         jvmToolchain(21)
 
         compilerOptions {
+            // A warning nobody reads is a defect nobody fixed; the build says so.
+            allWarningsAsErrors.set(true)
             // Without this, every interface with a method body also gets a
             // `DefaultImpls` class holding a copy of it, and both are published
             // surface the BCV gate then has to keep. The interfaces here
