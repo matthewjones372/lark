@@ -62,14 +62,14 @@ with a narrower error slots into a wider stream without a cast.
 
 ## Stack
 
-- [ ] **`spec-0008-pipe`** — `Pipe`, `from`, `identity`, `via` (both), `toFlow`.
+- [x] **`spec-0008-pipe`** (`main`, 277415f) — `Pipe`, `from`, `identity`, `via` (both), `toFlow`.
       Done when: a `Pipe` built from a Pekko `Flow` runs through `Stream.via`
       and `Exit` is unchanged; `toFlow` does not compile on a `Pipe<E, …>`
       with `E` not `Nothing` (`DoesNotCompileTest`).
-- [ ] **`spec-0008-operators`** — the operators on `Pipe`; `Stream`'s as `via`.
+- [x] **`spec-0008-operators`** (`main`, e0a5446) — the operators on `Pipe`; `Stream`'s as `via`.
       Done when: dipper's suite passes unedited, and the Shape's `settle` is
       reused across two sources in a test.
-- [ ] **`spec-0008-docs`** — the table rows, **Before and after**, README.
+- [x] **`spec-0008-docs`** (`main`, d03ca50) — the table rows, **Before and after**, README.
       Done when: both examples compile and run in `ReadmeExampleTest`, and
       the README pair equals the document's.
 
@@ -87,3 +87,10 @@ with a narrower error slots into a wider stream without a cast.
    twin.
 2. **Variance.** `in In` on `Pipe` lets a `Pipe<E, Any, B>` take any source;
    recommended, since `Flow` is invariant only because Java is.
+
+Decided while building (2026-09-04): `either`, `catchAll` and `orElse` answer
+the declared failure rather than add to it, so they splice through an
+internal `through` instead of the public `via`; `mapAsync` is the example's
+stage for a client that answers a stage, and `mapPar` has its own section for
+a body that must block; the README's main example names no pipe, since it has
+one source.
