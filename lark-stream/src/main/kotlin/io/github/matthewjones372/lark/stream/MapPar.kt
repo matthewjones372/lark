@@ -4,7 +4,7 @@ import arrow.core.raise.Raise
 import arrow.core.raise.either
 import io.github.matthewjones372.lark.VirtualThreads
 import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Source
+import org.apache.pekko.stream.javadsl.Flow
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentHashMap
@@ -19,11 +19,11 @@ import kotlin.concurrent.withLock
  * `Raise<E>`; the results keep the input's order, as [mapAsync]'s do.
  */
 fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B> =
-    forked(parallelism, VirtualThreads, f)
+    via(Pipe.mapPar(parallelism, VirtualThreads, f))
 
 /** The same, with every body run on [on]. */
 fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B> =
-    forked(parallelism, on, f)
+    via(Pipe.mapPar(parallelism, on, f))
 
 /**
  * As above, on a stream that has yet to name a failure: this one reads the failure out of the body.
@@ -36,7 +36,7 @@ fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, on: Executor, f:
 // callers never see it.
 @JvmName("mapParDeclaring")
 fun <F, A : Any, B : Any> Stream<Nothing, A>.mapPar(parallelism: Int, f: Raise<F>.(A) -> B): Stream<F, B> =
-    forked(parallelism, VirtualThreads, f)
+    via(Pipe.mapPar(parallelism, VirtualThreads, f))
 
 /** The same, with every body run on [on]. */
 @JvmName("mapParDeclaringOn")
@@ -44,19 +44,53 @@ fun <F, A : Any, B : Any> Stream<Nothing, A>.mapPar(
     parallelism: Int,
     on: Executor,
     f: Raise<F>.(A) -> B,
-): Stream<F, B> = forked(parallelism, on, f)
+): Stream<F, B> = via(Pipe.mapPar(parallelism, on, f))
 
-private fun <E, A : Any, B : Any> Stream<E, A>.forked(
+/** The starting form: a pipe of bodies, each on a virtual thread of its own. */
+fun <E, A : Any, B : Any> Pipe.Companion.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
+    forked(parallelism, VirtualThreads, f)
+
+/** The same, with every body run on [on]. */
+fun <E, A : Any, B : Any> Pipe.Companion.mapPar(
     parallelism: Int,
     on: Executor,
     f: Raise<E>.(A) -> B,
-): Stream<E, B> =
-    Stream(
+): Pipe<E, A, B> = forked(parallelism, on, f)
+
+fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapPar(
+    parallelism: Int,
+    f: Raise<E>.(Out) -> Out2,
+): Pipe<E, In, Out2> = via(Pipe.mapPar(parallelism, VirtualThreads, f))
+
+/** The same, with every body run on [on]. */
+fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapPar(
+    parallelism: Int,
+    on: Executor,
+    f: Raise<E>.(Out) -> Out2,
+): Pipe<E, In, Out2> = via(Pipe.mapPar(parallelism, on, f))
+
+/** As the stream pair above, on a pipe that has yet to name a failure. */
+@JvmName("mapParPipeDeclaring")
+fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapPar(
+    parallelism: Int,
+    f: Raise<F>.(Out) -> Out2,
+): Pipe<F, In, Out2> = via(Pipe.mapPar(parallelism, VirtualThreads, f))
+
+/** The same, with every body run on [on]. */
+@JvmName("mapParPipeDeclaringOn")
+fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapPar(
+    parallelism: Int,
+    on: Executor,
+    f: Raise<F>.(Out) -> Out2,
+): Pipe<F, In, Out2> = via(Pipe.mapPar(parallelism, on, f))
+
+private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
+    Pipe(
         // What is in flight belongs to the run rather than to the description, which can be
         // materialised again while an earlier run of it is still going.
-        Source.fromMaterializer<B, NotUsed> { _, _ ->
+        Flow.fromMaterializer<A, B, NotUsed> { _, _ ->
             val bodies = Bodies(on)
-            mapAsync(parallelism) { a -> bodies.start<E, B> { f(a) } }.source
+            Pipe.mapAsync<A, B>(parallelism) { a -> bodies.start<E, B> { f(a) } }.flow
                 .watchTermination { mat, ended ->
                     // Pekko never cancels the stage a mapAsync is waiting on, so this is where a body
                     // learns that the stream which asked for its element has gone.

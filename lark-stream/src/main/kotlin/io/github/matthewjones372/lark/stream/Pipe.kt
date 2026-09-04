@@ -7,7 +7,8 @@ import org.apache.pekko.stream.javadsl.Flow
  * The middle of a pipeline: `In` in, `Out` out, and a declared failure of `E` it can end with.
  *
  * Described and not yet running, and reusable — one of these is spliced into as many streams as
- * there are sources for it.
+ * there are sources for it. Every operator `Stream` has is here, and `Stream`'s are this one's
+ * through [via].
  */
 class Pipe<out E, in In, out Out : Any> internal constructor(
     // Pekko's Flow is a Java generic, so Kotlin reads both element types as invariant. What is
@@ -25,10 +26,59 @@ fun <A : Any> Pipe.Companion.identity(): Pipe<Nothing, A, A> = Pipe(Flow.create(
 
 /** [next]'s failure joins this one's: a narrower `E2` slots in, as `absolve`'s `L` does. */
 fun <E, E2 : E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.via(next: Pipe<E2, Out, Out2>): Pipe<E, In, Out2> =
-    Pipe(flow.via(next.flow))
+    through(next)
 
 /** The pipe's elements become the stream's, and the failure it declares joins the stream's. */
-fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.via(pipe: Pipe<E2, A, B>): Stream<E, B> = Stream(source.via(pipe.flow))
+fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.via(pipe: Pipe<E2, A, B>): Stream<E, B> = through(pipe)
 
 /** The way out to Pekko, open only once nothing is left that a graph would not understand. */
 fun <In, Out : Any> Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed> = flow
+
+/**
+ * A pipe spliced onto a source, with the failure type the call site names rather than [via]'s.
+ *
+ * `either`, `catchAll` and `orElse` answer the failure the stream declared instead of adding to it,
+ * so `E2 : E` cannot type them; this is internal, and every caller below is one of the operators.
+ */
+internal fun <E, A : Any, B : Any> Stream<*, A>.through(pipe: Pipe<*, A, B>): Stream<E, B> =
+    Stream(source.via(pipe.flow))
+
+/** As above, for a pipe spliced onto a pipe. */
+internal fun <E, In, Out : Any, Out2 : Any> Pipe<*, In, Out>.through(next: Pipe<*, Out, Out2>): Pipe<E, In, Out2> =
+    Pipe(flow.via(next.flow))
+
+fun <A : Any, B : Any> Pipe.Companion.map(f: (A) -> B): Pipe<Nothing, A, B> = Pipe(Flow.create<A>().map { a -> f(a) })
+
+fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.map(f: (Out) -> Out2): Pipe<E, In, Out2> = via(Pipe.map(f))
+
+/**
+ * The starting form the failure type is read out of: `Pipe.mapOrFail<E, A, B> { }` is the pipe
+ * twin of `Stream.from(rows).mapOrFail { }`.
+ */
+fun <E, A : Any, B : Any> Pipe.Companion.mapOrFail(f: Failing<E>.(A) -> B): Pipe<E, A, B> {
+    val scope = Failing<E>()
+    return Pipe(Flow.create<A>().map { a -> scope.f(a) })
+}
+
+/**
+ * As above, on a pipe that has yet to name a failure: this one reads the failure out of the body.
+ *
+ * The pair is `Stream.mapOrFail`'s, for its reason: Kotlin fixes the failure type from the receiver
+ * before it looks at the `fail(e)` naming one. The more specific receiver decides, so a call site
+ * never picks between them.
+ */
+// The two erase to one JVM signature, so one of them needs a name of its own down there. Kotlin
+// callers never see it.
+@JvmName("mapOrFailDeclaring")
+fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapOrFail(f: Failing<F>.(Out) -> Out2): Pipe<F, In, Out2> =
+    via(Pipe.mapOrFail(f))
+
+/** As above, for a pipe whose failure type is already named. */
+fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapOrFail(f: Failing<E>.(Out) -> Out2): Pipe<E, In, Out2> =
+    via(Pipe.mapOrFail(f))
+
+fun <A : Any> Pipe.Companion.filter(predicate: (A) -> Boolean): Pipe<Nothing, A, A> =
+    Pipe(Flow.create<A>().filter { a -> predicate(a) })
+
+fun <E, In, Out : Any> Pipe<E, In, Out>.filter(predicate: (Out) -> Boolean): Pipe<E, In, Out> =
+    via(Pipe.filter(predicate))

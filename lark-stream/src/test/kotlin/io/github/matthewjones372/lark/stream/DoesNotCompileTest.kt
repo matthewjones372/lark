@@ -122,7 +122,7 @@ class DoesNotCompileTest {
 
     @Test
     fun `divertLefts has nothing to split on a stream whose elements are not Either`() {
-        val errors = compile("$preamble\nval broken = Stream.from(rows).divertLefts(to = Sink.ignore())")
+        val errors = compile("$preamble\nval broken = Stream.from(rows).divertLefts(to = Sink.ignore<NoCustomer>())")
 
         withClue(errors.joinToString("\n")) {
             errors.joinToString("\n") shouldContain

@@ -57,7 +57,7 @@ fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Source.fail
 
 fun Stream.Companion.empty(): Stream<Nothing, Nothing> = Stream(Source.empty())
 
-fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = Stream(source.map { a -> f(a) })
+fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = via(Pipe.map(f))
 
 /**
  * `f` may answer with `fail(e)`, which ends the stream with the `E` it names.
@@ -72,19 +72,13 @@ fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = Stream(s
 // The two erase to one JVM signature, so one of them needs a name of its own
 // down there. Kotlin callers never see it.
 @JvmName("mapOrFailDeclaring")
-fun <F, A : Any, B : Any> Stream<Nothing, A>.mapOrFail(f: Failing<F>.(A) -> B): Stream<F, B> {
-    val scope = Failing<F>()
-    return Stream(source.map { a -> scope.f(a) })
-}
+fun <F, A : Any, B : Any> Stream<Nothing, A>.mapOrFail(f: Failing<F>.(A) -> B): Stream<F, B> =
+    via(Pipe.mapOrFail(f))
 
 /** As above, for a stream whose failure type is already named. */
-fun <E, A : Any, B : Any> Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B> {
-    val scope = Failing<E>()
-    return Stream(source.map { a -> scope.f(a) })
-}
+fun <E, A : Any, B : Any> Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B> = via(Pipe.mapOrFail(f))
 
-fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> =
-    Stream(source.filter { a -> predicate(a) })
+fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> = via(Pipe.filter(predicate))
 
 /** The way out to Pekko, open only once nothing is left that a sink would not understand. */
 fun <A : Any> Stream<Nothing, A>.toSource(): Source<A, NotUsed> = source
