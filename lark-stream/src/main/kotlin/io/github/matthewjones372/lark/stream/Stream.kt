@@ -53,6 +53,12 @@ fun <A : Any> Stream.Companion.from(source: Source<A, NotUsed>): Stream<Nothing,
 
 fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Source.from(elements))
 
+/** The one element named, and `A : Any` is where a nullable is refused so the `?:` is written at the lookup. */
+fun <A : Any> Stream.Companion.single(element: A): Stream<Nothing, A> = Stream(Source.single(element))
+
+/** The elements named, in order; with none of them it is [empty]. */
+fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stream(Source.from(elements.asList()))
+
 fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Source.failed(DeclaredFailure(error)))
 
 fun Stream.Companion.empty(): Stream<Nothing, Nothing> = Stream(Source.empty())

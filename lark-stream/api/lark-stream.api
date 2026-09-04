@@ -137,6 +137,8 @@ public final class io/github/matthewjones372/lark/stream/StreamKt {
 	public static final fun map (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapOrFail (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapOrFailDeclaring (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun of (Lio/github/matthewjones372/lark/stream/Stream$Companion;[Ljava/lang/Object;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun single (Lio/github/matthewjones372/lark/stream/Stream$Companion;Ljava/lang/Object;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun toSource (Lio/github/matthewjones372/lark/stream/Stream;)Lorg/apache/pekko/stream/javadsl/Source;
 }
 

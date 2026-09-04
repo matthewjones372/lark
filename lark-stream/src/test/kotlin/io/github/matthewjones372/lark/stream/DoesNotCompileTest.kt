@@ -41,6 +41,7 @@ class DoesNotCompileTest {
         import io.github.matthewjones372.lark.stream.map
         import io.github.matthewjones372.lark.stream.mapAsync
         import io.github.matthewjones372.lark.stream.mapOrFail
+        import io.github.matthewjones372.lark.stream.single
         import io.github.matthewjones372.lark.stream.toFlow
         import io.github.matthewjones372.lark.stream.toSource
         import org.apache.pekko.stream.javadsl.Flow
@@ -128,6 +129,40 @@ class DoesNotCompileTest {
             errors.joinToString("\n") shouldContain
                 "None of the following candidates is applicable because of a receiver type mismatch:\n" +
                 "fun <E, L : Any, R : Any> Stream<E, Either<L, R>>.divertLefts(to: Sink<L, *>): Stream<E, R>"
+        }
+    }
+
+    @Test
+    fun `single is refused the nullable that the element bound rules out`() {
+        val errors = compile(
+            """
+            $preamble
+            val name: String? = null
+            val broken = Stream.single(name)
+            """.trimIndent(),
+        )
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain
+                "Argument type mismatch: actual type is 'String?', but 'Any' was expected."
+        }
+    }
+
+    @Test
+    fun `from is refused an iterable of a nullable for the same reason`() {
+        val errors = compile(
+            """
+            $preamble
+            val name: String? = null
+            val broken = Stream.from(listOf(name))
+            """.trimIndent(),
+        )
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain
+                "fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A>:\n" +
+                "  Argument type mismatch: actual type is 'List<String?>', but " +
+                "'Iterable<uninferred A (of fun <A : Any> Stream.Companion.from)>' was expected."
         }
     }
 
