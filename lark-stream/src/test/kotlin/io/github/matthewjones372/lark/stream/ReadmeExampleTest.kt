@@ -3,7 +3,6 @@ package io.github.matthewjones372.lark.stream
 import arrow.core.Either
 import arrow.core.raise.either
 import arrow.core.right
-import io.github.matthewjones372.lark.pekko.await
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -23,12 +22,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * The example in `docs/stream.md`, compiled out of the document and then run
- * beside it: the fence marked `<!-- readme-example -->`, because the marker
- * renders as nothing on the page and survives the heading above it being
- * reworded.
+ * The examples in `docs/stream.md`, compiled out of the document and then run
+ * beside it: the fences marked `<!-- ... -->`, because a marker renders as
+ * nothing on the page and survives the heading above it being reworded.
  *
- * The README's Streams section shows the same pipeline, and is held to the same
+ * The README's Streams section shows the same pipelines, and is held to the same
  * text here, so that one compilation covers both pages.
  */
 class ReadmeExampleTest {
@@ -39,12 +37,22 @@ class ReadmeExampleTest {
         val pekko = PekkoActorSystem("dipper-readme-test")
 
         private const val MARKER = "<!-- readme-example -->"
+
+        /** The three fences of the before-and-after: the fixtures, and the pipeline written each way. */
+        private const val FIXTURES = "<!-- example-fixtures -->"
+        private const val BEFORE = "<!-- before-example -->"
+        private const val AFTER = "<!-- after-example -->"
+
+        /** The one that only the document carries, since the README sends the reader there for it. */
+        private const val BLOCKING = "<!-- mappar-example -->"
+
+        private val shownOnBothPages = listOf(MARKER, FIXTURES, BEFORE, AFTER)
     }
 
     @TempDir
     lateinit var workspace: File
 
-    private val marked = Regex("""$MARKER\s*```kotlin\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
+    private fun marked(marker: String) = Regex("""$marker\s*```kotlin\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
 
     /** The build hands the root over, so the pages read here are the ones the repository ships. */
     private fun page(name: String): File {
@@ -59,34 +67,56 @@ class ReadmeExampleTest {
 
     private fun readme(): File = page("README.md")
 
-    private fun examples(page: File): List<String> =
-        marked.findAll(page.readText()).map { match -> match.groupValues[1] }.toList()
+    private fun examples(page: File, marker: String): List<String> =
+        marked(marker).findAll(page.readText()).map { match -> match.groupValues[1] }.toList()
 
-    @Test
-    fun `the document marks exactly one example to compile`() {
-        withClue("${document()} must hold one kotlin fence marked $MARKER") {
-            examples(document()).size shouldBe 1
+    private fun only(page: File, marker: String): String {
+        withClue("$page must hold one kotlin fence marked $marker") {
+            examples(page, marker).size shouldBe 1
         }
+        return examples(page, marker).single()
     }
 
-    @Test
-    fun `the README's Streams section shows the example the document compiles`() {
-        withClue("${readme()} must hold one kotlin fence marked $MARKER") {
-            examples(readme()).size shouldBe 1
-        }
-        withClue("the two pages must show the same pipeline, so that compiling it covers both") {
-            examples(readme()).single() shouldBe examples(document()).single()
-        }
-    }
-
-    @Test
-    fun `the example the document shows compiles against the library`() {
-        val (exit, errors) = EmbeddedKotlin(workspace).compile(examples(document()).single())
+    private fun compiles(source: String) {
+        val (exit, errors) = EmbeddedKotlin(workspace).compile(source)
 
         withClue(errors.joinToString("\n")) {
             errors.shouldBeEmpty()
             exit shouldBe ExitCode.OK
         }
+    }
+
+    @Test
+    fun `the document marks one fence for each example it compiles`() {
+        (shownOnBothPages + BLOCKING).forEach { marker -> only(document(), marker) }
+    }
+
+    @Test
+    fun `the README's Streams section shows the examples the document compiles`() {
+        shownOnBothPages.forEach { marker ->
+            withClue("the two pages must show the same $marker fence, so that compiling it covers both") {
+                only(readme(), marker) shouldBe only(document(), marker)
+            }
+        }
+    }
+
+    @Test
+    fun `the example the document shows compiles against the library`() {
+        compiles(only(document(), MARKER))
+    }
+
+    /** Both halves of the before-and-after, each on the fixtures the section states once. */
+    @Test
+    fun `the pipeline written each way compiles against what it is written on`() {
+        val fixtures = only(document(), FIXTURES)
+
+        compiles("$fixtures\n\n${only(document(), BEFORE)}")
+        compiles("$fixtures\n\n${only(document(), AFTER)}")
+    }
+
+    @Test
+    fun `the blocking body the document shows compiles`() {
+        compiles(only(document(), BLOCKING))
     }
 
     /** The same pipeline, line for line, run: what the document shows is compiled and also true. */
@@ -105,7 +135,7 @@ class ReadmeExampleTest {
             awaitExit(
                 Stream.from(rows)
                     .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
-                    .mapPar(4) { customer -> ledger.settle(customer).await() }
+                    .mapAsync(4) { customer -> ledger.settle(customer) }
                     .divertLefts(to = declinedSink)
                     .runWith(receiptSink)
                     .run(system),
