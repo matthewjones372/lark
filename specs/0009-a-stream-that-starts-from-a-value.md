@@ -70,14 +70,14 @@ every legitimately empty pipeline say so, which is most of them.
 
 ## Stack
 
-- [ ] **`spec-0009-single`** — `single`, `of`, the two fixtures.
+- [x] **`spec-0009-single`** (`main`, 4ce39fb) — `single`, `of`, the two fixtures.
       Done when: both fixtures fail to compile with the asserted wording, and
       `Stream.of()` with no arguments is `Stream.empty()`'s twin.
-- [ ] **`spec-0009-stage`** — `fromStage`, both forms.
+- [x] **`spec-0009-stage`** (`main`, 3d3c5dd) — `fromStage`, both forms.
       Done when: a stage completing with `null` is `Died` in the first form
       and `Failed(error)` in the second, a value is one element, and a failed
       stage is `Died(cause)` with the same instance.
-- [ ] **`spec-0009-if-empty`** — `orFailIfEmpty`, the docs paragraph, the
+- [x] **`spec-0009-if-empty`** (`main`, 30336ff) — `orFailIfEmpty`, the docs paragraph, the
       detekt snippet.
       Done when: an empty raw source through `orFailIfEmpty` runs to
       `Failed(error)`, a non-empty one is unchanged, and a failing one is
@@ -94,3 +94,12 @@ every legitimately empty pipeline say so, which is most of them.
 1. **`orFailIfEmpty` on `Pipe` too?** A pipe cannot know whether its source
    emitted; Pekko's `orElse` is a source operator. Recommended: `Stream` only,
    with the reason in KDoc.
+
+Decided while building (2026-09-04): `orFailIfEmpty` is `orElse` over a
+`lazySource` of the failed source, since `Source.failed` fails at
+materialisation and `orElse` would never look at the primary; `fromStage`
+guards the null in the stage itself, on `Source.completionStage`; the lint
+lands in this repository's detekt config too, with `fromStage`'s one call the
+annotated exception; Pekko 1.2.1 has no `Source.from(Optional)`, so the
+snippet names `fromJavaStream` and `fromIterator` as the routes an `Optional`
+takes.
