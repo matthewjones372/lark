@@ -134,6 +134,8 @@ public final class io/github/matthewjones372/lark/stream/StreamKt {
 	public static final fun filter (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun from (Lio/github/matthewjones372/lark/stream/Stream$Companion;Ljava/lang/Iterable;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun from (Lio/github/matthewjones372/lark/stream/Stream$Companion;Lorg/apache/pekko/stream/javadsl/Source;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun fromStage (Lio/github/matthewjones372/lark/stream/Stream$Companion;Ljava/util/concurrent/CompletionStage;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun fromStage (Lio/github/matthewjones372/lark/stream/Stream$Companion;Ljava/util/concurrent/CompletionStage;Ljava/lang/Object;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun map (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapOrFail (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapOrFailDeclaring (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;

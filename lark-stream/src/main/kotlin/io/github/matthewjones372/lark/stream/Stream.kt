@@ -3,6 +3,9 @@ package io.github.matthewjones372.lark.stream
 import arrow.core.raise.Raise
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Source
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionException
+import java.util.concurrent.CompletionStage
 
 /**
  * A stream of `A` that can end with a declared failure of `E`, described and
@@ -59,6 +62,19 @@ fun <A : Any> Stream.Companion.single(element: A): Stream<Nothing, A> = Stream(S
 /** The elements named, in order; with none of them it is [empty]. */
 fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stream(Source.from(elements.asList()))
 
+/**
+ * The stage's value as the one element; a completion with `null` is a defect naming this builder.
+ *
+ * A stage from Java can complete with `null` whatever its type argument says, and Pekko reads that as a
+ * source with nothing in it — the empty stream this builder exists so that nobody gets by accident.
+ */
+fun <A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>): Stream<Nothing, A> =
+    Stream(Source.completionStage(stage.checked { NullPointerException(NULL_COMPLETION) }))
+
+/** As above, with the absence named: a completion with `null` is the declared failure [ifNull]. */
+fun <E, A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A> =
+    Stream(Source.completionStage(stage.checked { DeclaredFailure(ifNull) }))
+
 fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Source.failed(DeclaredFailure(error)))
 
 fun Stream.Companion.empty(): Stream<Nothing, Nothing> = Stream(Source.empty())
@@ -88,3 +104,29 @@ fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> = 
 
 /** The way out to Pekko, open only once nothing is left that a sink would not understand. */
 fun <A : Any> Stream<Nothing, A>.toSource(): Source<A, NotUsed> = source
+
+/** A defect that does not say where it came from is the disappearance again, so the builder is in the message. */
+private const val NULL_COMPLETION = "Stream.fromStage: the stage completed with null"
+
+/**
+ * The stage a source can be built on: one that fails where the given one completes with `null`.
+ *
+ * The guard is here rather than downstream because Pekko never offers the null to an operator, and the
+ * cast is what lets Kotlin look at a value whose type already claims it cannot be null. Nothing waits on
+ * the stage: what completes it runs this, so no Pekko thread is spent on a value that has not arrived.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): CompletionStage<A> {
+    val checked = CompletableFuture<A>()
+    (this as CompletionStage<A?>).whenComplete { value, thrown ->
+        when {
+            thrown != null -> checked.completeExceptionally(thrown.unwrapped())
+            value == null -> checked.completeExceptionally(onNull())
+            else -> checked.complete(value)
+        }
+    }
+    return checked
+}
+
+/** What failed a stage arrives wrapped, as it does in `await`: the caller declared the cause, not the wrapper. */
+private fun Throwable.unwrapped(): Throwable = if (this is CompletionException) cause ?: this else this
