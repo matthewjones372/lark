@@ -313,13 +313,12 @@ Rows in, receipts to one sink, declines to another, and every import it takes:
 ```kotlin
 import arrow.core.Either
 import arrow.core.raise.either
-import io.github.matthewjones372.lark.pekko.await
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.awaitExit
 import io.github.matthewjones372.lark.stream.divertLefts
 import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapAsync
 import io.github.matthewjones372.lark.stream.mapOrFail
-import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runWith
 import org.apache.pekko.Done
@@ -359,13 +358,102 @@ val settled: Either<IngestError, Done> = either {
             .mapOrFail { row ->                                        // Stream<IngestError, Customer>
                 Customer(row.id, row.customer ?: raise(NoCustomer(row.id)))
             }
-            .mapPar(4) { customer -> ledger.settle(customer).await() }  // one virtual thread per element
+            .mapAsync(4) { customer -> ledger.settle(customer) }        // up to four stages at once, in order
             .divertLefts(to = declinedSink)                            // Stream<IngestError, Receipt>
             .runWith(receiptSink)                                      // Run<IngestError, Done>
             .run(system),                                              // CompletionStage<Exit<IngestError, Done>>
     )                                                                  // Done → the value, Failed → raise, Died → throw
 }
 ```
+
+### Before and after
+
+The same ingest twice, from the fixtures and the imports the two need between
+them:
+
+<!-- example-fixtures -->
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.divertLefts
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapAsync
+import io.github.matthewjones372.lark.stream.mapOrFail
+import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.javadsl.Sink
+import org.apache.pekko.stream.javadsl.Source
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+
+data class Row(val id: Int, val customer: String?)
+
+data class Customer(val id: Int, val name: String)
+
+data class Receipt(val id: Int)
+
+sealed interface IngestError
+
+data class NoCustomer(val id: Int) : IngestError
+
+data class Declined(val id: Int) : IngestError
+
+class Ledger {
+    fun settle(customer: Customer): CompletionStage<Either<Declined, Receipt>> =
+        CompletableFuture.completedFuture(Either.Right(Receipt(customer.id)))
+}
+
+val ledger = Ledger()
+val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
+val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
+```
+
+Before — raw Pekko `Source`:
+
+<!-- before-example -->
+```kotlin
+val receipts: Source<Either<IngestError, Receipt>, NotUsed> =
+    Source.from(rows)
+        .map { row ->                                        // Source<Either<IngestError, Customer>, NotUsed>
+            either<IngestError, Customer> { Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
+        }
+        .mapAsync(4) { customer ->
+            customer.fold(
+                { e -> CompletableFuture.completedFuture<Either<IngestError, Receipt>>(Either.Left(e)) },
+                { c -> ledger.settle(c).thenApply { it.mapLeft { d -> d as IngestError } } },
+            )                                                // the Left carried past a stage that never wanted it,
+        }                                                    // and Declined widened to IngestError by hand
+        .divertTo(
+            declinedSink.contramap<Either<IngestError, Receipt>> { (it as Either.Left).value as Declined },
+            { it is Either.Left && it.value is Declined },    // a cast for the sink, a predicate on the subtype
+        )                                                    // and a NoCustomer Left is still in the stream
+```
+
+After — ours:
+
+<!-- after-example -->
+```kotlin
+val receipts: Stream<IngestError, Receipt> =
+    Stream.from(rows)
+        .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }   // a nullable body does not compile
+        .mapAsync(4) { customer -> ledger.settle(customer) }                                // the same mapAsync, E already on the stream
+        .divertLefts(to = declinedSink)                                                     // no predicate, no cast
+```
+
+Raw Pekko carries the failure in the element, so every stage after the first
+unwraps and re-wraps one: the `mapAsync` that only wanted a customer carries a
+`Left` past itself, and `Declined` is widened to `IngestError` by hand. A
+diverted element and a failed pipeline are then the same thing in one channel,
+told apart by a predicate on the error's subtype — so the `NoCustomer` that
+should have ended the run keeps flowing to the consumer instead, and the
+element type at the end is still `Either<IngestError, Receipt>`, which the
+consumer folds too.
+
+The second says it in the types instead. The failure is on the stream rather
+than in the element, so `mapAsync` sees a `Customer` and hands on the ledger's
+own `Either`, `divertLefts` splits on that rather than on a predicate, and what
+is left at the end is a `Receipt`. Pekko runs the same three stages either way:
+what changes is what the type says, and what it will not let you write.
 
 [`docs/stream.md`](docs/stream.md) is the operator table — every builder,
 combinator and way out with what it answers — and how a declared failure

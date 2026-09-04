@@ -46,13 +46,12 @@ Rows in, receipts to one sink, declines to another, and every import it takes:
 ```kotlin
 import arrow.core.Either
 import arrow.core.raise.either
-import io.github.matthewjones372.lark.pekko.await
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.awaitExit
 import io.github.matthewjones372.lark.stream.divertLefts
 import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapAsync
 import io.github.matthewjones372.lark.stream.mapOrFail
-import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runWith
 import org.apache.pekko.Done
@@ -92,7 +91,7 @@ val settled: Either<IngestError, Done> = either {
             .mapOrFail { row ->                                        // Stream<IngestError, Customer>
                 Customer(row.id, row.customer ?: raise(NoCustomer(row.id)))
             }
-            .mapPar(4) { customer -> ledger.settle(customer).await() }  // one virtual thread per element
+            .mapAsync(4) { customer -> ledger.settle(customer) }        // up to four stages at once, in order
             .divertLefts(to = declinedSink)                            // Stream<IngestError, Receipt>
             .runWith(receiptSink)                                      // Run<IngestError, Done>
             .run(system),                                              // CompletionStage<Exit<IngestError, Done>>
@@ -116,6 +115,95 @@ failure means. `DoesNotCompileTest` compiles both of those on every build and
 asserts the compiler's own words, so a message invented on this page would fail
 rather than persuade.
 
+## Before and after
+
+The same ingest twice, from the fixtures and the imports the two need between
+them:
+
+<!-- example-fixtures -->
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.divertLefts
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapAsync
+import io.github.matthewjones372.lark.stream.mapOrFail
+import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.javadsl.Sink
+import org.apache.pekko.stream.javadsl.Source
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+
+data class Row(val id: Int, val customer: String?)
+
+data class Customer(val id: Int, val name: String)
+
+data class Receipt(val id: Int)
+
+sealed interface IngestError
+
+data class NoCustomer(val id: Int) : IngestError
+
+data class Declined(val id: Int) : IngestError
+
+class Ledger {
+    fun settle(customer: Customer): CompletionStage<Either<Declined, Receipt>> =
+        CompletableFuture.completedFuture(Either.Right(Receipt(customer.id)))
+}
+
+val ledger = Ledger()
+val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
+val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
+```
+
+Before — raw Pekko `Source`:
+
+<!-- before-example -->
+```kotlin
+val receipts: Source<Either<IngestError, Receipt>, NotUsed> =
+    Source.from(rows)
+        .map { row ->                                        // Source<Either<IngestError, Customer>, NotUsed>
+            either<IngestError, Customer> { Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
+        }
+        .mapAsync(4) { customer ->
+            customer.fold(
+                { e -> CompletableFuture.completedFuture<Either<IngestError, Receipt>>(Either.Left(e)) },
+                { c -> ledger.settle(c).thenApply { it.mapLeft { d -> d as IngestError } } },
+            )                                                // the Left carried past a stage that never wanted it,
+        }                                                    // and Declined widened to IngestError by hand
+        .divertTo(
+            declinedSink.contramap<Either<IngestError, Receipt>> { (it as Either.Left).value as Declined },
+            { it is Either.Left && it.value is Declined },    // a cast for the sink, a predicate on the subtype
+        )                                                    // and a NoCustomer Left is still in the stream
+```
+
+After — ours:
+
+<!-- after-example -->
+```kotlin
+val receipts: Stream<IngestError, Receipt> =
+    Stream.from(rows)
+        .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }   // a nullable body does not compile
+        .mapAsync(4) { customer -> ledger.settle(customer) }                                // the same mapAsync, E already on the stream
+        .divertLefts(to = declinedSink)                                                     // no predicate, no cast
+```
+
+Raw Pekko carries the failure in the element, so every stage after the first
+unwraps and re-wraps one: the `mapAsync` that only wanted a customer carries a
+`Left` past itself, and `Declined` is widened to `IngestError` by hand. A
+diverted element and a failed pipeline are then the same thing in one channel,
+told apart by a predicate on the error's subtype — so the `NoCustomer` that
+should have ended the run keeps flowing to the consumer instead, and the
+element type at the end is still `Either<IngestError, Receipt>`, which the
+consumer folds too.
+
+The second says it in the types instead. The failure is on the stream rather
+than in the element, so `mapAsync` sees a `Customer` and hands on the ledger's
+own `Either`, `divertLefts` splits on that rather than on a predicate, and what
+is left at the end is a `Receipt`. Pekko runs the same three stages either way:
+what changes is what the type says, and what it will not let you write.
+
 ## The surface
 
 | Operator | Answers |
@@ -129,8 +217,8 @@ rather than persuade.
 | `Stream<E, A>.map(f: (A) -> B): Stream<E, B>` | `B` is bound to `Any`, so a nullable body does not compile |
 | `Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B>` | as `map`, with the body in a `Raise<E>`: `fail(e)`, `raise`, `bind` and `ensure` |
 | `Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A>` | the elements that match, the only place one is dropped on purpose |
-| `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | up to `parallelism` stages at once, in the input's order; a `null` completion dies |
-| `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | as `mapAsync`, with a blocking body per element on a virtual thread of its own; `B : Any`, so no completion drops an element |
+| `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | a body that answers a stage: up to `parallelism` at once, in the input's order; a `null` completion dies |
+| `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Raise<E>`; `B : Any`, so no completion drops an element |
 | `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
 | **The split in `Either`** | |
 | `Stream<E, A>.either(): Stream<Nothing, Either<E, A>>` | the failure as the last element, leaving none in the type |
@@ -145,8 +233,57 @@ rather than persuade.
 | `Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M>` | a run described, to the sink named; the sink's materialised value is the run's |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | the one call that materialises, on the system it names |
 | `Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Raise`: `Done` is the value, `Failed` raises, `Died` throws |
+| **Pipes** | |
+| `Pipe.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out>` | the way in from Pekko's `Flow` |
+| `Pipe.identity(): Pipe<Nothing, A, A>` | the pipe that changes nothing, where a chain starts |
+| `Pipe<E, In, Out>.via(next: Pipe<E2, Out, Out2>): Pipe<E, In, Out2>` | two pipes as one, the narrower failure slotting in for `E2 : E` |
+| `Stream<E, A>.via(pipe: Pipe<E2, A, B>): Stream<E, B>` | the pipe spliced into the stream, for `E2 : E` |
+| `Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed>` | Pekko's own `Flow`, once nothing is left to declare |
+| every operator above | on `Pipe` too, in two forms: `Pipe.map(f)` starts a pipe and `pipe.map(f)` carries one on. `Stream`'s are `via` of them, so there is one implementation of each |
 | **The way out** | |
 | `Stream<Nothing, A>.toSource(): Source<A, NotUsed>` | Pekko's own `Source`, once nothing is left to declare |
+
+## A body that must block
+
+`mapAsync` is for a body that answers a `CompletionStage`. `mapPar` is for one
+that cannot: a JDBC call, a blocking client, anything whose answer arrives by
+returning. Every element in flight gets a virtual thread of its own, at most
+`parallelism` of them at a time, and the body runs in the stream's `Raise<E>`,
+so `raise`, `bind` and `parZip` are all in reach of it:
+
+<!-- mappar-example -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapPar
+
+data class Row(val id: Int, val customer: String?)
+
+data class Customer(val id: Int, val name: String)
+
+data class NoCustomer(val id: Int)
+
+// A lookup with no stage to hand back: it answers by returning, so reaching it means blocking.
+class Directory {
+    fun lookup(id: Int): Either<NoCustomer, Customer> = Either.Right(Customer(id, "ada"))
+}
+
+val directory = Directory()
+val rows = listOf(Row(1, "ada"), Row(2, "grace"))
+
+val customers: Stream<NoCustomer, Customer> =
+    Stream.from(rows).mapPar(4) { row -> directory.lookup(row.id).bind() }   // a virtual thread per element in flight
+```
+
+Blocking a virtual thread parks it and leaves the carrier to the next one, so
+four in flight are four threads and not four platform threads — with one
+exception worth knowing about on JDK 21 to 23, where a `synchronized` block
+inside a driver pins the carrier for as long as it blocks; JEP 491 fixed that
+in 24. A raise is the stream's declared failure, anything thrown is
+`Died(cause)`, and a body still running when the stream is torn down is
+interrupted where it blocked, because Pekko never cancels the stage its
+`mapAsync` is waiting on.
 
 ## How a failure travels
 
@@ -163,10 +300,7 @@ a pipeline through a named sink or not at all.
 lark's name for it and a `bind()` on a `Left` ends the stream with what the
 `Left` holds. Everything a lark handler writes — `ensure`, `parZip`, a fork
 awaited — an element body can write too, and the failure it names is the one
-the stream already declares. A `mapPar` body is that scope on a fork: a raise
-is the stream's declared failure, anything thrown is `Died(cause)`, and a body
-still running when the stream is torn down is interrupted where it blocked,
-because Pekko never cancels the stage its `mapAsync` is waiting on.
+the stream already declares.
 
 ## What is in the box
 

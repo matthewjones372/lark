@@ -34,13 +34,16 @@ class DoesNotCompileTest {
     }
 
     private val preamble = """
+        import io.github.matthewjones372.lark.stream.Pipe
         import io.github.matthewjones372.lark.stream.Stream
         import io.github.matthewjones372.lark.stream.divertLefts
         import io.github.matthewjones372.lark.stream.from
         import io.github.matthewjones372.lark.stream.map
         import io.github.matthewjones372.lark.stream.mapAsync
         import io.github.matthewjones372.lark.stream.mapOrFail
+        import io.github.matthewjones372.lark.stream.toFlow
         import io.github.matthewjones372.lark.stream.toSource
+        import org.apache.pekko.stream.javadsl.Flow
         import org.apache.pekko.stream.javadsl.Sink
         import java.util.concurrent.CompletableFuture
         import java.util.concurrent.CompletionStage
@@ -90,6 +93,23 @@ class DoesNotCompileTest {
     }
 
     @Test
+    fun `a pipe still carrying a failure has no toFlow to call`() {
+        val errors = compile(
+            """
+            $preamble
+            val failing: Pipe<NoCustomer, Row, Row> = Pipe.from(Flow.of(Row::class.java))
+            val escaped = failing.toFlow()
+            """.trimIndent(),
+        )
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain
+                "None of the following candidates is applicable because of a receiver type mismatch:\n" +
+                "fun <In, Out : Any> Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed>"
+        }
+    }
+
+    @Test
     fun `a mapAsync stage that can complete with null is refused by the element bound`() {
         val errors = compile("$preamble\nval broken = Stream.from(rows).mapAsync(1) { row -> settle(row.id) }")
 
@@ -102,7 +122,7 @@ class DoesNotCompileTest {
 
     @Test
     fun `divertLefts has nothing to split on a stream whose elements are not Either`() {
-        val errors = compile("$preamble\nval broken = Stream.from(rows).divertLefts(to = Sink.ignore())")
+        val errors = compile("$preamble\nval broken = Stream.from(rows).divertLefts(to = Sink.ignore<NoCustomer>())")
 
         withClue(errors.joinToString("\n")) {
             errors.joinToString("\n") shouldContain

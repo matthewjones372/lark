@@ -53,10 +53,16 @@ public final class io/github/matthewjones372/lark/stream/Failing : arrow/core/ra
 }
 
 public final class io/github/matthewjones372/lark/stream/MapParKt {
+	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Pipe$Companion;ILjava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Pipe$Companion;ILkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Pipe;ILjava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Pipe;ILkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Stream;ILjava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapPar (Lio/github/matthewjones372/lark/stream/Stream;ILkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapParDeclaring (Lio/github/matthewjones372/lark/stream/Stream;ILkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapParDeclaringOn (Lio/github/matthewjones372/lark/stream/Stream;ILjava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun mapParPipeDeclaring (Lio/github/matthewjones372/lark/stream/Pipe;ILkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapParPipeDeclaringOn (Lio/github/matthewjones372/lark/stream/Pipe;ILjava/util/concurrent/Executor;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
 }
 
 public final class io/github/matthewjones372/lark/stream/OperatorsKt {
@@ -66,6 +72,43 @@ public final class io/github/matthewjones372/lark/stream/OperatorsKt {
 	public static final fun either (Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapAsync (Lio/github/matthewjones372/lark/stream/Stream;ILkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun orElse (Lio/github/matthewjones372/lark/stream/Stream;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
+}
+
+public final class io/github/matthewjones372/lark/stream/Pipe {
+	public static final field Companion Lio/github/matthewjones372/lark/stream/Pipe$Companion;
+}
+
+public final class io/github/matthewjones372/lark/stream/Pipe$Companion {
+}
+
+public final class io/github/matthewjones372/lark/stream/PipeKt {
+	public static final fun filter (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun filter (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun from (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lorg/apache/pekko/stream/javadsl/Flow;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun identity (Lio/github/matthewjones372/lark/stream/Pipe$Companion;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun map (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun map (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapOrFail (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapOrFail (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapOrFailDeclaring (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun toFlow (Lio/github/matthewjones372/lark/stream/Pipe;)Lorg/apache/pekko/stream/javadsl/Flow;
+	public static final fun via (Lio/github/matthewjones372/lark/stream/Pipe;Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun via (Lio/github/matthewjones372/lark/stream/Stream;Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Stream;
+}
+
+public final class io/github/matthewjones372/lark/stream/PipeOperatorsKt {
+	public static final fun absolve (Lio/github/matthewjones372/lark/stream/Pipe$Companion;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun absolve (Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun catchAll (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun catchAll (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun divertLefts (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lorg/apache/pekko/stream/javadsl/Sink;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun divertLefts (Lio/github/matthewjones372/lark/stream/Pipe;Lorg/apache/pekko/stream/javadsl/Sink;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun either (Lio/github/matthewjones372/lark/stream/Pipe$Companion;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun either (Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapAsync (Lio/github/matthewjones372/lark/stream/Pipe$Companion;ILkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapAsync (Lio/github/matthewjones372/lark/stream/Pipe;ILkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun orElse (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun orElse (Lio/github/matthewjones372/lark/stream/Pipe;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Pipe;
 }
 
 public final class io/github/matthewjones372/lark/stream/Run {
