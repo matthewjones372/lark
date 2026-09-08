@@ -5,6 +5,8 @@ import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import kotlin.time.Duration
+import kotlin.time.toJavaDuration
 
 /**
  * A stream of `A` that can end with a declared failure of `E`, described and
@@ -51,7 +53,15 @@ class Failing<in E> internal constructor() : Raise<E> {
     fun fail(error: E): Nothing = raise(error)
 }
 
-fun <A : Any> Stream.Companion.from(source: Source<A, NotUsed>): Stream<Nothing, A> = Stream(source)
+/**
+ * The way in from Pekko, whatever the source materialises.
+ *
+ * The materialised value is dropped rather than declared, because a `Stream` has none to give: a
+ * caller who needs the `Cancellable` a ticker hands back keeps the `Source` and passes a view of it
+ * here. One signature rather than two: a second over `Source<A, NotUsed>` would erase to this one.
+ */
+fun <A : Any> Stream.Companion.from(source: Source<A, *>): Stream<Nothing, A> =
+    Stream(source.mapMaterializedValue { NotUsed.getInstance() })
 
 fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Source.from(elements))
 
@@ -60,6 +70,10 @@ fun <A : Any> Stream.Companion.single(element: A): Stream<Nothing, A> = Stream(S
 
 /** The elements named, in order; with none of them it is [empty]. */
 fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stream(Source.from(elements.asList()))
+
+/** [element] every [every], the first one [after] the run starts, and no `Cancellable` to unwrap. */
+fun <A : Any> Stream.Companion.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A> =
+    from(Source.tick(after.toJavaDuration(), every.toJavaDuration(), element))
 
 /**
  * The stage's value as the one element; a completion with `null` is a defect naming this builder.

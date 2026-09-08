@@ -115,6 +115,8 @@ class PipeOperatorsTest {
             divertLeftsTwin(),
             catchAllTwin(),
             orElseTwin(),
+            conflateWithSeedTwin(),
+            mapConcatTwin(),
         )
 
         twins.forEach { twin -> withClue(twin.operator) { twin.viaPipe shouldBe twin.onStream } }
@@ -143,6 +145,16 @@ class PipeOperatorsTest {
         withClue("a body runs where the call said it would, on a pipe as on a stream") {
             threads.toList() shouldBe listOf("ledger-1", "ledger-1")
         }
+    }
+
+    /** The shape the socket that asked for both wrote: a backlog coalesced, and flattened again. */
+    @Test
+    fun `a pipe collapses a backlog by cart and flattens it again`() {
+        val coalesced: Pipe<Nothing, Int, Int> = Pipe.identity<Int>()
+            .conflateWithSeed({ n -> setOf(n) }, { seen, n -> seen + n })
+            .mapConcat { seen -> seen }
+
+        Stream.from(ids).via(coalesced).collected() shouldBe Exit.Done(listOf(1, 2, 3))
     }
 
     /** A pipe with no failure named yet reads one out of the body it is given, as `Stream.from` does. */
@@ -264,5 +276,21 @@ class PipeOperatorsTest {
         "orElse",
         Stream.from(ids).mapOrFail { n -> failingAt(n) }.orElse(nine()).collected(),
         Stream.from(ids).mapOrFail { n -> failingAt(n) }.via(Pipe.orElse(nine())).collected(),
+    )
+
+    /** Flattened again, so what is asserted is what came through rather than which burst it came in. */
+    private fun conflateWithSeedTwin(): Twin = Twin(
+        "conflateWithSeed",
+        Stream.from(ids).conflateWithSeed({ n -> setOf(n) }, { seen, n -> seen + n }).mapConcat { seen -> seen }
+            .collected(),
+        Stream.from(ids).via(Pipe.conflateWithSeed({ n: Int -> setOf(n) }, { seen, n -> seen + n }))
+            .mapConcat { seen -> seen }
+            .collected(),
+    )
+
+    private fun mapConcatTwin(): Twin = Twin(
+        "mapConcat",
+        Stream.from(ids).mapConcat { n -> listOf(n, n * 10) }.collected(),
+        Stream.from(ids).via(Pipe.mapConcat { n: Int -> listOf(n, n * 10) }).collected(),
     )
 }

@@ -210,11 +210,12 @@ what changes is what the type says, and what it will not let you write.
 |---|---|
 | **Building** | |
 | `Stream.from(elements: Iterable<A>): Stream<Nothing, A>` | a stream of what is already in hand |
-| `Stream.from(source: Source<A, NotUsed>): Stream<Nothing, A>` | the way in from Pekko |
+| `Stream.from(source: Source<A, *>): Stream<Nothing, A>` | the way in from Pekko, whatever the source materialises: the value is dropped, since a stream has none to give |
 | `Stream.fail(error: E): Stream<E, Nothing>` | a stream that ends with the failure it names |
 | `Stream.empty(): Stream<Nothing, Nothing>` | no elements and no failure |
 | `Stream.single(element: A): Stream<Nothing, A>` | the one element named; `A : Any`, so a nullable does not compile |
 | `Stream.of(vararg elements: A): Stream<Nothing, A>` | the elements named, in order; with none of them, `empty()` |
+| `Stream.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A>` | `element` every `every`, the first one `after` the run starts; `kotlin.time.Duration`, as lark's own `timeout` takes |
 | `Stream.fromStage(stage: CompletionStage<A>): Stream<Nothing, A>` | the stage's value as one element; a `null` completion is `Died(NullPointerException)`, never `Done` with nothing |
 | `Stream.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A>` | the same, with the absence named: a `null` completion is `Failed(ifNull)` |
 | `Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A>` | a stream that emitted nothing fails with `error`, for `E : E2`; one that emitted is untouched |
@@ -225,6 +226,11 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | a body that answers a stage: up to `parallelism` at once, in the input's order; a `null` completion dies |
 | `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Raise<E>`; `B : Any`, so no completion drops an element |
 | `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
+| `Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B>` | each element's own elements, in its order; one that answers with none emits none |
+| `Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S>` | a backlog collapsed while downstream is busy: `seed` starts the aggregate and `aggregate` folds each later element in |
+| **Two streams as one** | |
+| `Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A>` | `first`'s elements before this stream's, Pekko's name and Pekko's order |
+| `Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A>` | `next`'s elements after this stream's; both operands materialise at once, so a failure in either ends the run |
 | **The split in `Either`** | |
 | `Stream<E, A>.either(): Stream<Nothing, Either<E, A>>` | the failure as the last element, leaving none in the type |
 | `Stream<E, Either<L, R>>.absolve(): Stream<E, R>` | back again: a `Left` fails the stream, for `L : E` |

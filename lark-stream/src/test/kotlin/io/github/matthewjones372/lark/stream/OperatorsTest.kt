@@ -6,8 +6,10 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.pekko.stream.javadsl.Sink
+import org.apache.pekko.stream.testkit.javadsl.TestSink
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -257,5 +259,103 @@ class OperatorsTest {
             .settled()
 
         exit shouldBe Exit.Done(emptyList())
+    }
+
+    @Test
+    fun `prepend puts the stream it names in front of this one`() {
+        val exit = Stream.of(2, 3).prepend(Stream.single(1)).runCollect().run(pekko.system).settled()
+
+        exit shouldBe Exit.Done(listOf(1, 2, 3))
+    }
+
+    @Test
+    fun `concat puts the stream it names after this one`() {
+        val exit = Stream.of(1, 2).concat(Stream.single(3)).runCollect().run(pekko.system).settled()
+
+        exit shouldBe Exit.Done(listOf(1, 2, 3))
+    }
+
+    @Test
+    fun `a failure in what concat appends ends the run, after the elements before it`() {
+        val seen = ConcurrentLinkedQueue<Int>()
+        // A stream that fails where it runs rather than one already failed: `concat` materialises
+        // both operands at once, so a `Stream.fail` would end the run before the first had emitted.
+        val declining: Stream<Declined, Int> = Stream.of(3).mapOrFail { n -> if (n == 3) fail(Declined(n)) else n }
+
+        val exit = Stream.of(1, 2)
+            .concat(declining)
+            .runWith(Sink.foreach { n: Int -> seen.add(n) })
+            .run(pekko.system)
+            .settled()
+
+        exit shouldBe Exit.Failed(Declined(3))
+        withClue("what the first operand emitted still reached the sink") {
+            seen.toList() shouldBe listOf(1, 2)
+        }
+    }
+
+    @Test
+    fun `a failure in what prepend puts first ends the run`() {
+        val exit = Stream.of(1, 2).prepend(Stream.fail(Declined(0))).runCollect().run(pekko.system).settled()
+
+        exit shouldBe Exit.Failed(Declined(0))
+    }
+
+    @Test
+    fun `a defect in what concat appends is nobody's declared failure, so it dies`() {
+        val cause = IllegalStateException("no ledger")
+
+        val exit = Stream.of(1, 2)
+            .concat(Stream.single(3).map { n -> if (n == 3) throw cause else n })
+            .runCollect()
+            .run(pekko.system)
+            .settled()
+
+        exit shouldBe Exit.Died(cause)
+    }
+
+    /**
+     * Demand is withheld until the burst is in, which is the condition conflate exists for: the
+     * probe's explicit request is what makes "collapsed" a claim rather than a race.
+     */
+    @Test
+    fun `conflateWithSeed collapses a burst into one aggregate while downstream asks for nothing`() {
+        val probe = Stream.from(listOf(1, 2, 3, 4))
+            .conflateWithSeed({ n -> setOf(n) }, { seen, n -> seen + n })
+            .toSource()
+            .runWith(TestSink.probe(pekko.classic), pekko.system)
+
+        probe.ensureSubscription()
+        probe.expectNoMessage(Duration.ofMillis(200))
+
+        probe.requestNext() shouldBe setOf(1, 2, 3, 4)
+        probe.expectComplete()
+    }
+
+    /** The aggregate runs only where a burst forms, so the withheld demand is what reaches it. */
+    @Test
+    fun `an aggregate that throws dies naming the operator and the element it was folding in`() {
+        val cause = IllegalStateException("no room")
+
+        val probe = Stream.from(listOf(1, 2, 3))
+            .conflateWithSeed({ n -> setOf(n) }, { _, _ -> throw cause })
+            .toSource()
+            .runWith(TestSink.probe(pekko.classic), pekko.system)
+
+        val thrown = probe.expectSubscriptionAndError()
+
+        thrown shouldBe cause
+        thrown.suppressed.single().message shouldContain "conflateWithSeed died on 2"
+    }
+
+    @Test
+    fun `mapConcat flattens what each element answers with, in the order it answered`() {
+        val exit = Stream.of(listOf(1, 2), emptyList(), listOf(3))
+            .mapConcat { ns -> ns }
+            .runCollect()
+            .run(pekko.system)
+            .settled()
+
+        exit shouldBe Exit.Done(listOf(1, 2, 3))
     }
 }

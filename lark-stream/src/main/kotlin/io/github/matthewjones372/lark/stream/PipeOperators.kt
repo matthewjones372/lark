@@ -29,6 +29,34 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapAsync(
     f: (Out) -> CompletionStage<Out2>,
 ): Pipe<E, In, Out2> = via(Pipe.mapAsync(parallelism, f))
 
+/**
+ * A backlog collapsed into one element: [seed] starts an aggregate from the element downstream was
+ * not ready for, and [aggregate] folds each later one into it until downstream asks again.
+ *
+ * Both halves run caller code, so both are guarded, and the element a defect names is the one being
+ * folded in. Nothing is dropped: what an aggregate leaves out is what the caller left out of it.
+ */
+fun <A : Any, S : Any> Pipe.Companion.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Pipe<Nothing, A, S> {
+    val at = buildSite()
+    val start = guarded("conflateWithSeed", at, seed)
+    val fold = guarded("conflateWithSeed", at, aggregate)
+    return Pipe(Flow.create<A>().conflateWithSeed({ a -> start(a) }, { s, a -> fold(s, a) }))
+}
+
+fun <E, In, Out : Any, S : Any> Pipe<E, In, Out>.conflateWithSeed(
+    seed: (Out) -> S,
+    aggregate: (S, Out) -> S,
+): Pipe<E, In, S> = via(Pipe.conflateWithSeed(seed, aggregate))
+
+/** Each element's own elements, in its order; one that answers with none emits none. */
+fun <A : Any, B : Any> Pipe.Companion.mapConcat(f: (A) -> Iterable<B>): Pipe<Nothing, A, B> {
+    val body = guarded("mapConcat", buildSite(), f)
+    return Pipe(Flow.create<A>().mapConcat { a -> body(a) })
+}
+
+fun <E, In, Out : Any, B : Any> Pipe<E, In, Out>.mapConcat(f: (Out) -> Iterable<B>): Pipe<E, In, B> =
+    via(Pipe.mapConcat(f))
+
 /** The declared failure becomes the last element, as a `Left`, leaving none for the type to carry. */
 fun <E, A : Any> Pipe.Companion.either(): Pipe<Nothing, A, Either<E, A>> {
     val rights: Flow<A, Either<E, A>, NotUsed> = Flow.create<A>().map { a -> Either.Right(a) }
