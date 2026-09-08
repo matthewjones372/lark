@@ -69,7 +69,7 @@ names only the library.
 
 ## Stack
 
-- [ ] **`spec-0010-reported`** — the error log in `run`, the guard on every
+- [x] **`spec-0010-reported`** ([#8](https://github.com/matthewjones372/lark/pull/8)) — the error log in `run`, the guard on every
       operator, the element and build site in a defect's message.
       Done when: a test with nobody reading the stage sees the error through
       `LoggingTestKit`, and the message carries the element and a line of

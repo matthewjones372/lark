@@ -53,7 +53,7 @@ what the consumer did, and it is the unwrapped stretch the problem names.
 
 ## Stack
 
-- [ ] **`spec-0011-seams`** — `from(Source<A, *>)`, `tick`, `prepend`,
+- [x] **`spec-0011-seams`** ([#9](https://github.com/matthewjones372/lark/pull/9)) — `from(Source<A, *>)`, `tick`, `prepend`,
       `concat`, `conflateWithSeed`, `mapConcat`, the `docs/stream.md` rows.
       Done when: a `Source.tick` becomes a `Stream` with no
       `mapMaterializedValue` in sight, and a throw inside `mapConcat` dies.
