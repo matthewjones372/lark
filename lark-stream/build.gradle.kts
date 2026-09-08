@@ -19,6 +19,10 @@ dependencies {
 
     // The actor system a contract test runs on, owned by a JUnit 5 extension.
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary")
+    // LoggingTestKit reads log events back through an appender of logback's own, so the
+    // binding has to be the real one. Test scope only, which NoOtherDependenciesTest keeps
+    // honest against the classpath a consumer gets.
+    testImplementation("ch.qos.logback:logback-classic:1.5.20")
     // TestSink, for the one test that runs what `toSource()` hands back
     // through plain Pekko rather than through this library.
     testImplementation("org.apache.pekko:pekko-stream-testkit_$scalaBinary")

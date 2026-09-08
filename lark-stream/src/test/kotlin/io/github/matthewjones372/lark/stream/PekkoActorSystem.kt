@@ -6,6 +6,7 @@ import org.apache.pekko.actor.testkit.typed.javadsl.ActorTestKit
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeAllCallback
 import org.junit.jupiter.api.extension.ExtensionContext
+import org.apache.pekko.actor.typed.ActorSystem as TypedActorSystem
 
 /**
  * An actor system for one test class, started and stopped by JUnit 5.
@@ -23,6 +24,9 @@ class PekkoActorSystem(private val name: String) : BeforeAllCallback, AfterAllCa
 
     /** What Pekko's own testkit sinks ask for. */
     val classic: ActorSystem get() = testKit.system().classicSystem()
+
+    /** What LoggingTestKit asks for; the same system, seen from the side it was created on. */
+    val typed: TypedActorSystem<*> get() = testKit.system()
 
     override fun beforeAll(context: ExtensionContext) {
         testKit = ActorTestKit.create(name)

@@ -290,9 +290,11 @@ stayed, and all of
 `lark-stream` is `Stream<E, A>` over Pekko Streams: the failure a pipeline
 can end with is in the type, an element can never be null, and running one
 answers an `Exit` that is `Done`, `Failed(e)` or `Died(cause)` rather than a
-stage nobody read. Every operator delegates to Pekko, and `toSource()` and
-`Stream.from(source)` are the way out and in, so nothing Pekko can do is out
-of reach.
+stage nobody read. A `Died` is reported at error through the actor system's own
+logger too, naming the operator, the element and the caller's line that built
+it, so a pipeline run for its effect still says what happened. Every operator
+delegates to Pekko, and `toSource()` and `Stream.from(source)` are the way out
+and in, so nothing Pekko can do is out of reach.
 
 It was a library of its own, dipper, until this repository took it in; the
 code is the same under `io.github.matthewjones372.lark.stream`, and it depends

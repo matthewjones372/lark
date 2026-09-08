@@ -47,7 +47,10 @@ internal fun <E, A : Any, B : Any> Stream<*, A>.through(pipe: Pipe<*, A, B>): St
 internal fun <E, In, Out : Any, Out2 : Any> Pipe<*, In, Out>.through(next: Pipe<*, Out, Out2>): Pipe<E, In, Out2> =
     Pipe(flow.via(next.flow))
 
-fun <A : Any, B : Any> Pipe.Companion.map(f: (A) -> B): Pipe<Nothing, A, B> = Pipe(Flow.create<A>().map { a -> f(a) })
+fun <A : Any, B : Any> Pipe.Companion.map(f: (A) -> B): Pipe<Nothing, A, B> {
+    val body = guarded("map", buildSite(), f)
+    return Pipe(Flow.create<A>().map { a -> body(a) })
+}
 
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.map(f: (Out) -> Out2): Pipe<E, In, Out2> = via(Pipe.map(f))
 
@@ -57,7 +60,8 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.map(f: (Out) -> Out2): Pipe<
  */
 fun <E, A : Any, B : Any> Pipe.Companion.mapOrFail(f: Failing<E>.(A) -> B): Pipe<E, A, B> {
     val scope = Failing<E>()
-    return Pipe(Flow.create<A>().map { a -> scope.f(a) })
+    val body = guarded("mapOrFail", buildSite()) { a: A -> scope.f(a) }
+    return Pipe(Flow.create<A>().map { a -> body(a) })
 }
 
 /**
@@ -77,8 +81,10 @@ fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapOrFail(f: Failing<F
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapOrFail(f: Failing<E>.(Out) -> Out2): Pipe<E, In, Out2> =
     via(Pipe.mapOrFail(f))
 
-fun <A : Any> Pipe.Companion.filter(predicate: (A) -> Boolean): Pipe<Nothing, A, A> =
-    Pipe(Flow.create<A>().filter { a -> predicate(a) })
+fun <A : Any> Pipe.Companion.filter(predicate: (A) -> Boolean): Pipe<Nothing, A, A> {
+    val test = guarded("filter", buildSite(), predicate)
+    return Pipe(Flow.create<A>().filter { a -> test(a) })
+}
 
 fun <E, In, Out : Any> Pipe<E, In, Out>.filter(predicate: (Out) -> Boolean): Pipe<E, In, Out> =
     via(Pipe.filter(predicate))
