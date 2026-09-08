@@ -385,6 +385,20 @@ and `Died(cause)` are three cases of one value, and the `when` over them has no
 `else`. There is no supervision strategy and no `resume`, so an element leaves
 a pipeline through a named sink or not at all.
 
+A `Died` is also reported at error through the actor system's own logger before
+`run` hands it back, so a pipeline run for its effect with nobody reading its
+stage still says what happened. The line names the operator, the element it was
+processing and the line of the caller's own file that built the operator:
+
+```
+[ERROR] lark-stream: mapAsync died on Row(id=3, customer=null), built at IngestService.kt:41: java.lang.IllegalStateException: ledger down
+```
+
+The cause carries the same three facts — as a suppressed exception where a
+caller's lambda threw or a stage failed, so that `Died` keeps the throwable
+class the caller's own code threw and `is IllegalStateException` still matches,
+and as its message where the library raised it, as a null completion is.
+
 `Failing<E>` is an Arrow `Raise<E>`, so `raise(e)` is that same call under
 lark's name for it and a `bind()` on a `Left` ends the stream with what the
 `Left` holds. Everything a lark handler writes — `ensure`, `parZip`, a fork

@@ -1,0 +1,11 @@
+<!--
+  LoggingTestKit attaches its own appender to the root logger, so what this
+  file decides is only what a test run prints: the errors the library reports
+  and warnings, rather than every frame Pekko debug-logs.
+-->
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder><pattern>%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n</pattern></encoder>
+  </appender>
+  <root level="WARN"><appender-ref ref="STDOUT"/></root>
+</configuration>

@@ -18,8 +18,11 @@ import java.util.concurrent.CompletionStage
  * element "is not passed downstream", and a lookup lifted into a future is the easiest thing in
  * Kotlin to write and the hardest to notice.
  */
-fun <A : Any, B : Any> Pipe.Companion.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Pipe<Nothing, A, B> =
-    Pipe(Flow.create<A>().mapAsync(parallelism) { a -> f(a).orDieOnNull() })
+fun <A : Any, B : Any> Pipe.Companion.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Pipe<Nothing, A, B> {
+    val at = buildSite()
+    val stage = guarded("mapAsync", at, f)
+    return Pipe(Flow.create<A>().mapAsync(parallelism) { a -> stage(a).orDieOnNull(a, at) })
+}
 
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapAsync(
     parallelism: Int,
@@ -37,11 +40,12 @@ fun <E, A : Any> Pipe.Companion.either(): Pipe<Nothing, A, Either<E, A>> {
 fun <E, In, Out : Any> Pipe<E, In, Out>.either(): Pipe<Nothing, In, Either<E, Out>> = through(Pipe.either<E, Out>())
 
 /** A `Left` fails the pipe with what it holds; a `Right` carries on as the element. */
-fun <E, L : E, R : Any> Pipe.Companion.absolve(): Pipe<E, Either<L, R>, R> =
-    Pipe(
-        Flow.create<Either<L, R>>()
-            .map { either -> either.fold({ left -> throw DeclaredFailure(left) }, { right -> right }) },
-    )
+fun <E, L : E, R : Any> Pipe.Companion.absolve(): Pipe<E, Either<L, R>, R> {
+    val decided = guarded("absolve", buildSite()) { either: Either<L, R> ->
+        either.fold({ left -> throw DeclaredFailure(left) }, { right -> right })
+    }
+    return Pipe(Flow.create<Either<L, R>>().map { either -> decided(either) })
+}
 
 fun <E, In, L : E, R : Any> Pipe<E, In, Either<L, R>>.absolve(): Pipe<E, In, R> = via(Pipe.absolve<E, L, R>())
 
@@ -49,8 +53,9 @@ fun <E, In, L : E, R : Any> Pipe<E, In, Either<L, R>>.absolve(): Pipe<E, In, R> 
 fun <L : Any, R : Any> Pipe.Companion.divertLefts(to: Sink<L, *>): Pipe<Nothing, Either<L, R>, R> {
     // Flipped, so that both branches read their element through the one cast below.
     val lefts = Flow.fromFunction<Either<L, R>, L> { either -> either.swap().decided() }.to(to)
+    val right = guarded("divertLefts", buildSite()) { either: Either<L, R> -> either.decided() }
     return Pipe(
-        Flow.create<Either<L, R>>().divertTo(lefts) { either -> either.isLeft() }.map { either -> either.decided() },
+        Flow.create<Either<L, R>>().divertTo(lefts) { either -> either.isLeft() }.map { either -> right(either) },
     )
 }
 
@@ -74,12 +79,18 @@ fun <E, In, Out : Any> Pipe<E, In, Out>.orElse(other: Stream<E, Out>): Pipe<E, I
  * Pekko drops a `null` completion before any operator downstream can see it, so the guard belongs
  * inside the stage. The cast is what lets Kotlin look at a value whose type already claims it
  * cannot be null.
+ *
+ * The facts are attached to a stage that failed before the null is looked for, so that the
+ * throwable the library raises below carries them in its message and the caller's own carries
+ * them beside it.
  */
 @Suppress("UNCHECKED_CAST")
-private fun <B : Any> CompletionStage<B>.orDieOnNull(): CompletionStage<B> =
-    (this as CompletionStage<B?>).thenApply { b ->
-        b ?: throw NullPointerException("mapAsync: the stage completed with null")
-    }
+private fun <B : Any> CompletionStage<B>.orDieOnNull(element: Any, at: String): CompletionStage<B> =
+    (this as CompletionStage<B?>)
+        .whenComplete { _, thrown -> thrown?.unwrapped()?.describedBy("mapAsync", element, at) }
+        .thenApply { b ->
+            b ?: throw NullPointerException("${facts("mapAsync", element, at)}: the stage completed with null")
+        }
 
 /**
  * The side a `divertTo` predicate has already settled. Pekko's split keeps one element type on both

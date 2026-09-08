@@ -4,7 +4,6 @@ import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.stream.javadsl.Keep
 import org.apache.pekko.stream.javadsl.RunnableGraph
 import org.apache.pekko.stream.javadsl.Sink
-import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
 
 /** A stream and the sink that ends it, described. Nothing runs until [run] names a system. */
@@ -30,10 +29,24 @@ fun <E, A : Any, R> Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R> =
 fun <E, R> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> =
     graph.run(system)
         .thenApply<Exit<E, R>> { value -> Exit.Done(value) }
-        .exceptionally { thrown -> thrown.asExit() }
+        .exceptionally { thrown -> thrown.asExit<E, R>().reportedTo(system) }
 
 private fun <E, R> Throwable.asExit(): Exit<E, R> {
-    // A CompletableFuture reports what failed it wrapped in a CompletionException.
-    val cause = if (this is CompletionException) this.cause ?: this else this
+    val cause = unwrapped()
     return if (cause is DeclaredFailure) Exit.Failed(cause.declared()) else Exit.Died(cause)
+}
+
+/**
+ * A defect is logged before the `Exit` carrying it is handed back, because the common way to lose
+ * one is a stage nobody reads.
+ */
+private fun <E, R> Exit<E, R>.reportedTo(system: ClassicActorSystemProvider): Exit<E, R> {
+    if (this is Exit.Died) system.classicSystem().log().error(cause, cause.oneLine())
+    return this
+}
+
+/** One line: the three facts where the cause carries them apart, and then the cause itself. */
+private fun Throwable.oneLine(): String {
+    val defect = suppressed.filterIsInstance<Defect>().firstOrNull()
+    return if (defect == null) "lark-stream: $this" else "lark-stream: ${defect.message}: $this"
 }

@@ -4,7 +4,6 @@ import arrow.core.raise.Raise
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
 
 /**
@@ -135,6 +134,3 @@ private fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): Compl
     }
     return checked
 }
-
-/** What failed a stage arrives wrapped, as it does in `await`: the caller declared the cause, not the wrapper. */
-private fun Throwable.unwrapped(): Throwable = if (this is CompletionException) cause ?: this else this

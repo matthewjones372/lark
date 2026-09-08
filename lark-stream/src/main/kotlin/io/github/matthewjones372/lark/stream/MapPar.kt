@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
+import arrow.core.Either
 import arrow.core.raise.Raise
 import arrow.core.raise.either
 import io.github.matthewjones372.lark.VirtualThreads
@@ -84,13 +85,19 @@ fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapPar(
     f: Raise<F>.(Out) -> Out2,
 ): Pipe<F, In, Out2> = via(Pipe.mapPar(parallelism, on, f))
 
-private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
-    Pipe(
+private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Pipe<E, A, B> {
+    // The raise is folded into an Either inside the guard, so that the guard is the one place
+    // deciding what a defect says: a declared failure comes back as a `Left` the stage is failed
+    // with, and everything else picks up the three facts on its way out.
+    val body = guarded("mapPar", buildSite()) { a: A -> either { f(a) } }
+    return Pipe(
         // What is in flight belongs to the run rather than to the description, which can be
         // materialised again while an earlier run of it is still going.
         Flow.fromMaterializer<A, B, NotUsed> { _, _ ->
             val bodies = Bodies(on)
-            Pipe.mapAsync<A, B>(parallelism) { a -> bodies.start<E, B> { f(a) } }.flow
+            // Pekko's own mapAsync rather than this library's: a body answers with a `B : Any`, so
+            // there is no null completion to guard, and `mapPar` is the operator a defect names.
+            Flow.create<A>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
                 .watchTermination { mat, ended ->
                     // Pekko never cancels the stage a mapAsync is waiting on, so this is where a body
                     // learns that the stream which asked for its element has gone.
@@ -99,13 +106,14 @@ private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Rais
                 }
         }.mapMaterializedValue { NotUsed.getInstance() },
     )
+}
 
 /** The bodies one run has in flight: at most `mapAsync`'s parallelism of them, each dropped as it ends. */
 private class Bodies(private val on: Executor) {
 
     private val running = ConcurrentHashMap.newKeySet<Body>()
 
-    fun <E, B : Any> start(body: Raise<E>.() -> B): CompletionStage<B> {
+    fun <E, B : Any> start(body: () -> Either<E, B>): CompletionStage<B> {
         val stage = CompletableFuture<B>()
         val lent = Body(stage)
         running.add(lent)
@@ -161,13 +169,14 @@ private class Body(private val stage: CompletableFuture<*>) {
 }
 
 /**
- * The one place a body's answer becomes a stage's: a raise is the declared failure `run` unwraps, and
- * anything thrown is the defect it answers `Died` with. Throwable is caught because a body that ended
- * its thread instead would leave `mapAsync` waiting on a stage nobody will ever complete.
+ * The one place a body's answer becomes a stage's: a `Left` is the declared failure `run` unwraps, and
+ * anything thrown is the defect it answers `Died` with, described by the guard already. Throwable is
+ * caught because a body that ended its thread instead would leave `mapAsync` waiting on a stage nobody
+ * will ever complete.
  */
-private fun <E, B : Any> CompletableFuture<B>.completeWith(body: Raise<E>.() -> B) {
+private fun <E, B : Any> CompletableFuture<B>.completeWith(body: () -> Either<E, B>) {
     try {
-        either { body() }.fold({ e -> completeExceptionally(DeclaredFailure(e)) }, { b -> complete(b) })
+        body().fold({ e -> completeExceptionally(DeclaredFailure(e)) }, { b -> complete(b) })
     } catch (t: Throwable) {
         completeExceptionally(t)
     }
