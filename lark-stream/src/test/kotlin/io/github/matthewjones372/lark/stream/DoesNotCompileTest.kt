@@ -40,6 +40,7 @@ class DoesNotCompileTest {
         import io.github.matthewjones372.lark.stream.from
         import io.github.matthewjones372.lark.stream.map
         import io.github.matthewjones372.lark.stream.mapAsync
+        import io.github.matthewjones372.lark.stream.mapConcat
         import io.github.matthewjones372.lark.stream.mapOrFail
         import io.github.matthewjones372.lark.stream.single
         import io.github.matthewjones372.lark.stream.toFlow
@@ -163,6 +164,17 @@ class DoesNotCompileTest {
                 "fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A>:\n" +
                 "  Argument type mismatch: actual type is 'List<String?>', but " +
                 "'Iterable<uninferred A (of fun <A : Any> Stream.Companion.from)>' was expected."
+        }
+    }
+
+    @Test
+    fun `mapConcat is refused an iterable of a nullable by the element bound`() {
+        val errors = compile("$preamble\nval broken = Stream.from(rows).mapConcat { row -> listOf(row.customer) }")
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain
+                "Return type mismatch: expected 'Iterable<uninferred B (of fun " +
+                "<E, A : Any, B : Any> Stream<E, A>.mapConcat)>', actual 'List<String?>'."
         }
     }
 

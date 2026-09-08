@@ -25,12 +25,26 @@ internal fun facts(operator: String, element: Any, at: String): String = "$opera
 internal fun <A : Any, B> guarded(operator: String, at: String, f: (A) -> B): (A) -> B =
     { a -> guard(operator, at, a, f) }
 
+/** As above for a body of two, where the element a defect names is the one being folded in. */
+internal fun <S, A : Any, B> guarded(operator: String, at: String, f: (S, A) -> B): (S, A) -> B =
+    { s, a -> guard(operator, at, s, a, f) }
+
 // The catch is as wide as the lambda, because a defect is everything the caller did not declare;
 // which throwable is one is decided below.
 @Suppress("TooGenericExceptionCaught")
 private fun <A : Any, B> guard(operator: String, at: String, a: A, f: (A) -> B): B =
     try {
         f(a)
+    } catch (thrown: Throwable) {
+        throw thrown.describedBy(operator, a, at)
+    }
+
+// The pair above rather than one over a `Pair`: the body is called once per element, and a wrapper
+// built for it would be an allocation per element in every operator that runs caller code.
+@Suppress("TooGenericExceptionCaught")
+private fun <S, A : Any, B> guard(operator: String, at: String, s: S, a: A, f: (S, A) -> B): B =
+    try {
+        f(s, a)
     } catch (thrown: Throwable) {
         throw thrown.describedBy(operator, a, at)
     }

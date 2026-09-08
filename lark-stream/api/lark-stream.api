@@ -68,11 +68,15 @@ public final class io/github/matthewjones372/lark/stream/MapParKt {
 public final class io/github/matthewjones372/lark/stream/OperatorsKt {
 	public static final fun absolve (Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun catchAll (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun concat (Lio/github/matthewjones372/lark/stream/Stream;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun conflateWithSeed (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun divertLefts (Lio/github/matthewjones372/lark/stream/Stream;Lorg/apache/pekko/stream/javadsl/Sink;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun either (Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun mapAsync (Lio/github/matthewjones372/lark/stream/Stream;ILkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun mapConcat (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun orElse (Lio/github/matthewjones372/lark/stream/Stream;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun orFailIfEmpty (Lio/github/matthewjones372/lark/stream/Stream;Ljava/lang/Object;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun prepend (Lio/github/matthewjones372/lark/stream/Stream;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Stream;
 }
 
 public final class io/github/matthewjones372/lark/stream/Pipe {
@@ -102,12 +106,16 @@ public final class io/github/matthewjones372/lark/stream/PipeOperatorsKt {
 	public static final fun absolve (Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun catchAll (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun catchAll (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun conflateWithSeed (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun conflateWithSeed (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun divertLefts (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lorg/apache/pekko/stream/javadsl/Sink;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun divertLefts (Lio/github/matthewjones372/lark/stream/Pipe;Lorg/apache/pekko/stream/javadsl/Sink;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun either (Lio/github/matthewjones372/lark/stream/Pipe$Companion;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun either (Lio/github/matthewjones372/lark/stream/Pipe;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun mapAsync (Lio/github/matthewjones372/lark/stream/Pipe$Companion;ILkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun mapAsync (Lio/github/matthewjones372/lark/stream/Pipe;ILkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapConcat (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
+	public static final fun mapConcat (Lio/github/matthewjones372/lark/stream/Pipe;Lkotlin/jvm/functions/Function1;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun orElse (Lio/github/matthewjones372/lark/stream/Pipe$Companion;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Pipe;
 	public static final fun orElse (Lio/github/matthewjones372/lark/stream/Pipe;Lio/github/matthewjones372/lark/stream/Stream;)Lio/github/matthewjones372/lark/stream/Pipe;
 }
@@ -142,6 +150,8 @@ public final class io/github/matthewjones372/lark/stream/StreamKt {
 	public static final fun mapOrFailDeclaring (Lio/github/matthewjones372/lark/stream/Stream;Lkotlin/jvm/functions/Function2;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun of (Lio/github/matthewjones372/lark/stream/Stream$Companion;[Ljava/lang/Object;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun single (Lio/github/matthewjones372/lark/stream/Stream$Companion;Ljava/lang/Object;)Lio/github/matthewjones372/lark/stream/Stream;
+	public static final fun tick-i3evvOE (Lio/github/matthewjones372/lark/stream/Stream$Companion;JLjava/lang/Object;J)Lio/github/matthewjones372/lark/stream/Stream;
+	public static synthetic fun tick-i3evvOE$default (Lio/github/matthewjones372/lark/stream/Stream$Companion;JLjava/lang/Object;JILjava/lang/Object;)Lio/github/matthewjones372/lark/stream/Stream;
 	public static final fun toSource (Lio/github/matthewjones372/lark/stream/Stream;)Lorg/apache/pekko/stream/javadsl/Source;
 }
 

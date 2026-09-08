@@ -15,6 +15,19 @@ import java.util.concurrent.CompletionStage
 fun <E, A : Any, B : Any> Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B> =
     via(Pipe.mapAsync(parallelism, f))
 
+/** A backlog collapsed into one element while downstream is busy, and nothing dropped to do it. */
+fun <E, A : Any, S : Any> Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S> =
+    via(Pipe.conflateWithSeed(seed, aggregate))
+
+/** Each element's own elements, in its order; one that answers with none emits none. */
+fun <E, A : Any, B : Any> Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B> = via(Pipe.mapConcat(f))
+
+/** Pekko's own order: [first]'s elements before this stream's, and a failure in either ends the run. */
+fun <E, A : Any> Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A> = Stream(source.prepend(first.source))
+
+/** The mirror of [prepend], in Pekko's order too: [next]'s elements after this stream's. */
+fun <E, A : Any> Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A> = Stream(source.concat(next.source))
+
 /** The declared failure becomes the last element, as a `Left`, leaving none for the type to carry. */
 fun <E, A : Any> Stream<E, A>.either(): Stream<Nothing, Either<E, A>> = through(Pipe.either<E, A>())
 

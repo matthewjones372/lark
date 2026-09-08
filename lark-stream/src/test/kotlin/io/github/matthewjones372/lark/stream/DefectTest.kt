@@ -31,6 +31,8 @@ class DefectTest {
         private const val MAP_SITE = "// map built here"
         private const val PAR_SITE = "// mapPar built here"
         private const val PIPE_SITE = "// pipe built here"
+        private const val CONCAT_SITE = "// mapConcat built here"
+        private const val SEED_SITE = "// conflateWithSeed built here"
     }
 
     private data class Row(val id: Int)
@@ -153,6 +155,42 @@ class DefectTest {
         }
         died.cause.suppressed.single().message shouldContain
             "mapPar died on Row(id=2), built at ${siteOf(PAR_SITE)}"
+    }
+
+    @Test
+    fun `a mapConcat that throws keeps its own exception, and the three facts ride with it`() {
+        val at = siteOf(CONCAT_SITE)
+
+        val exit = LoggingTestKit.error("mapConcat died on Row(id=2), built at $at")
+            .withCause(IllegalStateException::class.java)
+            .expect(pekko.typed) {
+                Stream.from(rows)
+                    .mapConcat { row -> listOf(stamp(row)) } // mapConcat built here
+                    .runCollect()
+                    .run(pekko.system)
+                    .settled()
+            }
+
+        val died = exit.shouldBeInstanceOf<Exit.Died>()
+        withClue("wrapping the cause would lose the class the caller's own code threw") {
+            died.cause shouldBeSameInstanceAs noLedger
+        }
+        died.cause.suppressed.single().message shouldContain "mapConcat died on Row(id=2), built at $at"
+    }
+
+    /** Which half of the operator sees the second row is the interpreter's business, so both throw. */
+    @Test
+    fun `a conflateWithSeed that throws keeps its own exception, and the three facts ride with it`() {
+        val exit = Stream.from(rows)
+            .conflateWithSeed({ row -> stamp(row) }, { _, row -> stamp(row) }) // conflateWithSeed built here
+            .runCollect()
+            .run(pekko.system)
+            .settled()
+
+        val died = exit.shouldBeInstanceOf<Exit.Died>()
+        died.cause shouldBeSameInstanceAs noLedger
+        died.cause.suppressed.single().message shouldContain
+            "conflateWithSeed died on Row(id=2), built at ${siteOf(SEED_SITE)}"
     }
 
     /** A pipe is built where it is written, not where the stream it is spliced into is run. */
