@@ -31,6 +31,8 @@ unchecked, on a side a predicate settled a line earlier.
   `E`" — and reopening that is a bigger change than this one.
 - **No `catchDefects`.** Spec 0010 already ruled: a defect is a bug, not a
   domain answer. A handler for one invites treating it as the other.
+- **No change to the three `@UnsafeVariance` suppressions.** Whether they
+  can go at all is open question 3, not an entry to start.
 - **No change to `Exit`'s three cases**, and no new operators at all.
 
 ## Shape
@@ -54,8 +56,6 @@ val report: Report = either { awaitExit(rows.runWith(reportSink).run(system)) }
   for the operator that declares nothing (`either`, whose result is honestly
   `Stream<Nothing, _>`), one that reads `E2` off the handler's own return type
   (`catchAll`, `orElse`).
-- `internal val source: Source<out A, NotUsed>` tried in place of
-  `@UnsafeVariance`, and kept only if the whole operator set still compiles.
 - `divertLefts`'s cast becomes a `Flow.collect` over a `PFBuilder.match`, so
   the JVM checks the side the predicate chose.
 
@@ -63,8 +63,8 @@ val report: Report = either { awaitExit(rows.runWith(reportSink).run(system)) }
 
 Each is a place where the guarantee rests on prose. The alternative for the
 exit — document that a sink can lie and leave it — is what raw Pekko does,
-and spec 0009 rejected it at the entrance; taking it at the exit would mean the
-library guards the half of the pipeline that was easy. The three internal ones
+and spec 0009 rejected it at the entrance; taking it at the exit would mean
+the library guards the half of the pipeline that was easy. The two internal ones
 buy a reader nothing today and buy the next operator everything: `through` is
 sound because three call sites are right, and nothing makes a fourth one be.
 
@@ -79,9 +79,6 @@ sound because three call sites are right, and nothing makes a fourth one be.
 - [ ] **`spec-0015-internals`** — the two narrow internals in place of
       `through`, and the `divertLefts` cast made checked. Done when: no star
       projection is left in `Pipe.kt` and the operator surface is unchanged.
-- [ ] **`spec-0015-variance`** — the `out A` projection tried.
-      Done when: the three `@UnsafeVariance` suppressions are gone, or this
-      spec records why they cannot be.
 
 ## Acceptance
 
@@ -98,14 +95,17 @@ sound because three call sites are right, and nothing makes a fourth one be.
    Recommend `Died`. `fromStage` has two forms only because a *lookup* can
    legitimately miss; a sink's materialised value cannot, so a null there is
    a bug and spec 0010's rule applies.
-3. **Does `Source<out A, NotUsed>` actually compile across the operator set?**
-   Unknown — `concat(next.source)` wants the element in parameter position and
-   may refuse the projection. Recommend letting that entry end in a recorded
-   "no, because", rather than leaving a branch open.
+3. **Can the three `@UnsafeVariance` suppressions go at all?** Kotlin allows
+   use-site variance on a Java generic, so `internal val source:
+   Source<out A, NotUsed>` might state in a checked form the argument the
+   comment on it makes by hand. It may equally not compile: `concat`,
+   `prepend` and `orElse` want the element in parameter position. Recommend
+   finding out in a scratch branch before anyone writes a spec for it — the
+   answer is half an hour's work and decides whether there is a spec at all.
 4. **Does `M : Any` refuse any sink anyone uses?** `Sink.seq`, `foreach`,
    `ignore`, `fold` and `lastOption` are all `Any`. Recommend treating it as
    free and letting the entry prove it.
-5. **Four entries or two?** The internal three buy soundness, not behaviour,
-   and could wait. Recommend keeping them here: they are cheapest to do while
-   the reasoning is written down, and `through` is the one a new operator
-   would trip over.
+5. **Three entries or two?** The third buys soundness, not behaviour, and
+   could wait. Recommend keeping it here: it is cheapest to do while the
+   reasoning is written down, and `through` is the one a new operator would
+   trip over.
