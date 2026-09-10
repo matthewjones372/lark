@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app
 
 import kotlin.reflect.KType
-import kotlin.reflect.typeOf
 
 internal class Node(
     val key: KType,
@@ -49,52 +48,3 @@ internal fun module(
     dependencies: List<KType>,
     build: Wiring.(List<Any>) -> Any,
 ): Module = Module.of(Node(key, dependencies, build))
-
-/** Its type argument is written out: a bare lambda also fits the one-dependency overload, as its `it`. */
-inline fun <reified A : Any> single(noinline build: Wiring.() -> A): Module =
-    module(typeOf<A>(), emptyList()) { build() }
-
-/** A recipe, with what it needs as its parameters. */
-inline fun <reified A : Any, reified D1 : Any> single(noinline build: Wiring.(D1) -> A): Module =
-    module(typeOf<A>(), listOf(typeOf<D1>())) { deps ->
-        val (d1) = deps
-        build(d1 as D1)
-    }
-
-inline fun <reified A : Any, reified D1 : Any, reified D2 : Any> single(
-    noinline build: Wiring.(D1, D2) -> A,
-): Module = module(typeOf<A>(), listOf(typeOf<D1>(), typeOf<D2>())) { deps ->
-    val (d1, d2) = deps
-    build(d1 as D1, d2 as D2)
-}
-
-inline fun <reified A : Any, reified D1 : Any, reified D2 : Any, reified D3 : Any> single(
-    noinline build: Wiring.(D1, D2, D3) -> A,
-): Module = module(typeOf<A>(), listOf(typeOf<D1>(), typeOf<D2>(), typeOf<D3>())) { deps ->
-    val (d1, d2, d3) = deps
-    build(d1 as D1, d2 as D2, d3 as D3)
-}
-
-inline fun <reified A : Any, reified D1 : Any, reified D2 : Any, reified D3 : Any, reified D4 : Any> single(
-    noinline build: Wiring.(D1, D2, D3, D4) -> A,
-): Module = module(typeOf<A>(), listOf(typeOf<D1>(), typeOf<D2>(), typeOf<D3>(), typeOf<D4>())) { deps ->
-    val (d1, d2, d3, d4) = deps
-    build(d1 as D1, d2 as D2, d3 as D3, d4 as D4)
-}
-
-inline fun <
-    reified A : Any,
-    reified D1 : Any,
-    reified D2 : Any,
-    reified D3 : Any,
-    reified D4 : Any,
-    reified D5 : Any,
-    > single(
-    noinline build: Wiring.(D1, D2, D3, D4, D5) -> A,
-): Module = module(
-    typeOf<A>(),
-    listOf(typeOf<D1>(), typeOf<D2>(), typeOf<D3>(), typeOf<D4>(), typeOf<D5>()),
-) { deps ->
-    val (d1, d2, d3, d4, d5) = deps
-    build(d1 as D1, d2 as D2, d3 as D3, d4 as D4, d5 as D5)
-}
