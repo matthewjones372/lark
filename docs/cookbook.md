@@ -96,6 +96,15 @@ val fromConstructors: Module = singleOf(::Hikari).boundTo<Pool>() + singleOf(::P
 what stops the type-argument trap below: with `singleOf` you never give a type
 argument beside a dependency.
 
+Most of a graph is not a bare constructor, though — it is a pool, a client or a
+connection with a teardown called `close` or `dispose` or `shutdown`. That takes
+the release beside the constructor:
+
+<!-- cookbook -->
+```kotlin
+val heldThings: Module = singleOf(::Hikari, Hikari::close).boundTo<Pool>()
+```
+
 ## What a `single` is
 
 One node of the graph: how to build one value, and what it needs to build it.

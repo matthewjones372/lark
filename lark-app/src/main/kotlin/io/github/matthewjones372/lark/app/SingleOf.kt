@@ -116,3 +116,141 @@ inline fun <
     ->
     create(d1, d2, d3, d4, d5, d6, d7, d8, d9)
 }
+
+inline fun <reified A : Any> singleOf(
+    noinline create: () -> A,
+    noinline release: (A) -> Unit,
+): Module = single<A> { install({ create() }) { held, _ -> release(held) } }
+
+/**
+ * A constructor and how what it built is given back.
+ *
+ * The shape most of a service's graph turns out to be: a pool, a client, a connection, each with a
+ * teardown that is `close` or `dispose` or `shutdown` or `terminate`. `singleOf(::Hikari,
+ * Hikari::close)` is `single { … -> install({ Hikari(…) }) { held, _ -> held.close() } }`.
+ */
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    > singleOf(
+    noinline create: (D1) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1 ->
+    install({ create(d1) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    > singleOf(
+    noinline create: (D1, D2) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2 ->
+    install({ create(d1, d2) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    reified D3 : Any,
+    > singleOf(
+    noinline create: (D1, D2, D3) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2, d3: D3 ->
+    install({ create(d1, d2, d3) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    reified D3 : Any,
+    reified D4 : Any,
+    > singleOf(
+    noinline create: (D1, D2, D3, D4) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2, d3: D3, d4: D4 ->
+    install({ create(d1, d2, d3, d4) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    reified D3 : Any,
+    reified D4 : Any,
+    reified D5 : Any,
+    > singleOf(
+    noinline create: (D1, D2, D3, D4, D5) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2, d3: D3, d4: D4, d5: D5 ->
+    install({ create(d1, d2, d3, d4, d5) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    reified D3 : Any,
+    reified D4 : Any,
+    reified D5 : Any,
+    reified D6 : Any,
+    > singleOf(
+    noinline create: (D1, D2, D3, D4, D5, D6) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2, d3: D3, d4: D4, d5: D5, d6: D6 ->
+    install({ create(d1, d2, d3, d4, d5, d6) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    reified D3 : Any,
+    reified D4 : Any,
+    reified D5 : Any,
+    reified D6 : Any,
+    reified D7 : Any,
+    > singleOf(
+    noinline create: (D1, D2, D3, D4, D5, D6, D7) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2, d3: D3, d4: D4, d5: D5, d6: D6, d7: D7 ->
+    install({ create(d1, d2, d3, d4, d5, d6, d7) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    reified D3 : Any,
+    reified D4 : Any,
+    reified D5 : Any,
+    reified D6 : Any,
+    reified D7 : Any,
+    reified D8 : Any,
+    > singleOf(
+    noinline create: (D1, D2, D3, D4, D5, D6, D7, D8) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2, d3: D3, d4: D4, d5: D5, d6: D6, d7: D7, d8: D8 ->
+    install({ create(d1, d2, d3, d4, d5, d6, d7, d8) }) { held, _ -> release(held) }
+}
+
+inline fun <
+    reified A : Any,
+    reified D1 : Any,
+    reified D2 : Any,
+    reified D3 : Any,
+    reified D4 : Any,
+    reified D5 : Any,
+    reified D6 : Any,
+    reified D7 : Any,
+    reified D8 : Any,
+    reified D9 : Any,
+    > singleOf(
+    noinline create: (D1, D2, D3, D4, D5, D6, D7, D8, D9) -> A,
+    noinline release: (A) -> Unit,
+): Module = single { d1: D1, d2: D2, d3: D3, d4: D4, d5: D5, d6: D6, d7: D7, d8: D8, d9: D9 ->
+    install({ create(d1, d2, d3, d4, d5, d6, d7, d8, d9) }) { held, _ -> release(held) }
+}

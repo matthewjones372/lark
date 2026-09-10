@@ -83,3 +83,37 @@ class SingleOfTest {
         app.validate().getOrNull().shouldNotBeNull().layers.flatten() shouldBe listOf(typeOf<Wiring>())
     }
 }
+
+private class Borrowed {
+    var given = false
+
+    fun hand() {
+        given = true
+    }
+}
+
+/** A constructor with a teardown that is not `close`, which is most of them. */
+class SingleOfReleaseTest {
+
+    @Test
+    fun `what a constructor built is given back, by whatever the method is called`() {
+        val app = singleOf(::Borrowed, Borrowed::hand)
+
+        val borrowed = testApp(app) { borrowed: Borrowed -> borrowed }
+
+        withClue("the release ran on the way out, not while the block held it") {
+            borrowed.given shouldBe true
+        }
+    }
+
+    @Test
+    fun `it is given back when a later node refuses`() {
+        val taken = java.util.concurrent.atomic.AtomicReference<Borrowed>()
+        val app = singleOf(::Borrowed, Borrowed::hand) +
+            single { borrowed: Borrowed -> taken.set(borrowed); "kept" }
+
+        app.use { _: String -> }.getOrNull().shouldNotBeNull()
+
+        taken.get().given shouldBe true
+    }
+}
