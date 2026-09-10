@@ -33,11 +33,11 @@ so.
 // build.gradle.kts
 dependencies {
     // Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
-    implementation("io.github.matthewjones372:lark-stream:0.1.0-SNAPSHOT")
+    implementation("io.github.matthewjones372:lark-stream:0.1.0")
 }
 ```
 
-An untagged commit publishes `0.1.0-SNAPSHOT`, which is what
+An untagged commit publishes `0.1.0`, which is what
 `./gradlew publishToMavenLocal` installs.
 
 Rows in, receipts to one sink, declines to another, and every import it takes:

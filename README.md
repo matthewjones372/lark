@@ -1,5 +1,12 @@
 # Lark
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.matthewjones372/lark?label=maven%20central)](https://central.sonatype.com/artifact/io.github.matthewjones372/lark)
+[![Build](https://github.com/matthewjones372/lark/actions/workflows/build.yml/badge.svg)](https://github.com/matthewjones372/lark/actions/workflows/build.yml)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25%20enforced-brightgreen)](AGENTS.md#verifying)
+[![Kotlin](https://img.shields.io/badge/kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![JDK](https://img.shields.io/badge/jdk-21%2B-brightgreen)](https://openjdk.org/projects/jdk/21/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
 `arrow-fx-coroutines` on virtual threads. Drop the `suspend`, swap the import,
 and the body stays exactly as it was — the combinators take Arrow's own
 `Raise`, so code already inside `either { }` needs no scope of lark's around it.
@@ -14,11 +21,26 @@ nothing else — no coroutines, no second effect system.
 ```kotlin
 dependencies {
     // arrow-core comes with it; nothing else does
-    implementation("io.github.matthewjones372:lark:0.1.0-SNAPSHOT")
+    implementation("io.github.matthewjones372:lark:0.1.0")
 }
 ```
 
-An untagged commit publishes `0.1.0-SNAPSHOT`, which is what
+Every module is on Maven Central under the same group and version. Each one
+brings itself and what its own name says, and `NoOtherDependenciesTest` in each
+is where that claim is checked.
+
+| Module | What it adds | Beyond `lark` |
+|---|---|---|
+| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `LarkLocal`, `Clock`, the log | `arrow-core` |
+| `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` |
+| `lark-stream` | `Stream<E, A>` over Pekko Streams: the failure is in the type | `pekko-stream` |
+| `lark-app` | an application as a value: the graph, probes, health, testing | nothing |
+| `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
+| `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
+| `lark-app-typesafe` | a HOCON section as a node, and every fault at once | `com.typesafe:config` |
+| `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |
+
+An untagged commit builds `0.1.0-SNAPSHOT`, which is what
 `./gradlew publishToMavenLocal` installs.
 
 Before, on `arrow-fx-coroutines`:
@@ -87,7 +109,7 @@ executor lark forks on:
 ```kotlin
 dependencies {
     // lark and pekko-actor come with it; nothing else does
-    implementation("io.github.matthewjones372:lark-pekko:0.1.0-SNAPSHOT")
+    implementation("io.github.matthewjones372:lark-pekko:0.1.0")
 }
 ```
 
@@ -393,7 +415,7 @@ and `awaitExit` folds the run's `Exit` back into the handler that started it.
 ```kotlin
 dependencies {
     // Pekko Streams, lark, lark-pekko and arrow-core come with it; nothing else does
-    implementation("io.github.matthewjones372:lark-stream:0.1.0-SNAPSHOT")
+    implementation("io.github.matthewjones372:lark-stream:0.1.0")
 }
 ```
 
