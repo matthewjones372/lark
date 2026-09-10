@@ -70,13 +70,14 @@ sound because three call sites are right, and nothing makes a fourth one be.
 
 ## Stack
 
-- [ ] **`spec-0015-exit-bound`** — the four `: Any` bounds and their
+- [x] **`spec-0015-exit-bound`** — the four `: Any` bounds and their
       `DoesNotCompileTest` fixtures. Done when: `runFold(null) { _, _ -> null }`
       is refused and the compiler's own words are asserted.
-- [ ] **`spec-0015-exit-guard`** — `checked()` on the materialised stage.
+- [x] **`spec-0015-exit-guard`** — `checked()` on the materialised stage.
       Done when: a sink completing with `null` is `Died` naming `run`, and
       not `Done(null)`.
-- [ ] **`spec-0015-internals`** — the two narrow internals in place of
+- [ ] **`spec-0015-internals`** — not built; see the note below.
+      *Original entry:* — the two narrow internals in place of
       `through`, and the `divertLefts` cast made checked. Done when: no star
       projection is left in `Pipe.kt` and the operator surface is unchanged.
 
@@ -109,3 +110,22 @@ sound because three call sites are right, and nothing makes a fourth one be.
    could wait. Recommend keeping it here: it is cheapest to do while the
    reasoning is written down, and `through` is the one a new operator would
    trip over.
+
+## Note on `spec-0015-internals`
+
+Left unbuilt, because specs 0012 and 0013 landed first and changed what it was
+describing.
+
+`through` was to become two narrow internals: one for the operator that
+declares nothing, one that reads `E2` off a handler's return type. There is now
+a third shape. `flatMapConcat`, `flatMapMerge` and `mapError` widen into an `E`
+the call site names, which is neither of those, so the replacement would be
+three internals rather than two — a different design, and one worth deciding
+rather than inferring.
+
+`divertLefts` is a separate matter. The entry calls its cast unchecked; it is
+`(this as Either.Right<A>).value`, so the JVM does check the side the predicate
+chose and only the type argument erases. Moving it to `Flow.collect` over a
+`PFBuilder.match` would make an element that matched neither branch *drop
+silently*, which is the failure mode this library exists to refuse. Recommend
+closing that half rather than building it.

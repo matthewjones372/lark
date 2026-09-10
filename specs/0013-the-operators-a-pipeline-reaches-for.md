@@ -66,16 +66,16 @@ for keeps the gate shut and keeps the list finite.
 
 ## Stack
 
-- [ ] **`spec-0013-bounds`** — `take`, `drop`, `takeWhile`, `dropWhile`,
+- [x] **`spec-0013-bounds`** — `take`, `drop`, `takeWhile`, `dropWhile`,
       `filterNot`. Done when: a bounded stream ends after `n` and a throw in
       a predicate dies naming the operator.
-- [ ] **`spec-0013-batching`** — `grouped`, `sliding`, `groupedWithin`,
+- [x] **`spec-0013-batching`** — `grouped`, `sliding`, `groupedWithin`,
       `buffer`. Done when: a slow consumer sees batches, not elements.
-- [ ] **`spec-0013-stateful`** — `scan`, `statefulMap`. Done when: a running
+- [x] **`spec-0013-stateful`** — `scan`, `statefulMap`. Done when: a running
       total emits per element and a throw in the body names the element.
-- [ ] **`spec-0013-taps`** — `alsoTo`, `wireTap`. Done when: an audit sink
+- [x] **`spec-0013-taps`** — `alsoTo`, `wireTap`. Done when: an audit sink
       sees every element and the pipeline is unchanged.
-- [ ] **`spec-0013-map-error`** — `mapError`. Done when: a stream's `E`
+- [x] **`spec-0013-map-error`** — `mapError`. Done when: a stream's `E`
       becomes another `E` without a `catchAll` that means recovery.
 
 ## Acceptance

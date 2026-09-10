@@ -228,9 +228,27 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
 | `Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B>` | each element's own elements, in its order; one that answers with none emits none |
 | `Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S>` | a backlog collapsed while downstream is busy: `seed` starts the aggregate and `aggregate` folds each later element in |
+| `Stream<E, A>.filterNot(predicate: (A) -> Boolean): Stream<E, A>` | `filter`'s mirror, Pekko's own name |
+| `Stream<E, A>.flatMapConcat(f: (A) -> Stream<E2, B>): Stream<E, B>` | each element expanded into a stream of its own, one after another, for `E2 : E`; the inner stream may fail |
+| `Stream<E, A>.flatMapMerge(breadth: Int, f: (A) -> Stream<E2, B>): Stream<E, B>` | the same with up to `breadth` inner streams running, their elements interleaved |
+| `Stream<E, Stream<E2, B>>.flatten(): Stream<E, B>` | `flatMapConcat { it }`, under the name a stream built by `map` into a fetch is looked up by |
+| `Stream<E, A>.scan(zero: S, f: (S, A) -> S): Stream<E, S>` | `zero` first, then what `f` carried after each element |
+| `Stream<E, A>.statefulMap(create: () -> S, f: (S, A) -> Pair<S, B>, onComplete: (S) -> B?): Stream<E, B>` | state carried across elements as a Kotlin `Pair`; `onComplete` is the one last element the state may still owe |
 | **Two streams as one** | |
 | `Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A>` | `first`'s elements before this stream's, Pekko's name and Pekko's order |
 | `Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A>` | `next`'s elements after this stream's; both operands materialise at once, so a failure in either ends the run |
+| `Stream<E, A>.take(n: Long)` / `.drop(n: Long)` | the first `n`, or everything after them |
+| `Stream<E, A>.takeWhile(predicate)` / `.dropWhile(predicate)` | up to where the predicate first answers false, or from it, that element included |
+| `Stream<E, A>.grouped(n: Int): Stream<E, List<A>>` | batches of `n`, the last one short; a read-only `List`, not the `java.util.List` Pekko hands back |
+| `Stream<E, A>.sliding(n: Int, step: Int = 1): Stream<E, List<A>>` | a window of `n`, moved on by `step` |
+| `Stream<E, A>.groupedWithin(n: Int, within: Duration): Stream<E, List<A>>` | batches of at most `n` and never later than `within`, so a quiet feed still answers |
+| `Stream<E, A>.buffer(size: Int, strategy: OverflowStrategy): Stream<E, A>` | room between a fast producer and a slow consumer, and what to do when it fills |
+| `Stream<E, A>.alsoTo(to: Sink<A, *>)` / `.wireTap(to: Sink<A, *>)` | every element to `to` as well; `alsoTo`'s backpressure is the pipeline's, `wireTap`'s is dropped from |
+| `Stream<E, A>.merge(other: Stream<E2, A>): Stream<E, A>` | both feeds as one, in whatever order they arrive, for `E2 : E` |
+| `Stream<E, A>.mergeAll(vararg others: Stream<E2, A>): Stream<E, A>` | `merge` over as many as there are |
+| `Stream<E, A>.interleave(other: Stream<E2, A>, segmentSize: Int): Stream<E, A>` | `segmentSize` elements from each in turn |
+| `Stream<E, A>.zipWith(other: Stream<E2, B>, f: (A, B) -> C): Stream<E, C>` | one element from each, combined; ends when either side does |
+| `Stream<E, A>.zip(other: Stream<E2, B>): Stream<E, Pair<A, B>>` | `zipWith(other, ::Pair)`, into Kotlin's `Pair`, which destructures |
 | **The split in `Either`** | |
 | `Stream<E, A>.either(): Stream<Nothing, Either<E, A>>` | the failure as the last element, leaving none in the type |
 | `Stream<E, Either<L, R>>.absolve(): Stream<E, R>` | back again: a `Left` fails the stream, for `L : E` |
@@ -238,10 +256,11 @@ what changes is what the type says, and what it will not let you write.
 | **Leaving a failure type** | |
 | `Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A>` | the declared failure handled, and a defect still dying |
 | `Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A>` | `other` on a failure, not on an empty stream |
+| `Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A>` | the declared failure said in another vocabulary, without saying recovery |
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
-| `Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M>` | a run described, to the sink named; the sink's materialised value is the run's |
+| `Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M>` | a run described, to the sink named; the sink's materialised value is the run's. `M : Any`, and a sink that materialises `null` anyway is `Died`, never `Done(null)` |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | the one call that materialises, on the system it names |
 | `Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Raise`: `Done` is the value, `Failed` raises, `Died` throws |
 | **Pipes** | |
