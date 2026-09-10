@@ -16,6 +16,12 @@ The types the recipes are written against, once:
 <!-- cookbook-fixtures -->
 ```kotlin
 import arrow.core.getOrElse
+import io.github.matthewjones372.lark.app.Config
+import io.github.matthewjones372.lark.app.asConfig
+import io.github.matthewjones372.lark.app.choose
+import io.github.matthewjones372.lark.app.configOf
+import io.github.matthewjones372.lark.app.configured
+import io.github.matthewjones372.lark.app.orElse
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Logger
@@ -165,6 +171,61 @@ Independent nodes start on forks of their own, the first refusal interrupts its
 siblings, and everything acquired is released in reverse topological order. A
 signal returns from `awaitShutdown`, and the JVM hook waits for the releases
 before the process leaves.
+
+## Configuration a module owns
+
+`Config` is a facade with one method, the way `Logger` is: a dotted path in, a
+string or nothing out. Where those strings come from — the environment, a YAML
+tree, Hoplite, Typesafe Config — is an implementation, and none of them is in
+this module.
+
+<!-- cookbook -->
+```kotlin
+val settings: Config = RealSys.asConfig().orElse(configOf("http.port" to "8080"))
+```
+
+A section is a **node**, read by the module that needs it, so a module added
+later brings its own configuration with it and nothing else names its paths:
+
+<!-- cookbook -->
+```kotlin
+data class DbSettings(val url: String, val poolSize: Int, val ssl: Boolean)
+
+val database: Module =
+    configured("database") { DbSettings(string("url"), int("poolSize"), optional("ssl", false) { boolean(it) }) } +
+    single { db: DbSettings -> install({ Hikari(DbConfig(db.url)) }) { pool, _ -> pool.close() } as Pool }
+```
+
+The type is the safety: `DbSettings` is built by code the compiler checks. A
+read that cannot answer records why and the block runs on, so a bad deploy is
+one message naming every fault rather than one deploy per fault:
+
+```
+lark-app: DbSettings refused to start: database.url is not set;
+database.poolSize is not an Int: lots
+```
+
+## Choose a module from a setting
+
+The `when` a service writes over its own settings — a Redis cart store or a
+Postgres one, a broker or a simulator — is a value:
+
+<!-- cookbook -->
+```kotlin
+fun carts(settings: Config): Module =
+    settings.choose(
+        "cartStore",
+        default = "redis",
+        "redis" to single<Pool> { Hikari(DbConfig("redis")) },
+        "postgres" to single<Pool> { Hikari(DbConfig("postgres")) },
+    )
+```
+
+The choice is made while the graph is being described, so the branch not taken
+contributes no node, nothing to build and nothing to start — a service on
+Postgres never opens a Redis connection, and `render()` draws only the shape
+that deployment actually has. A value naming no branch is refused there and
+then, saying what it was and what it could have been.
 
 ## Read configuration, and fail loudly
 
