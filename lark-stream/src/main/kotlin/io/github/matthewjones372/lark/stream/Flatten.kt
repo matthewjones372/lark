@@ -14,10 +14,10 @@ fun <E, A : Any, B : Any> Pipe.Companion.flatMapConcat(f: (A) -> Stream<E, B>): 
 
 fun <E, E2 : E, In, Out : Any, B : Any> Pipe<E, In, Out>.flatMapConcat(
     f: (Out) -> Stream<E2, B>,
-): Pipe<E, In, B> = through(Pipe.flatMapConcat(f))
+): Pipe<E, In, B> = via(Pipe.flatMapConcat(f))
 
 fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.flatMapConcat(f: (A) -> Stream<E2, B>): Stream<E, B> =
-    through(Pipe.flatMapConcat(f))
+    via(Pipe.flatMapConcat(f))
 
 /** As [flatMapConcat], with up to [breadth] inner streams running and their elements interleaved. */
 fun <E, A : Any, B : Any> Pipe.Companion.flatMapMerge(breadth: Int, f: (A) -> Stream<E, B>): Pipe<E, A, B> {
@@ -28,12 +28,12 @@ fun <E, A : Any, B : Any> Pipe.Companion.flatMapMerge(breadth: Int, f: (A) -> St
 fun <E, E2 : E, In, Out : Any, B : Any> Pipe<E, In, Out>.flatMapMerge(
     breadth: Int,
     f: (Out) -> Stream<E2, B>,
-): Pipe<E, In, B> = through(Pipe.flatMapMerge(breadth, f))
+): Pipe<E, In, B> = via(Pipe.flatMapMerge(breadth, f))
 
 fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.flatMapMerge(
     breadth: Int,
     f: (A) -> Stream<E2, B>,
-): Stream<E, B> = through(Pipe.flatMapMerge(breadth, f))
+): Stream<E, B> = via(Pipe.flatMapMerge(breadth, f))
 
 /** [flatMapConcat] under the name a reader of a stream built by `map` into a fetch looks for first. */
 fun <E, E2 : E, B : Any> Stream<E, Stream<E2, B>>.flatten(): Stream<E, B> = flatMapConcat { inner -> inner }

@@ -76,8 +76,7 @@ sound because three call sites are right, and nothing makes a fourth one be.
 - [x] **`spec-0015-exit-guard`** — `checked()` on the materialised stage.
       Done when: a sink completing with `null` is `Died` naming `run`, and
       not `Done(null)`.
-- [ ] **`spec-0015-internals`** — not built; see the note below.
-      *Original entry:* — the two narrow internals in place of
+- [x] **`spec-0015-internals`** ([#31](https://github.com/matthewjones372/lark/pull/31)) — the two narrow internals in place of
       `through`, and the `divertLefts` cast made checked. Done when: no star
       projection is left in `Pipe.kt` and the operator surface is unchanged.
 
@@ -113,19 +112,19 @@ sound because three call sites are right, and nothing makes a fourth one be.
 
 ## Note on `spec-0015-internals`
 
-Left unbuilt, because specs 0012 and 0013 landed first and changed what it was
-describing.
+Built, with one change and one correction.
 
-`through` was to become two narrow internals: one for the operator that
-declares nothing, one that reads `E2` off a handler's return type. There is now
-a third shape. `flatMapConcat`, `flatMapMerge` and `mapError` widen into an `E`
-the call site names, which is neither of those, so the replacement would be
-three internals rather than two — a different design, and one worth deciding
-rather than inferring.
+The correction is mine. I first read this entry as unbuildable, on the grounds
+that `flatMapConcat`, `flatMapMerge` and `mapError` — landed by specs 0012 and
+0013 after this was drafted — widen into an `E` the call site names, which is a
+third shape the two internals do not cover. That was wrong: widening is exactly
+what the public `via` already means, and `via` needs no cast at all, because `E`
+is a phantom on `Stream`. Those three operators now call `via`; `through` is
+gone, and what replaces it is one internal per side named `replacing`, whose
+failure is read off the pipe rather than chosen by the caller.
 
-`divertLefts` is a separate matter. The entry calls its cast unchecked; it is
-`(this as Either.Right<A>).value`, so the JVM does check the side the predicate
-chose and only the type argument erases. Moving it to `Flow.collect` over a
-`PFBuilder.match` would make an element that matched neither branch *drop
-silently*, which is the failure mode this library exists to refuse. Recommend
-closing that half rather than building it.
+The change is `divertLefts`. The entry asks for `Flow.collect` over a
+`PFBuilder.match`, which would make an element that matched neither branch drop
+silently — the failure mode this library exists to refuse. It is an Arrow `fold`
+instead: nothing is unchecked, and an element on the branch the predicate did
+not choose dies where it is.

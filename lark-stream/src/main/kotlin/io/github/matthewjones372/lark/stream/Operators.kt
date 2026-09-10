@@ -29,7 +29,7 @@ fun <E, A : Any> Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A> = Strea
 fun <E, A : Any> Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A> = Stream(source.concat(next.source))
 
 /** The declared failure becomes the last element, as a `Left`, leaving none for the type to carry. */
-fun <E, A : Any> Stream<E, A>.either(): Stream<Nothing, Either<E, A>> = through(Pipe.either<E, A>())
+fun <E, A : Any> Stream<E, A>.either(): Stream<Nothing, Either<E, A>> = replacing(Pipe.either<E, A>())
 
 /** A `Left` fails the stream with what it holds; a `Right` carries on as the element. */
 fun <E, L : E, R : Any> Stream<E, Either<L, R>>.absolve(): Stream<E, R> = via(Pipe.absolve<E, L, R>())
@@ -39,12 +39,12 @@ fun <E, L : Any, R : Any> Stream<E, Either<L, R>>.divertLefts(to: Sink<L, *>): S
     via(Pipe.divertLefts(to))
 
 /** Handles a declared failure only: a defect is nothing anyone declared, and still dies. */
-fun <E, E2, A : Any> Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A> = through(Pipe.catchAll(f))
+fun <E, E2, A : Any> Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A> = replacing(Pipe.catchAll(f))
 
 /** ZIO's `orElse` rather than Pekko's: [other] takes over on a failure, not on an empty stream. */
-fun <E, E2, A : Any> Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A> = through(Pipe.mapError(f))
+fun <E, E2, A : Any> Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A> = replacing(Pipe.mapError(f))
 
-fun <E, A : Any> Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A> = through(Pipe.orElse(other))
+fun <E, A : Any> Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A> = replacing(Pipe.orElse(other))
 
 /**
  * A stream that ends having emitted nothing fails with [error] instead; one that emitted is untouched.

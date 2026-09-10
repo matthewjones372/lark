@@ -26,26 +26,29 @@ fun <A : Any> Pipe.Companion.identity(): Pipe<Nothing, A, A> = Pipe(Flow.create(
 
 /** [next]'s failure joins this one's: a narrower `E2` slots in, as `absolve`'s `L` does. */
 fun <E, E2 : E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.via(next: Pipe<E2, Out, Out2>): Pipe<E, In, Out2> =
-    through(next)
+    Pipe(flow.via(next.flow))
 
 /** The pipe's elements become the stream's, and the failure it declares joins the stream's. */
-fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.via(pipe: Pipe<E2, A, B>): Stream<E, B> = through(pipe)
+fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.via(pipe: Pipe<E2, A, B>): Stream<E, B> =
+    Stream(source.via(pipe.flow))
 
 /** The way out to Pekko, open only once nothing is left that a graph would not understand. */
 fun <In, Out : Any> Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed> = flow
 
 /**
- * A pipe spliced onto a source, with the failure type the call site names rather than [via]'s.
+ * A pipe spliced onto a source, answering with the pipe's own failure rather than the stream's.
  *
- * `either`, `catchAll` and `orElse` answer the failure the stream declared instead of adding to it,
- * so `E2 : E` cannot type them; this is internal, and every caller below is one of the operators.
+ * `either`, `catchAll`, `mapError` and `orElse` replace what the stream declared instead of adding to
+ * it, so `E2 : E` cannot type them. The failure is read off [pipe] rather than picked by the caller,
+ * which is what stops a fifth operator naming a type nothing here produces.
  */
-internal fun <E, A : Any, B : Any> Stream<*, A>.through(pipe: Pipe<*, A, B>): Stream<E, B> =
+internal fun <E2, A : Any, B : Any> Stream<*, A>.replacing(pipe: Pipe<E2, A, B>): Stream<E2, B> =
     Stream(source.via(pipe.flow))
 
 /** As above, for a pipe spliced onto a pipe. */
-internal fun <E, In, Out : Any, Out2 : Any> Pipe<*, In, Out>.through(next: Pipe<*, Out, Out2>): Pipe<E, In, Out2> =
-    Pipe(flow.via(next.flow))
+internal fun <E2, In, Out : Any, Out2 : Any> Pipe<*, In, Out>.replacing(
+    next: Pipe<E2, Out, Out2>,
+): Pipe<E2, In, Out2> = Pipe(flow.via(next.flow))
 
 fun <A : Any, B : Any> Pipe.Companion.map(f: (A) -> B): Pipe<Nothing, A, B> {
     val body = guarded("map", buildSite(), f)

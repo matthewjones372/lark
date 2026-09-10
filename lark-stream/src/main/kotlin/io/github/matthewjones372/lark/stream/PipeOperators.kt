@@ -65,7 +65,7 @@ fun <E, A : Any> Pipe.Companion.either(): Pipe<Nothing, A, Either<E, A>> {
     )
 }
 
-fun <E, In, Out : Any> Pipe<E, In, Out>.either(): Pipe<Nothing, In, Either<E, Out>> = through(Pipe.either<E, Out>())
+fun <E, In, Out : Any> Pipe<E, In, Out>.either(): Pipe<Nothing, In, Either<E, Out>> = replacing(Pipe.either<E, Out>())
 
 /** A `Left` fails the pipe with what it holds; a `Right` carries on as the element. */
 fun <E, L : E, R : Any> Pipe.Companion.absolve(): Pipe<E, Either<L, R>, R> {
@@ -95,7 +95,7 @@ fun <E, E2, A : Any> Pipe.Companion.catchAll(f: (E) -> Stream<E2, A>): Pipe<E2, 
     Pipe(Flow.create<A>().recoverWithRetries(1, onDeclaredFailure { e: E -> f(e).source }))
 
 fun <E, E2, In, Out : Any> Pipe<E, In, Out>.catchAll(f: (E) -> Stream<E2, Out>): Pipe<E2, In, Out> =
-    through(Pipe.catchAll(f))
+    replacing(Pipe.catchAll(f))
 
 /**
  * The declared failure as another one. `catchAll` says this too, and says recovery while it does: a
@@ -113,13 +113,13 @@ fun <E, E2, A : Any> Pipe.Companion.mapError(f: (E) -> E2): Pipe<E2, A, A> {
 }
 
 fun <E, E2, In, Out : Any> Pipe<E, In, Out>.mapError(f: (E) -> E2): Pipe<E2, In, Out> =
-    through(Pipe.mapError(f))
+    replacing(Pipe.mapError(f))
 
 /** ZIO's `orElse` rather than Pekko's: [other] takes over on a failure, not on an empty stream. */
 fun <E, A : Any> Pipe.Companion.orElse(other: Stream<E, A>): Pipe<E, A, A> = catchAll<E, E, A> { other }
 
 fun <E, In, Out : Any> Pipe<E, In, Out>.orElse(other: Stream<E, Out>): Pipe<E, In, Out> =
-    through(Pipe.orElse(other))
+    replacing(Pipe.orElse(other))
 
 /**
  * Pekko drops a `null` completion before any operator downstream can see it, so the guard belongs
@@ -141,9 +141,12 @@ private fun <B : Any> CompletionStage<B>.orDieOnNull(element: Any, at: String): 
 /**
  * The side a `divertTo` predicate has already settled. Pekko's split keeps one element type on both
  * branches, so this is what the predicate knows and the compiler cannot.
+ *
+ * A fold rather than a cast: nothing is unchecked, and an element on the branch the predicate did not
+ * choose dies where it is rather than being dropped by a partial function that does not match it.
  */
-@Suppress("UNCHECKED_CAST")
-private fun <A : Any> Either<*, A>.decided(): A = (this as Either.Right<A>).value
+private fun <A : Any> Either<*, A>.decided(): A =
+    fold({ throw IllegalStateException("divertLefts: $it reached the branch the predicate did not send it to") }) { it }
 
 /**
  * A recovery that sees a declared failure and nothing else, so every other throwable dies.
