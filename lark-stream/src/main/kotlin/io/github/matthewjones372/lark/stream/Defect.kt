@@ -25,6 +25,10 @@ internal fun facts(operator: String, element: Any, at: String): String = "$opera
 internal fun <A : Any, B> guarded(operator: String, at: String, f: (A) -> B): (A) -> B =
     { a -> guard(operator, at, a, f) }
 
+/** As above for a body handed the declared failure rather than an element, which may be anything. */
+internal fun <E, E2> guardedError(operator: String, at: String, f: (E) -> E2): (E) -> E2 =
+    { e -> guard(operator, at, e ?: "no error") { f(e) } }
+
 /** As above for a body of two, where the element a defect names is the one being folded in. */
 internal fun <S, A : Any, B> guarded(operator: String, at: String, f: (S, A) -> B): (S, A) -> B =
     { s, a -> guard(operator, at, s, a, f) }
