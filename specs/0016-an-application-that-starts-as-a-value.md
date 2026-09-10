@@ -100,10 +100,16 @@ install.
 - [ ] **`spec-0016-subgraph`** — `subgraph<A>()`, override precedence, `testApp`.
       Done when: a leaf's subgraph builds none of the unrelated nodes, and
       `testApp` releases after an assertion failure inside it.
-- [ ] **`spec-0016-probe`** — `probe(name, timeout, retry, critical)`, readiness
-      as the gate dependents wait on, `HealthRegistry`.
+- [ ] **`spec-0016-probe`** — `probe(name, timeout)`, readiness as the gate
+      dependents wait on.
       Done when: a probe that never passes fails start naming its node, and a
-      wedged probe answers Down inside its timeout rather than hanging.
+      wedged probe fails inside its timeout rather than hanging.
+- [ ] **`spec-0016-arities`** — `single` to nine dependencies, in `Single.kt`.
+      Done when: a recipe takes nine parameters and the graph reads all nine.
+- [ ] **`spec-0016-health`** — `critical`, `HealthRegistry`, readiness and
+      liveness as something a route can be handed.
+      Done when: a wedged probe answers Down inside its timeout, and one
+      non-critical probe down does not make readiness Down.
 
 ## Acceptance
 
