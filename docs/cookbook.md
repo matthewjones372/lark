@@ -220,17 +220,20 @@ dependencies {
 ```kotlin
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.app.typesafe.configured
+import io.github.matthewjones372.lark.app.typesafe.config
 
-data class DbSettings(val url: String, val poolSize: Int, val idle: java.time.Duration)
+data class DbSettings(val url: String, val poolSize: Int, val idle: kotlin.time.Duration)
 
 val database: Module =
     single<Config> { ConfigFactory.load() } +
-    configured("database") {
-        DbSettings(string("url"), int("poolSize"), of(java.time.Duration.ZERO) { getDuration("idle") })
-    } +
+    config<DbSettings>("database") { DbSettings(string("url"), int("poolSize"), duration("idle")) } +
     single { db: DbSettings -> install({ Hikari(DbConfig(db.url)) }) { pool, _ -> pool.close() } as Pool }
 ```
+
+`string`, `int`, `long`, `boolean`, `duration`, `bytes` and `strings` are the
+readers; `of(default) { … }` hands you the real `Config` for anything else, so
+`getMemorySize`, `getConfigList` and the rest are a line away rather than
+walled off.
 
 The module owns its section: one added later brings its own reading rather than
 editing a root type that has to know about every section. What the integration
