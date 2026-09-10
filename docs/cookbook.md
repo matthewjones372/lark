@@ -16,6 +16,8 @@ The types the recipes are written against, once:
 <!-- cookbook-fixtures -->
 ```kotlin
 import arrow.core.getOrElse
+import kotlin.system.exitProcess
+import io.github.matthewjones372.lark.app.render
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Logger
@@ -155,11 +157,19 @@ right-hand node wins wherever two share a key.
 
 <!-- cookbook -->
 ```kotlin
-fun main(): Nothing = runApp(app) { server: HttpServer ->
-    server.start()
-    awaitShutdown()
+fun main() {
+    exitProcess(
+        runApp(app) { server: HttpServer ->
+            server.start()
+            awaitShutdown()
+        }.code
+    )
 }
 ```
+
+`runApp` answers with an `ExitCode` rather than ending the process, so a test
+can run an application and read what it decided. The `exitProcess` is yours and
+worth making: a stray non-daemon thread keeps a JVM alive after `main` returns.
 
 Independent nodes start on forks of their own, the first refusal interrupts its
 siblings, and everything acquired is released in reverse topological order. A
@@ -436,11 +446,14 @@ class Slf4jLogger : Logger {
     }
 }
 
-fun mainWithLogging(): Nothing = logger.locally(Slf4jLogger()) {
-    runApp(app) { server: HttpServer ->
-        server.start()
-        awaitShutdown()
+fun mainWithLogging() {
+    val exit = logger.locally(Slf4jLogger()) {
+        runApp(app) { server: HttpServer ->
+            server.start()
+            awaitShutdown()
+        }
     }
+    exitProcess(exit.code)
 }
 ```
 

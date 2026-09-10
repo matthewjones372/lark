@@ -101,9 +101,8 @@ fun `the application wires`() = app.validate().shouldBeRight()
 ```kotlin
 import io.github.matthewjones372.lark.app.runApp
 
-fun main(): Nothing = runApp(app) { server: HttpServer ->
-    server.start()
-    awaitShutdown()
+fun main() {
+    exitProcess(runApp(app) { server: HttpServer -> server.start(); awaitShutdown() }.code)
 }
 ```
 
@@ -124,8 +123,9 @@ single { sys: Sys -> sys.required("DB_URL").getOrElse { refuse("DB_URL is not se
 
 `Shutdown` is a value, so a test asks an application to stop without raising a
 signal; `runApp` puts a JVM hook behind it, and the hook waits for the releases
-to finish. What went wrong reaches stderr through `describe()` before the exit
-code.
+to finish. What went wrong reaches stderr through `describe()`, and `runApp`
+answers with an `ExitCode` rather than ending the process — so a test can run an
+application and read what it decided. The `exitProcess` is the caller's.
 
 ## Reading the environment
 

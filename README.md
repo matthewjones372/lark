@@ -362,9 +362,8 @@ import io.github.matthewjones372.lark.app.single
 
 val app = config + persistence + domain + web
 
-fun main(): Nothing = runApp(app) { server: HttpServer ->
-    server.start()
-    awaitShutdown()
+fun main() {
+    exitProcess(runApp(app) { server: HttpServer -> server.start(); awaitShutdown() }.code)
 }
 ```
 
