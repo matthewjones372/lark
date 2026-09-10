@@ -8,8 +8,10 @@ import kotlin.reflect.typeOf
 inline fun <reified A : Any> Module.subgraph(): Module = subgraph(typeOf<A>())
 
 @PublishedApi
-internal fun Module.subgraph(root: KType): Module =
-    Module.of(nodes.filterKeys { it in reached(nodes, setOf(root), setOf(root)) })
+internal fun Module.subgraph(root: KType): Module {
+    val kept = reached(nodes, setOf(root), setOf(root))
+    return Module.of(nodes.filterKeys { it in kept }, probes.filter { it.key in kept })
+}
 
 /** [plus], refusing a key this module does not already hold: a fake under a new key fakes nothing. */
 fun Module.overriding(replacements: Module): Module {

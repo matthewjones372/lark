@@ -10,10 +10,14 @@ internal class Node(
 )
 
 /** Recipes, keyed by the type each one builds. */
-class Module private constructor(internal val nodes: Map<KType, Node>) {
+class Module private constructor(
+    internal val nodes: Map<KType, Node>,
+    internal val probes: List<Probe>,
+) {
 
-    /** [other]'s node wins wherever the two share a key. */
-    operator fun plus(other: Module): Module = Module(nodes + other.nodes)
+    /** [other]'s node wins wherever the two share a key, and takes the probes of that key with it. */
+    operator fun plus(other: Module): Module =
+        Module(nodes + other.nodes, probes.filterNot { it.key in other.nodes.keys } + other.probes)
 
     /** The graph as mermaid, one edge per dependency. */
     fun render(): String {
@@ -26,9 +30,9 @@ class Module private constructor(internal val nodes: Map<KType, Node>) {
     }
 
     internal companion object {
-        fun of(node: Node): Module = Module(mapOf(node.key to node))
+        fun of(node: Node): Module = Module(mapOf(node.key to node), emptyList())
 
-        fun of(nodes: Map<KType, Node>): Module = Module(nodes)
+        fun of(nodes: Map<KType, Node>, probes: List<Probe>): Module = Module(nodes, probes)
     }
 }
 

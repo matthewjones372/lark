@@ -8,6 +8,7 @@ import io.github.matthewjones372.lark.ExitCase
 import io.github.matthewjones372.lark.ResourceScope
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.resourceScope
+import io.github.matthewjones372.lark.timeoutOrNull
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.reflect.KType
@@ -24,6 +25,9 @@ sealed class StartupError {
 
     /** Nothing in the graph builds [key], and it was asked for. */
     data class NoSuchNode(val key: KType) : StartupError()
+
+    /** [key] was built, and the probe named [name] did not answer inside its timeout. */
+    data class Unready(val key: KType, val name: String) : StartupError()
 }
 
 /**
@@ -64,7 +68,13 @@ private fun Raise<StartupError>.build(module: Module, plan: Plan, releases: Rele
     plan.layers.fold(emptyMap()) { built, layer ->
         built + parMap(layer) { key ->
             val node = module.nodes.getValue(key)
-            key to node.build(NodeWiring(key, releases, this), node.dependencies.map(built::getValue))
+            val value = node.build(NodeWiring(key, releases, this), node.dependencies.map(built::getValue))
+            module.probes.filter { it.key == key }.forEach { probe ->
+                if (timeoutOrNull(probe.timeout) { probe.ask(value) } != true) {
+                    raise(StartupError.Unready(key, probe.name))
+                }
+            }
+            key to value
         }
     }
 

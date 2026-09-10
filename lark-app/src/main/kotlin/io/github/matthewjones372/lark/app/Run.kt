@@ -46,6 +46,7 @@ fun StartupError.describe(): String = when (this) {
     is StartupError.Unwireable -> errors.report()
     is StartupError.Refused -> "lark-app: ${labelOf(key)} refused to start: $reason"
     is StartupError.NoSuchNode -> "lark-app: nothing in the graph builds ${labelOf(key)}"
+    is StartupError.Unready -> "lark-app: ${labelOf(key)} started and its $name probe did not answer"
 }
 
 /** Zero only when the application left of its own accord. */
