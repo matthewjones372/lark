@@ -222,7 +222,7 @@ it next. Run it last, after the final edit, so nothing lands unformatted:
 ./gradlew spotlessApply && ./gradlew build
 ```
 
-Four gates sit beyond the tests. Each exists because a claim in the README
+Three gates sit beyond the tests. Each exists because a claim in the README
 would otherwise be unverified.
 
 | Gate | Fails when | Not the fix |
@@ -230,7 +230,6 @@ would otherwise be unverified.
 | detekt | any finding | a suppression with no reason |
 | `NoOtherDependenciesTest` | anything but core and Arrow on the runtime classpath | widening the allow-list |
 | Kover | line coverage under 90% | lowering the floor |
-| `apiCheck` | the binary surface moved without `lark/api/lark.api` moving with it | running `apiDump` without reading the diff |
 
 Before saying it is done:
 

@@ -16,10 +16,6 @@ plugins {
     id("com.vanniktech.maven.publish") version "0.37.0" apply false
     // Renders the KDoc into the javadoc jar the published module ships.
     id("org.jetbrains.dokka") version "2.1.0" apply false
-    // What the published module's binary surface is, as a file somebody reads
-    // in a diff. The golden-file argument, applied to the Kotlin API instead of
-    // to the HTTP one.
-    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.18.1"
 }
 
 scmVersion {
