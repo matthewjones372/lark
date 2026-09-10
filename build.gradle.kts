@@ -62,6 +62,7 @@ val moduleDescriptions = mapOf(
     "lark-stream" to "A stream that names its failure: Stream<E, A> over Pekko Streams, formerly dipper.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
+    "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
 )
 
 // The floor is a ratchet against regression, not a target to code towards — a

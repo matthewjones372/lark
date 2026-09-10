@@ -450,6 +450,44 @@ microseconds, and every line is stamped with the same instant. `TestClock` is
 the other one — it moves only when a test moves it, and `adjustWhenBlocked`
 waits until every sleep is on a time still ahead before moving.
 
+## Trace across a fork
+
+`lark-otel` puts OpenTelemetry's `Context` in a `LarkLocal` and registers it
+through `META-INF/services`, so a span opened before a `parMap` is the parent of
+what each branch opens — which a `ThreadLocal`, and so OpenTelemetry's own
+storage, cannot be. Nothing in your code changes; the module being on the
+classpath is the change.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-otel:0.1.0-SNAPSHOT")
+}
+```
+
+```kotlin
+import io.github.matthewjones372.lark.otel.span
+import io.github.matthewjones372.lark.otel.tracedSpan
+
+fun pricing(tracer: Tracer, orders: List<Order>): List<Price> =
+    tracer.span("price-all") {
+        parMap(orders) { order -> tracer.span("price") { price(order) } }
+    }
+```
+
+`tracedSpan` is the same thing with the ids on every log line written inside it,
+so a line found in a log says which trace to open and a trace says which lines
+to read:
+
+```kotlin
+tracer.tracedSpan("register") { logInfo("started") }   // trace_id=… span_id=…
+```
+
+The registration is process-wide: with the module on the classpath, every
+library using OpenTelemetry's context in the JVM reads and writes it here,
+whether or not it has heard of lark. That is the point — an HTTP client's span
+has to be the same span a forked handler continues — and it is why this is a
+module you opt into rather than anything in `lark`.
+
 ## Spawn an actor
 
 <!-- cookbook-pekko -->
@@ -499,4 +537,5 @@ opened it is released.
 | that log somewhere real | `logger.locally(Slf4jLogger()) { runApp(…) }`, once, around everything |
 | which request a line belongs to | `logAnnotated("correlation_id" to id) { … }` |
 | what a test logged | `capturingLogs { logs -> … ; logs.all() }` |
+| a trace that survives a fork | put `lark-otel` on the classpath; nothing else |
 | the wiring in review | `render()` against a golden file |
