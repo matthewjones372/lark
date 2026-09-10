@@ -10,6 +10,7 @@ data class LogLine(
     val message: String,
     val at: Instant,
     val cause: Throwable? = null,
+    val annotations: Map<String, String> = emptyMap(),
 )
 
 fun interface Logger {
@@ -20,7 +21,8 @@ fun interface Logger {
 object StderrLogger : Logger {
 
     override fun log(line: LogLine) {
-        System.err.println("${line.at} ${line.level.name.uppercase()} ${line.message}")
+        val annotated = line.annotations.entries.joinToString("") { (key, value) -> " $key=$value" }
+        System.err.println("${line.at} ${line.level.name.uppercase()} ${line.message}$annotated")
         line.cause?.printStackTrace(System.err)
     }
 }
@@ -36,5 +38,7 @@ fun logWarn(message: String) = log(LogLevel.Warn, message, null)
 
 fun logError(message: String, cause: Throwable? = null) = log(LogLevel.Error, message, cause)
 
-private fun log(level: LogLevel, message: String, cause: Throwable?) =
-    logger.get().log(LogLine(level, message, clock.get().now(), cause))
+private fun log(level: LogLevel, message: String, cause: Throwable?) {
+    val at = clock.get().now()
+    logger.get().log(LogLine(level, message, at, cause, annotations.get() + spans.get().elapsedAt(at)))
+}
