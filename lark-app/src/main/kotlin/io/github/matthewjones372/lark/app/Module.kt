@@ -34,7 +34,7 @@ class Module private constructor(internal val nodes: Map<KType, Node>) {
 // Every lower-case run, so a generic argument loses its packages too.
 private val qualifiers = Regex("""\b[a-z][A-Za-z0-9_]*(\.[a-z][A-Za-z0-9_]*)*\.""")
 
-private fun labelOf(key: KType): String = qualifiers.replace(key.toString(), "")
+internal fun labelOf(key: KType): String = qualifiers.replace(key.toString(), "")
 
 private fun idOf(key: KType): String = labelOf(key).replace(Regex("[^A-Za-z0-9]"), "_")
 
