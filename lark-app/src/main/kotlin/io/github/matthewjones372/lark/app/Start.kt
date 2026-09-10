@@ -55,17 +55,25 @@ internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError
     if (!nodes.containsKey(root)) raise(StartupError.NoSuchNode(root))
 
     val order = plan.layers.flatten()
+    val health = HealthRegistry(probes)
     resourceScope {
         val releases = Releases()
         // One release on lark's scope, installed before anything is acquired: it decides the ExitCase,
         // and the order below is this graph's rather than whichever fork happened to finish first.
         onRelease { exit -> releases.release(order, exit) }
-        block(build(this@use, plan, releases).getValue(root))
+        val built = build(this@use, plan, releases, health)
+        health.running()
+        block(built.getValue(root))
     }
 }
 
-private fun Raise<StartupError>.build(module: Module, plan: Plan, releases: Releases): Map<KType, Any> =
-    plan.layers.fold(emptyMap()) { built, layer ->
+private fun Raise<StartupError>.build(
+    module: Module,
+    plan: Plan,
+    releases: Releases,
+    health: HealthRegistry,
+): Map<KType, Any> =
+    plan.layers.fold(mapOf<KType, Any>(typeOf<HealthRegistry>() to health)) { built, layer ->
         built + parMap(layer) { key ->
             val node = module.nodes.getValue(key)
             val value = node.build(NodeWiring(key, releases, this), node.dependencies.map(built::getValue))
@@ -74,6 +82,7 @@ private fun Raise<StartupError>.build(module: Module, plan: Plan, releases: Rele
                     raise(StartupError.Unready(key, probe.name))
                 }
             }
+            health.started(key, value)
             key to value
         }
     }

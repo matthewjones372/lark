@@ -24,12 +24,14 @@ class Plan internal constructor(val layers: List<List<KType>>)
 /** Every fault in the graph, or the order it starts in. Runs no recipe. */
 fun Module.validate(): Either<NonEmptyList<WiringError>, Plan> {
     val missing = nodes.values.flatMap { node ->
-        node.dependencies.filterNot(nodes::containsKey).map { WiringError.Missing(it, node.key) }
+        node.dependencies
+            .filterNot { nodes.containsKey(it) || it in runtimeProvided }
+            .map { WiringError.Missing(it, node.key) }
     }
 
     // Every missing key at once: a graph is usually short of a module, not of one node.
     return missing.toNonEmptyListOrNull()?.left()
-        ?: layers(nodes.mapValues { (_, node) -> node.dependencies.toSet() }, emptyList())
+        ?: layers(nodes.mapValues { (_, node) -> node.dependencies.toSet() - runtimeProvided }, emptyList())
             .mapLeft { nonEmptyListOf(WiringError.Cycle(cycleIn(it))) }
             .map(::Plan)
 }
