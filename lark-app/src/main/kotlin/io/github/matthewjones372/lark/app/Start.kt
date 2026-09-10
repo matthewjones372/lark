@@ -1,0 +1,104 @@
+package io.github.matthewjones372.lark.app
+
+import arrow.core.Either
+import arrow.core.NonEmptyList
+import arrow.core.raise.Raise
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.ExitCase
+import io.github.matthewjones372.lark.ResourceScope
+import io.github.matthewjones372.lark.parMap
+import io.github.matthewjones372.lark.resourceScope
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+import kotlin.reflect.KType
+import kotlin.reflect.typeOf
+
+/** Why an application did not start. */
+sealed class StartupError {
+
+    /** The graph was faulty before anything was built. */
+    data class Unwireable(val errors: NonEmptyList<WiringError>) : StartupError()
+
+    /** A recipe declined, naming [reason]. */
+    data class Refused(val key: KType, val reason: String) : StartupError()
+
+    /** Nothing in the graph builds [key], and it was asked for. */
+    data class NoSuchNode(val key: KType) : StartupError()
+}
+
+/**
+ * What a recipe is handed: somewhere to install a release, and a way to decline.
+ *
+ * Not also a `Raise<StartupError>`: `ResourceScope.bind` takes a `Resource<A>` and `Raise.bind` a
+ * function too, and the two erase to one JVM signature.
+ */
+interface Wiring : ResourceScope {
+
+    /** Ends the start, naming this node and [reason]. */
+    fun refuse(reason: String): Nothing
+}
+
+/** Starts the graph, hands [block] the node it asks for, and gives everything back on the way out. */
+inline fun <reified A : Any, B> Module.use(noinline block: (A) -> B): Either<StartupError, B> =
+    use(typeOf<A>()) {
+        @Suppress("UNCHECKED_CAST")
+        block(it as A)
+    }
+
+@PublishedApi
+internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError, B> = either {
+    val plan = validate().mapLeft(StartupError::Unwireable).bind()
+    if (!nodes.containsKey(root)) raise(StartupError.NoSuchNode(root))
+
+    val order = plan.layers.flatten()
+    resourceScope {
+        val releases = Releases()
+        // One release on lark's scope, installed before anything is acquired: it decides the ExitCase,
+        // and the order below is this graph's rather than whichever fork happened to finish first.
+        onRelease { exit -> releases.release(order, exit) }
+        block(build(this@use, plan, releases).getValue(root))
+    }
+}
+
+private fun Raise<StartupError>.build(module: Module, plan: Plan, releases: Releases): Map<KType, Any> =
+    plan.layers.fold(emptyMap()) { built, layer ->
+        built + parMap(layer) { key ->
+            val node = module.nodes.getValue(key)
+            key to node.build(NodeWiring(key, releases, this), node.dependencies.map(built::getValue))
+        }
+    }
+
+private class NodeWiring(
+    private val key: KType,
+    private val releases: Releases,
+    private val raise: Raise<StartupError>,
+) : Wiring {
+
+    override fun onRelease(release: (ExitCase) -> Unit) = releases.add(key, release)
+
+    override fun refuse(reason: String): Nothing = raise.raise(StartupError.Refused(key, reason))
+}
+
+/**
+ * The releases of every node, kept by the node that installed them, because a layer's forks install at
+ * once and acquisition order under `parMap` is whichever thread got there first.
+ */
+private class Releases {
+
+    private val lock = ReentrantLock()
+    private val byKey = mutableMapOf<KType, MutableList<(ExitCase) -> Unit>>()
+
+    fun add(key: KType, release: (ExitCase) -> Unit) {
+        lock.withLock { byKey.getOrPut(key) { mutableListOf() }.add(release) }
+    }
+
+    /** Reverse topological, so a node is given back only after everything that needed it. */
+    fun release(order: List<KType>, exit: ExitCase) {
+        val installed = lock.withLock { order.reversed().flatMap { byKey[it].orEmpty().reversed() } }
+        val failures = installed.mapNotNull { runCatching { it(exit) }.exceptionOrNull() }
+        failures.firstOrNull()?.let { first ->
+            failures.drop(1).forEach(first::addSuppressed)
+            throw first
+        }
+    }
+}
