@@ -44,12 +44,12 @@ import io.github.matthewjones372.lark.app.HealthRegistry
 import io.github.matthewjones372.lark.app.RealSys
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.Sys
-import io.github.matthewjones372.lark.app.int
 import io.github.matthewjones372.lark.app.overriding
 import io.github.matthewjones372.lark.app.probe
-import io.github.matthewjones372.lark.app.required
 import io.github.matthewjones372.lark.app.runApp
+import io.github.matthewjones372.lark.app.boundTo
 import io.github.matthewjones372.lark.app.single
+import io.github.matthewjones372.lark.app.singleOf
 import io.github.matthewjones372.lark.app.subgraph
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.use
@@ -79,6 +79,22 @@ class HttpServer(private val config: HttpConfig, private val register: RegisterU
     fun stop() = Unit
 }
 ```
+
+## A constructor is a node
+
+A constructor reference already declares what it builds and what it needs, so
+`singleOf` reads both off it:
+
+<!-- cookbook -->
+```kotlin
+class PgUsers(private val pool: Pool)
+
+val fromConstructors: Module = singleOf(::Hikari).boundTo<Pool>() + singleOf(::PgUsers)
+```
+
+`boundTo` keys a node as the interface everything else asks for, which is also
+what stops the type-argument trap below: with `singleOf` you never give a type
+argument beside a dependency.
 
 ## What a `single` is
 
@@ -135,8 +151,8 @@ val config: Module =
     single<Sys> { RealSys } +
     single { sys: Sys ->
         AppConfig(
-            DbConfig(sys.required("DB_URL").getOrElse { refuse("DB_URL is not set") }),
-            HttpConfig(sys.int("PORT").getOrElse { refuse("PORT: $it") }),
+            DbConfig(sys.env("DB_URL") ?: refuse("DB_URL is not set")),
+            HttpConfig(sys.env("PORT")?.toIntOrNull() ?: refuse("PORT is not a number")),
         )
     } +
     single { app: AppConfig -> app.db } +
@@ -228,22 +244,19 @@ start.
 
 ## Read the process itself
 
-A node calling `System.getenv` is a node no test can configure. Take a `Sys`.
+`Sys` is the process rather than a configuration library: what a node reads when
+it wants `PATH` rather than a setting. A node calling `System.getenv` directly is
+a node no test can configure.
 
 <!-- cookbook -->
 ```kotlin
-val readingConfig: Module = single { sys: Sys ->
-    AppConfig(
-        db = DbConfig(sys.required("DB_URL").getOrElse { refuse("DB_URL is not set") }),
-        http = HttpConfig(sys.int("PORT").getOrElse { refuse("PORT: $it") }),
-    )
-}
+val fromTheProcess: Module =
+    single<Sys> { RealSys } +
+    single { sys: Sys -> DbConfig(sys.env("DB_URL") ?: refuse("DB_URL is not set")) }
 ```
 
-`refuse` ends the start naming this node, which is what reaches stderr through
-`describe()`. `sys.int("PORT")` answers `ConfigError.NotA("PORT", "an Int",
-"eighty-eighty")` rather than throwing, so several names can be read and every
-complaint reported at once.
+`FakeSys(mapOf("DB_URL" to "jdbc:h2:mem:"))` replaces it in a test, with no
+JVM-wide environment variable set anywhere.
 
 ## Something that has to be given back
 
@@ -631,7 +644,9 @@ opened it is released.
 
 | Want | Recipe |
 |---|---|
-| a value built once and shared | `single { … }` — every dependent gets the same instance |
+| a value built once and shared | `singleOf(::Thing)` — the constructor names the key and the dependencies |
+| that node keyed as an interface | `.boundTo<Interface>()` |
+| a recipe that is not just a constructor | `single { dep: Other -> … }` |
 | a value that must be closed | `install(acquire) { held, exit -> … }` |
 | a start that can decline | `refuse("why")` |
 | two of one type | a `@JvmInline value class` wrapper |
