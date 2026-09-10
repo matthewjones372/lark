@@ -11,8 +11,6 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.ZERO
 import kotlin.time.Duration.Companion.nanoseconds
 
-private const val NANOS_PER_MILLI = 1_000_000L
-
 /** One step of a schedule: what it decides about an input, and how it carries on from there. */
 typealias ScheduleStep<Input, Output> = (Input) -> Schedule.Decision<Input, Output>
 
@@ -275,13 +273,7 @@ fun interface Schedule<in Input, out Output> {
     }
 }
 
-/**
- * A delay, waited out on the calling virtual thread. An interrupt lands here rather than being deferred,
- * so a schedule ends where the JDK's only cancellation reaches it.
- */
+/** A delay, waited out on the calling virtual thread, by whichever clock that thread inherited. */
 internal fun Duration.sleepOff() {
-    if (this > ZERO) {
-        val nanos = inWholeNanoseconds
-        Thread.sleep(nanos / NANOS_PER_MILLI, (nanos % NANOS_PER_MILLI).toInt())
-    }
+    if (this > ZERO) clock.get().sleep(this)
 }
