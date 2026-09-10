@@ -63,6 +63,7 @@ val moduleDescriptions = mapOf(
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
+    "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
 )
 
 // The floor is a ratchet against regression, not a target to code towards — a

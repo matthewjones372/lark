@@ -450,6 +450,35 @@ microseconds, and every line is stamped with the same instant. `TestClock` is
 the other one — it moves only when a test moves it, and `adjustWhenBlocked`
 waits until every sleep is on a time still ahead before moving.
 
+## Run migrations as a step
+
+`lark-app-liquibase` makes a changelog a node. Anything that reads the database
+takes a `Migrated`, which turns "after the migrations" from a comment into an
+edge the graph enforces and `render()` draws:
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-app-liquibase:0.1.0-SNAPSHOT")
+}
+```
+
+```kotlin
+import io.github.matthewjones372.lark.app.liquibase.Migrated
+import io.github.matthewjones372.lark.app.liquibase.migrations
+
+val database: Module =
+    single { cfg: DbConfig -> install({ Hikari(cfg) }) { pool, _ -> pool.close() } as DataSource } +
+    migrations("db/changelog.xml") +
+    single { db: DataSource, _: Migrated -> PgUserRepo(db) as UserRepo }
+```
+
+`PgUserRepo` cannot be built before the changelog has run, and nothing had to
+remember that. The connection the migration used is given back before the node
+answers, so it is not a pool slot held for the life of the process.
+
+`Migrated.applied` is how many changesets ran, which is the log line worth
+having on a deploy.
+
 ## Trace across a fork
 
 `lark-otel` puts OpenTelemetry's `Context` in a `LarkLocal` and registers it
@@ -538,4 +567,5 @@ opened it is released.
 | which request a line belongs to | `logAnnotated("correlation_id" to id) { … }` |
 | what a test logged | `capturingLogs { logs -> … ; logs.all() }` |
 | a trace that survives a fork | put `lark-otel` on the classpath; nothing else |
+| migrations before anything reads | `migrations("db/changelog.xml")`, then take a `Migrated` |
 | the wiring in review | `render()` against a golden file |
