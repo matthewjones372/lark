@@ -241,6 +241,31 @@ adds over Typesafe Config is that a failed read records its fault and the block
 runs on, so a bad file is one message rather than one deploy per fault — in
 Typesafe Config's own words, which name the file and the line.
 
+### Configuration in a test
+
+```kotlin
+import io.github.matthewjones372.lark.app.typesafe.configFromResource
+import io.github.matthewjones372.lark.app.typesafe.configOf
+import io.github.matthewjones372.lark.app.typesafe.loadedConfig
+import io.github.matthewjones372.lark.app.typesafe.overridingConfig
+
+loadedConfig()                              // what the service reads: application.conf and its reference
+configFromResource("test.conf")             // a file beside the test
+configOf("database.poolSize = 1")           // a document written where the test is
+```
+
+Changing one key without restating the file is the case that matters:
+
+```kotlin
+testApp(app.overridingConfig("petshop.port = 0")) { server: PelicanServer -> server.baseUrl }
+```
+
+`overridingConfig` puts the document on top of what the service would have read,
+so the port is a random one while the database, the broker and everything else
+still come from `application.conf`. The `overriding` underneath refuses a key
+nothing provides, so a typo is a failed test rather than a setting silently
+ignored.
+
 The `when` a service writes over its own settings needs nothing from lark:
 `Module` is a value, so `when` already answers with one.
 
