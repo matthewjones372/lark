@@ -12,7 +12,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
-import java.time.Duration
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import com.typesafe.config.Config as Hocon
 
 private data class Db(val url: String, val poolSize: Int, val idle: Duration, val replicas: List<String>)
@@ -24,7 +25,7 @@ class SectionsTest {
     private val file: Hocon = ConfigFactory.parseResources("application.conf").resolve()
 
     private fun db(): Reading.() -> Db = {
-        Db(string("url"), int("poolSize"), of(Duration.ZERO) { getDuration("idle") }, strings("replicas"))
+        Db(string("url"), int("poolSize"), duration("idle"), strings("replicas"))
     }
 
     @Test
@@ -33,7 +34,7 @@ class SectionsTest {
 
         withClue("substitution, a list and a duration, none of them re-encoded as a string") {
             db.url shouldBe "jdbc:postgresql://db.internal/shopping"
-            db.idle shouldBe Duration.ofSeconds(30)
+            db.idle shouldBe 30.seconds
             db.replicas shouldContainExactly listOf("one", "two")
         }
     }
@@ -54,14 +55,14 @@ class SectionsTest {
 
     @Test
     fun `a module reads its own section and nothing else names its paths`() {
-        val app = single<Hocon> { file } + configured("database", db()) + single { db: Db -> Pooling(db) }
+        val app = single<Hocon> { file } + config("database", db()) + single { db: Db -> Pooling(db) }
 
         testApp(app) { pooling: Pooling -> pooling.db.poolSize } shouldBe 5
     }
 
     @Test
     fun `a section that cannot be read refuses the start`() {
-        val app = single<Hocon> { file } + configured("broken", db()) + single { db: Db -> Pooling(db) }
+        val app = single<Hocon> { file } + config("broken", db()) + single { db: Db -> Pooling(db) }
 
         val error = app.use { _: Pooling -> }.leftOrNull().shouldNotBeNull()
 
