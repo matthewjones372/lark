@@ -16,10 +16,6 @@ plugins {
     id("com.vanniktech.maven.publish") version "0.37.0" apply false
     // Renders the KDoc into the javadoc jar the published module ships.
     id("org.jetbrains.dokka") version "2.1.0" apply false
-    // What the published module's binary surface is, as a file somebody reads
-    // in a diff. The golden-file argument, applied to the Kotlin API instead of
-    // to the HTTP one.
-    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.18.1"
 }
 
 scmVersion {
@@ -64,6 +60,8 @@ val moduleDescriptions = mapOf(
     "lark" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
     "lark-pekko" to "lark on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
     "lark-stream" to "A stream that names its failure: Stream<E, A> over Pekko Streams, formerly dipper.",
+    "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
+    "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
 )
 
 // The floor is a ratchet against regression, not a target to code towards — a

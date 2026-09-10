@@ -104,7 +104,10 @@ style:
     active: true
   MagicNumber:
     # A status code in a test is the assertion, not a number needing a name.
-    excludes: ['**/test/**']
+    # Single.kt is the arities: each overload reads its dependencies out of the
+    # list by the position its parameter sits in, and a named constant per
+    # position says less than the position does.
+    excludes: ['**/test/**', '**/Single.kt']
     ignorePropertyDeclaration: true
     ignoreCompanionObjectPropertyDeclaration: true
     ignoreNamedArgument: true
@@ -204,7 +207,10 @@ style:
     # and the timing tests sleep to make a gap they can measure. Schedule.kt is
     # where "schedule instead" lands: it holds the one sleep, waited out on the
     # calling virtual thread so an interrupt ends the schedule where it is.
-    excludes: ['**/test/**', '**/example/**', '**/Schedule.kt']
+    # Clock.kt is where the waiting is implemented rather than reached for:
+    # SystemClock.sleep is the one that has to call it, and everything else
+    # waits through whichever Clock the calling thread inherited.
+    excludes: ['**/test/**', '**/example/**', '**/Clock.kt']
 
 # ------------------------------------------------------------- what is meant
 #

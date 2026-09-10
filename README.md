@@ -275,6 +275,15 @@ carriers; JEP 491 removes that pinning in 24.
 [`specs/0002-a-handler-that-forks.md`](specs/0002-a-handler-that-forks.md) that
 stayed, and all of
 [`specs/0003-a-drop-in-for-arrow-fx.md`](specs/0003-a-drop-in-for-arrow-fx.md).
+
+So are `LarkLocal`, the bound `Clock` and the log a fork carries
+([0017](specs/0017-what-a-fork-inherits.md),
+[0018](specs/0018-the-log-a-fork-carries.md)), and the application graph in
+`lark-app` and `lark-app-pekko`
+([0016](specs/0016-an-application-that-starts-as-a-value.md),
+[0019](specs/0019-what-a-service-reads-from-outside-itself.md),
+[0020](specs/0020-an-actor-is-a-node.md)).
+
 [`AGENTS.md`](AGENTS.md) says how work here proceeds.
 
 ## Family
@@ -284,6 +293,86 @@ stayed, and all of
 - [Dipper](https://github.com/matthewjones372/dipper) — a stream that names its
   failure, over Pekko Streams. It is the `lark-stream` module here now, brought
   in with its history.
+
+## What a fork inherits
+
+A fork inherits nothing: `Thread.ofVirtual().start(command)` hands the body a
+thread with no memory of the one that opened it. A `LarkLocal` is what crosses
+it — read on the opening thread, rebound inside the task, so a value bound
+outside a `parMap` is readable in every branch, on a Pekko dispatcher as much as
+on a virtual thread of lark's own.
+
+```kotlin
+import io.github.matthewjones372.lark.larkLocal
+import io.github.matthewjones372.lark.parMap
+
+val requestId = larkLocal { "none" }
+
+requestId.locally("abc-123") { parMap(rows) { row -> requestId.get() } }   // every branch reads it
+```
+
+The clock is lark's own first user of it. `Schedule` waits through whichever
+`Clock` the thread inherited, so a test of a backoff does not wait one:
+
+```kotlin
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fixedClock
+import io.github.matthewjones372.lark.retry
+import kotlin.time.Duration.Companion.seconds
+
+val backoff = Schedule.exponential<Throwable>(1.seconds) and Schedule.recurs(5)
+
+clock.locally(fixedClock()) { backoff.retry { flaky.row(id) } }            // microseconds, not minutes
+```
+
+`TestClock` is the other one: a broken wall clock that moves when a test moves
+it. `adjustWhenBlocked` waits until every sleep is on a time still ahead before
+moving, because nothing here knows a fork has reached its `sleep` the way a
+fiber runtime does.
+
+The log rides the same binding, which is why a correlation id survives a fork
+where an MDC does not:
+
+```kotlin
+import io.github.matthewjones372.lark.logAnnotated
+import io.github.matthewjones372.lark.logInfo
+import io.github.matthewjones372.lark.logSpan
+
+logAnnotated("correlation_id" to request.id) {
+    logSpan("register") { parMap(request.items) { item -> logInfo("checking $item") } }
+}
+```
+
+`capturingLogs { }` binds a logger a test can read, so a claim about logging is
+a claim about values.
+
+## Applications
+
+`lark-app` is a dependency graph as a value. A recipe names what it builds and
+takes what it needs as parameters, so the graph is data before anything runs:
+`validate` says what is missing before a recipe is called, `subgraph` gives a
+test four nodes instead of forty, `overriding` refuses a fake under a key
+nothing asked for, and starting one runs a topological layer at a time on lark's
+forks with releases in reverse topological order.
+
+```kotlin
+import io.github.matthewjones372.lark.app.runApp
+import io.github.matthewjones372.lark.app.single
+
+val app = config + persistence + domain + web
+
+fun main(): Nothing = runApp(app) { server: HttpServer ->
+    server.start()
+    awaitShutdown()
+}
+```
+
+A probe is what makes "started" mean "ready" rather than "constructed", and the
+same probes answer `/ready` afterwards through a `HealthRegistry` a route takes
+as a dependency. `lark-app-pekko` makes an actor a node, keyed by the
+`ActorRef<T>` of its protocol. There are no annotations, no processor and no
+effect type. [`docs/app.md`](docs/app.md) is the whole of it.
 
 ## Streams
 

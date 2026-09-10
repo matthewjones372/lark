@@ -199,24 +199,29 @@ internal class Fork<E, T>(
 
     private val finished = CountDownLatch(1)
 
+    // Read on the opening thread rather than inside the task, which runs on a thread that bound none of it.
+    private val inherited = Bindings.snapshot()
+
     init {
         on.execute {
-            cancelling.withLock {
-                borrowed = Thread.currentThread()
-                if (on === VirtualThreads) ownThread = Thread.currentThread()
-                // Cancelled before its turn on the executor came: the body starts interrupted rather than
-                // running on as though the scope it belonged to were still open.
-                if (cancelled) Thread.currentThread().interrupt()
-            }
-            try {
-                outcome = capture(on, block)
-            } finally {
+            Bindings.under(inherited) {
                 cancelling.withLock {
-                    borrowed = null
-                    Thread.interrupted()
+                    borrowed = Thread.currentThread()
+                    if (on === VirtualThreads) ownThread = Thread.currentThread()
+                    // Cancelled before its turn on the executor came: the body starts interrupted rather
+                    // than running on as though the scope it belonged to were still open.
+                    if (cancelled) Thread.currentThread().interrupt()
                 }
-                finished.countDown()
-                ended()
+                try {
+                    outcome = capture(on, block)
+                } finally {
+                    cancelling.withLock {
+                        borrowed = null
+                        Thread.interrupted()
+                    }
+                    finished.countDown()
+                    ended()
+                }
             }
         }
     }
