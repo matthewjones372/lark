@@ -27,6 +27,8 @@ class Module private constructor(internal val nodes: Map<KType, Node>) {
 
     internal companion object {
         fun of(node: Node): Module = Module(mapOf(node.key to node))
+
+        fun of(nodes: Map<KType, Node>): Module = Module(nodes)
     }
 }
 
