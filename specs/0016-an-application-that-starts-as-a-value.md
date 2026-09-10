@@ -1,4 +1,4 @@
-# 0012 — An application that starts as a value
+# 0016 — An application that starts as a value
 
 ## Problem
 
@@ -86,18 +86,18 @@ install.
 
 ## Stack
 
-- [ ] **`spec-0012-module`** — `Module`, `single` arities, `KType` keys, `plus`,
+- [ ] **`spec-0016-module`** — `Module`, `single` arities, `KType` keys, `plus`,
       `validate`, `render`, the module and its `NoOtherDependenciesTest`.
       Done when: a missing dependency and a cycle each come back as a `Left`
       naming the key, and no recipe body has run.
-- [ ] **`spec-0012-start`** — `Wiring`, layered start under `parMap`,
+- [ ] **`spec-0016-start`** — `Wiring`, layered start under `parMap`,
       reverse-topological release, `runApp`, `awaitShutdown`.
       Done when: a node that raises leaves nothing acquired, and two
       independent nodes report different virtual threads.
-- [ ] **`spec-0012-subgraph`** — `subgraph<A>()`, override precedence, `testApp`.
+- [ ] **`spec-0016-subgraph`** — `subgraph<A>()`, override precedence, `testApp`.
       Done when: a leaf's subgraph builds none of the unrelated nodes, and
       `testApp` releases after an assertion failure inside it.
-- [ ] **`spec-0012-probe`** — `probe(name, timeout, retry, critical)`, readiness
+- [ ] **`spec-0016-probe`** — `probe(name, timeout, retry, critical)`, readiness
       as the gate dependents wait on, `HealthRegistry`.
       Done when: a probe that never passes fails start naming its node, and a
       wedged probe answers Down inside its timeout rather than hanging.
