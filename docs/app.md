@@ -16,6 +16,9 @@ dependencies {
 }
 ```
 
+[`cookbook.md`](cookbook.md) is the task-shaped version of this page: wiring,
+configuration, probes, testing, actors, one recipe each.
+
 ## The problem
 
 A service wires itself by hand in `main`, so nested `resourceScope` blocks *are*
