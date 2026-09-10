@@ -302,8 +302,54 @@ fun theWiringIsWhatWeThink(): String = app.render()
 ```
 
 `validate` runs no recipe and names every missing key at once, with a cycle
-given as the path around it. `render` draws mermaid in an order a golden file
-can hold, so an accidental edge shows up as a diff in review.
+given as the path around it.
+
+`render` draws mermaid in a stable order, so the drawing can live in review. For
+this graph —
+
+```kotlin
+val drawn: Module =
+    single<Tuning> { Tuning() } +
+        single { _: Tuning -> Database() } +
+        single { _: Tuning -> Memo() } +
+        single { _: Database -> Accounts() } +
+        single { _: Database -> Postings() } +
+        single { _: Accounts -> Opening() } +
+        single { _: Accounts, _: Postings -> Reporting() } +
+        single { _: Memo, _: Opening, _: Reporting -> Frontage() }
+```
+
+— `drawn.render()` answers exactly this, which GitHub renders as the picture:
+
+<!-- cookbook-diagram -->
+```mermaid
+graph TD
+    Accounts[Accounts]
+    Database[Database]
+    Frontage[Frontage]
+    Memo[Memo]
+    Opening[Opening]
+    Postings[Postings]
+    Reporting[Reporting]
+    Tuning[Tuning]
+    Database --> Accounts
+    Tuning --> Database
+    Memo --> Frontage
+    Opening --> Frontage
+    Reporting --> Frontage
+    Tuning --> Memo
+    Accounts --> Opening
+    Database --> Postings
+    Accounts --> Reporting
+    Postings --> Reporting
+```
+
+Two things a reader gets from it that the code does not show: `Database` and
+`Memo` have no edge between them, so they start at the same time; and every
+path into `Frontage` is a thing that must be ready before the door opens.
+
+`WiringDiagramTest` holds the fence above to what `render` actually answers. A
+drawing of a graph is worth having in review only while it is the graph.
 
 ## Write a log line
 
