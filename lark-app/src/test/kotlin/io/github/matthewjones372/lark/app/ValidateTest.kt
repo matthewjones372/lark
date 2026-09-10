@@ -1,10 +1,12 @@
 package io.github.matthewjones372.lark.app
 
+import arrow.core.nonEmptyListOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import kotlin.reflect.typeOf
@@ -90,5 +92,34 @@ class ValidateTest {
         report shouldContain "❯ missing Settings"
         report shouldContain "❯     for Pipe"
         report shouldContain "❯     for Buffer"
+    }
+}
+
+private class Sdk
+
+/**
+ * A Java factory hands back a platform type, so the key is `Thing!` and nothing asking for a `Thing`
+ * matches it. "missing Thing" with a Thing in the graph is the least helpful true sentence a build
+ * can print, so the report names the one that reads the same.
+ */
+class AlikeKeyTest {
+
+    @Test
+    fun `a key that reads the same as a missing one is named beside it`() {
+        val faults = nonEmptyListOf(WiringError.Missing(typeOf<Settings>(), typeOf<Pipe>()))
+
+        val said = faults.report(setOf(typeOf<Settings?>(), typeOf<Sdk>()))
+
+        withClue("the graph held a Settings? and the reader was told so") {
+            said shouldContain "missing Settings"
+            said shouldContain "which is not the same type"
+        }
+    }
+
+    @Test
+    fun `nothing alike is said where nothing is alike`() {
+        val faults = nonEmptyListOf(WiringError.Missing(typeOf<Settings>(), typeOf<Pipe>()))
+
+        faults.report(setOf(typeOf<Sdk>())) shouldNotContain "not the same type"
     }
 }

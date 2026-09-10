@@ -18,8 +18,9 @@ import kotlin.reflect.typeOf
 /** Why an application did not start. */
 sealed class StartupError {
 
-    /** The graph was faulty before anything was built. */
-    data class Unwireable(val errors: NonEmptyList<WiringError>) : StartupError()
+    /** The graph was faulty before anything was built. [provided] is what it did hold. */
+    data class Unwireable(val errors: NonEmptyList<WiringError>, val provided: Set<KType> = emptySet()) :
+        StartupError()
 
     /** A recipe declined, naming [reason]. */
     data class Refused(val key: KType, val reason: String) : StartupError()
@@ -52,7 +53,7 @@ inline fun <reified A : Any, B> Module.use(noinline block: (A) -> B): Either<Sta
 
 @PublishedApi
 internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError, B> = either {
-    val plan = validate().mapLeft(StartupError::Unwireable).bind()
+    val plan = validate().mapLeft { faults -> StartupError.Unwireable(faults, nodes.keys) }.bind()
     if (!nodes.containsKey(root)) raise(StartupError.NoSuchNode(root))
 
     val order = plan.layers.flatten()

@@ -47,14 +47,25 @@ fun Module.validate(): Either<NonEmptyList<WiringError>, Plan> {
 }
 
 /** The errors grouped by the key that is missing, with what asked for it under each. */
-fun NonEmptyList<WiringError>.report(): String {
+fun NonEmptyList<WiringError>.report(): String = report(emptySet())
+
+/**
+ * The report, with a key that reads the same as a missing one named beside it.
+ *
+ * A Java factory hands back a platform type, so `single { sdk: Sdk -> sdk.getTracer("app") }` builds
+ * a node keyed `Tracer!` that nothing asking for a `Tracer` will ever match — and "missing Tracer"
+ * with a `Tracer` sitting in the graph is the least helpful true sentence a build can print.
+ */
+fun NonEmptyList<WiringError>.report(provided: Set<KType>): String {
     val missing = filterIsInstance<WiringError.Missing>()
         .groupBy { it.key }
         .entries
         .sortedBy { (key, _) -> key.toString() }
         .map { (key, asked) ->
             val consumers = asked.map { "❯     for ${labelOf(it.neededBy)}" }.sorted()
-            (listOf("❯ missing ${labelOf(key)}") + consumers).joinToString("\n")
+            val alike = provided.firstOrNull { it != key && plainly(it) == plainly(key) }
+            val nearly = alike?.let { listOf("❯     the graph has $it, which is not the same type") }.orEmpty()
+            (listOf("❯ missing ${labelOf(key)}") + consumers + nearly).joinToString("\n")
         }
 
     val cycles = filterIsInstance<WiringError.Cycle>()
@@ -62,6 +73,9 @@ fun NonEmptyList<WiringError>.report(): String {
 
     return (listOf("lark-app wiring error") + missing + cycles).joinToString("\n\n")
 }
+
+/** The label without what makes a platform type or a nullable one read differently. */
+private fun plainly(key: KType): String = labelOf(key).trimEnd('?', '!')
 
 /** Kahn's algorithm, a layer at a time; what is left when nothing is ready holds the cycle. */
 private tailrec fun layers(
