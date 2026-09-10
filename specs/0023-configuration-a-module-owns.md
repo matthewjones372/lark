@@ -3,82 +3,69 @@
 ## Problem
 
 Spec 0019 gave a node the process rather than `System.getenv`, and stopped
-there. `Sys` is the environment and nothing else, so a service reading a YAML
-file, a Typesafe `Config` or Hoplite's decoding still reads it in `main`, builds
-one type that knows about every section, and hands slices of it down.
+there. A service reading HOCON still reads it in `main`, builds one type that
+knows about every section, and hands slices of it down. That type is the
+coupling: adding a Kafka consumer means editing the root config type, the file
+it is decoded from, and the wiring — three places, none of them the module that
+wanted the setting.
 
-That type is the coupling. Adding a Kafka consumer means editing the root
-config type, the file it is decoded from, and the wiring — three places, none of
-them the module that wanted the setting. And a bad deploy answers with the first
-fault rather than all of them.
+Typesafe Config also stops at the first fault. Four wrong settings is four
+deploys.
 
 ## Not doing
 
-- **No decoder generation.** No reflection and no processor: the type is built
-  by code the compiler checks, which is where the safety is.
-- **No file formats.** YAML, HOCON and properties are adapters, and none of
-  them is in `lark-app`.
-- **No live reload.** A value read once at start-up is what a graph is built
-  from; a value that changes under a running node is a different spec.
+- **No facade over `com.typesafe.config.Config`.** Drafted, built, and thrown
+  away: reducing every source to `String?` loses substitution, merging, lists,
+  objects, `getDuration` and `getMemorySize`, and re-implements the parsing
+  Typesafe Config already does better. A view of a library that is already the
+  standard is a worse copy of it.
+- **No decoder generation.** No reflection and no processor.
+- **No `choose`.** `Module` is a value, so `when` over a setting already
+  answers with one. An API for that is an API for `when`.
+- **No live reload.**
 
 ## Shape
 
-```kotlin
-fun interface Config {
-    fun at(path: String): String?
-}
-```
-
-One method, the way `Logger` has one. Hoplite, Typesafe Config, a properties
-file and the environment are each one implementation.
-
-A section is a node, read by the module that needs it:
+A module, `lark-app-typesafe`, on `lark-app` and `com.typesafe:config`.
 
 ```kotlin
 val database: Module =
-    configured("database") { DbSettings(string("url"), int("poolSize"), optional("ssl", false) { boolean(it) }) } +
-    single { db: DbSettings -> install({ Hikari(db) }) { pool, _ -> pool.close() } as Pool }
+    configured("database") {
+        Db(string("url"), int("poolSize"), of(Duration.ZERO) { getDuration("idle") }, strings("replicas"))
+    } +
+    single { db: Db -> install({ Hikari(db) }) { pool, _ -> pool.close() } as Pool }
 ```
 
-Every fault at once, because a read that cannot answer records why and the
-block runs on:
+`of` hands the caller the real `Config` and keeps whatever it returns, so
+everything HOCON can do is still reachable — the named readers are shorthand,
+not a wall. What is added is that a failed read records its fault and the block
+runs on:
 
 ```
-lark-app: DbSettings refused to start: database.url is not set;
-database.poolSize is not an Int: lots
+lark-app: Db refused to start: No configuration setting found for key 'url'
+(application.conf: 8); ...
 ```
 
-And the `when` a service writes over its own settings is a value:
-
-```kotlin
-settings.choose("cartStore", default = "redis", "redis" to redisCarts, "postgres" to postgresCarts)
-```
+Typesafe Config's own message, which names the file and the line.
 
 ## Why this shape
 
-A section per module rather than one root type. The safety a reader wants is
-that `DbSettings` is a real type with real fields, and that is true either way;
-what a root type costs is that every module's settings are in one file that
-every module has to be edited alongside. A module that brings its own reading
-can be added and removed whole.
+A section per module rather than one root type. The safety is that `Db` is a
+real type with real fields, and that is true either way; what a root type costs
+is that every module's settings live in one place every module has to be edited
+alongside. A module that brings its own reading can be added and removed whole.
 
-`choose` decides while the graph is being described rather than while it is
-running, so the branch not taken contributes no node, nothing to build and
-nothing to start — a service on Postgres never opens a Redis connection, and
-`render` draws the shape that deployment actually has.
-
-The accumulation is a single pass with a recorded fault and a discarded value,
-rather than an applicative `zipOrAccumulate`. It reads as ordinary construction,
-which is the whole point; the cost is that the block must be pure, and a
-constructor that validates its arguments may throw on the discarded values —
-caught, with the faults answered instead.
+The accumulation is a single pass with a recorded fault and a discarded value
+rather than an applicative zip, so it reads as ordinary construction. The cost
+is that the block must be pure, and a constructor validating its arguments may
+throw on the discarded values — caught, with the faults answered instead.
 
 ## Stack
 
-- [x] **`spec-0023-config`** — `Config`, `configOf`, `orElse`, `Sys.asConfig`,
-      `Reading`, `read`, `configured`, `choose`.
-      Done when: a section refuses the start naming every fault at once, and a
-      module the configuration did not choose contributes no node.
+- [x] **`spec-0023-typesafe`** — `Reading`, `of`, the named readers, `reading`,
+      `configured`, and the dependency test.
+      Done when: a substitution, a list and a duration survive the reading, and
+      a section with four faults names all four.
 
 ## Acceptance
 
@@ -88,11 +75,9 @@ caught, with the faults answered instead.
 
 ## Open questions
 
-1. **Does `Sys` survive?** Recommend yes, narrowed: it is the process, and
-   `asConfig` is the bridge. A node wanting `PATH` rather than a setting still
-   has somewhere honest to ask.
-2. **Lists and maps?** Not yet. `string("brokers")` split by the caller covers
-   what a service actually reads, and a repeated-key convention is a decision
-   each format makes differently.
-3. **Which adapter first?** Recommend Typesafe Config: it is what Pekko already
-   configures itself from, so a service on `lark-app-pekko` has one file.
+1. **Does `Sys` survive?** Recommend yes: it is the process, not a config
+   library, and it is what makes reading `PATH` testable without setting a
+   JVM-wide environment variable.
+2. **A Hoplite module too?** Recommend only if someone wants it. Hoplite already
+   accumulates, so the only thing left to add there is the section-as-a-node,
+   which is `single` and needs nothing.
