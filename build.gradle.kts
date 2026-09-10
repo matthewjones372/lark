@@ -62,6 +62,9 @@ val moduleDescriptions = mapOf(
     "lark-stream" to "A stream that names its failure: Stream<E, A> over Pekko Streams, formerly dipper.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
+    "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
+    "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
+    "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
 )
 
 // The floor is a ratchet against regression, not a target to code towards — a

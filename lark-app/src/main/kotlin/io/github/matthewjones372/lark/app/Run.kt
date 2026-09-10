@@ -3,7 +3,6 @@ package io.github.matthewjones372.lark.app
 import arrow.core.Either
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.system.exitProcess
 
 // A release that has not finished by then is one the process stops waiting for: a shutdown hook that
 // never returns is a container that has to be killed rather than stopped.
@@ -49,18 +48,38 @@ fun StartupError.describe(): String = when (this) {
     is StartupError.Unready -> "lark-app: ${labelOf(key)} started and its $name probe did not answer"
 }
 
-/** Zero only when the application left of its own accord. */
-fun Either<StartupError, Unit>.exitCode(): Int = fold({ 1 }, { 0 })
+/** What the process should leave with. */
+@JvmInline
+value class ExitCode(val code: Int) {
+
+    companion object {
+        val Ok: ExitCode = ExitCode(0)
+        val Failed: ExitCode = ExitCode(1)
+    }
+}
+
+/** [ExitCode.Ok] only when the application left of its own accord. */
+fun Either<StartupError, Unit>.exitCode(): ExitCode = fold({ ExitCode.Failed }, { ExitCode.Ok })
 
 /**
- * The whole of a `main`: a signal stops the application, its releases run before the process leaves,
- * and what went wrong is on stderr.
+ * The whole of a `main` bar the leaving: a signal stops the application, its releases run before this
+ * answers, and what went wrong is on stderr.
+ *
+ * It answers with an [ExitCode] rather than ending the process, so a test can run an application and
+ * read what it decided. `exitProcess` is the caller's, and worth making: a stray non-daemon thread
+ * keeps a JVM alive after `main` returns.
+ *
+ * ```kotlin
+ * fun main() {
+ *     exitProcess(runApp(app) { server: HttpServer -> server.start(); awaitShutdown() }.code)
+ * }
+ * ```
  */
-inline fun <reified A : Any> runApp(module: Module, noinline block: AppScope.(A) -> Unit): Nothing =
+inline fun <reified A : Any> runApp(module: Module, noinline block: AppScope.(A) -> Unit): ExitCode =
     leaving { shutdown -> module.application(shutdown, block) }
 
 @PublishedApi
-internal fun leaving(run: (Shutdown) -> Either<StartupError, Unit>): Nothing {
+internal fun leaving(run: (Shutdown) -> Either<StartupError, Unit>): ExitCode {
     val shutdown = Shutdown()
     val torndown = CountDownLatch(1)
     val hook = Thread {
@@ -76,5 +95,5 @@ internal fun leaving(run: (Shutdown) -> Either<StartupError, Unit>): Nothing {
     runCatching { Runtime.getRuntime().removeShutdownHook(hook) }
 
     outcome.leftOrNull()?.let { System.err.println(it.describe()) }
-    exitProcess(outcome.exitCode())
+    return outcome.exitCode()
 }

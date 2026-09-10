@@ -21,6 +21,16 @@ sealed class WiringError {
 /** The order a graph starts in: a layer's nodes depend only on the layers before it. */
 class Plan internal constructor(val layers: List<List<KType>>)
 
+/** The graph as mermaid, one edge per dependency. */
+fun Module.render(): String {
+    val keys = (nodes.keys + nodes.values.flatMap { it.dependencies }).distinct().sortedBy { it.toString() }
+    val declarations = keys.map { "    ${idOf(it)}[${labelOf(it)}]" }
+    val edges = nodes.values.sortedBy { it.key.toString() }.flatMap { node ->
+        node.dependencies.sortedBy { it.toString() }.map { "    ${idOf(it)} --> ${idOf(node.key)}" }
+    }
+    return (listOf("graph TD") + declarations + edges).joinToString("\n")
+}
+
 /** Every fault in the graph, or the order it starts in. Runs no recipe. */
 fun Module.validate(): Either<NonEmptyList<WiringError>, Plan> {
     val missing = nodes.values.flatMap { node ->

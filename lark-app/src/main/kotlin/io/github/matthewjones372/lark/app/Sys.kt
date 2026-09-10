@@ -14,6 +14,12 @@ sealed class ConfigError {
     data class NotA(val name: String, val expected: String, val value: String) : ConfigError()
 }
 
+/** The fault in the words that fix it. */
+fun ConfigError.describe(): String = when (this) {
+    is ConfigError.Missing -> "$name is not set"
+    is ConfigError.NotA -> "$name is not $expected: $value"
+}
+
 /**
  * What a process was started with. A node takes one rather than calling `System.getenv`, so a test of
  * what a service does with its configuration touches no environment at all.

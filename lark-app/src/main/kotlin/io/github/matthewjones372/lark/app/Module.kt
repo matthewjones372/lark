@@ -18,16 +18,6 @@ class Module private constructor(
     operator fun plus(other: Module): Module =
         Module(nodes + other.nodes, probes.filterNot { it.key in other.nodes.keys } + other.probes)
 
-    /** The graph as mermaid, one edge per dependency. */
-    fun render(): String {
-        val keys = (nodes.keys + nodes.values.flatMap { it.dependencies }).distinct().sortedBy { it.toString() }
-        val declarations = keys.map { "    ${idOf(it)}[${labelOf(it)}]" }
-        val edges = nodes.values.sortedBy { it.key.toString() }.flatMap { node ->
-            node.dependencies.sortedBy { it.toString() }.map { "    ${idOf(it)} --> ${idOf(node.key)}" }
-        }
-        return (listOf("graph TD") + declarations + edges).joinToString("\n")
-    }
-
     internal companion object {
         fun of(node: Node): Module = Module(mapOf(node.key to node), emptyList())
 
@@ -40,7 +30,7 @@ private val qualifiers = Regex("""\b[a-z][A-Za-z0-9_]*(\.[a-z][A-Za-z0-9_]*)*\."
 
 internal fun labelOf(key: KType): String = qualifiers.replace(key.toString(), "")
 
-private fun idOf(key: KType): String = labelOf(key).replace(Regex("[^A-Za-z0-9]"), "_")
+internal fun idOf(key: KType): String = labelOf(key).replace(Regex("[^A-Za-z0-9]"), "_")
 
 @PublishedApi
 internal fun module(

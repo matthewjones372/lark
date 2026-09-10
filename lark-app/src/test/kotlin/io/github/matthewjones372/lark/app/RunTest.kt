@@ -77,8 +77,23 @@ class RunTest {
     }
 
     @Test
-    fun `an exit code is zero only when the application left cleanly`() {
-        Either.Right(Unit).exitCode() shouldBe 0
-        Either.Left(StartupError.NoSuchNode(typeOf<Absent>())).exitCode() shouldBe 1
+    fun `an exit code is Ok only when the application left cleanly`() {
+        Either.Right(Unit).exitCode() shouldBe ExitCode.Ok
+        Either.Left(StartupError.NoSuchNode(typeOf<Absent>())).exitCode() shouldBe ExitCode.Failed
+    }
+
+    @Test
+    fun `runApp answers rather than ending the process, so a test can read what it decided`() {
+        val started = AtomicReference(false)
+
+        val exit = runApp(single<Held> { Held() }) { _: Held -> started.set(true) }
+
+        started.get() shouldBe true
+        exit shouldBe ExitCode.Ok
+    }
+
+    @Test
+    fun `a graph that cannot start answers Failed`() {
+        runApp(single<Held> { Held() }) { _: Absent -> } shouldBe ExitCode.Failed
     }
 }

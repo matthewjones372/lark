@@ -5,7 +5,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 
-private class Config
+private class Knob
 private class Pool
 private class Repo
 private class Cache
@@ -16,46 +16,46 @@ class ModuleTest {
 
     @Test
     fun `render draws an edge for every dependency`() {
-        val rendered = (single<Config> { Config() } + single { _: Config -> Pool() }).render()
+        val rendered = (single<Knob> { Knob() } + single { _: Knob -> Pool() }).render()
 
         rendered shouldContain "graph TD"
-        rendered shouldContain "Config --> Pool"
+        rendered shouldContain "Knob --> Pool"
     }
 
     @Test
     fun `a later module replaces an earlier node under the same key`() {
-        val module = single<Config> { Config() } + single<Config> { Config() } + single { _: Config -> Pool() }
+        val module = single<Knob> { Knob() } + single<Knob> { Knob() } + single { _: Knob -> Pool() }
 
-        val declarations = module.render().lines().filter { it.contains("Config[") }
+        val declarations = module.render().lines().filter { it.contains("Knob[") }
 
-        withClue("both recipes build a Config, so the graph holds one node and one edge into Pool") {
+        withClue("both recipes build a Knob, so the graph holds one node and one edge into Pool") {
             declarations.size shouldBe 1
         }
-        module.render() shouldContain "Config --> Pool"
+        module.render() shouldContain "Knob --> Pool"
     }
 
     @Test
     fun `a recipe declares up to five dependencies as parameters`() {
-        val module = single<Config> { Config() } +
-            single { _: Config -> Pool() } +
-            single { _: Config, _: Pool -> Repo() } +
-            single { _: Config, _: Pool, _: Repo -> Cache() } +
-            single { _: Config, _: Pool, _: Repo, _: Cache -> Metrics() } +
-            single { _: Config, _: Pool, _: Repo, _: Cache, _: Metrics -> Server() }
+        val module = single<Knob> { Knob() } +
+            single { _: Knob -> Pool() } +
+            single { _: Knob, _: Pool -> Repo() } +
+            single { _: Knob, _: Pool, _: Repo -> Cache() } +
+            single { _: Knob, _: Pool, _: Repo, _: Cache -> Metrics() } +
+            single { _: Knob, _: Pool, _: Repo, _: Cache, _: Metrics -> Server() }
 
         val rendered = module.render()
 
         rendered.lines().count { it.contains("[") } shouldBe 6
         rendered shouldContain "Metrics --> Server"
-        rendered shouldContain "Config --> Server"
+        rendered shouldContain "Knob --> Server"
     }
 
     @Test
     fun `a dependency nothing builds is still drawn`() {
-        val rendered = single { _: Config -> Pool() }.render()
+        val rendered = single { _: Knob -> Pool() }.render()
 
-        withClue("the edge is the reader's clue that Config is the key nothing provides") {
-            rendered shouldContain "Config --> Pool"
+        withClue("the edge is the reader's clue that Knob is the key nothing provides") {
+            rendered shouldContain "Knob --> Pool"
         }
     }
 }

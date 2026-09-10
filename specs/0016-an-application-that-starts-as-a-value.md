@@ -42,7 +42,7 @@ val persistence =
 
 val app = core + persistence + web                      // right wins, so this is override
 
-fun main() = runApp(app) { server: HttpServer -> server.start(); awaitShutdown() }
+fun main() { exitProcess(runApp(app) { s: HttpServer -> s.start(); awaitShutdown() }.code) }
 ```
 
 Dependencies are the recipe's parameters, not lookups in its body, so the graph
