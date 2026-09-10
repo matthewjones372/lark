@@ -67,7 +67,7 @@ raise's.
 
 ## Stack
 
-- [ ] **`spec-0019-services`** — `Sys`, `RealSys`, `FakeSys`, the readers, and
+- [x] **`spec-0019-services`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `Sys`, `RealSys`, `FakeSys`, the readers, and
       `probe`'s `attempts` and `interval`.
       Done when: a bad port names itself and what it was, and a probe passing on
       its third attempt does not fail the start.

@@ -81,15 +81,15 @@ plain `adjust` races the fork it means to release.
 
 ## Stack
 
-- [ ] **`spec-0017-context`** — `LarkLocal`, `larkLocal`, `locally`, and the
+- [x] **`spec-0017-context`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `LarkLocal`, `larkLocal`, `locally`, and the
       capture and rebind at every fork site.
       Done when: a value bound outside `parMap` is readable in every branch, and
       a branch does not see a binding made after it forked.
-- [ ] **`spec-0017-clock`** — `Clock`, `SystemClock`, `fixed`, and `Schedule`
+- [x] **`spec-0017-clock`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `Clock`, `SystemClock`, `fixed`, and `Schedule`
       waiting through the bound clock.
       Done when: five exponential retries under `fixed` finish in under a
       millisecond, with the schedule's decisions unchanged.
-- [ ] **`spec-0017-testclock`** — `TestClock`, `adjust`, `setTime`,
+- [x] **`spec-0017-testclock`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `TestClock`, `adjust`, `setTime`,
       `adjustWhenBlocked`.
       Done when: nothing has happened before sixty minutes and exactly one thing
       has after.

@@ -86,27 +86,27 @@ install.
 
 ## Stack
 
-- [ ] **`spec-0016-module`** — `Module`, `single` arities, `KType` keys, `plus`,
+- [x] **`spec-0016-module`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `Module`, `single` arities, `KType` keys, `plus`,
       `validate`, `render`, the module and its `NoOtherDependenciesTest`.
       Done when: a missing dependency and a cycle each come back as a `Left`
       naming the key, and no recipe body has run.
-- [ ] **`spec-0016-start`** — `Wiring`, layered start under `parMap`,
+- [x] **`spec-0016-start`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `Wiring`, layered start under `parMap`,
       reverse-topological release, `use`.
       Done when: a node that refuses leaves nothing acquired, and two
       independent nodes report different virtual threads.
-- [ ] **`spec-0016-run`** — `runApp`, `awaitShutdown`, exit codes, the signal
+- [x] **`spec-0016-run`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `runApp`, `awaitShutdown`, exit codes, the signal
       handler.
       Done when: a SIGTERM releases the graph in order and leaves with 0.
-- [ ] **`spec-0016-subgraph`** — `subgraph<A>()`, override precedence, `testApp`.
+- [x] **`spec-0016-subgraph`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `subgraph<A>()`, override precedence, `testApp`.
       Done when: a leaf's subgraph builds none of the unrelated nodes, and
       `testApp` releases after an assertion failure inside it.
-- [ ] **`spec-0016-probe`** — `probe(name, timeout)`, readiness as the gate
+- [x] **`spec-0016-probe`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `probe(name, timeout)`, readiness as the gate
       dependents wait on.
       Done when: a probe that never passes fails start naming its node, and a
       wedged probe fails inside its timeout rather than hanging.
-- [ ] **`spec-0016-arities`** — `single` to nine dependencies, in `Single.kt`.
+- [x] **`spec-0016-arities`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `single` to nine dependencies, in `Single.kt`.
       Done when: a recipe takes nine parameters and the graph reads all nine.
-- [ ] **`spec-0016-health`** — `critical`, `HealthRegistry`, readiness and
+- [x] **`spec-0016-health`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `critical`, `HealthRegistry`, readiness and
       liveness as something a route can be handed.
       Done when: a wedged probe answers Down inside its timeout, and one
       non-critical probe down does not make readiness Down.

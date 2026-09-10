@@ -58,7 +58,7 @@ that ordering mean anything.
 
 ## Stack
 
-- [ ] **`spec-0020-actor`** — the module, `spawn`, `actor` for nought to two
+- [x] **`spec-0020-actor`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — the module, `spawn`, `actor` for nought to two
       dependencies, and the dependency test.
       Done when: two protocols are two nodes, a dependent is handed the ref, and
       an actor has stopped before the graph returns.

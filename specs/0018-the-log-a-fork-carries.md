@@ -61,10 +61,10 @@ still do it where it wants to assert on a specific class's output.
 
 ## Stack
 
-- [ ] **`spec-0018-logger`** — `Logger`, `LogLine`, `LogLevel`, `StderrLogger`,
+- [x] **`spec-0018-logger`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `Logger`, `LogLine`, `LogLevel`, `StderrLogger`,
       the bound logger, and `logInfo`/`logWarn`/`logError`.
       Done when: a line logged inside a `parMap` branch reaches the bound logger.
-- [ ] **`spec-0018-annotations`** — `logAnnotated`, `logSpan`, and a capturing
+- [x] **`spec-0018-annotations`** ([#28](https://github.com/matthewjones372/lark/pull/28)) — `logAnnotated`, `logSpan`, and a capturing
       logger for tests.
       Done when: a correlation id set outside a `parMap` is on every line each
       branch logs, and a span carries the duration it took.
