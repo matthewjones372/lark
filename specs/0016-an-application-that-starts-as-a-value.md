@@ -34,7 +34,7 @@ missing is a value saying which service needs which, to point them at.
 A module, `lark-app`, on `lark` and the Arrow that arrives with it.
 
 ```kotlin
-interface Wiring : ResourceScope, Raise<StartupError>   // install and raise, one receiver
+interface Wiring : ResourceScope                        // install, and refuse to start
 
 val persistence =
     single { cfg: DbConfig -> install({ HikariDataSource(cfg) }) { ds, _ -> ds.close() } } +
@@ -91,9 +91,12 @@ install.
       Done when: a missing dependency and a cycle each come back as a `Left`
       naming the key, and no recipe body has run.
 - [ ] **`spec-0016-start`** — `Wiring`, layered start under `parMap`,
-      reverse-topological release, `runApp`, `awaitShutdown`.
-      Done when: a node that raises leaves nothing acquired, and two
+      reverse-topological release, `use`.
+      Done when: a node that refuses leaves nothing acquired, and two
       independent nodes report different virtual threads.
+- [ ] **`spec-0016-run`** — `runApp`, `awaitShutdown`, exit codes, the signal
+      handler.
+      Done when: a SIGTERM releases the graph in order and leaves with 0.
 - [ ] **`spec-0016-subgraph`** — `subgraph<A>()`, override precedence, `testApp`.
       Done when: a leaf's subgraph builds none of the unrelated nodes, and
       `testApp` releases after an assertion failure inside it.
