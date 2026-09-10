@@ -1,5 +1,9 @@
 # lark-app
 
+> Lark is a scratchpad, not a finished library — see
+> [what this is](../README.md#what-this-is). Everything here works and is tested;
+> none of it is settled.
+
 **An application as a value.** A dependency graph you can read, subset,
 override and start: `single` names what a recipe builds and takes what it needs
 as parameters, so the graph is data before any recipe runs. `validate` answers

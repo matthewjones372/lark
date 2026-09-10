@@ -6,6 +6,7 @@
 [![Kotlin](https://img.shields.io/badge/kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![JDK](https://img.shields.io/badge/jdk-21%2B-brightgreen)](https://openjdk.org/projects/jdk/21/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Status](https://img.shields.io/badge/status-experimental-orange)](#what-this-is)
 
 `arrow-fx-coroutines` on virtual threads. Drop the `suspend`, swap the import,
 and the body stays exactly as it was — the combinators take Arrow's own
@@ -15,6 +16,22 @@ Each branch runs on a virtual thread of its own and is free to block, so a
 service whose ports are JDBC or a client with no async surface gets the fork and
 the join without a dispatcher to starve. It is `arrow-core` plus the JDK, and
 nothing else — no coroutines, no second effect system.
+
+## What this is
+
+A scratchpad. Lark is where ideas about what a Kotlin service looks like
+without coroutines get tried: a fork that inherits, an application that is a
+value, a stream that names its failure. It is on Maven Central so that trying
+one takes a dependency line rather than a checkout — not because any of it is
+finished.
+
+Nothing here has run in production. The API moves between versions and will
+keep moving; `lark-app`'s runner changed shape twice in the week it was written.
+Several modules exist because a question came up, and have no consumer beyond
+their own tests.
+
+Take it for an experiment, a spike, or a read. Pin the version if you do, and
+expect the next one to break you.
 
 ## Use it
 
@@ -289,6 +306,9 @@ carrier thread instead of parking it, so a service on 21 can still run out of
 carriers; JEP 491 removes that pinning in 24.
 
 ## Status
+
+Experimental, in the sense [above](#what-this-is): everything below works and is
+tested, and none of it is settled.
 
 `flock { }`, `async`/`await`, `parZip`, `parMap`, `raceN`,
 `parZipOrAccumulate`/`parMapOrAccumulate`, `resourceScope`, `Schedule` and

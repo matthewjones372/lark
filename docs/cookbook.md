@@ -1,5 +1,9 @@
 # Building an application
 
+> Lark is a scratchpad, not a finished library — see
+> [what this is](../README.md#what-this-is). Everything here works and is tested;
+> none of it is settled.
+
 Recipes for `lark-app`, in the order a service meets them. Every Kotlin fence
 below is compiled by `CookbookTest` against the library it documents, so a
 recipe that stops being true stops the build.
