@@ -1,8 +1,10 @@
 name: build
 
 on:
+  # main only: a branch with a pull request open is already built by the
+  # pull_request event, and building it twice buys nothing.
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
   workflow_dispatch:
 
