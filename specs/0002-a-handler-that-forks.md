@@ -74,7 +74,7 @@ interruptible blocking call, and a scope closes only when its forks have.
 - [x] **`spec-0002-race`** (`main`, 1fe019e) — `raceN`; the losers interrupted.
       Done when: the winner's value is the result and the losers are
       interrupted before they finish.
-- [ ] ~~**`spec-0002-rising`**~~ — withdrawn by spec 0003: the scope is a `Raise`, and nothing outside lark binds it.
+- [x] ~~**`spec-0002-rising`**~~ — withdrawn by spec 0003: the scope is a `Raise`, and nothing outside lark binds it.
 
 ## Acceptance
 
