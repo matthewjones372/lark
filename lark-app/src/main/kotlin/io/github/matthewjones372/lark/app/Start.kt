@@ -6,6 +6,7 @@ import arrow.core.raise.Raise
 import arrow.core.raise.either
 import io.github.matthewjones372.lark.ExitCase
 import io.github.matthewjones372.lark.ResourceScope
+import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.resourceScope
 import io.github.matthewjones372.lark.timeoutOrNull
@@ -78,14 +79,21 @@ private fun Raise<StartupError>.build(
             val node = module.nodes.getValue(key)
             val value = node.build(NodeWiring(key, releases, this), node.dependencies.map(built::getValue))
             module.probes.filter { it.key == key }.forEach { probe ->
-                if (timeoutOrNull(probe.timeout) { probe.ask(value) } != true) {
-                    raise(StartupError.Unready(key, probe.name))
-                }
+                if (!answers(probe, value)) raise(StartupError.Unready(key, probe.name))
             }
             health.started(key, value)
             key to value
         }
     }
+
+/** Asked again up to [Probe.attempts] times, waiting out [Probe.interval] on the inherited clock. */
+private fun Raise<StartupError>.answers(probe: Probe, value: Any): Boolean {
+    repeat(probe.attempts) { attempt ->
+        if (timeoutOrNull(probe.timeout) { probe.ask(value) } == true) return true
+        if (attempt < probe.attempts - 1) clock.get().sleep(probe.interval)
+    }
+    return false
+}
 
 private class NodeWiring(
     private val key: KType,

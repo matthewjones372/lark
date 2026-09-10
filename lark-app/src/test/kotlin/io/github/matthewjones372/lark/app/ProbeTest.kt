@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.app
 
+import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fixedClock
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -88,5 +90,34 @@ class ProbeTest {
         testApp(module.subgraph<Wedged>()) { _: Wedged -> }
 
         asked.get() shouldBe false
+    }
+}
+
+class ProbeRetryTest {
+
+    @Test
+    fun `a probe that passes on a later attempt does not fail the start`() {
+        val asked = AtomicInteger()
+        val module = single<Broker> { Broker() }
+            .probe("broker", timeout = 5.seconds, attempts = 4, interval = 1.seconds) { _: Broker ->
+                asked.incrementAndGet() >= 3
+            }
+
+        clock.locally(fixedClock()) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
+
+        asked.get() shouldBe 3
+    }
+
+    @Test
+    fun `a probe that never passes gives up after its attempts`() {
+        val asked = AtomicInteger()
+        val module = single<Broker> { Broker() }
+            .probe("broker", timeout = 5.seconds, attempts = 3, interval = 1.seconds) { _: Broker ->
+                asked.incrementAndGet(); false
+            }
+
+        clock.locally(fixedClock()) { module.use { _: Broker -> }.leftOrNull().shouldNotBeNull() }
+
+        asked.get() shouldBe 3
     }
 }

@@ -10,6 +10,8 @@ class Probe internal constructor(
     val key: KType,
     val timeout: Duration,
     val critical: Boolean,
+    val attempts: Int,
+    val interval: Duration,
     internal val ask: (Any) -> Boolean,
 )
 
@@ -21,8 +23,10 @@ inline fun <reified A : Any> Module.probe(
     name: String,
     timeout: Duration,
     critical: Boolean = true,
+    attempts: Int = 1,
+    interval: Duration = Duration.ZERO,
     noinline ask: (A) -> Boolean,
-): Module = probed(name, typeOf<A>(), timeout, critical) { ask(it as A) }
+): Module = probed(name, typeOf<A>(), timeout, critical, attempts, interval) { ask(it as A) }
 
 @PublishedApi
 internal fun Module.probed(
@@ -30,5 +34,7 @@ internal fun Module.probed(
     key: KType,
     timeout: Duration,
     critical: Boolean,
+    attempts: Int,
+    interval: Duration,
     ask: (Any) -> Boolean,
-): Module = Module.of(nodes, probes + Probe(name, key, timeout, critical, ask))
+): Module = Module.of(nodes, probes + Probe(name, key, timeout, critical, attempts, interval, ask))
