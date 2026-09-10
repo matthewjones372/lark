@@ -68,11 +68,11 @@ destructure it.
 
 ## Stack
 
-- [ ] **`spec-0014-merge`** — `merge`, `mergeAll`, `interleave`, the docs
+- [x] **`spec-0014-merge`** — `merge`, `mergeAll`, `interleave`, the docs
       rows. Done when: two feeds with different failure types merge under
       their common supertype with no `mapLeft` written, and a failure on
       either side ends the run.
-- [ ] **`spec-0014-zip`** — `zipWith` and `zip`, the before/after pair.
+- [x] **`spec-0014-zip`** — `zipWith` and `zip`, the before/after pair.
       Done when: a zipped element destructures, and a throw in a `zipWith`
       body dies naming `zipWith` and the build site.
 

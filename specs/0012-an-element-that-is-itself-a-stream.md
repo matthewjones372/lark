@@ -76,12 +76,12 @@ name the wider failure once.
 
 ## Stack
 
-- [ ] **`spec-0012-flat-map-concat`** — `flatMapConcat` and `flatten` on
+- [x] **`spec-0012-flat-map-concat`** — `flatMapConcat` and `flatten` on
       `Pipe`, `Stream`'s as `via`, through the guard, the docs rows and the
       before/after pair. Done when: a stream of cursors becomes a stream of
       pages with no `toSource` in sight, and a throw in the body dies naming
       `flatMapConcat`.
-- [ ] **`spec-0012-flat-map-merge`** — `flatMapMerge(breadth, f)`, the same
+- [x] **`spec-0012-flat-map-merge`** — `flatMapMerge(breadth, f)`, the same
       shape unordered. Done when: a `breadth` of 4 has four inner streams
       running and the elements interleave.
 

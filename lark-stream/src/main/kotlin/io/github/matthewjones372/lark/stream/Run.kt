@@ -18,18 +18,25 @@ class Run<out E, out R> internal constructor(
  *
  * A materialised value that is not a `CompletionStage` is refused at the type: [run] would have nothing to wait on.
  */
-fun <E, A : Any, M> Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M> =
+fun <E, A : Any, M : Any> Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M> =
     Run(source.toMat(sink, Keep.right()))
 
 fun <E, A : Any> Stream<E, A>.runCollect(): Run<E, List<A>> = runWith(Sink.seq())
 
-fun <E, A : Any, R> Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R> =
+fun <E, A : Any, R : Any> Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R> =
     runWith(Sink.fold(zero) { total, a -> f(total, a) })
 
-fun <E, R> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> =
-    graph.run(system)
+fun <E, R : Any> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> {
+    // A sink authored in Java completes with null whatever its type argument says, and Kotlin would
+    // hand that back as a Done whose value is typed non-null. The same guard Stream.fromStage has.
+    val at = buildSite()
+    return graph.run(system)
+        .checked { NullPointerException("$NULL_MATERIALISED, built at $at") }
         .thenApply<Exit<E, R>> { value -> Exit.Done(value) }
         .exceptionally { thrown -> thrown.asExit<E, R>().reportedTo(system) }
+}
+
+private const val NULL_MATERIALISED = "lark-stream: run ended with null"
 
 private fun <E, R> Throwable.asExit(): Exit<E, R> {
     val cause = unwrapped()

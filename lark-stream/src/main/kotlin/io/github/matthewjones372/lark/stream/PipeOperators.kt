@@ -97,6 +97,24 @@ fun <E, E2, A : Any> Pipe.Companion.catchAll(f: (E) -> Stream<E2, A>): Pipe<E2, 
 fun <E, E2, In, Out : Any> Pipe<E, In, Out>.catchAll(f: (E) -> Stream<E2, Out>): Pipe<E2, In, Out> =
     through(Pipe.catchAll(f))
 
+/**
+ * The declared failure as another one. `catchAll` says this too, and says recovery while it does: a
+ * reader of `catchAll { Stream.failed(it.toIngestError()) }` reaches the end before learning that
+ * nothing was recovered.
+ */
+fun <E, E2, A : Any> Pipe.Companion.mapError(f: (E) -> E2): Pipe<E2, A, A> {
+    val mapped = guardedError("mapError", buildSite(), f)
+    return Pipe(
+        Flow.create<A>().recoverWithRetries(
+            1,
+            onDeclaredFailure { e: E -> Source.failed<A>(DeclaredFailure(mapped(e))) },
+        ),
+    )
+}
+
+fun <E, E2, In, Out : Any> Pipe<E, In, Out>.mapError(f: (E) -> E2): Pipe<E2, In, Out> =
+    through(Pipe.mapError(f))
+
 /** ZIO's `orElse` rather than Pekko's: [other] takes over on a failure, not on an empty stream. */
 fun <E, A : Any> Pipe.Companion.orElse(other: Stream<E, A>): Pipe<E, A, A> = catchAll<E, E, A> { other }
 

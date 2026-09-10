@@ -42,6 +42,8 @@ fun <E, L : Any, R : Any> Stream<E, Either<L, R>>.divertLefts(to: Sink<L, *>): S
 fun <E, E2, A : Any> Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A> = through(Pipe.catchAll(f))
 
 /** ZIO's `orElse` rather than Pekko's: [other] takes over on a failure, not on an empty stream. */
+fun <E, E2, A : Any> Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A> = through(Pipe.mapError(f))
+
 fun <E, A : Any> Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A> = through(Pipe.orElse(other))
 
 /**
