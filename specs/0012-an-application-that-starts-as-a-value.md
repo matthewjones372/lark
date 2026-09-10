@@ -19,7 +19,12 @@ missing is a value saying which service needs which, to point them at.
   later; this spec has no opinion on what a node holds.
 - **No ambient context.** `logInfo`, annotations and a test clock need lark to
   rebind context across a fork. Separate spec.
-- **No config decoding, no codegen, no reflection** beyond `typeOf<A>()`.
+- **No config decoding and no reflection** beyond `typeOf<A>()`.
+- **No annotation processor.** KSP models declarations, not bodies, and a graph
+  assembled by `single { } + single { }` is an expression: there is nothing for
+  it to read. Moving the graph into annotations to get ZIO's compile-time
+  report would cost `plus`, `subgraph` and `render`, which is the whole spec.
+  `validate` is the gate instead, and the report is what carries the weight.
 - **No local environment.** ZIO's `provideSomeLayer` over one inner call, which
   is how its `Live` works, has no analogue: one graph, one instance per key.
   Two `DataSource`s are two keys.
