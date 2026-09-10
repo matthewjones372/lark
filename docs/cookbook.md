@@ -16,6 +16,12 @@ The types the recipes are written against, once:
 <!-- cookbook-fixtures -->
 ```kotlin
 import arrow.core.getOrElse
+import io.github.matthewjones372.lark.LogLevel
+import io.github.matthewjones372.lark.LogLine
+import io.github.matthewjones372.lark.Logger
+import io.github.matthewjones372.lark.logSpan
+import io.github.matthewjones372.lark.logger
+import org.slf4j.LoggerFactory
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.fixedClock
@@ -66,6 +72,50 @@ class HttpServer(private val config: HttpConfig, private val register: RegisterU
     fun start() = Unit
     fun stop() = Unit
 }
+```
+
+## What a `single` is
+
+One node of the graph: how to build one value, and what it needs to build it.
+
+<!-- cookbook -->
+```kotlin
+val aPool: Module = single { db: DbConfig -> Hikari(db) as Pool }
+```
+
+Three things are said there, all by the types:
+
+- **the parameters are the dependencies.** This one needs a `DbConfig`, and the
+  graph will not build it until something else has provided one.
+- **the return type is the key.** This one provides a `Pool`. A node asking for
+  a `Pool` gets this.
+- **it is built once.** The name means one instance per application, not one per
+  use: ten nodes asking for a `Pool` share the one this built.
+
+Without the graph you would write the same thing by hand, and it works right up
+until ordering, sharing, closing and testing matter:
+
+```kotlin
+val db = DbConfig("jdbc:…")
+val pool = Hikari(db)              // who closes it, and when?
+val users = PgUserRepo(pool)       // and if two things need a pool, is it this one?
+```
+
+`plus` puts nodes together, and the order you write them in means nothing —
+matching is by type:
+
+<!-- cookbook -->
+```kotlin
+val twoNodes: Module = single { db: DbConfig -> Hikari(db) as Pool } +
+    single<UserRepo, Pool> { pool -> PgUserRepo(pool) }
+```
+
+A node that needs nothing writes its type argument out, because a bare lambda
+would also fit the one-dependency overload with the dependency as its `it`:
+
+<!-- cookbook -->
+```kotlin
+val noDependencies: Module = single<Sys> { RealSys }
 ```
 
 ## Wire an application
@@ -255,26 +305,104 @@ fun theWiringIsWhatWeThink(): String = app.render()
 given as the path around it. `render` draws mermaid in an order a golden file
 can hold, so an accidental edge shows up as a diff in review.
 
-## Control time, and read the log
+## Write a log line
 
-Both are lark's, and both cross a fork:
+`logInfo` and its three siblings write to whichever `Logger` the current thread
+has bound. No node takes a logger, and none has to:
 
 <!-- cookbook -->
 ```kotlin
-fun aTimedTest() = clock.locally(fixedClock()) {
-    capturingLogs { logs ->
-        logAnnotated("correlation_id" to "abc-123") {
-            parMap(listOf(1, 2, 3)) { logInfo("branch $it") }
+class Registering(private val users: UserRepo) {
+    fun register(id: Long): String {
+        logInfo("registering $id")
+        return users.find(id) ?: "created"
+    }
+}
+```
+
+Out of the box that reaches stderr, which is enough to watch a service start.
+
+## Send the log somewhere real
+
+Bind a backend once, around `runApp`. Everything the application then does —
+every node's recipe, every fork of a `parMap` — is inside that binding:
+
+<!-- cookbook -->
+```kotlin
+class Slf4jLogger : Logger {
+    private val log = LoggerFactory.getLogger("app")
+
+    override fun log(line: LogLine) {
+        val annotated = line.annotations.entries.joinToString(" ") { (key, value) -> "$key=$value" }
+        val message = if (annotated.isEmpty()) line.message else "${line.message} $annotated"
+        when (line.level) {
+            LogLevel.Debug -> log.debug(message)
+            LogLevel.Info -> log.info(message)
+            LogLevel.Warn -> log.warn(message)
+            LogLevel.Error -> log.error(message, line.cause)
         }
+    }
+}
+
+fun mainWithLogging(): Nothing = logger.locally(Slf4jLogger()) {
+    runApp(app) { server: HttpServer ->
+        server.start()
+        awaitShutdown()
+    }
+}
+```
+
+`lark` has no logging dependency and never will; the adapter is yours, and it is
+the twenty lines above.
+
+## Say which request a line belongs to
+
+An annotation is bound for a block, and every line written inside it carries it
+— including lines written on a fork, which is what an MDC cannot do:
+
+<!-- cookbook -->
+```kotlin
+fun handling(id: String, items: List<Int>): List<Unit> =
+    logAnnotated("correlation_id" to id) {
+        logSpan("register") {
+            parMap(items) { item -> logInfo("checking $item") }
+        }
+    }
+```
+
+Each line carries `correlation_id=…` and `register_ms=…`, the second being how
+long the span had been running when the line was written. Spans nest, and each
+is keyed by its own name.
+
+## Assert on what was logged
+
+<!-- cookbook -->
+```kotlin
+fun aLoggingTest(): List<LogLine> = capturingLogs { logs ->
+    logAnnotated("correlation_id" to "abc-123") { logInfo("registered") }
+    logs.all()
+}
+```
+
+`capturingLogs` binds a logger the test can read, so a claim about logging is a
+claim about values rather than about a backend.
+
+## Control time
+
+<!-- cookbook -->
+```kotlin
+fun aTimedTest(): List<LogLine> = clock.locally(fixedClock()) {
+    capturingLogs { logs ->
+        parMap(listOf(1, 2, 3)) { logInfo("branch $it") }
         logs.all()
     }
 }
 ```
 
-Every line carries the correlation id, including the ones written on a fork,
-because the binding is captured where the fork is opened. `TestClock` is the
-other clock: it moves only when a test moves it, and `adjustWhenBlocked` waits
-until every sleep is on a time still ahead before moving.
+Under `fixedClock` nothing waits: a five-retry exponential backoff finishes in
+microseconds, and every line is stamped with the same instant. `TestClock` is
+the other one — it moves only when a test moves it, and `adjustWhenBlocked`
+waits until every sleep is on a time still ahead before moving.
 
 ## Spawn an actor
 
@@ -321,4 +449,8 @@ opened it is released.
 | a fake in a test | `.overriding(single<T> { … })`, never plain `plus` |
 | a smaller test | `.subgraph<Root>()` |
 | no waiting in a test | `clock.locally(fixedClock()) { … }` |
+| a log line | `logInfo("…")` — no node takes a logger |
+| that log somewhere real | `logger.locally(Slf4jLogger()) { runApp(…) }`, once, around everything |
+| which request a line belongs to | `logAnnotated("correlation_id" to id) { … }` |
+| what a test logged | `capturingLogs { logs -> … ; logs.all() }` |
 | the wiring in review | `render()` against a golden file |

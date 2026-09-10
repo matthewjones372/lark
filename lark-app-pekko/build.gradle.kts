@@ -14,9 +14,14 @@ dependencies {
 
 val repoRoot = rootProject.projectDir.absolutePath
 
+// The page CookbookTest compiles, declared so that editing it re-runs the test
+// rather than leaving a stale answer behind.
+val documentedRecipes = files(rootProject.layout.projectDirectory.file("docs/cookbook.md"))
+
 tasks.test {
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
+    inputs.files(documentedRecipes).withPropertyName("documentedRecipes")
     jvmArgumentProviders.add(
         CommandLineArgumentProvider {
             listOf(
