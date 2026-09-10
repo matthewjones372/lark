@@ -607,6 +607,21 @@ The protocol is inferred from the behaviour's own type. Write it out —
 `actor<Ingest>(…)` — only where the actor takes no dependencies, because with
 one type argument given, the overload that takes a dependency cannot apply.
 
+Asking one, and the reason the answer is bound to `Any`:
+
+```kotlin
+import io.github.matthewjones372.lark.app.pekko.ask
+
+fun find(ref: ActorRef<Shop>, system: ActorSystem, id: PetId): Option<Pet> =
+    ref.ask(system, 3.seconds) { replyTo -> Find(id, replyTo) }
+```
+
+Pekko refuses a null message, so an actor answering "there is no such thing"
+with `null` throws where it meant to answer — and `ActorRef<Pet?>` compiles, so
+neither Kotlin nor a typed protocol stops you writing it. `ask`'s reply is bound
+to `Any`, which does: absence has to be modelled, as an `Option`, a sealed
+reply, or an empty list. A `DoesNotCompileTest` fixture holds that.
+
 An actor is keyed by the `ActorRef<T>` of its protocol, so two protocols are two
 keys and a dependent declares what it sends. The stop is awaited through
 `gracefulStop`, so an actor has given back what it held before the node that
