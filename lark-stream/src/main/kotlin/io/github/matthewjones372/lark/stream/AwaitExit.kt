@@ -12,7 +12,7 @@ import java.util.concurrent.CompletionStage
  * has no receiver to spare for a `Raise<E>` and a `CompletionStage` at once, so the stage is the
  * argument: `awaitExit(pipeline.run(system))` inside an `either { }`.
  */
-fun <E, R> Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R = when (val exit = stage.await()) {
+fun <E, R : Any> Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R = when (val exit = stage.await()) {
     is Exit.Done -> exit.value
     is Exit.Failed -> raise(exit.error)
     is Exit.Died -> throw exit.cause

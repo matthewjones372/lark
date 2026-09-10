@@ -137,7 +137,7 @@ private fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Sour
  * the stage: what completes it runs this, so no Pekko thread is spent on a value that has not arrived.
  */
 @Suppress("UNCHECKED_CAST")
-private fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): CompletionStage<A> {
+internal fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): CompletionStage<A> {
     val checked = CompletableFuture<A>()
     (this as CompletionStage<A?>).whenComplete { value, thrown ->
         when {

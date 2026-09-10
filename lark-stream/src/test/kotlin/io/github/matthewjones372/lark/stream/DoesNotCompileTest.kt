@@ -62,6 +62,18 @@ class DoesNotCompileTest {
     """.trimIndent()
 
     @Test
+    fun `a fold whose result may be null is refused by the exit bound`() {
+        val errors = compile(
+            "$preamble\nimport io.github.matthewjones372.lark.stream.runFold\n" +
+                "val broken = Stream.from(rows).runFold<Nothing, Row, String?>(null) { _, _ -> null }",
+        )
+
+        withClue(errors.joinToString("\n")) {
+            errors.joinToString("\n") shouldContain "Any"
+        }
+    }
+
+    @Test
     fun `mapping to a nullable field is refused by the element bound`() {
         val errors = compile("$preamble\nval broken = Stream.from(rows).map { row -> row.customer }")
 
