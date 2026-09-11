@@ -31,6 +31,15 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
     context(context: CheckerContext, reporter: DiagnosticReporter)
     override fun check(declaration: FirClass) {
         if (!declaration.isApplication()) return
+
+        // Nothing is read in a compiler this was not built for. What it would find there is not
+        // wrong so much as unknown, and an unknown answer reported as an error is the one outcome
+        // this checker must never have.
+        if (!builtForThisCompiler()) {
+            reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_UNREAD, versionMismatch(), context)
+            return
+        }
+
         val gave = Gave()
         val graph = declaration.graph(gave)
 
