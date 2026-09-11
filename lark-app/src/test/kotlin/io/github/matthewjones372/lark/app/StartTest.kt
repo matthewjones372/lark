@@ -89,7 +89,8 @@ class StartTest {
 
         val error = module.use { _: Root -> }.leftOrNull().shouldNotBeNull()
 
-        error.shouldBeInstanceOf<StartupError.Unwireable>().errors.head shouldBe
+        val fault = error.shouldBeInstanceOf<StartupError.Unwireable>().errors.head
+        fault.shouldBeInstanceOf<WiringError.Missing>().copy(site = null) shouldBe
             WiringError.Missing(key = typeOf<Leaf>(), neededBy = typeOf<Root>())
     }
 

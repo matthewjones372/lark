@@ -66,7 +66,7 @@ class ValidateTest {
     fun `a missing dependency is named with what needed it`() {
         val errors = single { _: Settings -> Pipe() }.validate().leftOrNull().shouldNotBeNull()
 
-        errors.head.shouldBeInstanceOf<WiringError.Missing>() shouldBe
+        errors.head.shouldBeInstanceOf<WiringError.Missing>().copy(site = null) shouldBe
             WiringError.Missing(key = typeOf<Settings>(), neededBy = typeOf<Pipe>())
     }
 

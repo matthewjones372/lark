@@ -1,16 +1,19 @@
 package io.github.matthewjones372.lark.app
 
+import io.github.matthewjones372.lark.Clock
+import io.github.matthewjones372.lark.SystemClock
 import io.github.matthewjones372.lark.clock
-import io.github.matthewjones372.lark.fixedClock
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
+import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.reflect.typeOf
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -93,6 +96,24 @@ class ProbeTest {
     }
 }
 
+/**
+ * Instant up to [upTo], and the system clock past it.
+ *
+ * A probe waits out its retry interval on the inherited clock and `timeoutOrNull` races the ask
+ * against a sleeper on the same one, so a clock that returns from every sleep makes the timeout a
+ * coin flip: the sleeper has finished before the ask starts, and an answer that arrived is thrown
+ * away often enough to lose an attempt. This waits out the interval and leaves the timeout a
+ * timeout — the loser is interrupted as soon as the ask answers, so nothing waits it out.
+ */
+private fun impatientClock(upTo: Duration): Clock = object : Clock {
+
+    override fun now(): Instant = Instant.EPOCH
+
+    override fun sleep(duration: Duration) {
+        if (duration > upTo) SystemClock.sleep(duration)
+    }
+}
+
 class ProbeRetryTest {
 
     @Test
@@ -103,7 +124,7 @@ class ProbeRetryTest {
                 asked.incrementAndGet() >= 3
             }
 
-        clock.locally(fixedClock()) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
+        clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
 
         asked.get() shouldBe 3
     }
@@ -116,7 +137,7 @@ class ProbeRetryTest {
                 asked.incrementAndGet(); false
             }
 
-        clock.locally(fixedClock()) { module.use { _: Broker -> }.leftOrNull().shouldNotBeNull() }
+        clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.leftOrNull().shouldNotBeNull() }
 
         asked.get() shouldBe 3
     }

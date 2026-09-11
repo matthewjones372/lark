@@ -89,9 +89,14 @@ and a cycle answers with the path around it rather than the set of keys on it:
 lark-app wiring error
 
 ❯ missing DataSource
-❯     for OrderRepo
-❯     for UserRepo
+❯     for OrderRepo          Wiring.kt:42
+❯     for UserRepo           Wiring.kt:47
 ```
+
+A node remembers the file and line it was written on, so the report names the
+recipe to edit rather than only the type it asked for. `single` and `singleOf`
+are inline, so the site is the caller's own line; a factory like `actor` names
+the graph that called it rather than itself.
 
 One test is the whole gate:
 
@@ -99,6 +104,36 @@ One test is the whole gate:
 @Test
 fun `the application wires`() = app.validate().shouldBeRight()
 ```
+
+`findings` asks the same question and two more, and answers with a list rather
+than a `Plan`:
+
+```kotlin
+import io.github.matthewjones372.lark.app.findings
+import io.github.matthewjones372.lark.app.report
+
+app.findings(root = typeOf<HttpServer>()).report()
+```
+
+```
+lark-app wiring
+
+❯ error: missing DataSource
+❯     for OrderRepo          Wiring.kt:42
+
+❯ warning: Tracer provided twice
+❯     Telemetry.kt:14        shadowed
+❯     Local.kt:9             wins
+
+❯ warning: nothing reaches KafkaProducer    Kafka.kt:9
+```
+
+A missing key and a cycle are errors. A key provided twice is a warning,
+because `plus` is override and `overriding` is a duplicate on purpose — one
+written through `overriding` is not reported. A node no root reaches is a
+warning too, and only the top of each unreached subtree is named: a module left
+out of the graph is one edit, not nine lines. Omitting `root` skips that check
+and nothing else.
 
 ## Starting and stopping
 
@@ -124,6 +159,25 @@ A recipe that cannot proceed says so rather than throwing:
 ```kotlin
 single { sys: Sys -> sys.required("DB_URL").getOrElse { refuse("DB_URL is not set") } }
 ```
+
+An application that wants checking declares itself as a value, so the root is
+something a build can read without running `main`:
+
+```kotlin
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.runApp
+
+object Petshop : LarkApp<HttpServer>(typeOf<HttpServer>()) {
+    override val module: Module = core + persistence + web
+    override fun AppScope.run(root: HttpServer) { root.start(); awaitShutdown() }
+}
+
+fun main(): Unit = exitProcess(runApp(Petshop).code)
+```
+
+The type argument is written twice because a type parameter is erased by the
+time a build tool reads it, and `findings` needs the root to say what nothing
+reaches. The `runApp(module) { }` form stays for tests and one-file examples.
 
 `Shutdown` is a value, so a test asks an application to stop without raising a
 signal; `runApp` puts a JVM hook behind it, and the hook waits for the releases
@@ -230,13 +284,43 @@ protocol it sends rather than a name. The stop is awaited through
 `gracefulStop`, so an actor holding a connection has given it back before the
 node that opened the connection is released.
 
+## The build running the check
+
+Applying the plugin is the whole of what a project does to get every graph in
+it checked on `check`:
+
+```kotlin
+plugins {
+    kotlin("jvm")
+    id("io.github.matthewjones372.lark.wiring")
+}
+
+larkWiring {
+    failOn = "WARN"                                  // default "FAIL"
+    diagrams = layout.buildDirectory.dir("wiring")   // default build/reports/lark
+}
+```
+
+`larkWiring` finds every `LarkApp` in the project's own class output, checks it
+against the root it declares, and writes `<name>.mmd` for each — a mermaid
+diagram the IDE renders. A project with no `LarkApp` passes, so a library
+module in an application build needs no opt-out.
+
+Finding an application loads classes without initialising them, so scanning
+runs no unrelated static state; only a match is initialised. Initialising one
+runs the expression that assembles its graph and none of the recipes in it,
+which is the same thing `validate` has always promised.
+
 ## What it does not do
 
 - **No annotations and no annotation processor.** KSP models declarations and a
   module is an expression, so the compile-time report ZIO's macro gives has no
-  route here that keeps `plus`, `subgraph` and `render`. `validate` is the gate
-  instead. [Spec 0016](../specs/0016-an-application-that-starts-as-a-value.md)
-  says so at more length.
+  route here that keeps `plus`, `subgraph` and `render`. The `larkWiring` task
+  is the gate instead, and it sees the whole graph — actor nodes and modules
+  assembled in a conditional included — because it runs the expression rather
+  than reading the source. What it cannot give is an error on the line while
+  you type. [Spec 0016](../specs/0016-an-application-that-starts-as-a-value.md)
+  and [0026](../specs/0026-the-build-runs-the-check.md) say so at more length.
 - **No local environment.** One graph, one instance per key. Two `DataSource`s
   are two keys — a `@JvmInline value class Replica(val ds: DataSource)` is free
   under the type keys and says which one a consumer wanted.

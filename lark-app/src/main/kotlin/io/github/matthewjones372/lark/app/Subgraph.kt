@@ -10,7 +10,11 @@ inline fun <reified A : Any> Module.subgraph(): Module = subgraph(typeOf<A>())
 @PublishedApi
 internal fun Module.subgraph(root: KType): Module {
     val kept = reached(nodes, setOf(root), setOf(root))
-    return Module.of(nodes.filterKeys { it in kept }, probes.filter { it.key in kept })
+    return Module.of(
+        nodes.filterKeys { it in kept },
+        probes.filter { it.key in kept },
+        shadows.filter { it.key in kept },
+    )
 }
 
 /** [plus], refusing a key this module does not already hold: a fake under a new key fakes nothing. */
@@ -19,14 +23,14 @@ fun Module.overriding(replacements: Module): Module {
     require(unknown.isEmpty()) {
         "overriding a key nothing provides: ${unknown.joinToString { labelOf(it) }}"
     }
-    return this + replacements
+    return (this + replacements).shadowing(shadows + replacements.shadows)
 }
 
 /** Starts the graph for a test and gives it back afterwards, whatever the block did. */
 inline fun <reified A : Any, B> testApp(module: Module, noinline block: (A) -> B): B =
     module.use(block).getOrElse { error(it.describe()) }
 
-private tailrec fun reached(
+internal tailrec fun reached(
     nodes: Map<KType, Node>,
     frontier: Set<KType>,
     found: Set<KType>,

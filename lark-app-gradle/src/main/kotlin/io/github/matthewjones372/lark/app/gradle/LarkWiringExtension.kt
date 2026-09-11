@@ -1,0 +1,20 @@
+package io.github.matthewjones372.lark.app.gradle
+
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Property
+
+/** What the check does when it finds something. */
+abstract class LarkWiringExtension {
+
+    /**
+     * The severity that stops a build: `FAIL` for a missing key or a cycle alone, `WARN` for those
+     * and a duplicate key or an unreached node too.
+     *
+     * A string rather than lark-app's own `Severity`, so a build script's classpath does not have to
+     * carry the library it is checking.
+     */
+    abstract val failOn: Property<String>
+
+    /** Where a diagram of each application lands. */
+    abstract val diagrams: DirectoryProperty
+}
