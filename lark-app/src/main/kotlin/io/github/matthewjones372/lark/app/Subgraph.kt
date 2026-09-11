@@ -26,9 +26,20 @@ fun Module.overriding(replacements: Module): Module {
     return (this + replacements).shadowing(shadows + replacements.shadows)
 }
 
-/** Starts the graph for a test and gives it back afterwards, whatever the block did. */
+/** Starts the whole graph for a test and gives it back afterwards, whatever the block did. */
 inline fun <reified A : Any, B> testApp(module: Module, noinline block: (A) -> B): B =
     module.use(block).getOrElse { error(it.describe()) }
+
+/**
+ * [testApp], over only what [A] is reached through — the root read off the block, so the type is
+ * written once rather than once here and once in a `subgraph<A>()` beside it.
+ *
+ * Not what [testApp] does by default, and a test that found out why is in this repository: a node
+ * nothing depends on is not reached, so a probe asked of one stops being asked, and a background job
+ * nothing takes as a dependency stops running. Cutting the graph down is worth saying out loud.
+ */
+inline fun <reified A : Any, B> testNode(module: Module, noinline block: (A) -> B): B =
+    testApp(module.subgraph<A>(), block)
 
 internal tailrec fun reached(
     nodes: Map<KType, Node>,
