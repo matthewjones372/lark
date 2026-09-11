@@ -51,7 +51,7 @@ is where that claim is checked.
 | `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `LarkLocal`, `Clock`, the log | `arrow-core` |
 | `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` |
 | `lark-stream` | `Stream<E, A>` over Pekko Streams: the failure is in the type | `pekko-stream` |
-| `lark-app` | an application as a value: the graph, probes, health, testing | nothing |
+| `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
 | `lark-app-typesafe` | a HOCON section as a node, and every fault at once | `com.typesafe:config` |
@@ -394,27 +394,63 @@ a claim about values.
 
 `lark-app` is a dependency graph as a value. A recipe names what it builds and
 takes what it needs as parameters, so the graph is data before anything runs:
-`validate` says what is missing before a recipe is called, `subgraph` gives a
+`findings` says what is wrong before a recipe is called, `subgraph` gives a
 test four nodes instead of forty, `overriding` refuses a fake under a key
 nothing asked for, and starting one runs a topological layer at a time on lark's
 forks with releases in reverse topological order.
 
 ```kotlin
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.runApp
-import io.github.matthewjones372.lark.app.single
+import kotlin.reflect.typeOf
 
-val app = config + persistence + domain + web
-
-fun main() {
-    exitProcess(runApp(app) { server: HttpServer -> server.start(); awaitShutdown() }.code)
+object App : LarkApp<HttpServer>(typeOf<HttpServer>()) {
+    override val module: Module = config + persistence + domain + web
+    override fun AppScope.run(root: HttpServer) { root.start(); awaitShutdown() }
 }
+
+fun main(): Unit = exitProcess(runApp(App).code)
 ```
+
+The graph is a value, so it can also be drawn — `render()` answers mermaid, and
+`larkWiring` writes one per application:
+
+![A wiring graph: Tuning above Database and Memo, Database above Accounts and
+Postings, and Opening, Reporting and Memo all above Frontage.](docs/wiring.png)
+
+`Database` and `Memo` have no edge between them, so they start at the same time;
+every path into `Frontage` is something that must be ready before the door
+opens. Neither is visible in the code that built it.
+
+A graph that declares the node it starts from is one a build can read without
+running `main`, which is what `lark-app-gradle` does on every `check`:
+
+```
+lark-app wiring
+
+❯ error: missing DataSource
+❯     for OrderRepo          Wiring.kt:42
+
+❯ warning: nothing reaches KafkaProducer    Kafka.kt:9
+```
+
+A node remembers where it was written, so a fault names the recipe to edit. A
+missing key and a cycle are errors; a key provided twice and a node no root
+reaches are warnings. Applying the plugin is the whole of the per-project cost,
+and it draws each graph into `build/reports/lark` beside the report.
 
 A probe is what makes "started" mean "ready" rather than "constructed", and the
 same probes answer `/ready` afterwards through a `HealthRegistry` a route takes
 as a dependency. `lark-app-pekko` makes an actor a node, keyed by the
-`ActorRef<T>` of its protocol. There are no annotations, no processor and no
-effect type. [`docs/app.md`](docs/app.md) is the whole of it.
+`ActorRef<T>` of its protocol.
+
+There are no annotations, no processor and no effect type. A module is an
+expression, so there is nothing for KSP to read — the check runs the expression
+instead, which is why it sees an actor node and a module assembled in a
+conditional, and why what it gives is a failed build rather than a red squiggle.
+[`docs/app.md`](docs/app.md) is the whole of it.
 
 ## Streams
 
