@@ -13,6 +13,9 @@ import java.io.File
 /**
  * A build that runs, because what the plugin does is register a task and fail a build. The lark-app
  * under test is this repository's own, handed over as a file dependency.
+ *
+ * The generated project declares no toolchain: it has no resolver to provision one with, and the
+ * matrix runner holds only the JDK it was set up with.
  */
 class LarkWiringPluginTest {
 
@@ -34,8 +37,6 @@ class LarkWiringPluginTest {
             repositories { mavenCentral() }
 
             dependencies { implementation(files($jars)) }
-
-            kotlin { jvmToolchain(21) }
 
             $wiring
             """.trimIndent(),
