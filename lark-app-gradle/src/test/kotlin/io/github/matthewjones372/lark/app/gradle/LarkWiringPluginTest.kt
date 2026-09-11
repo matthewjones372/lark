@@ -122,7 +122,38 @@ class LarkWiringPluginTest {
         val result = runner(dir, "compileKotlin").build()
 
         withClue("the same checkers the IDE runs in K2 mode, so this is the editor's answer too") {
-            result.output shouldContain "lark-app: checking Under"
+            result.output shouldContain "lark-app: Under provides [Pump]"
+        }
+    }
+
+    @Test
+    fun `the reader agrees with the graph the task builds by running it`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", FAULTY)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("the whole claim is that this answers what larkWiring answers, only sooner") {
+            result.output shouldContain "provides [Pump], and is short of [DataSource]"
+        }
+    }
+
+    @Test
+    fun `a module written as a chain, a name and a choice is read through all three`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", COMPOSED)
+
+        runner(dir, "compileKotlin").build().output shouldContain
+            "provides [DataSource, Pump, Valve], and is short of []"
+    }
+
+    @Test
+    fun `a shape the reader does not know abandons the application rather than guessing`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", UNREADABLE)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("a red line under working code costs more than saying nothing") {
+            result.output shouldContain "was not read: gave up at"
+            result.output shouldNotContain "is short of"
         }
     }
 
@@ -162,6 +193,30 @@ object Under : LarkApp<Pump>() {
 private const val SOUND = """$IMPORTS
 object Under : LarkApp<Pump>() {
     override val module: Module = single<Pump> { Pump() }
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** A chain, a name it is reached through, and a choice whose branches are unioned. */
+private const val COMPOSED = """$IMPORTS
+class Valve
+
+private val chosen: Module =
+    if (System.getenv("X") == null) single<DataSource> { DataSource() } else single<DataSource> { DataSource() }
+
+private val named: Module = single { _: DataSource -> Pump() } + single { _: DataSource -> Valve() }
+
+object Under : LarkApp<Pump>() {
+    override val module: Module = named + chosen
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** A module out of a collection: legal, sound, and nothing a reader can follow. */
+private const val UNREADABLE = """$IMPORTS
+object Under : LarkApp<Pump>() {
+    override val module: Module =
+        listOf(single<DataSource> { DataSource() }, single { _: DataSource -> Pump() }).reduce { a, b -> a + b }
     override fun AppScope.run(root: Pump) = Unit
 }
 """
