@@ -1,0 +1,201 @@
+package io.github.matthewjones372.lark.app.compiler
+
+import org.jetbrains.kotlin.KtSourceElement
+import org.jetbrains.kotlin.fir.declarations.FirResolvePhase
+import org.jetbrains.kotlin.fir.expressions.FirBlock
+import org.jetbrains.kotlin.fir.expressions.FirExpression
+import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
+import org.jetbrains.kotlin.fir.expressions.FirPropertyAccessExpression
+import org.jetbrains.kotlin.fir.expressions.FirReturnExpression
+import org.jetbrains.kotlin.fir.expressions.FirTypeOperatorCall
+import org.jetbrains.kotlin.fir.expressions.FirWhenExpression
+import org.jetbrains.kotlin.fir.expressions.arguments
+import org.jetbrains.kotlin.fir.references.toResolvedCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
+import org.jetbrains.kotlin.fir.symbols.lazyResolveToPhase
+import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
+import org.jetbrains.kotlin.fir.types.coneType
+import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+
+/**
+ * The first shape the reader did not know, kept so that `verbose` can say why it stayed quiet.
+ *
+ * A reader that gives up silently is one nobody can tell from a reader that found nothing wrong.
+ */
+internal class Gave {
+    var at: String? = null
+
+    fun <T> up(what: String): T? {
+        if (at == null) at = what
+        return null
+    }
+}
+
+/** A key something needs, and where the recipe that needs it was written. */
+internal class Need(val key: String, val by: String, val at: KtSourceElement?)
+
+/** What an expression builds: the keys it provides, and what those recipes ask for. */
+internal class Graph(val provides: Set<String>, val needs: List<Need>) {
+
+    operator fun plus(other: Graph): Graph = Graph(provides + other.provides, needs + other.needs)
+
+    /** The same graph under one key instead of the one it had, which is what `boundTo` does. */
+    fun keyedAs(key: String): Graph = Graph(setOf(key), needs.map { Need(it.key, key, it.at) })
+
+    /** What nothing here builds. A key is missing only where every branch of a choice misses it. */
+    fun missing(): List<Need> = needs.filterNot { it.key in provides || it.key in RUNTIME_PROVIDED }
+
+    internal companion object {
+        val nothing = Graph(emptySet(), emptyList())
+    }
+}
+
+/**
+ * The graph an expression builds, or null where it cannot be read.
+ *
+ * Null is the whole design. A reader that guessed would put a red line under working code, and a
+ * reader that gives up costs nothing, because `larkWiring` still runs the graph and fails the build.
+ * So every shape not listed here abandons the application rather than assuming it provides nothing.
+ */
+internal fun read(expression: FirExpression, gave: Gave, seen: Set<FirCallableSymbol<*>> = emptySet()): Graph? =
+    when (expression) {
+        is FirFunctionCall -> call(expression, gave, seen)
+
+        is FirPropertyAccessExpression -> through(expression.symbol(), gave, seen)
+
+        // `if` is a `when` in FIR. A branch that cannot be read makes the choice unreadable, since
+        // the key it would have provided is exactly what decides whether another is missing.
+        is FirWhenExpression ->
+            expression.branches
+                .fold(Graph.nothing as Graph?) { all, branch ->
+                    val result = branch.result.singleExpression() ?: return gave.up("a branch of several statements")
+                    all?.let { read(result, gave, seen)?.plus(it) }
+                }
+
+        // `single { ... } as Module` and its like: the cast says nothing the operand did not.
+        is FirTypeOperatorCall -> expression.arguments.singleOrNull()?.let { read(it, gave, seen) }
+
+        else -> gave.up(expression::class.simpleName ?: "an expression")
+    }
+
+private fun FirPropertyAccessExpression.symbol(): FirPropertySymbol? =
+    calleeReference.toResolvedCallableSymbol() as? FirPropertySymbol
+
+/** A `val` or a function returning a module: read what it was written as, once. */
+@OptIn(org.jetbrains.kotlin.fir.symbols.SymbolInternals::class)
+private fun through(symbol: FirCallableSymbol<*>?, gave: Gave, seen: Set<FirCallableSymbol<*>>): Graph? {
+    if (symbol == null) return gave.up("a reference that did not resolve")
+    if (symbol in seen) return gave.up("${symbol.callableId}, which refers to itself")
+    symbol.lazyResolveToPhase(FirResolvePhase.BODY_RESOLVE)
+    val written = when (symbol) {
+        is FirPropertySymbol -> symbol.fir.initializer
+        is FirNamedFunctionSymbol -> symbol.fir.body?.singleExpression()
+        else -> null
+    } ?: return gave.up("${symbol.callableId}, which has no source here")
+    return read(written, gave, seen + symbol)
+}
+
+/** A block that is one expression, which is what a `= ...` function and a `when` branch are. */
+private fun FirBlock.singleExpression(): FirExpression? =
+    statements.singleOrNull().let { it as? FirExpression ?: (it as? FirReturnExpression)?.result }
+
+/**
+ * A call, which is either a factory that builds a node or a combinator over modules already read.
+ *
+ * Split that way because only the second kind needs the expressions around it: a factory is decided
+ * by its name and its type arguments alone.
+ */
+private fun call(call: FirFunctionCall, gave: Gave, seen: Set<FirCallableSymbol<*>>): Graph? {
+    val called = call.calleeReference.toResolvedCallableSymbol()?.callableId
+        ?: return gave.up("a call that did not resolve")
+    val arguments = call.typeArguments.map { projection ->
+        (projection as? FirTypeProjectionWithVariance)?.typeRef?.coneType?.let(::keyOf)
+            ?: return gave.up("a type argument of $called")
+    }
+
+    return factory(called, arguments, call.source)
+        ?: combinator(call, called, arguments, gave, seen)
+        ?: gave.up("$called, which is not a lark factory")
+}
+
+/** What a call builds on its own. Its type arguments are `A` and then what the recipe takes. */
+private fun factory(called: CallableId, arguments: List<String>, at: KtSourceElement?): Graph? {
+    val key = arguments.firstOrNull()
+    val rest = arguments.drop(1)
+    return when {
+        called == SINGLE || called == SINGLE_OF -> key?.let { node(it, rest, at) }
+        called == CONFIG || called == CONFIGURED -> key?.let { node(it, listOf(TYPESAFE_CONFIG), at) }
+        called == ACTOR -> key?.let { node("$ACTOR_REF<$it>", listOf(ACTOR_SYSTEM) + rest, at) }
+        called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
+        called in SOURCES -> node(TYPESAFE_CONFIG, emptyList(), at)
+        else -> null
+    }
+}
+
+/** What a call does to modules already built: a merge, a re-keying, or nothing at all. */
+private fun combinator(
+    call: FirFunctionCall,
+    called: CallableId,
+    arguments: List<String>,
+    gave: Gave,
+    seen: Set<FirCallableSymbol<*>>,
+): Graph? {
+    val left = { call.explicitReceiver?.let { read(it, gave, seen) } }
+    val right = {
+        call.arguments.singleOrNull()?.let { read(it, gave, seen) } ?: gave.up<Graph>("a merge of no one thing")
+    }
+    return when (called) {
+        PLUS, OVERRIDING -> left()?.let { base -> right()?.let { base + it } }
+        OVERRIDING_CONFIG -> left()?.plus(node(TYPESAFE_CONFIG, emptyList(), call.source))
+        BOUND_TO -> arguments.singleOrNull()?.let { key -> left()?.keyedAs(key) }
+        PROBE -> left()
+        else -> null
+    }
+}
+
+private fun node(key: String, dependencies: List<String>, at: KtSourceElement?): Graph =
+    Graph(setOf(key), dependencies.map { Need(it, key, at) })
+
+private const val APP = "io.github.matthewjones372.lark.app"
+
+private fun app(name: String) = CallableId(FqName(APP), Name.identifier(name))
+
+private fun extension(module: String, name: String) = CallableId(FqName("$APP.$module"), Name.identifier(name))
+
+private val SINGLE = app("single")
+private val SINGLE_OF = app("singleOf")
+private val BOUND_TO = app("boundTo")
+private val PROBE = app("probe")
+private val OVERRIDING = app("overriding")
+private val PLUS = CallableId(ClassId(FqName(APP), Name.identifier("Module")), Name.identifier("plus"))
+
+private val ACTOR = extension("pekko", "actor")
+private val CONFIG = extension("typesafe", "config")
+private val CONFIGURED = extension("typesafe", "configured")
+private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
+private val MIGRATIONS = extension("liquibase", "migrations")
+
+/**
+ * The factories lark ships whose bodies are not in the source being compiled.
+ *
+ * A library function is a symbol with no initialiser to read, so the reader would give up on a graph
+ * for using one — and every graph that reads configuration at all starts with one of these. They are
+ * listed rather than read because what each builds is part of lark's own API.
+ */
+private val SOURCES = setOf("loadedConfig", "configOf", "configFromResource", "configFromFile")
+    .map { extension("typesafe", it) }
+    .toSet()
+
+/** What a started graph hands its nodes without any module providing it; `lark-app` says the same. */
+private val RUNTIME_PROVIDED = setOf("$APP.HealthRegistry")
+
+private const val ACTOR_REF = "org.apache.pekko.actor.typed.ActorRef"
+private const val ACTOR_SYSTEM = "org.apache.pekko.actor.ActorSystem"
+private const val TYPESAFE_CONFIG = "com.typesafe.config.Config"
+private const val DATA_SOURCE = "javax.sql.DataSource"
+private const val MIGRATED = "$APP.liquibase.Migrated"
