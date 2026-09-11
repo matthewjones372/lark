@@ -53,7 +53,7 @@ private object Renderers : BaseDiagnosticRendererFactory() {
     // The name is the compiler's, on an abstract property this has to override.
     @Suppress("ktlint:standard:property-naming")
     override val MAP: KtDiagnosticFactoryToRendererMap by KtDiagnosticFactoryToRendererMap("Lark") { map ->
-        map.put(LarkDiagnostics.LARK_APP_FOUND, "lark-app: checking {0}", CommonRenderers.STRING)
+        map.put(LarkDiagnostics.LARK_APP_FOUND, "lark-app: {0}", CommonRenderers.STRING)
         map.put(LarkDiagnostics.LARK_APP_MISSING, "lark-app: {0}", CommonRenderers.STRING)
     }
 }
