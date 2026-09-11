@@ -172,12 +172,16 @@ subprojects {
         // debug, and Maven Central will not accept a release without a javadoc
         // jar. Dokka fills it: an empty jar leaves javadoc.io blank, which puts
         // the KDoc out of reach of anyone who has not cloned the repository.
-        configure(
-            com.vanniktech.maven.publish.KotlinJvm(
-                javadocJar = com.vanniktech.maven.publish.JavadocJar.Dokka("dokkaGeneratePublicationHtml"),
-                sourcesJar = true,
-            ),
-        )
+        // A Gradle plugin says which platform it is in its own build script, where
+        // `java-gradle-plugin` has been applied: this block runs before that.
+        if (name !in gradlePluginModules) {
+            configure(
+                com.vanniktech.maven.publish.KotlinJvm(
+                    javadocJar = com.vanniktech.maven.publish.JavadocJar.Dokka("dokkaGeneratePublicationHtml"),
+                    sourcesJar = true,
+                ),
+            )
+        }
 
         pom {
             name.set(this@subprojects.name)
