@@ -30,17 +30,48 @@ mavenPublishing {
 val larkAppUnderTest: Configuration by configurations.creating
 
 dependencies {
+    // For `KotlinCompilerPluginSupportPlugin`. The API artifact rather than the plugin itself: this
+    // jar is applied alongside whatever Kotlin plugin the consumer chose, not in front of it.
+    compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin-api:2.4.10")
+
     testImplementation(gradleTestKit())
     larkAppUnderTest(project(":lark-app"))
 }
 
+// The checker is resolved from a repository at compile time, so the plugin has to name a version.
+// Generated rather than written down, so cutting a release does not leave a plugin pointing at the
+// release before it.
+val checkerCoordinates = tasks.register<WriteProperties>("checkerCoordinates") {
+    destinationFile.set(layout.buildDirectory.file("generated/lark/checker.properties"))
+    property("group", project.group.toString())
+    property("artifact", "lark-app-compiler")
+    property("version", project.version.toString())
+}
+
+sourceSets.main {
+    resources.srcDir(checkerCoordinates.map { it.destinationFile.get().asFile.parentFile })
+}
+
+// The compiler plugin is resolved from a repository by coordinates, not handed over as a file, so a
+// TestKit build needs one to resolve it from. The root project already declares `local`.
+val checkerRepo: Provider<Directory> = rootProject.layout.buildDirectory.dir("repo")
+
 tasks.test {
     inputs.files(larkAppUnderTest).withPropertyName("larkAppUnderTest")
+    // Both halves, resolved by a TestKit build the way a consumer's build resolves them. Injecting
+    // this jar with `withPluginClasspath` instead would put it in a classloader of its own, where
+    // the Kotlin plugin cannot see that it implements `KotlinCompilerPluginSupportPlugin`.
+    dependsOn(
+        ":lark-app-compiler:publishAllPublicationsToLocalRepository",
+        "publishAllPublicationsToLocalRepository",
+    )
     jvmArgumentProviders.add(
         CommandLineArgumentProvider {
             listOf(
                 "-Dlark.app.underTest=" +
                     larkAppUnderTest.joinToString(File.pathSeparator) { it.absolutePath },
+                "-Dlark.checker.repo=" + checkerRepo.get().asFile.absolutePath,
+                "-Dlark.checker.version=" + version,
             )
         },
     )

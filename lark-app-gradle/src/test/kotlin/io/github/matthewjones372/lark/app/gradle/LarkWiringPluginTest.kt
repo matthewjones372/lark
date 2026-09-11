@@ -4,6 +4,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.Test
@@ -21,20 +22,40 @@ class LarkWiringPluginTest {
 
     private fun project(dir: File, wiring: String, graph: String) {
         val underTest = System.getProperty("lark.app.underTest")
+        val checker = System.getProperty("lark.checker.repo")
+        val version = System.getProperty("lark.checker.version")
         withClue("the build must pass -Dlark.app.underTest; see lark-app-gradle/build.gradle.kts") {
             underTest.shouldNotBeNull()
         }
+        withClue("the build must pass -Dlark.checker.repo; see lark-app-gradle/build.gradle.kts") {
+            checker.shouldNotBeNull()
+        }
         val jars = underTest!!.split(File.pathSeparator).joinToString(", ") { "\"$it\"" }
 
-        File(dir, "settings.gradle.kts").writeText("""rootProject.name = "under-test"""")
+        File(dir, "settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    maven { url = uri("$checker") }
+                    gradlePluginPortal()
+                }
+            }
+
+            rootProject.name = "under-test"
+            """.trimIndent(),
+        )
         File(dir, "build.gradle.kts").writeText(
             """
             plugins {
                 kotlin("jvm") version "2.4.10"
-                id("io.github.matthewjones372.lark.wiring")
+                id("io.github.matthewjones372.lark.wiring") version "$version"
             }
 
-            repositories { mavenCentral() }
+            // Where the compiler plugin comes from; the Kotlin plugin resolves it by coordinates.
+            repositories {
+                maven { url = uri("$checker") }
+                mavenCentral()
+            }
 
             dependencies { implementation(files($jars)) }
 
@@ -46,12 +67,12 @@ class LarkWiringPluginTest {
         source.writeText(graph)
     }
 
-    private fun run(dir: File, vararg args: String) =
+    private fun run(dir: File, vararg args: String) = runner(dir, *args).buildAndFail()
+
+    private fun runner(dir: File, vararg args: String) =
         GradleRunner.create()
             .withProjectDir(dir)
-            .withPluginClasspath()
             .withArguments(*args, "--stacktrace")
-            .buildAndFail()
 
     @Test
     fun `a missing key fails the build and names the recipe that asked`(@TempDir dir: File) {
@@ -88,14 +109,28 @@ class LarkWiringPluginTest {
     fun `a sound graph passes check and leaves a diagram behind`(@TempDir dir: File) {
         project(dir, "", SOUND)
 
-        val result = GradleRunner.create()
-            .withProjectDir(dir)
-            .withPluginClasspath()
-            .withArguments("check", "--stacktrace")
-            .build()
+        val result = runner(dir, "check").build()
 
         result.task(":larkWiring")?.outcome shouldBe TaskOutcome.SUCCESS
         File(dir, "build/reports/lark/Under.mmd").readText() shouldContain "graph TD"
+    }
+
+    @Test
+    fun `the checker runs inside the compiler, which is what puts a fault in the editor`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", SOUND)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("the same checkers the IDE runs in K2 mode, so this is the editor's answer too") {
+            result.output shouldContain "lark-app: checking Under"
+        }
+    }
+
+    @Test
+    fun `the compiler says nothing about a graph unless it is asked to`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+
+        runner(dir, "compileKotlin").build().output shouldNotContain "lark-app: checking"
     }
 
     @Test
