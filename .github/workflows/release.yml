@@ -13,6 +13,15 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # On the job rather than on the publish step: a tag gives axion a version with
+    # no `-SNAPSHOT`, which is what makes Gradle's signing required, and `build`
+    # signs the publications before anything is published. A PR never noticed
+    # because a snapshot is signed by nobody and the task simply skips.
+    env:
+      ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+      ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,8 +59,3 @@ jobs:
       # is about to become permanent and presses the button.
       - if: steps.already.outputs.released != 'yes'
         run: ./gradlew publishToMavenCentral --no-configuration-cache
-        env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
