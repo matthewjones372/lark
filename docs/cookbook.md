@@ -146,6 +146,24 @@ val twoNodes: Module = single { db: DbConfig -> Hikari(db) as Pool } +
     single<UserRepo, Pool> { pool -> PgUserRepo(pool) }
 ```
 
+### A factory that came from Java
+
+A Java method hands back a *platform* type, so the key is inferred as `Tracer!`
+and nothing asking for a `Tracer` ever matches it — the graph says `missing
+Tracer` while a Tracer sits in it. Name the key with `boundTo`, not with a type
+argument:
+
+<!-- cookbook -->
+```kotlin
+val fromJava: Module = single { pool: Pool -> pool.toString() }.boundTo<CharSequence>()
+```
+
+A type argument would work too, and costs more than it looks: naming the key as
+one forces the dependency to be one as well, because Kotlin has no partial
+type-argument inference. `single<CharSequence, Pool> { … }` names `Pool` twice —
+once as a type argument, once as the lambda's parameter. `boundTo` takes the key
+afterwards, so each type is written once.
+
 A node that needs nothing writes its type argument out, because a bare lambda
 would also fit the one-dependency overload with the dependency as its `it`:
 
