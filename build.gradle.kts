@@ -38,6 +38,15 @@ val scmVer: String = scmVersion.version
  */
 val ktlintVersion = "1.8.0"
 
+/**
+ * The Kotlin this build compiles with, for the two modules that compile against the compiler itself.
+ *
+ * Written once: a plugin built against one compiler and loaded into another fails at a consumer's
+ * compile, or quietly in their editor, and a version number repeated in three build scripts is three
+ * chances for that to happen on a bump.
+ */
+val kotlinVersion: String = "2.4.10"
+
 // Spotless does not pick these up from .editorconfig for every source set, so
 // they are handed to the ktlint step directly. The reasoning for each lives in
 // .editorconfig beside the rest, which is also what the IDE reads.
@@ -99,6 +108,8 @@ dependencies {
 tasks.named("check") {
     dependsOn("koverVerify")
 }
+
+extra["larkKotlinVersion"] = kotlinVersion
 
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
