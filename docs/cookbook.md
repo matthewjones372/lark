@@ -52,8 +52,13 @@ import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.singleOf
 import io.github.matthewjones372.lark.app.subgraph
 import io.github.matthewjones372.lark.app.testApp
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.findings
+import io.github.matthewjones372.lark.app.report
 import io.github.matthewjones372.lark.app.use
 import io.github.matthewjones372.lark.app.validate
+import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -413,6 +418,50 @@ fun theWiringIsWhatWeThink(): String = app.render()
 
 `validate` runs no recipe and names every missing key at once, with a cycle
 given as the path around it.
+
+`findings` asks that and two more, and answers with a list rather than a `Plan`:
+
+<!-- cookbook -->
+```kotlin
+object TheApp : LarkApp<HttpServer>(typeOf<HttpServer>()) {
+
+    override val module: Module = app
+
+    override fun AppScope.run(root: HttpServer) {
+        root.start()
+        awaitShutdown()
+    }
+}
+
+fun everyFault(): String = TheApp.module.findings(TheApp.root).report()
+```
+
+```
+lark-app wiring
+
+❯ error: missing Pool
+❯     for PgUserRepo         Wiring.kt:42
+
+❯ warning: HttpConfig provided twice
+❯     Config.kt:14           shadowed
+❯     Local.kt:9             wins
+
+❯ warning: nothing reaches Metrics          Telemetry.kt:9
+```
+
+A node remembers the file and line it was written on, so the report names the
+recipe to edit rather than only the type it asked for. A missing key and a cycle
+are errors; a key provided twice and a node no root reaches are warnings —
+`plus` is override, so `overriding` is a duplicate on purpose and is not
+reported, and a node held for its side effect alone is legal. Only the top of
+each unreached subtree is named: a module left out of the graph is one edit, not
+nine lines.
+
+An application declared as a value carries the root the check measures
+reachability from, which `runApp(TheApp)` also starts. Applying
+`io.github.matthewjones372.lark.wiring` to the project runs all of this on every
+`check` and draws each graph into `build/reports/lark` — see
+[`docs/app.md`](app.md).
 
 `render` draws mermaid in a stable order, so the drawing can live in review. For
 this graph —

@@ -98,7 +98,7 @@ recipe to edit rather than only the type it asked for. `single` and `singleOf`
 are inline, so the site is the caller's own line; a factory like `actor` names
 the graph that called it rather than itself.
 
-One test is the whole gate:
+As a test it is one line, though the plugin below runs it without one:
 
 ```kotlin
 @Test
