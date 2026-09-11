@@ -406,7 +406,7 @@ import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.runApp
 import kotlin.reflect.typeOf
 
-object App : LarkApp<HttpServer>(typeOf<HttpServer>()) {
+object App : LarkApp<HttpServer>() {
     override val module: Module = config + persistence + domain + web
     override fun AppScope.run(root: HttpServer) { root.start(); awaitShutdown() }
 }

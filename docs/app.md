@@ -167,7 +167,7 @@ something a build can read without running `main`:
 import io.github.matthewjones372.lark.app.LarkApp
 import io.github.matthewjones372.lark.app.runApp
 
-object Petshop : LarkApp<HttpServer>(typeOf<HttpServer>()) {
+object Petshop : LarkApp<HttpServer>() {
     override val module: Module = core + persistence + web
     override fun AppScope.run(root: HttpServer) { root.start(); awaitShutdown() }
 }

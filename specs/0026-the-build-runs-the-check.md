@@ -28,7 +28,7 @@ argument at the `runApp` call site, where nothing but `runApp` can read it.
 An application is a value that carries its own root:
 
 ```kotlin
-object Petshop : LarkApp<PelicanServer>(typeOf<PelicanServer>()) {
+object Petshop : LarkApp<PelicanServer>() {
     override val module: Module = settings + telemetry + theShop + arrivals + web
     override fun AppScope.run(root: PelicanServer) { root.block() }
 }

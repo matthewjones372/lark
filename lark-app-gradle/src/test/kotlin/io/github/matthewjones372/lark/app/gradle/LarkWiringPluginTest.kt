@@ -103,21 +103,21 @@ class DataSource
 """
 
 private const val FAULTY = """$IMPORTS
-object Under : LarkApp<Pump>(typeOf<Pump>()) {
+object Under : LarkApp<Pump>() {
     override val module: Module = single { _: DataSource -> Pump() }
     override fun AppScope.run(root: Pump) = Unit
 }
 """
 
 private const val SOUND = """$IMPORTS
-object Under : LarkApp<Pump>(typeOf<Pump>()) {
+object Under : LarkApp<Pump>() {
     override val module: Module = single<Pump> { Pump() }
     override fun AppScope.run(root: Pump) = Unit
 }
 """
 
 private const val WARNED = """$IMPORTS
-object Under : LarkApp<Pump>(typeOf<Pump>()) {
+object Under : LarkApp<Pump>() {
     override val module: Module = single<Pump> { Pump() } + single<Pump> { Pump() }
     override fun AppScope.run(root: Pump) = Unit
 }

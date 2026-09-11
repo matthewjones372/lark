@@ -441,7 +441,7 @@ given as the path around it.
 
 <!-- cookbook -->
 ```kotlin
-object TheApp : LarkApp<HttpServer>(typeOf<HttpServer>()) {
+object TheApp : LarkApp<HttpServer>() {
 
     override val module: Module = app
 
