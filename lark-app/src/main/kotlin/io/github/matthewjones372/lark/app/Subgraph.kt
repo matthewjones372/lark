@@ -23,7 +23,7 @@ fun Module.overriding(replacements: Module): Module {
     require(unknown.isEmpty()) {
         "overriding a key nothing provides: ${unknown.joinToString { labelOf(it) }}"
     }
-    return (this + replacements).deliberate(replacements.nodes.keys)
+    return (this + replacements).shadowing(shadows + replacements.shadows)
 }
 
 /** Starts the graph for a test and gives it back afterwards, whatever the block did. */

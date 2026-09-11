@@ -34,6 +34,12 @@ class LarkWiringPlugin : Plugin<Project> {
         val java = project.extensions.getByType(JavaPluginExtension::class.java)
         val toolchains = project.extensions.getByType(JavaToolchainService::class.java)
 
+        // Captured as values rather than reaching through the extension inside the provider: a
+        // lambda holding the extension itself is what the configuration cache cannot serialise.
+        val classes = main.output.classesDirs
+        val diagrams = wiring.diagrams
+        val failOn = wiring.failOn
+
         val check = project.tasks.register(TASK, JavaExec::class.java) { exec ->
             exec.group = "verification"
             exec.description = "Checks every lark-app graph in this project, and renders each one."
@@ -44,13 +50,13 @@ class LarkWiringPlugin : Plugin<Project> {
             // on a CI runner that is not UTF-8 every line of it arrives as a question mark.
             exec.defaultCharacterEncoding = "UTF-8"
             exec.inputs.files(main.runtimeClasspath).withPropertyName("runtimeClasspath")
-            exec.outputs.dir(wiring.diagrams)
+            exec.outputs.dir(diagrams)
             exec.argumentProviders.add(
                 CommandLineArgumentProvider {
                     listOf(
-                        main.output.classesDirs.joinToString(File.pathSeparator) { it.absolutePath },
-                        wiring.diagrams.get().asFile.absolutePath,
-                        wiring.failOn.get(),
+                        classes.joinToString(File.pathSeparator) { it.absolutePath },
+                        diagrams.get().asFile.absolutePath,
+                        failOn.get(),
                     )
                 },
             )

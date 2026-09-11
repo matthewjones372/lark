@@ -40,6 +40,17 @@ class FindingsTest {
     }
 
     @Test
+    fun `an overriding forgives its own collision and not one already there`() {
+        val careless = single<Kettle> { Kettle() } + single<Kettle> { Kettle() }
+
+        val overridden = careless.overriding(single<Kettle> { Kettle() })
+
+        withClue("the accidental duplicate in the base module is still worth saying") {
+            overridden.findings().map { it.error }.filterIsInstance<WiringError.Duplicate>().size shouldBe 1
+        }
+    }
+
+    @Test
     fun `a node no root reaches is a warning`() {
         val module = single<Kettle> { Kettle() } +
             single { _: Kettle -> Cup() } +

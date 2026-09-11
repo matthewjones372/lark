@@ -33,9 +33,13 @@ class Module private constructor(
         other.nodes.keys.filter { it in nodes }
             .map { Shadow(it, nodes.getValue(it).site, other.nodes.getValue(it).site) }
 
-    /** The same module, with [keys] no longer counted as shadowed. */
-    internal fun deliberate(keys: Set<KType>): Module =
-        Module(nodes, probes, shadows.filterNot { it.key in keys })
+    /**
+     * The same module, shadowing exactly what [kept] did.
+     *
+     * Named by what survives rather than by the keys to drop: a base module that already shadowed a
+     * key by accident keeps saying so, and only the collisions this merge introduced are forgiven.
+     */
+    internal fun shadowing(kept: List<Shadow>): Module = Module(nodes, probes, kept)
 
     internal companion object {
         fun of(node: Node): Module = Module(mapOf(node.key to node), emptyList())
