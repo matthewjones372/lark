@@ -414,6 +414,16 @@ object App : LarkApp<HttpServer>(typeOf<HttpServer>()) {
 fun main(): Unit = exitProcess(runApp(App).code)
 ```
 
+The graph is a value, so it can also be drawn — `render()` answers mermaid, and
+`larkWiring` writes one per application:
+
+![A wiring graph: Tuning above Database and Memo, Database above Accounts and
+Postings, and Opening, Reporting and Memo all above Frontage.](docs/wiring.png)
+
+`Database` and `Memo` have no edge between them, so they start at the same time;
+every path into `Frontage` is something that must be ready before the door
+opens. Neither is visible in the code that built it.
+
 A graph that declares the node it starts from is one a build can read without
 running `main`, which is what `lark-app-gradle` does on every `check`:
 

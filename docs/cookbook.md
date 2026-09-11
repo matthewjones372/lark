@@ -478,7 +478,8 @@ val drawn: Module =
         single { _: Memo, _: Opening, _: Reporting -> Frontage() }
 ```
 
-— `drawn.render()` answers exactly this, which GitHub renders as the picture:
+— `drawn.render()` answers exactly this, which GitHub renders as the picture
+([and as a PNG](wiring.png), for a viewer that does not draw mermaid):
 
 <!-- cookbook-diagram -->
 ```mermaid
@@ -506,6 +507,9 @@ graph TD
 Two things a reader gets from it that the code does not show: `Database` and
 `Memo` have no edge between them, so they start at the same time; and every
 path into `Frontage` is a thing that must be ready before the door opens.
+
+The PNG is made by `docs/render-diagram.sh`, and `DiagramImageTest` holds it to
+the fence: a graph that moves without the picture moving fails the build.
 
 `WiringDiagramTest` holds the fence above to what `render` actually answers. A
 drawing of a graph is worth having in review only while it is the graph.
