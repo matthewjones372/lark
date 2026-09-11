@@ -66,6 +66,16 @@ ignored. With the key unchecked the checker runs and reports, confirmed against
 petshop; so the offer is not "apply the plugin", it is "apply the plugin and
 have everyone on the project change an IDE setting".
 
+**The editor fails quietly, and the compiler does not.** Three times over, in one
+sitting: a relocated `PsiElement` the compiler has and the editor does not; a
+positioning strategy that casts its source to a `KtDeclaration`, which the
+compiler tolerates on a call and the editor answers by dropping the diagnostic;
+and a republished `SNAPSHOT`, which the compiler picks up and the editor serves
+from a cached classloader until the version changes. Each looked like "nothing
+appears", each was a different cause, and in every one the build was green and
+the editor silent. "It works from the CLI" is not evidence about the half this
+spec exists for.
+
 **A checker that runs in the editor cannot use the reified diagnostic DSL.**
 `kotlin-compiler-embeddable` relocates IntelliJ's classes under its own package
 and the IDE runs the compiler unrelocated, so `warning1<PsiElement, _>()` bakes
@@ -103,15 +113,16 @@ than something `lark-app` depends on.
       `KotlinCompilerPluginSupportPlugin`.
       Done when: a TestKit build proves the extension ran, and the editor shows
       the same warning. Both hold; what it cost is above.
-- [ ] **`spec-0027-reading-the-graph`** — the FIR reader above, and the give-up
-      rule.
+- [x] **`spec-0027-reading-the-graph`** ([#50](https://github.com/matthewjones372/lark/pull/50)) — the FIR reader
+      above, and the give-up rule.
       Done when: petshop's graph reads to the same key set `Module.nodes` holds
-      at runtime, asserted against it.
-- [ ] **`spec-0027-the-diagnostic`** — a missing-key `KtDiagnosticFactory` on
-      the call that asked, wording shared with `Diagnostics.kt`. Cycles and
-      duplicates stay the task's.
+      at runtime. It does — the same ten keys, and the same one short.
+- [x] **`spec-0027-the-diagnostic`** ([#51](https://github.com/matthewjones372/lark/pull/51)) — a missing-key
+      `KtDiagnosticFactory` on the call that asked, wording shared with
+      `Diagnostics.kt`. Cycles and duplicates stay the task's.
       Done when: deleting `actor<Shop>("shop")` from petshop fails
       `compileKotlin` naming `Wiring.kt:92`, and a given-up graph compiles clean.
+      Both hold, and the editor underlines the same call.
 
 ## Acceptance
 
@@ -130,7 +141,9 @@ than something `lark-app` depends on.
 4. **What if the checker and `larkWiring` disagree?** Recommend a test that they
    cannot, in the second entry. If it is hard to write, the reader is too clever
    and should give up sooner.
-5. **Is an editor behind a registry key worth two more branches?** Open. The
+5. **Is an editor behind a registry key worth two more branches?** Answered by
+   building them: it works, and the three quiet failures above are the running
+   cost to expect on every Kotlin upgrade. The
    answer that would kill this spec is that `larkWiring` already fails the build
    on the same fault, with a line the IDE links, for everyone and with no
    setting to change. Recommend deciding it before the second entry rather than
