@@ -17,4 +17,12 @@ abstract class LarkWiringExtension {
 
     /** Where a diagram of each application lands. */
     abstract val diagrams: DirectoryProperty
+
+    /**
+     * Whether the compiler says which applications it checked, as a warning per application.
+     *
+     * Off by default, because a build that is working has nothing to say. On, it answers the one
+     * question a silent checker cannot be asked: whether it is running at all.
+     */
+    abstract val verbose: Property<Boolean>
 }

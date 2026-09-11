@@ -20,12 +20,16 @@ class LarkWiringPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         val wiring = project.extensions.create("larkWiring", LarkWiringExtension::class.java)
         wiring.failOn.convention("FAIL")
+        wiring.verbose.convention(false)
         wiring.diagrams.convention(project.layout.buildDirectory.dir("reports/lark"))
 
         // Registered against the Kotlin plugin rather than at apply time, so the order the two are
         // written in a build script does not decide whether there is a task.
         project.plugins.withId("org.jetbrains.kotlin.jvm") {
             register(project, wiring)
+            // The checker in the compiler, which is what puts a fault in the editor. The task below
+            // stays the gate: it runs the graph, and sees the parts no static reader can.
+            project.plugins.apply(LarkCheckerPlugin::class.java)
         }
     }
 

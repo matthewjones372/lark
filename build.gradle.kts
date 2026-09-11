@@ -66,11 +66,16 @@ val moduleDescriptions = mapOf(
     "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
     "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
     "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn as it compiles.",
+    "lark-app-compiler" to "lark-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
 // is a build that runs rather than a line count: petshop applying it is the test, not a percentage.
 val gradlePluginModules = setOf("lark-app-gradle")
+
+// The same argument for the compiler plugin: it runs inside the Kotlin compiler, so the only honest
+// test of it is a compilation, and those live in lark-app-gradle where the build that runs them is.
+val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
@@ -87,7 +92,7 @@ kover {
 }
 
 dependencies {
-    subprojects.filterNot { it.name in gradlePluginModules }.forEach { kover(project(it.path)) }
+    subprojects.filterNot { it.name in testedByRunningABuild }.forEach { kover(project(it.path)) }
 }
 
 // A floor nobody runs is not a floor: `./gradlew build` checks it.
@@ -137,7 +142,7 @@ subprojects {
         systemProperty("junit.jupiter.execution.timeout.default", "60s")
     }
 
-    if (name !in gradlePluginModules) {
+    if (name !in testedByRunningABuild) {
         apply(plugin = "org.jetbrains.kotlinx.kover")
     }
 
