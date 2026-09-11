@@ -11,8 +11,8 @@ import kotlin.reflect.KType
 /** Why a graph cannot be built. */
 sealed class WiringError {
 
-    /** No module provides [key], and [neededBy] asked for it. */
-    data class Missing(val key: KType, val neededBy: KType) : WiringError()
+    /** No module provides [key], and [neededBy] asked for it, where [site] was written. */
+    data class Missing(val key: KType, val neededBy: KType, val site: String? = null) : WiringError()
 
     /** One cycle, each key needing the next, ending where it began. */
     data class Cycle(val path: List<KType>) : WiringError()
@@ -36,7 +36,7 @@ fun Module.validate(): Either<NonEmptyList<WiringError>, Plan> {
     val missing = nodes.values.flatMap { node ->
         node.dependencies
             .filterNot { nodes.containsKey(it) || it in runtimeProvided }
-            .map { WiringError.Missing(it, node.key) }
+            .map { WiringError.Missing(it, node.key, node.site) }
     }
 
     // Every missing key at once: a graph is usually short of a module, not of one node.
@@ -62,7 +62,7 @@ fun NonEmptyList<WiringError>.report(provided: Set<KType>): String {
         .entries
         .sortedBy { (key, _) -> key.toString() }
         .map { (key, asked) ->
-            val consumers = asked.map { "❯     for ${labelOf(it.neededBy)}" }.sorted()
+            val consumers = asked.map { "❯     for ${at(labelOf(it.neededBy), it.site)}" }.sorted()
             val alike = provided.firstOrNull { it != key && plainly(it) == plainly(key) }
             val nearly = alike?.let { listOf("❯     the graph has $it, which is not the same type") }.orEmpty()
             (listOf("❯ missing ${labelOf(key)}") + consumers + nearly).joinToString("\n")
@@ -73,6 +73,12 @@ fun NonEmptyList<WiringError>.report(provided: Set<KType>): String {
 
     return (listOf("lark-app wiring error") + missing + cycles).joinToString("\n\n")
 }
+
+/** A name and where it was written, padded so a column of them lines up. */
+internal fun at(name: String, site: String?): String =
+    if (site == null) name else name.padEnd(SITE_COLUMN) + site
+
+private const val SITE_COLUMN = 24
 
 /** The label without what makes a platform type or a nullable one read differently. */
 private fun plainly(key: KType): String = labelOf(key).trimEnd('?', '!')

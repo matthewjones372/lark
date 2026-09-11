@@ -20,7 +20,7 @@ internal fun Module.boundTo(key: KType): Module {
     }
     val node = nodes.values.single()
     return Module.of(
-        mapOf(key to Node(key, node.dependencies, node.build)),
+        mapOf(key to Node(key, node.dependencies, node.site, node.build)),
         probes.map { probe ->
             Probe(probe.name, key, probe.timeout, probe.critical, probe.attempts, probe.interval, probe.ask)
         },

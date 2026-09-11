@@ -89,9 +89,14 @@ and a cycle answers with the path around it rather than the set of keys on it:
 lark-app wiring error
 
 ❯ missing DataSource
-❯     for OrderRepo
-❯     for UserRepo
+❯     for OrderRepo          Wiring.kt:42
+❯     for UserRepo           Wiring.kt:47
 ```
+
+A node remembers the file and line it was written on, so the report names the
+recipe to edit rather than only the type it asked for. `single` and `singleOf`
+are inline, so the site is the caller's own line; a factory like `actor` names
+the graph that called it rather than itself.
 
 One test is the whole gate:
 

@@ -5,6 +5,7 @@ import kotlin.reflect.KType
 internal class Node(
     val key: KType,
     val dependencies: List<KType>,
+    val site: String?,
     val build: Wiring.(List<Any>) -> Any,
 )
 
@@ -37,4 +38,25 @@ internal fun module(
     key: KType,
     dependencies: List<KType>,
     build: Wiring.(List<Any>) -> Any,
-): Module = Module.of(Node(key, dependencies, build))
+): Module = Module.of(Node(key, dependencies, callSite(), build))
+
+private val walker: StackWalker = StackWalker.getInstance()
+
+/**
+ * The first frame outside lark's own node factories.
+ *
+ * `single` and `singleOf` are inline, so their frames are the caller's already; `actor` and
+ * `migrations` are not, and naming those would put every actor node in `lark-app-pekko`. A lark
+ * factory is always a top-level function, so its frame is a file facade, which is what the `Kt`
+ * distinguishes from a caller written as a class.
+ */
+internal fun callSite(): String? = walker.walk { frames ->
+    frames.filter { !larkFactory(it.className) }
+        .map { frame -> frame.fileName?.let { "$it:${frame.lineNumber}" } }
+        .findFirst()
+        .orElse(null)
+}
+
+private fun larkFactory(className: String): Boolean =
+    className.startsWith("io.github.matthewjones372.lark.") &&
+        className.substringAfterLast('.').endsWith("Kt")
