@@ -16,6 +16,15 @@ sealed class WiringError {
 
     /** One cycle, each key needing the next, ending where it began. */
     data class Cycle(val path: List<KType>) : WiringError()
+
+    /** Two modules both provide [key]; the node written at [shadowed] lost to the one at [wins]. */
+    data class Duplicate(val key: KType, val shadowed: String?, val wins: String?) : WiringError()
+
+    /** [key] is built on every start and no root reaches it. */
+    data class Unreachable(val key: KType, val site: String?) : WiringError()
+
+    /** The application starts from [key], and nothing in the graph builds it. */
+    data class NoRoot(val key: KType) : WiringError()
 }
 
 /** The order a graph starts in: a layer's nodes depend only on the layers before it. */

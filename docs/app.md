@@ -105,6 +105,36 @@ One test is the whole gate:
 fun `the application wires`() = app.validate().shouldBeRight()
 ```
 
+`findings` asks the same question and two more, and answers with a list rather
+than a `Plan`:
+
+```kotlin
+import io.github.matthewjones372.lark.app.findings
+import io.github.matthewjones372.lark.app.report
+
+app.findings(root = typeOf<HttpServer>()).report()
+```
+
+```
+lark-app wiring
+
+❯ error: missing DataSource
+❯     for OrderRepo          Wiring.kt:42
+
+❯ warning: Tracer provided twice
+❯     Telemetry.kt:14        shadowed
+❯     Local.kt:9             wins
+
+❯ warning: nothing reaches KafkaProducer    Kafka.kt:9
+```
+
+A missing key and a cycle are errors. A key provided twice is a warning,
+because `plus` is override and `overriding` is a duplicate on purpose — one
+written through `overriding` is not reported. A node no root reaches is a
+warning too, and only the top of each unreached subtree is named: a module left
+out of the graph is one edit, not nine lines. Omitting `root` skips that check
+and nothing else.
+
 ## Starting and stopping
 
 ```kotlin

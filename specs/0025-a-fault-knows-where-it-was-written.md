@@ -32,16 +32,14 @@ app.findings().report()
 ```
 lark-app wiring
 
-error  missing DataSource
-         for OrderRepo            Wiring.kt:42
-         for UserRepo             Wiring.kt:47
+❯ error: missing DataSource
+❯     for OrderRepo          Wiring.kt:42
 
-warn   Tracer provided twice
-         Telemetry.kt:14  shadowed
-         Local.kt:9       wins
+❯ warning: Tracer provided twice
+❯     Telemetry.kt:14        shadowed
+❯     Local.kt:9             wins
 
-warn   4 nodes unreachable from PelicanServer
-         KafkaProducer            Kafka.kt:9
+❯ warning: nothing reaches KafkaProducer    Kafka.kt:9
 ```
 
 - `Finding` is `Severity` plus a `WiringError`, with `Duplicate` and

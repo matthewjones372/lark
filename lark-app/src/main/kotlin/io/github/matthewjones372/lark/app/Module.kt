@@ -9,20 +9,39 @@ internal class Node(
     val build: Wiring.(List<Any>) -> Any,
 )
 
+/** A key two modules both provided, and where each was written. */
+internal class Shadow(val key: KType, val shadowed: String?, val wins: String?)
+
 /** Recipes, keyed by the type each one builds. */
 class Module private constructor(
     internal val nodes: Map<KType, Node>,
     internal val probes: List<Probe>,
+    internal val shadows: List<Shadow> = emptyList(),
 ) {
 
     /** [other]'s node wins wherever the two share a key, and takes the probes of that key with it. */
     operator fun plus(other: Module): Module =
-        Module(nodes + other.nodes, probes.filterNot { it.key in other.nodes.keys } + other.probes)
+        Module(
+            nodes + other.nodes,
+            probes.filterNot { it.key in other.nodes.keys } + other.probes,
+            // Kept rather than discarded: the merge cannot tell a deliberate override from a typo, and
+            // only `overriding` knows which it was.
+            shadows + other.shadows + collisionsWith(other),
+        )
+
+    private fun collisionsWith(other: Module): List<Shadow> =
+        other.nodes.keys.filter { it in nodes }
+            .map { Shadow(it, nodes.getValue(it).site, other.nodes.getValue(it).site) }
+
+    /** The same module, with [keys] no longer counted as shadowed. */
+    internal fun deliberate(keys: Set<KType>): Module =
+        Module(nodes, probes, shadows.filterNot { it.key in keys })
 
     internal companion object {
         fun of(node: Node): Module = Module(mapOf(node.key to node), emptyList())
 
-        fun of(nodes: Map<KType, Node>, probes: List<Probe>): Module = Module(nodes, probes)
+        fun of(nodes: Map<KType, Node>, probes: List<Probe>, shadows: List<Shadow> = emptyList()): Module =
+            Module(nodes, probes, shadows)
     }
 }
 
