@@ -68,11 +68,11 @@ edit.
 
 ## Stack
 
-- [ ] **`spec-0025-sites`** — `site` on `Node`, the `StackWalker` in `module`,
+- [x] **`spec-0025-sites`** — `site` on `Node`, the `StackWalker` in `module`,
       sites in `report`.
       Done when: a missing-key report names the file and line of the recipe
       that asked for it.
-- [ ] **`spec-0025-findings`** — `Finding`, `Severity`, shadowed nodes
+- [x] **`spec-0025-findings`** — `Finding`, `Severity`, shadowed nodes
       retained, `overriding` marking intent, reachability from a root.
       Done when: a key provided twice warns naming both sites, an `overriding`
       does not, and an unreachable module is named once rather than per node.

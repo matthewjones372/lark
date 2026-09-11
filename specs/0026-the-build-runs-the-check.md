@@ -67,11 +67,11 @@ this repo's own rule that a description is a value.
 
 ## Stack
 
-- [ ] **`spec-0026-larkapp`** — `LarkApp<A>`, `runApp(LarkApp)`, the checker
+- [x] **`spec-0026-larkapp`** — `LarkApp<A>`, `runApp(LarkApp)`, the checker
       `main` in `lark-app`.
       Done when: an application declares its root as a value, `main` is one
       line, and the checker names a fault given a class output directory.
-- [ ] **`spec-0026-gradle`** — `lark-app-gradle`, the `larkWiring` task and its
+- [x] **`spec-0026-gradle`** — `lark-app-gradle`, the `larkWiring` task and its
       extension, wiring into `check`, the `.mmd` output.
       Done when: applying the plugin alone fails a build on a missing key and
       leaves a diagram behind.
