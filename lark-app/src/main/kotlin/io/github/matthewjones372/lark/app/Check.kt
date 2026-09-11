@@ -1,6 +1,9 @@
 package io.github.matthewjones372.lark.app
 
 import java.io.File
+import java.io.FileDescriptor
+import java.io.FileOutputStream
+import java.io.PrintStream
 import kotlin.system.exitProcess
 
 /** What the check found: what to print, and whether the build should stop. */
@@ -61,6 +64,15 @@ private fun declared(type: Class<*>): LarkApp<*>? =
 private fun nameOf(app: LarkApp<*>): String = app::class.simpleName ?: app::class.java.name
 
 /**
+ * Standard error as UTF-8 rather than whatever the platform defaults to.
+ *
+ * From JDK 19 `System.err` follows `stderr.encoding`, which is the native encoding when the stream is
+ * redirected — so on a runner that is not UTF-8 the report's own bullet arrives as a question mark,
+ * and `-Dfile.encoding` does not fix it.
+ */
+private fun said(): PrintStream = PrintStream(FileOutputStream(FileDescriptor.err), true, Charsets.UTF_8)
+
+/**
  * The check as a process, for a build to run against a project's own class output.
  *
  * `classes` is separated by the platform's path separator; `diagrams` is a directory or empty for
@@ -72,6 +84,6 @@ fun main(args: Array<String>) {
     val failOn = Severity.valueOf(args.getOrElse(2) { Severity.FAIL.name })
 
     val checked = check(classes, diagrams, failOn)
-    if (checked.report.isNotBlank()) System.err.println(checked.report)
+    if (checked.report.isNotBlank()) said().println(checked.report)
     exitProcess(if (checked.failed) 1 else 0)
 }

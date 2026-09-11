@@ -64,6 +64,9 @@ class LarkWiringPluginTest {
         withClue("the site is what makes the report worth reading") {
             result.output shouldContain "Under.kt"
         }
+        withClue("the report's own bullet is not ASCII, and a forked JVM defaults to the platform") {
+            result.output shouldContain "❯"
+        }
     }
 
     @Test

@@ -40,6 +40,9 @@ class LarkWiringPlugin : Plugin<Project> {
             exec.mainClass.set(CHECKER)
             exec.javaLauncher.set(toolchains.launcherFor(java.toolchain))
             exec.classpath = main.runtimeClasspath
+            // The report's own bullet is not ASCII, and a forked JVM takes the platform default:
+            // on a CI runner that is not UTF-8 every line of it arrives as a question mark.
+            exec.defaultCharacterEncoding = "UTF-8"
             exec.inputs.files(main.runtimeClasspath).withPropertyName("runtimeClasspath")
             exec.outputs.dir(wiring.diagrams)
             exec.argumentProviders.add(
