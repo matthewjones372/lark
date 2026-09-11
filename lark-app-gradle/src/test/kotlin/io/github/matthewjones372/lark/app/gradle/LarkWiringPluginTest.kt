@@ -143,6 +143,28 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `the reader's copy of what lark's own factories need has not gone stale`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", LIBRARY)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("actor takes an ActorSystem and config takes a Config; the reader says so from a list") {
+            result.output shouldContain "provides [ActorRef<Ping>, ActorSystem, Config, Settings], and is short of []"
+        }
+    }
+
+    @Test
+    fun `a graph the reader could not follow says so, whether or not it was asked`(@TempDir dir: File) {
+        project(dir, "", UNREADABLE)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("otherwise silence means both a sound graph and a graph nobody looked at") {
+            result.output shouldContain "this graph was not read here, and is checked by larkWiring alone"
+        }
+    }
+
+    @Test
     fun `a sound graph compiles without a word`(@TempDir dir: File) {
         project(dir, "", SOUND)
 
@@ -232,6 +254,37 @@ private val named: Module = single { _: DataSource -> Pump() } + single { _: Dat
 object Under : LarkApp<Pump>() {
     override val module: Module = named + chosen
     override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/**
+ * Every lark factory the reader knows by name, compiled against the real modules.
+ *
+ * The reader holds its own copy of what each of these takes — `actor` an `ActorSystem`, `config` a
+ * `Config`, `loadedConfig` nothing — and this is the only build that would notice that copy going
+ * stale. Change one of those in the library and this test says so.
+ */
+private const val LIBRARY = """
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.single
+import io.github.matthewjones372.lark.app.pekko.actor
+import io.github.matthewjones372.lark.app.typesafe.config
+import io.github.matthewjones372.lark.app.typesafe.loadedConfig
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.actor.typed.javadsl.Behaviors
+
+class Ping
+class Settings(val port: Int)
+
+object Under : LarkApp<Settings>() {
+    override val module: Module =
+        single<ActorSystem> { ActorSystem.create("under") } +
+            loadedConfig() +
+            config<Settings>("under") { Settings(int("port")) } +
+            actor<Ping>("ping") { Behaviors.empty<Ping>() }
+    override fun AppScope.run(root: Settings) = Unit
 }
 """
 

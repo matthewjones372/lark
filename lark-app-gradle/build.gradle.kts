@@ -32,10 +32,15 @@ val larkAppUnderTest: Configuration by configurations.creating
 dependencies {
     // For `KotlinCompilerPluginSupportPlugin`. The API artifact rather than the plugin itself: this
     // jar is applied alongside whatever Kotlin plugin the consumer chose, not in front of it.
-    compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin-api:2.4.10")
+    compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin-api:${rootProject.extra["larkKotlinVersion"]}")
 
     testImplementation(gradleTestKit())
     larkAppUnderTest(project(":lark-app"))
+    // The modules whose factories the reader knows by name. A build that compiles a graph using
+    // them is the only thing that catches the reader's copy of their dependencies going stale, and
+    // a stale copy is the one fault the design cannot tolerate: a red line under working code.
+    larkAppUnderTest(project(":lark-app-pekko"))
+    larkAppUnderTest(project(":lark-app-typesafe"))
 }
 
 // The checker is resolved from a repository at compile time, so the plugin has to name a version.

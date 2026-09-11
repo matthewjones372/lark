@@ -18,9 +18,18 @@ import kotlin.reflect.KClass
  */
 object LarkDiagnostics : KtDiagnosticsContainer() {
 
-    /** Proof the checker ran, off by default, and the only thing this first version says. */
+    /** What was read, when asked. Off by default, because a build that is working has nothing to say. */
     val LARK_APP_FOUND: KtDiagnosticFactory1<String> =
         factory("LARK_APP_FOUND", Severity.WARNING, SourceElementPositioningStrategies.DECLARATION_NAME)
+
+    /**
+     * A graph this could not read, said whether or not anybody asked.
+     *
+     * Otherwise silence means two things — the graph is sound, and the graph was never looked at —
+     * and a reader who takes the first for the second has been told the opposite of the truth.
+     */
+    val LARK_APP_UNREAD: KtDiagnosticFactory1<String> =
+        factory("LARK_APP_UNREAD", Severity.WARNING, SourceElementPositioningStrategies.DECLARATION_NAME)
 
     /** A key nothing in the graph provides. Not reported yet; the reader that finds one is next. */
     // Reported on the call that asked, which is not a declaration: `DECLARATION_NAME` casts its
@@ -59,5 +68,10 @@ private object Renderers : BaseDiagnosticRendererFactory() {
     override val MAP: KtDiagnosticFactoryToRendererMap by KtDiagnosticFactoryToRendererMap("Lark") { map ->
         map.put(LarkDiagnostics.LARK_APP_FOUND, "lark-app: {0}", CommonRenderers.STRING)
         map.put(LarkDiagnostics.LARK_APP_MISSING, "lark-app: {0}", CommonRenderers.STRING)
+        map.put(
+            LarkDiagnostics.LARK_APP_UNREAD,
+            "lark-app: this graph was not read here, and is checked by larkWiring alone: {0}",
+            CommonRenderers.STRING,
+        )
     }
 }
