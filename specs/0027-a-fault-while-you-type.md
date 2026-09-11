@@ -18,7 +18,8 @@ comparison this library invites.
 
 - **No IntelliJ plugin.** K2 mode loads third-party compiler plugins from the
   Gradle model and runs their FIR checkers in the editor. A checker that stays
-  on FIR and emits no IR needs nothing installed.
+  on FIR and emits no IR needs nothing installed — but see **What the editor
+  costs** below, because it is not free.
 - **No replacement for `larkWiring`.** The task stays the gate, because it sees
   the graph by running it.
 - **No cross-module analysis.** A `Module` from another Gradle module is a
@@ -50,6 +51,31 @@ What the reader takes out of the FIR tree, all within one Gradle module:
 Anything else — a loop, a collection, an interface method, another Gradle
 module — makes the application unanalysable and the checker emits nothing.
 
+## What the editor costs
+
+Two things found while building the first entry, both of which a reader should
+know before deciding the other two are worth it.
+
+**The editor runs no third-party checker unless it is told to.** IntelliJ's
+`KtCompilerPluginsProviderIdeImpl` reads the registry key
+`kotlin.k2.only.bundled.compiler.plugins.enabled`, which ships `true`, and runs
+only `KotlinK2BundledCompilerPlugins` — all-open, no-arg, sam-with-receiver,
+assignment, serialization, Lombok, Parcelize, Compose, scripting,
+js-plain-objects, dataframe. Everything else is loaded into the model and
+ignored. With the key unchecked the checker runs and reports, confirmed against
+petshop; so the offer is not "apply the plugin", it is "apply the plugin and
+have everyone on the project change an IDE setting".
+
+**A checker that runs in the editor cannot use the reified diagnostic DSL.**
+`kotlin-compiler-embeddable` relocates IntelliJ's classes under its own package
+and the IDE runs the compiler unrelocated, so `warning1<PsiElement, _>()` bakes
+a name into the plugin's bytecode that exists in only one of the two. The
+factories are built through their non-inline constructors with the `KClass`
+resolved by name instead. Any FIR API taking a reified PSI type is closed the
+same way, and the failure is quiet: an exception inside a checker takes the
+file's remaining analysis with it, so the symptom is unrelated type errors on
+code that compiles.
+
 ## Why this shape
 
 The rule that decides whether this is worth having is **give up quietly**. A
@@ -71,11 +97,12 @@ than something `lark-app` depends on.
 
 ## Stack
 
-- [ ] **`spec-0027-plugin-shell`** — `lark-app-compiler`: registrar, FIR
-      extension, a checker that finds `LarkApp` subclasses and reports nothing.
-      `lark-app-gradle` becomes a `KotlinCompilerPluginSupportPlugin`.
-      Done when: a TestKit build proves the extension ran, and one screenshot
-      proves K2 mode loads it without an IDE plugin.
+- [x] **`spec-0027-plugin-shell`** ([#49](https://github.com/matthewjones372/lark/pull/49)) — `lark-app-compiler`:
+      registrar, FIR extension, a checker that finds `LarkApp` subclasses and
+      reports nothing. `lark-app-gradle` becomes a
+      `KotlinCompilerPluginSupportPlugin`.
+      Done when: a TestKit build proves the extension ran, and the editor shows
+      the same warning. Both hold; what it cost is above.
 - [ ] **`spec-0027-reading-the-graph`** — the FIR reader above, and the give-up
       rule.
       Done when: petshop's graph reads to the same key set `Module.nodes` holds
@@ -103,3 +130,8 @@ than something `lark-app` depends on.
 4. **What if the checker and `larkWiring` disagree?** Recommend a test that they
    cannot, in the second entry. If it is hard to write, the reader is too clever
    and should give up sooner.
+5. **Is an editor behind a registry key worth two more branches?** Open. The
+   answer that would kill this spec is that `larkWiring` already fails the build
+   on the same fault, with a line the IDE links, for everyone and with no
+   setting to change. Recommend deciding it before the second entry rather than
+   after the third.
