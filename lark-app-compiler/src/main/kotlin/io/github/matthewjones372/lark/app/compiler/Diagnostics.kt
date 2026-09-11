@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.app.compiler
 
+import org.jetbrains.kotlin.diagnostics.AbstractSourceElementPositioningStrategy
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactoryToRendererMap
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer
@@ -18,20 +19,23 @@ import kotlin.reflect.KClass
 object LarkDiagnostics : KtDiagnosticsContainer() {
 
     /** Proof the checker ran, off by default, and the only thing this first version says. */
-    val LARK_APP_FOUND: KtDiagnosticFactory1<String> = factory("LARK_APP_FOUND", Severity.WARNING)
+    val LARK_APP_FOUND: KtDiagnosticFactory1<String> =
+        factory("LARK_APP_FOUND", Severity.WARNING, SourceElementPositioningStrategies.DECLARATION_NAME)
 
     /** A key nothing in the graph provides. Not reported yet; the reader that finds one is next. */
-    val LARK_APP_MISSING: KtDiagnosticFactory1<String> = factory("LARK_APP_MISSING", Severity.ERROR)
+    // Reported on the call that asked, which is not a declaration: `DECLARATION_NAME` casts its
+    // source to one, and the editor drops every diagnostic whose strategy throws. The compiler is
+    // more forgiving, so the cost of getting this wrong is silence in the only place it matters.
+    val LARK_APP_MISSING: KtDiagnosticFactory1<String> =
+        factory("LARK_APP_MISSING", Severity.ERROR, SourceElementPositioningStrategies.DEFAULT)
 
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
-    private fun factory(name: String, severity: Severity) = KtDiagnosticFactory1<String>(
-        name,
-        severity,
-        SourceElementPositioningStrategies.DECLARATION_NAME,
-        psiElement,
-        Renderers,
-    )
+    private fun factory(
+        name: String,
+        severity: Severity,
+        where: AbstractSourceElementPositioningStrategy,
+    ) = KtDiagnosticFactory1<String>(name, severity, where, psiElement, Renderers)
 }
 
 /**
