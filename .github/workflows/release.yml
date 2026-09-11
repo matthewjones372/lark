@@ -30,8 +30,10 @@ jobs:
       # can withdraw.
       - run: ./gradlew build
 
+      # The last non-blank line's last word: `currentVersion` prints a banner too, and a
+      # multi-line value is one GITHUB_OUTPUT refuses rather than truncates.
       - id: version
-        run: echo "value=$(./gradlew -q currentVersion | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(./gradlew -q currentVersion | awk 'NF { last = $NF } END { print last }')" >> "$GITHUB_OUTPUT"
 
       # A tag can be re-run, and Central refuses a version it already has — with a
       # message about the upload rather than about the re-run. Saying so here is
