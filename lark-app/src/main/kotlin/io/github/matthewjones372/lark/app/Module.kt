@@ -52,7 +52,16 @@ class Module private constructor(
 // Every lower-case run, so a generic argument loses its packages too.
 private val qualifiers = Regex("""\b[a-z][A-Za-z0-9_]*(\.[a-z][A-Za-z0-9_]*)*\.""")
 
-internal fun labelOf(key: KType): String = qualifiers.replace(key.toString(), "")
+/**
+ * What a `KType` renders as where kotlin-reflect is not on the classpath, once per type argument.
+ *
+ * This module depends on it nowhere else, and a report is no place to start: the name is still
+ * right, and a build that prints "Pump (Kotlin reflection is not available) needs DataSource
+ * (Kotlin reflection is not available)" has buried the sentence it came to say.
+ */
+private val unavailable = Regex(""" \(Kotlin reflection is not available\)""")
+
+internal fun labelOf(key: KType): String = qualifiers.replace(unavailable.replace(key.toString(), ""), "")
 
 internal fun idOf(key: KType): String = labelOf(key).replace(Regex("[^A-Za-z0-9]"), "_")
 
@@ -62,24 +71,3 @@ internal fun module(
     dependencies: List<KType>,
     build: Wiring.(List<Any>) -> Any,
 ): Module = Module.of(Node(key, dependencies, callSite(), build))
-
-private val walker: StackWalker = StackWalker.getInstance()
-
-/**
- * The first frame outside lark's own node factories.
- *
- * `single` and `singleOf` are inline, so their frames are the caller's already; `actor` and
- * `migrations` are not, and naming those would put every actor node in `lark-app-pekko`. A lark
- * factory is always a top-level function, so its frame is a file facade, which is what the `Kt`
- * distinguishes from a caller written as a class.
- */
-internal fun callSite(): String? = walker.walk { frames ->
-    frames.filter { !larkFactory(it.className) }
-        .map { frame -> frame.fileName?.let { "$it:${frame.lineNumber}" } }
-        .findFirst()
-        .orElse(null)
-}
-
-private fun larkFactory(className: String): Boolean =
-    className.startsWith("io.github.matthewjones372.lark.") &&
-        className.substringAfterLast('.').endsWith("Kt")

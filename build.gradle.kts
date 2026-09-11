@@ -65,7 +65,7 @@ val moduleDescriptions = mapOf(
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
     "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
     "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
-    "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn on `check`.",
+    "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn as it compiles.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does

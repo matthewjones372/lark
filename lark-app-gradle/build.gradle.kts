@@ -8,7 +8,7 @@ gradlePlugin {
             id = "io.github.matthewjones372.lark.wiring"
             implementationClass = "io.github.matthewjones372.lark.app.gradle.LarkWiringPlugin"
             displayName = "lark-app wiring"
-            description = "Checks a project's lark-app graphs on every build, and renders each one."
+            description = "Checks a project's lark-app graphs as it compiles, and renders each one."
         }
     }
 }

@@ -4,7 +4,11 @@ import java.io.File
 import java.io.FileDescriptor
 import java.io.FileOutputStream
 import java.io.PrintStream
+import kotlin.reflect.KType
 import kotlin.system.exitProcess
+
+/** One application, checked. */
+private class Wired(val name: String, val findings: List<Finding>, val provided: Set<KType>)
 
 /** What the check found: what to print, and whether the build should stop. */
 data class Checked(val report: String, val failed: Boolean)
@@ -15,21 +19,35 @@ data class Checked(val report: String, val failed: Boolean)
  * [failOn] is the severity a finding has to reach to stop a build, so a codebase that wants its
  * warnings fatal passes `WARN`. A diagram of each graph is written into [diagrams] where one is
  * given, which is the drawing the IDE renders.
+ *
+ * [sources] are the source directories a finding's site is resolved against. Given them, the report
+ * is the compiler's own `e: file://...` diagnostic, which the IDE turns into a clickable entry in
+ * the Build window; without them it is the prose report, which a person reads and then goes
+ * looking. Pass them.
  */
-fun checkWiring(classes: List<File>, diagrams: File? = null, failOn: Severity = Severity.FAIL): Checked {
+fun checkWiring(
+    classes: List<File>,
+    diagrams: File? = null,
+    failOn: Severity = Severity.FAIL,
+    sources: List<File> = emptyList(),
+): Checked {
     val checked = apps(classes).map { app ->
         diagrams?.let { into ->
             into.mkdirs()
             File(into, "${nameOf(app)}.mmd").writeText(app.module.render())
         }
-        nameOf(app) to app.module.findings(app.root)
+        Wired(nameOf(app), app.module.findings(app.root), app.module.nodes.keys)
     }
 
-    val failed = checked.any { (_, findings) -> findings.any { it.severity >= failOn } }
-    val said = checked.filter { (_, findings) -> findings.isNotEmpty() }
-        .map { (name, findings) -> "$name\n\n${findings.report()}" }
+    val failed = checked.any { wired -> wired.findings.any { it.severity >= failOn } }
+    val found = checked.filter { it.findings.isNotEmpty() }
 
-    return Checked(said.joinToString("\n\n"), failed)
+    val said = when {
+        sources.isEmpty() -> found.map { "${it.name}\n\n${it.findings.report()}" }
+        else -> found.map { it.findings.diagnostics(sources, it.provided) }
+    }
+
+    return Checked(said.joinToString("\n"), failed)
 }
 
 /**
@@ -75,15 +93,19 @@ private fun said(): PrintStream = PrintStream(FileOutputStream(FileDescriptor.er
 /**
  * The check as a process, for a build to run against a project's own class output.
  *
- * `classes` is separated by the platform's path separator; `diagrams` is a directory or empty for
- * none; `failOn` is a [Severity] name.
+ * `classes` and `sources` are separated by the platform's path separator; `diagrams` is a directory
+ * or empty for none; `failOn` is a [Severity] name.
  */
 fun main(args: Array<String>) {
-    val classes = args.getOrElse(0) { "" }.split(File.pathSeparator).filter { it.isNotBlank() }.map(::File)
+    val classes = paths(args.getOrElse(0) { "" })
     val diagrams = args.getOrElse(1) { "" }.takeIf { it.isNotBlank() }?.let(::File)
     val failOn = Severity.valueOf(args.getOrElse(2) { Severity.FAIL.name })
+    val sources = paths(args.getOrElse(3) { "" })
 
-    val checked = checkWiring(classes, diagrams, failOn)
+    val checked = checkWiring(classes, diagrams, failOn, sources)
     if (checked.report.isNotBlank()) said().println(checked.report)
     exitProcess(if (checked.failed) 1 else 0)
 }
+
+private fun paths(arg: String): List<File> =
+    arg.split(File.pathSeparator).filter { it.isNotBlank() }.map(::File)

@@ -60,13 +60,28 @@ class LarkWiringPluginTest {
         val result = run(dir, "larkWiring")
 
         result.task(":larkWiring")?.outcome shouldBe TaskOutcome.FAILED
-        result.output shouldContain "missing DataSource"
-        withClue("the site is what makes the report worth reading") {
-            result.output shouldContain "Under.kt"
+        // Also the only place the no-reflect label is exercised: this generated project has
+        // kotlin-reflect nowhere, and without stripping its notice the sentence reads
+        // "Pump (Kotlin reflection is not available) needs DataSource (Kotlin reflection ...)".
+        result.output shouldContain "Pump needs DataSource, and nothing builds it"
+        withClue("the IDE makes an entry in the Build window out of the compiler's own shape") {
+            // Canonical, because a temporary directory on this platform is reached through a symlink
+            // and the checker reports the path it actually opened.
+            val source = File(dir, "src/main/kotlin/Under.kt").canonicalPath
+            result.output shouldContain "e: file://$source:"
         }
-        withClue("the report's own bullet is not ASCII, and a forked JVM defaults to the platform") {
-            result.output shouldContain "❯"
+    }
+
+    @Test
+    fun `compiling is enough to fail, without waiting for check or for a run`(@TempDir dir: File) {
+        project(dir, "", FAULTY)
+
+        val result = run(dir, "classes")
+
+        withClue("the whole ask is that the fault arrives where a compile error would") {
+            result.task(":larkWiring")?.outcome shouldBe TaskOutcome.FAILED
         }
+        result.output shouldContain "Pump needs DataSource"
     }
 
     @Test

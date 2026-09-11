@@ -287,7 +287,7 @@ node that opened the connection is released.
 ## The build running the check
 
 Applying the plugin is the whole of what a project does to get every graph in
-it checked on `check`:
+it checked as it compiles:
 
 ```kotlin
 plugins {
@@ -305,6 +305,22 @@ larkWiring {
 against the root it declares, and writes `<name>.mmd` for each — a mermaid
 diagram the IDE renders. A project with no `LarkApp` passes, so a library
 module in an application build needs no opt-out.
+
+It finalises `classes`, which is what the IDE runs when it builds the project
+and what a run configuration builds before it starts anything. A fault arrives
+where a compile error arrives, rather than where a test failure does, and it
+arrives in the shape the compiler uses:
+
+```
+e: file:///…/petshop/app/src/main/kotlin/petshop/app/Wiring.kt:92:1 lark-app: PetShop needs ActorRef<Shop>, and nothing builds it
+e: file:///…/petshop/app/src/main/kotlin/petshop/app/Arrivals.kt:29:1 lark-app: Arrivals needs ActorRef<Shop>, and nothing builds it
+```
+
+The IDE parses that already, so each line is an entry in the Build window that
+opens the recipe that asked. The line is the one the recipe was written on:
+`single` is inline, so the line the JVM reports for the frame is a synthetic
+one past the end of the file, and lark reads the class file's own SMAP to
+translate it back.
 
 Finding an application loads classes without initialising them, so scanning
 runs no unrelated static state; only a match is initialised. Initialising one
