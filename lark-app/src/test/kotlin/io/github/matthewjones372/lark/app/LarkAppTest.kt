@@ -11,7 +11,7 @@ import kotlin.reflect.typeOf
 internal class Counter(val started: AtomicReference<String> = AtomicReference(""))
 
 /** Declared as an object, which is what the checker finds and what a service writes. */
-internal object Sampled : LarkApp<Counter>(typeOf<Counter>()) {
+internal object Sampled : LarkApp<Counter>() {
 
     override val module: Module = single<Counter> { Counter() }
 
@@ -21,7 +21,7 @@ internal object Sampled : LarkApp<Counter>(typeOf<Counter>()) {
 }
 
 /** A graph short of a key, so the checker has something to fail on. */
-internal object Faulty : LarkApp<Counter>(typeOf<Counter>()) {
+internal object Faulty : LarkApp<Counter>() {
 
     override val module: Module = single { _: File -> Counter() }
 
@@ -29,7 +29,7 @@ internal object Faulty : LarkApp<Counter>(typeOf<Counter>()) {
 }
 
 /** A graph that provides one key twice, which is a warning rather than a failure. */
-internal object Warned : LarkApp<Counter>(typeOf<Counter>()) {
+internal object Warned : LarkApp<Counter>() {
 
     override val module: Module = single<Counter> { Counter() } + single<Counter> { Counter() }
 
@@ -66,5 +66,21 @@ class LarkAppTest {
     private fun WiringError.shouldBeMissingFile() {
         (this as WiringError.Missing).key shouldBe typeOf<File>()
         toString() shouldContain "File"
+    }
+}
+
+internal class Ambiguous
+
+internal object TwoOfThem : LarkApp<Ambiguous>() {
+    override val module: Module = singleOf(::Ambiguous)
+    override fun AppScope.run(root: Ambiguous) = Unit
+}
+
+/** The root is read off the declaration, so it is written once. */
+class RootFromTheDeclarationTest {
+
+    @Test
+    fun `the type between the angle brackets is the root`() {
+        TwoOfThem.root shouldBe typeOf<Ambiguous>()
     }
 }
