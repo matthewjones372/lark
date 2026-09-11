@@ -37,6 +37,7 @@ class LarkWiringPlugin : Plugin<Project> {
         // Captured as values rather than reaching through the extension inside the provider: a
         // lambda holding the extension itself is what the configuration cache cannot serialise.
         val classes = main.output.classesDirs
+        val sources = project.files(main.allSource.srcDirs)
         val diagrams = wiring.diagrams
         val failOn = wiring.failOn
 
@@ -57,11 +58,17 @@ class LarkWiringPlugin : Plugin<Project> {
                         classes.joinToString(File.pathSeparator) { it.absolutePath },
                         diagrams.get().asFile.absolutePath,
                         failOn.get(),
+                        sources.joinToString(File.pathSeparator) { it.absolutePath },
                     )
                 },
             )
         }
 
+        // Finalising `classes` rather than depending on it: `classes` is what the IDE runs when it
+        // builds the project, and what a run configuration builds before it starts anything, so the
+        // graph is checked where a compile error would be rather than where a test failure is. A
+        // dependency the other way round would be a cycle, since the check needs the classes.
+        project.tasks.named("classes") { it.finalizedBy(check) }
         project.tasks.named("check") { it.dependsOn(check) }
     }
 

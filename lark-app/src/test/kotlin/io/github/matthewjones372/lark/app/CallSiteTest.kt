@@ -4,6 +4,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldMatch
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 
 private class Spanner
@@ -21,7 +22,17 @@ class CallSiteTest {
 
         val site = module.nodes.values.single().site.shouldNotBeNull()
 
-        site shouldMatch Regex("""CallSiteTest\.kt:\d+""")
+        site shouldMatch Regex("""io/github/matthewjones372/lark/app/CallSiteTest\.kt:\d+""")
+    }
+
+    @Test
+    fun `a report names the file rather than the path the site carries for a build tool`() {
+        val report = single { _: Spanner -> Bolt() }.validate().leftOrNull().shouldNotBeNull().report()
+
+        withClue("the package is there to resolve a link, not for a person to read past") {
+            report shouldContain "CallSiteTest.kt:"
+            report shouldNotContain "io/github/matthewjones372"
+        }
     }
 
     @Test

@@ -85,12 +85,12 @@ fun NonEmptyList<WiringError>.report(provided: Set<KType>): String {
 
 /** A name and where it was written, padded so a column of them lines up. */
 internal fun at(name: String, site: String?): String =
-    if (site == null) name else name.padEnd(SITE_COLUMN) + site
+    if (site == null) name else name.padEnd(SITE_COLUMN) + shortly(site)
 
 private const val SITE_COLUMN = 24
 
 /** The label without what makes a platform type or a nullable one read differently. */
-private fun plainly(key: KType): String = labelOf(key).trimEnd('?', '!')
+internal fun plainly(key: KType): String = labelOf(key).trimEnd('?', '!')
 
 /** Kahn's algorithm, a layer at a time; what is left when nothing is ready holds the cycle. */
 private tailrec fun layers(
