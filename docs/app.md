@@ -160,6 +160,25 @@ A recipe that cannot proceed says so rather than throwing:
 single { sys: Sys -> sys.required("DB_URL").getOrElse { refuse("DB_URL is not set") } }
 ```
 
+An application that wants checking declares itself as a value, so the root is
+something a build can read without running `main`:
+
+```kotlin
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.runApp
+
+object Petshop : LarkApp<HttpServer>(typeOf<HttpServer>()) {
+    override val module: Module = core + persistence + web
+    override fun AppScope.run(root: HttpServer) { root.start(); awaitShutdown() }
+}
+
+fun main(): Unit = exitProcess(runApp(Petshop).code)
+```
+
+The type argument is written twice because a type parameter is erased by the
+time a build tool reads it, and `findings` needs the root to say what nothing
+reaches. The `runApp(module) { }` form stays for tests and one-file examples.
+
 `Shutdown` is a value, so a test asks an application to stop without raising a
 signal; `runApp` puts a JVM hook behind it, and the hook waits for the releases
 to finish. What went wrong reaches stderr through `describe()`, and `runApp`
