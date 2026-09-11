@@ -75,8 +75,10 @@ class LarkWiringPluginTest {
             .withArguments(*args, "--stacktrace")
 
     @Test
-    fun `a missing key fails the build and names the recipe that asked`(@TempDir dir: File) {
-        project(dir, "", FAULTY)
+    fun `a graph the compiler could not judge is still caught by the task that runs it`(@TempDir dir: File) {
+        // Unreadable on purpose: the compiler gives up on it, so this is the task's catch alone,
+        // which is the division of work the whole design rests on.
+        project(dir, "", UNREADABLE_AND_FAULTY)
 
         val result = run(dir, "larkWiring")
 
@@ -100,7 +102,7 @@ class LarkWiringPluginTest {
         val result = run(dir, "classes")
 
         withClue("the whole ask is that the fault arrives where a compile error would") {
-            result.task(":larkWiring")?.outcome shouldBe TaskOutcome.FAILED
+            result.task(":compileKotlin")?.outcome shouldBe TaskOutcome.FAILED
         }
         result.output shouldContain "Pump needs DataSource"
     }
@@ -127,13 +129,34 @@ class LarkWiringPluginTest {
     }
 
     @Test
-    fun `the reader agrees with the graph the task builds by running it`(@TempDir dir: File) {
-        project(dir, "larkWiring { verbose = true }", FAULTY)
+    fun `a missing key is a compiler error on the recipe that asked`(@TempDir dir: File) {
+        project(dir, "", FAULTY)
+
+        val result = run(dir, "compileKotlin")
+
+        withClue("the whole ask was an error while you type, and this is the compiler's own") {
+            result.task(":compileKotlin")?.outcome shouldBe TaskOutcome.FAILED
+        }
+        withClue("the sentence larkWiring prints for the same fault, so a reader meets one wording") {
+            result.output shouldContain "Pump needs DataSource, and nothing builds it"
+        }
+    }
+
+    @Test
+    fun `a sound graph compiles without a word`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+
+        runner(dir, "compileKotlin").build().output shouldNotContain "lark-app"
+    }
+
+    @Test
+    fun `a graph the reader gave up on compiles, and is left to the task`(@TempDir dir: File) {
+        project(dir, "", UNREADABLE)
 
         val result = runner(dir, "compileKotlin").build()
 
-        withClue("the whole claim is that this answers what larkWiring answers, only sooner") {
-            result.output shouldContain "provides [Pump], and is short of [DataSource]"
+        withClue("a red line under working code costs more than a fault found a moment later") {
+            result.output shouldNotContain "nothing builds it"
         }
     }
 
@@ -208,6 +231,14 @@ private val named: Module = single { _: DataSource -> Pump() } + single { _: Dat
 
 object Under : LarkApp<Pump>() {
     override val module: Module = named + chosen
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** Unreadable and short of a key: what only a task that runs the graph can catch. */
+private const val UNREADABLE_AND_FAULTY = """$IMPORTS
+object Under : LarkApp<Pump>() {
+    override val module: Module = listOf(single { _: DataSource -> Pump() }).reduce { a, b -> a + b }
     override fun AppScope.run(root: Pump) = Unit
 }
 """

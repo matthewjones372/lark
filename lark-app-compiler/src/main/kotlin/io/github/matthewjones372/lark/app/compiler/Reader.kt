@@ -1,6 +1,8 @@
 package io.github.matthewjones372.lark.app.compiler
 
 import org.jetbrains.kotlin.KtSourceElement
+import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.declarations.FirResolvePhase
 import org.jetbrains.kotlin.fir.expressions.FirBlock
 import org.jetbrains.kotlin.fir.expressions.FirExpression
@@ -11,6 +13,7 @@ import org.jetbrains.kotlin.fir.expressions.FirTypeOperatorCall
 import org.jetbrains.kotlin.fir.expressions.FirWhenExpression
 import org.jetbrains.kotlin.fir.expressions.arguments
 import org.jetbrains.kotlin.fir.references.toResolvedCallableSymbol
+import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
@@ -33,6 +36,37 @@ internal class Gave {
     fun <T> up(what: String): T? {
         if (at == null) at = what
         return null
+    }
+}
+
+/**
+ * The file being checked, and the last reference in it that a read passed through.
+ *
+ * A diagnostic is reported into one file, so a source element from another lands at that offset in
+ * this one — which is how a fault in `Arrivals.kt` came out underlined in an import. A read that
+ * leaves the file keeps the reference that took it there and anchors everything it finds on that.
+ */
+internal class Here(
+    private val session: FirSession,
+    private val path: String?,
+    private val at: KtSourceElement? = null,
+) {
+
+    /** The last reference seen while still inside the file being checked. */
+    fun at(source: KtSourceElement?): Here = if (at == null) Here(session, path, source) else this
+
+    /** Reading on, still anchored where this file mentioned it unless the declaration is in it. */
+    fun inside(symbol: FirCallableSymbol<*>): Here = if (pathOf(symbol) == path) Here(session, path) else this
+
+    /** What was read beyond this file, reported where this file mentions it. */
+    fun anchor(graph: Graph): Graph =
+        if (at == null) graph else Graph(graph.provides, graph.needs.map { Need(it.key, it.by, at) })
+
+    private fun pathOf(symbol: FirCallableSymbol<*>): String? =
+        session.firProvider.getFirCallableContainerFile(symbol)?.sourceFile?.path
+
+    internal companion object {
+        fun of(session: FirSession, file: FirFile?): Here = Here(session, file?.sourceFile?.path)
     }
 }
 
@@ -62,11 +96,16 @@ internal class Graph(val provides: Set<String>, val needs: List<Need>) {
  * reader that gives up costs nothing, because `larkWiring` still runs the graph and fails the build.
  * So every shape not listed here abandons the application rather than assuming it provides nothing.
  */
-internal fun read(expression: FirExpression, gave: Gave, seen: Set<FirCallableSymbol<*>> = emptySet()): Graph? =
+internal fun read(
+    expression: FirExpression,
+    gave: Gave,
+    here: Here,
+    seen: Set<FirCallableSymbol<*>> = emptySet(),
+): Graph? =
     when (expression) {
-        is FirFunctionCall -> call(expression, gave, seen)
+        is FirFunctionCall -> call(expression, gave, here, seen)
 
-        is FirPropertyAccessExpression -> through(expression.symbol(), gave, seen)
+        is FirPropertyAccessExpression -> through(expression.symbol(), gave, here.at(expression.source), seen)
 
         // `if` is a `when` in FIR. A branch that cannot be read makes the choice unreadable, since
         // the key it would have provided is exactly what decides whether another is missing.
@@ -74,11 +113,11 @@ internal fun read(expression: FirExpression, gave: Gave, seen: Set<FirCallableSy
             expression.branches
                 .fold(Graph.nothing as Graph?) { all, branch ->
                     val result = branch.result.singleExpression() ?: return gave.up("a branch of several statements")
-                    all?.let { read(result, gave, seen)?.plus(it) }
+                    all?.let { read(result, gave, here, seen)?.plus(it) }
                 }
 
         // `single { ... } as Module` and its like: the cast says nothing the operand did not.
-        is FirTypeOperatorCall -> expression.arguments.singleOrNull()?.let { read(it, gave, seen) }
+        is FirTypeOperatorCall -> expression.arguments.singleOrNull()?.let { read(it, gave, here, seen) }
 
         else -> gave.up(expression::class.simpleName ?: "an expression")
     }
@@ -88,7 +127,7 @@ private fun FirPropertyAccessExpression.symbol(): FirPropertySymbol? =
 
 /** A `val` or a function returning a module: read what it was written as, once. */
 @OptIn(org.jetbrains.kotlin.fir.symbols.SymbolInternals::class)
-private fun through(symbol: FirCallableSymbol<*>?, gave: Gave, seen: Set<FirCallableSymbol<*>>): Graph? {
+private fun through(symbol: FirCallableSymbol<*>?, gave: Gave, here: Here, seen: Set<FirCallableSymbol<*>>): Graph? {
     if (symbol == null) return gave.up("a reference that did not resolve")
     if (symbol in seen) return gave.up("${symbol.callableId}, which refers to itself")
     symbol.lazyResolveToPhase(FirResolvePhase.BODY_RESOLVE)
@@ -97,7 +136,11 @@ private fun through(symbol: FirCallableSymbol<*>?, gave: Gave, seen: Set<FirCall
         is FirNamedFunctionSymbol -> symbol.fir.body?.singleExpression()
         else -> null
     } ?: return gave.up("${symbol.callableId}, which has no source here")
-    return read(written, gave, seen + symbol)
+    // The place the reading moves to, which is also the place its findings are reported: within the
+    // file being checked there is no anchor and every recipe keeps its own line; beyond it, the
+    // reference that led here is the only source this file can be told about.
+    val target = here.inside(symbol)
+    return read(written, gave, target, seen + symbol)?.let { target.anchor(it) }
 }
 
 /** A block that is one expression, which is what a `= ...` function and a `when` branch are. */
@@ -110,7 +153,7 @@ private fun FirBlock.singleExpression(): FirExpression? =
  * Split that way because only the second kind needs the expressions around it: a factory is decided
  * by its name and its type arguments alone.
  */
-private fun call(call: FirFunctionCall, gave: Gave, seen: Set<FirCallableSymbol<*>>): Graph? {
+private fun call(call: FirFunctionCall, gave: Gave, here: Here, seen: Set<FirCallableSymbol<*>>): Graph? {
     val called = call.calleeReference.toResolvedCallableSymbol()?.callableId
         ?: return gave.up("a call that did not resolve")
     val arguments = call.typeArguments.map { projection ->
@@ -119,7 +162,7 @@ private fun call(call: FirFunctionCall, gave: Gave, seen: Set<FirCallableSymbol<
     }
 
     return factory(called, arguments, call.source)
-        ?: combinator(call, called, arguments, gave, seen)
+        ?: combinator(call, called, arguments, gave, here, seen)
         ?: gave.up("$called, which is not a lark factory")
 }
 
@@ -143,11 +186,12 @@ private fun combinator(
     called: CallableId,
     arguments: List<String>,
     gave: Gave,
+    here: Here,
     seen: Set<FirCallableSymbol<*>>,
 ): Graph? {
-    val left = { call.explicitReceiver?.let { read(it, gave, seen) } }
+    val left = { call.explicitReceiver?.let { read(it, gave, here, seen) } }
     val right = {
-        call.arguments.singleOrNull()?.let { read(it, gave, seen) } ?: gave.up<Graph>("a merge of no one thing")
+        call.arguments.singleOrNull()?.let { read(it, gave, here, seen) } ?: gave.up<Graph>("a merge of no one thing")
     }
     return when (called) {
         PLUS, OVERRIDING -> left()?.let { base -> right()?.let { base + it } }

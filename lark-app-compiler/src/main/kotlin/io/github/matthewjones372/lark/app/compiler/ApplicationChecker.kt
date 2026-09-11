@@ -5,8 +5,10 @@ import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirClassChecker
+import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirClass
 import org.jetbrains.kotlin.fir.declarations.FirProperty
+import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneType
 import org.jetbrains.kotlin.name.ClassId
@@ -32,24 +34,37 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
         val gave = Gave()
         val graph = declaration.graph(gave)
 
-        if (!verbose) return
-        val said = when (graph) {
-            null -> "${declaration.name()} was not read: gave up at ${gave.at}"
-
-            else -> "${declaration.name()} provides ${graph.provides.map(::labelOf).sorted()}" +
-                ", and is short of ${graph.missing().map { labelOf(it.key) }.distinct().sorted()}"
+        graph?.missing().orEmpty().forEach { need ->
+            // On the recipe that asked rather than on the application: the line to edit is the one
+            // the dependency was written on, which is the line `larkWiring` names too.
+            reporter.reportOn(need.at ?: declaration.source, LarkDiagnostics.LARK_APP_MISSING, need.said(), context)
         }
-        reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_FOUND, said, context)
+
+        if (verbose) {
+            val read = declaration.read(graph, gave)
+            reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_FOUND, read, context)
+        }
+    }
+
+    /** The sentence `lark-app` prints for the same fault, so a reader meets one wording not two. */
+    private fun Need.said(): String = "${labelOf(by)} needs ${labelOf(key)}, and nothing builds it"
+
+    private fun FirClass.read(graph: Graph?, gave: Gave): String = when (graph) {
+        null -> "${name()} was not read: gave up at ${gave.at}"
+
+        else -> "${name()} provides ${graph.provides.map(::labelOf).sorted()}" +
+            ", and is short of ${graph.missing().map { labelOf(it.key) }.distinct().sorted()}"
     }
 
     private fun FirClass.isApplication(): Boolean = superTypeRefs.any { it.coneType.classId == larkApp }
 
-    @OptIn(org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess::class)
+    @OptIn(DirectDeclarationsAccess::class, SymbolInternals::class)
+    context(context: CheckerContext)
     private fun FirClass.graph(gave: Gave): Graph? =
         declarations.filterIsInstance<FirProperty>()
             .firstOrNull { it.name == module }
             ?.initializer
-            ?.let { read(it, gave) }
+            ?.let { read(it, gave, Here.of(context.session, context.containingFileSymbol?.fir)) }
 
     private fun FirClass.name(): String = symbol.classId.asFqNameString()
 }
