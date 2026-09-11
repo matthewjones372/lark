@@ -33,7 +33,7 @@ class CheckTest {
 
     @Test
     fun `a graph short of a key fails the check and names the application`() {
-        val checked = check(testClasses())
+        val checked = checkWiring(testClasses())
 
         checked.failed shouldBe true
         checked.report shouldContain "Faulty"
@@ -42,14 +42,14 @@ class CheckTest {
 
     @Test
     fun `a diagram is written for every application found`(@TempDir into: File) {
-        check(testClasses(), diagrams = into)
+        checkWiring(testClasses(), diagrams = into)
 
         File(into, "Sampled.mmd").readText() shouldContain "graph TD"
     }
 
     @Test
     fun `a directory with no application passes and says nothing`(@TempDir empty: File) {
-        val checked = check(listOf(empty))
+        val checked = checkWiring(listOf(empty))
 
         checked.failed shouldBe false
         checked.report shouldBe ""
@@ -60,9 +60,9 @@ class CheckTest {
         alone("Warned", only)
 
         withClue("Warned provides one key twice, which the default floor lets through") {
-            check(listOf(only)).failed shouldBe false
+            checkWiring(listOf(only)).failed shouldBe false
         }
-        check(listOf(only), failOn = Severity.WARN).failed shouldBe true
+        checkWiring(listOf(only), failOn = Severity.WARN).failed shouldBe true
     }
 
     /**

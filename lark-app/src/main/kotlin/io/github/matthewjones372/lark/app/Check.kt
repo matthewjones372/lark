@@ -16,7 +16,7 @@ data class Checked(val report: String, val failed: Boolean)
  * warnings fatal passes `WARN`. A diagram of each graph is written into [diagrams] where one is
  * given, which is the drawing the IDE renders.
  */
-fun check(classes: List<File>, diagrams: File? = null, failOn: Severity = Severity.FAIL): Checked {
+fun checkWiring(classes: List<File>, diagrams: File? = null, failOn: Severity = Severity.FAIL): Checked {
     val checked = apps(classes).map { app ->
         diagrams?.let { into ->
             into.mkdirs()
@@ -83,7 +83,7 @@ fun main(args: Array<String>) {
     val diagrams = args.getOrElse(1) { "" }.takeIf { it.isNotBlank() }?.let(::File)
     val failOn = Severity.valueOf(args.getOrElse(2) { Severity.FAIL.name })
 
-    val checked = check(classes, diagrams, failOn)
+    val checked = checkWiring(classes, diagrams, failOn)
     if (checked.report.isNotBlank()) said().println(checked.report)
     exitProcess(if (checked.failed) 1 else 0)
 }
