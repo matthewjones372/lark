@@ -425,7 +425,7 @@ every path into `Frontage` is something that must be ready before the door
 opens. Neither is visible in the code that built it.
 
 A graph that declares the node it starts from is one a build can read without
-running `main`, which is what `lark-app-gradle` does on every `check`:
+running `main`, which is what `lark-app-gradle` does as the project compiles:
 
 ```
 lark-app wiring
@@ -447,9 +447,30 @@ as a dependency. `lark-app-pekko` makes an actor a node, keyed by the
 `ActorRef<T>` of its protocol.
 
 There are no annotations, no processor and no effect type. A module is an
-expression, so there is nothing for KSP to read — the check runs the expression
+expression, so there is nothing for KSP to read: KSP models declarations, and
+`val app = single { } + single { }` is neither. The check runs the expression
 instead, which is why it sees an actor node and a module assembled in a
-conditional, and why what it gives is a failed build rather than a red squiggle.
+conditional.
+
+Running the expression means waiting for a build, so `lark-app-compiler` reads
+the same graph out of the compiler's own syntax tree and says the same sentence
+where you are typing it:
+
+![IntelliJ underlining `singleOf(::ActorPetShop)` in red, with the tooltip
+"lark-app: PetShop needs ActorRef<Shop>, and nothing builds it".](docs/editor-error.png)
+
+It is a K2 checker with no backend half, which is what lets the IDE run it. It
+follows what it knows — the factories above, `+`, `boundTo`, names in the same
+compilation unit, the branches of a `when` — and abandons the whole application
+the moment it meets a shape it does not, because a red line under working code
+costs more than a fault found a moment later. `larkWiring` stays the gate: it
+runs the graph, so it sees what no reader of source can.
+
+Two things to know before turning it on. IntelliJ runs no third-party compiler
+plugin in the editor until
+`kotlin.k2.only.bundled.compiler.plugins.enabled` is unchecked in the registry;
+and a module that arrives from another Gradle module has no source here to read,
+so a graph assembled across modules is one the editor stays quiet about.
 [`docs/app.md`](docs/app.md) is the whole of it.
 
 ## Streams

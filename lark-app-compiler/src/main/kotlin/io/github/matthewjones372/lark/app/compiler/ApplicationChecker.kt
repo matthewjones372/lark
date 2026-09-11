@@ -34,6 +34,11 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
         val gave = Gave()
         val graph = declaration.graph(gave)
 
+        if (graph == null) {
+            val why = gave.at ?: "a shape it does not know"
+            reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_UNREAD, why, context)
+        }
+
         graph?.missing().orEmpty().forEach { need ->
             // On the recipe that asked rather than on the application: the line to edit is the one
             // the dependency was written on, which is the line `larkWiring` names too.
