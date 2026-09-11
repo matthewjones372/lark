@@ -284,13 +284,43 @@ protocol it sends rather than a name. The stop is awaited through
 `gracefulStop`, so an actor holding a connection has given it back before the
 node that opened the connection is released.
 
+## The build running the check
+
+Applying the plugin is the whole of what a project does to get every graph in
+it checked on `check`:
+
+```kotlin
+plugins {
+    kotlin("jvm")
+    id("io.github.matthewjones372.lark.wiring")
+}
+
+larkWiring {
+    failOn = "WARN"                                  // default "FAIL"
+    diagrams = layout.buildDirectory.dir("wiring")   // default build/reports/lark
+}
+```
+
+`larkWiring` finds every `LarkApp` in the project's own class output, checks it
+against the root it declares, and writes `<name>.mmd` for each — a mermaid
+diagram the IDE renders. A project with no `LarkApp` passes, so a library
+module in an application build needs no opt-out.
+
+Finding an application loads classes without initialising them, so scanning
+runs no unrelated static state; only a match is initialised. Initialising one
+runs the expression that assembles its graph and none of the recipes in it,
+which is the same thing `validate` has always promised.
+
 ## What it does not do
 
 - **No annotations and no annotation processor.** KSP models declarations and a
   module is an expression, so the compile-time report ZIO's macro gives has no
-  route here that keeps `plus`, `subgraph` and `render`. `validate` is the gate
-  instead. [Spec 0016](../specs/0016-an-application-that-starts-as-a-value.md)
-  says so at more length.
+  route here that keeps `plus`, `subgraph` and `render`. The `larkWiring` task
+  is the gate instead, and it sees the whole graph — actor nodes and modules
+  assembled in a conditional included — because it runs the expression rather
+  than reading the source. What it cannot give is an error on the line while
+  you type. [Spec 0016](../specs/0016-an-application-that-starts-as-a-value.md)
+  and [0026](../specs/0026-the-build-runs-the-check.md) say so at more length.
 - **No local environment.** One graph, one instance per key. Two `DataSource`s
   are two keys — a `@JvmInline value class Replica(val ds: DataSource)` is free
   under the type keys and says which one a consumer wanted.

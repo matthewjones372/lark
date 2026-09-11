@@ -65,7 +65,12 @@ val moduleDescriptions = mapOf(
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
     "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
     "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
+    "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn on `check`.",
 )
+
+// A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
+// is a build that runs rather than a line count: petshop applying it is the test, not a percentage.
+val gradlePluginModules = setOf("lark-app-gradle")
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
@@ -82,7 +87,7 @@ kover {
 }
 
 dependencies {
-    subprojects.forEach { kover(project(it.path)) }
+    subprojects.filterNot { it.name in gradlePluginModules }.forEach { kover(project(it.path)) }
 }
 
 // A floor nobody runs is not a floor: `./gradlew build` checks it.
@@ -132,7 +137,9 @@ subprojects {
         systemProperty("junit.jupiter.execution.timeout.default", "60s")
     }
 
-    apply(plugin = "org.jetbrains.kotlinx.kover")
+    if (name !in gradlePluginModules) {
+        apply(plugin = "org.jetbrains.kotlinx.kover")
+    }
 
     apply(plugin = "dev.detekt")
     extensions.configure<dev.detekt.gradle.extensions.DetektExtension> {
