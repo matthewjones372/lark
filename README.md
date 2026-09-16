@@ -441,6 +441,31 @@ missing key and a cycle are errors; a key provided twice and a node no root
 reaches are warnings. Applying the plugin is the whole of the per-project cost,
 and it draws each graph into `build/reports/lark` beside the report.
 
+A configuration answers the same question. A hierarchy of HOCON files resolves
+to one document, and `lark-app-typesafe` says which file won and what it beat:
+
+```kotlin
+import io.github.matthewjones372.lark.app.typesafe.layeredConfig
+import io.github.matthewjones372.lark.app.typesafe.origins
+
+layeredConfig().origins().report()
+```
+
+```
+lark-app configuration
+
+petshop.arrivalsEvery  30s           reference.conf:4
+petshop.db.password    ●●●●●●        application.conf:5
+petshop.db.pool        16            application.conf:4
+                       overrides 4 at reference.conf:3
+petshop.port           9090          application.conf:2
+                       overrides 8080 at reference.conf:2
+```
+
+Values are redacted by default — a name match is the floor, `Secrets.and(path)`
+is the exact answer, and `secret(path)` reads one as a value that prints as the
+mask through `toString`, so a log line cannot leak it either.
+
 A probe is what makes "started" mean "ready" rather than "constructed", and the
 same probes answer `/ready` afterwards through a `HealthRegistry` a route takes
 as a dependency. `lark-app-pekko` makes an actor a node, keyed by the
