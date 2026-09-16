@@ -50,6 +50,15 @@ class Reading internal constructor(val config: Config) {
 
     fun strings(path: String): List<String> = of(emptyList()) { getStringList(path) }
 
+    /**
+     * A string that will not print itself.
+     *
+     * For the secret a name match cannot find — a password inside a URL, a token under a name that
+     * says nothing. What comes back masks itself in a log line, an exception and a data class's
+     * `toString` alike; `Secrets.and(path)` is the other half, and redacts it in a report.
+     */
+    fun secret(path: String): Secret = Secret(of("") { getString(path) })
+
     /** HOCON's own duration — `30s`, `5 minutes` — as `kotlin.time`'s, which is what lark takes. */
     fun duration(path: String): Duration = of(Duration.ZERO) { getDuration(path).toKotlinDuration() }
 

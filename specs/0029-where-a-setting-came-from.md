@@ -63,12 +63,17 @@ Redaction is default-deny, decided rather than asked: a report that prints a
 database password into a CI log is worse than no report. The default is a name
 match — `password`, `secret`, `token`, `key`, `credential` — which a caller may
 extend and may not shrink. The hole in a name match is a secret that has no
-such name, `jdbc:…//user:pass@host` being the common one, and the fix for that
-is a `secret(path)` reader in `Reading` that marks a path redacted wherever it
-is reported. Declared beats guessed; the guess is the floor.
+such name, `jdbc:…//user:pass@host` being the common one, so `secret(path)`
+reads one as a `Secret`: a value whose `toString` is the mask, so it cannot be
+printed by a log line or an exception either, and whose path the report
+redacts. Declared beats guessed; the guess is the floor.
 
-One nuance the report must not get wrong: **an environment variable is not a
-layer**. It enters only where a file wrote `${?FOO}`, and setting it with no
+Two things the report must not get wrong. `ConfigFactory.defaultReference()`
+is **not** a clean layer — it already carries system properties, so a report
+built on it says reference.conf holds a value that came from `-D`. The layers
+are `defaultOverrides()` and `parseResources` of each file.
+
+And **an environment variable is not a layer**. It enters only where a file wrote `${?FOO}`, and setting it with no
 such substitution changes nothing. When it does win, the merged origin reads
 `env variables` and loses the line that asked — which the unresolved parse
 still holds, rendered as `9090,${?PETSHOP_PORT}`.
@@ -85,6 +90,11 @@ still holds, rendered as `9090,${?PETSHOP_PORT}`.
       Done when: a setting `application.conf` overrode names the value and the
       origin it replaced, and a setting only one layer supplied says nothing
       extra.
+- [ ] **`spec-0029-secret`** — `Secret`, `Reading.secret(path)`, the declared
+      path redacted by the report.
+      Done when: a secret read from a section prints as the mask through
+      `toString`, gives its value only to `reveal()`, and its path is redacted
+      in a report that the name match would have missed.
 
 ## Acceptance
 
@@ -98,9 +108,9 @@ still holds, rendered as `9090,${?PETSHOP_PORT}`.
    can log at start-up or a test can assert on. Not the `larkWiring` task: the
    configuration it would read is the build machine's, which is the wrong
    answer stated confidently.
-2. **Does `secret(path)` land in this spec or the next?** Recommend the next.
-   The name match is the floor and works on day one; the marker is a change to
-   `Reading`'s surface and deserves its own argument.
+2. ~~**Does `secret(path)` land in this spec or the next?**~~ Answered: this
+   spec, on the author's say-so. The name match is the floor; `Secret` is what
+   makes a declared secret safe in a log as well as in the report.
 3. **Should an unreadable layer fail `origins()`?** Recommend not: the report
    is a debugging tool, and refusing to explain a broken file is the opposite
    of what it is for. `config` already refuses the start.

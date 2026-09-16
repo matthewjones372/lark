@@ -264,6 +264,65 @@ adds over Typesafe Config is that a failed read records its fault and the block
 runs on, so a bad file is one message rather than one deploy per fault — in
 Typesafe Config's own words, which name the file and the line.
 
+### Where a setting came from
+
+A hierarchy resolves to one document, and the question is always which file said
+that and what it overrode:
+
+```kotlin
+import io.github.matthewjones372.lark.app.typesafe.layeredConfig
+import io.github.matthewjones372.lark.app.typesafe.origins
+
+layeredConfig().origins().report()
+```
+
+<!-- cookbook-config-report -->
+```
+lark-app configuration
+
+petshop.arrivalsEvery  30s           reference.conf:4
+petshop.db.password    ●●●●●●        application.conf:5
+petshop.db.pool        16            application.conf:4
+                       overrides 4 at reference.conf:3
+petshop.port           9090          application.conf:2
+                       overrides 8080 at reference.conf:2
+```
+
+`config.origins()` answers the same for a document already merged, minus the
+override line: `withFallback` keeps the winner and forgets what it beat, so the
+layers have to be held apart for that — the same thing `plus` does to a shadowed
+node, answered the same way. `layeredConfig()` holds them.
+
+**Values are redacted by default.** A name match — `password`, `token`, `key`
+and the rest — is the floor, and it misses a secret that has no such name:
+
+```kotlin
+import io.github.matthewjones372.lark.app.typesafe.Secrets
+
+config.origins(Secrets.default.and("petshop.db.url")).report()   // jdbc:…//user:pass@host
+```
+
+`Secrets` can be added to and not shrunk. For the value itself, `secret(path)`
+reads one as a `Secret`, which prints as the mask through `toString` and gives
+its value only to `reveal()` — so a log line and an exception cannot leak it
+either:
+
+```kotlin
+import io.github.matthewjones372.lark.app.typesafe.Secret
+
+data class Credentials(val url: Secret, val poolSize: Int)
+
+config<Credentials>("database") { Credentials(secret("url"), int("poolSize")) }
+```
+
+Two things worth knowing about HOCON that the report is careful with. An
+**environment variable is not a layer**: it enters only where a file wrote
+`${?FOO}`, and setting one with no such substitution changes nothing. And
+`ConfigFactory.defaultReference()` already carries system properties, so
+`layeredConfig` parses the reference file itself rather than asking for it —
+otherwise the report would say `reference.conf` holds a value that came from
+`-D`.
+
 ### Configuration in a test
 
 ```kotlin
