@@ -10,6 +10,9 @@ import java.nio.file.Path
 /** What a service reads at start-up: `application.conf`, its reference, and the system properties. */
 fun loadedConfig(): Module = single<Config> { ConfigFactory.load() }
 
+/** A document the assembly already parsed — the one a `choosing` read to pick its modules. */
+fun configOf(config: Config): Module = single<Config> { config }
+
 /** A document written where the test is, for a case that would rather not have a file at all. */
 fun configOf(hocon: String): Module = single<Config> { ConfigFactory.parseString(hocon).resolve() }
 

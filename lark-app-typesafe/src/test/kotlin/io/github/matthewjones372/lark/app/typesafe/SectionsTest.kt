@@ -20,6 +20,12 @@ private data class Db(val url: String, val poolSize: Int, val idle: Duration, va
 
 private class Pooling(val db: Db)
 
+private class Checked(val url: String) {
+    init {
+        require(url.isNotEmpty()) { "a url is required" }
+    }
+}
+
 class SectionsTest {
 
     private val file: Hocon = ConfigFactory.parseResources("application.conf").resolve()
@@ -50,6 +56,16 @@ class SectionsTest {
         said shouldContain "url"
         withClue("the exception's own message names the origin, which this could not word better") {
             said shouldContain "application.conf"
+        }
+    }
+
+    @Test
+    fun `a constructor that validates a discarded value still answers with the faults`() {
+        val faults = file.reading { section("broken") { Checked(string("url")) } }
+            .leftOrNull().shouldNotBeNull()
+
+        withClue("the missing url is what to fix; the require it tripped on the way past is not") {
+            faults.joinToString { it.why } shouldContain "url"
         }
     }
 

@@ -40,10 +40,8 @@ fun persistence(conf: Config): Module =
     }
 
 object Shop : LarkApp<Server>() {
-    override val module = shop(ConfigFactory.load())
+    override val module = ConfigFactory.load().let { conf -> configOf(conf) + persistence(conf) + web }
 }
-
-fun shop(conf: Config): Module = configOf(conf) + persistence(conf) + web
 ```
 
 `RepoConf` is a node under its own key exactly as `config("repo")` would leave
@@ -51,6 +49,10 @@ it, so a recipe that wants `ttl` takes it as a dependency and nothing is read
 twice. A section that will not read answers with `Reading`'s discarded values,
 picks the branch those name, and refuses the start on the node itself — the
 same `Refused` message `config()` gives, naming the file and the line.
+
+A choice is not a node, so the one case that cannot refuse is a read that
+*throws* on a discarded value. There is nothing to pick with, and `choosing`
+throws where it is written, naming every fault.
 
 ## Why this shape
 
@@ -67,8 +69,8 @@ combinator and this is an argument.
 
 ## Stack
 
-- [ ] **`spec-0028-choosing`** — `choosing`, a `configOf(Config)` overload, and
-      the `docs/app.md` section.
+- [x] **`spec-0028-choosing`** — `choosing`, a `configOf(Config)` overload, and
+      the `docs/cookbook.md` section. #54
       Done when: a graph whose branch `application.conf` picks renders only
       that branch, and a missing key in the chosen section refuses the start
       naming the file and the line.
@@ -81,11 +83,20 @@ combinator and this is an argument.
 
 ## Open questions
 
-1. **Should the check draw both branches?** Recommend no: a diagram of a graph
-   that never exists is worse than a diagram of the one `application.conf` runs.
-2. **Should `overridingConfig` refuse where a choice was already made?** It
-   cannot tell. Recommend documenting it under the testing section instead.
+Answered in the draft rather than by a reviewer, on the author's say-so.
+
+1. **Should the check draw both branches?** No. A diagram of a graph that never
+   runs is worse than a diagram of the one `application.conf` picks.
+2. **Should `overridingConfig` refuse where a choice was already made?** No — it
+   cannot tell. Documented under the testing section instead.
 3. **Does a `Config`-free `Module.choosing(flag: Boolean)` belong in
-   `lark-app`?** Recommend no: that is `if`, and 0023's objection stands.
-4. **Is `RepoConf` still a node when only the choice reads it?** Recommend yes,
-   always — an overload that drops it is an API for saving one key.
+   `lark-app`?** No: that is `if`, and 0023's objection to it stands.
+4. **Is `RepoConf` still a node when only the choice reads it?** Yes, always. An
+   overload that drops it is an API for saving one key.
+
+## What building it turned up
+
+`Reading.section` added a nested reading's faults with `also`, so a block that
+threw past it lost them — which made 0023's own claim, that a validating
+constructor is "caught, with the faults answered instead", untrue for a nested
+section. A `finally` fixes it, and the case now has a test in both files.

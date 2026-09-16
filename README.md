@@ -54,7 +54,7 @@ is where that claim is checked.
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
-| `lark-app-typesafe` | a HOCON section as a node, and every fault at once | `com.typesafe:config` |
+| `lark-app-typesafe` | a HOCON section as a node, every fault at once, and a setting that picks a module | `com.typesafe:config` |
 | `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |
 | `lark-app-gradle` | a Gradle plugin: every graph in a project checked and drawn as it compiles | `gradleApi()` |
 
