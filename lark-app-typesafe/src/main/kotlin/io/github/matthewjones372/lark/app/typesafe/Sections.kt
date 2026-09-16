@@ -59,7 +59,13 @@ class Reading internal constructor(val config: Config) {
     /** A nested section, read the same way. Its faults are this one's. */
     fun <A> section(path: String, block: Reading.() -> A): A {
         val nested = Reading(of(config.root().toConfig()) { getConfig(path) })
-        return nested.block().also { faults += nested.faults }
+        // In a finally rather than after the call: a constructor that validates one of the discarded
+        // values throws past it, and the faults that produced those values are the answer wanted.
+        try {
+            return nested.block()
+        } finally {
+            faults += nested.faults
+        }
     }
 }
 
@@ -91,3 +97,38 @@ inline fun <reified A : Any> config(path: String, noinline read: Reading.() -> A
 @Deprecated("Named config, which is what it reads", ReplaceWith("config(path, read)"))
 inline fun <reified A : Any> configured(path: String, noinline read: Reading.() -> A): Module =
     config(path, read)
+
+/**
+ * The section at [path], read where the graph is assembled, so a setting can pick between modules.
+ *
+ * A setting like `useCache` does not configure a repository; it chooses between two. [config] cannot
+ * answer that, because it makes the section a node and the choice has to be made before any node is
+ * built — lark-app builds every node in the graph, so a branch left in it starts its resources too.
+ * [A] is still a node afterwards, exactly as [config] leaves it, so nothing reads the path twice.
+ *
+ * A choice is not a node, so a fault cannot refuse at the choice itself: the branch is picked from
+ * the values [Reading] discards and the node for [A] carries the refusal, which is the message and
+ * the exit code [config] would have given. Where the read throws instead — a constructor validating
+ * one of those discarded values — there is nothing to pick with, and the faults are thrown here.
+ */
+inline fun <reified A : Any> Config.choosing(
+    path: String,
+    noinline read: Reading.() -> A,
+    chosen: (A) -> Module,
+): Module {
+    val section = sectionOf(path, read)
+    val why = section.faults.joinToString("; ") { fault -> fault.why }
+    val settings = checkNotNull(section.value) { "lark-app: $path could not be read: $why" } as A
+    return chosen(settings) + single<A> { if (why.isEmpty()) settings else refuse(why) }
+}
+
+/** What a section read and what it could not, which [reading] keeps apart because it answers with one. */
+@PublishedApi
+internal class Section(val value: Any?, val faults: List<ConfigFault>)
+
+@PublishedApi
+internal fun <A> Config.sectionOf(path: String, read: Reading.() -> A): Section {
+    val reading = Reading(this)
+    val value = runCatching { reading.section(path, read) }
+    return Section(value.getOrNull(), reading.faults.toList())
+}

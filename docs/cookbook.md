@@ -289,8 +289,49 @@ still come from `application.conf`. The `overriding` underneath refuses a key
 nothing provides, so a typo is a failed test rather than a setting silently
 ignored.
 
-The `when` a service writes over its own settings needs nothing from lark:
-`Module` is a value, so `when` already answers with one.
+### A setting that picks a module
+
+`useCache` does not configure a repository; it chooses between two. `config`
+cannot answer that, because it makes the section a node and the choice has to be
+made before any node is built — lark-app builds every node the graph holds, so a
+branch left in one starts its resources too.
+
+`choosing` reads the section where the graph is assembled, and hands it to a
+block that picks:
+
+```kotlin
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import io.github.matthewjones372.lark.app.typesafe.choosing
+import io.github.matthewjones372.lark.app.typesafe.configOf
+
+data class RepoSettings(val useCache: Boolean, val ttl: kotlin.time.Duration)
+
+fun persistence(conf: Config): Module =
+    conf.choosing("repo", { RepoSettings(boolean("useCache"), duration("ttl")) }) { repo ->
+        if (repo.useCache) cachingRepo else plainRepo
+    }
+
+object Shop : LarkApp<Pool>() {
+    override val module = ConfigFactory.load().let { conf -> configOf(conf) + persistence(conf) }
+    override fun AppScope.run(root: Pool) = awaitShutdown()
+}
+```
+
+The branch not taken contributes no node, nothing to build and nothing to start.
+`RepoSettings` is still a node, so a recipe that wants `ttl` takes it as a
+dependency rather than naming the path a second time, and a section that will
+not read refuses the start there, naming every fault at once.
+
+Two things follow from the choice being made at assembly rather than at start.
+`checkWiring` runs on the main runtime classpath, so the graph it draws is the
+one `application.conf` picks — a branch reached only through a deployment
+override is not drawn. And `overridingConfig` cannot un-pick a choice already
+made: a test flips it by assembling with its own `Config`, or by `overriding`
+the node the branch provides.
+
+Where the setting is already in hand, none of this is needed. `Module` is a
+value, so `when` over it answers with one:
 
 ```kotlin
 val carts: Module = when (settings.getString("cartStore")) {
@@ -298,9 +339,6 @@ val carts: Module = when (settings.getString("cartStore")) {
     else -> redisCarts
 }
 ```
-
-The branch not taken contributes no node, nothing to build and nothing to
-start.
 
 ## Read the process itself
 
