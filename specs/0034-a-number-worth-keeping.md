@@ -102,7 +102,9 @@ fork takes underneath it, which a `ThreadLocal` cannot do.
 2. **Is a gauge pushed or pulled?** Micrometer's are pulled. Recommend the
    adapter hold a number per gauge and register a pull over it, so the caller
    gets `set` and the backend gets what it wants.
-3. **What does `timed` record?** Recommend milliseconds into a histogram, and a
-   `Timer` only if the distinction turns out to matter to a backend.
+3. ~~**What does `timed` record?**~~ Answered by building a dashboard on it:
+   seconds. Milliseconds shipped first, and every panel then had to be told its
+   unit by hand while Prometheus named the series as though it were seconds
+   anyway. A `Timer` is still not needed — the unit was the whole of it.
 4. **Should an unbounded tag be refused?** It cannot be known from one call.
    Recommend documenting the rule and not policing it.
