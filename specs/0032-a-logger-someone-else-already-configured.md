@@ -27,6 +27,11 @@ prints in two formats.
 
 - **No backend.** `slf4j-api` only, the way `lark-otel` takes the OpenTelemetry
   API and leaves the SDK to the service.
+- **No version anybody has to match.** The facade is declared at the oldest
+  version this compiles against, so resolution can only raise it. Declaring a
+  2.x floor would drag a service on 1.7 across the change from
+  `StaticLoggerBinder` to `ServiceLoader` providers, and its logging would go
+  quiet because it added this module.
 - **No dependency on `lark`.** A new module, so `NoOtherDependenciesTest` in
   `lark` says exactly what it says today.
 - **No SLF4J provider.** Routing *other* libraries' slf4j output back into
@@ -125,6 +130,10 @@ already have configured. Recommend the plain adapter.
    `ServiceLoader` yields, and the order is not specified. Recommend leaving it:
    two logging adapters on one classpath is the same mistake as two backends,
    and a service that means it binds one with `logger.locally`.
-6. **Whose classloader?** This class's, not the thread's — which thread a line
+6. **What if the facade is not there at all?** A service file naming a class
+   that cannot link makes `ServiceLoader` throw while instantiating it, so the
+   first log line would take out the caller. Recommend catching that and falling
+   back to stderr, having said once why.
+7. **Whose classloader?** This class's, not the thread's — which thread a line
    is written on is exactly what `lark` makes vary. A container that isolates
    the application from the library loader would not find the adapter.
