@@ -232,6 +232,32 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `a node nothing reaches is a warning on the recipe that built it`(@TempDir dir: File) {
+        project(dir, "", FORGOTTEN)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("the sentence larkWiring prints for the same fault, so a reader meets one wording") {
+            result.output shouldContain "lark-app: nothing reaches Audit, and it is built on every start"
+        }
+        withClue("a node built for nothing is waste, not a broken graph") {
+            result.task(":compileKotlin")?.outcome shouldBe TaskOutcome.SUCCESS
+        }
+        withClue("one edit put Ledger out of reach too; naming it is that edit reported twice") {
+            result.output shouldNotContain "nothing reaches Ledger"
+        }
+    }
+
+    @Test
+    fun `a graph the reader gave up on says nothing about what reaches what`(@TempDir dir: File) {
+        project(dir, "", UNREADABLE)
+
+        withClue("a warning under correct code costs more than one larkWiring prints a moment later") {
+            runner(dir, "compileKotlin").build().output shouldNotContain "nothing reaches"
+        }
+    }
+
+    @Test
     fun `a warning stops the build where the extension asks it to`(@TempDir dir: File) {
         project(dir, "larkWiring { failOn = \"WARN\" }", WARNED)
 
