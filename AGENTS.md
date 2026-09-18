@@ -60,6 +60,12 @@ gh stack submit
 `submit` pushes every branch, opens a pull request per entry with the right
 base, and links them. `gh stack view` prints the chain and where each one is.
 
+Where there is no terminal to prompt at — which is every agent — `submit` writes
+the titles itself and opens all of them as drafts. Say so when handing the stack
+over, or mark them ready one at a time with `gh pr ready`. Re-running
+`gh stack submit --open` also marks them, and rewrites every description it
+generated on the way through.
+
 A change asked for on a lower entry is made there, not worked around above it:
 
 ```bash
