@@ -71,7 +71,37 @@ fun gauge(name: String, vararg tags: Pair<String, String>): Gauge =
 fun histogram(name: String, vararg tags: Pair<String, String>): Histogram =
     metrics.get().histogram(name, tagsOf(tags))
 
-internal fun tagsOf(tags: Array<out Pair<String, String>>): Map<String, String> = tags.toMap()
+internal fun tagsOf(tags: Array<out Pair<String, String>>): Map<String, String> =
+    metricTags.get() + tags
+
+/**
+ * The tags every measurement taken on this thread carries, and the ones a fork inherits.
+ *
+ * Deliberately not [annotations], which is the same propagation and the wrong source. A log
+ * annotation is written to be unique — a correlation id, a pet's identifier — and a tag whose values
+ * are unbounded is one time series per request, which is how a metrics backend dies. A tag's values
+ * are few and known before the code runs.
+ */
+val metricTags: LarkLocal<Map<String, String>> = larkLocal { emptyMap() }
+
+/** Runs [block] with [pairs] on every measurement taken inside it, this thread's forks included. */
+fun <A> metricTagged(vararg pairs: Pair<String, String>, block: () -> A): A =
+    metricTags.locally(metricTags.get() + pairs, block)
+
+/**
+ * Runs [block] and records how long it took, in milliseconds, under [name].
+ *
+ * The duration is recorded whether the block returns or throws: a call that fails slowly is the one
+ * worth seeing, and leaving it out makes the numbers say the opposite.
+ */
+fun <A> timed(name: String, vararg tags: Pair<String, String>, block: () -> A): A {
+    val startedAt = System.nanoTime()
+    try {
+        return block()
+    } finally {
+        histogram(name, *tags).record((System.nanoTime() - startedAt) / 1_000_000.0)
+    }
+}
 
 /** What was measured inside a [capturingMetrics] block. */
 class CapturedMetrics internal constructor() : Metrics {
