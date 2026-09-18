@@ -648,8 +648,23 @@ Out of the box that reaches stderr, which is enough to watch a service start.
 
 ## Send the log somewhere real
 
-Bind a backend once, around `runApp`. Everything the application then does —
-every node's recipe, every fork of a `parMap` — is inside that binding:
+Put `lark-slf4j` on the classpath. There is no second step: the module registers
+itself, so every line the application writes — every node's recipe, every fork of
+a `parMap` — goes to the backend the rest of the service already logs through.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-slf4j:0.2.0")
+}
+```
+
+An annotation goes to the MDC, so `%X{correlation_id}` and a JSON encoder read
+it. Appending it to the message, which is what a hand-rolled adapter usually
+does, leaves every field search with nothing.
+
+To write your own instead — a different backend, or a different shape of line —
+bind it once around `runApp`, and that binding wins over anything the classpath
+registered:
 
 <!-- cookbook -->
 ```kotlin
@@ -861,7 +876,8 @@ opened it is released.
 | a smaller test | `.subgraph<Root>()` |
 | no waiting in a test | `clock.locally(fixedClock()) { … }` |
 | a log line | `logInfo("…")` — no node takes a logger |
-| that log somewhere real | `logger.locally(Slf4jLogger()) { runApp(…) }`, once, around everything |
+| that log somewhere real | put `lark-slf4j` on the classpath; nothing else |
+| a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |
 | which request a line belongs to | `logAnnotated("correlation_id" to id) { … }` |
 | what a test logged | `capturingLogs { logs -> … ; logs.all() }` |
 | a trace that survives a fork | put `lark-otel` on the classpath; nothing else |

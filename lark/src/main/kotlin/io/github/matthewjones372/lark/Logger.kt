@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark
 
 import java.time.Instant
+import java.util.ServiceLoader
 
 enum class LogLevel { Debug, Info, Warn, Error }
 
@@ -28,7 +29,23 @@ object StderrLogger : Logger {
 }
 
 /** The logger a line goes to, and the one a fork inherits from its opener. */
-val logger: LarkLocal<Logger> = larkLocal { StderrLogger }
+val logger: LarkLocal<Logger> = larkLocal { discovered }
+
+/**
+ * The [Logger] a jar on the classpath registered, or [StderrLogger].
+ *
+ * So an adapter is a dependency and not a line in `main`: `lark-slf4j` ships a service file, and a
+ * service that puts it on the classpath has bound nothing and still logs where everything else does.
+ * `logger.locally` overrides it, which is what a test does and what an application does where it
+ * builds its own.
+ *
+ * Resolved once, because the initial value of a [LarkLocal] is asked for on every unbound read, and
+ * a `ServiceLoader` scan per log line is a scan per log line. Loaded through this class's own loader
+ * rather than the thread's: which thread a line is written on is exactly what lark makes vary.
+ */
+private val discovered: Logger by lazy {
+    ServiceLoader.load(Logger::class.java, Logger::class.java.classLoader).firstOrNull() ?: StderrLogger
+}
 
 fun logDebug(message: String) = log(LogLevel.Debug, message, null)
 
