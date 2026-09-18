@@ -46,6 +46,10 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
     val LARK_APP_DUPLICATE: KtDiagnosticFactory1<String> =
         factory("LARK_APP_DUPLICATE", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
 
+    /** A ring of recipes. An error, as `Findings.kt` gives a `Cycle` `Severity.FAIL`. */
+    val LARK_APP_CYCLE: KtDiagnosticFactory1<String> =
+        factory("LARK_APP_CYCLE", Severity.ERROR, SourceElementPositioningStrategies.DEFAULT)
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private fun factory(
@@ -78,6 +82,7 @@ private object Renderers : BaseDiagnosticRendererFactory() {
         map.put(LarkDiagnostics.LARK_APP_MISSING, "lark-app: {0}", CommonRenderers.STRING)
         map.put(LarkDiagnostics.LARK_APP_UNREACHABLE, "lark-app: {0}", CommonRenderers.STRING)
         map.put(LarkDiagnostics.LARK_APP_DUPLICATE, "lark-app: {0}", CommonRenderers.STRING)
+        map.put(LarkDiagnostics.LARK_APP_CYCLE, "lark-app: {0}", CommonRenderers.STRING)
         map.put(
             LarkDiagnostics.LARK_APP_UNREAD,
             "lark-app: this graph was not read here, and is checked by larkWiring alone: {0}",
