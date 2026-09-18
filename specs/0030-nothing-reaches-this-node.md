@@ -61,22 +61,23 @@ alternative is `Module.shadows` rebuilt in FIR.
 
 ## Stack
 
-- [ ] **`spec-0030-where-a-node-was-written`** — `Graph.provides` becomes
-      `Map<String, KtSourceElement?>`; `node`, `plus`, `keyedAs` and `missing`
-      carry it. No new diagnostic.
-      Done when: the TestKit suite is unchanged and green, and a test asserts
-      every key petshop provides has a source.
-- [ ] **`spec-0030-the-root-and-what-it-reaches`** — the root read from
-      `LarkApp<A>`, the walk over `needs`, `forgotten`'s subtree-top rule, and
-      the give-up when the root is not a provided key. `verbose` names the root
-      and the unreached keys.
-      Done when: petshop's unreached set under `LARK_APP_FOUND` is the one
-      `Module.findings(root)` gives for the same source, empty set included.
-- [ ] **`spec-0030-the-unreachable-warning`** — `LARK_APP_UNREACHABLE`, a
-      `WARNING` on the providing call, wording shared with `Diagnostics.kt`.
+- [ ] **`spec-0030-the-root-and-what-it-reaches`**
+      ([#57](https://github.com/matthewjones372/lark/pull/57)) — `Graph.provides`
+      becomes `Map<String, KtSourceElement?>`; the root read from `LarkApp<A>`,
+      the walk over `needs`, `forgotten`'s subtree-top rule, and the give-up
+      where the root is not a provided key. `verbose` names what is unreached.
+      Done when: a forgotten node is named under `LARK_APP_FOUND`, at the top of
+      what it took with it, and a graph building no root says nothing at all.
+- [ ] **`spec-0030-the-unreachable-warning`**
+      ([#58](https://github.com/matthewjones372/lark/pull/58)) —
+      `LARK_APP_UNREACHABLE`, a `WARNING` on the providing call, wording shared
+      with `Diagnostics.kt`.
       Done when: an unreferenced `single { Audit() }` in the TestKit fixture
       warns on that line without failing `compileKotlin`, and a given-up graph
       stays silent.
+
+The site and the walk were drafted as two entries. They are one: a site nothing
+reads is not reviewable on its own, and the two together are under 200 lines.
 
 ## Acceptance
 
