@@ -88,20 +88,24 @@ already have configured. Recommend the plain adapter.
 
 ## Stack
 
-- [ ] **`spec-0032-the-module`** — `lark-slf4j`: the module, `Slf4jLogger`,
-      levels, `cause`, and a `NoOtherDependenciesTest` allowing `lark`, Arrow
-      and `slf4j-api` and nothing else.
+- [x] **`spec-0032-the-module`**
+      ([#67](https://github.com/matthewjones372/lark/pull/67))
+      — `lark-slf4j`: the module, `Slf4jLogger`, levels, `cause`, and a
+        `NoOtherDependenciesTest` allowing `lark`, Arrow and `slf4j-api` and
+        nothing else.
       Done when: each of the four levels reaches the matching slf4j call, an
-      error carries its `Throwable` as a throwable, and the classpath test names
-      nothing else.
-- [ ] **`spec-0032-the-mdc`** — annotations into the MDC around each call and
-      out again.
-      Done when: a line written inside `logAnnotated` has the pair in its MDC, a
-      line written after it does not, a line written on a fork opened inside the
-      block does, and a key the service set itself survives.
-- [ ] **`spec-0032-found-on-the-classpath`** — `lark`'s default `Logger`
-      resolves through a `ServiceLoader`, resolved once; `lark-slf4j` ships the
-      service file; README and cookbook say so.
+      error carries its `Throwable` as a throwable, and the classpath test
+      names nothing else.
+- [x] **`spec-0032-the-mdc`**
+      ([#68](https://github.com/matthewjones372/lark/pull/68))
+      — annotations into the MDC around each call and out again.
+      Done when: a line written inside `logAnnotated` has the pair in its MDC,
+      a line written after it does not, a line written on a fork opened inside
+      the block does, and a key the service set itself survives.
+- [x] **`spec-0032-found-on-the-classpath`**
+      ([#69](https://github.com/matthewjones372/lark/pull/69))
+      — `lark`'s default `Logger` resolves through a `ServiceLoader`, resolved
+        once; `lark-slf4j` ships the service file; README and cookbook say so.
       Done when: with the module on the test classpath and nothing bound,
       `logger.get()` is a `Slf4jLogger`, `lark`'s own tests still get
       `StderrLogger`, and `logger.locally` still wins.
