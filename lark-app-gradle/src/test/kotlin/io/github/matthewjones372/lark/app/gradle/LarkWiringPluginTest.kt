@@ -292,6 +292,27 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `two recipes that need each other are an error naming the ring`(@TempDir dir: File) {
+        project(dir, "", RING)
+
+        val result = run(dir, "compileKotlin")
+
+        withClue("a cycle is a FAIL at runtime, so it is an error here") {
+            result.task(":compileKotlin")?.outcome shouldBe TaskOutcome.FAILED
+        }
+        withClue("the path larkWiring prints for the same ring, in the same order") {
+            result.output shouldContain "lark-app: cycle DataSource -> Pump -> DataSource"
+        }
+    }
+
+    @Test
+    fun `a graph the reader gave up on says nothing about a ring either`(@TempDir dir: File) {
+        project(dir, "", UNREADABLE)
+
+        runner(dir, "compileKotlin").build().output shouldNotContain "cycle"
+    }
+
+    @Test
     fun `a warning stops the build where the extension asks it to`(@TempDir dir: File) {
         project(dir, "larkWiring { failOn = \"WARN\" }", WARNED)
 
@@ -437,6 +458,15 @@ class Pump
 object Under : LarkApp<Pump>() {
     override val module: Module =
         single<Pump> { Pump() }.overriding(single<Pump> { Pump() })
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** Each of two recipes needing the other: legal to write, impossible to assemble. */
+private const val RING = """$IMPORTS
+object Under : LarkApp<Pump>() {
+    override val module: Module =
+        single { _: DataSource -> Pump() } + single { _: Pump -> DataSource() }
     override fun AppScope.run(root: Pump) = Unit
 }
 """

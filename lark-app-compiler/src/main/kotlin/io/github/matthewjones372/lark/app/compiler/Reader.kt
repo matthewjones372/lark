@@ -152,10 +152,41 @@ internal class Graph(
         return lost.filterNot { key -> lost.any { it != key && key in edges[it].orEmpty() } }.sorted()
     }
 
+    /**
+     * One ring among the keys this builds, or null where there is none to be sure of.
+     *
+     * Kahn's algorithm, as `Plan.kt` runs it, over the same edges and taking the same first key: a
+     * ring reported here and a ring reported there are the same list in the same order. A ring
+     * through a key a choice merged is one the union may have closed itself, and is not reported.
+     */
+    fun cycle(): List<String>? {
+        val edges = needs.groupBy({ it.by }, { it.key })
+        val stalled = stalled(provides.keys.associateWith { edges[it].orEmpty().toSet() - RUNTIME_PROVIDED })
+        val ring = stalled?.let { walk(it, it.keys.sorted().first(), emptyList()) } ?: return null
+        return if (ring.any { it in alternatives }) null else ring
+    }
+
     internal companion object {
         val nothing = Graph(emptyMap(), emptyList())
     }
 }
+
+/** What is left when nothing is ready, which is what holds the ring, or null where nothing is. */
+private tailrec fun stalled(remaining: Map<String, Set<String>>): Map<String, Set<String>>? {
+    val ready = remaining.filterValues { it.isEmpty() }.keys
+    return when {
+        remaining.isEmpty() -> null
+        ready.isEmpty() -> remaining
+        else -> stalled((remaining - ready).mapValues { (_, needs) -> needs - ready })
+    }
+}
+
+/** Every key left needs another that is also left, so following one far enough repeats. */
+private tailrec fun walk(edges: Map<String, Set<String>>, at: String, seen: List<String>): List<String> =
+    when (at) {
+        in seen -> seen.dropWhile { it != at } + at
+        else -> walk(edges, edges.getValue(at).sorted().first(), seen + at)
+    }
 
 private tailrec fun reached(edges: Map<String, List<String>>, found: Set<String>, frontier: Set<String>): Set<String> {
     val next = frontier.flatMap { edges[it].orEmpty() }.toSet() - found

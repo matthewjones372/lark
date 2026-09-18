@@ -75,6 +75,13 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
             reporter.reportOn(shadow.wins ?: source, LarkDiagnostics.LARK_APP_DUPLICATE, twiceSaid(shadow), context)
         }
 
+        // Only where nothing is missing, as `validate` does it: a graph short of a key stalls for
+        // that reason, and a ring reported out of one is a ring the reader invented.
+        graph?.takeIf { it.missing().isEmpty() }?.cycle()?.let { ring ->
+            val at = graph.provides[ring.first()] ?: source
+            reporter.reportOn(at, LarkDiagnostics.LARK_APP_CYCLE, ringSaid(ring), context)
+        }
+
         unreached.forEach { key ->
             // On the recipe that built it, which is the line to delete, and the line larkWiring
             // names for the same node.
@@ -141,6 +148,9 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
         val name = file.sourceFile?.name?.substringAfterLast('/') ?: return "another"
         return "$name:${line + 1}"
     }
+
+    /** `Diagnostics.kt`'s own sentence, arrow for arrow. */
+    private fun ringSaid(ring: List<String>): String = "cycle ${ring.joinToString(" -> ", transform = ::labelOf)}"
 
     /** The sentence `lark-app` prints for the same node, so a reader meets one wording not two. */
     private fun unreachedSaid(key: String): String =
