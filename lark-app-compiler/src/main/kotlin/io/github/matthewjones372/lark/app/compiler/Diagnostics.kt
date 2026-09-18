@@ -31,12 +31,16 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
     val LARK_APP_UNREAD: KtDiagnosticFactory1<String> =
         factory("LARK_APP_UNREAD", Severity.WARNING, SourceElementPositioningStrategies.DECLARATION_NAME)
 
-    /** A key nothing in the graph provides. Not reported yet; the reader that finds one is next. */
+    /** A key nothing in the graph provides. */
     // Reported on the call that asked, which is not a declaration: `DECLARATION_NAME` casts its
     // source to one, and the editor drops every diagnostic whose strategy throws. The compiler is
     // more forgiving, so the cost of getting this wrong is silence in the only place it matters.
     val LARK_APP_MISSING: KtDiagnosticFactory1<String> =
         factory("LARK_APP_MISSING", Severity.ERROR, SourceElementPositioningStrategies.DEFAULT)
+
+    /** A node the root does not reach. A warning, because `rootFindings` gives it `Severity.WARN`. */
+    val LARK_APP_UNREACHABLE: KtDiagnosticFactory1<String> =
+        factory("LARK_APP_UNREACHABLE", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
 
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
@@ -68,6 +72,7 @@ private object Renderers : BaseDiagnosticRendererFactory() {
     override val MAP: KtDiagnosticFactoryToRendererMap by KtDiagnosticFactoryToRendererMap("Lark") { map ->
         map.put(LarkDiagnostics.LARK_APP_FOUND, "lark-app: {0}", CommonRenderers.STRING)
         map.put(LarkDiagnostics.LARK_APP_MISSING, "lark-app: {0}", CommonRenderers.STRING)
+        map.put(LarkDiagnostics.LARK_APP_UNREACHABLE, "lark-app: {0}", CommonRenderers.STRING)
         map.put(
             LarkDiagnostics.LARK_APP_UNREAD,
             "lark-app: this graph was not read here, and is checked by larkWiring alone: {0}",

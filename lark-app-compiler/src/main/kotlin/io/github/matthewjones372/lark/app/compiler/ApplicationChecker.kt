@@ -55,8 +55,17 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
             reporter.reportOn(need.at ?: declaration.source, LarkDiagnostics.LARK_APP_MISSING, need.said(), context)
         }
 
+        val unreached = graph?.unreachedFrom(declaration).orEmpty()
+
+        unreached.forEach { key ->
+            // On the recipe that built it, which is the line to delete, and the line larkWiring
+            // names for the same node.
+            val at = graph?.provides?.get(key) ?: declaration.source
+            reporter.reportOn(at, LarkDiagnostics.LARK_APP_UNREACHABLE, unreachedSaid(key), context)
+        }
+
         if (verbose) {
-            val read = declaration.read(graph, gave, graph?.unreachedFrom(declaration).orEmpty())
+            val read = declaration.read(graph, gave, unreached)
             reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_FOUND, read, context)
         }
     }
@@ -92,12 +101,16 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
 
         else -> "${name()} provides ${graph.provides.keys.map(::labelOf).sorted()}" +
             ", and is short of ${graph.missing().map { labelOf(it.key) }.distinct().sorted()}" +
-            unreachedSaid(unreached)
+            read(unreached)
     }
 
     /** Silent where everything is reached, so a working graph's line stays the one it was. */
-    private fun unreachedSaid(unreached: List<String>): String =
+    private fun read(unreached: List<String>): String =
         if (unreached.isEmpty()) "" else ", and nothing reaches ${unreached.map(::labelOf)}"
+
+    /** The sentence `lark-app` prints for the same node, so a reader meets one wording not two. */
+    private fun unreachedSaid(key: String): String =
+        "nothing reaches ${labelOf(key)}, and it is built on every start"
 
     private fun FirClass.isApplication(): Boolean = superTypeRefs.any { it.coneType.classId == larkApp }
 
