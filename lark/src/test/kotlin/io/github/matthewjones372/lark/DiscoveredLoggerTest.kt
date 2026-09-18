@@ -27,7 +27,7 @@ class DiscoveredLoggerTest {
 
         val fallen = try {
             System.setErr(PrintStream(said, true))
-            firstRegistered { throw ServiceConfigurationError("petshop.LoggerThatIsNotThere") }
+            firstRegistered("Logger", StderrLogger) { throw ServiceConfigurationError("petshop.LoggerThatIsNotThere") }
         } finally {
             System.setErr(err)
         }
