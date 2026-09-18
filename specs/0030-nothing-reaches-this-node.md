@@ -61,14 +61,14 @@ alternative is `Module.shadows` rebuilt in FIR.
 
 ## Stack
 
-- [ ] **`spec-0030-the-root-and-what-it-reaches`**
+- [x] **`spec-0030-the-root-and-what-it-reaches`**
       ([#57](https://github.com/matthewjones372/lark/pull/57)) — `Graph.provides`
       becomes `Map<String, KtSourceElement?>`; the root read from `LarkApp<A>`,
       the walk over `needs`, `forgotten`'s subtree-top rule, and the give-up
       where the root is not a provided key. `verbose` names what is unreached.
       Done when: a forgotten node is named under `LARK_APP_FOUND`, at the top of
       what it took with it, and a graph building no root says nothing at all.
-- [ ] **`spec-0030-the-unreachable-warning`**
+- [x] **`spec-0030-the-unreachable-warning`**
       ([#58](https://github.com/matthewjones372/lark/pull/58)) —
       `LARK_APP_UNREACHABLE`, a `WARNING` on the providing call, wording shared
       with `Diagnostics.kt`.
