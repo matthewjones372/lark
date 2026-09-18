@@ -57,6 +57,7 @@ is where that claim is checked.
 | `lark-app-typesafe` | a HOCON section as a node, every fault at once, and a setting that picks a module | `com.typesafe:config` |
 | `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |
 | `lark-slf4j` | lark's own lines through the backend a service already configured, annotations in the MDC | `slf4j-api` |
+| `lark-micrometer` | counters, gauges and histograms into the `MeterRegistry` a service already has | `micrometer-core` |
 | `lark-app-gradle` | a Gradle plugin: every graph in a project checked and drawn as it compiles | `gradleApi()` |
 
 An untagged commit builds `0.1.0-SNAPSHOT`, which is what
@@ -411,6 +412,25 @@ and be unreadable to every one of them.
 
 `logger.locally(MyLogger()) { … }` still wins, for a test, a backend of your
 own, or one block that should go somewhere else.
+
+A number is the same bargain. Nothing to declare, nothing to thread through the
+graph, and no node taking a registry:
+
+```kotlin
+counter("petshop.adoptions").increment()
+gauge("petshop.queue.depth").set(waiting.toDouble())
+timed("petshop.adopt") { shop.adopt(id, by) }
+
+metricTagged("species" to "tortoise") { counter("petshop.adoptions").increment() }
+```
+
+`metricTagged` rides the same binding as the log's, so a tag is on every
+measurement a fork takes underneath it. It is deliberately not the annotations
+`logAnnotated` binds: those are written to be unique, and a tag whose values are
+unbounded is one time series per request. Put `lark-micrometer` on the classpath
+and the numbers reach whatever registry the service already has; bind nothing
+and they are recorded nowhere, which costs nothing and throws nothing.
+`capturingMetrics { }` is the test's way in.
 
 ## Applications
 
