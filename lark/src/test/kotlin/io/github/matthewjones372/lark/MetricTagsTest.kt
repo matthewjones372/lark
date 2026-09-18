@@ -1,0 +1,76 @@
+package io.github.matthewjones372.lark
+
+import io.kotest.assertions.withClue
+import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Test
+
+/** A tag bound for a block, and what a fork underneath it measures. */
+class MetricTagsTest {
+
+    @Test
+    fun `a tag bound for a block is on what the block measures`() {
+        val tags = capturingMetrics { measured ->
+            metricTagged("species" to "tortoise") { counter("adoptions").increment() }
+            measured.tags("adoptions")
+        }
+
+        tags shouldBe mapOf("species" to "tortoise")
+    }
+
+    @Test
+    fun `a measurement outside the block carries nothing`() {
+        val tags = capturingMetrics { measured ->
+            metricTagged("species" to "tortoise") { counter("adoptions").increment() }
+            counter("arrivals").increment()
+            measured.tags("arrivals")
+        }
+
+        withClue("a scope that leaked would put one request's tag on the next one's numbers") {
+            tags shouldBe emptyMap()
+        }
+    }
+
+    @Test
+    fun `a fork measures under the tag its opener bound`() {
+        val tags = capturingMetrics { measured ->
+            metricTagged("species" to "tortoise") {
+                parMap(listOf(1, 2)) { counter("adoptions").increment() }
+            }
+            measured.tags("adoptions")
+        }
+
+        withClue("the reason this is in lark rather than left to the backend") {
+            tags shouldBe mapOf("species" to "tortoise")
+        }
+    }
+
+    @Test
+    fun `a tag at the call site joins the ones in scope`() {
+        val tags = capturingMetrics { measured ->
+            metricTagged("species" to "tortoise") {
+                counter("adoptions", "outcome" to "taken").increment()
+            }
+            measured.tags("adoptions")
+        }
+
+        tags shouldBe mapOf("species" to "tortoise", "outcome" to "taken")
+    }
+
+    @Test
+    fun `timed records how long the block took and answers what it returned`() {
+        val (took, answered) = capturingMetrics { measured ->
+            val answer = timed("adopt") {
+                Thread.sleep(5)
+                "Nibbles"
+            }
+            measured.histogram("adopt") to answer
+        }
+
+        answered shouldBe "Nibbles"
+        took.size shouldBe 1
+        withClue("milliseconds, and the block slept for five of them") {
+            took.single() shouldBeGreaterThanOrEqual 5.0
+        }
+    }
+}
