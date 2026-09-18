@@ -5,17 +5,21 @@ import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import io.github.matthewjones372.lark.LogLevel
+import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.logError
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
 import io.github.matthewjones372.lark.logger
+import io.github.matthewjones372.lark.parMap
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
+import org.slf4j.MDC
 
 /**
  * What a line looks like once it reaches a backend, asserted against logback rather than a fake.
@@ -88,6 +92,49 @@ class Slf4jLoggerTest {
 
         its.list.single().message shouldBe "named"
         named.detachAppender(its)
+    }
+
+    @Test
+    fun `an annotation is in the MDC while its block runs, and gone afterwards`() {
+        logging {
+            logAnnotated("pet_id" to "tortoise-1") { logInfo("inside") }
+            logInfo("outside")
+        }
+
+        val (inside, outside) = appender.list
+
+        withClue("a pattern of %X{pet_id} and a field search both read this and not the message") {
+            inside.mdcPropertyMap["pet_id"] shouldBe "tortoise-1"
+        }
+        withClue("a pooled thread hands itself to something else next, and must carry nothing over") {
+            outside.mdcPropertyMap["pet_id"].shouldBeNull()
+        }
+    }
+
+    @Test
+    fun `a line written on a fork carries what its opener bound`() {
+        logging {
+            logAnnotated("pet_id" to "tortoise-1") {
+                parMap(listOf(1, 2)) { logInfo("fork $it") }
+            }
+        }
+
+        withClue("the claim an MDC cannot make by itself, and the reason this adapter exists") {
+            appender.list.map { it.mdcPropertyMap["pet_id"] } shouldBe listOf("tortoise-1", "tortoise-1")
+        }
+    }
+
+    @Test
+    fun `a key the service set outside lark is still there afterwards`() {
+        MDC.put("service", "petshop")
+
+        logging { logAnnotated("pet_id" to "tortoise-1") { logInfo("both") } }
+
+        withClue("put back rather than cleared: what lark did not set is not lark's to drop") {
+            MDC.get("service") shouldBe "petshop"
+        }
+        appender.list.single().mdcPropertyMap["service"] shouldBe "petshop"
+        MDC.clear()
     }
 
     @Test
