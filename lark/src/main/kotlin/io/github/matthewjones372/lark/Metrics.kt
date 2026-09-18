@@ -4,6 +4,9 @@ import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.DoubleAdder
 
+// What a duration is recorded in. Milliseconds, because that is the unit a dashboard is read in.
+private const val NANOS_PER_MILLI = 1_000_000.0
+
 /** A number that only goes up. */
 fun interface Counter {
     fun increment(by: Double)
@@ -99,7 +102,7 @@ fun <A> timed(name: String, vararg tags: Pair<String, String>, block: () -> A): 
     try {
         return block()
     } finally {
-        histogram(name, *tags).record((System.nanoTime() - startedAt) / 1_000_000.0)
+        histogram(name, *tags).record((System.nanoTime() - startedAt) / NANOS_PER_MILLI)
     }
 }
 
