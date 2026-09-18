@@ -391,6 +391,27 @@ logAnnotated("correlation_id" to request.id) {
 `capturingLogs { }` binds a logger a test can read, so a claim about logging is
 a claim about values.
 
+Where those lines end up is a dependency rather than a call. Nothing is bound,
+so they go to stderr — enough to watch a service start and no more. Put
+`lark-slf4j` on the classpath and they go wherever the rest of the service
+already logs:
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-slf4j:0.2.1")
+}
+```
+
+It registers itself through a `ServiceLoader`, so there is no line in `main` to
+remember. The annotations arrive as MDC entries rather than as text on the end
+of the message, which is what carries the claim above through to the backend: a
+correlation id survives the fork *and* reaches `%X{correlation_id}`, a JSON
+encoder and a field search. Appending it to the message would survive the fork
+and be unreadable to every one of them.
+
+`logger.locally(MyLogger()) { … }` still wins, for a test, a backend of your
+own, or one block that should go somewhere else.
+
 ## Applications
 
 `lark-app` is a dependency graph as a value. A recipe names what it builds and
