@@ -29,6 +29,12 @@ import io.github.matthewjones372.lark.logSpan
 import io.github.matthewjones372.lark.logger
 import org.slf4j.LoggerFactory
 import io.github.matthewjones372.lark.capturingLogs
+import io.github.matthewjones372.lark.capturingMetrics
+import io.github.matthewjones372.lark.counter
+import io.github.matthewjones372.lark.gauge
+import io.github.matthewjones372.lark.increment
+import io.github.matthewjones372.lark.metricTagged
+import io.github.matthewjones372.lark.timed
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.fixedClock
 import io.github.matthewjones372.lark.logAnnotated
@@ -729,6 +735,70 @@ fun aLoggingTest(): List<LogLine> = capturingLogs { logs ->
 `capturingLogs` binds a logger the test can read, so a claim about logging is a
 claim about values rather than about a backend.
 
+## Count something
+
+No node takes a registry, and nothing is declared up front. A meter is looked up
+by name, which every backend does with a map:
+
+<!-- cookbook -->
+```kotlin
+class Adopting(private val pets: MutableList<String>) {
+    fun adopt(name: String): String = timed("petshop.adopt") {
+        counter("petshop.adoptions").increment()
+        gauge("petshop.queue.depth").set(pets.size.toDouble())
+        name
+    }
+}
+```
+
+`timed` records how long the block took, in milliseconds, and answers what the
+block answered. It records in a `finally`, so a call that failed slowly is still
+counted — leaving it out makes the numbers say the opposite of what happened.
+
+## Say which series a number belongs to
+
+<!-- cookbook -->
+```kotlin
+fun adoptingATortoise(): Unit = metricTagged("species" to "tortoise") {
+    counter("petshop.adoptions").increment()
+}
+```
+
+A tag bound for a block is on every measurement taken inside it, including on a
+fork, which is the same binding a log annotation rides.
+
+It is **not** the same source. `logAnnotated("correlation_id" to id)` is written
+to be unique, and a tag whose values are unbounded is one time series per
+request — which is how a metrics backend dies. A tag's values are few and known
+before the code runs.
+
+## Send the numbers somewhere real
+
+Put `lark-micrometer` on the classpath. There is no second step: it registers
+itself, and the measurements reach whatever registry the service already has —
+Prometheus, Datadog, StatsD, OTLP.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-micrometer:0.3.0")
+}
+```
+
+It takes Micrometer's global registry unless it is handed one, since that is
+where a service on Spring or on the OpenTelemetry bridge has already put theirs.
+With nothing on the classpath a measurement is recorded nowhere, which costs
+nothing and throws nothing.
+
+## Assert on what was measured
+
+<!-- cookbook -->
+```kotlin
+fun aMeteredTest(): Double = capturingMetrics { measured ->
+    counter("petshop.adoptions").increment()
+    measured.counter("petshop.adoptions")
+}
+```
+
 ## Control time
 
 <!-- cookbook -->
@@ -880,6 +950,11 @@ opened it is released.
 | a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |
 | which request a line belongs to | `logAnnotated("correlation_id" to id) { … }` |
 | what a test logged | `capturingLogs { logs -> … ; logs.all() }` |
+| to count something | `counter("…").increment()` — no node takes a registry |
+| how long something took | `timed("…") { … }`, which answers what the block did |
+| those numbers somewhere real | put `lark-micrometer` on the classpath; nothing else |
+| which series a number belongs to | `metricTagged("species" to "tortoise") { … }` |
+| what a test measured | `capturingMetrics { measured -> … }` |
 | a trace that survives a fork | put `lark-otel` on the classpath; nothing else |
 | migrations before anything reads | `migrations("db/changelog.xml")`, then take a `Migrated` |
 | the wiring in review | `render()` against a golden file |
