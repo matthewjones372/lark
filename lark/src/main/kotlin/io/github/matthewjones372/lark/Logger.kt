@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark
 
 import java.time.Instant
+import java.util.ServiceConfigurationError
 import java.util.ServiceLoader
 
 enum class LogLevel { Debug, Info, Warn, Error }
@@ -44,7 +45,30 @@ val logger: LarkLocal<Logger> = larkLocal { discovered }
  * rather than the thread's: which thread a line is written on is exactly what lark makes vary.
  */
 private val discovered: Logger by lazy {
-    ServiceLoader.load(Logger::class.java, Logger::class.java.classLoader).firstOrNull() ?: StderrLogger
+    firstRegistered { ServiceLoader.load(Logger::class.java, Logger::class.java.classLoader).firstOrNull() }
+}
+
+/**
+ * The first registered [Logger], or [StderrLogger] where loading one fails.
+ *
+ * A service file naming a class that cannot link — an adapter whose facade is not on the classpath
+ * is the way this happens — makes `ServiceLoader` throw while instantiating it. That would land on
+ * whoever wrote the first log line, which is the one place a logging problem must never surface.
+ *
+ * The fallback is said out loud, because a service logging to stderr with no idea why is the same
+ * outcome as this catching nothing.
+ */
+internal fun firstRegistered(load: () -> Logger?): Logger = try {
+    load() ?: StderrLogger
+} catch (failed: ServiceConfigurationError) {
+    said(failed)
+} catch (failed: LinkageError) {
+    said(failed)
+}
+
+private fun said(failed: Throwable): Logger {
+    System.err.println("lark: a registered Logger could not be loaded, so lines go to stderr: $failed")
+    return StderrLogger
 }
 
 fun logDebug(message: String) = log(LogLevel.Debug, message, null)

@@ -2,7 +2,11 @@ package io.github.matthewjones372.lark
 
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
+import java.util.ServiceConfigurationError
 import java.util.ServiceLoader
 
 /** Where a line goes when nobody has bound anything: whatever the classpath registered, or stderr. */
@@ -14,6 +18,26 @@ class DiscoveredLoggerTest {
             ServiceLoader.load(Logger::class.java, Logger::class.java.classLoader).count() shouldBe 0
         }
         logger.get() shouldBe StderrLogger
+    }
+
+    @Test
+    fun `a registered logger that cannot be loaded leaves stderr, and says so once`() {
+        val said = ByteArrayOutputStream()
+        val err = System.err
+
+        val fallen = try {
+            System.setErr(PrintStream(said, true))
+            firstRegistered { throw ServiceConfigurationError("petshop.LoggerThatIsNotThere") }
+        } finally {
+            System.setErr(err)
+        }
+
+        withClue("a service file naming a class that will not link must not take the first line out") {
+            fallen shouldBe StderrLogger
+        }
+        withClue("silence here is a service logging to stderr with no idea why") {
+            said.toString() shouldContain "petshop.LoggerThatIsNotThere"
+        }
     }
 
     @Test
