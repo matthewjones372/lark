@@ -80,21 +80,28 @@ still holds, rendered as `9090,${?PETSHOP_PORT}`.
 
 ## Stack
 
-- [ ] **`spec-0029-origins`** — `Origin`, `Config.origins()`, `report()`,
-      redaction by name with the default list.
+- [x] **`spec-0029-origins`**
+      ([#55](https://github.com/matthewjones372/lark/pull/55))
+      — `Origin`, `Config.origins()`, `report()`, redaction by name with
+      the default list.
       Done when: a merged document reports every path with its file and line,
       an env-sourced value reports `env variables`, and a password reports its
       origin and not its value.
-- [ ] **`spec-0029-layered`** — `layeredConfig()`, the layers kept, the
-      override line.
+- [x] **`spec-0029-layered`**
+      ([#55](https://github.com/matthewjones372/lark/pull/55))
+      — `layeredConfig()`, the layers kept, the override line.
       Done when: a setting `application.conf` overrode names the value and the
       origin it replaced, and a setting only one layer supplied says nothing
       extra.
-- [ ] **`spec-0029-secret`** — `Secret`, `Reading.secret(path)`, the declared
-      path redacted by the report.
+- [x] **`spec-0029-secret`**
+      ([#55](https://github.com/matthewjones372/lark/pull/55))
+      — `Secret`, `Reading.secret(path)`, the declared path redacted by the
+      report.
       Done when: a secret read from a section prints as the mask through
       `toString`, gives its value only to `reveal()`, and its path is redacted
       in a report that the name match would have missed.
+
+All three landed in one pull request rather than as a stack.
 
 ## Acceptance
 
