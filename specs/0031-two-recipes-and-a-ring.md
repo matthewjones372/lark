@@ -89,10 +89,11 @@ and outside one.
 
 ## Open questions
 
-1. **How is the shadowed site written?** `Diagnostics.kt` uses `shortly`, which
-   is `Wiring.kt:92`. FIR would have to render that from a `KtSourceElement`,
-   and 0027's relocated-PSI hazard lives exactly there. Recommend rendering it,
-   with a fallback to naming the key alone where the PSI answers nothing.
+1. ~~**How is the shadowed site written?**~~ Answered by building it:
+   `FirFile.sourceFileLinesMapping` turns an offset into a line without naming a
+   PSI type, so 0027's relocated-PSI hazard is not reached. The mapping is
+   nullable and falls back to `another`, which is the word the runtime report
+   already uses for a site it lacks.
 2. **Which node of a cycle gets the error?** Recommend the first in the path
    Kahn's leaves stalled, sorted, so the same graph underlines the same line
    twice running.
