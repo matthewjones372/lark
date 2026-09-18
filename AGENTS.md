@@ -39,34 +39,51 @@ reviewable on its own.
 
 ### Working a stack
 
-Set this once, so a rebase carries the branches above it:
+GitHub tracks a stack itself, so the chain is one object rather than a set of
+pull requests that happen to point at each other. Install the extension once:
 
 ```bash
-git config rebase.updateRefs true
+gh extension install github/gh-stack
 ```
 
-Branch from `origin/main`, not from a local `main` that may be behind, and
-build bottom-up with each PR based on its parent:
+Start the stack on the branch the first entry lands on, then add one branch per
+entry, bottom-up:
 
 ```bash
-git switch -c spec-0003-descriptor origin/main
-gh pr create --base main --fill
-
-git switch -c spec-0003-codec        # branches off spec-0003-descriptor
-gh pr create --base spec-0003-descriptor --fill
+gh stack init spec-0003-descriptor
+# ... write code, commit ...
+gh stack add spec-0003-codec
+# ... write code, commit ...
+gh stack submit
 ```
 
-After review changes land on a lower branch, restack from the top of the stack
-and push the whole chain:
+`submit` pushes every branch, opens a pull request per entry with the right
+base, and links them. `gh stack view` prints the chain and where each one is.
+
+A change asked for on a lower entry is made there, not worked around above it:
 
 ```bash
-git switch spec-0003-codec
-git rebase origin/main
-git push --force-with-lease origin spec-0003-descriptor spec-0003-codec
+gh stack checkout spec-0003-descriptor
+# ... commit the change ...
+gh stack rebase --upstack
+gh stack push
 ```
 
-When the bottom PR merges, GitHub retargets its children onto `main` by itself.
-Rebase once more so the diff shown is only that branch's own work.
+GitHub's own *Rebase stack* button in the merge box does the same thing
+server-side, and the commits it writes are unsigned. Prefer `gh stack rebase`,
+which follows whatever signature configuration the machine has.
+
+When the bottom pull request merges, one command catches the rest up:
+
+```bash
+gh stack sync --prune
+```
+
+Branches that already exist become a stack without being rebuilt:
+
+```bash
+gh stack init branch-one branch-two branch-three && gh stack submit
+```
 
 ## Comments
 
