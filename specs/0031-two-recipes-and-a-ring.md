@@ -69,15 +69,17 @@ and outside one.
 
 ## Stack
 
-- [ ] **`spec-0031-two-recipes-one-key`** — `Graph` gains shadows; `plus`
-      records a collision, `overriding` and `overridingConfig` forgive their
-      own, a branch union marks alternatives. `LARK_APP_DUPLICATE`, a `WARNING`
-      on the winning call.
+- [x] **`spec-0031-two-recipes-one-key`**
+      ([#62](https://github.com/matthewjones372/lark/pull/62))
+      — `Graph` gains shadows; `plus` records a collision, `overriding` and
+        `overridingConfig` forgive their own, a branch union marks
+        alternatives. `LARK_APP_DUPLICATE`, a `WARNING` on the winning call.
       Done when: two `single<Pump>` in one chain warn on the second; the same
       pair under `overriding` does not; and `COMPOSED`'s `if` stays silent.
-- [ ] **`spec-0031-a-cycle-while-you-type`** — Kahn's over `needs`, ignoring
-      alternative edges. `LARK_APP_CYCLE`, an `ERROR` on one node of the ring,
-      in `Diagnostics.kt`'s wording.
+- [x] **`spec-0031-a-cycle-while-you-type`**
+      ([#63](https://github.com/matthewjones372/lark/pull/63))
+      — Kahn's over `needs`, ignoring alternative edges. `LARK_APP_CYCLE`, an
+        `ERROR` on one node of the ring, in `Diagnostics.kt`'s wording.
       Done when: two recipes that need each other fail `compileKotlin` naming
       both keys, and a graph the reader gave up on compiles clean.
 
