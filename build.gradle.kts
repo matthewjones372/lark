@@ -223,6 +223,17 @@ subprojects {
         }
     }
 
+    // A tag gives axion a version with no `-SNAPSHOT`, which makes Gradle's signing
+    // required — and `build` signs the publications, so the gate starts depending on
+    // a key. The release job has one; the gate build and every pull request do not,
+    // and handing them the signing key to run a task nobody publishes from would be
+    // the wrong way round. Signed where there is something to sign with, skipped
+    // where there is not, and `publishToMavenCentral` still fails loudly on an
+    // unsigned artifact.
+    tasks.withType<Sign>().configureEach {
+        onlyIf { !(project.findProperty("signingInMemoryKey") as? String).isNullOrBlank() }
+    }
+
     extensions.configure<PublishingExtension> {
         repositories {
             // `./gradlew publishToMavenLocal` for a local try-out, and
