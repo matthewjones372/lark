@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.app.compiler
 
+import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
@@ -49,24 +50,36 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
             reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_UNREAD, why, context)
         }
 
-        graph?.missing().orEmpty().forEach { need ->
-            // On the recipe that asked rather than on the application: the line to edit is the one
-            // the dependency was written on, which is the line `larkWiring` names too.
-            reporter.reportOn(need.at ?: declaration.source, LarkDiagnostics.LARK_APP_MISSING, need.said(), context)
-        }
-
         val unreached = graph?.unreachedFrom(declaration).orEmpty()
 
-        unreached.forEach { key ->
-            // On the recipe that built it, which is the line to delete, and the line larkWiring
-            // names for the same node.
-            val at = graph?.provides?.get(key) ?: declaration.source
-            reporter.reportOn(at, LarkDiagnostics.LARK_APP_UNREACHABLE, unreachedSaid(key), context)
-        }
+        declaration.faults(graph, unreached)
 
         if (verbose) {
             val read = declaration.read(graph, gave, unreached)
             reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_FOUND, read, context)
+        }
+    }
+
+    /** Every fault the graph holds, each on the line a reader would edit to be rid of it. */
+    context(context: CheckerContext, reporter: DiagnosticReporter)
+    private fun FirClass.faults(graph: Graph?, unreached: List<String>) {
+        graph?.missing().orEmpty().forEach { need ->
+            // On the recipe that asked rather than on the application: the line to edit is the one
+            // the dependency was written on, which is the line `larkWiring` names too.
+            reporter.reportOn(need.at ?: source, LarkDiagnostics.LARK_APP_MISSING, need.said(), context)
+        }
+
+        graph?.shadows.orEmpty().forEach { shadow ->
+            // On the one that wins, which is `Diagnostics.kt`'s own choice: it is the line a reader
+            // edits to stop the other being shadowed.
+            reporter.reportOn(shadow.wins ?: source, LarkDiagnostics.LARK_APP_DUPLICATE, twiceSaid(shadow), context)
+        }
+
+        unreached.forEach { key ->
+            // On the recipe that built it, which is the line to delete, and the line larkWiring
+            // names for the same node.
+            val at = graph?.provides?.get(key) ?: source
+            reporter.reportOn(at, LarkDiagnostics.LARK_APP_UNREACHABLE, unreachedSaid(key), context)
         }
     }
 
@@ -107,6 +120,27 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
     /** Silent where everything is reached, so a working graph's line stays the one it was. */
     private fun read(unreached: List<String>): String =
         if (unreached.isEmpty()) "" else ", and nothing reaches ${unreached.map(::labelOf)}"
+
+    /** `Diagnostics.kt`'s sentence, down to the `another` it falls back on when it has no site. */
+    context(context: CheckerContext)
+    private fun twiceSaid(shadow: Shadow): String =
+        "${labelOf(shadow.key)} is provided twice; this one wins over ${shortly(shadow.shadowed)}"
+
+    /**
+     * A site as `Wiring.kt:92`, which is what `lark-app`'s own `shortly` renders.
+     *
+     * Every site a graph holds has been anchored into the file being checked, so the name is this
+     * file's and only the line has to be worked out. A compiler that will not say which line — the
+     * mapping is nullable — falls back to the word the runtime report uses for a site it lacks.
+     */
+    @OptIn(SymbolInternals::class)
+    context(context: CheckerContext)
+    private fun shortly(at: KtSourceElement?): String {
+        val file = context.containingFileSymbol?.fir ?: return "another"
+        val line = at?.startOffset?.let { file.sourceFileLinesMapping?.getLineByOffset(it) } ?: return "another"
+        val name = file.sourceFile?.name?.substringAfterLast('/') ?: return "another"
+        return "$name:${line + 1}"
+    }
 
     /** The sentence `lark-app` prints for the same node, so a reader meets one wording not two. */
     private fun unreachedSaid(key: String): String =

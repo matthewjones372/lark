@@ -258,6 +258,40 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `a key two recipes provide is a warning on the one that wins`(@TempDir dir: File) {
+        project(dir, "", TWICE)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        val shadowed = TWICE.lines().indexOfFirst { it.contains("single<Pump>") } + 1
+
+        withClue("the sentence larkWiring prints for the same fault, and the line it names") {
+            result.output shouldContain "lark-app: Pump is provided twice; this one wins over Under.kt:$shadowed"
+        }
+        withClue("a shadowed recipe is a warning; only the task decides whether one stops a build") {
+            result.task(":compileKotlin")?.outcome shouldBe TaskOutcome.SUCCESS
+        }
+    }
+
+    @Test
+    fun `a replacement that says it is one is not an accident to report`(@TempDir dir: File) {
+        project(dir, "", OVERRIDDEN)
+
+        withClue("overriding forgives the collisions its own merge introduces, and so does this") {
+            runner(dir, "compileKotlin").build().output shouldNotContain "provided twice"
+        }
+    }
+
+    @Test
+    fun `the branches of a choice are alternatives, not two recipes for one key`(@TempDir dir: File) {
+        project(dir, "", COMPOSED)
+
+        withClue("every branch provides DataSource and every assembly gets one of them") {
+            runner(dir, "compileKotlin").build().output shouldNotContain "provided twice"
+        }
+    }
+
+    @Test
     fun `a warning stops the build where the extension asks it to`(@TempDir dir: File) {
         project(dir, "larkWiring { failOn = \"WARN\" }", WARNED)
 
@@ -376,6 +410,33 @@ object Under : LarkApp<Pump>() {
 private const val ROOTLESS = """$IMPORTS
 object Under : LarkApp<Pump>() {
     override val module: Module = single<DataSource> { DataSource() }
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** Two recipes for one key, on two lines, so the report has a line to name that is not its own. */
+private const val TWICE = """$IMPORTS
+object Under : LarkApp<Pump>() {
+    override val module: Module =
+        single<Pump> { Pump() } +
+            single<Pump> { Pump() }
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** The same collision, said out loud. */
+private const val OVERRIDDEN = """
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.overriding
+import io.github.matthewjones372.lark.app.single
+
+class Pump
+
+object Under : LarkApp<Pump>() {
+    override val module: Module =
+        single<Pump> { Pump() }.overriding(single<Pump> { Pump() })
     override fun AppScope.run(root: Pump) = Unit
 }
 """

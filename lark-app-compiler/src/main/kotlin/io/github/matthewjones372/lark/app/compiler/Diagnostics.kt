@@ -42,6 +42,10 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
     val LARK_APP_UNREACHABLE: KtDiagnosticFactory1<String> =
         factory("LARK_APP_UNREACHABLE", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
 
+    /** A key two recipes provide. A warning, as `Findings.kt` gives a `Duplicate` `Severity.WARN`. */
+    val LARK_APP_DUPLICATE: KtDiagnosticFactory1<String> =
+        factory("LARK_APP_DUPLICATE", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private fun factory(
@@ -73,6 +77,7 @@ private object Renderers : BaseDiagnosticRendererFactory() {
         map.put(LarkDiagnostics.LARK_APP_FOUND, "lark-app: {0}", CommonRenderers.STRING)
         map.put(LarkDiagnostics.LARK_APP_MISSING, "lark-app: {0}", CommonRenderers.STRING)
         map.put(LarkDiagnostics.LARK_APP_UNREACHABLE, "lark-app: {0}", CommonRenderers.STRING)
+        map.put(LarkDiagnostics.LARK_APP_DUPLICATE, "lark-app: {0}", CommonRenderers.STRING)
         map.put(
             LarkDiagnostics.LARK_APP_UNREAD,
             "lark-app: this graph was not read here, and is checked by larkWiring alone: {0}",
