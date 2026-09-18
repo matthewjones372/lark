@@ -59,8 +59,16 @@ internal class Here(
     fun inside(symbol: FirCallableSymbol<*>): Here = if (pathOf(symbol) == path) Here(session, path) else this
 
     /** What was read beyond this file, reported where this file mentions it. */
-    fun anchor(graph: Graph): Graph =
-        if (at == null) graph else Graph(graph.provides.mapValues { at }, graph.needs.map { Need(it.key, it.by, at) })
+    fun anchor(graph: Graph): Graph = when (at) {
+        null -> graph
+
+        else -> Graph(
+            graph.provides.mapValues { at },
+            graph.needs.map { Need(it.key, it.by, at) },
+            graph.shadows.map { Shadow(it.key, at, at) },
+            graph.alternatives,
+        )
+    }
 
     private fun pathOf(symbol: FirCallableSymbol<*>): String? =
         session.firProvider.getFirCallableContainerFile(symbol)?.sourceFile?.path
@@ -73,15 +81,60 @@ internal class Here(
 /** A key something needs, and where the recipe that needs it was written. */
 internal class Need(val key: String, val by: String, val at: KtSourceElement?)
 
-/** What an expression builds: each key and the call that built it, and what those recipes ask for. */
-internal class Graph(val provides: Map<String, KtSourceElement?>, val needs: List<Need>) {
+/** A key two merged graphs both provided, and where each was written. */
+internal class Shadow(val key: String, val shadowed: KtSourceElement?, val wins: KtSourceElement?)
+
+/**
+ * What an expression builds: each key and the call that built it, and what those recipes ask for.
+ *
+ * [alternatives] are the keys a choice merged. Every branch of an `if` is read into one graph,
+ * because a key is missing only where all of them miss it — but only one branch is ever assembled,
+ * so a key two branches provide is one recipe and not a collision.
+ */
+internal class Graph(
+    val provides: Map<String, KtSourceElement?>,
+    val needs: List<Need>,
+    val shadows: List<Shadow> = emptyList(),
+    val alternatives: Set<String> = emptySet(),
+) {
 
     // A key provided twice keeps the later site, which is the one `Module.plus` keeps the node of.
-    operator fun plus(other: Graph): Graph = Graph(provides + other.provides, needs + other.needs)
+    operator fun plus(other: Graph): Graph = Graph(
+        provides + other.provides,
+        needs + other.needs,
+        // Kept rather than discarded, as `Module.plus` keeps them: a merge cannot tell a deliberate
+        // override from a typo, and only `overriding` knows which it was.
+        shadows + other.shadows + collisions(other),
+        alternatives + other.alternatives,
+    )
+
+    /** [plus] with this merge's own collisions forgiven, which is what `Module.shadowing` does. */
+    fun overriding(other: Graph): Graph =
+        Graph(provides + other.provides, needs + other.needs, shadows + other.shadows, alternatives)
+
+    /** One branch of a choice merged with the others: the keys they share are the same recipe. */
+    fun or(other: Graph): Graph = Graph(
+        provides + other.provides,
+        needs + other.needs,
+        shadows + other.shadows,
+        alternatives + other.alternatives + provides.keys.intersect(other.provides.keys),
+    )
+
+    private fun collisions(other: Graph): List<Shadow> =
+        other.provides.keys.filter { it in provides }.map { Shadow(it, provides[it], other.provides[it]) }
+
+    /** The keys this and [other] would collide on where one of them came out of a choice. */
+    fun ambiguous(other: Graph): String? =
+        provides.keys.intersect(other.provides.keys)
+            .firstOrNull { it in alternatives || it in other.alternatives }
 
     /** The same graph under one key instead of the one it had, which is what `boundTo` does. */
-    fun keyedAs(key: String): Graph =
-        Graph(mapOf(key to provides.values.singleOrNull()), needs.map { Need(it.key, key, it.at) })
+    fun keyedAs(key: String): Graph = Graph(
+        mapOf(key to provides.values.singleOrNull()),
+        needs.map { Need(it.key, key, it.at) },
+        shadows,
+        if (alternatives.isEmpty()) emptySet() else setOf(key),
+    )
 
     /** What nothing here builds. A key is missing only where every branch of a choice misses it. */
     fun missing(): List<Need> = needs.filterNot { it.key in provides || it.key in RUNTIME_PROVIDED }
@@ -133,7 +186,7 @@ internal fun read(
             expression.branches
                 .fold(Graph.nothing as Graph?) { all, branch ->
                     val result = branch.result.singleExpression() ?: return gave.up("a branch of several statements")
-                    all?.let { read(result, gave, here, seen)?.plus(it) }
+                    all?.let { read(result, gave, here, seen)?.or(it) }
                 }
 
         // `single { ... } as Module` and its like: the cast says nothing the operand did not.
@@ -214,13 +267,25 @@ private fun combinator(
         call.arguments.singleOrNull()?.let { read(it, gave, here, seen) } ?: gave.up<Graph>("a merge of no one thing")
     }
     return when (called) {
-        PLUS, OVERRIDING -> left()?.let { base -> right()?.let { base + it } }
-        OVERRIDING_CONFIG -> left()?.plus(node(TYPESAFE_CONFIG, emptyList(), call.source))
+        PLUS -> left()?.let { base -> right()?.let { merged(base, it, gave) } }
+        OVERRIDING -> left()?.let { base -> right()?.let { base.overriding(it) } }
+        OVERRIDING_CONFIG -> left()?.overriding(node(TYPESAFE_CONFIG, emptyList(), call.source))
         BOUND_TO -> arguments.singleOrNull()?.let { key -> left()?.keyedAs(key) }
         PROBE -> left()
         else -> null
     }
 }
+
+/**
+ * Two modules merged, unless one of them came out of a choice.
+ *
+ * A key provided both inside a choice and outside one collides in some assemblies and not in
+ * others, and the reader cannot say which it is looking at. Neither answer is worth a warning.
+ */
+private fun merged(base: Graph, other: Graph, gave: Gave): Graph? =
+    base.ambiguous(other)
+        ?.let { gave.up<Graph>("$it, provided both inside a choice and outside one") }
+        ?: (base + other)
 
 private fun node(key: String, dependencies: List<String>, at: KtSourceElement?): Graph =
     Graph(mapOf(key to at), dependencies.map { Need(it, key, at) })
