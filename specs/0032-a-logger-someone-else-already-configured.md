@@ -43,38 +43,43 @@ dependencies {
 }
 ```
 
+There is no second step. The module registers a `Logger` through a
+`ServiceLoader`, and `lark`'s default resolves through one — so a service that
+has bound nothing logs where everything else on its classpath already logs.
+
 ```kotlin
-val exit = logger.locally(Slf4jLogger()) { runApp(app) }
+logger.locally(MyLogger()) { runApp(app) }   // still wins: a test, or your own
 ```
 
-- `Slf4jLogger(name: String = "lark")` — one `org.slf4j.Logger`, named, because
-  a backend's configuration is by name and a service wants to set the level of
-  its own lines.
+- `Slf4jLogger(name: String = "lark")` — a backend is configured by name, and a
+  service wants a level for its own lines that is not its libraries'.
 - Level maps to `debug`/`info`/`warn`/`error`; `cause` goes to the throwable
   overload rather than into the message.
-- **Annotations go to the MDC**, put in before the call and put back after,
-  so `%X{correlation_id}` and a JSON encoder both find them. Every annotation
+- **Annotations go to the MDC**, put in before the call and put back after, so
+  `%X{correlation_id}` and a JSON encoder both find them. Every annotation
   `logAnnotated` bound, and the elapsed pairs `logSpan` contributes through
   `spans.elapsedAt`.
 - The message reaches the backend as written, with nothing appended.
 
 ## Why this shape
 
-The MDC is the whole reason to ship this rather than paste it. `lark` propagates
-a binding across a fork and slf4j's MDC does not, so the adapter is the seam
-where one becomes the other, and it is a seam with a wrong answer that looks
-right: append to the message and every line still reads correctly to a human
-while being unsearchable to everything else.
+A wrapper around `runApp` is a line to remember, and `petshop` is the evidence
+that it gets forgotten. Discovery is the ergonomics `lark-otel` already has —
+"put it on the classpath; nothing else" — and it is the difference between an
+adapter being a dependency and being a step in a README nobody reaches.
 
-Putting values in and taking them back out — rather than setting and leaving
-them — is what makes that safe on a pooled or virtual thread `lark` did not
-open. A thread that logs outside any `logAnnotated` must not inherit the last
-block's correlation id.
+The MDC is the other half. `lark` carries a binding across a fork and slf4j's
+MDC does not, so the adapter is the seam where one becomes the other, and it is
+a seam with a wrong answer that looks right: append to the message and every
+line still reads correctly to a human while being unsearchable to everything
+else. Putting values in and taking them back out — rather than setting and
+leaving them — is what makes that safe on a pooled or virtual thread `lark` did
+not open.
 
-The alternative is `MDCContextMap`, an slf4j SPI that would let `lark`'s
-bindings *be* the MDC for the whole JVM. It is one `ServiceLoader` entry, it
-would carry annotations onto third-party lines for free, and it takes over
-something the service may already have configured. Recommend the plain adapter.
+The alternative to discovery is `MDCContextMap`, an slf4j SPI that would let
+`lark`'s bindings *be* the MDC for the whole JVM. It would carry annotations
+onto third-party lines for free, and it takes over something the service may
+already have configured. Recommend the plain adapter.
 
 ## Stack
 
@@ -83,12 +88,18 @@ something the service may already have configured. Recommend the plain adapter.
       and `slf4j-api` and nothing else.
       Done when: each of the four levels reaches the matching slf4j call, an
       error carries its `Throwable` as a throwable, and the classpath test names
-      three jars.
+      nothing else.
 - [ ] **`spec-0032-the-mdc`** — annotations into the MDC around each call and
-      out again; the cookbook section replaced by the dependency and one line.
+      out again.
       Done when: a line written inside `logAnnotated` has the pair in its MDC, a
-      line written after it does not, and a line written on a fork opened inside
-      the block does.
+      line written after it does not, a line written on a fork opened inside the
+      block does, and a key the service set itself survives.
+- [ ] **`spec-0032-found-on-the-classpath`** — `lark`'s default `Logger`
+      resolves through a `ServiceLoader`, resolved once; `lark-slf4j` ships the
+      service file; README and cookbook say so.
+      Done when: with the module on the test classpath and nothing bound,
+      `logger.get()` is a `Slf4jLogger`, `lark`'s own tests still get
+      `StderrLogger`, and `logger.locally` still wins.
 
 ## Acceptance
 
@@ -107,7 +118,13 @@ something the service may already have configured. Recommend the plain adapter.
 3. **What restores an MDC that was already set?** Recommend saving the map
    before and restoring it after, not clearing: a service that set its own keys
    outside `lark` keeps them.
-4. **Does `CookbookTest` still compile the old recipe?** It compiles against
-   `lark-app-pekko`'s runtime classpath, which has `slf4j-api` but would not
-   have this module. Recommend checking that before writing the second entry —
-   if it cannot compile the new one-liner, the docs change belongs elsewhere.
+4. ~~**Does `CookbookTest` still compile the old recipe?**~~ Answered: it
+   compiles only fences marked `<!-- cookbook -->`, so the dependency snippet is
+   prose and the hand-rolled adapter below it stays compiled.
+5. **Which implementation wins if two are registered?** The first the
+   `ServiceLoader` yields, and the order is not specified. Recommend leaving it:
+   two logging adapters on one classpath is the same mistake as two backends,
+   and a service that means it binds one with `logger.locally`.
+6. **Whose classloader?** This class's, not the thread's — which thread a line
+   is written on is exactly what `lark` makes vary. A container that isolates
+   the application from the library loader would not find the adapter.
