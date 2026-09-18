@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirClass
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
+import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneType
 import org.jetbrains.kotlin.name.ClassId
@@ -55,20 +56,48 @@ internal class ApplicationChecker(private val verbose: Boolean) : FirClassChecke
         }
 
         if (verbose) {
-            val read = declaration.read(graph, gave)
+            val read = declaration.read(graph, gave, graph?.unreachedFrom(declaration).orEmpty())
             reporter.reportOn(declaration.source, LarkDiagnostics.LARK_APP_FOUND, read, context)
         }
     }
 
+    /**
+     * What the root reaches nothing of, or nothing at all where the root is not a key this builds.
+     *
+     * A root the graph does not provide would leave every node unreached, which is the one wrong
+     * answer this must never give: `larkWiring` fails that build on the root itself.
+     */
+    private fun Graph.unreachedFrom(declaration: FirClass): List<String> =
+        declaration.root()?.takeIf { it in provides }?.let { unreached(it) }.orEmpty()
+
+    /**
+     * The root, read off the type argument the subclass wrote.
+     *
+     * The same place `LarkApp.root` reads it from — a type argument on a subclass declaration is
+     * kept, where one at a use site is erased.
+     */
+    private fun FirClass.root(): String? =
+        superTypeRefs.firstOrNull { it.coneType.classId == larkApp }
+            ?.coneType
+            ?.typeArguments
+            ?.firstOrNull()
+            ?.let { (it as? ConeKotlinTypeProjection)?.type }
+            ?.let(::keyOf)
+
     /** The sentence `lark-app` prints for the same fault, so a reader meets one wording not two. */
     private fun Need.said(): String = "${labelOf(by)} needs ${labelOf(key)}, and nothing builds it"
 
-    private fun FirClass.read(graph: Graph?, gave: Gave): String = when (graph) {
+    private fun FirClass.read(graph: Graph?, gave: Gave, unreached: List<String>): String = when (graph) {
         null -> "${name()} was not read: gave up at ${gave.at}"
 
-        else -> "${name()} provides ${graph.provides.map(::labelOf).sorted()}" +
-            ", and is short of ${graph.missing().map { labelOf(it.key) }.distinct().sorted()}"
+        else -> "${name()} provides ${graph.provides.keys.map(::labelOf).sorted()}" +
+            ", and is short of ${graph.missing().map { labelOf(it.key) }.distinct().sorted()}" +
+            unreachedSaid(unreached)
     }
+
+    /** Silent where everything is reached, so a working graph's line stays the one it was. */
+    private fun unreachedSaid(unreached: List<String>): String =
+        if (unreached.isEmpty()) "" else ", and nothing reaches ${unreached.map(::labelOf)}"
 
     private fun FirClass.isApplication(): Boolean = superTypeRefs.any { it.coneType.classId == larkApp }
 

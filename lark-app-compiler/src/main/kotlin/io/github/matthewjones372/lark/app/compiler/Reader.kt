@@ -60,7 +60,7 @@ internal class Here(
 
     /** What was read beyond this file, reported where this file mentions it. */
     fun anchor(graph: Graph): Graph =
-        if (at == null) graph else Graph(graph.provides, graph.needs.map { Need(it.key, it.by, at) })
+        if (at == null) graph else Graph(graph.provides.mapValues { at }, graph.needs.map { Need(it.key, it.by, at) })
 
     private fun pathOf(symbol: FirCallableSymbol<*>): String? =
         session.firProvider.getFirCallableContainerFile(symbol)?.sourceFile?.path
@@ -73,20 +73,40 @@ internal class Here(
 /** A key something needs, and where the recipe that needs it was written. */
 internal class Need(val key: String, val by: String, val at: KtSourceElement?)
 
-/** What an expression builds: the keys it provides, and what those recipes ask for. */
-internal class Graph(val provides: Set<String>, val needs: List<Need>) {
+/** What an expression builds: each key and the call that built it, and what those recipes ask for. */
+internal class Graph(val provides: Map<String, KtSourceElement?>, val needs: List<Need>) {
 
+    // A key provided twice keeps the later site, which is the one `Module.plus` keeps the node of.
     operator fun plus(other: Graph): Graph = Graph(provides + other.provides, needs + other.needs)
 
     /** The same graph under one key instead of the one it had, which is what `boundTo` does. */
-    fun keyedAs(key: String): Graph = Graph(setOf(key), needs.map { Need(it.key, key, it.at) })
+    fun keyedAs(key: String): Graph =
+        Graph(mapOf(key to provides.values.singleOrNull()), needs.map { Need(it.key, key, it.at) })
 
     /** What nothing here builds. A key is missing only where every branch of a choice misses it. */
     fun missing(): List<Need> = needs.filterNot { it.key in provides || it.key in RUNTIME_PROVIDED }
 
-    internal companion object {
-        val nothing = Graph(emptySet(), emptyList())
+    /**
+     * The nodes [root] does not reach, each the top of what it took with it.
+     *
+     * `Findings.forgotten` names the same set for the same graph at runtime, subtree tops included:
+     * a module left out takes everything under it, and naming all of them is one edit reported as
+     * nine.
+     */
+    fun unreached(root: String): List<String> {
+        val edges = needs.groupBy({ it.by }, { it.key })
+        val lost = provides.keys - reached(edges, setOf(root), setOf(root))
+        return lost.filterNot { key -> lost.any { it != key && key in edges[it].orEmpty() } }.sorted()
     }
+
+    internal companion object {
+        val nothing = Graph(emptyMap(), emptyList())
+    }
+}
+
+private tailrec fun reached(edges: Map<String, List<String>>, found: Set<String>, frontier: Set<String>): Set<String> {
+    val next = frontier.flatMap { edges[it].orEmpty() }.toSet() - found
+    return if (next.isEmpty()) found else reached(edges, found + next, next)
 }
 
 /**
@@ -203,7 +223,7 @@ private fun combinator(
 }
 
 private fun node(key: String, dependencies: List<String>, at: KtSourceElement?): Graph =
-    Graph(setOf(key), dependencies.map { Need(it, key, at) })
+    Graph(mapOf(key to at), dependencies.map { Need(it, key, at) })
 
 private const val APP = "io.github.matthewjones372.lark.app"
 

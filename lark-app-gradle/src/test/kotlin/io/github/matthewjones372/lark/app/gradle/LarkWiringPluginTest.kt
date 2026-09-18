@@ -210,6 +210,28 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `a node the root does not reach is named at the top of what it took with it`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", FORGOTTEN)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("one module left out is one line to change, not one line per node under it") {
+            result.output shouldContain "and nothing reaches [Audit]"
+        }
+    }
+
+    @Test
+    fun `a root the graph does not build says nothing about what reaches it`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", ROOTLESS)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("an unmatched root unreaches every node at once, which is the one wrong answer") {
+            result.output shouldNotContain "nothing reaches"
+        }
+    }
+
+    @Test
     fun `a warning stops the build where the extension asks it to`(@TempDir dir: File) {
         project(dir, "larkWiring { failOn = \"WARN\" }", WARNED)
 
@@ -308,6 +330,26 @@ object Under : LarkApp<Pump>() {
 private const val WARNED = """$IMPORTS
 object Under : LarkApp<Pump>() {
     override val module: Module = single<Pump> { Pump() } + single<Pump> { Pump() }
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** A node nothing takes, and a node only that one takes: one edit, and so one thing to say. */
+private const val FORGOTTEN = """$IMPORTS
+class Ledger
+class Audit(val ledger: Ledger)
+
+object Under : LarkApp<Pump>() {
+    override val module: Module =
+        single<Pump> { Pump() } + single<Ledger> { Ledger() } + single { l: Ledger -> Audit(l) }
+    override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** A graph that builds no root: sound to read, and unanswerable about what reaches what. */
+private const val ROOTLESS = """$IMPORTS
+object Under : LarkApp<Pump>() {
+    override val module: Module = single<DataSource> { DataSource() }
     override fun AppScope.run(root: Pump) = Unit
 }
 """
