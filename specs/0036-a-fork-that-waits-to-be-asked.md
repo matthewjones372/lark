@@ -75,11 +75,12 @@ and a second factory means a third when a third mode arrives.
 
 ## Stack
 
-- [ ] **`spec-0036-lazy-start`** — `Start`, the `async` parameter,
-      `Deferred.start()`, and `close` dropping a fork that never ran.
+- [x] **`spec-0036-lazy-start`** ([#84](https://github.com/matthewjones372/lark/pull/84)) — `Start`, the `async` parameter,
+      and `close` dropping a fork that never ran. `Deferred.start()` left out:
+      open question 1 was answered as `Lazy` plus `await` alone.
       Done when: a lazy fork nobody awaits never runs and the scope still
-      returns, `await()` on one runs it and answers, `start()` is idempotent and
-      a later `await()` re-runs nothing, an eager fork is unchanged, and
+      returns, `await()` on one runs it and answers, a second `await()` re-runs
+      nothing, an eager fork is unchanged, and
       `FlockTest`, `AwaitTest` and `AwaitExitTest` pass unchanged.
 
 ## Acceptance
