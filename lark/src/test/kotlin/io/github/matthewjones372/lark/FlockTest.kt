@@ -95,6 +95,74 @@ class FlockTest {
     }
 
     @Test
+    fun `a cancelled fork is interrupted and dead before cancel returns`() {
+        val sleeper = Sleeper()
+        val interruptedAtCancel = AtomicBoolean(false)
+        val aliveAtCancel = AtomicBoolean(true)
+
+        val result = flock<Bad, String> {
+            val fork = async { sleeper.body() }
+            sleeper.awaitStart()
+            fork.cancel()
+            interruptedAtCancel.set(sleeper.wasInterrupted())
+            aliveAtCancel.set(sleeper.isAlive())
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+        interruptedAtCancel.get() shouldBe true
+        withClue("cancel returns only once the fork it stopped has ended") {
+            aliveAtCancel.get() shouldBe false
+        }
+    }
+
+    @Test
+    fun `a fork cancelled and never awaited does not fail the block`() {
+        val started = CountDownLatch(1)
+
+        val result = flock<Bad, String> {
+            val fork = async {
+                started.countDown()
+                // Nothing catches it, so the interrupt is what this fork ends with.
+                Thread.sleep(NEVER_FINISHES_MILLIS)
+                "slept"
+            }
+            started.await()
+            fork.cancel()
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+    }
+
+    @Test
+    fun `a fork cancelled after it raised does not fail the block`() {
+        val result = flock<Bad, String> {
+            val fork = async<Int> { raise(Bad("forked")) }
+            fork.cancel()
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+    }
+
+    @Test
+    fun `a sibling of a cancelled fork runs to completion`() {
+        val sleeper = Sleeper()
+
+        val result = flock<Bad, Int> {
+            val stopped = async { sleeper.body() }
+            val sibling = async { 42 }
+            sleeper.awaitStart()
+            stopped.cancel()
+            sibling.await()
+        }
+
+        result shouldBe 42.right()
+        sleeper.wasInterrupted() shouldBe true
+    }
+
+    @Test
     fun `a fork that raised and was never awaited becomes the block's Left`() {
         val result = flock<Bad, String> {
             async { raise(Bad("orphan")) }

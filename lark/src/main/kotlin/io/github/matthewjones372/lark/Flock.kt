@@ -235,9 +235,17 @@ internal class Fork<E, T>(
         }
     }
 
+    override fun cancel() {
+        interrupt()
+        join()
+        noticed = true
+    }
+
     fun interrupt() {
-        cutShort = outcome == null
         cancelling.withLock {
+            // Close interrupts a fork `cancel` already stopped, and by then it has answered: reading
+            // `outcome` a second time would call it a fork that failed of its own accord.
+            if (!cancelled) cutShort = outcome == null
             cancelled = true
             borrowed?.interrupt()
         }
