@@ -27,6 +27,9 @@ fork whose turn on the executor has not come start its body interrupted. It is
   block that opened it" is the invariant, and this does not touch it.
 - **No change to the combinators.** `parZip`, `parMap` and `raceN` go on
   cancelling their own forks; nothing here is reachable from them.
+- **No change to what `close` surfaces.** A fork nobody cancelled and nobody
+  awaited still answers the scope with the interrupt it was sent; `AwaitTest`
+  and `AwaitExitTest` assert that, and it stays asserted.
 - **No cooperative cancellation.** Interrupt is what the JDK has, a body that
   ignores it is still joined, and lark says so out loud already.
 
@@ -59,29 +62,30 @@ Java's shape — `Future.cancel(true)` returns at once and you join separately �
 which is two calls to get one guarantee, and the guarantee is the reason this is
 in lark rather than in the caller.
 
-**The scope has a hole that `cancel()` would make load-bearing.**
+**A cancel nobody awaits must not fail the scope, and today it would.**
 `Fork.unnoticedFailure()` reads `settled()` unfiltered, where `ownFailure()`
-drops an interrupt a combinator sent (`Flock.kt:261`, `Flock.kt:274`). So the
-interrupt `close` itself sends comes back as a failure nobody noticed and is
-surfaced: `flock { async { Thread.sleep(60_000) }; "returned" }` throws
-`InterruptedException` out of the scope today, rather than answering
-`Right("returned")`. No test catches it because every one of them forks a
-`Sleeper`, which catches its own interrupt and returns a value. Cancel-and-
-don't-await is the most natural thing to write with this API and lands straight
-on it, so the fix goes in first and on its own.
+drops an interrupt a combinator sent (`Flock.kt:261`, `Flock.kt:274`), so a fork
+that let an interrupt leave its body answers the scope with it:
+`flock { async { Thread.sleep(60_000) }; "returned" }` throws
+`InterruptedException` rather than `Right("returned")`. That is deliberate and
+asserted twice — `AwaitTest.kt:53` and `AwaitExitTest.kt:84` both wrap exactly
+this shape in `shouldThrow<InterruptedException>` — so it is a contract, not a
+hole, and this spec does not touch it. `cancel()` still has to answer for it,
+because cancel-and-don't-await is the most natural call the API invites.
+Recommended: `cancel()` marks the fork noticed, since cancelling it *is* taking
+notice of its outcome. Nothing at close changes, both those tests stand, and the
+blast radius stays inside the new method. The alternative — make the caller
+`await()` a fork it just cancelled to keep the scope quiet — is a trap nobody
+will remember.
 
 ## Stack
 
-- [ ] **`spec-0035-unnoticed-interrupt`** — `unnoticedFailure` drops an interrupt
-      the scope itself sent, as `ownFailure` already does. No API change.
-      Done when: `flock { async { Thread.sleep(60_000) }; "returned" }` is
-      `Right("returned")`, and a fork that raised or threw of its own accord
-      still becomes the block's `Left` or rethrow.
-- [ ] **`spec-0035-cancel`** — `Deferred.cancel()`, its KDoc, and the README
-      paragraph on what a cancelled fork answers.
+- [ ] **`spec-0035-cancel`** — `Deferred.cancel()`, marking the fork noticed, its
+      KDoc, and the README paragraph on what a cancelled fork answers.
       Done when: a cancelled fork is interrupted and dead before `cancel()`
-      returns, the scope answers with the block's value, and a sibling of the
-      cancelled fork runs to completion untouched.
+      returns, a scope whose only fork was cancelled and never awaited answers
+      with the block's value, a sibling runs to completion untouched, and
+      `AwaitTest` and `AwaitExitTest` pass unchanged.
 
 ## Acceptance
 
@@ -99,7 +103,8 @@ on it, so the fix goes in first and on its own.
    argument, not a paragraph.
 2. **Is `cancel()` idempotent, and what does it do to a fork that already
    ended?** Recommend both are no-ops that return at once, so a cancel in a
-   `finally` needs no guard around it.
+   `finally` needs no guard around it. A cancel arriving after the fork answered
+   still marks it noticed, or the `finally` reintroduces the problem it solves.
 3. **Does `cancel()` belong on `Deferred` or on `Flock`?** Recommend
    `Deferred`, so the handle carries the whole lifecycle and `Flock` keeps the
    two members it has.
