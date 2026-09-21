@@ -100,6 +100,14 @@ fun quote(id: Id): Either<Err, Either<Quote, Quote>> = either { raceN({ fast.quo
 
 // async and await, for a fork the combinators do not shape
 fun user(id: Id): Either<Err, User> = either { flock { async { users.find(id).bind() }.await() } }
+
+// and cancel, for a fork that stopped being worth waiting for
+fun dashboard(id: Id): Either<Err, Dashboard> = either {
+    flock {
+        val report = async { reports.build(id) }
+        if (budget.check(id).bind().hasCredit) render(report.await()) else { report.cancel(); Empty }
+    }
+}
 ```
 
 `flock { }` is the scope `async` forks in and the one thing
@@ -112,6 +120,14 @@ The first branch to raise or throw interrupts its siblings; `raceN` interrupts
 the losers. Interrupt is the only cancellation the JDK has, so a cancelled
 branch ends at its next interruptible blocking call, and a combinator returns
 only once every fork it opened has ended.
+
+`cancel()` is the same stop, aimed by hand at one fork rather than by a
+combinator at a branch: it interrupts and returns once that fork has ended, so
+nothing it owns is still running afterwards. A cancelled fork's outcome counts
+as noticed, so the scope does not answer with it — including a raise it got to
+before the interrupt landed. A body that swallowed the interrupt and returned
+anyway still has its value, and `await()` after a `cancel()` gives it back:
+`cancel()` is a request, not a verdict.
 
 Every forking combinator also takes the executor to fork on, ahead of its
 branches — `parZip(on = pool, { … }, { … }) { … }`, `flock(on = pool) { }`,
