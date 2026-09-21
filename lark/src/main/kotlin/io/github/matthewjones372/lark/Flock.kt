@@ -9,13 +9,19 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/** Whether `async` forks where it is written, or waits until something asks for the value. */
+enum class Start { Eager, Lazy }
+
 /** A `Raise` scope that owns every thread forked in it: no fork outlives the block that opened it. */
 interface Flock<E> : Raise<E> {
     /** The executor this scope's forks run on when a call does not name another. */
     val on: Executor
 
-    /** Forks [block] onto [on] under a nested scope of its own. */
-    fun <T> async(on: Executor = this.on, block: Flock<E>.() -> T): Deferred<T>
+    /**
+     * Forks [block] onto [on] under a nested scope of its own. A [Start.Lazy] fork waits for `await`, and
+     * one nobody awaits never runs at all, so its raise is never the scope's `Left`.
+     */
+    fun <T> async(on: Executor = this.on, start: Start = Start.Eager, block: Flock<E>.() -> T): Deferred<T>
 }
 
 /**
@@ -101,8 +107,8 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
     // Only the scope's own thread reaches this: a fork body is handed a nest of its own.
     private val forks = mutableListOf<Fork<E, *>>()
 
-    override fun <T> async(on: Executor, block: Flock<E>.() -> T): Deferred<T> {
-        val fork = Fork(this, on, block)
+    override fun <T> async(on: Executor, start: Start, block: Flock<E>.() -> T): Deferred<T> {
+        val fork = Fork(this, on, block, start = start)
         forks += fork
         return fork
     }
@@ -169,9 +175,10 @@ internal class Flight<E>(private val owner: Raise<E>, private val on: Executor) 
 
 internal class Fork<E, T>(
     private val owner: Raise<E>,
-    on: Executor,
-    block: Flock<E>.() -> T,
-    ended: () -> Unit = {},
+    private val on: Executor,
+    private val block: Flock<E>.() -> T,
+    private val ended: () -> Unit = {},
+    start: Start = Start.Eager,
 ) : Deferred<T> {
 
     @Volatile
@@ -202,7 +209,17 @@ internal class Fork<E, T>(
     // Read on the opening thread rather than inside the task, which runs on a thread that bound none of it.
     private val inherited = Bindings.snapshot()
 
+    // Whether the body has reached the executor. A lazy fork nobody asked for never does, and then there is
+    // no thread to interrupt and no latch anything will ever count down.
+    @Volatile
+    private var started = false
+
     init {
+        if (start == Start.Eager) submit()
+    }
+
+    private fun submit() {
+        started = true
         on.execute {
             Bindings.under(inherited) {
                 cancelling.withLock {
@@ -227,12 +244,17 @@ internal class Fork<E, T>(
     }
 
     override fun await(): T {
+        startOnce()
         join()
         noticed = true
         return when (val settled = settled()) {
             is Returned -> settled.value
             is Failure -> owner.surface(settled)
         }
+    }
+
+    private fun startOnce() {
+        if (cancelling.withLock { !started && !cancelled }) submit()
     }
 
     override fun cancel() {
@@ -247,11 +269,18 @@ internal class Fork<E, T>(
             // `outcome` a second time would call it a fork that failed of its own accord.
             if (!cancelled) cutShort = outcome == null
             cancelled = true
+            // Nothing is running to notice an interrupt and nothing will end the fork, so it answers here
+            // as though it had been stopped at its first interruptible call.
+            if (!started && outcome == null) {
+                outcome = Thrown(InterruptedException("cancelled before it was started"))
+                finished.countDown()
+            }
             borrowed?.interrupt()
         }
     }
 
     fun join() {
+        if (!started) return
         finished.awaitFully()
         ownThread?.joinFully()
     }
@@ -278,8 +307,8 @@ internal class Fork<E, T>(
         null -> null
     }
 
-    /** The failure of a fork whose outcome nobody asked for; the scope answers with it at close. */
-    fun unnoticedFailure(): Failure<E>? = settled().takeUnless { noticed } as? Failure<E>
+    /** The failure of a fork whose outcome nobody asked for; one that never ran has none to answer with. */
+    fun unnoticedFailure(): Failure<E>? = if (!started) null else settled().takeUnless { noticed } as? Failure<E>
 
     private fun settled(): Outcome<E, T> = checkNotNull(outcome) { "a joined fork always has an outcome" }
 }

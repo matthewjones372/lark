@@ -121,6 +121,14 @@ the losers. Interrupt is the only cancellation the JDK has, so a cancelled
 branch ends at its next interruptible blocking call, and a combinator returns
 only once every fork it opened has ended.
 
+A fork can also wait to be asked. `async(start = Lazy) { }` does not reach the
+executor until something awaits it, so work a later branch turns out not to want
+is never done — and a lazy fork nobody awaits never runs at all, which means its
+raise is never the block's `Left` where an eager one's would be. The flag is on
+the call rather than the scope on purpose: a scope where nothing started until
+it was awaited would turn a fan-out into sequential code, which is the one thing
+`flock` is for.
+
 `cancel()` is the same stop, aimed by hand at one fork rather than by a
 combinator at a branch: it interrupts and returns once that fork has ended, so
 nothing it owns is still running afterwards. A cancelled fork's outcome counts

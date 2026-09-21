@@ -4,6 +4,7 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.raise.ensure
 import arrow.core.right
+import io.github.matthewjones372.lark.Start.Lazy
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -13,6 +14,7 @@ import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class FlockTest {
 
@@ -160,6 +162,70 @@ class FlockTest {
 
         result shouldBe 42.right()
         sleeper.wasInterrupted() shouldBe true
+    }
+
+    @Test
+    fun `a lazy fork nobody awaits never runs, and the scope still returns`() {
+        val ran = AtomicBoolean(false)
+
+        val result = flock<Bad, String> {
+            async(start = Lazy) { ran.set(true) }
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+        withClue("a scope that closes must not wait on a fork that never ran") {
+            ran.get() shouldBe false
+        }
+    }
+
+    @Test
+    fun `a lazy fork runs when it is awaited`() {
+        val result = flock<Bad, Int> { async(start = Lazy) { 42 }.await() }
+
+        result shouldBe 42.right()
+    }
+
+    @Test
+    fun `a lazy fork nobody awaits cannot fail the block, where the eager form would`() {
+        val lazily = flock<Bad, String> {
+            async<Int>(start = Lazy) { raise(Bad("never asked for")) }
+            "returned"
+        }
+        val eagerly = flock<Bad, String> {
+            async<Int> { raise(Bad("forked")) }
+            "returned"
+        }
+
+        lazily shouldBe "returned".right()
+        eagerly shouldBe Bad("forked").left()
+    }
+
+    @Test
+    fun `a lazy fork awaited twice runs once`() {
+        val runs = AtomicInteger(0)
+
+        val result = flock<Bad, Int> {
+            val counted = async(start = Lazy) { runs.incrementAndGet() }
+            counted.await() + counted.await()
+        }
+
+        result shouldBe 2.right()
+        runs.get() shouldBe 1
+    }
+
+    @Test
+    fun `a lazy fork cancelled before it was awaited never runs`() {
+        val ran = AtomicBoolean(false)
+
+        val result = flock<Bad, String> {
+            val fork = async(start = Lazy) { ran.set(true) }
+            fork.cancel()
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+        ran.get() shouldBe false
     }
 
     @Test
