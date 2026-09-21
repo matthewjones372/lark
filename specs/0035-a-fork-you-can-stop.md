@@ -80,7 +80,7 @@ will remember.
 
 ## Stack
 
-- [ ] **`spec-0035-cancel`** — `Deferred.cancel()`, marking the fork noticed, its
+- [x] **`spec-0035-cancel`** ([#81](https://github.com/matthewjones372/lark/pull/81)) — `Deferred.cancel()`, marking the fork noticed, its
       KDoc, and the README paragraph on what a cancelled fork answers.
       Done when: a cancelled fork is interrupted and dead before `cancel()`
       returns, a scope whose only fork was cancelled and never awaited answers
