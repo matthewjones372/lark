@@ -11,7 +11,8 @@ A service without Pekko uses `Sequence` instead. It has the right shape and
 fuses stages on one thread, but it has no bounded concurrent stage and no
 bounded buffer between a fast stage and a slow one.
 
-With 0037's forks and 0038's channels, the missing pieces are a few operators.
+With 0037's forks and 0038's channels, the missing pieces are a few operators,
+in a module of their own: `lark-feed`, depending on `lark` and nothing else.
 
 ## Not doing
 
@@ -61,8 +62,8 @@ backend behind `lark-stream`'s API. Recommended against: that API exposes
 
 ## Stack
 
-- [ ] **`spec-0039-feed`** — `Feed`, `feed`, fused `map`/`filter`/`take`/`chunked`,
-      `forEach`, `toList`.
+- [ ] **`spec-0039-feed`** — the `lark-feed` module and its classpath test, `Feed`,
+      `feed`, fused `map`/`filter`/`take`/`chunked`, `forEach`, `toList`.
       Done when: a raise in `map` is the `Left`, and `take(3)` on an infinite feed
       returns.
 - [ ] **`spec-0039-boundaries`** — `buffer` and `mapPar` on channels.
@@ -77,12 +78,12 @@ backend behind `lark-stream`'s API. Recommended against: that API exposes
 
 ## Open questions
 
-1. **In `lark`, or in a module of its own?** It needs nothing but `lark`.
-   Recommended: in `lark`, like `Schedule`.
-2. **The name.** `Stream` clashes with `lark-stream`, `Flow` means something else
+1. **The name.** `Stream` clashes with `lark-stream`, `Flow` means something else
    to a Kotlin reader, and `Pipe` is taken. `Feed` is recommended. Pick another
    freely.
-3. **Does `mapPar` keep input order?** Recommended: yes, with `mapParUnordered`
+2. **Does `mapPar` keep input order?** Recommended: yes, with `mapParUnordered`
    later if a pipeline asks for it. This matches `lark-stream`.
-4. **A producing block (`feed { emit(x) }`) as the way in?** Recommended: yes, as
+3. **A producing block (`feed { emit(x) }`) as the way in?** Recommended: yes, as
    a fork with a channel of capacity 0, so `emit` parks until pulled.
+
+Decided (2026-09-22): `lark-feed` is a module of its own, not part of `lark`.
