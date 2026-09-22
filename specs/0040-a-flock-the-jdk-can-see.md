@@ -118,6 +118,24 @@ The prototype is `lark-structured` on Temurin 27+35. It also has `parAll` and
   factory also names each fork's thread after its scope.
 - **`await` from another fork is refused.** It throws `WrongThreadException` at
   runtime, which is 0041's `AWAIT_ACROSS_FORK` enforced without the compiler.
-- **Deliberate difference from `flock`:** a fork the close cuts short does not
-  fail the scope. `flock` answers with the interrupt instead (0035).
+
+## Decided (2026-09-22): every fork is lazy
+
+In `lark-structured`, `async` never starts anything. `await()` runs that one
+fork, and `awaitAll(a, b)`, `awaitAll(a, b, c)` or `awaitAll(list)` start forks
+together and answer with the first failure. That takes `structured` off the
+shared `Flock` receiver: its block is a `StructuredScope<E>` with no `start` and
+no `on`, so a body written for `flock` no longer drops in unchanged. `flock` and
+`lark` are untouched.
+
+What follows from it:
+- **No fork runs while the block does.** A fork starts only inside an await, and
+  every await returns once its forks have ended, or once one has failed and the
+  block is leaving. So the block's own code never races a fork.
+- **`cancel()` means "never run this".** A fork that was awaited has ended, so
+  there is never a thread left to interrupt.
+- **Nothing can fail unnoticed.** Every fork that runs was awaited, so the
+  unnoticed-failure and cut-short bookkeeping `flock` needs at close is gone.
+- **A deadline still cancels whatever is running inside an await**, and a block
+  that overruns it answers with `onTimeout` all the same.
 

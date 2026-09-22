@@ -4,34 +4,50 @@ import arrow.core.Either
 import arrow.core.raise.Raise
 import arrow.core.raise.either
 import io.github.matthewjones372.lark.Deferred
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.Start
-import io.github.matthewjones372.lark.VirtualThreads
-import java.util.concurrent.Executor
+import java.util.concurrent.Semaphore
 import java.util.concurrent.StructuredTaskScope
 import kotlin.time.Duration
 import kotlin.time.toJavaDuration
 
 /**
- * A `Flock` whose forks are subtasks of a JDK `StructuredTaskScope`: a thread dump shows them under [name],
- * they inherit the caller's `ScopedValue` bindings, and the JDK refuses a scope closed out of order.
+ * The block of a [structured] scope. Every fork waits to be asked: `await` runs one, and [awaitAll] runs
+ * several at once. A fork nobody awaits never runs, and no fork runs while the block itself does.
  */
-fun <E, A> structured(name: String = "structured", block: Flock<E>.() -> A): Either<E, A> =
+interface StructuredScope<E> : Raise<E> {
+
+    /** A fork that runs nothing until it is awaited, under a scope of its own named after it. */
+    fun <T> async(block: StructuredScope<E>.() -> T): Deferred<T>
+
+    /** Starts every fork not yet started, together, and answers in order; the first fork to fail is the answer. */
+    fun <T> awaitAll(forks: List<Deferred<T>>): List<T>
+
+    /** [awaitAll] for two forks of different types. */
+    fun <A, B> awaitAll(a: Deferred<A>, b: Deferred<B>): Pair<A, B>
+
+    /** [awaitAll] for three forks of different types. */
+    fun <A, B, C> awaitAll(a: Deferred<A>, b: Deferred<B>, c: Deferred<C>): Triple<A, B, C>
+}
+
+/**
+ * Opens a scope over a JDK `StructuredTaskScope`: a thread dump shows its forks under [name], they inherit
+ * the caller's `ScopedValue` bindings, and the JDK refuses a scope closed out of order.
+ */
+fun <E, A> structured(name: String = "structured", block: StructuredScope<E>.() -> A): Either<E, A> =
     either { structured(name, block) }
 
 /** The same scope inside a `Raise` already in hand. */
-fun <E, A> Raise<E>.structured(name: String = "structured", block: Flock<E>.() -> A): A =
+fun <E, A> Raise<E>.structured(name: String = "structured", block: StructuredScope<E>.() -> A): A =
     runScope(this, name, null, block)
 
 /**
  * A scope whose forks have a deadline: when [timeout] passes the JDK cancels them, and the scope answers
- * [onTimeout] instead of an exception. The block itself is not interrupted, only the forks it waits on.
+ * [onTimeout] instead of an exception.
  */
 fun <E, A> structured(
     name: String = "structured",
     timeout: Duration,
     onTimeout: () -> E,
-    block: Flock<E>.() -> A,
+    block: StructuredScope<E>.() -> A,
 ): Either<E, A> = either { structured(name, timeout, onTimeout, block) }
 
 /** The same, inside a `Raise` already in hand. */
@@ -39,32 +55,37 @@ fun <E, A> Raise<E>.structured(
     name: String = "structured",
     timeout: Duration,
     onTimeout: () -> E,
-    block: Flock<E>.() -> A,
+    block: StructuredScope<E>.() -> A,
 ): A = runScope(this, name, Deadline(timeout, onTimeout), block)
 
 internal class Deadline<E>(val after: Duration, val error: () -> E)
 
-internal fun <E, A> runScope(raise: Raise<E>, name: String, deadline: Deadline<E>?, block: Flock<E>.() -> A): A {
+internal fun <E, A> runScope(
+    raise: Raise<E>,
+    name: String,
+    deadline: Deadline<E>?,
+    block: StructuredScope<E>.() -> A,
+): A {
     val scope = Scope(raise, name, deadline)
     val value = try {
         scope.block()
     } finally {
         scope.close()
     }
-    // Only reached on a return, so a fork nobody awaited still gets to fail its parent.
-    scope.answer()
+    // Only reached on a return: a block that overran its deadline answers with it all the same.
+    if (scope.expiredBeforeClose()) scope.expire()
     return value
 }
 
 internal class Scope<E>(raise: Raise<E>, private val name: String, private val deadline: Deadline<E>?) :
-    Flock<E>,
+    StructuredScope<E>,
     Raise<E> by raise {
 
     private val owner = Thread.currentThread()
     private val joiner = CancelOnClose()
 
     // Only the owner touches these: a fork's body is handed a scope of its own.
-    private val forks = mutableListOf<Fork<E, *>>()
+    private var forked = 0
     private var forking: Fork<E, *>? = null
     private var expired = false
 
@@ -74,17 +95,46 @@ internal class Scope<E>(raise: Raise<E>, private val name: String, private val d
             if (deadline == null) named else named.withTimeout(deadline.after.toJavaDuration())
         }
 
-    override val on: Executor get() = VirtualThreads
-
-    override fun <T> async(on: Executor, start: Start, block: Flock<E>.() -> T): Deferred<T> {
-        require(on === VirtualThreads) {
-            "structured forks one virtual thread per subtask; use flock to fork onto an executor"
-        }
+    override fun <T> async(block: StructuredScope<E>.() -> T): Deferred<T> {
         checkOwner()
-        val fork = Fork(this, "$name/${forks.size + 1}", block)
-        forks += fork
-        if (start == Start.Eager) fork.start()
-        return fork
+        forked += 1
+        return Fork(this, "$name/$forked", block)
+    }
+
+    override fun <T> awaitAll(forks: List<Deferred<T>>): List<T> {
+        settleAll(forks.map(::own))
+        return forks.map { it.await() }
+    }
+
+    override fun <A, B> awaitAll(a: Deferred<A>, b: Deferred<B>): Pair<A, B> {
+        settleAll(listOf(own(a), own(b)))
+        return a.await() to b.await()
+    }
+
+    override fun <A, B, C> awaitAll(a: Deferred<A>, b: Deferred<B>, c: Deferred<C>): Triple<A, B, C> {
+        settleAll(listOf(own(a), own(b), own(c)))
+        return Triple(a.await(), b.await(), c.await())
+    }
+
+    /** Starts every fork, then waits until all have ended or one has failed, which its `await` then surfaces. */
+    private fun settleAll(forks: List<Fork<E, *>>) {
+        checkOwner()
+        forks.forEach { it.start() }
+        val ended = Semaphore(0)
+        forks.forEach { it.whenEnded(ended::release) }
+        var running = forks.size
+        while (running > 0 && forks.none { it.hasFailed() }) {
+            // As `await` does: an interrupt on the owner does not leave it short of an answer.
+            ended.acquireUninterruptibly()
+            running -= 1
+        }
+        forks.firstOrNull { it.hasFailed() }?.await()
+    }
+
+    private fun own(fork: Deferred<*>): Fork<E, *> {
+        require(fork is Fork<*, *> && fork.belongsTo(this)) { "awaitAll takes forks of the scope it is called in" }
+        @Suppress("UNCHECKED_CAST") // Its scope is this one, so its error type is this scope's.
+        return fork as Fork<E, *>
     }
 
     fun checkOwner() {
@@ -117,15 +167,15 @@ internal class Scope<E>(raise: Raise<E>, private val name: String, private val d
     /** Cancelled while the block still runs: nothing but the deadline cancels this scope before it closes. */
     fun hasExpired(): Boolean = tasks.isCancelled && !joiner.closing
 
+    fun expiredBeforeClose(): Boolean = expired
+
     fun expire(): Nothing = raise(checkNotNull(deadline) { "a scope with no deadline cannot expire" }.error())
 
     fun close() {
-        // A fork still running now was cut short by the close, and its interrupt is not its answer.
-        forks.filterNot { it.hasEnded() }.forEach { it.markCutShort() }
         joiner.closing = true
         var interrupted = false
         try {
-            // The joiner cancels the scope on this fork, which interrupts every subtask still running.
+            // The joiner cancels the scope on this fork, which interrupts any fork a raise left running.
             tasks.fork<Any?>(Runnable {})
             expired = tasks.join()
         } catch (stop: InterruptedException) {
@@ -134,11 +184,6 @@ internal class Scope<E>(raise: Raise<E>, private val name: String, private val d
             tasks.close()
         }
         if (interrupted) Thread.currentThread().interrupt()
-    }
-
-    fun answer() {
-        if (expired) expire()
-        forks.firstNotNullOfOrNull { it.unnoticedFailure() }?.let { surface(it) }
     }
 }
 

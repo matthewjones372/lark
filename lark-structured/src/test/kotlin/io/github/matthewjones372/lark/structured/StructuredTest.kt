@@ -3,11 +3,11 @@ package io.github.matthewjones372.lark.structured
 import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.Deferred
-import io.github.matthewjones372.lark.Start
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
-import java.util.concurrent.Executors
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -18,12 +18,67 @@ class StructuredTest {
     private data object Slow
 
     @Test
-    fun `awaited forks answer with their values`() {
-        structured<Nothing, Int>("sum") {
-            val a = async { 20 }
-            val b = async { 22 }
-            a.await() + b.await()
-        } shouldBe 42.right()
+    fun `a fork nobody awaits never runs`() {
+        val runs = AtomicInteger()
+        structured<Nothing, Int>("unasked") {
+            async { runs.incrementAndGet() }
+            1
+        } shouldBe 1.right()
+        runs.get() shouldBe 0
+    }
+
+    @Test
+    fun `await runs that fork alone, and only once`() {
+        val runs = AtomicInteger()
+        val other = AtomicInteger()
+        structured<Nothing, Int>("once") {
+            val once = async { runs.incrementAndGet() }
+            async { other.incrementAndGet() }
+            once.await() + once.await()
+        } shouldBe 2.right()
+        runs.get() shouldBe 1
+        other.get() shouldBe 0
+    }
+
+    @Test
+    fun `awaitAll runs its forks at the same time`() {
+        // Each fork waits for the other to arrive: run one after the other, the first would time out.
+        val both = CyclicBarrier(2)
+        structured<Nothing, Pair<String, String>>("together") {
+            val a = async {
+                both.await(5, TimeUnit.SECONDS)
+                "a"
+            }
+            val b = async {
+                both.await(5, TimeUnit.SECONDS)
+                "b"
+            }
+            awaitAll(a, b)
+        } shouldBe ("a" to "b").right()
+    }
+
+    @Test
+    fun `awaitAll answers in order, for a list and for three`() {
+        structured<Nothing, List<Int>>("list") {
+            awaitAll(listOf(async { 1 }, async { 2 }, async { 3 }))
+        } shouldBe listOf(1, 2, 3).right()
+        structured<Nothing, Triple<Int, String, Boolean>>("three") {
+            awaitAll(async { 1 }, async { "two" }, async { true })
+        } shouldBe Triple(1, "two", true).right()
+    }
+
+    @Test
+    fun `the first fork to fail is the answer, without waiting for a slow sibling`() {
+        val blocker = Blocker()
+        structured<Boom, Pair<String, Int>>("fails") {
+            val slow = async { blocker.body() }
+            val failing = async<Int> {
+                blocker.awaitStart()
+                raise(Boom)
+            }
+            awaitAll(slow, failing)
+        } shouldBe Boom.left()
+        blocker.wasInterrupted() shouldBe true
     }
 
     @Test
@@ -41,66 +96,15 @@ class StructuredTest {
     }
 
     @Test
-    fun `a fork nobody awaited still fails its scope`() {
-        structured<Boom, Int>("unawaited") {
-            val failing = async<Int> { raise(Boom) }
-            // Its own answer, and not one the close cut short.
-            while (!(failing as Fork<*, *>).hasEnded()) Thread.onSpinWait()
-            1
-        } shouldBe Boom.left()
-    }
-
-    @Test
-    fun `a fork the close cuts short does not fail its scope`() {
-        val blocker = Blocker()
-        structured<Nothing, String>("cut") {
-            async { blocker.body() }
-            blocker.awaitStart()
-            "returned"
-        } shouldBe "returned".right()
-        blocker.wasInterrupted() shouldBe true
-    }
-
-    @Test
-    fun `a lazy fork nobody awaits never runs`() {
+    fun `a cancelled fork never runs, and awaiting it answers with the cancel`() {
         val runs = AtomicInteger()
-        structured<Nothing, Int>("lazy") {
-            async(start = Start.Lazy) { runs.incrementAndGet() }
-            1
-        } shouldBe 1.right()
-        runs.get() shouldBe 0
-    }
-
-    @Test
-    fun `a lazy fork runs when awaited, and only once`() {
-        val runs = AtomicInteger()
-        structured<Nothing, Int>("lazy") {
-            val once = async(start = Start.Lazy) { runs.incrementAndGet() }
-            once.await() + once.await()
-        } shouldBe 2.right()
-        runs.get() shouldBe 1
-    }
-
-    @Test
-    fun `cancel interrupts one fork and leaves its sibling running`() {
-        val blocker = Blocker()
-        structured<Nothing, String>("cancel") {
-            val stuck = async { blocker.body() }
-            val sibling = async { "sibling" }
-            blocker.awaitStart()
-            stuck.cancel()
-            sibling.await()
-        } shouldBe "sibling".right()
-        blocker.wasInterrupted() shouldBe true
-    }
-
-    @Test
-    fun `a lazy fork cancelled before it started never runs`() {
-        val runs = AtomicInteger()
-        structured<Nothing, Int>("cancelled") {
-            async(start = Start.Lazy) { runs.incrementAndGet() }.cancel()
-            1
-        } shouldBe 1.right()
+        shouldThrow<InterruptedException> {
+            structured<Nothing, Int>("cancelled") {
+                val dropped = async { runs.incrementAndGet() }
+                dropped.cancel()
+                dropped.await()
+            }
+        }
         runs.get() shouldBe 0
     }
 
@@ -114,22 +118,18 @@ class StructuredTest {
     }
 
     @Test
-    fun `a lazy fork awaited after the deadline answers with it rather than hanging`() {
-        val blocker = Blocker()
+    fun `a fork awaited after the deadline answers with it rather than hanging`() {
         structured<Slow, String>("late", timeout = 50.milliseconds, onTimeout = { Slow }) {
-            val lazy = async(start = Start.Lazy) { "never" }
-            async { blocker.body() }.also { blocker.awaitStart() }
-            while (!blocker.wasInterrupted()) Thread.onSpinWait()
-            lazy.await()
+            val late = async { "never" }
+            spinFor(150)
+            late.await()
         } shouldBe Slow.left()
     }
 
     @Test
     fun `a block that outlives its deadline answers with it`() {
-        val blocker = Blocker()
         structured<Slow, String>("overran", timeout = 50.milliseconds, onTimeout = { Slow }) {
-            async { blocker.body() }
-            while (!blocker.wasInterrupted()) Thread.onSpinWait()
+            spinFor(150)
             "done anyway"
         } shouldBe Slow.left()
     }
@@ -145,22 +145,23 @@ class StructuredTest {
     }
 
     @Test
-    fun `a lazy fork that escaped its scope cannot start after the scope closed`() {
-        val escaped: Deferred<Int> = structured<Nothing, Deferred<Int>>("escape") {
-            async(start = Start.Lazy) { 1 }
-        }.getOrNull()!!
-        shouldThrow<IllegalStateException> { escaped.await() }
+    fun `awaitAll refuses a fork from another scope`() {
+        shouldThrow<IllegalArgumentException> {
+            structured<Nothing, List<Int>>("outer") {
+                val outer = async { 1 }
+                structured("inner") { awaitAll(listOf(outer)) }
+            }
+        }
     }
 
     @Test
-    fun `a fork onto an executor is refused, since the scope owns its threads`() {
-        val pool = Executors.newSingleThreadExecutor()
-        try {
-            shouldThrow<IllegalArgumentException> {
-                structured<Nothing, Int>("pool") { async(on = pool) { 1 }.await() }
-            }
-        } finally {
-            pool.shutdown()
-        }
+    fun `a fork that escaped its scope cannot start after the scope closed`() {
+        val escaped: Deferred<Int> = structured<Nothing, Deferred<Int>>("escape") { async { 1 } }.getOrNull()!!
+        shouldThrow<IllegalStateException> { escaped.await() }
+    }
+
+    private fun spinFor(millis: Long) {
+        val until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(millis)
+        while (System.nanoTime() < until) Thread.onSpinWait()
     }
 }

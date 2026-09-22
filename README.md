@@ -63,9 +63,10 @@ is where that claim is checked.
 An untagged commit builds `0.1.0-SNAPSHOT`, which is what
 `./gradlew publishToMavenLocal` installs.
 
-One module is built and tested but not published. `lark-structured` runs a
-`flock` over the JDK's `StructuredTaskScope`, so its forks show under their scope
-in a thread dump and inherit `ScopedValue` bindings. That API is a preview in
+One module is built and tested but not published. `lark-structured` runs forks
+over the JDK's `StructuredTaskScope`, so they show under their scope in a thread
+dump and inherit `ScopedValue` bindings. Every fork there is lazy: `await` runs
+one, and `awaitAll` runs several together. That API is a preview in
 JDK 27, and the module is published when JDK 28 makes it final
 ([0040](specs/0040-a-flock-the-jdk-can-see.md)).
 

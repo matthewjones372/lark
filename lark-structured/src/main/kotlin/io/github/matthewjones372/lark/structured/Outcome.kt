@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.structured
 
 import arrow.core.raise.Raise
 import arrow.core.raise.either
-import io.github.matthewjones372.lark.Flock
 
 internal sealed interface Outcome<out E, out T>
 
@@ -18,7 +17,7 @@ internal class Thrown(val throwable: Throwable) : Failure<Nothing>
  * A fork's body runs under a scope of its own, named after the fork, and whatever it does is kept as a
  * value: a throw left to end the subtask would reach the JDK as a failure nobody asked for.
  */
-internal fun <E, T> capture(name: String, block: Flock<E>.() -> T): Outcome<E, T> =
+internal fun <E, T> capture(name: String, block: StructuredScope<E>.() -> T): Outcome<E, T> =
     try {
         either { runScope(this, name, null, block) }.fold({ Raised(it) }, { Returned(it) })
     } catch (t: Throwable) {

@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.structured
 
 import arrow.core.raise.Raise
-import io.github.matthewjones372.lark.Flock
 import java.util.concurrent.Callable
 import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
@@ -10,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Runs every branch as a subtask of one scope named [name] and answers with their values in order. The
  * first branch to fail cancels the rest from the scope's `Joiner`, and its failure is the answer.
  */
-fun <E, A> Raise<E>.parAll(name: String, vararg branches: Flock<E>.() -> A): List<A> {
+fun <E, A> Raise<E>.parAll(name: String, vararg branches: StructuredScope<E>.() -> A): List<A> {
     val (failure, subtasks) = runBranches(name, FirstFailure(), branches)
     failure?.let { surface(it) }
     return subtasks.map { subtask ->
@@ -25,7 +24,7 @@ fun <E, A> Raise<E>.parAll(name: String, vararg branches: Flock<E>.() -> A): Lis
  * Runs every branch as a subtask of one scope named [name] and answers with the first to finish, whatever
  * it finished with. The `Joiner` cancels the rest the moment it has an answer.
  */
-fun <E, A> Raise<E>.firstOf(name: String, vararg branches: Flock<E>.() -> A): A {
+fun <E, A> Raise<E>.firstOf(name: String, vararg branches: StructuredScope<E>.() -> A): A {
     require(branches.isNotEmpty()) { "firstOf needs a branch to answer" }
     val (first, _) = runBranches(name, FirstToFinish(), branches)
     return when (val outcome = checkNotNull(first) { "a joined race has a finisher" }) {
@@ -37,7 +36,7 @@ fun <E, A> Raise<E>.firstOf(name: String, vararg branches: Flock<E>.() -> A): A 
 private fun <E, A, R> runBranches(
     name: String,
     joiner: StructuredTaskScope.Joiner<Outcome<E, A>, R, RuntimeException>,
-    branches: Array<out Flock<E>.() -> A>,
+    branches: Array<out StructuredScope<E>.() -> A>,
 ): Pair<R, List<StructuredTaskScope.Subtask<Outcome<E, A>>>> {
     val threads = Thread.ofVirtual().name("$name/", 1).factory()
     return StructuredTaskScope.open(joiner) { it.withName(name).withThreadFactory(threads) }.use { tasks ->
