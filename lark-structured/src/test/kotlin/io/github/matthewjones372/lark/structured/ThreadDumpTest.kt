@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.structured
 
+import arrow.core.raise.either
 import com.sun.management.HotSpotDiagnosticMXBean
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainAll
@@ -15,30 +16,30 @@ class ThreadDumpTest {
     private val container = Regex(""""container": "([^"]+)",\s*"parent": ("[^"]+"|null)""")
 
     @Test
-    fun `a thread dump shows each fork under the scope that opened it`() {
-        // The block never runs beside its forks, so the dump is taken from one fork while the other waits.
+    fun `a thread dump shows each branch under the scope of the call that forked it`() {
         val waiting = CountDownLatch(1)
         val dumped = CountDownLatch(1)
-        val dump = structured<Nothing, String>("dashboard") {
-            val held = async {
+        val dump = either<Nothing, String> {
+            parZip({
                 waiting.countDown()
                 dumped.await()
-                ""
-            }
-            val dumping = async {
-                waiting.await()
-                dumpThreads().also { dumped.countDown() }
-            }
-            awaitAll(held, dumping).second
+            }, {
+                // A scope of its own inside this branch, so the dump has a nesting to show.
+                parZip({
+                    waiting.await()
+                    dumpThreads().also { dumped.countDown() }
+                }, { 0 }) { d, _ -> d }
+            }) { _, d -> d }
         }.getOrNull()!!
 
+        val caller = "ThreadDumpTest.a thread dump shows each branch under the scope of the call that forked it"
         val parents = container.findAll(dump).associate { it.groupValues[1] to it.groupValues[2].trim('"') }
-        val scope = parents.keys.single { it.startsWith("dashboard\\/jdk") }
-        val nested = parents.keys.single { it.startsWith("dashboard\\/1\\/jdk") }
+        val outer = parents.keys.single { it.startsWith("$caller\\/jdk") }
+        val nested = parents.keys.single { it.startsWith("$caller\\/2\\/jdk") }
         withClue(dump) {
-            parents[nested] shouldBe scope
+            parents[nested] shouldBe outer
             Regex(""""name": "([^"]+)"""").findAll(dump).map { it.groupValues[1] }.toList()
-                .shouldContainAll("dashboard\\/1", "dashboard\\/2")
+                .shouldContainAll("$caller\\/1", "$caller\\/2", "$caller\\/2\\/1")
         }
     }
 

@@ -72,7 +72,7 @@ the user opts into.
       a CI job on 27.
       Done when: a scope opened from Kotlin shows two named subtasks under their
       parent in a JSON thread dump.
-- [x] **`spec-0040-flock`** ([#86](https://github.com/matthewjones372/lark/pull/86), prototype) — `structured`, `async` (eager and lazy), `await`, `cancel`.
+- [x] **`spec-0040-flock`** ([#86](https://github.com/matthewjones372/lark/pull/86), prototype; superseded by "no scope to open" below) — `structured`, `async` (eager and lazy), `await`, `cancel`.
       Done when: `FlockTest` and `LarkLocalTest` run against `structured` as
       well as `flock`, and pass with only the scope factory changed.
       Built instead: the module's own suite of 22 tests. The shared suites
@@ -113,29 +113,47 @@ The prototype is `lark-structured` on Temurin 27+35. It also has `parAll` and
 - **A subtask's thread is never reused.** So a late `cancel()` interrupt can't
   land on another task, and 0037's `Interrupting` state isn't needed here.
 - **A fork started after a deadline never runs.** `fork` on a cancelled scope
-  starts no thread. The module's own `ThreadFactory` records the thread, so a
-  lazy fork awaited after the deadline answers with it instead of hanging. The
-  factory also names each fork's thread after its scope.
-- **`await` from another fork is refused.** It throws `WrongThreadException` at
-  runtime, which is 0041's `AWAIT_ACROSS_FORK` enforced without the compiler.
+  starts no thread, and records nothing for a subtask that finished after it was
+  cancelled. The lazy-fork shape had to detect this through its own
+  `ThreadFactory`. The shape decided below forks everything up front, and reads
+  `Subtask.state()` to keep an answer that arrived before the deadline.
+- **The JDK refuses `fork` from any thread but the owner** with
+  `WrongThreadException`. The `async`/`await` shape relied on that; the shape
+  decided below has no handle left to misuse.
 
-## Decided (2026-09-22): every fork is lazy
+## Decided (2026-09-22): no scope to open
 
-In `lark-structured`, `async` never starts anything. `await()` runs that one
-fork, and `awaitAll(a, b)`, `awaitAll(a, b, c)` or `awaitAll(list)` start forks
-together and answer with the first failure. That takes `structured` off the
-shared `Flock` receiver: its block is a `StructuredScope<E>` with no `start` and
-no `on`, so a body written for `flock` no longer drops in unchanged. `flock` and
-`lark` are untouched.
+Two shapes were built and dropped the same day:
+- **A `Flock` receiver** (`structured { async { } }`), replaced by lazy forks.
+- **Lazy forks behind `async`/`awaitAll`,** in their own `StructuredScope<E>`.
+  They were dropped for the call that opened them:
+  `structured<E, A>(name, timeout, onTimeout) { … }`.
 
-What follows from it:
-- **No fork runs while the block does.** A fork starts only inside an await, and
-  every await returns once its forks have ended, or once one has failed and the
-  block is leaving. So the block's own code never races a fork.
-- **`cancel()` means "never run this".** A fork that was awaited has ended, so
-  there is never a thread left to interrupt.
-- **Nothing can fail unnoticed.** Every fork that runs was awaited, so the
-  unnoticed-failure and cut-short bookkeeping `flock` needs at close is gone.
-- **A deadline still cancels whatever is running inside an await**, and a block
-  that overruns it answers with `onTimeout` all the same.
+What stays is lark's own combinator surface: `parZip` (2 and 3 branches),
+`parMap`, `raceN`, `timeout` and `timeoutOrNull`, with lark's names and shapes,
+as extensions on any `Raise<E>`. Each call opens one JDK scope, runs its
+branches as subtasks and closes it before returning, so importing
+`io.github.matthewjones372.lark.structured.parZip` instead of lark's is the
+whole switch.
 
+```kotlin
+fun dashboard(id: Id): Either<Err, Dashboard> = either {
+    timeout(2.seconds, onTimeout = { Err.Slow }) {
+        parZip({ users.find(id).bind() }, { orders.forUser(id).bind() }) { u, o -> Dashboard(u, o) }
+    }
+}
+```
+
+- **No type arguments.** The error type comes from the enclosing `either`.
+- **No names to write.** A call's scope is named after the function that made
+  it, found with `StackWalker`. A call inside a branch is named by that branch's
+  path, bound as a `ScopedValue`, for example `Dashboards.dashboard/2`. Its
+  threads are that name followed by `/1`, `/2` and so on.
+- **`timeout` has two forms.** Given `onTimeout`, it raises that typed error;
+  without it, it throws `TimeoutException` as lark's does. An answer that
+  arrived before the deadline is still the answer.
+- **No `Deferred`, so nothing can escape its scope.** No `start` or `cancel`
+  either. Lazy values (`val x by fork { }`) and `LarkLocal` on `ScopedValue` are
+  left out, since both need a scope that outlives one call.
+- **Importing both lark's and this module's `parZip` in one file** is an
+  ambiguity the compiler reports. Pick one per file.
