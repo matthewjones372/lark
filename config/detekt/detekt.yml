@@ -68,7 +68,9 @@ exceptions:
     # through catches whatever the caller did not declare, names it and rethrows it.
     # Spans.kt is the sixth: a span records whatever the block did and rethrows
     # it, and a span that ends Ok on a failure is worse than no span at all.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapPar.kt', '**/Defect.kt', '**/Spans.kt']
+    # Outcome.kt is the seventh: a lark-structured fork holds whatever its body
+    # did until it is awaited, as a flock's does.
+    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapPar.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt']
   SwallowedException:
     excludes: ['**/test/**']
 
