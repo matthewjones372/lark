@@ -126,7 +126,7 @@ subprojects {
     version = scmVer
 
     extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
-        jvmToolchain(21)
+        jvmToolchain(25)
 
         compilerOptions {
             // A warning nobody reads is a defect nobody fixed; the build says so.
