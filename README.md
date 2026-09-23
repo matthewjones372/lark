@@ -63,6 +63,13 @@ is where that claim is checked.
 An untagged commit builds `0.1.0-SNAPSHOT`, which is what
 `./gradlew publishToMavenLocal` installs.
 
+One module is built and tested but not published. `lark-structured` has
+`parZip`, `parMap`, `raceN` and `timeout`, with the same names and shapes as
+lark's, running each call's branches in the JDK's `StructuredTaskScope`. They
+show under their caller in a thread dump and inherit `ScopedValue` bindings. That API is a preview in
+JDK 27, and the module is published when JDK 28 makes it final
+([0040](specs/0040-a-flock-the-jdk-can-see.md)).
+
 Before, on `arrow-fx-coroutines`:
 
 ```kotlin

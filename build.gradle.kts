@@ -76,6 +76,7 @@ val moduleDescriptions = mapOf(
     "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
     "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn as it compiles.",
     "lark-app-compiler" to "lark-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
+    "lark-structured" to "lark over the JDK's StructuredTaskScope: a flock the thread dump can see.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
@@ -85,6 +86,10 @@ val gradlePluginModules = setOf("lark-app-gradle")
 // The same argument for the compiler plugin: it runs inside the Kotlin compiler, so the only honest
 // test of it is a compilation, and those live in lark-app-gradle where the build that runs them is.
 val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
+
+// Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
+// JDK 28 (JEP 543), and a release must not promise an API the JDK has not.
+val unpublished = setOf("lark-structured")
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
@@ -179,6 +184,8 @@ subprojects {
             ktlint(ktlintVersion).editorConfigOverride(ktlintOverrides)
         }
     }
+
+    if (name in unpublished) return@subprojects
 
     apply(plugin = "com.vanniktech.maven.publish")
     apply(plugin = "org.jetbrains.dokka")
