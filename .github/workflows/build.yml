@@ -24,13 +24,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 21 is the toolchain the module compiles against and the floor for
-        # virtual threads, so it is what the published bytecode has to keep
-        # working on; 25 is what the repo is developed and run on, and the
-        # first LTS where `synchronized` no longer pins a carrier.
+        # 25 is the floor: the first LTS where a blocking call inside
+        # `synchronized` parks its virtual thread instead of pinning the carrier
+        # (JEP 491). lark-structured compiles against 27, which the build
+        # provisions through its toolchain resolver.
         include:
-          - java: "21"
-            gradleArgs: ""
           - java: "25"
             gradleArgs: ""
 

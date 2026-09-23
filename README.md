@@ -4,7 +4,7 @@
 [![Build](https://github.com/matthewjones372/lark/actions/workflows/build.yml/badge.svg)](https://github.com/matthewjones372/lark/actions/workflows/build.yml)
 [![Coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25%20enforced-brightgreen)](AGENTS.md#verifying)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![JDK](https://img.shields.io/badge/jdk-21%2B-brightgreen)](https://openjdk.org/projects/jdk/21/)
+[![JDK](https://img.shields.io/badge/jdk-25%2B-brightgreen)](https://openjdk.org/projects/jdk/25/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/status-experimental-orange)](#what-this-is)
 
@@ -334,10 +334,11 @@ fun maybe(id: Id): Either<Err, Quote?> = either {
 against a sleeper with the loser interrupted, so a block that does not answer in
 time ends at its next interruptible call rather than being abandoned.
 
-Virtual threads are why the floor is JDK 21. Before JDK 24 a blocking call
-inside a `synchronized` block — which some JDBC drivers still make — pins its
-carrier thread instead of parking it, so a service on 21 can still run out of
-carriers; JEP 491 removes that pinning in 24.
+The floor is JDK 25, the first LTS on which a fork can block anywhere. Before
+JDK 24 a blocking call inside a `synchronized` block, which some JDBC drivers
+still make, pinned its carrier thread instead of parking it, so a service could
+run out of carriers with every virtual thread asleep. JEP 491 removed that
+pinning, and a floor of 25 means lark never has to say "except on older JDKs".
 
 ## Status
 

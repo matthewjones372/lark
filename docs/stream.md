@@ -307,10 +307,9 @@ val customers: Stream<NoCustomer, Customer> =
 ```
 
 Blocking a virtual thread parks it and leaves the carrier to the next one, so
-four in flight are four threads and not four platform threads — with one
-exception worth knowing about on JDK 21 to 23, where a `synchronized` block
-inside a driver pins the carrier for as long as it blocks; JEP 491 fixed that
-in 24. A raise is the stream's declared failure, anything thrown is
+four in flight are four threads and not four platform threads, even when a
+driver blocks inside a `synchronized` block (JEP 491, and the reason lark's
+floor is JDK 25). A raise is the stream's declared failure, anything thrown is
 `Died(cause)`, and a body still running when the stream is torn down is
 interrupted where it blocked, because Pekko never cancels the stage its
 `mapAsync` is waiting on.
