@@ -8,13 +8,19 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.LinkedTransferQueue
 import java.util.concurrent.TimeUnit
 
 private const val ONE_THREAD = "lark-on-one"
 private const val TWO_THREADS = "lark-on-two"
 private const val ANSWER_SECONDS = 10L
+private const val RACES = 2_000
+private const val SPREAD_MICROS = 40L
+private const val NANOS_PER_MICRO = 1_000L
 
 /** One thread, named, so a branch that ran on it can say so rather than be timed. */
 private fun <A> onOneThread(block: (ExecutorService) -> A): A = borrowing(1, ONE_THREAD, block)
@@ -87,6 +93,35 @@ class OnExecutorTest {
         }
     }
 
+    /**
+     * A `ThreadPoolExecutor` clears the interrupt flag before each task it runs, which would hide the leak
+     * this test looks for, so the thread here runs task after task and clears nothing.
+     */
+    @Test
+    fun `a cancel racing the body's last moment never leaves an interrupt on the executor's thread`() {
+        BareThread().use { bare ->
+            repeat(RACES) { race ->
+                val started = CountDownLatch(1)
+                flock<Bad, Unit>(on = bare) {
+                    // Running when the cancel lands, and ending within microseconds of it, a little later
+                    // each race, so some cancels reach the thread just as its body leaves.
+                    val quick = async {
+                        started.countDown()
+                        val until = System.nanoTime() + race % SPREAD_MICROS * NANOS_PER_MICRO
+                        while (System.nanoTime() < until) Thread.onSpinWait()
+                    }
+                    started.await()
+                    quick.cancel()
+                }
+                val next = CompletableFuture<Boolean>()
+                bare.execute { next.complete(Thread.currentThread().isInterrupted) }
+                withClue("race $race: the next task on the lent thread started interrupted") {
+                    next.get(ANSWER_SECONDS, TimeUnit.SECONDS) shouldBe false
+                }
+            }
+        }
+    }
+
     @Test
     fun `raceN interrupts its loser on the executor's thread, and the executor runs what comes next`() {
         onTwoThreads { pool ->
@@ -126,5 +161,26 @@ class OnExecutorTest {
         zipped shouldBe (true to true).right()
         parMap(listOf(1, 2)) { Thread.currentThread().isVirtual } shouldContainExactly listOf(true, true)
         flock<Bad, Boolean> { async { Thread.currentThread().isVirtual }.await() } shouldBe true.right()
+    }
+}
+
+/** One platform thread that runs what it is given in order, and leaves the interrupt flag as each task left it. */
+private class BareThread : Executor, AutoCloseable {
+    private val tasks = LinkedTransferQueue<Runnable>()
+
+    @Volatile
+    private var open = true
+
+    private val thread = Thread({
+        while (open) tasks.poll()?.run() ?: Thread.onSpinWait()
+    }, "lark-bare").apply { start() }
+
+    override fun execute(command: Runnable) {
+        tasks.add(command)
+    }
+
+    override fun close() {
+        open = false
+        thread.join()
     }
 }
