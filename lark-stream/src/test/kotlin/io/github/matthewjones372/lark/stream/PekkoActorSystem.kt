@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
+import com.typesafe.config.Config
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.actor.testkit.typed.javadsl.ActorTestKit
@@ -14,8 +15,13 @@ import org.apache.pekko.actor.typed.ActorSystem as TypedActorSystem
  * Pekko's own testkit owns it rather than a `val` in the test class: a system
  * started by hand is one a failing test can leave running, and the threads it
  * holds outlive the suite that leaked them.
+ *
+ * [config] is for a class that needs the system itself to differ, such as `ManualTime`'s scheduler.
  */
-class PekkoActorSystem(private val name: String) : BeforeAllCallback, AfterAllCallback {
+class PekkoActorSystem(
+    private val name: String,
+    private val config: Config? = null,
+) : BeforeAllCallback, AfterAllCallback {
 
     private lateinit var testKit: ActorTestKit
 
@@ -29,7 +35,7 @@ class PekkoActorSystem(private val name: String) : BeforeAllCallback, AfterAllCa
     val typed: TypedActorSystem<*> get() = testKit.system()
 
     override fun beforeAll(context: ExtensionContext) {
-        testKit = ActorTestKit.create(name)
+        testKit = config?.let { ActorTestKit.create(name, it) } ?: ActorTestKit.create(name)
     }
 
     override fun afterAll(context: ExtensionContext) = testKit.shutdownTestKit()
