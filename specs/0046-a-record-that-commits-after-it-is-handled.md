@@ -45,8 +45,13 @@ placed.close()   // stop fetching, finish what is in flight, commit it, then wai
 - `Committed<out A>` is an element and the offset that comes with it. The
   offset is not in its public API.
 - On `Stream<E, Committed<A>>`, these operators work on `A` and keep the
-  offset: `map`, `mapOrFail`, `mapPar`, `mapParOrFail` and `filter`. A
-  filtered record is committed as handled.
+  offset: `map`, `mapOrFail`, `mapPar`, `mapParOrFail`, `filter` and
+  `mapConcat`. A filtered record is committed as handled.
+- `mapConcat` gives the record's offset to the last element it expands to.
+  The elements before it carry none, so the record commits only once all of
+  them have reached the committer. An expansion to nothing commits as a
+  filtered record does. This relies on the element operators keeping input
+  order, which `mapPar` already does.
 - `Stream<E, Committed<*>>.runCommitting(settings: CommitterSettings):
   Run<E, Done>` is the only way to run a stream of `Committed` elements.
   `runCollect` and `runWith` over `Committed` do not compile.
@@ -76,10 +81,12 @@ at-least-once, but every shutdown sends those records again.
       Done when: against a broker in Testcontainers, the records a run handles
       are committed, and a second run in the same group sees none of them again.
 - [ ] **`spec-0046-offset-keeping-operators`**: `map`, `mapOrFail`, `mapPar`,
-      `mapParOrFail` and `filter` over `Committed`, and the log annotations.
+      `mapParOrFail`, `filter` and `mapConcat` over `Committed`, and the log
+      annotations.
       Done when: a compile test holds that `runCollect` over `Committed` does
-      not compile, and a body that raises on record 3 of 5 leaves offset 2
-      committed.
+      not compile; a body that raises on record 3 of 5 leaves offset 2
+      committed; and a record expanded to three elements, whose third raises,
+      is not committed.
 - [ ] **`spec-0046-draining-stop`**: `stop()` drains through `Consumer.Control`.
       Done when: a `stop()` while a slow `mapPar` body is running still commits
       that body's record, and `close()` returns only after the commit.
@@ -102,9 +109,9 @@ at-least-once, but every shutdown sends those records again.
    showed that inference can surprise us. Recommend a compile test for each
    operator as the first commit. If one needs a type argument, rename it
    (`mapRecord`) and do not ship the annotation.
-3. **Do `mapConcat` and `grouped` belong here?** One record becoming many, or
-   many becoming one, needs a rule for which offset commits. Recommend leaving
-   both to a later spec.
+3. **Does `grouped` belong here?** When many records become one element, the
+   batch has to carry every partition's highest offset. Recommend a later
+   spec: the offset batch needs its own design.
 4. **Does connector 1.1.0 work with Pekko 1.2.1?** Its POM names
    `pekko-stream` 1.1.1 and `kafka-clients` 3.8.0, and Pekko keeps binary
    compatibility within 1.x. Recommend 1.1.0 and not 2.0.0-M1, which needs
