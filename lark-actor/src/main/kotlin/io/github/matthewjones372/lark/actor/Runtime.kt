@@ -215,14 +215,58 @@ private class Cell<M : Any, S, E>(
     private var armed: HashMap<Any, Timer>? = null
     private val wheel = guardian.wheel
 
-    override fun after(key: Any, delay: Duration, message: M) {
+    // The receive timeout, when one is on. Like the timers, only this actor's activation or its end touches it.
+    private var silence: Silence? = null
+
+    override fun after(key: Any, delay: Duration, message: M) = start(key, delay, message, null)
+
+    override fun every(key: Any, interval: Duration, message: M) {
+        require(interval.isPositive()) { "a periodic timer needs a positive interval, was $interval" }
+        start(key, interval, message, interval)
+    }
+
+    override fun receiveTimeout(after: Duration, message: M) {
+        silence = Silence(after, message)
+        start(ReceiveTimeoutKey, after, message, null)
+    }
+
+    override fun receiveTimeout(off: Nothing?) {
+        silence = null
+        cancel(ReceiveTimeoutKey)
+    }
+
+    private fun start(key: Any, delay: Duration, message: Any, every: Duration?) {
         cancel(key)
         val timer = if (delay.isPositive()) {
-            wheel.schedule(delay, key, message, this)
+            wheel.schedule(delay, key, message, this, every)
         } else {
-            Timer(Instant.EPOCH, 0, key, message, this).also(::enqueue)
+            Timer(Instant.EPOCH, 0, key, message, this, every).also(::enqueue)
         }
         (armed ?: HashMap<Any, Timer>().also { armed = it })[key] = timer
+    }
+
+    /** A message was handled, so the silence the receive timeout waits for starts again. */
+    private fun heard() {
+        silence?.let { start(ReceiveTimeoutKey, it.after, it.message, null) }
+    }
+
+    /**
+     * Handles the timer's message. Unless the step cancelled or replaced it, a periodic one then starts again from
+     * now, and any other is done.
+     */
+    private fun timed(timer: Timer): Next<S> {
+        val next = stepped(timer.message)
+        val live = armed
+        if (live != null && live[timer.key] === timer) {
+            val every = timer.every
+            if (every == null) {
+                live.remove(timer.key)
+            } else {
+                live[timer.key] = wheel.schedule(every, timer.key, timer.message, this, every)
+            }
+        }
+        if (timer.key !== ReceiveTimeoutKey) heard()
+        return next
     }
 
     override fun cancel(key: Any) {
@@ -237,6 +281,7 @@ private class Cell<M : Any, S, E>(
     private fun cancelTimers() {
         armed?.values?.forEach(wheel::cancel)
         armed = null
+        silence = null
     }
 
     override fun <C : Any, T, F> spawn(
@@ -420,11 +465,11 @@ private class Cell<M : Any, S, E>(
             }
 
             // Only the timer still running under its key is handled: one cancelled or replaced since is dropped.
-            is Timer -> if (armed?.remove(item.key, item) == true) stepped(item.message) else Next.Stay
+            is Timer -> if (armed?.get(item.key) === item) timed(item) else Next.Stay
 
             else -> {
                 room.release()
-                stepped(item)
+                stepped(item).also { heard() }
             }
         }
         when (next) {

@@ -26,6 +26,15 @@ interface Ctx<M : Any> {
     /** Messages this actor sends itself later, each under a key; a stop or a restart cancels them all. */
     val timers: Timers<M>
 
+    /**
+     * Tells this actor [message] once nothing has arrived for [after], and again only after the next message: once
+     * per silence. Any message resets it, a timer's included; a restart turns it off.
+     */
+    fun receiveTimeout(after: Duration, message: M)
+
+    /** Turns the receive timeout off: `receiveTimeout(null)`. */
+    fun receiveTimeout(off: Nothing?)
+
     /** Hears [Signal.Terminated] once [ref] stops, once however often it is asked; at once if it already has. */
     fun watch(ref: ActorRef<*>)
 
@@ -48,6 +57,12 @@ interface Ctx<M : Any> {
 interface Timers<in M : Any> {
     /** Tells this actor [message] once [delay] has passed on its flock's clock; at once when it is not positive. */
     fun after(key: Any, delay: Duration, message: M)
+
+    /**
+     * Tells this actor [message] every [interval] until [key] is cancelled or started again. Each is measured from
+     * when the last was handled, so an actor that falls behind is never sent a burst to catch up.
+     */
+    fun every(key: Any, interval: Duration, message: M)
 
     /** Cancels the timer under [key], if one is running. */
     fun cancel(key: Any)

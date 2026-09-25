@@ -86,7 +86,7 @@ nobody cancelled; the keyed form stays for a timer that spans states.
 
 ## Stack
 
-- [ ] **`spec-0061-timers`** — `after`, `cancel`, keys, the flock's timer
+- [x] **`spec-0061-timers`** ([#124](https://github.com/matthewjones372/lark/pull/124)) — `after`, `cancel`, keys, the flock's timer
       thread, `advance` and `pendingTimers`. Done when: a cancelled timer's
       message never arrives, on both runtimes, under `TestClock` on threads.
 - [ ] **`spec-0061-periodic`** — `every` and `receiveTimeout`. Done when: an
