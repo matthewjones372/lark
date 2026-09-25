@@ -68,7 +68,9 @@ adoption.pendingTimers shouldBe 1   // Lapse, still two days off
   supervision decides; dropping silently would lose a message nobody knows
   about.
 - **Time is the flock's clock** on threads, one waiting thread per flock for
-  all its actors' timers; `TestClock` drives them through `adjustWhenBlocked`.
+  all its actors' timers, started with the first. On a `TestClock` no thread
+  waits: `adjust` delivers what falls due at each instant on the way, in time
+  order, and returns once the flock has handled it.
   `.test()` keeps its own time, starting at the epoch: `advance(by)` delivers
   what falls due in time order and runs to idle, and `pendingTimers` counts
   what is still to come, so a test can say nothing is left.

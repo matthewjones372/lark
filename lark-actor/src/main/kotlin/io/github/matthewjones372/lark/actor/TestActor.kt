@@ -40,6 +40,41 @@ class TestActors internal constructor(private val clock: Clock = fixedClock()) {
     private val draining = AtomicBoolean(false)
     private val incarnations = AtomicLong()
 
+    // The test's own time, which moves only by [advance], and the timers still to fall due in it, soonest first.
+    private val time = AtomicReference(Duration.ZERO)
+    private val timers = AtomicReference<List<TestTimer>>(emptyList())
+    private val order = compareBy<TestTimer>({ it.at }, { it.seq })
+
+    /** How many timers are still to fall due, so that a test can say nothing is left. */
+    val pendingTimers: Int get() = timers.get().size
+
+    /**
+     * Moves the test's time on by [by], delivering each timer that falls due on the way in time order, and returns
+     * once each has run to idle.
+     */
+    fun advance(by: Duration) {
+        require(!by.isNegative()) { "time only moves forward, not by $by" }
+        val until = time.get() + by
+        generateSequence { timers.get().firstOrNull()?.takeIf { it.at <= until } }.forEach { timer ->
+            timers.updateAndGet { it - timer }
+            time.set(timer.at)
+            post(timer.to, timer)
+        }
+        time.set(until)
+    }
+
+    /** A timer [delay] from now, waiting for [advance] when that is later, and on the queue now otherwise. */
+    internal fun schedule(to: TestActor<*, *, *>, key: Any, delay: Duration, message: Any): TestTimer =
+        TestTimer(time.get() + delay, incarnations.incrementAndGet(), to, key, message)
+
+    internal fun start(timer: TestTimer) {
+        if (timer.at > time.get()) timers.updateAndGet { (it + timer).sortedWith(order) } else post(timer.to, timer)
+    }
+
+    internal fun unschedule(timer: TestTimer) {
+        timers.updateAndGet { it - timer }
+    }
+
     fun <M : Any, S, E> spawn(
         name: String,
         behaviour: Behaviour<M, S, E>,
@@ -94,6 +129,7 @@ class TestActor<M : Any, S, E> internal constructor(
         val watchers: Set<TestActor<*, *, *>> = emptySet(),
         val ended: Boolean = false,
         val children: List<TestActor<*, *, *>> = emptyList(),
+        val timers: Map<Any, TestTimer> = emptyMap(),
     )
 
     private val run =
@@ -103,6 +139,19 @@ class TestActor<M : Any, S, E> internal constructor(
 
     private val ctx = object : Ctx<M> {
         override val self = this@TestActor
+
+        override val timers = object : Timers<M> {
+            override fun after(key: Any, delay: Duration, message: M) {
+                cancel(key)
+                val timer = scope.schedule(this@TestActor, key, delay, message)
+                run.updateAndGet { it.copy(timers = it.timers + (key to timer)) }
+                scope.start(timer)
+            }
+
+            override fun cancel(key: Any) {
+                run.getAndUpdate { it.copy(timers = it.timers - key) }.timers[key]?.let(scope::unschedule)
+            }
+        }
 
         override fun watch(ref: ActorRef<*>) =
             requireNotNull(ref as? TestActor<*, *, *>) { "$ref is not a test actor, so a test actor cannot watch it" }
@@ -137,6 +186,12 @@ class TestActor<M : Any, S, E> internal constructor(
     /** The delay each restart waited, in order. */
     val delays: List<Duration> get() = run.get().delays
 
+    /** The test's timers still to fall due, this actor's and every other's. */
+    val pendingTimers: Int get() = scope.pendingTimers
+
+    /** Moves the test's time on; see [TestActors.advance]. */
+    fun advance(by: Duration) = scope.advance(by)
+
     /** A message to a stopped actor is dropped, as it would be on threads. */
     override fun tell(message: M) = scope.post(this, message)
 
@@ -165,7 +220,11 @@ class TestActor<M : Any, S, E> internal constructor(
         if (stopped) return
         try {
             @Suppress("UNCHECKED_CAST")
-            if (item is TestSignalled) signalled(item.signal) else stepped(item as M)
+            when (item) {
+                is TestSignalled -> signalled(item.signal)
+                is TestTimer -> timed(item)
+                else -> stepped(item as M)
+            }
         } finally {
             if (stopped) ended()
         }
@@ -174,6 +233,18 @@ class TestActor<M : Any, S, E> internal constructor(
     private fun stepped(message: M) {
         val next = supervised { behaviour.step(this, ctx, state, message) } ?: return
         run.updateAndGet { after(it, next, message) }
+    }
+
+    /** Only the timer still running under its key is handled: one cancelled or replaced since is dropped. */
+    private fun timed(timer: TestTimer) {
+        if (run.get().timers[timer.key] !== timer) return
+        run.updateAndGet { it.copy(timers = it.timers - timer.key) }
+        @Suppress("UNCHECKED_CAST")
+        stepped(timer.message as M)
+    }
+
+    private fun cancelTimers() {
+        run.getAndUpdate { it.copy(timers = emptyMap()) }.timers.values.forEach(scope::unschedule)
     }
 
     private fun signalled(signal: Signal) {
@@ -220,6 +291,7 @@ class TestActor<M : Any, S, E> internal constructor(
     private fun ended() {
         if (run.getAndUpdate { it.copy(ended = true) }.ended) return
         stopChildren()
+        cancelTimers()
         run.updateAndGet { it.copy(signals = it.signals + Signal.Stopping) }
         behaviour.signal?.let { handler ->
             try {
@@ -236,6 +308,7 @@ class TestActor<M : Any, S, E> internal constructor(
         when (val decision = run.get().supervision?.invoke(failure)) {
             is Schedule.Decision.Continue -> {
                 stopChildren()
+                cancelTimers()
                 clock.sleep(decision.delay)
                 run.updateAndGet {
                     it.copy(state = behaviour.initial, supervision = decision.step, delays = it.delays + decision.delay)
@@ -256,6 +329,9 @@ class TestActor<M : Any, S, E> internal constructor(
         Next.Unhandled -> if (message == null) run else run.copy(unhandled = run.unhandled + message)
     }
 }
+
+/** A timer in the test's own time: also what goes on the queue once it falls due. */
+internal class TestTimer(val at: Duration, val seq: Long, val to: TestActor<*, *, *>, val key: Any, val message: Any)
 
 /** A signal on its way through the test's queue. */
 private class TestSignalled(val signal: Signal)

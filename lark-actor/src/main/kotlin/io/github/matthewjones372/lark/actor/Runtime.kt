@@ -11,6 +11,7 @@ import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.clock
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -38,10 +39,10 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
 ): ActorRef<M> {
     require(capacity > 0) { "capacity must be positive, was $capacity" }
     require(throughput > 0) { "throughput must be positive, was $throughput" }
-    val guardian = guardians.computeIfAbsent(this) { flock -> Guardian(flock).also { g -> async { g.stand() } } }
-    val address = Address("local", "/user/$name", incarnations.incrementAndGet())
     // The flock's clock, read here: an activation runs on a thread the flock did not fork, so it would not inherit it.
     val waits = clock.get()
+    val guardian = guardians.computeIfAbsent(this) { flock -> Guardian(flock, waits).also { g -> async { g.stand() } } }
+    val address = Address("local", "/user/$name", incarnations.incrementAndGet())
     return Cell(behaviour, address, capacity, throughput, on, guardian, restart, waits)
         .also { guardian.cells += it }
 }
@@ -140,9 +141,10 @@ private class Backlog {
     }
 }
 
-private class Guardian(private val flock: Flock<*>) {
+private class Guardian(private val flock: Flock<*>, clock: Clock) {
     val cells = ConcurrentLinkedQueue<Cell<*, *, *>>()
     val backlog = Backlog()
+    val wheel = Wheel(clock) { backlog.awaitEmpty() }
 
     fun stand() {
         try {
@@ -151,6 +153,7 @@ private class Guardian(private val flock: Flock<*>) {
             // The flock is closing, which is the only way out of here.
         }
         guardians.remove(flock)
+        wheel.close()
         cells.forEach { it.stop() }
         cells.forEach { it.ended.await() }
     }
@@ -177,8 +180,10 @@ private class Cell<M : Any, S, E>(
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
     private val clock: Clock,
-) : ActorRef<M>, Ctx<M> {
+) : ActorRef<M>, Ctx<M>, Timers<M>, Fired {
     override val self: ActorRef<M> get() = this
+
+    override val timers: Timers<M> get() = this
 
     // Messages, and signals wrapped in Signalled so that no message type can be taken for one.
     private val mailbox = Mailbox<Any>()
@@ -203,6 +208,36 @@ private class Cell<M : Any, S, E>(
 
     // Spawned by this actor's steps, so stopped before it; only its own activation reads or writes the list.
     private val children = ConcurrentLinkedQueue<Cell<*, *, *>>()
+
+    // The timer running under each key. Only this actor's activation, or its end, reads or writes it. Made with
+    // the first timer, so an actor that never starts one does not carry an empty map.
+    @Suppress("DoubleMutabilityForCollection")
+    private var armed: HashMap<Any, Timer>? = null
+    private val wheel = guardian.wheel
+
+    override fun after(key: Any, delay: Duration, message: M) {
+        cancel(key)
+        val timer = if (delay.isPositive()) {
+            wheel.schedule(delay, key, message, this)
+        } else {
+            Timer(Instant.EPOCH, 0, key, message, this).also(::enqueue)
+        }
+        (armed ?: HashMap<Any, Timer>().also { armed = it })[key] = timer
+    }
+
+    override fun cancel(key: Any) {
+        armed?.remove(key)?.let(wheel::cancel)
+    }
+
+    /** A timer falls due: it takes no room, since the wheel must not wait on any one actor. */
+    override fun fire(timer: Timer) {
+        if (!stopped.get()) enqueue(timer)
+    }
+
+    private fun cancelTimers() {
+        armed?.values?.forEach(wheel::cancel)
+        armed = null
+    }
 
     override fun <C : Any, T, F> spawn(
         name: String,
@@ -378,14 +413,19 @@ private class Cell<M : Any, S, E>(
     private tailrec fun drain(left: Int) {
         if (left == 0 || stopped.get()) return
         val item = mailbox.poll() ?: return
-        val next = if (item is Signalled) {
-            val handler = behaviour.signal
-            if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state.get(), item.signal) }
-        } else {
-            room.release()
-            @Suppress("UNCHECKED_CAST")
-            val message = item as M
-            supervised { behaviour.step(this, this@Cell, state.get(), message) }
+        val next = when (item) {
+            is Signalled -> {
+                val handler = behaviour.signal
+                if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state.get(), item.signal) }
+            }
+
+            // Only the timer still running under its key is handled: one cancelled or replaced since is dropped.
+            is Timer -> if (armed?.remove(item.key, item) == true) stepped(item.message) else Next.Stay
+
+            else -> {
+                room.release()
+                stepped(item)
+            }
         }
         when (next) {
             Next.Stay, Next.Unhandled -> Unit
@@ -395,6 +435,10 @@ private class Cell<M : Any, S, E>(
         drain(left - 1)
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun stepped(message: Any): Next<S> =
+        supervised { behaviour.step(this, this@Cell, state.get(), message as M) }
+
     /**
      * Restarts from the initial state after the schedule's delay, keeping the mailbox, or stops once the schedule is
      * done. With no schedule a throw goes on to the thread, as it did before there was supervision.
@@ -403,6 +447,7 @@ private class Cell<M : Any, S, E>(
         when (val decision = supervision.get()?.invoke(failure)) {
             is Schedule.Decision.Continue -> {
                 stopChildren()
+                cancelTimers()
                 clock.sleep(decision.delay)
                 state.set(behaviour.initial)
                 supervision.set(decision.step)
@@ -428,6 +473,7 @@ private class Cell<M : Any, S, E>(
     /** Stops its children, signals [Signal.Stopping], then lets go; watchers hear `Terminated` before [ended] opens. */
     private fun finish() {
         stopChildren()
+        cancelTimers()
         stopping()
         mailbox.clear()
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
