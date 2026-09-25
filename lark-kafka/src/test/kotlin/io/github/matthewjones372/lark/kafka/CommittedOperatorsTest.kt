@@ -58,7 +58,9 @@ class CommittedOperatorsTest {
             .mapRecord { record -> record.value().toInt() }
             .filterRecord { it % 2 == 1 }
             .mapConcatRecord { listOf(it, it * 10) }
-            .mapParRecord(2) { n -> n.also(seen::add) }
+            .mapParRecord(2) { n -> n }
+            // Recorded after mapParRecord, not in its body: two bodies run at once, and only the output is ordered.
+            .mapRecord { n -> n.also(seen::add) }
             .take(6)
             .runCommitting(committer)
             .run(pekko.system)
