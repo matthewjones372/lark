@@ -84,3 +84,69 @@ tasks.register<JavaExec>("jmh") {
     args("-prof", "gc", "-rf", "json", "-rff", results.path)
     args(providers.gradleProperty("benchmarkArgs").getOrElse("").split(" ").filter { it.isNotBlank() })
 }
+
+/**
+ * `-Pbaseline=a.json -Pcandidate=b.json`: red when a row of the candidate is slower than the baseline's.
+ *
+ * Slower means both more than [tolerance] slower and outside both error bars. A shared runner is noisy, and
+ * a gate that fails on noise is one people learn to rerun. Every row is written to `jmh-compare.txt`, so
+ * drift is visible before it trips. `gate.sh` produces the two files on one machine, back to back.
+ */
+tasks.register("jmhCompare") {
+    group = "verification"
+    description = "Fails when a benchmark row got slower than the baseline's"
+    val baseline = providers.gradleProperty("baseline")
+    val candidate = providers.gradleProperty("candidate")
+    val tolerance = providers.gradleProperty("tolerance").map(String::toDouble).orElse(defaultTolerance)
+    val report = layout.buildDirectory.file("jmh-compare.txt")
+    // Paths are read from the repository root, where gate.sh and a person typing them both stand.
+    val root = rootProject.projectDir
+    doLast {
+        val before = scores(root.resolve(baseline.get()))
+        val after = scores(root.resolve(candidate.get()))
+        val rows = after.keys.sorted().map { name ->
+            compared(name, before[name], after.getValue(name), tolerance.get())
+        }
+        val table = rows.joinToString("\n") { it.line }
+        report.get().asFile.writeText(table + "\n")
+        logger.lifecycle(table)
+        val slower = rows.filter { it.slower }
+        if (slower.isNotEmpty()) {
+            val lines = slower.joinToString("\n") { it.line }
+            throw GradleException("${slower.size} benchmark row(s) got slower:\n$lines")
+        }
+    }
+}
+
+val defaultTolerance = 0.10
+
+/** A benchmark's score and error, by name, from a JMH JSON result. */
+fun scores(result: File): Map<String, Pair<Double, Double>> {
+    @Suppress("UNCHECKED_CAST")
+    val rows = groovy.json.JsonSlurper().parse(result) as List<Map<String, Any?>>
+    return rows.associate { row ->
+        @Suppress("UNCHECKED_CAST")
+        val metric = row.getValue("primaryMetric") as Map<String, Any?>
+        val score = (metric.getValue("score") as Number).toDouble()
+        val error = (metric["scoreError"] as? Number)?.toDouble()?.takeUnless { it.isNaN() } ?: 0.0
+        (row.getValue("benchmark") as String).substringAfterLast("benchmarks.") to (score to error)
+    }
+}
+
+class Compared(val line: String, val slower: Boolean)
+
+fun compared(name: String, before: Pair<Double, Double>?, after: Pair<Double, Double>, tolerance: Double): Compared {
+    val (score, error) = after
+    if (before == null) {
+        return Compared("%-45s %12s -> %10.1f ± %.1f  new".format(name, "", score, error), false)
+    }
+    val (was, wasError) = before
+    val change = score / was - 1
+    val slower = change > tolerance && score - error > was + wasError
+    val verdict = if (slower) "SLOWER" else "ok"
+    return Compared(
+        "%-45s %10.1f ± %.1f -> %10.1f ± %.1f  %+6.1f%%  %s"
+            .format(name, was, wasError, score, error, change * 100, verdict),
+        slower,
+    )
+}

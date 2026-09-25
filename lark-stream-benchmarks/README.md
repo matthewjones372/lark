@@ -72,3 +72,18 @@ compile to one stage. Raw results are in
 The described chain on Pekko is now a third faster than the same five stages written
 against Pekko by hand, because it is one stage where they are five. On Forks the stages
 were already calls in one loop, so fusing changes nothing measurable there.
+
+## The gate
+
+```bash
+lark-stream-benchmarks/gate.sh origin/main                  # every row, the base against this checkout
+lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
+```
+
+`gate.sh` runs the benchmarks on the ref in a worktree and then on this checkout, on the same machine
+one after the other, and `jmhCompare` fails when a row is both more than 10% slower (`-Ptolerance` to
+change it) and outside both error bars. The `benchmarks` workflow runs it on every pull request that
+touches a stream module and keeps each run's table as an artifact.
+
+The committed numbers above are records, not thresholds: they were measured on one machine, and a gate
+against them on another would be measuring the machine.
