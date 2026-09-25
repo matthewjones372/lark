@@ -2,22 +2,19 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.pekko.await
 import org.apache.pekko.actor.ClassicActorSystemProvider
-import org.apache.pekko.stream.KillSwitches
 import org.apache.pekko.stream.UniqueKillSwitch
-import org.apache.pekko.stream.javadsl.Keep
-import org.apache.pekko.stream.javadsl.RunnableGraph
 import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletionStage
 
 /** A stream and the sink that ends it, described. Nothing runs until [run] or [start] names a system. */
-class Run<out E, out R> internal constructor(internal val node: Node, internal val end: End) {
+class Run<out E, out R> @StreamSpi constructor(
+    @property:StreamSpi val node: Node,
+    @property:StreamSpi val end: End,
+) {
 
-    /** Compiled once and kept, as a stream's source is: every [run] materialises the same blueprint. */
-    // The switch sits right before the sink, so a stop is the sink completing with what it has.
-    internal val graph: RunnableGraph<org.apache.pekko.japi.Pair<UniqueKillSwitch, CompletionStage<Any>>> by
-        lazy(LazyThreadSafetyMode.PUBLICATION) {
-            node.toPekko().viaMat(KillSwitches.single(), Keep.right()).toMat(end.toPekko(), Keep.both())
-        }
+    /** What a backend compiled the run to, kept: every run materialises the same blueprint. */
+    @property:StreamSpi
+    val compiled = CompileCache()
 }
 
 /**
@@ -50,7 +47,7 @@ class Running<out E, out R> internal constructor(
  * A materialised value that is not a `CompletionStage` is refused at the type: [run] would have nothing to wait on.
  */
 fun <E, A : Any, M : Any> Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M> =
-    Run(node, End.Native(sink))
+    Run(node, End.Native(sink, Pekko))
 
 fun <E, A : Any> Stream<E, A>.runCollect(): Run<E, List<A>> = Run(node, End.Collect)
 

@@ -10,23 +10,17 @@ import org.apache.pekko.stream.javadsl.Flow
  * there are sources for it. Every operator `Stream` has is here, and `Stream`'s are this one's
  * through [via].
  */
-class Pipe<out E, in In, out Out : Any> internal constructor(internal val node: Node) {
+class Pipe<out E, in In, out Out : Any> @StreamSpi constructor(@property:StreamSpi val node: Node) {
 
-    /** The Pekko flow [node] compiles to, built once and kept, as a stream's source is. */
-    // Pekko's Flow is a Java generic, so Kotlin reads both element types as invariant. What is
-    // written to the input side is only ever read by the flow, and the output side is only ever
-    // read from here, which is what the variance says and the compiler has no way to see.
-    @Suppress("UNCHECKED_CAST")
-    internal val flow: Flow<@UnsafeVariance In, @UnsafeVariance Out, NotUsed> get() =
-        compiled.value as Flow<In, Out, NotUsed>
-
-    private val compiled: Lazy<Flow<*, *, NotUsed>> = lazy(LazyThreadSafetyMode.PUBLICATION) { node.toPekkoFlow() }
+    /** What a backend compiled [node] to, kept, as a stream's is. */
+    @property:StreamSpi
+    val compiled = CompileCache()
 
     companion object
 }
 
 fun <In, Out : Any> Pipe.Companion.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out> =
-    Pipe(Node.Stage(Node.Hole, flow))
+    Pipe(Node.Stage(Node.Hole, flow, Pekko))
 
 /** The pipe that changes nothing, which is where a chain of operators starts. */
 fun <A : Any> Pipe.Companion.identity(): Pipe<Nothing, A, A> = Pipe(Node.Hole)

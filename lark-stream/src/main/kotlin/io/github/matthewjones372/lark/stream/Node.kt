@@ -1,12 +1,9 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.Clock
+import io.github.matthewjones372.lark.Logger
 import io.github.matthewjones372.lark.ScheduleStep
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.javadsl.Flow
-import org.apache.pekko.stream.javadsl.Sink
-import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.Executor
 import kotlin.time.Duration
@@ -15,12 +12,14 @@ import kotlin.time.Duration
  * A stream as data: what the operators build and what a backend compiles.
  *
  * Untyped inside, because the element and failure types are [Stream]'s to carry and a node is only
- * ever reached through the stream that typed it.
+ * ever reached through the stream that typed it. Nothing here names a backend's types: a value only one
+ * backend can run is held opaquely, with the [BackendKey] of the backend that can.
  */
-internal sealed interface Node {
+@StreamSpi
+sealed interface Node {
 
-    /** A Pekko source a caller handed over. Only a Pekko backend can run one. */
-    class Native(val source: Source<*, NotUsed>) : StreamOnly
+    /** A source only [owner] can run, such as a Pekko `Source` a caller handed over. */
+    class Native(val value: Any, val owner: BackendKey) : StreamOnly
 
     class Elements(val elements: Iterable<Any>) : StreamOnly
 
@@ -50,7 +49,14 @@ internal sealed interface Node {
     class Concat(val upstream: Node, val next: Node) : StreamOnly
 
     /** [upstream] materialised again on a defect, as [step] decides: the whole stream, never one stage. */
-    class RestartOnDefect(val upstream: Node, val step: ScheduleStep<Throwable, *>, val restarts: Restarts) : StreamOnly
+    // The logger and clock are the ones in scope where the stream was built: a restart is decided on a
+    // backend's thread, which inherits neither.
+    class RestartOnDefect(
+        val upstream: Node,
+        val step: ScheduleStep<Throwable, *>,
+        val logger: Logger,
+        val clock: Clock,
+    ) : StreamOnly
 
     /** A pipe's input: the place a stream goes when the pipe is spliced onto it. */
     data object Hole : Node
@@ -63,8 +69,8 @@ internal sealed interface Node {
         fun on(upstream: Node): Unary
     }
 
-    /** A Pekko flow a caller handed over. Only a Pekko backend can run one. */
-    data class Stage(override val upstream: Node, val flow: Flow<*, *, NotUsed>) : Unary {
+    /** A stage only [owner] can run, such as a Pekko `Flow` a caller handed over. */
+    data class Stage(override val upstream: Node, val value: Any, val owner: BackendKey) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
@@ -112,10 +118,6 @@ internal sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
-    data class Buffer(override val upstream: Node, val size: Int, val strategy: OverflowStrategy) : Unary {
-        override fun on(upstream: Node) = copy(upstream = upstream)
-    }
-
     data class Scan(override val upstream: Node, val zero: Any, val f: (Any, Any) -> Any, val at: String) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
@@ -151,10 +153,6 @@ internal sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
-    data class DivertLefts(override val upstream: Node, val to: Sink<*, *>, val at: String) : Unary {
-        override fun on(upstream: Node) = copy(upstream = upstream)
-    }
-
     /** [f] answers with the node of the stream that takes over, so the recovery is described too. */
     data class CatchAll(override val upstream: Node, val f: (Any?) -> Node) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
@@ -165,11 +163,6 @@ internal sealed interface Node {
     }
 
     data class OrFailIfEmpty(override val upstream: Node, val error: Any?) : Unary {
-        override fun on(upstream: Node) = copy(upstream = upstream)
-    }
-
-    /** [dropping] is `wireTap`: the tap is dropped from rather than allowed to slow the pipeline. */
-    data class Tap(override val upstream: Node, val to: Sink<*, *>, val dropping: Boolean) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
@@ -220,13 +213,15 @@ internal fun Node.spliced(onto: Node): Node =
     }
 
 /** Where a run's elements go, and what it completes with. */
-internal sealed interface End {
+@StreamSpi
+sealed interface End {
 
     data object Collect : End
 
     class Fold(val zero: Any, val f: (Any, Any) -> Any) : End
 
-    class Native(val sink: Sink<*, out CompletionStage<*>>) : End
+    /** A sink only [owner] can run, such as a Pekko `Sink` a caller handed over. */
+    class Native(val value: Any, val owner: BackendKey) : End
 }
 
 /** A typed caller function as a node holds it. Erasure makes this a no-op; the stream's types say what comes out. */

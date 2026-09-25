@@ -2,13 +2,42 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
 import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.KillSwitches
+import org.apache.pekko.stream.UniqueKillSwitch
 import org.apache.pekko.stream.javadsl.Flow
+import org.apache.pekko.stream.javadsl.Keep
+import org.apache.pekko.stream.javadsl.RunnableGraph
 import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
 import java.util.Optional
 import java.util.concurrent.CompletionStage
 import kotlin.time.toJavaDuration
 import org.apache.pekko.japi.Pair as PekkoPair
+
+/** The key a Pekko value in a tree is tagged with, and the one this compiler reads. */
+internal val Pekko = BackendKey("Pekko")
+
+/** The Pekko source a stream compiles to, compiled once and kept on the stream. */
+// Pekko's Source is a Java generic, so Kotlin reads its element as invariant. Every operator only reads
+// from it, so what goes in as `A` comes out as `A`.
+@Suppress("UNCHECKED_CAST")
+internal val <A : Any> Stream<*, A>.source: Source<A, NotUsed>
+    get() = compiled.getOrCompile(Pekko) { node.toPekko() } as Source<A, NotUsed>
+
+/** The Pekko flow a pipe compiles to, compiled once and kept on the pipe. */
+@Suppress("UNCHECKED_CAST")
+internal val <In, Out : Any> Pipe<*, In, Out>.flow: Flow<In, Out, NotUsed>
+    get() = compiled.getOrCompile(Pekko) { node.toPekkoFlow() } as Flow<In, Out, NotUsed>
+
+/** The Pekko graph a run compiles to: the switch sits right before the sink, so a stop is the sink completing. */
+internal val Run<*, *>.graph: RunnableGraph<PekkoPair<UniqueKillSwitch, CompletionStage<Any>>>
+    get() = compiled.getOrCompile(Pekko) {
+        node.toPekko().viaMat(KillSwitches.single(), Keep.right()).toMat(end.toPekko(), Keep.both())
+    }
+
+/** A value a node holds for one backend, read by that backend; anyone else's is a bug in the refusal. */
+private fun Any.ownedBy(owner: BackendKey): Any =
+    if (owner === Pekko) this else error("a value for $owner reached the Pekko compiler")
 
 /**
  * The Pekko stages a node describes: the same ones the operators used to build as they were called.
@@ -19,7 +48,7 @@ import org.apache.pekko.japi.Pair as PekkoPair
 @Suppress("UNCHECKED_CAST")
 internal fun Node.toPekko(): Source<Any, NotUsed> =
     when (this) {
-        is Node.Native -> source as Source<Any, NotUsed>
+        is Node.Native -> value.ownedBy(owner) as Source<Any, NotUsed>
 
         is Node.Elements -> Source.from(elements)
 
@@ -45,7 +74,7 @@ internal fun Node.toPekko(): Source<Any, NotUsed> =
 
         is Node.Concat -> upstream.toPekko().concat(next.toPekko())
 
-        is Node.RestartOnDefect -> restarting(upstream.toPekko(), step, restarts)
+        is Node.RestartOnDefect -> restarting(upstream.toPekko(), step, Restarts(logger, clock))
 
         Node.Hole -> error("a pipe's input compiled as though it were a source")
 
@@ -67,7 +96,7 @@ internal fun Node.toPekkoFlow(): Flow<Any, Any, NotUsed> =
 @Suppress("UNCHECKED_CAST")
 private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
     when (this) {
-        is Node.Stage -> flow as Flow<Any, Any, NotUsed>
+        is Node.Stage -> value.ownedBy(owner) as Flow<Any, Any, NotUsed>
 
         is Node.Map -> mapStage()
 
@@ -92,8 +121,6 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
         is Node.GroupedWithin ->
             Flow.create<Any>().groupedWithin(n, within.toJavaDuration()).map { batch -> batch.toList() }
 
-        is Node.Buffer -> Flow.create<Any>().buffer(size, strategy)
-
         is Node.Scan -> scanStage()
 
         is Node.StatefulMap -> statefulMapStage()
@@ -108,16 +135,12 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
 
         is Node.Absolve -> absolveStage()
 
-        is Node.DivertLefts -> divertLeftsStage()
-
         is Node.CatchAll ->
             Flow.create<Any>().recoverWithRetries(1, onDeclaredFailure { e: Any? -> f(e).toPekko() })
 
         is Node.MapError -> mapErrorStage()
 
         is Node.OrFailIfEmpty -> orFailIfEmptyStage()
-
-        is Node.Tap -> tapStage()
 
         is Node.FlatMap -> flatMapStage()
 
@@ -201,16 +224,6 @@ private fun Node.Absolve.absolveStage(): Flow<Any, *, NotUsed> {
     return Flow.create<Any>().map { either -> decided(either) }
 }
 
-@Suppress("UNCHECKED_CAST")
-private fun Node.DivertLefts.divertLeftsStage(): Flow<Any, *, NotUsed> {
-    // Flipped, so that both branches read their element through the one fold `decided` is.
-    val lefts = Flow.fromFunction<Either<Any, Any>, Any> { either -> either.swap().decided() }.to(to as Sink<Any, *>)
-    val right = guarded("divertLefts", at) { either: Either<Any, Any> -> either.decided() }
-    return Flow.create<Either<Any, Any>>()
-        .divertTo(lefts) { either -> either.isLeft() }
-        .map { either -> right(either) } as Flow<Any, *, NotUsed>
-}
-
 private fun Node.MapError.mapErrorStage(): Flow<Any, *, NotUsed> {
     val mapped = guardedError("mapError", at, f)
     return Flow.create<Any>().recoverWithRetries(
@@ -223,12 +236,6 @@ private fun Node.MapError.mapErrorStage(): Flow<Any, *, NotUsed> {
 // fail every stream through here rather than the empty ones.
 private fun Node.OrFailIfEmpty.orFailIfEmptyStage(): Flow<Any, *, NotUsed> =
     Flow.create<Any>().orElse(Source.lazySource { Source.failed<Any>(DeclaredFailure(error)) })
-
-@Suppress("UNCHECKED_CAST")
-private fun Node.Tap.tapStage(): Flow<Any, *, NotUsed> {
-    val tap = to as Sink<Any, *>
-    return if (dropping) Flow.create<Any>().wireTap(tap) else Flow.create<Any>().alsoTo(tap)
-}
 
 private fun Node.ZipWith.zipped(): Source<Any, NotUsed> {
     val combine = guarded("zipWith", at, f)
@@ -249,5 +256,5 @@ internal fun End.toPekko(): Sink<Any, CompletionStage<Any>> =
     when (this) {
         End.Collect -> Sink.seq<Any>() as Sink<Any, CompletionStage<Any>>
         is End.Fold -> Sink.fold(zero) { total, a -> f(total, a) }
-        is End.Native -> sink as Sink<Any, CompletionStage<Any>>
+        is End.Native -> value.ownedBy(owner) as Sink<Any, CompletionStage<Any>>
     }

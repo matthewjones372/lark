@@ -11,18 +11,11 @@ import kotlin.time.Duration
  * A stream of `A` that can end with a declared failure of `E`, described and
  * not yet running.
  */
-class Stream<out E, out A : Any> internal constructor(internal val node: Node) {
+class Stream<out E, out A : Any> @StreamSpi constructor(@property:StreamSpi val node: Node) {
 
-    /**
-     * The Pekko source [node] compiles to, built once and kept: a Pekko graph is an immutable
-     * blueprint, so a stream described once and run per request is compiled once.
-     */
-    // Pekko's Source is a Java generic, so Kotlin reads its element as invariant. Every operator
-    // only reads from it, so widening A here is safe in a place the compiler has no way to see that.
-    @Suppress("UNCHECKED_CAST")
-    internal val source: Source<@UnsafeVariance A, NotUsed> get() = compiled.value as Source<A, NotUsed>
-
-    private val compiled: Lazy<Source<*, NotUsed>> = lazy(LazyThreadSafetyMode.PUBLICATION) { node.toPekko() }
+    /** What a backend compiled [node] to, kept, so a stream described once and run per request compiles once. */
+    @property:StreamSpi
+    val compiled = CompileCache()
 
     companion object
 }
@@ -67,7 +60,7 @@ class Failing<in E> internal constructor() : Raise<E> {
  * here. One signature rather than two: a second over `Source<A, NotUsed>` would erase to this one.
  */
 fun <A : Any> Stream.Companion.from(source: Source<A, *>): Stream<Nothing, A> =
-    Stream(Node.Native(source.mapMaterializedValue { NotUsed.getInstance() }))
+    Stream(Node.Native(source.mapMaterializedValue { NotUsed.getInstance() }, Pekko))
 
 fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Node.Elements(elements))
 

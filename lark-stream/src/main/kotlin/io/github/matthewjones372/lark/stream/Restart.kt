@@ -25,7 +25,7 @@ import kotlin.time.toJavaDuration
 fun <E, A : Any> Stream<E, A>.restartOnDefect(schedule: Schedule<Throwable, *>): Stream<E, A> =
     // Bound here rather than read later: a restart is decided on a Pekko thread, which inherits
     // neither the logger nor the clock of the code that built the stream.
-    Stream(Node.RestartOnDefect(node, schedule.step, Restarts(logger.get(), clock.get())))
+    Stream(Node.RestartOnDefect(node, schedule.step, logger.get(), clock.get()))
 
 internal class Restarts(private val to: Logger, private val by: Clock) {
 
