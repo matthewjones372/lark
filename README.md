@@ -53,6 +53,7 @@ is where that claim is checked.
 | `lark-stream` | `Stream<E, A>`, described: the failure is in the type, and no backend is named | nothing |
 | `lark-stream-pekko` | runs a `Stream` on Pekko Streams, and the operators that take Pekko's types | `pekko-stream` |
 | `lark-stream-forks` | runs a `Stream` as a pull loop on one virtual thread, for the operators that need no second one | nothing |
+| `lark-stream-test` | runs a `Stream` on the test's own thread, so the exit is there when `run` returns | nothing |
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |

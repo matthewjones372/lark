@@ -74,3 +74,11 @@ and still runs on real threads. Recommended against.
    through the same call.
 3. **Should the petshop relay test move over as the first consumer?**
    Recommended: yes, in the petshop repository, after `spec-0048-time`.
+
+Decided while building `spec-0048-backend` (2026-09-25), for editing:
+`TestStreams` is the Forks pull loop run on the calling thread under its own
+name, not a second runner, so it runs and refuses exactly the operators Forks
+does. `lark-stream-test` therefore depends on `lark-stream-forks`, which brings
+nothing but `lark-stream`. It takes its `TestClock` now, and `spec-0048-time`
+is what reads it. Until then, a stream that never ends and never meets a `take`
+blocks the test that runs it.

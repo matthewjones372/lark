@@ -40,7 +40,7 @@ class ParityTest {
     }
 
     /** Every backend there is. A new one joins here, and is held to every case below. */
-    private val backends: List<StreamBackend> = listOf(PekkoStreams(system), Forks())
+    private val backends: List<StreamBackend> = listOf(PekkoStreams(system), Forks(), TestStreams())
 
     private data class Odd(val value: Int)
 

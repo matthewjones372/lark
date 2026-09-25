@@ -4,6 +4,7 @@
 dependencies {
     testImplementation(project(":lark-stream-pekko"))
     testImplementation(project(":lark-stream-forks"))
+    testImplementation(project(":lark-stream-test"))
 }
 
 // The suite asks each backend which operators it runs, which is the node tree the opt-in covers.

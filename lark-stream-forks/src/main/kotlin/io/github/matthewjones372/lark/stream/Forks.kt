@@ -15,10 +15,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * lark-stream on lark's own threads: a run is one pull loop on one fork from [on], and nothing else starts.
  * Every stage runs on that fork, when the stage after it asks, so a stage body can block and `bind`.
  */
-class Forks(private val on: Executor = VirtualThreads) : StreamBackend {
+class Forks(private val on: Executor = VirtualThreads, name: String = "Forks") : StreamBackend {
 
+    /** The name a refusal says a run was started on: a backend built on this one gives its own. */
     @StreamSpi
-    override val key: BackendKey get() = ForksKey
+    override val key: BackendKey = if (name == ForksKey.name) ForksKey else BackendKey(name)
 
     @StreamSpi
     override fun runs(node: Node): Boolean = node.pulls()
