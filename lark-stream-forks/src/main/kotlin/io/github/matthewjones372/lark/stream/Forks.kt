@@ -108,20 +108,26 @@ private class PullRun<E, R : Any>(
 
     fun drain(run: Run<E, R>) {
         // What the run holds is let go of before the exit completes: no body or fork outlives its run.
-        exit.complete(Releases.around(Releases()) { ended(run) })
+        // The fused tree is the same for every run of a description, so it is worked out once, and so is
+        // whether a run of it can start a thread of its own: one that cannot pays nothing for releasing.
+        val compiled = run.compiled.getOrCompile(ForksKey) { Compiled(run.node.optimised()) }
+        exit.complete(
+            if (compiled.forks) Releases.around(Releases()) {
+                ended(compiled, run.end)
+            } else ended(compiled, run.end),
+        )
     }
 
     // The catch is as wide as a pipeline, because everything a stage threw ends the run: a declared
     // failure as `Failed`, and anything else as the `Died` it is logged as.
     @Suppress("TooGenericExceptionCaught", "UNCHECKED_CAST")
-    private fun ended(run: Run<E, R>): Exit<E, R> =
+    private fun ended(compiled: Compiled, end: End): Exit<E, R> =
         try {
-            // The fused tree is the same for every run of a description, so it is worked out once.
-            val pull = run.compiled.getOrCompile(ForksKey) { run.node.optimised() }.pull()
+            val pull = compiled.tree.pull()
             val pulled = generateSequence { if (stopped.get()) null else pull.next() }
             // Only a run on a test's clock keeps what it emitted: a Forks run pays nothing per element for it.
             val elements = kept?.let { pulled.onEach(it::add) } ?: pulled
-            val value = when (val end = run.end) {
+            val value = when (end) {
                 End.Collect -> elements.toList()
                 is End.Fold -> elements.fold(end.zero, end.f)
                 is End.Native -> error("${end.builder} reached the Forks runner, which start refuses it before")
@@ -140,3 +146,15 @@ private fun Throwable.oneLine(): String {
     val defect = suppressed.filterIsInstance<Defect>().firstOrNull()
     return if (defect == null) "lark-stream: $this" else "lark-stream: ${defect.message}: $this"
 }
+
+/** A description compiled for Forks, once: its fused tree, and whether a run of it can start a thread. */
+internal class Compiled(val tree: Node) {
+    val forks: Boolean = tree.mayFork()
+}
+
+/**
+ * Whether pulling this starts a thread of its own, or builds a stream later that might: a `flatMap`'s
+ * inner streams and a `catchAll`'s recovery are built only when they are needed.
+ */
+private fun Node.mayFork(): Boolean =
+    this is Node.MapPar || this is Node.FlatMap || this is Node.CatchAll || children().any { it.mayFork() }
