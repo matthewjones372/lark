@@ -1,8 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.raise.Raise
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import kotlin.time.Duration
@@ -26,7 +24,8 @@ class Stream<out E, out A : Any> @StreamSpi constructor(@property:StreamSpi val 
  * No stack trace: the error is the value being carried, and filling one in
  * would charge every declared failure for a diagnostic nobody reads.
  */
-internal class DeclaredFailure(val error: Any?) : RuntimeException(null, null, false, false)
+@StreamSpi
+class DeclaredFailure(val error: Any?) : RuntimeException(null, null, false, false)
 
 /**
  * The error a [DeclaredFailure] carries, read back as the stream's own `E`.
@@ -36,14 +35,15 @@ internal class DeclaredFailure(val error: Any?) : RuntimeException(null, null, f
  * came back out of it.
  */
 @Suppress("UNCHECKED_CAST")
-internal fun <E> DeclaredFailure.declared(): E = error as E
+@StreamSpi
+fun <E> DeclaredFailure.declared(): E = error as E
 
 /**
  * The scope `mapOrFail` runs in: a `Raise<E>`, so `bind`, `ensure` and lark's
  * own combinators are in reach of an element body, and `fail` returns Nothing,
  * so it sits after an Elvis.
  */
-class Failing<in E> internal constructor() : Raise<E> {
+class Failing<in E> @StreamSpi constructor() : Raise<E> {
 
     /** The failure travels as it always has: the wrapper only `run` unwraps. */
     override fun raise(r: E): Nothing = throw DeclaredFailure(r)
@@ -51,16 +51,6 @@ class Failing<in E> internal constructor() : Raise<E> {
     /** The name dipper gave [raise], kept so every caller written against it still reads. */
     fun fail(error: E): Nothing = raise(error)
 }
-
-/**
- * The way in from Pekko, whatever the source materialises.
- *
- * The materialised value is dropped rather than declared, because a `Stream` has none to give: a
- * caller who needs the `Cancellable` a ticker hands back keeps the `Source` and passes a view of it
- * here. One signature rather than two: a second over `Source<A, NotUsed>` would erase to this one.
- */
-fun <A : Any> Stream.Companion.from(source: Source<A, *>): Stream<Nothing, A> =
-    Stream(Node.Native(source.mapMaterializedValue { NotUsed.getInstance() }, Pekko, "Stream.from", buildSite()))
 
 fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Node.Elements(elements))
 
@@ -116,19 +106,8 @@ fun <E, A : Any, B : Any> Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream
 fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> =
     Stream(Node.Filter(node, predicate.erased(), buildSite()))
 
-/** The way out to Pekko, open only once nothing is left that a sink would not understand. */
-fun <A : Any> Stream<Nothing, A>.toSource(): Source<A, NotUsed> = source
-
 /** A defect that does not say where it came from is the disappearance again, so the builder is in the message. */
 private const val NULL_COMPLETION = "Stream.fromStage: the stage completed with null"
-
-/**
- * Pekko's own builder, on a stage that cannot complete with `null` — the one call to it this library
- * makes, and the reason the ban on it in `config/detekt/detekt.yml` is a ban with an exception.
- */
-@Suppress("ForbiddenMethodCall")
-internal fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Source<A, NotUsed> =
-    Source.completionStage(checked(onNull))
 
 /**
  * The stage a source can be built on: one that fails where the given one completes with `null`.
@@ -138,7 +117,8 @@ internal fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Sou
  * the stage: what completes it runs this, so no Pekko thread is spent on a value that has not arrived.
  */
 @Suppress("UNCHECKED_CAST")
-internal fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): CompletionStage<A> {
+@StreamSpi
+fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): CompletionStage<A> {
     val checked = CompletableFuture<A>()
     (this as CompletionStage<A?>).whenComplete { value, thrown ->
         when {

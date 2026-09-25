@@ -50,9 +50,12 @@ fun <E, R : Any> Run<E, R>.run(backend: StreamBackend): CompletionStage<Exit<E, 
  * materialises. It names the builder and where it was written, because the run cannot start to say so.
  */
 private fun Run<*, *>.refusedBy(backend: StreamBackend): Throwable? {
-    val foreign = (node.natives() + listOfNotNull(end as? Owned))
-        .firstOrNull { native -> native.owner !== backend.key }
-        ?: return null
+    if (admitted.get() === backend.key) return null
+    val foreign = node.foreignTo(backend.key) ?: (end as? Owned)?.takeIf { it.owner !== backend.key }
+    if (foreign == null) {
+        admitted.set(backend.key)
+        return null
+    }
     val refusal = IllegalStateException(
         "lark-stream: ${foreign.builder}, built at ${foreign.at}, holds a ${foreign.owner} value, " +
             "and this run was started on ${backend.key}",
@@ -72,8 +75,12 @@ private class Refused<E, R>(cause: Throwable) : Running<E, R> {
 }
 
 /**
- * Every native value the tree holds where a walk can see it. A `catchAll` recovery or a `flatMap`'s inner
- * stream is built only when it is needed, so a native value inside one is refused by the backend then.
+ * The first native value in the tree that is not [key]'s, where a walk can see it. A `catchAll` recovery or
+ * a `flatMap`'s inner stream is built only when it is needed, so a native value inside one is refused by the
+ * backend then. It runs on every run, so it builds nothing on the way down.
  */
-private fun Node.natives(): List<Owned> =
-    listOfNotNull(this as? Owned) + children().flatMap { child -> child.natives() }
+private fun Node.foreignTo(key: BackendKey): Owned? {
+    if (this is Owned && owner !== key) return this
+    for (child in children()) child.foreignTo(key)?.let { return it }
+    return null
+}

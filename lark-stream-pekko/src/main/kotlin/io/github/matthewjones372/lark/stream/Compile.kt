@@ -17,6 +17,9 @@ import org.apache.pekko.japi.Pair as PekkoPair
 /** The key a Pekko value in a tree is tagged with, and the one this compiler reads. */
 internal val Pekko = BackendKey("Pekko")
 
+/** The caller's line, skipping this module's frames as well as lark-stream's. */
+internal fun pekkoSite(): String = buildSite(PekkoStreams::class.java)
+
 /** The Pekko source a stream compiles to, compiled once and kept on the stream. */
 // Pekko's Source is a Java generic, so Kotlin reads its element as invariant. Every operator only reads
 // from it, so what goes in as `A` comes out as `A`.
@@ -243,6 +246,7 @@ private fun Node.ZipWith.zipped(): Source<Any, NotUsed> {
 }
 
 private fun Node.FlatMap.flatMapStage(): Flow<Any, *, NotUsed> {
+    val breadth = breadth
     val build = guarded(if (breadth == null) "flatMapConcat" else "flatMapMerge", at, f)
     return if (breadth == null) {
         Flow.create<Any>().flatMapConcat { a -> build(a).source }

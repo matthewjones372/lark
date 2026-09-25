@@ -68,7 +68,8 @@ spotless {
 val moduleDescriptions = mapOf(
     "lark" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
     "lark-pekko" to "lark on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
-    "lark-stream" to "A stream that names its failure: Stream<E, A> over Pekko Streams, formerly dipper.",
+    "lark-stream" to "A stream that names its failure: Stream<E, A> described once, run on the backend you pick.",
+    "lark-stream-pekko" to "lark-stream on Pekko Streams: the backend, and the operators that take Pekko's types.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",

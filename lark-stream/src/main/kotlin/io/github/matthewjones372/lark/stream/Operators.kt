@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
-import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletionStage
 
 /**
@@ -32,10 +31,6 @@ fun <E, A : Any> Stream<E, A>.either(): Stream<Nothing, Either<E, A>> = replacin
 
 /** A `Left` fails the stream with what it holds; a `Right` carries on as the element. */
 fun <E, L : E, R : Any> Stream<E, Either<L, R>>.absolve(): Stream<E, R> = via(Pipe.absolve<E, L, R>())
-
-/** Every `Left` reaches [to] and every `Right` carries on: `divertTo` with no predicate to write. */
-fun <E, L : Any, R : Any> Stream<E, Either<L, R>>.divertLefts(to: Sink<L, *>): Stream<E, R> =
-    via(Pipe.divertLefts(to))
 
 /** Handles a declared failure only: a defect is nothing anyone declared, and still dies. */
 fun <E, E2, A : Any> Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A> = replacing(Pipe.catchAll(f))

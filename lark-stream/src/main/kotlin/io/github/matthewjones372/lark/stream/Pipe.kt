@@ -1,8 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Flow
-
 /**
  * The middle of a pipeline: `In` in, `Out` out, and a declared failure of `E` it can end with.
  *
@@ -19,9 +16,6 @@ class Pipe<out E, in In, out Out : Any> @StreamSpi constructor(@property:StreamS
     companion object
 }
 
-fun <In, Out : Any> Pipe.Companion.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out> =
-    Pipe(Node.Stage(Node.Hole, flow, Pekko, "Pipe.from", buildSite()))
-
 /** The pipe that changes nothing, which is where a chain of operators starts. */
 fun <A : Any> Pipe.Companion.identity(): Pipe<Nothing, A, A> = Pipe(Node.Hole)
 
@@ -32,9 +26,6 @@ fun <E, E2 : E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.via(next: Pipe<E2, O
 /** The pipe's elements become the stream's, and the failure it declares joins the stream's. */
 fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.via(pipe: Pipe<E2, A, B>): Stream<E, B> =
     Stream(pipe.node.spliced(node))
-
-/** The way out to Pekko, open only once nothing is left that a graph would not understand. */
-fun <In, Out : Any> Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed> = flow
 
 /**
  * A pipe spliced onto a source, answering with the pipe's own failure rather than the stream's.

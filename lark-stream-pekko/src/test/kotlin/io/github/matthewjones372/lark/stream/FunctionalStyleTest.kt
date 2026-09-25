@@ -17,12 +17,15 @@ import java.io.File
  *
  * Which sources it judges is not decided here: the build hands them over and
  * declares the same directories as inputs of the task that runs this test. See
- * `lark-stream/build.gradle.kts`.
+ * `lark-stream-pekko/build.gradle.kts`.
  */
 class FunctionalStyleTest {
 
-    // A description holds nothing that grows. What a backend keeps while it runs is that backend's.
-    private val builders = emptyMap<String, String>()
+    private val builders = mapOf(
+        "lark-stream-pekko/src/main/kotlin/io/github/matthewjones372/lark/stream/MapParStage.kt" to
+            "the bodies one run has in flight, at most mapAsync's parallelism of them, each removed as " +
+            "it ends: a stage Pekko is waiting on cannot be interrupted through anything Pekko holds",
+    )
 
     private val accumulators = Regex(
         """\b(mutableListOf|mutableMapOf|mutableSetOf|newKeySet""" +
@@ -32,7 +35,7 @@ class FunctionalStyleTest {
     /** Absent means the build's wiring is gone, which is the failure this test cannot survive. */
     private fun handedOver(name: String): String {
         val value = System.getProperty(name)
-        withClue("the build must pass -D$name; see lark-stream/build.gradle.kts") { value.shouldNotBeNull() }
+        withClue("the build must pass -D$name; see lark-stream-pekko/build.gradle.kts") { value.shouldNotBeNull() }
         return value!!
     }
 

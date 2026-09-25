@@ -9,6 +9,7 @@ rootProject.name = "lark"
 include("lark")
 include("lark-pekko")
 include("lark-stream")
+include("lark-stream-pekko")
 include("lark-app")
 include("lark-app-pekko")
 include("lark-otel")

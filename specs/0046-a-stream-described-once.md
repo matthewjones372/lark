@@ -119,3 +119,9 @@ builder and where it was built (0010's build site).
 
 Decided (2026-09-25): `lark-stream` is the core, and a service depends on the
 backend module, which brings the core with it.
+
+Decided while building `spec-0046-split` (2026-09-25), for editing: question 1
+went as recommended. `buffer(OverflowStrategy)`, `alsoTo`, `wireTap` and
+`divertLefts` take Pekko's types, so they live in `lark-stream-pekko` and build
+Pekko-native stages. Question 2 is still open: `buffer` keeps Pekko's enum
+there until a second backend needs one of lark's own.

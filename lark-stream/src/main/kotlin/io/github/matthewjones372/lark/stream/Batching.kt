@@ -1,7 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import org.apache.pekko.stream.OverflowStrategy
-import org.apache.pekko.stream.javadsl.Flow
 import kotlin.time.Duration
 
 /** Elements in batches of [n], the last one short where the stream ended inside it. */
@@ -31,13 +29,3 @@ fun <E, In, Out : Any> Pipe<E, In, Out>.groupedWithin(n: Int, within: Duration):
 
 fun <E, A : Any> Stream<E, A>.groupedWithin(n: Int, within: Duration): Stream<E, List<A>> =
     via(Pipe.groupedWithin(n, within))
-
-/** Room for [size] elements between a fast producer and a slow consumer, and what to do when it fills. */
-fun <A : Any> Pipe.Companion.buffer(size: Int, strategy: OverflowStrategy): Pipe<Nothing, A, A> =
-    Pipe(Node.Stage(Node.Hole, Flow.create<A>().buffer(size, strategy), Pekko, "buffer", buildSite()))
-
-fun <E, In, Out : Any> Pipe<E, In, Out>.buffer(size: Int, strategy: OverflowStrategy): Pipe<E, In, Out> =
-    via(Pipe.buffer(size, strategy))
-
-fun <E, A : Any> Stream<E, A>.buffer(size: Int, strategy: OverflowStrategy): Stream<E, A> =
-    via(Pipe.buffer(size, strategy))

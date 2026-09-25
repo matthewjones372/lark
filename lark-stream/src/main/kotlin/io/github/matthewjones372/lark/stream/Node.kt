@@ -229,7 +229,8 @@ sealed interface End {
 
     data object Collect : End
 
-    class Fold(val zero: Any, val f: (Any, Any) -> Any) : End
+    /** [at] is where the fold was written: a body written in Java can still answer with null. */
+    class Fold(val zero: Any, val f: (Any, Any) -> Any, val at: String) : End
 
     /** A sink only [owner] can run, such as a Pekko `Sink` a caller handed over. */
     class Native(

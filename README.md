@@ -50,7 +50,8 @@ is where that claim is checked.
 |---|---|---|
 | `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `LarkLocal`, `Clock`, the log | `arrow-core` |
 | `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` |
-| `lark-stream` | `Stream<E, A>` over Pekko Streams: the failure is in the type | `pekko-stream` |
+| `lark-stream` | `Stream<E, A>`, described: the failure is in the type, and no backend is named | nothing |
+| `lark-stream-pekko` | runs a `Stream` on Pekko Streams, and the operators that take Pekko's types | `pekko-stream` |
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
@@ -590,8 +591,8 @@ and `awaitExit` folds the run's `Exit` back into the handler that started it.
 
 ```kotlin
 dependencies {
-    // Pekko Streams, lark, lark-pekko and arrow-core come with it; nothing else does
-    implementation("io.github.matthewjones372:lark-stream:0.1.0")
+    // lark-stream, Pekko Streams, lark, lark-pekko and arrow-core come with it; nothing else does
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.1.0")
 }
 ```
 
