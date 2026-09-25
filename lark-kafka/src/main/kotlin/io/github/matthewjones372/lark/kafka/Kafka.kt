@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.kafka
 
+import arrow.core.Either
 import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.SourceSeam
 import io.github.matthewjones372.lark.stream.Stream
@@ -46,6 +47,18 @@ object Kafka {
                     Committed(message.record(), offset.partitionOffset(), offset)
                 }
         }
+
+    /**
+     * [subscribe] over bytes, each key and value decoded in the stream: a record that cannot be read is a `Left`
+     * that still carries its offset, so it is routed rather than ending the consumer.
+     */
+    fun <K, V> subscribe(
+        settings: ConsumerSettings<ByteArray?, ByteArray?>,
+        vararg topics: Topic,
+        key: Decoder<K>,
+        value: Decoder<V>,
+    ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
+        subscribe(settings, *topics).mapRecord { record -> record.decoded(key, value) }
 }
 
 /** A run described that commits each element's offset once the element reaches the end of the stream. */
