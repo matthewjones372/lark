@@ -75,11 +75,10 @@ class ForksTest {
     fun `an operator that needs a second thread is refused by name before anything runs`() {
         val pulled = AtomicInteger()
 
-        val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.mapPar(2) { it }.collected()
+        val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.merge(Stream.of(0)).collected()
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
-        died.cause.message shouldContain "mapPar, built at ForksTest.kt:"
-        died.cause.message shouldContain ", is not something Forks runs"
+        died.cause.message shouldContain "merge is not something Forks runs"
         pulled.get() shouldBe 0
     }
 
@@ -141,5 +140,80 @@ class ForksTest {
 
         Stream.fromStage(stage).collected() shouldBe Exit.Done(listOf("ready"))
         Stream.fromStage(nulled, ifNull = Odd(0)).collected() shouldBe Exit.Failed(Odd(0))
+    }
+
+    @Test
+    fun `mapPar answers in the order the elements came, with never more bodies at once than it was given`() {
+        val running = AtomicInteger()
+        val most = AtomicInteger()
+
+        val exit = Stream.from(1..40)
+            .mapPar(8) { n ->
+                most.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+                Thread.sleep((41 - n).toLong() % 7)
+                running.decrementAndGet()
+                n * 10
+            }
+            .collected()
+
+        exit shouldBe Exit.Done((1..40).map { it * 10 })
+        withClue("at most eight at once, and more than one, or it was not parallel") {
+            (most.get() in 2..8) shouldBe true
+        }
+    }
+
+    @Test
+    fun `a raise in one mapPar body ends the run Failed, and interrupts the bodies still running`() {
+        val interrupted = AtomicInteger()
+
+        val exit = Stream.from(1..8)
+            .mapPar<Odd, Int, Int>(8) { n ->
+                if (n == 1) {
+                    Thread.sleep(50)
+                    raise(Odd(n))
+                }
+                try {
+                    Thread.sleep(60_000)
+                } catch (stopped: InterruptedException) {
+                    interrupted.incrementAndGet()
+                    throw stopped
+                }
+                n
+            }
+            .collected()
+
+        exit shouldBe Exit.Failed(Odd(1))
+        withClue("the seven still sleeping were interrupted, and had stopped before the exit completed") {
+            interrupted.get() shouldBe 7
+        }
+    }
+
+    @Test
+    fun `take after mapPar ends the run, and no body is left running behind it`() {
+        val running = AtomicInteger()
+
+        val exit = Stream.from(naturals)
+            .mapPar(4) { n ->
+                running.incrementAndGet()
+                try {
+                    if (n > 3) Thread.sleep(60_000)
+                } finally {
+                    running.decrementAndGet()
+                }
+                n
+            }
+            .take(3)
+            .collected()
+
+        exit shouldBe Exit.Done(listOf(1, 2, 3))
+        running.get() shouldBe 0
+    }
+
+    @Test
+    fun `a mapPar body that throws is the defect the run dies with, naming mapPar`() {
+        val exit = Stream.of(1, 2).mapPar(2) { n -> check(n != 2) { "two" }; n }.collected()
+
+        val died = exit.shouldBeInstanceOf<Exit.Died>()
+        (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain "mapPar"
     }
 }

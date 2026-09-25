@@ -1,11 +1,14 @@
 package io.github.matthewjones372.lark.stream.benchmarks
 
+import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runFold
+import org.apache.pekko.stream.javadsl.Sink
+import org.apache.pekko.stream.javadsl.Source
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
 import org.openjdk.jmh.annotations.Fork
@@ -16,6 +19,8 @@ import org.openjdk.jmh.annotations.OutputTimeUnit
 import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.State
 import org.openjdk.jmh.annotations.Warmup
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 private const val ELEMENTS = 10_000
@@ -29,7 +34,12 @@ internal fun parallelPipeline(ints: List<Int>): Run<Nothing, Long> =
 
 internal fun parallelInts(): List<Int> = (0 until ELEMENTS).toList()
 
-/** A cheap body forked per element, so the row is the cost of the fork and the reordering, not the body. */
+/**
+ * A cheap body forked per element, so the row is the cost of the fork and the reordering, not the body.
+ *
+ * `pekko` is the same written against Pekko by hand, with no lark in it: `mapAsync(8)` and a virtual
+ * thread per element, which is what `mapPar` does on Pekko under its guard.
+ */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -41,6 +51,22 @@ open class MapParBenchmark {
 
     private val ints = (0 until ELEMENTS).toList()
 
+    private val forks = Forks()
+
     @Benchmark
     fun lark(pekko: Pekko): Long = parallelPipeline(ints).run(pekko.system).done()
+
+    /** The same description on `Forks`: a window of eight bodies, refilled on the pulling thread. */
+    @Benchmark
+    fun forks(): Long = parallelPipeline(ints).run(forks).done()
+
+    private val virtualThreads = Executors.newVirtualThreadPerTaskExecutor()
+
+    @Benchmark
+    fun pekko(pekko: Pekko): Long =
+        Source.from(ints)
+            .mapAsync(PARALLELISM) { n -> CompletableFuture.supplyAsync({ n.toLong() * SCALE }, virtualThreads) }
+            .runWith(Sink.fold(0L) { total, n -> total + n }, pekko.system)
+            .toCompletableFuture()
+            .join()
 }

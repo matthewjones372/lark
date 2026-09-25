@@ -14,8 +14,9 @@ import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * lark-stream on lark's own threads: a run is one pull loop on one fork from [on], and nothing else starts.
- * Every stage runs on that fork, when the stage after it asks, so a stage body can block and `bind`.
+ * lark-stream on lark's own threads: a run is one pull loop on one fork from [on]. Every stage runs on that
+ * fork, when the stage after it asks, so a stage body can block and `bind`. Only `mapPar` starts more: up
+ * to its parallelism of bodies in flight, each on the node's executor, all let go of when the run ends.
  */
 class Forks(private val on: Executor = VirtualThreads, name: String = "Forks") : StreamBackend {
 
@@ -106,7 +107,8 @@ private class PullRun<E, R : Any>(
     }
 
     fun drain(run: Run<E, R>) {
-        exit.complete(ended(run))
+        // What the run holds is let go of before the exit completes: no body or fork outlives its run.
+        exit.complete(Releases.around(Releases()) { ended(run) })
     }
 
     // The catch is as wide as a pipeline, because everything a stage threw ends the run: a declared
