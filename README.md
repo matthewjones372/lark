@@ -63,7 +63,8 @@ is where that claim is checked.
 | `lark-micrometer` | counters, gauges and histograms into the `MeterRegistry` a service already has | `micrometer-core` |
 | `lark-app-gradle` | a Gradle plugin: every graph in a project checked and drawn as it compiles | `gradleApi()` |
 
-An untagged commit builds `0.1.0-SNAPSHOT`, which is what
+A commit after the latest tag builds the next patch version as a
+`-SNAPSHOT` (after `v0.5.0`, `0.5.1-SNAPSHOT`), which is what
 `./gradlew publishToMavenLocal` installs.
 
 One module is built and tested but not published. `lark-structured` has
@@ -576,25 +577,28 @@ so a graph assembled across modules is one the editor stays quiet about.
 
 ## Streams
 
-`lark-stream` is `Stream<E, A>` over Pekko Streams: the failure a pipeline
-can end with is in the type, an element can never be null, and running one
-answers an `Exit` that is `Done`, `Failed(e)` or `Died(cause)` rather than a
-stage nobody read. A `Died` is reported at error through the actor system's own
-logger too, naming the operator, the element and the caller's line that built
-it, so a pipeline run for its effect still says what happened. Every operator
-delegates to Pekko, and `toSource()` and `Stream.from(source)` are the way out
-and in, so nothing Pekko can do is out of reach.
+`lark-stream` is `Stream<E, A>`: the failure a pipeline can end with is in the
+type, an element can never be null, and running one answers an `Exit` that is
+`Done`, `Failed(e)` or `Died(cause)` rather than a stage nobody read. A `Died`
+is logged at error too, naming the operator, the element and the caller's line
+that built it, so a pipeline run for its effect still says what happened.
+
+A stream is a description, and it names no backend: the backend is a value
+handed to `start`. `lark-stream-pekko` runs it on Pekko Streams, where
+`toSource()` and `Stream.from(source)` are the way out and in, so nothing Pekko
+can do is out of reach. `lark-stream-forks` runs it as a pull loop on one
+virtual thread, and `lark-stream-test` on a clock the test moves.
 
 It was a library of its own, dipper, until this repository took it in; the
-code is the same under `io.github.matthewjones372.lark.stream`, and it depends
-on `lark` and `lark-pekko`, so a handler and the stream it runs share one
-vocabulary: an element body is a `Raise`, `mapPar` gives it a virtual thread,
-and `awaitExit` folds the run's `Exit` back into the handler that started it.
+code is the same under `io.github.matthewjones372.lark.stream`, and a handler
+and the stream it runs share one vocabulary: an element body is a `Raise`,
+`mapPar` gives it a virtual thread, and `awaitExit` folds the run's `Exit` back
+into the handler that started it.
 
 ```kotlin
 dependencies {
     // lark-stream, Pekko Streams, lark, lark-pekko and arrow-core come with it; nothing else does
-    implementation("io.github.matthewjones372:lark-stream-pekko:0.1.0")
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.5.0")
 }
 ```
 
@@ -655,6 +659,50 @@ val settled: Either<IngestError, Done> = either {
             .run(system),                                              // CompletionStage<Exit<IngestError, Done>>
     )                                                                  // Done → the value, Failed → raise, Died → throw
 }
+```
+
+### One description, any backend
+
+The ingest above ends in `.run(system)`, which is `.run(PekkoStreams(system))`.
+A description with no Pekko type in it runs anywhere, and the backend is picked
+where it starts:
+
+```kotlin
+val tally: Run<Nothing, Int> = Stream.from(1..1_000).map { it * 2 }.filter { it % 3 == 0 }.runFold(0) { n, _ -> n + 1 }
+
+tally.run(PekkoStreams(system))                 // on Pekko Streams
+tally.run(Forks())                              // a pull loop on one virtual thread
+tally.run(TestStreams(clock))                   // on a TestClock: an hour of `tick` is one clock.adjust(1.hours)
+```
+
+A backend refuses a run it cannot finish before anything starts, naming the
+operator and the line that built it: `Forks` runs no operator that needs a
+second thread or a clock, and nothing runs another backend's `Source`.
+
+Before a run starts, adjacent element-at-a-time stages (`map`, `filter`,
+`mapOrFail` and the like) are fused into one, a `take` of a `take` is one
+`take`, and a `catchAll` over a stream that cannot fail is dropped. Every
+defect still names the operator and line it came from. A five-stage chain on
+Pekko went from 150 ns to 91 ns an element.
+
+`render()` draws the description as text or Mermaid, each stage with the line
+that built it, and `render(optimised = true)` draws what actually runs:
+
+```
+Stream.from
+fused[map, map, filter, map, mapOrFail]  Pipelines.kt:15
+runFold                                  Pipelines.kt:20
+```
+
+And `measured(Measured("ingest", metrics))` reports each stage's elements, the
+time in its body, and the time it waited for demand, through lark's `Metrics`.
+A `Profiler` keeps those numbers so `render(profile = profiler.profile())` can
+draw where the time went, the busiest stage hottest:
+
+```
+map          Pipelines.kt:15  3% · 1.0 µs busy · 3.0 µs waiting · 100000 out
+map          Pipelines.kt:16  67% · 20.0 µs busy · 3.0 µs waiting · 100000 out
+filter       Pipelines.kt:17  3% · 1.0 µs busy · 3.0 µs waiting · 50000 out
 ```
 
 ### Before and after
