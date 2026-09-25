@@ -1,9 +1,11 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.PekkoStreams
 import io.github.matthewjones372.lark.stream.StreamBackend
+import io.github.matthewjones372.lark.stream.restartOnDefect
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
@@ -17,10 +19,12 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.io.IOException
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** One description of a consumer, run on whichever backend the run names, against one broker. */
 class ConsumeTest {
@@ -149,5 +153,34 @@ class ConsumeTest {
 
         dead.toList() shouldBe listOf(1L)
         kafka.committed("diverting-$on", topic) shouldBe 3L
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `a registry that is down restarts the consumer, which reads the same record again`(on: String) {
+        val topic = "flaky-$on"
+        kafka.send(topic, "order")
+        val asked = AtomicInteger()
+        val registryOnce = Deserializer { _, data: ByteArray ->
+            if (asked.incrementAndGet() == 1) throw SerializationException("registry", IOException("refused"))
+            String(data)
+        }
+        val down: (Throwable) -> Boolean = { t -> generateSequence(t) { it.cause }.any { it is IOException } }
+
+        Kafka.consume(
+            properties("restarting-$on"),
+            Topic(topic),
+            key = Decoder.string(),
+            value = Decoder(registryOnce, down),
+        )
+            .restartOnDefect(Schedule.recurs<Throwable>(1))
+            .mapRecord { decoded -> decoded.fold({ "left" }, { it.value() }) }
+            .take(1)
+            .runCommitting()
+            .run(backend(on))
+            .settled() shouldBe Exit.Done(1L)
+
+        asked.get() shouldBe 2
+        kafka.committed("restarting-$on", topic) shouldBe 1L
     }
 }

@@ -61,7 +61,7 @@ dependencies {
 | Ends on | `runCommitting(): Run<E, Long>`, the count of elements | `runCommitting(settings): Run<E, Done>` |
 | Commits | on the polling thread, before each poll and on close | through the connector's committer sink, in batches |
 | `mapParRecord`, `divertLefts` | yes, on Forks as a window of bodies in flight (0051) | yes |
-| `restartOnDefect` | Pekko and TestStreams; Forks refuses it until spec 0052 gives it a clock | yes |
+| `restartOnDefect` | yes, on every backend; a restart closes the failed consumer before it opens the next | yes |
 
 ## Operators
 

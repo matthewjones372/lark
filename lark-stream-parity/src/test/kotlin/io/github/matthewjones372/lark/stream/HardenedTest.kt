@@ -10,6 +10,7 @@ import org.junit.jupiter.api.TestFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Every parity case on Forks, with every thread it starts counted: run to the end, stopped as soon as it
@@ -107,6 +108,111 @@ class HardenedTest {
         running.stop()
 
         running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS) shouldBe Exit.Done(listOf(1))
+        counted.leftRunning() shouldBe 0
+    }
+
+    private val naturals: Iterable<Int> = generateSequence(1) { it + 1 }.asIterable()
+
+    @Test
+    fun `two endless streams merged and cut short by take end, and leave nothing running`() {
+        val counted = Counted()
+
+        val exit = Stream.from(naturals).merge(Stream.from(naturals).map { -it }).take(100).runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.size shouldBe 100
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `flatMapMerge never runs more inner streams at once than its breadth`() {
+        val counted = Counted()
+        val running = AtomicInteger()
+        val most = AtomicInteger()
+
+        val exit = Stream.from(1..20)
+            .flatMapMerge(3) { n ->
+                Stream.of(n).map { m ->
+                    most.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+                    Thread.sleep(2)
+                    running.decrementAndGet()
+                    m
+                }
+            }
+            .runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.sorted() shouldBe (1..20).toList()
+        withClue("at most three inner streams at once, and more than one") { (most.get() in 2..3) shouldBe true }
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `a failing inner stream ends a flatMapMerge Failed, and lets go of the others`() {
+        val counted = Counted()
+
+        val outer: Stream<ParityTest.Odd, Int> = Stream.from(1..4)
+
+        val exit = outer
+            .flatMapMerge(4) { n ->
+                if (n == 2) Stream.fail(ParityTest.Odd(n)) else Stream.from(naturals).map { it * n }
+            }
+            .runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit shouldBe Exit.Failed(ParityTest.Odd(2))
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `conflate gives a slow reader what piled up, and loses nothing`() {
+        val counted = Counted()
+
+        val exit = Stream.from(1..200)
+            .conflateWithSeed({ listOf(it) }, { batch, n -> batch + n })
+            .map { batch ->
+                Thread.sleep(1)
+                batch
+            }
+            .runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        val batches = exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
+        withClue("every element, in order, and fewer batches than elements") {
+            batches.flatten() shouldBe (1..200).toList()
+            (batches.size < 200) shouldBe true
+        }
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `an endless source that never blocks, conflated and cut short, leaves nothing running`() {
+        val counted = Counted()
+
+        val exit = Stream.from(naturals).conflateWithSeed({ 1 }, { count, _ -> count + 1 }).take(3).runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.size shouldBe 3
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `a run stopped while a restartOnDefect waits on its next tick ends, and does not restart`() {
+        val counted = Counted()
+        // Like an outbox relay with nothing to send: ticks that never become an element, so the loop is
+        // never back between elements to see the stop itself.
+        val running = Stream.tick(20.milliseconds, 1)
+            .mapPar(2) { it }
+            .mapConcat { emptyList<Int>() }
+            .restartOnDefect(io.github.matthewjones372.lark.Schedule.spaced(10.milliseconds))
+            .runCollect()
+            .start(Forks(counted))
+        Thread.sleep(70)
+
+        running.stop()
+
+        running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+            .shouldBeInstanceOf<Exit.Done<List<Int>>>()
         counted.leftRunning() shouldBe 0
     }
 

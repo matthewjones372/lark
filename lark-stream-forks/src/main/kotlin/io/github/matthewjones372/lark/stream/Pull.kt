@@ -2,8 +2,10 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
 import arrow.core.raise.either
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.ExecutionException
 
 /**
  * One element at a time, on the thread that asks. `null` is the end, which no element can be, because
@@ -13,7 +15,7 @@ internal fun interface Pull {
     fun next(): Any?
 }
 
-/** The operators a pull runs on its own: every one that needs no second thread and no clock. */
+/** The operators a pull runs: every one with no backend of its own in it, since spec 0052. */
 internal fun Node.pulls(): Boolean =
     when (this) {
         is Node.Elements, is Node.Single, Node.Empty, is Node.Fail, is Node.FromStage, is Node.Blocking,
@@ -21,23 +23,20 @@ internal fun Node.pulls(): Boolean =
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Probed,
-        is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave,
+        is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave, is Node.MapAsync, is Node.FlatMap,
+        is Node.Merge, is Node.Conflate, is Node.Tick, is Node.GroupedWithin, is Node.RestartOnDefect,
         -> true
 
-        is Node.FlatMap -> breadth == null
-
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.MapAsync,
-        is Node.Conflate, is Node.Merge, is Node.RestartOnDefect,
+        is Node.Native, is Node.Stage, Node.Hole,
         -> false
     }
 
-/** The operators a pull runs on a test's clock, taking turns with the workers of [Turns]: those, and time. */
-internal fun Node.pullsOnClock(): Boolean =
-    pulls() || this is Node.Tick || this is Node.GroupedWithin || this is Node.RestartOnDefect
+/** What a pull runs on a test's clock: since spec 0052, everything it runs on Forks. */
+internal fun Node.pullsOnClock(): Boolean = pulls()
 
 /**
- * The pull a node describes. `start` has refused every node its backend cannot run before this is reached,
- * so a node with time in it is only reached on a worker of [Turns].
+ * The pull a node describes. `start` has refused every node its backend cannot run before this is reached.
+ * A node with time in it waits on the run's [Timeline]: a test's clock, or the run's own on Forks.
  */
 internal fun Node.pull(): Pull =
     when (this) {
@@ -87,7 +86,7 @@ internal fun Node.pull(): Pull =
 
         is Node.OrFailIfEmpty -> orFailIfEmpty()
 
-        is Node.FlatMap -> flatMapConcat()
+        is Node.FlatMap -> flatMapped(breadth)
 
         is Node.Concat -> upstream.then(next)
 
@@ -99,11 +98,11 @@ internal fun Node.pull(): Pull =
 
         is Node.Probed -> probed()
 
-        is Node.Tick -> tick(Turns.here())
+        is Node.Tick -> tick(timeline())
 
-        is Node.GroupedWithin -> groupedWithin(Turns.here())
+        is Node.GroupedWithin -> groupedWithin(timeline())
 
-        is Node.RestartOnDefect -> restarting(Turns.here())
+        is Node.RestartOnDefect -> restarting(timeline())
 
         // On a test's clock one element at a time, in the order they came, which is the answer a test of
         // timing wants; on Forks, a window of bodies in flight.
@@ -115,7 +114,14 @@ internal fun Node.pull(): Pull =
 
         is Node.Interleave -> interleave()
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.MapAsync, is Node.Conflate, is Node.Merge,
+        // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them.
+        is Node.MapAsync -> awaiting(if (Turns.taking()) 1 else parallelism)
+
+        is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Releases.here())
+
+        is Node.Conflate -> if (Turns.taking()) conflatedOnClock(Turns.here()) else conflated(Releases.here())
+
+        is Node.Native, is Node.Stage, Node.Hole,
         -> error("$operator reached the Forks runner, which start refuses it before")
     }
 
@@ -135,13 +141,23 @@ private fun once(element: () -> Any): Pull {
  * Opened on the first pull rather than when the loop is built, so a stream nobody pulls opens nothing, and
  * closed as soon as it runs out; the run closes it otherwise, once its loop has ended.
  */
+@Suppress("TooGenericExceptionCaught") // Only to close before the failure goes on, unchanged.
 private fun Node.Blocking.blocking(resources: Resources?): Pull {
     var opened: Opened? = null
     var done = false
     return Pull {
         if (done) return@Pull null
         val resource = opened ?: Opened(this).also { opened = it; resources?.add(it) }
-        resource.next() ?: null.also {
+        // A read that failed closes its resource at once: a restart opens a new one, and must not find the
+        // old one still holding what it held, a consumer's place in its group among them.
+        val next = try {
+            resource.next()
+        } catch (failed: Throwable) {
+            done = true
+            resource.close()
+            throw failed
+        }
+        next ?: null.also {
             done = true
             resource.close()
         }
@@ -352,6 +368,14 @@ private fun Node.OrFailIfEmpty.orFailIfEmpty(): Pull {
     }
 }
 
+/** One inner stream after another, or up to [breadth] at once: on a test's clock as workers taking turns. */
+private fun Node.FlatMap.flatMapped(breadth: Int?): Pull =
+    when {
+        breadth == null -> flatMapConcat()
+        Turns.taking() -> mergedOnClock(breadth, Turns.here())
+        else -> merged(breadth, Releases.here())
+    }
+
 private fun Node.FlatMap.flatMapConcat(): Pull {
     val build = guarded("flatMapConcat", at, f)
     val up = upstream.pull()
@@ -486,3 +510,40 @@ private fun Node.Interleave.interleave(): Pull {
         element
     }
 }
+
+/**
+ * Up to [window] of the caller's stages at once, each started on the pulling thread, answered in the
+ * order the elements came. A stage that fails is the defect `mapAsync` names, and one that completes
+ * with `null` is too, as on Pekko. The wait is interruptible, so a stop wakes it.
+ */
+private fun Node.MapAsync.awaiting(window: Int): Pull {
+    val start = guarded("mapAsync", at, f)
+    val up = upstream.pull()
+    val started = ArrayDeque<Pair<Any, CompletableFuture<Any?>>>()
+    var drained = false
+    return Pull {
+        while (!drained && started.size < window) {
+            val a = up.next()
+            @Suppress("UNCHECKED_CAST")
+            if (a ==
+                null
+            ) drained = true else started.addLast(a to (start(a) as CompletionStage<Any?>).toCompletableFuture())
+        }
+        started.removeFirstOrNull()?.let { (a, stage) ->
+            val b = try {
+                stage.get()
+            } catch (failed: ExecutionException) {
+                throw (failed.cause ?: failed).unwrapped().describedBy("mapAsync", a, at)
+            }
+            b ?: throw NullPointerException("${facts("mapAsync", a, at)}: the stage completed with null")
+        }
+    }
+}
+
+/** The run's time: a test's clock where this is one of its workers, and the run's own clock on Forks. */
+private fun timeline(): Timeline =
+    if (Turns.taking()) {
+        Turns.here()
+    } else {
+        RealTime(checkNotNull(Releases.here()) { "a node with time in it was pulled outside a run" })
+    }

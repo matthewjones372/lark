@@ -15,9 +15,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * lark-stream on lark's own threads: a run is one pull loop on one fork from [on]. Every stage runs on that
- * fork, when the stage after it asks, so a stage body can block and `bind`. Only `mapPar` and `buffer`
- * start more, from [on] as well (a `mapPar` given an executor of its own keeps it), and the run lets go
- * of every one of them before its exit completes.
+ * fork, when the stage after it asks, so a stage body can block and `bind`. The operators that run
+ * something beside the loop (`mapPar`, `buffer`, `merge`, `flatMapMerge`, `conflate`, `groupedWithin`)
+ * start it from [on] as well (a `mapPar` given an executor of its own keeps it), and the run lets go of
+ * every one of them before its exit completes. Time is lark's `clock`, read when the run starts.
  */
 class Forks(private val on: Executor = VirtualThreads, name: String = "Forks") : StreamBackend {
 
@@ -141,7 +142,7 @@ private class PullRun<E, R : Any>(
             val compiled = run.compiled.getOrCompile(ForksKey) { Compiled(run.node.optimised()) }
             resources.around {
                 if (compiled.forks) {
-                    Releases.around(Releases(on)) { ended(compiled, run.end) }
+                    Releases.around(Releases(on, clock)) { ended(compiled, run.end) }
                 } else {
                     ended(compiled, run.end)
                 }
@@ -231,7 +232,7 @@ private fun sinkFor(end: End): Sink =
     }
 
 /** An interruption, or a failure it caused: what a stop leaves behind in whatever it woke. */
-private fun Throwable.isInterruption(): Boolean =
+internal fun Throwable.isInterruption(): Boolean =
     generateSequence(this) { it.cause }.take(CAUSES_READ).any { it is InterruptedException }
 
 /** How deep a cause chain is read for an interruption: far enough for a wrapper or two, and no cycle. */
@@ -249,9 +250,14 @@ internal class Compiled(val tree: Node) {
 }
 
 /**
- * Whether pulling this starts a thread of its own, or builds a stream later that might: a `flatMap`'s
- * inner streams and a `catchAll`'s recovery are built only when they are needed.
+ * Whether pulling this starts a thread of its own, builds a stream later that might (a `flatMap`'s inner
+ * streams and a `catchAll`'s recovery are built only when they are needed), or reads the run's clock.
  */
 private fun Node.mayFork(): Boolean =
-    this is Node.MapPar || this is Node.Buffer || this is Node.FlatMap || this is Node.CatchAll ||
-        children().any { it.mayFork() }
+    when (this) {
+        is Node.MapPar, is Node.Buffer, is Node.Merge, is Node.Conflate, is Node.FlatMap, is Node.CatchAll,
+        is Node.Tick, is Node.GroupedWithin, is Node.RestartOnDefect,
+        -> true
+
+        else -> children().any { it.mayFork() }
+    }

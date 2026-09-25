@@ -9,8 +9,11 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
 
 /** A run on lark's own forks: one pull loop, on one virtual thread, and the same exits Pekko answers with. */
 class ForksTest {
@@ -72,13 +75,15 @@ class ForksTest {
     }
 
     @Test
-    fun `an operator that needs a second thread is refused by name before anything runs`() {
+    fun `another backend's own value is refused by name before anything runs`() {
         val pulled = AtomicInteger()
+        val elsewhere =
+            Stream<Nothing, Int>(Node.Native(Any(), BackendKey("Elsewhere"), "Elsewhere.source", "Here.kt:1"))
 
-        val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.merge(Stream.of(0)).collected()
+        val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.merge(elsewhere).collected()
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
-        died.cause.message shouldContain "merge is not something Forks runs"
+        died.cause.message shouldContain "Elsewhere.source, built at Here.kt:1, holds a Elsewhere value"
         pulled.get() shouldBe 0
     }
 
@@ -215,5 +220,68 @@ class ForksTest {
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
         (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain "mapPar"
+    }
+
+    @Test
+    fun `mapAsync keeps no more of its stages in flight than it was given, and answers in order`() {
+        val inFlight = AtomicInteger()
+        val most = AtomicInteger()
+        val delayed = CompletableFuture.delayedExecutor(2, TimeUnit.MILLISECONDS)
+
+        val exit = Stream.from(1..30)
+            .mapAsync(3) { n ->
+                most.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
+                CompletableFuture.supplyAsync({ inFlight.decrementAndGet(); n }, delayed)
+            }
+            .collected()
+
+        exit shouldBe Exit.Done((1..30).toList())
+        withClue("at most three stages at once, and more than one") { (most.get() in 2..3) shouldBe true }
+    }
+
+    @Test
+    fun `tick on Forks waits on real time, one element per interval`() {
+        val started = System.nanoTime()
+
+        val exit = Stream.tick(20.milliseconds, "t").take(3).collected()
+
+        exit shouldBe Exit.Done(listOf("t", "t", "t"))
+        withClue("three ticks at 20 ms take at least 60 ms") {
+            ((System.nanoTime() - started) >= 60_000_000L) shouldBe true
+        }
+    }
+
+    @Test
+    fun `groupedWithin on Forks closes a window on real time while upstream is slow`() {
+        val exit = Stream.from(1..6)
+            .map { n ->
+                Thread.sleep(30)
+                n
+            }
+            .groupedWithin(100, 70.milliseconds)
+            .collected()
+
+        val groups = exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
+        withClue("every element in order, in windows the clock closed rather than one full group: $groups") {
+            groups.flatten() shouldBe (1..6).toList()
+            (groups.size > 1) shouldBe true
+        }
+    }
+
+    @Test
+    fun `a restart on Forks waits its delay on real time, and runs the description again`() {
+        val attempts = AtomicInteger()
+        val started = System.nanoTime()
+
+        val exit = Stream.of(1, 2)
+            .map { n ->
+                check(!(n == 2 && attempts.incrementAndGet() == 1)) { "first time" }
+                n
+            }
+            .restartOnDefect(io.github.matthewjones372.lark.Schedule.spaced(50.milliseconds))
+            .collected()
+
+        exit shouldBe Exit.Done(listOf(1, 1, 2))
+        ((System.nanoTime() - started) >= 50_000_000L) shouldBe true
     }
 }

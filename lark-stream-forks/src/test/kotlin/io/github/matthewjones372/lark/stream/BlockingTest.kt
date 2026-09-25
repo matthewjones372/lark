@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
+import io.github.matthewjones372.lark.Schedule
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -93,6 +94,23 @@ class BlockingTest {
         ).runCollect().run(Forks()).settled()
 
         (exit as Exit.Died).cause.message shouldBe "the connection would not close"
+    }
+
+    @Test
+    fun `a read that fails closes its resource before restartOnDefect opens another`() {
+        val opened = AtomicInteger()
+        val closed = AtomicInteger()
+        val exit = Stream.blocking(
+            open = { opened.incrementAndGet() },
+            next = { n -> if (n == 1) error("the first connection dropped") else n.takeIf { closed.get() == 1 } },
+            wake = { },
+            close = { closed.incrementAndGet() },
+        ).restartOnDefect(Schedule.recurs<Throwable>(1)).take(1).runCollect().run(Forks()).settled()
+
+        exit shouldBe Exit.Done(listOf(2))
+        withClue("the failed resource was closed before the second read, and the second when the run ended") {
+            closed.get() shouldBe 2
+        }
     }
 
     private companion object {

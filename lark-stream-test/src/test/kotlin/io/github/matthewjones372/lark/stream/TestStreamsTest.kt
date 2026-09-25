@@ -49,11 +49,22 @@ class TestStreamsTest {
     }
 
     @Test
-    fun `an operator it cannot run is refused by its own name`() {
-        val exit = Stream.of(1, 2).merge(Stream.of(3)).runCollect().run(TestStreams())
+    fun `another backend's own value is refused by its own name`() {
+        val elsewhere =
+            Stream<Nothing, Int>(Node.Native(Any(), BackendKey("Elsewhere"), "Elsewhere.source", "Here.kt:1"))
+
+        val exit = Stream.of(1, 2).merge(elsewhere).runCollect().run(TestStreams())
 
         exit.toCompletableFuture().join().shouldBeInstanceOf<Exit.Died>().cause.message shouldContain
-            "merge is not something TestStreams runs"
+            "and this run was started on TestStreams"
+    }
+
+    @Test
+    fun `merge on a test's clock answers in the same order every time, the first stream then the other`() {
+        repeat(20) {
+            Stream.of(1, 2).merge(Stream.of(3)).runCollect().run(TestStreams()).toCompletableFuture().join() shouldBe
+                Exit.Done(listOf(1, 2, 3))
+        }
     }
 
     @Test

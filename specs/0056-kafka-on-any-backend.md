@@ -74,9 +74,8 @@ commits they would otherwise lose.
 1. **Keep the connector at all?** Answered: yes, as `lark-kafka-pekko`.
 2. **`mapParRecord` on Forks?** Answered: shipped anyway, and 0051 has since
    landed, so Forks runs it and `divertLefts`, which ConsumeTest holds.
-3. **`restartOnDefect` on Forks?** Answered: documented in `docs/kafka.md`.
-   Forks refuses it until 0052 gives Forks a clock, so until then a registry
-   that is down ends a Forks run `Died`, and the service's supervisor starts
-   it again.
+3. **`restartOnDefect` on Forks?** Answered: 0052 has since given Forks a
+   clock, so it runs there; a read that failed closes its consumer before the
+   restart opens the next, which ConsumeTest holds on Forks and on Pekko.
 4. **Poll timeout?** Answered: 100 ms by default, as `consume`'s
    `pollTimeout` parameter.
