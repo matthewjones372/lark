@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream.benchmarks
 
+import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.filter
@@ -47,4 +48,10 @@ open class RunManyBenchmark {
 
     @Benchmark
     fun describedEachTime(pekko: Pekko): Long = pipeline().run(pekko.system).done()
+
+    private val forks = Forks()
+
+    /** Starting a run on `Forks` is one fork and one loop, with no graph to materialise. */
+    @Benchmark
+    fun describedOnceForks(): Long = described.run(forks).done()
 }

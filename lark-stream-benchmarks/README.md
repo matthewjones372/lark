@@ -38,3 +38,21 @@ What the rows say:
 - Starting a run costs about 70 µs whatever it carries. Building its stages adds
   another 12 µs and 9.5 KB, which is what 0046's compile-once requirement keeps
   off a pipeline described once.
+
+## Forks beside Pekko, 2026-09-25
+
+The same descriptions on the two backends, after spec 0046's split: the chain and the
+per-run rows, 2 forks each. Raw results are in
+[`baseline/2026-09-25-jdk21-forks.json`](baseline/2026-09-25-jdk21-forks.json).
+
+| Row | Per | Pekko | Forks |
+|---|---|---|---|
+| `ChainBenchmark`: the five-stage chain | element | 151.3 ± 9.5 ns, 84 B | 28.9 ± 4.0 ns, 84 B |
+| `RunManyBenchmark`: 10 elements, described once | run | 68.6 ± 4.8 µs, 6.5 KB | 30.9 ± 1.3 µs, 0.7 KB |
+
+- On Forks the chain is one pull loop on one thread, with no hand-off between stages,
+  which is where Pekko's time per element goes. The 84 B per element that both
+  backends allocate is the boxed `Long` each stage answers with, and is the next thing
+  a compiled stream (0047) can remove.
+- A run on Forks starts one virtual thread and nothing else, where Pekko materialises a
+  graph.

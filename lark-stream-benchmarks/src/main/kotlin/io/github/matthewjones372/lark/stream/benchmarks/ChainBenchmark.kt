@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.stream.benchmarks
 
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.filter
 import io.github.matthewjones372.lark.stream.from
@@ -43,8 +45,9 @@ open class ChainBenchmark {
 
     private val ints = (0 until ELEMENTS).toList()
 
-    @Benchmark
-    fun lark(pekko: Pekko): Long =
+    private val forks = Forks()
+
+    private fun chain(): Run<Odd, Long> =
         Stream.from(ints)
             .map { it.toLong() }
             .map { it * SCALE }
@@ -52,8 +55,13 @@ open class ChainBenchmark {
             .map { it + 1 }
             .mapOrFail { if (it % 2 == 0L) fail(Odd(it)) else it }
             .runFold(0L) { total, n -> total + n }
-            .run(pekko.system)
-            .done()
+
+    @Benchmark
+    fun lark(pekko: Pekko): Long = chain().run(pekko.system).done()
+
+    /** The same description on `Forks`: one pull loop, where Pekko hands each element from stage to stage. */
+    @Benchmark
+    fun forks(): Long = chain().run(forks).done()
 
     @Benchmark
     fun pekko(pekko: Pekko): Long =
