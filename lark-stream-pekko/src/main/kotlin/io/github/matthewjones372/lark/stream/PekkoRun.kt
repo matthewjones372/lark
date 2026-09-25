@@ -69,6 +69,17 @@ private fun <E, R : Any> Run<E, R>.started(
         .checked { NullPointerException("$NULL_MATERIALISED, built at $at") }
         .thenApply<Exit<E, R>> { value -> Exit.Done(value) }
         .exceptionally { thrown -> thrown.asExit<E, R>().reportedTo(system) }
+        // A blocking source is closed after a sink that cancelled it completes; the exit waits for that, so a
+        // caller finds every resource closed, as on Forks. A close that threw ends an otherwise Done run Died.
+        .thenCompose { ended ->
+            hooks.closed().handle { _, thrown ->
+                if (thrown != null && ended is Exit.Done) {
+                    Exit.Died(thrown.unwrapped()).reportedTo<E, R>(system)
+                } else {
+                    ended
+                }
+            }
+        }
         .whenComplete { _, _ -> hooks.ended() }
     return materialised.first() to exit
 }

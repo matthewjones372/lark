@@ -46,8 +46,12 @@ lines.runFold(0) { n, _ -> n + 1 }.run(Forks())               // or PekkoStreams
 - **Forks:** `next` runs on the pulling virtual thread. `stop()` calls `wake`,
   and `drain`'s `finally` calls `close`.
 - **Pekko:** `Source.unfoldResource(open, next, close)` on Pekko's blocking-IO
-  dispatcher, so a blocked `next` never holds a stream thread. The kill switch
-  also calls `wake`.
+  dispatcher, so a blocked `next` never holds a stream thread. `stop()` calls
+  `wake` as a drain, and so does a cancel from downstream: Pekko reads ahead,
+  so a satisfied `take` finds the source already blocked on its next read.
+- **Every backend:** a run's exit completes after `close`, so a caller that
+  waited for it finds the resource closed. A `close` that throws ends an
+  otherwise `Done` run `Died`.
 - **TestStreams:** `next` runs on the worker taking its turn, as `Elements`
   does.
 
@@ -79,10 +83,10 @@ problems `wake` settles once.
 
 ## Open questions
 
-1. **Does `next` return `A?` or an `Option`?** Recommend `A?`: `A : Any`
+1. **Does `next` return `A?` or an `Option`?** Answered: `A?`. `A : Any`
    already, so `null` cannot be an element, and it reads like `readLine`.
-2. **May `open` be called again by `restartOnDefect`?** Recommend yes, with
+2. **May `open` be called again by `restartOnDefect`?** Answered: yes, with
    `close` run on the failed resource first. A restart is a new run of the
    source.
-3. **Should Forks refuse a run with two blocking sources (`zip`)?** Recommend
+3. **Should Forks refuse a run with two blocking sources (`zip`)?** Answered:
    no. Forks pulls them in turn on one thread, which is correct, only slow.

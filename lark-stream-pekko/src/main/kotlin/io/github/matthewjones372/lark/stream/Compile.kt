@@ -10,6 +10,7 @@ import org.apache.pekko.stream.javadsl.RunnableGraph
 import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
 import java.util.Optional
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.toJavaDuration
@@ -51,12 +52,25 @@ private fun Node.Blocking.blockingSource(): Source<Any, NotUsed> =
     Source.fromMaterializer { _, attributes ->
         val hooks = attributes.hooks()
         val current = AtomicReference<Opened?>(null)
+        val closing = hooks.closing()
         Source.unfoldResource(
             { Opened(this).also { opened -> current.set(opened).also { hooks.onStop(opened::wake) } } },
             { opened -> Optional.ofNullable(opened.next()) },
-            { opened -> opened.close() },
+            { opened -> closedInto(closing) { opened.close() } },
         ).watchTermination { _, terminated -> terminated.whenComplete { _, _ -> current.get()?.wake() } }
     }.mapMaterializedValue { NotUsed.getInstance() }
+
+/** [close] run, and its outcome told to [closing], which the run's exit waits on. */
+@Suppress("TooGenericExceptionCaught") // Whatever the close threw is the run's to report, not this stage's to lose.
+private fun closedInto(closing: CompletableFuture<Unit>, close: () -> Unit) {
+    try {
+        close()
+        closing.complete(Unit)
+    } catch (thrown: Throwable) {
+        closing.completeExceptionally(thrown)
+        throw thrown
+    }
+}
 
 /** A value a node holds for one backend, read by that backend; anyone else's is a bug in the refusal. */
 private fun Any.ownedBy(owner: BackendKey): Any =

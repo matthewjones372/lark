@@ -5,6 +5,7 @@ package io.github.matthewjones372.lark.stream
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.Attributes
 import org.apache.pekko.stream.javadsl.Source
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicReference
 
 /** For a module that builds a source lark-stream has no builder for, such as a Kafka consumer; not for a pipeline. */
@@ -24,6 +25,7 @@ class RunHooks internal constructor() {
 
     private val stops = AtomicReference(Stops(emptyList(), stopped = false))
     private val ends = AtomicReference(emptyList<() -> Unit>())
+    private val closings = AtomicReference(emptyList<CompletableFuture<Unit>>())
 
     /** [drain] in place of the kill switch when the run is stopped, and at once if it already was. */
     fun onStop(drain: () -> Unit) {
@@ -45,6 +47,14 @@ class RunHooks internal constructor() {
     }
 
     internal fun ended() = ends.getAndSet(emptyList()).forEach { it() }
+
+    /** A resource's close, which the run's exit waits for, as it does on Forks. */
+    internal fun closing(): CompletableFuture<Unit> = CompletableFuture<Unit>().also { future ->
+        closings.updateAndGet { it + future }
+    }
+
+    /** Every close registered so far, done; the first that failed, failing it. */
+    internal fun closed(): CompletableFuture<Void> = CompletableFuture.allOf(*closings.get().toTypedArray())
 }
 
 internal class RunHooksAttribute(val hooks: RunHooks) : Attributes.Attribute

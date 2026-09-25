@@ -26,7 +26,6 @@ class BlockingOnPekkoTest {
         val waiting = CountDownLatch(1)
         val woken = CountDownLatch(1)
         val closed = AtomicInteger()
-        val closing = CountDownLatch(1)
 
         @Volatile
         var readOn: String = ""
@@ -45,10 +44,7 @@ class BlockingOnPekkoTest {
             open = { queue },
             next = { it.next() },
             wake = { it.woken.countDown() },
-            close = {
-                it.closed.incrementAndGet()
-                it.closing.countDown()
-            },
+            close = { it.closed.incrementAndGet() },
         )
 
     private fun <E, R> CompletionStage<Exit<E, R>>.settled(): Exit<E, R> =
@@ -84,9 +80,20 @@ class BlockingOnPekkoTest {
 
         blocking(queue).take(2).runCollect().run(pekko.system).settled() shouldBe Exit.Done(listOf(1, 2))
 
-        withClue("Pekko closes a cancelled source after the sink has completed, so the close is waited for") {
-            queue.closing.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+        withClue("Pekko closes a cancelled source after the sink completes; the exit waits for it, as on Forks") {
+            queue.closed.get() shouldBe 1
         }
-        queue.closed.get() shouldBe 1
+    }
+
+    @Test
+    fun `a close that throws ends a run that was otherwise Done as Died`() {
+        val exit = Stream.blocking(
+            open = { Unit },
+            next = { _ -> null as Int? },
+            wake = { },
+            close = { _ -> error("the connection would not close") },
+        ).runCollect().run(pekko.system).settled()
+
+        (exit as Exit.Died).cause.message shouldBe "the connection would not close"
     }
 }
