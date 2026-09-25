@@ -55,7 +55,7 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
             lock.withLock { while (turn !== worker) turned.await() }
             try {
                 current.set(this)
-                clock.locally(time, body)
+                Waiting.within(waiting) { clock.locally(time, body) }
             } finally {
                 current.remove()
                 lock.withLock {
@@ -82,6 +82,16 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
 
     /** Nothing to do: only the worker whose turn it is runs, and the next turn reads what it changed. */
     override fun wake() = Unit
+
+    /**
+     * A source waiting on something another thread does parks until it is ready, as any worker does; the
+     * other thread says when it has changed something, and a settled run looks again at who can go on.
+     */
+    private val waiting = object : Waiting {
+        override fun until(ready: () -> Boolean) = park(ready = ready)
+
+        override fun changed() = lock.withLock { if (turn == null) passOn() }
+    }
 
     /** Parks until [delay] from now has passed. */
     fun sleep(delay: Duration) = park(until = now().plusNanos(delay.inWholeNanoseconds))

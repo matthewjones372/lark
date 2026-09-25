@@ -103,3 +103,13 @@ the hub adds only its queues.
    It is one line on top of `mapOrFail`, and it makes a `Full` refusal part
    of the stream's failure type instead of something the caller has to check.
    (It is not `via`, which already composes a flow.)
+
+## Decided while building
+
+- **A subscription on TestStreams waits through its turns.** A worker on a test's
+  clock that blocks holds its turn, so `start` never settled while a
+  subscription waited. Core gains `Waiting` (behind `@StreamSpi`): TestStreams
+  installs one on each worker, and a hub subscription that finds one parks until
+  its queue has something, and `publish`, `close` and a stop tell it to look
+  again. Forks and Pekko install nothing, and a subscription blocks its thread
+  there as `Stream.blocking` always has.
