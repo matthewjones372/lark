@@ -86,15 +86,22 @@ app.use { desk: ActorRef<Adoption> -> … }
   lists `self` under a key until it stops, and `ctx.subscribe(key) { listing
   -> message }` tells the actor a message of its own type now and whenever the
   listing changes. Code outside an actor has `Flock.find(key)`. One
-  receptionist per flock.
+  receptionist per flock. A behaviour registers from
+  `Behaviour.onStart { ctx -> }`, which runs before the first message and
+  again after each restart, since a restart loses the registration with the
+  rest of the actor.
 - **Dead letters.** `DeadLetter(recipient, message, why)`, `why` being
-  `Stopped` or `Unhandled`. A flock hands each to the handler set with
+  `Stopped` or `Unhandled`: a message told to a stopped actor, or one its step
+  answers `unhandled()`. A full mailbox is not one; it still fails the step,
+  so a backpressure bug stays a failure rather than a log line. A flock hands each to the handler set with
   `onDeadLetter`, which by default logs it at debug through lark's `Logger`;
   it is `lark-actor`'s, as an extension, so `lark`'s `flock` does not change. `.test()` and
   `testActors` keep them in `deadLetters`, in order.
 - **`lark-app-actor`.** `actors()` is a node holding a flock for the
-  application's life; releasing it closes the flock, stopping every actor
-  after its running step. `actor<M, D…>(name) { deps -> behaviour }` is a node
+  application's life, opened on a fork of the application's resource scope
+  that parks until release, so every actor still lives in a flock and `lark`
+  needs nothing new; releasing it closes the flock, stopping every actor after
+  its running step. `actor<M, D…>(name) { deps -> behaviour }` is a node
   keyed by `ActorRef<M>`, as in `lark-app-pekko`, stopped before anything it
   depends on is released.
 
@@ -134,23 +141,8 @@ and can say "this was lost" exactly once.
 
 ## Open questions
 
-1. **Which messages are dead letters?** Recommend a message told to a stopped
-   actor and one its step answers `unhandled()`. A full mailbox keeps failing
-   the step: sending those to dead letters would turn backpressure bugs into
-   log lines.
-2. **A handler, or an actor, for dead letters?** Recommend a handler on the
-   flock, `onDeadLetter { letter -> }`, defaulting to a debug log: a flock with no
-   actor to receive them still says something, and a handler that wants an
-   actor can tell one.
-3. **Is a pool an actor or a ref?** Recommend an actor, since it owns and
-   supervises its routees, with `group` as the hop-free ref for refs that
-   already run.
-4. **`onStart` for `register`?** Behaviours have no start hook, so a
-   registration needs a first message. Recommend adding
-   `Behaviour.onStart { ctx -> }`, run once before the first message and
-   after each restart, since registering is the common case and a restart
-   loses the registration with the rest of the actor.
-5. **How does `actors()` hold a flock open in `lark-app`?** A flock only lives
-   inside its block. Recommend the node opens it on a fork of the
-   application's resource scope that parks until release, so every actor
-   still lives in a flock and nothing new is needed in `lark`.
+Nothing. All five were answered as recommended and are in Shape: stopped and
+unhandled messages are dead letters and a full mailbox is not, a flock hands
+them to a handler, a pool is an actor with `group` as the ref, `onStart` runs
+before the first message and after each restart, and `actors()` holds its
+flock on a fork of the application's scope.
