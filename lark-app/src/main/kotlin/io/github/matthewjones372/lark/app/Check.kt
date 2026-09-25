@@ -4,6 +4,7 @@ import java.io.File
 import java.io.FileDescriptor
 import java.io.FileOutputStream
 import java.io.PrintStream
+import java.lang.reflect.Modifier
 import kotlin.reflect.KType
 import kotlin.system.exitProcess
 
@@ -71,13 +72,34 @@ private fun classNameOf(root: File, classFile: File): String =
 // A class that will not link is not an application, and a build tool that stopped on one would stop
 // on every optional dependency a project left off its runtime classpath.
 private fun loaded(name: String): Class<*>? =
-    runCatching { Class.forName(name, false, LarkApp::class.java.classLoader) }.getOrNull()
+    try {
+        Class.forName(name, false, LarkApp::class.java.classLoader)
+    } catch (_: ClassNotFoundException) {
+        null
+    } catch (_: LinkageError) {
+        null
+    }
 
 /** An application is an `object`, and a class with a constructor taking nothing also answers. */
-private fun declared(type: Class<*>): LarkApp<*>? =
-    runCatching { type.getDeclaredField("INSTANCE").get(null) }
-        .recoverCatching { type.getDeclaredConstructor().newInstance() }
-        .getOrNull() as? LarkApp<*>
+private fun declared(type: Class<*>): LarkApp<*>? = (instanceOf(type) ?: constructed(type)) as? LarkApp<*>
+
+private fun instanceOf(type: Class<*>): Any? =
+    try {
+        type.getDeclaredField("INSTANCE").takeIf { Modifier.isStatic(it.modifiers) }?.get(null)
+    } catch (_: ReflectiveOperationException) {
+        null
+    } catch (_: LinkageError) {
+        null
+    }
+
+private fun constructed(type: Class<*>): Any? =
+    try {
+        type.getDeclaredConstructor().newInstance()
+    } catch (_: ReflectiveOperationException) {
+        null
+    } catch (_: LinkageError) {
+        null
+    }
 
 private fun nameOf(app: LarkApp<*>): String = app::class.simpleName ?: app::class.java.name
 

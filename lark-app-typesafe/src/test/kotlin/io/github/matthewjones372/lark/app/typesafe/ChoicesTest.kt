@@ -111,6 +111,17 @@ class ChoicesTest {
     }
 
     @Test
+    fun `a read that throws with no fault recorded throws its own exception, not an empty refusal`() {
+        val cached = hocon(useCache = true)
+
+        val thrown = shouldThrow<IllegalArgumentException> {
+            cached.choosing("repo", { require(!boolean("useCache")) { "caching is switched off here" } }) { plain() }
+        }
+
+        thrown.message shouldBe "caching is switched off here"
+    }
+
+    @Test
     fun `the document the assembly read is the one the graph holds`() {
         val cached = hocon(useCache = true)
 

@@ -123,10 +123,20 @@ private class Releases {
     /** Reverse topological, so a node is given back only after everything that needed it. */
     fun release(order: List<KType>, exit: ExitCase) {
         val installed = lock.withLock { order.reversed().flatMap { byKey[it].orEmpty().reversed() } }
-        val failures = installed.mapNotNull { runCatching { it(exit) }.exceptionOrNull() }
+        val failures = installed.mapNotNull { release -> thrownBy(release, exit) }
         failures.firstOrNull()?.let { first ->
             failures.drop(1).forEach(first::addSuppressed)
             throw first
         }
     }
 }
+
+/** What a release threw, if anything. Every release runs whatever one before it threw, so none is let off. */
+@Suppress("TooGenericExceptionCaught")
+private fun thrownBy(release: (ExitCase) -> Unit, exit: ExitCase): Throwable? =
+    try {
+        release(exit)
+        null
+    } catch (thrown: Throwable) {
+        thrown
+    }

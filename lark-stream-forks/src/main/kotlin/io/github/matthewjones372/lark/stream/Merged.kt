@@ -32,7 +32,11 @@ private fun feed(up: Pull, into: ArrayBlockingQueue<Any>, releases: Releases?) {
     } catch (_: InterruptedException) {
         // Let go of by the run: nothing reads what would have come next.
     } catch (thrown: Throwable) {
-        runCatching { into.put(Signal.Threw(thrown)) }
+        try {
+            into.put(Signal.Threw(thrown))
+        } catch (_: InterruptedException) {
+            // Let go of by the run while waiting for room: nobody reads the failure either.
+        }
     }
 }
 
@@ -99,7 +103,11 @@ internal fun Node.FlatMap.merged(breadth: Int, releases: Releases?): Pull {
         } catch (_: InterruptedException) {
             // Let go of by the run.
         } catch (thrown: Throwable) {
-            runCatching { queue.put(Signal.Threw(thrown)) }
+            try {
+                queue.put(Signal.Threw(thrown))
+            } catch (_: InterruptedException) {
+                // Let go of by the run while waiting for room.
+            }
         }
     }
     releases?.add {

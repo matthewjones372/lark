@@ -191,7 +191,10 @@ returning `Outcome<E, A>`. Throwing is for what nobody declared — a decode
 failure, a broken codec, a bug.
 
 Do not wrap a handler in `runCatching` and map the result into a failure. That
-produces a second error model beside the declared one.
+produces a second error model beside the declared one. `runCatching` is not used
+anywhere, test sources included, and detekt fails the build on one: it catches
+interrupts and bugs along with what was meant. Catch the exception you expect,
+by name.
 
 In a lark handler, `raise` is the only way to leave with a declared failure.
 A raise unwinds through the body as an exception, so a `catch` between it and
