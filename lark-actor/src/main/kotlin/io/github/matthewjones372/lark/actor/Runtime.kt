@@ -50,6 +50,16 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
         .also { it.begin() }
 }
 
+/**
+ * [message] told only if there is room for it, for a router passing over a full routee: false when the mailbox is
+ * full or the actor has stopped. A test actor always has room.
+ */
+internal fun <M : Any> ActorRef<M>.offer(message: M): Boolean {
+    @Suppress("UNCHECKED_CAST")
+    val cell = this as? Cell<M, *, *> ?: return true.also { tell(message) }
+    return cell.offer(message)
+}
+
 /** The actors registered under [key] in this flock now. */
 fun <F, M : Any> Flock<F>.find(key: ServiceKey<M>): Set<ActorRef<M>> = guardian().receptionist.find(key)
 
@@ -445,6 +455,15 @@ private class Cell<M : Any, S, E>(
         }
         if (stopped.get()) return dead(message, DeadLetter.Why.Stopped)
         enqueue(message)
+    }
+
+    fun offer(message: M): Boolean {
+        if (stopped.get()) return false
+        stepping.get()?.told = true
+        if (!room.tryAcquire()) return false
+        if (stopped.get()) return false
+        enqueue(message)
+        return true
     }
 
     private fun dead(message: Any, why: DeadLetter.Why) = guardian.deadLetters(DeadLetter(address, message, why))
