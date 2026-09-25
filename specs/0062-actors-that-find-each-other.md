@@ -120,7 +120,7 @@ and can say "this was lost" exactly once.
 
 ## Stack
 
-- [ ] **`spec-0062-dead-letters`** — `DeadLetter`, the flock's handler, the
+- [x] **`spec-0062-dead-letters`** ([#129](https://github.com/matthewjones372/lark/pull/129)) — `DeadLetter`, the flock's handler, the
       test kit's list. Done when: a message to a stopped actor and one
       answered `unhandled()` each arrive once, on both runtimes.
 - [ ] **`spec-0062-receptionist`** — `ServiceKey`, `register`, `subscribe`,
