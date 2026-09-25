@@ -94,3 +94,15 @@ they suspect, not the one that is slow.
    the healthy stages beside a bottleneck look hot too.
 3. **Does measuring disable 0047's merge?** Recommended: no. Measure the merged
    segment, and let `render(optimised = true)` say what a segment contains.
+
+Decided while building `spec-0050-waiting` (2026-09-25), for editing: the
+done-when for `waiting` was wrong, and the built one differs. After a stage
+emits, it waits for about as long as everything downstream of it takes. So
+*every* stage upstream of a slow one waits about as long as that stage's body,
+and the source waits a little longest. The stage just before the slow one does
+not wait longest. What names the bottleneck is where waiting drops: the slow
+stage is the first, in the order data moves, whose waiting falls, because the
+stages after it ask again at once. MeasuredTest holds that on both backends: the
+stages upstream wait at least ten times as long as the slow stage and the one
+after it. A run of fusable operators is watched by one probe after its last
+step, so measuring still does not stop a run from fusing.

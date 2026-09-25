@@ -40,7 +40,11 @@ fun <E, R : Any> Run<E, R>.start(backend: StreamBackend, measured: Measured): Ru
 @StreamSpi
 fun Node.measuredBy(by: Measured): Node {
     val order = dataOrder()
-    return measured(by) { node -> order.indexOfFirst { it === node } }
+    val instruments = order.mapIndexed { step, node -> Instruments(by, node, step) }
+    val of = { node: Node -> instruments[order.indexOfFirst { it === node }] }
+    val measured = measured(of)
+    // A pipeline that ends in a fusable run has no stage after it to put the run's probe before.
+    return if (isStep()) Node.Probed(measured, of(this).probe(counts = false)) else measured
 }
 
 /**
@@ -53,7 +57,40 @@ fun Node.dataOrder(): List<Node> =
         seen + child.dataOrder().filter { n -> seen.none { it === n } }
     }.let { before -> if (before.any { it === this }) before else before + this }
 
-/** One stage's instruments. */
+/**
+ * What a backend calls as elements pass a [Node.Probed]: [Watch.emitted] as one goes by, [Watch.asked] when
+ * the stage after it asks for the next. A backend takes one [watch] per run, so two runs of one measured
+ * description never share a timestamp.
+ */
+@StreamSpi
+class Probe internal constructor(
+    private val elements: Counter?,
+    private val waiting: Lazy<Histogram>,
+    private val every: Long,
+) {
+    fun watch(): Watch = Watch()
+
+    inner class Watch internal constructor() {
+        private val emitted = AtomicLong()
+        private val since = AtomicLong(NOT_WAITING)
+
+        /** An element went downstream; one in [every] starts a wait for the next demand. */
+        fun emitted() {
+            elements?.increment()
+            if (emitted.incrementAndGet() % every == 0L) since.set(System.nanoTime())
+        }
+
+        /** Downstream asked for the next element: a wait that was started ends here. */
+        fun asked() {
+            val started = since.getAndSet(NOT_WAITING)
+            if (started != NOT_WAITING) waiting.value.record((System.nanoTime() - started) / NANOS_PER_MILLI)
+        }
+    }
+}
+
+private const val NOT_WAITING = -1L
+
+/** One stage's instruments. Each histogram is looked up on its first sample, so a stage reports only what it has. */
 private class Instruments(by: Measured, node: Node, step: Int) {
     private val tags = mapOf(
         "pipeline" to by.pipeline,
@@ -62,10 +99,8 @@ private class Instruments(by: Measured, node: Node, step: Int) {
         "step" to step.toString(),
     )
     val elements: Counter = by.metrics.counter("lark.stream.elements", tags)
-
-    // Looked up on the first sample, so a stage with no body to time reports no `busy` at all rather than
-    // an empty series a dashboard would draw as a stage that took no time.
     private val busy: Histogram by lazy { by.metrics.histogram("lark.stream.busy", tags) }
+    private val waiting: Lazy<Histogram> = lazy { by.metrics.histogram("lark.stream.waiting", tags) }
     private val every = by.sampleEvery.toLong()
     private val seen = AtomicLong()
 
@@ -79,40 +114,47 @@ private class Instruments(by: Measured, node: Node, step: Int) {
             busy.record((System.nanoTime() - started) / NANOS_PER_MILLI)
         }
     }
+
+    /** A probe for this stage; [counts] where nothing inside the stage counts its elements already. */
+    fun probe(counts: Boolean): Probe = Probe(elements.takeIf { counts }, waiting, every)
 }
 
+/** The operators fusing merges, which count inside their own bodies and take one probe after the whole run. */
+private fun Node.isStep(): Boolean =
+    this is Node.Map || this is Node.MapOrFail || this is Node.Filter || this is Node.FilterNot
+
 /**
- * The tree with each stage's body timed and its elements counted. The four operators fusing merges count
- * inside their own bodies, so a measured run fuses as an unmeasured one does; every other stage is
- * followed by a [Node.Counted] that counts what it emitted.
+ * The tree with each stage's body timed and its elements counted and watched. A run of fusable operators
+ * counts inside its bodies and is watched by one probe after its last step, so a measured run fuses as
+ * an unmeasured one does; every other stage is followed by a probe of its own.
  */
-private fun Node.measured(by: Measured, step: (Node) -> Int): Node {
-    val stage = Instruments(by, this, step(this))
+private fun Node.measured(of: (Node) -> Instruments): Node {
+    val stage = of(this)
+    // A fusable child of a stage that is not one ends a run, and the run's probe goes after it.
+    val child = { c: Node ->
+        c.measured(of).let { m -> if (c.isStep() && !isStep()) Node.Probed(m, of(c).probe(counts = false)) else m }
+    }
     return when (this) {
-        is Node.Map -> Node.Map(
-            upstream.measured(by, step),
-            { a -> stage.timed { f(a) }.also { stage.elements.increment() } },
-            at,
-        )
+        is Node.Map -> Node.Map(child(upstream), { a -> stage.timed { f(a) }.also { stage.elements.increment() } }, at)
 
         is Node.MapOrFail -> Node.MapOrFail(
-            upstream.measured(by, step),
+            child(upstream),
             { a -> stage.timed { f(a) }.also { stage.elements.increment() } },
             at,
         )
 
-        is Node.Filter -> Node.Filter(upstream.measured(by, step), stage.keeping(predicate, keep = true), at)
+        is Node.Filter -> Node.Filter(child(upstream), stage.keeping(predicate, keep = true), at)
 
-        is Node.FilterNot -> Node.FilterNot(upstream.measured(by, step), stage.keeping(predicate, keep = false), at)
+        is Node.FilterNot -> Node.FilterNot(child(upstream), stage.keeping(predicate, keep = false), at)
 
-        is Node.MapConcat -> Node.Counted(
-            Node.MapConcat(upstream.measured(by, step), { a -> stage.timed { f(a) } }, at),
-            stage.elements,
+        is Node.MapConcat -> Node.Probed(
+            Node.MapConcat(child(upstream), { a -> stage.timed { f(a) } }, at),
+            stage.probe(counts = true),
         )
 
-        is Node.MapPar -> Node.Counted(
-            Node.MapPar(upstream.measured(by, step), parallelism, on, { a -> stage.timed { f(a) } }, at),
-            stage.elements,
+        is Node.MapPar -> Node.Probed(
+            Node.MapPar(child(upstream), parallelism, on, { a -> stage.timed { f(a) } }, at),
+            stage.probe(counts = true),
         )
 
         Node.Hole -> this
@@ -122,8 +164,8 @@ private fun Node.measured(by: Measured, step: (Node) -> Int): Node {
         is Node.RestartOnDefect, is Node.Stage, is Node.Take, is Node.Drop, is Node.TakeWhile, is Node.DropWhile,
         is Node.Grouped, is Node.Sliding, is Node.GroupedWithin, is Node.Scan, is Node.StatefulMap,
         is Node.MapAsync, is Node.Conflate, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
-        is Node.OrFailIfEmpty, is Node.FlatMap, is Node.Fused, is Node.Counted,
-        -> Node.Counted(withChildren { it.measured(by, step) }, stage.elements)
+        is Node.OrFailIfEmpty, is Node.FlatMap, is Node.Fused, is Node.Probed,
+        -> Node.Probed(withChildren(child), stage.probe(counts = true))
     }
 }
 

@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.Clock
-import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Logger
 import io.github.matthewjones372.lark.ScheduleStep
 import java.util.concurrent.CompletionStage
@@ -206,8 +205,8 @@ sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
-    /** Counts each element [upstream] emits: how a measured run counts a stage with no body to count in. */
-    data class Counted(override val upstream: Node, val counter: Counter) : Unary {
+    /** Watches what [upstream] emits and when it is next asked for more: where a measured run counts and waits. */
+    data class Probed(override val upstream: Node, val probe: Probe) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
@@ -300,7 +299,7 @@ val Node.operator: String
 
         is Node.Fused -> steps.joinToString(prefix = "fused[", postfix = "]") { it.operator }
 
-        is Node.Counted -> "counted"
+        is Node.Probed -> "probe"
 
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin,
@@ -352,7 +351,7 @@ val Node.site: String?
         is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty, Node.Hole,
         is Node.Merge, is Node.Interleave, is Node.Prepend, is Node.Concat, is Node.RestartOnDefect,
         is Node.Take, is Node.Drop, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin, is Node.Either,
-        is Node.CatchAll, is Node.OrFailIfEmpty, is Node.Counted,
+        is Node.CatchAll, is Node.OrFailIfEmpty, is Node.Probed,
         -> null
     }
 

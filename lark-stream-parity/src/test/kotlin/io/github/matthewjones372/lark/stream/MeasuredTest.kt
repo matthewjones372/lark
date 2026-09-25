@@ -54,11 +54,18 @@ class MeasuredTest {
         override fun gauge(name: String, tags: Map<String, String>): Gauge = Gauge { }
 
         override fun histogram(name: String, tags: Map<String, String>): Histogram {
-            val kept = samples.computeIfAbsent(key(tags)) { ConcurrentLinkedQueue() }
+            val metric = name.substringAfterLast('.')
+            val kept = samples.computeIfAbsent("$metric|${key(tags)}") { ConcurrentLinkedQueue() }
             return Histogram { value -> kept.add(value) }
         }
 
-        fun busiest(): String = samples.maxBy { (_, values) -> values.average() }.key
+        /** The mean of one histogram, by metric (`busy` or `waiting`) and `step:stage`. */
+        fun mean(metric: String, stage: String): Double = samples.getValue("$metric|$stage").average()
+
+        fun stages(metric: String): Set<String> =
+            samples.keys.filter { it.startsWith("$metric|") }.map { it.substringAfter('|') }.toSet()
+
+        fun busiest(): String = stages("busy").maxBy { mean("busy", it) }
     }
 
     private val pipeline: Run<Nothing, List<Int>> =
@@ -84,10 +91,10 @@ class MeasuredTest {
                 exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.size shouldBe 10
                 withClue("the map that sleeps is step 2, and it is where the time went") {
                     recorded.busiest() shouldBe "2:map"
-                    recorded.samples.getValue("2:map").average() shouldBeGreaterThan SLOW_MILLIS * 0.9
+                    recorded.mean("busy", "2:map") shouldBeGreaterThan SLOW_MILLIS * 0.9
                 }
                 withClue("a stage with no body of its own to time reports no busy, not an empty series") {
-                    recorded.samples.keys shouldBe setOf("1:map", "2:map", "3:filter")
+                    recorded.stages("busy") shouldBe setOf("1:map", "2:map", "3:filter")
                 }
                 recorded.counts.mapValues { it.value.sum().toInt() } shouldBe mapOf(
                     "0:Stream.from" to 20,
@@ -99,12 +106,44 @@ class MeasuredTest {
             }
         }
 
+    private val slowInItsOwnStage: Run<Nothing, List<Int>> =
+        Stream.from(1..20)
+            .map { it + 1 }
+            .map { it * 1 }
+            .mapConcat { n ->
+                Thread.sleep(SLOW_MILLIS)
+                listOf(n)
+            }
+            .drop(0)
+            .runCollect()
+
+    @TestFactory
+    fun `stages upstream of the slow one wait for demand, and waiting drops at the slow one`(): List<DynamicTest> =
+        backends.map { backend ->
+            dynamicTest(backend.key.name) {
+                val recorded = Recorded()
+                val measured = slowInItsOwnStage.measured(Measured("orders", recorded, sampleEvery = 1))
+
+                measured.run(backend).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+                    .shouldBeInstanceOf<Exit.Done<List<Int>>>()
+
+                // The source, the fused run of maps ending at step 2, the slow mapConcat, and the drop after it.
+                recorded.stages("waiting") shouldBe setOf("0:Stream.from", "2:map", "3:mapConcat", "4:drop")
+                val upstream = listOf("0:Stream.from", "2:map").map { recorded.mean("waiting", it) }
+                val atAndAfter = listOf("3:mapConcat", "4:drop").map { recorded.mean("waiting", it) }
+                withClue("waiting upstream $upstream, at and after the slow stage $atAndAfter") {
+                    upstream.min() shouldBeGreaterThan SLOW_MILLIS * 0.9
+                    upstream.min() shouldBeGreaterThan atAndAfter.max() * 10
+                }
+            }
+        }
+
     @Test
     fun `a measured run fuses as an unmeasured one does, and each step keeps its own numbers`() {
         val compiled = pipeline.measured(Measured("orders", Recorded())).node.optimised()
 
-        val fused = compiled.shouldBeInstanceOf<Node.Counted>().upstream.shouldBeInstanceOf<Node.Take>()
-            .upstream.shouldBeInstanceOf<Node.Fused>()
+        val fused = compiled.shouldBeInstanceOf<Node.Probed>().upstream.shouldBeInstanceOf<Node.Take>()
+            .upstream.shouldBeInstanceOf<Node.Probed>().upstream.shouldBeInstanceOf<Node.Fused>()
         fused.steps.map { it.operator } shouldContainExactly listOf("map", "map", "filter")
     }
 }
