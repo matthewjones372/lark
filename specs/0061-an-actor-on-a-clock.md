@@ -96,7 +96,7 @@ nobody cancelled; the keyed form stays for a timer that spans states.
       idle actor hears its timeout once per silence, and a message resets it.
 - [x] **`spec-0061-scoped`** ([#126](https://github.com/matthewjones372/lark/pull/126)) — `ctx.become(state) { … }`. Done when: leaving the
       state cancels its timers, and a copy of the same state keeps them.
-- [ ] **`spec-0061-stash`** — `stash`, `unstashAll`, the bound. Done when:
+- [x] **`spec-0061-stash`** ([#127](https://github.com/matthewjones372/lark/pull/127)) — `stash`, `unstashAll`, the bound. Done when:
       unstashed messages are handled before the mailbox, in the order kept.
 
 ## Acceptance
