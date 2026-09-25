@@ -41,8 +41,8 @@ class SubscribeTest {
             .withBootstrapServers(kafka.bootstrap)
             .withGroupId(group)
             .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-            // The connector keeps a stopped consumer in its group this long, and the next run in the
-            // same group waits for it to leave. The default is 30s.
+            // `take` cancels the consumer rather than draining it, and the connector keeps a cancelled one in
+            // its group this long so its commits land; the next run in the group waits for it. 30s by default.
             .withStopTimeout(Duration.ofSeconds(1))
 
     private val committer: CommitterSettings get() = CommitterSettings.create(pekko.system)

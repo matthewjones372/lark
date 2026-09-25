@@ -14,7 +14,6 @@ import org.apache.pekko.kafka.CommitterSettings
 import org.apache.pekko.kafka.ConsumerSettings
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
-import java.time.Duration
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
@@ -41,8 +40,7 @@ class CommittedOperatorsTest {
             ConsumerSettings.create(pekko.system, StringDeserializer(), StringDeserializer())
                 .withBootstrapServers(kafka.bootstrap)
                 .withGroupId(group)
-                .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-                .withStopTimeout(Duration.ofSeconds(1)),
+                .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"),
             Topic(topic),
         )
 

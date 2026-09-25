@@ -1,7 +1,10 @@
+@file:OptIn(SourceSeam::class)
+
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.pekko.await
 import org.apache.pekko.actor.ClassicActorSystemProvider
+import org.apache.pekko.stream.Attributes
 import org.apache.pekko.stream.KillSwitches
 import org.apache.pekko.stream.UniqueKillSwitch
 import org.apache.pekko.stream.javadsl.Keep
@@ -23,6 +26,7 @@ class Run<out E, out R> internal constructor(
  */
 class Running<out E, out R> internal constructor(
     private val switch: UniqueKillSwitch,
+    private val hooks: RunHooks,
     // Unsafe variance for Run's reason: a stage is only ever read from.
     val exit: CompletionStage<Exit<@UnsafeVariance E, @UnsafeVariance R>>,
 ) : AutoCloseable {
@@ -30,8 +34,13 @@ class Running<out E, out R> internal constructor(
     /**
      * Ends the run now: downstream completes and upstream is cancelled, so the exit is `Done` with
      * whatever the sink had. What was between stages is dropped. On a run that already ended, nothing.
+     *
+     * A run with a source that drains, such as a Kafka consumer, is stopped by that drain instead, and ends
+     * once what the source already sent has reached the sink.
      */
-    fun stop() = switch.shutdown()
+    fun stop() {
+        if (!hooks.stop()) switch.shutdown()
+    }
 
     /** [stop], then wait for the exit, so whatever the run used is still there until it has let go. */
     override fun close() {
@@ -55,25 +64,28 @@ fun <E, A : Any, R : Any> Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, 
     runWith(Sink.fold(zero) { total, a -> f(total, a) })
 
 fun <E, R : Any> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> =
-    started(system).second
+    started(system, RunHooks()).second
 
 /** The run materialised, as [run] does, with the handle that can end it before it ends itself. */
 fun <E, R : Any> Run<E, R>.start(system: ClassicActorSystemProvider): Running<E, R> {
-    val (switch, exit) = started(system)
-    return Running(switch, exit)
+    val hooks = RunHooks()
+    val (switch, exit) = started(system, hooks)
+    return Running(switch, hooks, exit)
 }
 
 private fun <E, R : Any> Run<E, R>.started(
     system: ClassicActorSystemProvider,
+    hooks: RunHooks,
 ): Pair<UniqueKillSwitch, CompletionStage<Exit<E, R>>> {
     // A sink authored in Java completes with null whatever its type argument says, and Kotlin would
     // hand that back as a Done whose value is typed non-null. The same guard Stream.fromStage has.
     val at = buildSite()
-    val materialised = graph.run(system)
+    val materialised = graph.addAttributes(Attributes.apply(RunHooksAttribute(hooks))).run(system)
     val exit = materialised.second()
         .checked { NullPointerException("$NULL_MATERIALISED, built at $at") }
         .thenApply<Exit<E, R>> { value -> Exit.Done(value) }
         .exceptionally { thrown -> thrown.asExit<E, R>().reportedTo(system) }
+        .whenComplete { _, _ -> hooks.ended() }
     return materialised.first() to exit
 }
 

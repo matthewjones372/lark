@@ -103,11 +103,12 @@ at-least-once, but every shutdown sends those records again.
 
 ## Open questions
 
-1. **How does `lark-kafka` reach inside a `Stream`?** `Stream`'s source and
-   `Run`'s graph are `internal`, and draining needs the materialised
-   `Control`. Recommend a narrow public seam in `lark-stream` behind an
-   opt-in annotation. Moving Kafka into `lark-stream` would break that
-   module's dependency rule.
+1. **How does `lark-kafka` reach inside a `Stream`?** Answered: through
+   `Stream.hooked`, which needs the `@SourceSeam` opt-in. Each run hands the
+   source a `RunHooks`, carried as a Pekko attribute so a restarted source gets
+   it too. `onStop` drains in place of the kill switch, and `onEnd` shuts the
+   consumer down once the exit has completed. Everything else is built on
+   lark-stream's public API.
 2. **Do the `Committed` overloads resolve without annotations?** Answered:
    no. With both packages imported, every overload was ambiguous, because
    the lambda's parameter type differs between the two and so neither is more
