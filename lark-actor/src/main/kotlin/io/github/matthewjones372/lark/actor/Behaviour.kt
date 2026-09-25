@@ -179,6 +179,17 @@ internal class StepRaise<E> : Raise<E> {
 /** Carries a raise to its [StepRaise]; no stack trace, since it is control flow, not a fault. */
 internal class Raised(val error: Any?, val by: StepRaise<*>) : RuntimeException(null, null, false, false)
 
+/** A message nobody handled: told to [recipient] after it stopped, or answered `unhandled()` by its step. */
+data class DeadLetter(val recipient: Address, val message: Any, val why: Why) {
+    enum class Why {
+        /** The actor had stopped, or stopped with this still in its mailbox or its stash. */
+        Stopped,
+
+        /** The actor's step answered `unhandled()`. */
+        Unhandled,
+    }
+}
+
 sealed interface AskFailure {
     data object TimedOut : AskFailure
 

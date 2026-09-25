@@ -49,6 +49,15 @@ class TestActors internal constructor(private val clock: Clock = fixedClock()) {
     /** How many timers are still to fall due, so that a test can say nothing is left. */
     val pendingTimers: Int get() = timers.get().size
 
+    private val letters = AtomicReference<List<DeadLetter>>(emptyList())
+
+    /** Every message nobody handled, in the order it was found: told to a stopped actor, or answered `unhandled()`. */
+    val deadLetters: List<DeadLetter> get() = letters.get()
+
+    internal fun dead(letter: DeadLetter) {
+        letters.updateAndGet { it + letter }
+    }
+
     /**
      * Moves the test's time on by [by], delivering each timer that falls due on the way in time order, and returns
      * once each has run to idle.
@@ -229,6 +238,9 @@ class TestActor<M : Any, S, E> internal constructor(
     /** The test's timers still to fall due, this actor's and every other's. */
     val pendingTimers: Int get() = scope.pendingTimers
 
+    /** The test's dead letters, this actor's and every other's. */
+    val deadLetters: List<DeadLetter> get() = scope.deadLetters
+
     /** Moves the test's time on; see [TestActors.advance]. */
     fun advance(by: Duration) = scope.advance(by)
 
@@ -257,7 +269,11 @@ class TestActor<M : Any, S, E> internal constructor(
 
     /** A message or a signal; whatever stops the actor, `Stopping` and its watchers' `Terminated` follow. */
     internal fun receive(item: Any) {
-        if (stopped) return
+        if (stopped) {
+            // A message, not a signal or a timer, that reached an actor which had stopped: nobody told those.
+            if (item !is TestSignalled && item !is TestTimer) dead(item, DeadLetter.Why.Stopped)
+            return
+        }
         try {
             @Suppress("UNCHECKED_CAST")
             when (item) {
@@ -276,8 +292,11 @@ class TestActor<M : Any, S, E> internal constructor(
         }
     }
 
+    private fun dead(message: Any, why: DeadLetter.Why) = scope.dead(DeadLetter(address, message, why))
+
     private fun stepped(message: M) {
         val next = supervised { behaviour.step(this, ctx, state, message) } ?: return
+        if (next === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled)
         run.updateAndGet { after(it, next, message) }
         settled(next)
     }
@@ -406,6 +425,7 @@ class TestActor<M : Any, S, E> internal constructor(
     private fun ended() {
         if (run.getAndUpdate { it.copy(ended = true) }.ended) return
         stopChildren()
+        stashed.get()?.drain().orEmpty().forEach { dead(it, DeadLetter.Why.Stopped) }
         letGo()
         run.updateAndGet { it.copy(signals = it.signals + Signal.Stopping) }
         behaviour.signal?.let { handler ->
