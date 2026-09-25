@@ -88,3 +88,12 @@ that lark does not have.
 3. **A CI gate on timing.** Shared runners are noisy. Recommended: fail at 10%
    worse than the baseline, and record every run's numbers so drift is visible
    before it trips.
+
+Decided while building `spec-0047-collapse` (2026-09-25), for editing: two rows
+of the table under Shape were dropped, because they did not keep the promise
+under Not doing. `mapPar(1) { f }` to `mapOrFail { f }` moves the body from its
+own virtual thread onto the backend's thread, which a blocking body or a thread
+check can see. And a run whose tree cannot fail saves nothing by skipping the
+`DeclaredFailure` unwrap: that unwrap runs only on a failure. The rules that
+shipped are `take`/`take`, `drop`/`drop`, and a `catchAll`, `orElse` or
+`mapError` over a subtree that cannot fail.

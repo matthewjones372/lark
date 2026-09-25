@@ -271,7 +271,7 @@ private fun Node.CatchAll.catchAll(): Pull {
         } catch (failure: DeclaredFailure) {
             if (recovered) throw failure
             recovered = true
-            current = f(failure.declared()).fused().pull()
+            current = f(failure.declared()).optimised().pull()
             current.next()
         }
     }
@@ -309,7 +309,7 @@ private fun Node.FlatMap.flatMapConcat(): Pull {
     return Pull {
         var element = inner?.next()
         while (element == null) {
-            val started = build(up.next() ?: return@Pull null).node.fused().pull()
+            val started = build(up.next() ?: return@Pull null).node.optimised().pull()
             inner = started
             element = started.next()
         }
