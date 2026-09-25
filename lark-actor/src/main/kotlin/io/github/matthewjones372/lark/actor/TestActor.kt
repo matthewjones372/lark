@@ -18,7 +18,8 @@ import kotlin.time.Duration
 fun <M : Any, S, E> Behaviour<M, S, E>.test(
     name: String = "test",
     restart: Schedule<Failure<E>, *>? = null,
-): TestActor<M, S, E> = TestActors().spawn(name, this, restart)
+    stash: Int = 1024,
+): TestActor<M, S, E> = TestActors().spawn(name, this, restart, stash)
 
 /**
  * Several actors stepped by the test itself, each message delivered in the order it was told. A restart waits on
@@ -84,14 +85,18 @@ class TestActors internal constructor(private val clock: Clock = fixedClock()) {
         name: String,
         behaviour: Behaviour<M, S, E>,
         restart: Schedule<Failure<E>, *>? = null,
-    ): TestActor<M, S, E> = spawnAt("/user/$name", behaviour, restart)
+        stash: Int = 1024,
+    ): TestActor<M, S, E> = spawnAt("/user/$name", behaviour, restart, stash)
 
     internal fun <M : Any, S, E> spawnAt(
         path: String,
         behaviour: Behaviour<M, S, E>,
         restart: Schedule<Failure<E>, *>?,
-    ): TestActor<M, S, E> =
-        TestActor(this, behaviour, Address("test", path, incarnations.incrementAndGet()), restart, clock)
+        stash: Int,
+    ): TestActor<M, S, E> {
+        require(stash >= 0) { "stash must not be negative, was $stash" }
+        return TestActor(this, behaviour, Address("test", path, incarnations.incrementAndGet()), restart, clock, stash)
+    }
 
     /** Returns at once: a tell from the test has already run to idle. Here so a scenario reads the same on threads. */
     fun awaitIdle() = Unit
@@ -121,7 +126,11 @@ class TestActor<M : Any, S, E> internal constructor(
     override val address: Address,
     restart: Schedule<Failure<E>, *>?,
     private val clock: Clock,
+    private val stashCapacity: Int,
 ) : ActorRef<M> {
+
+    // Made with the first message kept; only the test's own thread touches it.
+    private val stashed = AtomicReference<Stash?>()
 
     private data class Run<M, S, E>(
         val state: S,
@@ -169,6 +178,14 @@ class TestActor<M : Any, S, E> internal constructor(
             cancel(ReceiveTimeoutKey)
         }
 
+        override fun stash(message: M) {
+            (stashed.get() ?: Stash(stashCapacity, address.path).also(stashed::set)).keep(message)
+        }
+
+        override fun unstashAll() {
+            stashed.get()?.unstashAll()
+        }
+
         override fun <T> become(state: T, timers: StateTimers<M>.() -> Unit): Next<T> {
             run.get().asked?.let(::drop)
             val asked = scope(state, timers, ::start)
@@ -184,7 +201,7 @@ class TestActor<M : Any, S, E> internal constructor(
             name: String,
             behaviour: Behaviour<C, T, F>,
             restart: Schedule<Failure<F>, *>?,
-        ): ActorRef<C> = scope.spawnAt("${address.path}/$name", behaviour, restart).also { child ->
+        ): ActorRef<C> = scope.spawnAt("${address.path}/$name", behaviour, restart, stashCapacity).also { child ->
             run.updateAndGet { it.copy(children = it.children + child) }
         }
     }
@@ -253,6 +270,7 @@ class TestActor<M : Any, S, E> internal constructor(
                     heard()
                 }
             }
+            replayed()
         } finally {
             if (stopped) ended()
         }
@@ -294,6 +312,16 @@ class TestActor<M : Any, S, E> internal constructor(
         if (timer.key !== ReceiveTimeoutKey) heard()
     }
 
+    /** Handles every message put back from the stash, before anything else on the queue reaches this actor. */
+    private tailrec fun replayed() {
+        if (stopped) return
+        val message = stashed.get()?.next() ?: return
+        @Suppress("UNCHECKED_CAST")
+        stepped(message as M)
+        heard()
+        replayed()
+    }
+
     /** The step returned [next]: timers it asked for are the new state's if it is theirs, and cancelled if not. */
     private fun settled(next: Next<S>) {
         val before = run.getAndUpdate { it.copy(asked = null) }
@@ -325,7 +353,9 @@ class TestActor<M : Any, S, E> internal constructor(
         run.get().silence?.let { start(ReceiveTimeoutKey, it.after, it.message, null) }
     }
 
-    private fun cancelTimers() {
+    /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
+    private fun letGo() {
+        stashed.set(null)
         run.getAndUpdate {
             it.copy(timers = emptyMap(), silence = null, scoped = null, asked = null)
         }.timers.values.forEach(scope::unschedule)
@@ -376,7 +406,7 @@ class TestActor<M : Any, S, E> internal constructor(
     private fun ended() {
         if (run.getAndUpdate { it.copy(ended = true) }.ended) return
         stopChildren()
-        cancelTimers()
+        letGo()
         run.updateAndGet { it.copy(signals = it.signals + Signal.Stopping) }
         behaviour.signal?.let { handler ->
             try {
@@ -393,7 +423,7 @@ class TestActor<M : Any, S, E> internal constructor(
         when (val decision = run.get().supervision?.invoke(failure)) {
             is Schedule.Decision.Continue -> {
                 stopChildren()
-                cancelTimers()
+                letGo()
                 clock.sleep(decision.delay)
                 run.updateAndGet {
                     it.copy(state = behaviour.initial, supervision = decision.step, delays = it.delays + decision.delay)
