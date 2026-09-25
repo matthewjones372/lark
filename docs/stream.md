@@ -36,12 +36,12 @@ so.
 // build.gradle.kts
 dependencies {
     // lark-stream, Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
-    implementation("io.github.matthewjones372:lark-stream-pekko:0.1.0")
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.5.0")
 }
 ```
 
-An untagged commit publishes `0.1.0`, which is what
-`./gradlew publishToMavenLocal` installs.
+A commit after the latest tag builds the next patch version as a `-SNAPSHOT`,
+which is what `./gradlew publishToMavenLocal` installs.
 
 Rows in, receipts to one sink, declines to another, and every import it takes:
 

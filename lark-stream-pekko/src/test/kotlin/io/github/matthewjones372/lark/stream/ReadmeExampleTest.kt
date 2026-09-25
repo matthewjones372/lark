@@ -26,8 +26,9 @@ import java.util.concurrent.TimeUnit
  * beside it: the fences marked `<!-- ... -->`, because a marker renders as
  * nothing on the page and survives the heading above it being reworded.
  *
- * The README's Streams section shows the same pipelines, and is held to the same
- * text here, so that one compilation covers both pages.
+ * The README's Streams section shows the ingest from the document, held to the same text here so that
+ * one compilation covers both pages, and one example of its own: a description run on every backend,
+ * compiled out of the README against all three.
  */
 class ReadmeExampleTest {
 
@@ -49,7 +50,13 @@ class ReadmeExampleTest {
         /** The one that only the document carries, since the README sends the reader there for it. */
         private const val BLOCKING = "<!-- mappar-example -->"
 
-        private val shownOnBothPages = listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING)
+        /** The README's own: one description, started on Pekko, Forks and TestStreams. */
+        private const val BACKENDS = "<!-- backend-example -->"
+
+        private val shownOnBothPages = listOf(MARKER)
+
+        /** The document's alone: the README sends the reader there for them. */
+        private val onlyInTheDocument = listOf(FIXTURES, BEFORE, AFTER, MISSING, BLOCKING)
     }
 
     @TempDir
@@ -91,7 +98,12 @@ class ReadmeExampleTest {
 
     @Test
     fun `the document marks one fence for each example it compiles`() {
-        (shownOnBothPages + BLOCKING).forEach { marker -> only(document(), marker) }
+        (shownOnBothPages + onlyInTheDocument).forEach { marker -> only(document(), marker) }
+    }
+
+    @Test
+    fun `the README's description runs on every backend, and compiles against all three`() {
+        compiles(only(readme(), BACKENDS))
     }
 
     @Test
