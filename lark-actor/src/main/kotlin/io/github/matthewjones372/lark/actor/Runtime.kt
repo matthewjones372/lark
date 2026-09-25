@@ -25,7 +25,7 @@ fun <E, M : Any, S> Flock<E>.spawn(
     name: String,
     behaviour: Behaviour<M, S>,
     capacity: Int = 1024,
-    throughput: Int = 5,
+    throughput: Int = 64,
 ): ActorRef<M> {
     require(capacity > 0) { "capacity must be positive, was $capacity" }
     require(throughput > 0) { "throughput must be positive, was $throughput" }
@@ -67,7 +67,10 @@ private val stepping = ThreadLocal<Cell<*, *>>()
  */
 private val guardians = ConcurrentHashMap<Flock<*>, Guardian>()
 
-/** Messages told and not yet handled or dropped, across one flock's actors. */
+/**
+ * Activations running or scheduled across one flock's actors. A step's tell schedules its target before its own
+ * activation ends, so the count reaches zero only once nothing is left to handle.
+ */
 private class Backlog {
     private val count = AtomicLong()
     private val lock = ReentrantLock()
@@ -124,7 +127,7 @@ private class Cell<M : Any, S>(
 ) : ActorRef<M>, Ctx<M> {
     override val self: ActorRef<M> get() = this
 
-    private val mailbox = ConcurrentLinkedQueue<M>()
+    private val mailbox = Mailbox<M>()
     private val room = Semaphore(capacity)
 
     // Held from the moment a message finds the actor idle until its activation ends, so one step runs at a time.
@@ -142,11 +145,15 @@ private class Cell<M : Any, S>(
             check(room.tryAcquire()) { "the mailbox of ${address.path} is full" }
         }
         if (stopped.get()) return
-        backlog.added()
         mailbox.add(message)
-        // Stopped between the check and the add: nothing will drain it, so take it back unless the stop already did.
-        if (stopped.get() && mailbox.remove(message)) backlog.done()
-        if (scheduled.compareAndSet(false, true)) on.execute(::activate)
+        // Stopped between the check and the add: nothing will handle it, and the stop has let the mailbox go.
+        if (stopped.get()) return
+        // Read before the compare-and-set: a busy actor's flag is almost always taken, and a failed CAS still
+        // takes the cache line away from the actor's own thread.
+        if (!scheduled.get() && scheduled.compareAndSet(false, true)) {
+            backlog.added()
+            on.execute(::activate)
+        }
     }
 
     /** Registers an ask, so that stopping answers it. False when the actor has already stopped. */
@@ -164,11 +171,12 @@ private class Cell<M : Any, S>(
         if (scheduled.compareAndSet(false, true)) finish()
     }
 
+    /** One activation, counted once in the flock's backlog however many messages it handles. */
     private fun activate() {
         var returned = false
         try {
             stepping.set(this)
-            drain(throughput)
+            run()
             returned = true
         } finally {
             stepping.remove()
@@ -176,43 +184,56 @@ private class Cell<M : Any, S>(
             if (!returned) {
                 stopped.set(true)
                 finish()
+                backlog.done()
             }
         }
-        settle()
+    }
+
+    /**
+     * Handles `throughput` messages at a time. Between batches a virtual thread yields its carrier and carries on,
+     * which is as fair to other actors as resubmitting and costs no new thread; any other executor is resubmitted.
+     */
+    private tailrec fun run() {
+        drain(throughput)
+        when {
+            stopped.get() -> {
+                finish()
+                backlog.done()
+            }
+
+            mailbox.isNotEmpty() && !Thread.currentThread().isVirtual -> on.execute(::activate)
+
+            mailbox.isNotEmpty() -> {
+                Thread.yield()
+                run()
+            }
+
+            else -> {
+                scheduled.set(false)
+                // A message that arrived after the last poll and lost the race for `scheduled` is ours to handle.
+                if ((mailbox.isNotEmpty() || stopped.get()) && scheduled.compareAndSet(false, true)) {
+                    run()
+                } else {
+                    backlog.done()
+                }
+            }
+        }
     }
 
     private tailrec fun drain(left: Int) {
         if (left == 0 || stopped.get()) return
         val message = mailbox.poll() ?: return
         room.release()
-        try {
-            when (val next = behaviour.step(this, state.get(), message)) {
-                Next.Stay, Next.Unhandled -> Unit
-                is Next.Become -> state.set(next.state)
-                Next.Stop -> stopped.set(true)
-            }
-        } finally {
-            backlog.done()
+        when (val next = behaviour.step(this, state.get(), message)) {
+            Next.Stay, Next.Unhandled -> Unit
+            is Next.Become -> state.set(next.state)
+            Next.Stop -> stopped.set(true)
         }
         drain(left - 1)
     }
 
-    /** Ends an activation: finishes a stopped actor, yields a busy one, or goes idle without losing a late message. */
-    private fun settle() {
-        when {
-            stopped.get() -> finish()
-
-            mailbox.isNotEmpty() -> on.execute(::activate)
-
-            else -> {
-                scheduled.set(false)
-                if ((mailbox.isNotEmpty() || stopped.get()) && scheduled.compareAndSet(false, true)) settle()
-            }
-        }
-    }
-
     private fun finish() {
-        generateSequence { mailbox.poll() }.forEach { _ -> backlog.done() }
+        mailbox.clear()
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
         room.release(Int.MAX_VALUE / 2)
         finishAsks()

@@ -58,8 +58,10 @@ shop.state shouldBe Shelf.of(rex)
 - **The runtime.** `spawn` holds the actor in its `Flock`, so it cannot outlive
   the scope. The mailbox is a lock-free multi-producer queue. An idle actor
   holds no thread. A message to an idle actor starts a virtual thread that runs
-  up to `throughput` messages (default 5, as Pekko's), then parks or yields.
-  There is no linger before parking unless the benchmark shows it pays. The
+  up to `throughput` messages (default 64), then yields its carrier and carries
+  on, or parks. The benchmark set the default: at Pekko's 5, waking a carrier
+  every 5 messages made a `tell` 2.7× slower than Pekko's. There is no linger
+  before parking unless the benchmark shows it pays. The
   activation is one compare-and-set state, as in 0037.
 - **Bounded mailboxes.** Capacity is required. Only a `tell` from outside any
   actor waits while the mailbox is full. A `tell` from inside an actor takes an
@@ -107,6 +109,11 @@ Recommended: the context.
       tell 1→1 and N→1, ping-pong p50/p99, heap per idle actor, a 1 ms blocking
       step. Laid out as `lark-stream-benchmarks` is. Done when: a baseline is
       committed and the README quotes it, gaps included.
+- [ ] **`spec-0059-throughput`** — the runtime tuned against that baseline: a
+      busy actor yields its carrier rather than starting a thread, the backlog
+      counts activations rather than messages, a single-reader mailbox, and
+      `throughput` 64. Done when: `tell` 1→1 and N→1 are no slower than
+      Pekko's on the same run.
 
 ## Acceptance
 
