@@ -12,6 +12,36 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## With the linger, 2026-09-25
+
+The same machine and settings, after spec 0059's linger entry: an activation that told another actor spins for
+20 µs before parking. `FanOutBenchmark`, one message to each of 10,000 idle actors, is new. The raw results are in
+[`baseline/2026-09-25-jdk21-linger.json`](baseline/2026-09-25-jdk21-linger.json).
+
+| Row | Per | lark | Pekko |
+|---|---|---|---|
+| `TellBenchmark.*OneToOne`: 100,000 tells from one thread into one actor | message | 134 ± 5 ns, 24 B | 178 ± 15 ns, 48 B |
+| `TellBenchmark.*ManyToOne`: the same from eight virtual threads at once | message | 194 ± 18 ns, 25 B | 214 ± 15 ns, 48 B |
+| `PingPongBenchmark`: a rally of 100 hops between two actors, p50 | rally | 90 µs | 478 µs |
+| `PingPongBenchmark`: the same, p99 | rally | 168 µs | 673 µs |
+| `FanOutBenchmark`: one message to each of 10,000 idle actors | fan-out | 4.22 ± 0.28 ms, 482 B an actor | 3.52 ± 0.16 ms, 50 B an actor |
+| `BlockingBenchmark`: 100 actors × 10 steps that block 1 ms | burst | 12.1 ± 0.2 ms | 69.7 ± 0.4 ms on its blocking dispatcher, 143.4 ± 0.6 ms on the default |
+| `footprint`: 100,000 actors, each run once and left idle | actor | 524 B | 1,056 B |
+
+What the rows say:
+
+- **Ping-pong is 5× faster than Pekko's at p50 and 4× at p99.** A reply lands while its sender is still
+  spinning, so no hop parks a thread and no hop wakes a carrier.
+- **Only an activation that told another actor lingers.** Fan-out measured 4.25 ± 0.14 ms with no linger and
+  4.21 ± 0.10 ms with it; with every activation lingering it measured 55.5 ± 0.7 ms, 20 µs spun on one of four
+  carriers for each of 10,000 actors.
+- **Fan-out is the one row where Pekko leads, by about 20%.** Waking an idle actor starts a virtual thread,
+  about 400 ns and 480 B, where Pekko queues a task on a pool it already has. Keeping parked threads to hand
+  wakes to was tried twice, as a set of idle runners and as a pool draining one queue, and both were slower (18
+  and 28 ms): every hand-off paid a queue and a cross-thread unpark, and a burst of 10,000 still started
+  thousands of threads. Turning off the JDK's registry of live threads (`-Djdk.trackAllThreads=false`) changed
+  nothing measurable. Closing the gap for real is a scheduler of lark's own, which would be a spec of its own.
+
 ## After tuning, 2026-09-25
 
 The same machine and settings, after spec 0059's throughput entry: a busy actor yields its carrier rather than

@@ -60,8 +60,10 @@ shop.state shouldBe Shelf.of(rex)
   holds no thread. A message to an idle actor starts a virtual thread that runs
   up to `throughput` messages (default 64), then yields its carrier and carries
   on, or parks. The benchmark set the default: at Pekko's 5, waking a carrier
-  every 5 messages made a `tell` 2.7× slower than Pekko's. There is no linger
-  before parking unless the benchmark shows it pays. The
+  every 5 messages made a `tell` 2.7× slower than Pekko's. An activation that
+  told another actor spins for 20 µs before parking, since the reply is usually
+  that close; one that only received parks at once, so a fan-out never pays
+  it. The
   activation is one compare-and-set state, as in 0037.
 - **Bounded mailboxes.** Capacity is required. Only a `tell` from outside any
   actor waits while the mailbox is full. A `tell` from inside an actor takes an
@@ -105,15 +107,19 @@ Recommended: the context.
 - [x] **`spec-0059-idle`** ([#110](https://github.com/matthewjones372/lark/pull/110)) — the test scope for many actors, and `awaitIdle()`.
       Done when: the same scenarios pass under both runtimes, with no
       `eventually`, sleep or timed expectation (a detekt rule says so).
-- [ ] **`spec-0059-bench`** — `lark-actor-benchmarks`, JMH against Pekko:
+- [x] **`spec-0059-bench`** ([#112](https://github.com/matthewjones372/lark/pull/112)) — `lark-actor-benchmarks`, JMH against Pekko:
       tell 1→1 and N→1, ping-pong p50/p99, heap per idle actor, a 1 ms blocking
       step. Laid out as `lark-stream-benchmarks` is. Done when: a baseline is
       committed and the README quotes it, gaps included.
-- [ ] **`spec-0059-throughput`** — the runtime tuned against that baseline: a
+- [x] **`spec-0059-throughput`** ([#113](https://github.com/matthewjones372/lark/pull/113)) — the runtime tuned against that baseline: a
       busy actor yields its carrier rather than starting a thread, the backlog
       counts activations rather than messages, a single-reader mailbox, and
       `throughput` 64. Done when: `tell` 1→1 and N→1 are no slower than
       Pekko's on the same run.
+- [ ] **`spec-0059-linger`** — a linger before parking, after an activation
+      that told another actor, and a fan-out benchmark to show what it costs.
+      Done when: ping-pong is no slower than Pekko's at p50 and p99, and
+      fan-out is no slower than without the linger.
 
 ## Acceptance
 

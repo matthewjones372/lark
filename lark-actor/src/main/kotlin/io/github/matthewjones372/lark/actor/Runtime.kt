@@ -56,6 +56,9 @@ fun <M : Any, A : Any> ActorRef<M>.ask(within: Duration, message: (Reply<A>) -> 
 }
 
 private val incarnations = AtomicLong()
+
+/** How long an actor spins for a reply before parking: past the knee of the ping-pong benchmark, 5 µs to 50 µs. */
+private val LINGER_NANOS = TimeUnit.MICROSECONDS.toNanos(20)
 private val asks = AtomicLong()
 
 /** The actor whose step this thread is running, so a `tell` from inside one can refuse to wait. */
@@ -137,9 +140,15 @@ private class Cell<M : Any, S>(
     private val pending = ConcurrentHashMap.newKeySet<Answer<*>>()
     val ended = CountDownLatch(1)
 
+    // Whether this activation told another actor anything, so that a reply may be on its way. Read and written
+    // only by the thread running this actor's activation.
+    var told = false
+
     override fun tell(message: M) {
         if (stopped.get()) return
-        if (stepping.get() == null) {
+        val sender = stepping.get()
+        sender?.told = true
+        if (sender == null) {
             room.acquire()
         } else {
             check(room.tryAcquire()) { "the mailbox of ${address.path} is full" }
@@ -208,6 +217,8 @@ private class Cell<M : Any, S>(
                 run()
             }
 
+            lingered() -> run()
+
             else -> {
                 scheduled.set(false)
                 // A message that arrived after the last poll and lost the race for `scheduled` is ours to handle.
@@ -218,6 +229,23 @@ private class Cell<M : Any, S>(
                 }
             }
         }
+    }
+
+    /**
+     * Spins for up to [LINGER_NANOS] waiting for a message, before letting the thread go, when this activation
+     * told another actor something: a reply is usually that close behind, and handling it here costs nothing where
+     * parking costs a carrier's wake to come back. An actor that only receives never spins, so a fan-out does not
+     * pay it once per actor.
+     */
+    private fun lingered(): Boolean {
+        if (!told) return false
+        told = false
+        val deadline = System.nanoTime() + LINGER_NANOS
+        while (System.nanoTime() < deadline) {
+            if (mailbox.isNotEmpty() || stopped.get()) return true
+            Thread.onSpinWait()
+        }
+        return false
     }
 
     private tailrec fun drain(left: Int) {
