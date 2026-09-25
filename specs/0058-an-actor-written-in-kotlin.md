@@ -1,4 +1,4 @@
-# 0057 — An actor written in Kotlin
+# 0058 — An actor written in Kotlin
 
 ## Problem
 
@@ -81,15 +81,15 @@ wanted, it should be its own spec after this one.
 
 ## Stack
 
-- [ ] **`spec-0057-module`** — `lark-actor-pekko`, `ask` moved into it, and its
+- [ ] **`spec-0058-module`** — `lark-actor-pekko`, `ask` moved into it, and its
       `NoOtherDependenciesTest`.
       Done when: `lark-app-pekko` builds against it unchanged, and the
       dependency test names `lark-pekko` and `pekko-actor-typed` only.
-- [ ] **`spec-0057-receive`** — `receive`, `same`, `stopped` and `answer`, with
+- [ ] **`spec-0058-receive`** — `receive`, `same`, `stopped` and `answer`, with
       `AskTest`'s ledger rewritten in them.
       Done when: a sealed protocol missing a branch fails to compile, and a
       nullable `answer` fails to compile (both via `EmbeddedKotlin`).
-- [ ] **`spec-0057-pipe`** — the two `pipeToSelf` overloads.
+- [ ] **`spec-0058-pipe`** — the two `pipeToSelf` overloads.
       Done when: the body reads `isVirtual` as true, a `raise` arrives as a
       `Left` message, and a throw fails the actor rather than arriving as a
       message.

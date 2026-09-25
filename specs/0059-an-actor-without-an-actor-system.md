@@ -1,4 +1,4 @@
-# 0058 — An actor without an actor system
+# 0059 — An actor without an actor system
 
 ## Problem
 
@@ -7,15 +7,15 @@ An actor is lark's best tool for one writer over some state: the petshop's
 succeed. Today that means Pekko. A step must not block, so a repository call
 becomes `pipeToSelf`, an extra state and a stash. The test needs an
 `ActorSystem`, probes and timed `expectMessage`. And a failure crosses into
-`Throwable`, beside lark's declared errors. 0057 smooths the Kotlin surface but
+`Throwable`, beside lark's declared errors. 0058 smooths the Kotlin surface but
 cannot change any of that, because it is Pekko's runtime.
 
 ## Not doing
 
-- **Lifecycle, time, topology:** signals, supervision, `watch`, children (0059);
-  timers, receive timeout, stash (0060); routers, receptionist, dead letters and
-  lark-app nodes (0061).
-- **Keyed entities, persistence, transport, membership and sharding** (0062–0065).
+- **Lifecycle, time, topology:** signals, supervision, `watch`, children (0060);
+  timers, receive timeout, stash (0061); routers, receptionist, dead letters and
+  lark-app nodes (0062).
+- **Keyed entities, persistence, transport, membership and sharding** (0063–0066).
   This spec only keeps them possible; see the last bullets of Shape.
 - **Seeded interleavings.** `.test()` runs actors in a fixed order; exploring
   orders waits for 0042.
@@ -53,7 +53,7 @@ shop.state shouldBe Shelf.of(rex)
 
 - **The behaviour.** `Behaviour<M, S>` is a value: an initial state and a step
   `(Ctx<M>, S, M) -> Next<S>`. `Next` is `Stay`, `Become(s)`, `Stop` or
-  `Unhandled`. A throw stops the actor for now; 0059 adds declared failures and
+  `Unhandled`. A throw stops the actor for now; 0060 adds declared failures and
   supervision.
 - **The runtime.** `spawn` holds the actor in its `Flock`, so it cannot outlive
   the scope. The mailbox is a lock-free multi-producer queue. An idle actor
@@ -94,16 +94,16 @@ Recommended: the context.
 
 ## Stack
 
-- [ ] **`spec-0058-module`** — `lark-actor`, `Behaviour`, `Next`, `Reply`,
+- [ ] **`spec-0059-module`** — `lark-actor`, `Behaviour`, `Next`, `Reply`,
       `.test()` for one actor, `ProtocolTest`, `NoOtherDependenciesTest`.
       Done when: the `Shop` above passes its tests with no thread started.
-- [ ] **`spec-0058-runtime`** — mailbox, activation, `spawn`, `tell`, `ask`.
+- [ ] **`spec-0059-runtime`** — mailbox, activation, `spawn`, `tell`, `ask`.
       Done when: a step reads `isVirtual`, an idle actor holds no thread, and
       closing the flock stops every actor it spawned.
-- [ ] **`spec-0058-idle`** — the test scope for many actors, and `awaitIdle()`.
+- [ ] **`spec-0059-idle`** — the test scope for many actors, and `awaitIdle()`.
       Done when: the same scenarios pass under both runtimes, with no
       `eventually`, sleep or timed expectation (a detekt rule says so).
-- [ ] **`spec-0058-bench`** — `lark-actor-benchmarks`, JMH against Pekko:
+- [ ] **`spec-0059-bench`** — `lark-actor-benchmarks`, JMH against Pekko:
       tell 1→1 and N→1, ping-pong p50/p99, heap per idle actor, a 1 ms blocking
       step. Laid out as `lark-stream-benchmarks` is. Done when: a baseline is
       committed and the README quotes it, gaps included.
