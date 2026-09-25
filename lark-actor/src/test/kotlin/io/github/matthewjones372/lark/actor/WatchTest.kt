@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
+import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
@@ -119,6 +120,19 @@ class WatchTest {
         }
 
         heard.getOrNull()?.ref?.address?.path shouldBe "/user/worker"
+        stopping.get() shouldBe listOf("stopping")
+    }
+
+    @Test
+    fun `on threads, stop from outside ends the actor, and answers once it has`() {
+        val stopping = AtomicReference<List<String>>(emptyList())
+        val heard = flock<Nothing, Any> {
+            val worker = spawn("worker", worker(stopping))
+            stop(worker).await().ref shouldBe worker
+            worker.ask(1.minutes) { _: Reply<Unit> -> Leave }
+        }
+
+        heard shouldBe AskFailure.Stopped.left().right()
         stopping.get() shouldBe listOf("stopping")
     }
 }

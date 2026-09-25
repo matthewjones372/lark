@@ -59,6 +59,7 @@ is where that claim is checked.
 | `lark-actor` | an actor as a `Behaviour`: a state and a step, spawned in a `flock` on virtual threads or run synchronously by `.test()` (spec [0059](specs/0059-an-actor-without-an-actor-system.md)). Against Pekko: faster `tell` with half the allocation, 5× faster ping-pong, 5.8× faster on blocking steps and half the heap per idle actor; 20% slower waking 10,000 idle actors at once ([numbers](lark-actor-benchmarks/README.md)) | nothing |
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
+| `lark-app-actor` | a `lark-actor` flock as a node for the application's life, and an actor as a node keyed by the `ActorRef<M>` of its protocol (spec [0062](specs/0062-actors-that-find-each-other.md)) | nothing |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
 | `lark-app-typesafe` | a HOCON section as a node, every fault at once, and a setting that picks a module | `com.typesafe:config` |
 | `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |

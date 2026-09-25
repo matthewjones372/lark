@@ -105,6 +105,16 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
 }
 
 /**
+ * Stops [ref] from outside, as the flock's close would: at once when it is idle, after its running step otherwise.
+ * The answer is its [Signal.Terminated], once it has stopped.
+ */
+fun <F> Flock<F>.stop(ref: ActorRef<*>): Deferred<Signal.Terminated> {
+    val cell = requireNotNull(ref as? Cell<*, *, *>) { "$ref is not an actor on threads, so it cannot be stopped here" }
+    cell.stop()
+    return watch(ref)
+}
+
+/**
  * Waits for the latch however often the thread is interrupted, and interrupts it again afterwards. An actor's end
  * must complete once begun: an interrupt that cut it short would leave its watchers and its flock waiting.
  */
