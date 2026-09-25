@@ -101,3 +101,9 @@ A tick that falls due while nothing is asking is dropped, as Pekko's is.
 `restartOnDefect` waits its schedule's delay on the test's clock and logs at
 the test's time. Stage bodies read the test's clock as lark's `clock`.
 `running.emitted()` reads what reached the end so far.
+
+Decided while moving the petshop relay onto it (2026-09-25), for editing:
+`mapPar` runs on `TestStreams` one element at a time, in the order they came,
+as "Not doing" says it should. The relay's blocking ask is a `mapPar`, and a
+test of its timing wants no second element in flight. `flatMapMerge` is still
+refused: nothing has needed it yet.

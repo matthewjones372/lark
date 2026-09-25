@@ -6,10 +6,12 @@ import io.github.matthewjones372.lark.TestClock
  * A backend for tests, on time the test owns: `tick`, `groupedWithin` and `restartOnDefect`'s delays wait
  * on [clock], and on nothing else, so an hour of ticks is one `clock.adjust(1.hours)`.
  *
- * It is the [Forks] pull loop, and so runs the operators Forks does, those three besides, and refuses the
- * rest by its own name. One stage runs at a time, in the same order every time. `start` returns once the
- * run is over or waiting on a later time, and each move of [clock] returns once everything due by then
- * has run, in time order: a test reads top to bottom, and nothing is left running behind an assertion.
+ * It is the [Forks] pull loop, and so runs the operators Forks does, those three besides, and `mapPar` one
+ * element at a time in the order they came. It refuses the rest by its own name.
+ *
+ * One stage runs at a time, in the same order every time. `start` returns once the run is over or waiting
+ * on a later time, and each move of [clock] returns once everything due by then has run, in time order: a
+ * test reads top to bottom, and nothing is left running behind an assertion.
  *
  * A stage body that blocks on anything but [clock] blocks the test with it.
  */

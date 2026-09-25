@@ -50,10 +50,28 @@ class TestStreamsTest {
 
     @Test
     fun `an operator it cannot run is refused by its own name`() {
-        val exit = Stream.of(1, 2).mapPar(2) { it }.runCollect().run(TestStreams())
+        val exit = Stream.of(1, 2).merge(Stream.of(3)).runCollect().run(TestStreams())
 
         exit.toCompletableFuture().join().shouldBeInstanceOf<Exit.Died>().cause.message shouldContain
-            ", is not something TestStreams runs"
+            "merge is not something TestStreams runs"
+    }
+
+    @Test
+    fun `mapPar runs one element at a time in the order they came, and its raise is the stream's`() {
+        val inFlight = java.util.concurrent.atomic.AtomicInteger()
+        val most = java.util.concurrent.atomic.AtomicInteger()
+
+        val running = Stream.from(1..5)
+            .mapPar<Odd, Int, Int>(4) { n ->
+                most.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
+                inFlight.decrementAndGet()
+                if (n == 4) raise(Odd(n)) else n * 10
+            }
+            .runCollect().start(TestStreams())
+
+        running.done shouldBe Exit.Failed(Odd(4))
+        running.emitted() shouldBe listOf(10, 20, 30)
+        most.get() shouldBe 1
     }
 
     @Test

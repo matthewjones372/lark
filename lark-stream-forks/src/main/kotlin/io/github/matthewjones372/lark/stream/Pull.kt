@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
+import arrow.core.raise.either
 import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
 
@@ -30,9 +31,13 @@ internal fun Node.pulls(): Boolean =
         -> false
     }
 
-/** The operators a pull runs on a test's clock, taking turns with the workers of [Turns]: those, and time. */
+/**
+ * The operators a pull runs on a test's clock, taking turns with the workers of [Turns]: those, time, and
+ * `mapPar`, one element at a time in the order they came, which is the answer a test of timing wants.
+ */
 internal fun Node.pullsOnClock(): Boolean =
-    pulls() || this is Node.Tick || this is Node.GroupedWithin || this is Node.RestartOnDefect
+    pulls() || this is Node.Tick || this is Node.GroupedWithin || this is Node.RestartOnDefect ||
+        this is Node.MapPar
 
 /**
  * The pull a node describes. `start` has refused every node its backend cannot run before this is reached,
@@ -102,8 +107,10 @@ internal fun Node.pull(): Pull =
 
         is Node.RestartOnDefect -> restarting(Turns.here())
 
+        is Node.MapPar -> inOrder()
+
         is Node.Native, is Node.Stage, Node.Hole, is Node.Sliding, is Node.MapAsync, is Node.Conflate,
-        is Node.MapPar, is Node.Merge, is Node.Interleave,
+        is Node.Merge, is Node.Interleave,
         -> error("$operator reached the Forks runner, which start refuses it before")
     }
 
@@ -139,6 +146,13 @@ private fun Node.MapOrFail.mapOrFail(): Pull {
     val body = guarded("mapOrFail", at) { a: Any -> scope.f(a) }
     val up = upstream.pull()
     return Pull { up.next()?.let(body) }
+}
+
+/** A `mapPar` one element at a time, on the pulling thread: its raise is the stream's, as on Pekko. */
+private fun Node.MapPar.inOrder(): Pull {
+    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val up = upstream.pull()
+    return Pull { up.next()?.let { a -> body(a).fold({ e -> throw DeclaredFailure(e) }, { b -> b }) } }
 }
 
 private fun Node.Unary.kept(operator: String, at: String, test: (Any) -> Boolean): Pull {

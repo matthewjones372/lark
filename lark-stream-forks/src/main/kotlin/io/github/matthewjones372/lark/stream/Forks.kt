@@ -40,7 +40,7 @@ internal val ForksKey = BackendKey("Forks")
 /**
  * The [Forks] pull loop on a clock a test moves: what lark-stream-test's `TestStreams` is, by its own
  * [name]. It runs what Forks does, and `tick`, `groupedWithin` and `restartOnDefect` besides, which wait
- * on [time] and on nothing else.
+ * on [time] and on nothing else, and `mapPar`, one element at a time in the order they came.
  *
  * A run is workers that take turns, so one stage runs at a time and in the same order every time. `start`
  * returns once the run is over or waiting on a later time, and each move of [time] returns once
