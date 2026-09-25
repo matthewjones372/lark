@@ -39,6 +39,26 @@ For each stage, tagged `pipeline` and `stage` (the name and site from 0049):
   merge saved.
 - `waiting` is the number that names a bottleneck: the stage upstream of a slow
   one waits, and the slow one does not.
+- `running.profile()` reads the same numbers back as a value, keyed by node, and
+  0049's `render` draws them onto the diagram. Each stage gets its share of the
+  run's busy time, its `busy` and `waiting` per element, and a colour from cool to
+  hot by that share:
+
+```kotlin
+println(relay.render(Mermaid, profile = running.profile()))
+```
+
+```mermaid
+flowchart TD
+    tick["tick(1s) · Relay.kt:18<br/>3% · 0.1 µs busy"]:::cool
+    par["mapParOrFail(1) · Relay.kt:19<br/>96% · 8.7 µs busy"]:::hot
+    fold["fold · Relay.kt:23<br/>1% · 0.1 µs busy · 8.6 µs waiting"]:::cool
+    tick --> par --> fold
+```
+
+- The same profile can come from a JMH run instead: `lark-stream-benchmarks`
+  runs a benchmark's pipeline measured and writes the diagram beside its numbers,
+  so a baseline says where its time went as well as how much there was.
 
 ## Why this shape
 
@@ -54,6 +74,9 @@ they suspect, not the one that is slow.
       above every other.
 - [ ] **`spec-0050-waiting`**: `waiting`.
       Done when: the stage upstream of the slow one has the highest `waiting`.
+- [ ] **`spec-0050-diagram`**: `profile()`, `render(profile = …)`, and a profiled diagram per
+      benchmark in `lark-stream-benchmarks`. Done when: the `mapPar` baseline's diagram
+      marks `mapPar` hottest, and a golden file holds one rendering.
 
 ## Acceptance
 
@@ -66,5 +89,8 @@ they suspect, not the one that is slow.
 1. **Is `busy` a histogram per element or a sampled timer?** Recommended:
    sample one element in 64 by default. A clock read per element costs about
    what 0047's merge saves.
-2. **Does measuring disable 0047's merge?** Recommended: no. Measure the merged
+2. **Profile shares: busy time only, or busy plus waiting?** Recommended:
+   busy only. Waiting is a symptom of a neighbour, and colouring it would make
+   the healthy stages beside a bottleneck look hot too.
+3. **Does measuring disable 0047's merge?** Recommended: no. Measure the merged
    segment, and let `render(optimised = true)` say what a segment contains.

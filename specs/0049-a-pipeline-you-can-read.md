@@ -13,7 +13,7 @@ and build site (0010). Rendering it is a tree walk.
 ## Not doing
 
 - **No live view.** This renders the description, not the running state. Per
-  stage numbers are 0050.
+  stage numbers are 0050, which draws them onto this diagram.
 - **No layout engine.** The output is text a renderer already reads.
 - **No new metadata.** A node shows what it already carries: its operator name,
   its build site, and its arguments where they are plain values.
