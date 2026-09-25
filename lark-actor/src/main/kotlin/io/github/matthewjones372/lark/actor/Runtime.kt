@@ -3,8 +3,10 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.nonFatalOrThrow
+import arrow.core.raise.Raise
 import arrow.core.right
 import io.github.matthewjones372.lark.Clock
+import io.github.matthewjones372.lark.Deferred
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.clock
@@ -50,6 +52,26 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
 fun <E> Flock<E>.awaitIdle() {
     guardians[this]?.backlog?.awaitEmpty()
 }
+
+/**
+ * [Signal.Terminated] once [ref] has stopped, for code outside any actor. Waits on the actor's own end rather than
+ * a fork, so watching holds no thread until someone awaits it.
+ */
+@Suppress("UnusedReceiverParameter")
+fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
+    val cell = requireNotNull(ref as? Cell<*, *, *>) { "$ref is not an actor on threads, so it cannot be watched" }
+    return object : Deferred<Signal.Terminated> {
+        override fun await(): Signal.Terminated {
+            cell.ended.await()
+            return Signal.Terminated(ref)
+        }
+
+        override fun cancel() = Unit
+    }
+}
+
+/** A signal on its way through a mailbox. */
+private class Signalled(val signal: Signal)
 
 /** Asks and waits on the calling thread. An actor that stops before replying answers [AskFailure.Stopped] at once. */
 fun <M : Any, A : Any> ActorRef<M>.ask(within: Duration, message: (Reply<A>) -> M): Either<AskFailure, A> {
@@ -141,7 +163,8 @@ private class Cell<M : Any, S, E>(
 ) : ActorRef<M>, Ctx<M> {
     override val self: ActorRef<M> get() = this
 
-    private val mailbox = Mailbox<M>()
+    // Messages, and signals wrapped in Signalled so that no message type can be taken for one.
+    private val mailbox = Mailbox<Any>()
     private val room = Semaphore(capacity)
 
     // Held from the moment a message finds the actor idle until its activation ends, so one step runs at a time.
@@ -154,6 +177,8 @@ private class Cell<M : Any, S, E>(
     private val supervision = AtomicReference(restart?.step)
     private val pending = ConcurrentHashMap.newKeySet<Answer<*>>()
     val ended = CountDownLatch(1)
+    private val watchers = ConcurrentHashMap.newKeySet<Cell<*, *, *>>()
+    private val terminated = AtomicBoolean(false)
 
     // Whether this activation told another actor anything, so that a reply may be on its way. Read and written
     // only by the thread running this actor's activation.
@@ -169,7 +194,28 @@ private class Cell<M : Any, S, E>(
             check(room.tryAcquire()) { "the mailbox of ${address.path} is full" }
         }
         if (stopped.get()) return
-        mailbox.add(message)
+        enqueue(message)
+    }
+
+    /** A signal takes no room: the actor that sends one may be ending, and must not wait to. */
+    fun signal(signal: Signal) {
+        if (!stopped.get()) enqueue(Signalled(signal))
+    }
+
+    override fun watch(ref: ActorRef<*>) {
+        requireNotNull(ref as? Cell<*, *, *>) { "$ref is not an actor on threads, so it cannot be watched from one" }
+            .watchedBy(this)
+    }
+
+    /** Whichever of this and [finish] takes [watcher] out of the set delivers its one `Terminated`. */
+    fun watchedBy(watcher: Cell<*, *, *>) {
+        if (watchers.add(watcher) && terminated.get() &&
+            watchers.remove(watcher)
+        ) watcher.signal(Signal.Terminated(this))
+    }
+
+    private fun enqueue(item: Any) {
+        mailbox.add(item)
         // Stopped between the check and the add: nothing will handle it, and the stop has let the mailbox go.
         if (stopped.get()) return
         // Read before the compare-and-set: a busy actor's flag is almost always taken, and a failed CAS still
@@ -263,18 +309,17 @@ private class Cell<M : Any, S, E>(
         return false
     }
 
-    // A throw is the actor's failure, handed to its schedule like a raise; only a fatal one is not.
-    @Suppress("TooGenericExceptionCaught")
     private tailrec fun drain(left: Int) {
         if (left == 0 || stopped.get()) return
-        val message = mailbox.poll() ?: return
-        room.release()
-        val next = try {
-            boundary.guarded({ behaviour.step(this, this@Cell, state.get(), message) }) { error ->
-                failed(Failure.Raised(error), null)
-            }
-        } catch (thrown: Throwable) {
-            failed(Failure.Thrown(thrown.nonFatalOrThrow()), thrown)
+        val item = mailbox.poll() ?: return
+        val next = if (item is Signalled) {
+            val handler = behaviour.signal
+            if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state.get(), item.signal) }
+        } else {
+            room.release()
+            @Suppress("UNCHECKED_CAST")
+            val message = item as M
+            supervised { behaviour.step(this, this@Cell, state.get(), message) }
         }
         when (next) {
             Next.Stay, Next.Unhandled -> Unit
@@ -303,12 +348,37 @@ private class Cell<M : Any, S, E>(
             }
         }
 
+    /** A step or a signal's handler, its raise and its throw handed to supervision. Inline: nothing is allocated. */
+    // A throw is the actor's failure, handed to its schedule like a raise; only a fatal one is not.
+    @Suppress("TooGenericExceptionCaught")
+    private inline fun supervised(body: Raise<E>.() -> Next<S>): Next<S> =
+        try {
+            boundary.guarded(body) { error -> failed(Failure.Raised(error), null) }
+        } catch (thrown: Throwable) {
+            failed(Failure.Thrown(thrown.nonFatalOrThrow()), thrown)
+        }
+
+    /** Signals [Signal.Stopping], then lets everything go; watchers hear `Terminated` before [ended] opens. */
     private fun finish() {
+        stopping()
         mailbox.clear()
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
         room.release(Int.MAX_VALUE / 2)
         finishAsks()
+        terminated.set(true)
+        watchers.forEach { if (watchers.remove(it)) it.signal(Signal.Terminated(this)) }
         ended.countDown()
+    }
+
+    // The actor is ending: a raise or a throw from its Stopping handler has no schedule left to go to.
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private fun stopping() {
+        val handler = behaviour.signal ?: return
+        try {
+            boundary.guarded({ handler(this, this@Cell, state.get(), Signal.Stopping) }) { Next.Stop }
+        } catch (thrown: Throwable) {
+            thrown.nonFatalOrThrow()
+        }
     }
 
     private fun finishAsks() {
