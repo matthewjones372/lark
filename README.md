@@ -56,7 +56,7 @@ is where that claim is checked.
 | `lark-stream-test` | runs a `Stream` on a `TestClock` the test moves: an hour of `tick` is one `adjust`, and each `adjust` returns with what fell due | nothing |
 | `lark-kafka` | a Kafka topic as a `Stream` on any backend: each offset committed once its record's work is done, and a record that fails to decode as a value ([`docs/kafka.md`](docs/kafka.md)) | `kafka-clients` |
 | `lark-kafka-pekko` | the same through Pekko's own Kafka connector: prefetch, batched commits and a draining stop | `pekko-connectors-kafka` |
-| `lark-actor` | an actor as a `Behaviour`: a state and a step, spawned in a `flock` on virtual threads or run synchronously by `.test()` (spec [0059](specs/0059-an-actor-without-an-actor-system.md)). Against Pekko: 5.6× faster on blocking steps and half the heap per idle actor, 2.7× slower on plain `tell` ([numbers](lark-actor-benchmarks/README.md)) | nothing |
+| `lark-actor` | an actor as a `Behaviour`: a state and a step, spawned in a `flock` on virtual threads or run synchronously by `.test()` (spec [0059](specs/0059-an-actor-without-an-actor-system.md)). Against Pekko: faster `tell` with half the allocation, 5.8× faster on blocking steps and half the heap per idle actor, ping-pong within about 10% ([numbers](lark-actor-benchmarks/README.md)) | nothing |
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
