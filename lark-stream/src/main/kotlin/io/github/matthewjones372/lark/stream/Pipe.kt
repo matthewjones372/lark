@@ -25,10 +25,8 @@ class Pipe<out E, in In, out Out : Any> internal constructor(internal val node: 
     companion object
 }
 
-/** A pipe over a Pekko flow an operator built, for the operators not yet described as nodes. */
-internal fun <E, In, Out : Any> Pipe(flow: Flow<In, Out, NotUsed>): Pipe<E, In, Out> = Pipe(Node.Stage(Node.Hole, flow))
-
-fun <In, Out : Any> Pipe.Companion.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out> = Pipe(flow)
+fun <In, Out : Any> Pipe.Companion.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out> =
+    Pipe(Node.Stage(Node.Hole, flow))
 
 /** The pipe that changes nothing, which is where a chain of operators starts. */
 fun <A : Any> Pipe.Companion.identity(): Pipe<Nothing, A, A> = Pipe(Node.Hole)

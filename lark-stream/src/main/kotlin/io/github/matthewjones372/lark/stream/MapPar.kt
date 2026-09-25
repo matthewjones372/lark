@@ -108,27 +108,28 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapParOrFail(
     f: Raise<E>.(Out) -> Out2,
 ): Pipe<E, In, Out2> = mapPar(parallelism, on, f)
 
-private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Pipe<E, A, B> {
+private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
+    Pipe(Node.MapPar(Node.Hole, parallelism, on, f.erased(), buildSite()))
+
+internal fun Node.MapPar.mapParStage(): Flow<Any, *, NotUsed> {
     // The raise is folded into an Either inside the guard, so that the guard is the one place
     // deciding what a defect says: a declared failure comes back as a `Left` the stage is failed
     // with, and everything else picks up the three facts on its way out.
-    val body = guarded("mapPar", buildSite()) { a: A -> either { f(a) } }
-    return Pipe(
-        // What is in flight belongs to the run rather than to the description, which can be
-        // materialised again while an earlier run of it is still going.
-        Flow.fromMaterializer<A, B, NotUsed> { _, _ ->
-            val bodies = Bodies(on)
-            // Pekko's own mapAsync rather than this library's: a body answers with a `B : Any`, so
-            // there is no null completion to guard, and `mapPar` is the operator a defect names.
-            Flow.create<A>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
-                .watchTermination { mat, ended ->
-                    // Pekko never cancels the stage a mapAsync is waiting on, so this is where a body
-                    // learns that the stream which asked for its element has gone.
-                    ended.whenComplete { _, _ -> bodies.tearDown() }
-                    mat
-                }
-        }.mapMaterializedValue { NotUsed.getInstance() },
-    )
+    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    // What is in flight belongs to the run rather than to the description, which can be
+    // materialised again while an earlier run of it is still going.
+    return Flow.fromMaterializer<Any, Any, NotUsed> { _, _ ->
+        val bodies = Bodies(on)
+        // Pekko's own mapAsync rather than this library's: a body answers with a `B : Any`, so
+        // there is no null completion to guard, and `mapPar` is the operator a defect names.
+        Flow.create<Any>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
+            .watchTermination { mat, ended ->
+                // Pekko never cancels the stage a mapAsync is waiting on, so this is where a body
+                // learns that the stream which asked for its element has gone.
+                ended.whenComplete { _, _ -> bodies.tearDown() }
+                mat
+            }
+    }.mapMaterializedValue { NotUsed.getInstance() }
 }
 
 /** The bodies one run has in flight: at most `mapAsync`'s parallelism of them, each dropped as it ends. */

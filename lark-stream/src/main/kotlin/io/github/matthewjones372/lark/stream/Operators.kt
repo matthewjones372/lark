@@ -22,10 +22,10 @@ fun <E, A : Any, S : Any> Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregat
 fun <E, A : Any, B : Any> Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B> = via(Pipe.mapConcat(f))
 
 /** Pekko's own order: [first]'s elements before this stream's, and a failure in either ends the run. */
-fun <E, A : Any> Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A> = Stream(source.prepend(first.source))
+fun <E, A : Any> Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A> = Stream(Node.Prepend(node, first.node))
 
 /** The mirror of [prepend], in Pekko's order too: [next]'s elements after this stream's. */
-fun <E, A : Any> Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A> = Stream(source.concat(next.source))
+fun <E, A : Any> Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A> = Stream(Node.Concat(node, next.node))
 
 /** The declared failure becomes the last element, as a `Left`, leaving none for the type to carry. */
 fun <E, A : Any> Stream<E, A>.either(): Stream<Nothing, Either<E, A>> = replacing(Pipe.either<E, A>())

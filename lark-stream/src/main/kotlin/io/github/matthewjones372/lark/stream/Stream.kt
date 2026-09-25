@@ -27,9 +27,6 @@ class Stream<out E, out A : Any> internal constructor(internal val node: Node) {
     companion object
 }
 
-/** A stream over a Pekko source an operator built, for the operators not yet described as nodes. */
-internal fun <E, A : Any> Stream(source: Source<A, NotUsed>): Stream<E, A> = Stream(Node.Native(source))
-
 /**
  * A declared failure on Pekko's failure channel, unwrapped only by `run`.
  *
@@ -70,7 +67,7 @@ class Failing<in E> internal constructor() : Raise<E> {
  * here. One signature rather than two: a second over `Source<A, NotUsed>` would erase to this one.
  */
 fun <A : Any> Stream.Companion.from(source: Source<A, *>): Stream<Nothing, A> =
-    Stream(source.mapMaterializedValue { NotUsed.getInstance() })
+    Stream(Node.Native(source.mapMaterializedValue { NotUsed.getInstance() }))
 
 fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Node.Elements(elements))
 

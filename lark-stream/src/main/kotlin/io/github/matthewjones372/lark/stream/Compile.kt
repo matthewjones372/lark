@@ -35,6 +35,18 @@ internal fun Node.toPekko(): Source<Any, NotUsed> =
 
         Node.Empty -> Source.empty()
 
+        is Node.Merge -> upstream.toPekko().merge(other.toPekko())
+
+        is Node.Interleave -> upstream.toPekko().interleave(other.toPekko(), segmentSize)
+
+        is Node.ZipWith -> zipped()
+
+        is Node.Prepend -> upstream.toPekko().prepend(first.toPekko())
+
+        is Node.Concat -> upstream.toPekko().concat(next.toPekko())
+
+        is Node.RestartOnDefect -> restarting(upstream.toPekko(), step, restarts)
+
         Node.Hole -> error("a pipe's input compiled as though it were a source")
 
         is Node.Unary -> upstream.toPekko().via(stage())
@@ -48,8 +60,7 @@ internal fun Node.toPekkoFlow(): Flow<Any, Any, NotUsed> =
         // Straight off the hole, the stage is the flow: `Pipe.from(flow).toFlow()` is that same flow.
         is Node.Unary -> if (upstream == Node.Hole) stage() else upstream.toPekkoFlow().via(stage())
 
-        is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty ->
-            error("a source compiled as though it were a pipe: $this")
+        is Node.StreamOnly -> error("a stream compiled as though it were a pipe: $this")
     }
 
 /** The one Pekko stage a single-input operator is, the same whether it sits on a source or a pipe. */
@@ -107,6 +118,10 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
         is Node.OrFailIfEmpty -> orFailIfEmptyStage()
 
         is Node.Tap -> tapStage()
+
+        is Node.FlatMap -> flatMapStage()
+
+        is Node.MapPar -> mapParStage()
     } as Flow<Any, Any, NotUsed>
 
 private fun Node.Map.mapStage(): Flow<Any, *, NotUsed> {
@@ -213,6 +228,20 @@ private fun Node.OrFailIfEmpty.orFailIfEmptyStage(): Flow<Any, *, NotUsed> =
 private fun Node.Tap.tapStage(): Flow<Any, *, NotUsed> {
     val tap = to as Sink<Any, *>
     return if (dropping) Flow.create<Any>().wireTap(tap) else Flow.create<Any>().alsoTo(tap)
+}
+
+private fun Node.ZipWith.zipped(): Source<Any, NotUsed> {
+    val combine = guarded("zipWith", at, f)
+    return upstream.toPekko().zipWith(other.toPekko()) { a, b -> combine(a, b) }
+}
+
+private fun Node.FlatMap.flatMapStage(): Flow<Any, *, NotUsed> {
+    val build = guarded(if (breadth == null) "flatMapConcat" else "flatMapMerge", at, f)
+    return if (breadth == null) {
+        Flow.create<Any>().flatMapConcat { a -> build(a).source }
+    } else {
+        Flow.create<Any>().flatMapMerge(breadth) { a -> build(a).source }
+    }
 }
 
 @Suppress("UNCHECKED_CAST")

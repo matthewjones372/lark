@@ -1,11 +1,14 @@
 package io.github.matthewjones372.lark.stream
 
+import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.ScheduleStep
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.javadsl.Flow
 import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.Executor
 import kotlin.time.Duration
 
 /**
@@ -16,20 +19,38 @@ import kotlin.time.Duration
  */
 internal sealed interface Node {
 
-    /** A Pekko source: one a caller handed over, or one an operator not yet described here built. */
-    class Native(val source: Source<*, NotUsed>) : Node
+    /** A Pekko source a caller handed over. Only a Pekko backend can run one. */
+    class Native(val source: Source<*, NotUsed>) : StreamOnly
 
-    class Elements(val elements: Iterable<Any>) : Node
+    class Elements(val elements: Iterable<Any>) : StreamOnly
 
-    class Single(val element: Any) : Node
+    class Single(val element: Any) : StreamOnly
 
-    class Tick(val every: Duration, val element: Any, val after: Duration) : Node
+    class Tick(val every: Duration, val element: Any, val after: Duration) : StreamOnly
 
-    class FromStage(val stage: CompletionStage<*>, val onNull: () -> Throwable) : Node
+    class FromStage(val stage: CompletionStage<*>, val onNull: () -> Throwable) : StreamOnly
 
-    class Fail(val error: Any?) : Node
+    class Fail(val error: Any?) : StreamOnly
 
-    data object Empty : Node
+    data object Empty : StreamOnly
+
+    /** A node no pipe can hold: a source, or an operator that reads more than the one stream it is on. */
+    sealed interface StreamOnly : Node
+
+    /** Pekko's `merge`: both, in whatever order they arrive. */
+    class Merge(val upstream: Node, val other: Node) : StreamOnly
+
+    class Interleave(val upstream: Node, val other: Node, val segmentSize: Int) : StreamOnly
+
+    class ZipWith(val upstream: Node, val other: Node, val f: (Any, Any) -> Any, val at: String) : StreamOnly
+
+    /** [first]'s elements, then [upstream]'s: Pekko's `prepend`, which is not quite `first.concat`. */
+    class Prepend(val upstream: Node, val first: Node) : StreamOnly
+
+    class Concat(val upstream: Node, val next: Node) : StreamOnly
+
+    /** [upstream] materialised again on a defect, as [step] decides: the whole stream, never one stage. */
+    class RestartOnDefect(val upstream: Node, val step: ScheduleStep<Throwable, *>, val restarts: Restarts) : StreamOnly
 
     /** A pipe's input: the place a stream goes when the pipe is spliced onto it. */
     data object Hole : Node
@@ -42,7 +63,7 @@ internal sealed interface Node {
         fun on(upstream: Node): Unary
     }
 
-    /** A Pekko flow: one a caller handed over, or one an operator not yet described here built. */
+    /** A Pekko flow a caller handed over. Only a Pekko backend can run one. */
     data class Stage(override val upstream: Node, val flow: Flow<*, *, NotUsed>) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
@@ -152,6 +173,29 @@ internal sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
+    /**
+     * [f] answers with a [Stream] rather than its node, so the compiler can reuse the source a stream
+     * built once already has: `flatten` over streams described ahead of time compiles each of them once.
+     */
+    data class FlatMap(
+        override val upstream: Node,
+        val f: (Any) -> Stream<*, Any>,
+        val breadth: Int?,
+        val at: String,
+    ) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class MapPar(
+        override val upstream: Node,
+        val parallelism: Int,
+        val on: Executor,
+        val f: Raise<Any?>.(Any) -> Any,
+        val at: String,
+    ) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
     /** `S` may be nullable, which is why the state is `Any?` where every element is `Any`. */
     data class StatefulMap(
         override val upstream: Node,
@@ -171,11 +215,8 @@ internal sealed interface Node {
 internal fun Node.spliced(onto: Node): Node =
     when (this) {
         Node.Hole -> onto
-
         is Node.Unary -> on(upstream.spliced(onto))
-
-        is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty ->
-            error("a pipe holds single-input operators only, and reached $this")
+        is Node.StreamOnly -> error("a pipe holds single-input operators only, and reached $this")
     }
 
 /** Where a run's elements go, and what it completes with. */
