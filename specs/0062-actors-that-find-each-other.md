@@ -101,10 +101,12 @@ app.use { desk: ActorRef<Adoption> -> … }
   it is `lark-actor`'s, as an extension, so `lark`'s `flock` does not change. `.test()` and
   `testActors` keep them in `deadLetters`, in order.
 - **`lark-app-actor`.** `actors()` is a node holding a flock for the
-  application's life, opened on a fork of the application's resource scope
-  that parks until release, so every actor still lives in a flock and `lark`
-  needs nothing new; releasing it closes the flock, stopping every actor after
-  its running step. `actor<M, D…>(name) { deps -> behaviour }` is a node
+  application's life, opened on a thread of its own that waits until release,
+  since `lark-app`'s resource scope has no forks to lend; every actor still
+  lives in a flock and `lark` needs nothing new, and releasing it closes the
+  flock, stopping every actor after its running step. `actors(onDeadLetter)`
+  sets the flock's dead-letter handler. `Flock.stop(ref)` is new in
+  `lark-actor`, so a node can stop its one actor and wait for it. `actor<M, D…>(name) { deps -> behaviour }` is a node
   keyed by `ActorRef<M>`, as in `lark-app-pekko`, stopped before anything it
   depends on is released.
 
@@ -129,7 +131,7 @@ and can say "this was lost" exactly once.
 - [x] **`spec-0062-receptionist`** ([#130](https://github.com/matthewjones372/lark/pull/130)) — `ServiceKey`, `register`, `subscribe`,
       `Flock.find`, and `onStart` to register from. Done when: a subscriber is told a listing when an actor
       registers and again when it stops, on both runtimes.
-- [ ] **`spec-0062-routers`** — `pool` with `roundRobin` and `hashing`, and
+- [x] **`spec-0062-routers`** ([#131](https://github.com/matthewjones372/lark/pull/131)) — `pool` with `roundRobin` and `hashing`, and
       `group`. Done when: a pool of four hands eight messages two to each, one
       key always reaches one routee, and a failed routee restarts alone.
 - [ ] **`spec-0062-app`** — `lark-app-actor`: `actors()` and `actor<M>()`.
@@ -148,4 +150,5 @@ Nothing. All five were answered as recommended and are in Shape: stopped and
 unhandled messages are dead letters and a full mailbox is not, a flock hands
 them to a handler, a pool is an actor with `group` as the ref, `onStart` runs
 before the first message and after each restart, and `actors()` holds its
-flock on a fork of the application's scope.
+flock on a thread of its own, since the application's scope has no forks to
+lend.
