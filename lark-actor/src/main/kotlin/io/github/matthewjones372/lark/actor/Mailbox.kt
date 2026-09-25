@@ -30,8 +30,4 @@ internal class Mailbox<M : Any> {
     }
 
     fun isNotEmpty(): Boolean = head.next != null
-
-    fun clear() {
-        generateSequence { poll() }.forEach { _ -> }
-    }
 }

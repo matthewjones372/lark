@@ -22,6 +22,12 @@ internal class Stash(private val capacity: Int, private val owner: String) {
 
     fun isReplaying(): Boolean = replay.isNotEmpty()
 
+    /** Every message still here, those put back first, leaving it empty. */
+    fun drain(): List<Any> = (replay + kept).also {
+        replay.clear()
+        kept.clear()
+    }
+
     /** The next message put back, or null when there is none. */
     fun next(): Any? = replay.removeFirstOrNull()
 }

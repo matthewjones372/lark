@@ -11,6 +11,7 @@ import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.logDebug
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -42,15 +43,27 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
     require(capacity > 0) { "capacity must be positive, was $capacity" }
     require(stash >= 0) { "stash must not be negative, was $stash" }
     require(throughput > 0) { "throughput must be positive, was $throughput" }
-    // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
-    // inherit it. Its actors' restarts and timers all wait on it.
-    val guardian = guardians.computeIfAbsent(this) { flock ->
-        Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
-    }
+    val guardian = guardian()
     val address = Address("local", "/user/$name", incarnations.incrementAndGet())
     return Cell(behaviour, address, capacity, throughput, stash, guardian, restart)
         .also { guardian.cells += it }
 }
+
+/**
+ * Hands every [DeadLetter] of this flock's actors to [handler], in place of the default, which logs each at debug.
+ * It runs on the thread that found the letter, an actor's or a sender's, so it should be quick and must not throw.
+ */
+fun <E> Flock<E>.onDeadLetter(handler: (DeadLetter) -> Unit) {
+    guardian().deadLetters = handler
+}
+
+/** This flock's guardian, standing from the first call. */
+private fun Flock<*>.guardian(): Guardian =
+    // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
+    // inherit it. Its actors' restarts and timers all wait on it.
+    guardians.computeIfAbsent(this) { flock ->
+        Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
+    }
 
 /**
  * Waits until every message told to this flock's actors, and every message those caused, has been handled or
@@ -151,6 +164,9 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     val cells = ConcurrentLinkedQueue<Cell<*, *, *>>()
     val backlog = Backlog()
     val wheel = Wheel(clock) { backlog.awaitEmpty() }
+
+    @Volatile
+    var deadLetters: (DeadLetter) -> Unit = { letter -> logDebug("dead letter: $letter") }
 
     fun stand() {
         try {
@@ -374,8 +390,12 @@ private class Cell<M : Any, S, E>(
     // only by the thread running this actor's activation.
     var told = false
 
+    /**
+     * A message told once the actor has stopped is a dead letter, and so is one still in the mailbox when it stops.
+     * One told in the instant the actor stops may be neither handled nor reported.
+     */
     override fun tell(message: M) {
-        if (stopped.get()) return
+        if (stopped.get()) return dead(message, DeadLetter.Why.Stopped)
         val sender = stepping.get()
         sender?.told = true
         if (sender == null) {
@@ -383,9 +403,11 @@ private class Cell<M : Any, S, E>(
         } else {
             check(room.tryAcquire()) { "the mailbox of ${address.path} is full" }
         }
-        if (stopped.get()) return
+        if (stopped.get()) return dead(message, DeadLetter.Why.Stopped)
         enqueue(message)
     }
+
+    private fun dead(message: Any, why: DeadLetter.Why) = guardian.deadLetters(DeadLetter(address, message, why))
 
     /** A signal takes no room: the actor that sends one may be ending, and must not wait to. */
     fun signal(signal: Signal) {
@@ -546,6 +568,7 @@ private class Cell<M : Any, S, E>(
     @Suppress("UNCHECKED_CAST")
     private fun stepped(message: Any): Next<S> =
         supervised { behaviour.step(this, this@Cell, state.get(), message as M) }
+            .also { if (it === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled) }
 
     /**
      * Restarts from the initial state after the schedule's delay, keeping the mailbox, or stops once the schedule is
@@ -581,9 +604,14 @@ private class Cell<M : Any, S, E>(
     /** Stops its children, signals [Signal.Stopping], then lets go; watchers hear `Terminated` before [ended] opens. */
     private fun finish() {
         stopChildren()
+        val kept = stashed?.drain().orEmpty()
         letGo()
         stopping()
-        mailbox.clear()
+        kept.forEach { dead(it, DeadLetter.Why.Stopped) }
+        // Messages still waiting are dead letters; a signal or a timer is not one, since nobody told it.
+        generateSequence { mailbox.poll() }
+            .filterNot { it is Signalled || it is Timer }
+            .forEach { dead(it, DeadLetter.Why.Stopped) }
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
         room.release(Int.MAX_VALUE / 2)
         finishAsks()
