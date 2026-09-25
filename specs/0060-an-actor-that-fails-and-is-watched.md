@@ -36,8 +36,10 @@ flock {
 }
 ```
 
-- **Declared failures.** `Behaviour<M, S, E>`; the step runs in `Raise<E>`,
-  and `behaviour<M, S>` is `E = Nothing`, so 0059's code is unchanged. A
+- **Declared failures.** `Behaviour<M, S, E>`; the step runs in `Raise<E>`.
+  `behaviour(...)` without a failure type infers `E = Nothing`, so a call site
+  is unchanged; a type written out gains `, Nothing`, since Kotlin cannot give
+  a class a default type argument or two arities under one name. A
   `raise` and a throw both fail the actor, and supervision sees which.
 - **Supervision.** `restart: Schedule<Failure<E>, *>` on `spawn`, default
   none. A failure asks the schedule; a step restarts from `initial` after its
@@ -75,7 +77,8 @@ express later by answering "continue with the state" if anyone asks for it.
 ## Stack
 
 - [ ] **`spec-0060-raise`** — `Behaviour<M, S, E>`, `Raise<E>` in the step,
-      `Failure<E>`. Done when: 0059's tests pass unchanged.
+      `Failure<E>`. Done when: 0059's tests pass with no change but `, Nothing`
+      on a written-out `Behaviour` type, and a `raise` stops the actor.
 - [ ] **`spec-0060-restart`** — `restart` on `spawn`, on the flock's `Clock`.
       Done when: a failing actor restarts on the schedule under `TestClock`, and
       its mailbox is intact.
