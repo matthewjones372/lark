@@ -27,7 +27,9 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
         kafka = start(attempt = 1)
     }
 
-    // A free port is free only until another test JVM takes it, before the broker binds it; then try new ones.
+    // A free port is free only until another test JVM takes it, before the broker binds it; then try new ones. The
+    // broker wraps the BindException in whatever it was starting, so the catch is wide and the cause chain decides.
+    @Suppress("TooGenericExceptionCaught")
     private fun start(attempt: Int): EmbeddedK {
         val config = EmbeddedKafkaConfig.apply(
             freePort(),
@@ -37,7 +39,9 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
             EmbeddedKafkaConfig.`apply$default$4`(),
             EmbeddedKafkaConfig.`apply$default$5`(),
         )
-        return runCatching { EmbeddedKafka.start(config) }.getOrElse { e ->
+        return try {
+            EmbeddedKafka.start(config)
+        } catch (e: Exception) {
             if (attempt < ATTEMPTS && bindFailed(e)) start(attempt + 1) else throw e
         }
     }
