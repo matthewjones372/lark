@@ -25,7 +25,7 @@ class PekkoBall(val left: Int, val back: PekkoRef<PekkoBall>, val done: CountDow
 
 internal const val BLOCK_MILLIS = 1L
 
-fun larkCounter(): Behaviour<Hit, Unit> = behaviour(Unit) { _, _, hit ->
+fun larkCounter(): Behaviour<Hit, Unit, Nothing> = behaviour(Unit) { _, _, hit ->
     hit.done.countDown()
     stay()
 }
@@ -35,7 +35,7 @@ fun pekkoCounter(): Behavior<Hit> = Behaviors.receiveMessage { hit ->
     Behaviors.same()
 }
 
-fun larkPaddle(): Behaviour<LarkBall, Unit> = behaviour(Unit) { ctx, _, ball ->
+fun larkPaddle(): Behaviour<LarkBall, Unit, Nothing> = behaviour(Unit) { ctx, _, ball ->
     if (ball.left == 0) ball.done.countDown() else ball.back.tell(LarkBall(ball.left - 1, ctx.self, ball.done))
     stay()
 }
@@ -47,7 +47,7 @@ fun pekkoPaddle(): Behavior<PekkoBall> = Behaviors.setup { ctx ->
     }
 }
 
-fun larkSlow(): Behaviour<Slow, Unit> = behaviour(Unit) { _, _, slow ->
+fun larkSlow(): Behaviour<Slow, Unit, Nothing> = behaviour(Unit) { _, _, slow ->
     block()
     slow.done.countDown()
     stay()

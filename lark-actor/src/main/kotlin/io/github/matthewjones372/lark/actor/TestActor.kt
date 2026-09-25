@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /** Runs this behaviour on the calling thread, for a test: no system, no threads, nothing to wait for. */
-fun <M : Any, S> Behaviour<M, S>.test(name: String = "test"): TestActor<M, S> = TestActors().spawn(name, this)
+fun <M : Any, S, E> Behaviour<M, S, E>.test(name: String = "test"): TestActor<M, S, E> = TestActors().spawn(name, this)
 
 /** Several actors stepped by the test itself, each message delivered in the order it was told. */
 fun <A> testActors(block: TestActors.() -> A): A = TestActors().block()
@@ -19,7 +19,7 @@ fun <A> testActors(block: TestActors.() -> A): A = TestActors().block()
  */
 class TestActors internal constructor() {
 
-    private class Delivery<M : Any>(val to: TestActor<M, *>, val message: M) {
+    private class Delivery<M : Any>(val to: TestActor<M, *, *>, val message: M) {
         fun deliver() = to.handle(message)
     }
 
@@ -27,13 +27,13 @@ class TestActors internal constructor() {
     private val draining = AtomicBoolean(false)
     private val incarnations = AtomicLong()
 
-    fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S>): TestActor<M, S> =
+    fun <M : Any, S, E> spawn(name: String, behaviour: Behaviour<M, S, E>): TestActor<M, S, E> =
         TestActor(this, behaviour, Address("test", "/user/$name", incarnations.incrementAndGet()))
 
     /** Returns at once: a tell from the test has already run to idle. Here so a scenario reads the same on threads. */
     fun awaitIdle() = Unit
 
-    internal fun <M : Any> post(to: TestActor<M, *>, message: M) {
+    internal fun <M : Any> post(to: TestActor<M, *, *>, message: M) {
         queue.updateAndGet { it + Delivery(to, message) }
         if (draining.compareAndSet(false, true)) {
             try {
@@ -52,15 +52,21 @@ class TestActors internal constructor() {
     }
 }
 
-class TestActor<M : Any, S> internal constructor(
+class TestActor<M : Any, S, E> internal constructor(
     private val scope: TestActors,
-    private val behaviour: Behaviour<M, S>,
+    private val behaviour: Behaviour<M, S, E>,
     override val address: Address,
 ) : ActorRef<M> {
 
-    private data class Run<M, S>(val state: S, val stopped: Boolean, val unhandled: List<M>)
+    private data class Run<M, S, E>(
+        val state: S,
+        val stopped: Boolean,
+        val unhandled: List<M>,
+        val failure: Failure<E>?,
+    )
 
-    private val run = AtomicReference(Run<M, S>(behaviour.initial, false, emptyList()))
+    private val run = AtomicReference(Run<M, S, E>(behaviour.initial, false, emptyList(), null))
+    private val boundary = StepRaise<E>()
     private val asks = AtomicLong()
 
     private val ctx = object : Ctx<M> {
@@ -72,6 +78,9 @@ class TestActor<M : Any, S> internal constructor(
     val stopped: Boolean get() = run.get().stopped
 
     val unhandled: List<M> get() = run.get().unhandled
+
+    /** Why the actor stopped, when it was a raise or a throw rather than `stop()`. */
+    val failure: Failure<E>? get() = run.get().failure
 
     /** A message to a stopped actor is dropped, as it would be on threads. */
     override fun tell(message: M) = scope.post(this, message)
@@ -96,20 +105,28 @@ class TestActor<M : Any, S> internal constructor(
         }
     }
 
+    // A throw is recorded as the actor's failure and rethrown unchanged, so the test sees it as it was thrown.
+    @Suppress("TooGenericExceptionCaught")
     internal fun handle(message: M) {
         if (stopped) return
         var returned = false
         try {
-            val next = behaviour.step(ctx, state, message)
+            val next = boundary.guarded({ behaviour.step(this, ctx, state, message) }) { error ->
+                run.updateAndGet { it.copy(failure = Failure.Raised(error)) }
+                Next.Stop
+            }
             returned = true
             run.updateAndGet { after(it, next, message) }
+        } catch (thrown: Throwable) {
+            run.updateAndGet { it.copy(failure = Failure.Thrown(thrown)) }
+            throw thrown
         } finally {
             // A throw stops the actor, and reaches the test as it was thrown.
             if (!returned) run.updateAndGet { it.copy(stopped = true) }
         }
     }
 
-    private fun after(run: Run<M, S>, next: Next<S>, message: M): Run<M, S> = when (next) {
+    private fun after(run: Run<M, S, E>, next: Next<S>, message: M): Run<M, S, E> = when (next) {
         Next.Stay -> run
         is Next.Become -> run.copy(state = next.state)
         Next.Stop -> run.copy(stopped = true)

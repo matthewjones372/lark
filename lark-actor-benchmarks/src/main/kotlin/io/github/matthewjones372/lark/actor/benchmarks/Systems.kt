@@ -57,11 +57,11 @@ open class Lark {
         holder.join()
     }
 
-    fun <M : Any, S> actor(name: String, behaviour: Behaviour<M, S>): ActorRef<M> =
+    fun <M : Any, S> actor(name: String, behaviour: Behaviour<M, S, *>): ActorRef<M> =
         flock.spawn(name, behaviour, capacity = CAPACITY)
 }
 
-private fun idle(): Behaviour<Unit, Unit> = behaviour(Unit) { _, _, _ -> stay() }
+private fun idle(): Behaviour<Unit, Unit, Nothing> = behaviour(Unit) { _, _, _ -> stay() }
 
 /** One actor system per fork, as a service has, with the blocking dispatcher Pekko's documentation shows. */
 @State(Scope.Benchmark)

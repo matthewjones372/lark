@@ -23,7 +23,7 @@ import kotlin.time.Duration
  */
 fun <E, M : Any, S> Flock<E>.spawn(
     name: String,
-    behaviour: Behaviour<M, S>,
+    behaviour: Behaviour<M, S, *>,
     capacity: Int = 1024,
     throughput: Int = 64,
 ): ActorRef<M> {
@@ -45,7 +45,7 @@ fun <E> Flock<E>.awaitIdle() {
 /** Asks and waits on the calling thread. An actor that stops before replying answers [AskFailure.Stopped] at once. */
 fun <M : Any, A : Any> ActorRef<M>.ask(within: Duration, message: (Reply<A>) -> M): Either<AskFailure, A> {
     // A test actor has handled the message before its tell returns, so there is nothing to wait for.
-    if (this is TestActor<M, *>) return ask(message)
+    if (this is TestActor<M, *, *>) return ask(message)
     val reply = Answer<A>(Address(address.node, "/temp/ask-${asks.incrementAndGet()}", 1))
     val cell = this as? Cell<M, *>
     if (cell != null && !cell.expect(reply)) return AskFailure.Stopped.left()
@@ -121,7 +121,7 @@ private class Answer<A : Any>(override val address: Address) : Reply<A> {
 }
 
 private class Cell<M : Any, S>(
-    private val behaviour: Behaviour<M, S>,
+    private val behaviour: Behaviour<M, S, *>,
     override val address: Address,
     capacity: Int,
     private val throughput: Int,
@@ -137,6 +137,7 @@ private class Cell<M : Any, S>(
     private val scheduled = AtomicBoolean(false)
     private val stopped = AtomicBoolean(false)
     private val state = AtomicReference(behaviour.initial)
+    private val boundary = StepRaise<Any?>()
     private val pending = ConcurrentHashMap.newKeySet<Answer<*>>()
     val ended = CountDownLatch(1)
 
@@ -252,7 +253,8 @@ private class Cell<M : Any, S>(
         if (left == 0 || stopped.get()) return
         val message = mailbox.poll() ?: return
         room.release()
-        when (val next = behaviour.step(this, state.get(), message)) {
+        // A raise stops the actor, as a throw does; supervision (0060) decides what happens after.
+        when (val next = boundary.guarded({ behaviour.step(this, this@Cell, state.get(), message) }) { Next.Stop }) {
             Next.Stay, Next.Unhandled -> Unit
             is Next.Become -> state.set(next.state)
             Next.Stop -> stopped.set(true)
