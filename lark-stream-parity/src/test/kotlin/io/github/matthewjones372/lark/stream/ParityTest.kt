@@ -43,10 +43,10 @@ class ParityTest {
     /** Every backend there is. A new one joins here, and is held to every case below. */
     private val backends: List<StreamBackend> = listOf(PekkoStreams(system), Forks(), TestStreams())
 
-    private data class Odd(val value: Int)
+    internal data class Odd(val value: Int)
 
     /** What a run ends with, as a case states it: `Died` by what its cause says, since no two throwables are equal. */
-    private sealed interface Expected {
+    internal sealed interface Expected {
         data class Done(val value: Any) : Expected
 
         data class Failed(val error: Any?) : Expected
@@ -55,7 +55,7 @@ class ParityTest {
     }
 
     /** [run] is built fresh for each backend, so a case that counts starts from nothing on each. */
-    private class Case(
+    internal class Case(
         val name: String,
         val expected: Expected,
         val normalised: (Any) -> Any = { it },
@@ -69,7 +69,7 @@ class ParityTest {
     private val sorted: (Any) -> Any = { (it as List<*>).map { n -> n as Int }.sorted() }
 
     @Suppress("LongMethod")
-    private fun cases(): List<Case> = listOf(
+    internal fun cases(): List<Case> = listOf(
         Case("Stream.of", done(listOf(1, 2, 3))) { Stream.of(1, 2, 3).all() },
         Case("Stream.single", done(listOf(7))) { Stream.single(7).all() },
         Case("Stream.empty", done(emptyList<Int>())) { Stream.empty().all() },
@@ -172,7 +172,7 @@ class ParityTest {
             dynamicContainer(backend.key.name, cases().map { case -> dynamicTest(case.name) { check(case, backend) } })
         }
 
-    private fun check(case: Case, backend: StreamBackend) {
+    internal fun check(case: Case, backend: StreamBackend) {
         val run = case.run()
         val running = run.start(backend)
         // A run on a test's clock waits for the test to move it: an hour is past every case's time.

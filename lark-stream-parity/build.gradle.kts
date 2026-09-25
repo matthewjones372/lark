@@ -13,3 +13,10 @@ kotlin {
         optIn.add("io.github.matthewjones372.lark.stream.StreamSpi")
     }
 }
+
+// HardenedTest runs the whole suite this many times on Forks; -Psoak=N for more.
+tasks.test {
+    val soak = providers.gradleProperty("soak").orElse("200")
+    inputs.property("soak", soak)
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dlark.stream.soak=${soak.get()}") })
+}

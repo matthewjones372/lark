@@ -98,3 +98,19 @@ lark-stream-benchmarks/gate.sh origin/main
 Decided (2026-09-25): every open question goes as recommended. Merge order on
 `TestStreams` is the fixed turn order; Forks reads lark's `clock` at `start`;
 hardening lands first; the soak is 200 runs, with `-Psoak=N` for more.
+
+Decided while building `spec-0052-hardened` (2026-09-25), for editing: a parity
+case is a `Run`, so it cannot be cut short by a `take` after the fact. The three
+ways are therefore: to the end, stopped as soon as it starts, and stopped after
+0–3 ms. `take` is exercised by the cases that end in one and by tests of their
+own. The check found two leaks, both now fixed:
+- A stop's interrupt, left set on the loop thread, cut the wait for each fork
+  short. The run's releases stopped part way and the exit never completed.
+- A stop that woke the loop while it waited on the head of a `mapPar` window
+  left that head running.
+
+A stop now interrupts whatever the loop waits on, and ends the run `Done` with
+what it had, as on Pekko. Every thread a Forks run starts comes from its
+executor, which a `mapPar` given one of its own keeps. With the fork's release
+removed from `buffer` on purpose, seven of the checks go red.
+
