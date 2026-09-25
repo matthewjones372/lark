@@ -21,13 +21,13 @@ internal fun Node.pulls(): Boolean =
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Probed,
-        is Node.MapPar, is Node.Buffer,
+        is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave,
         -> true
 
         is Node.FlatMap -> breadth == null
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Sliding,
-        is Node.MapAsync, is Node.Conflate, is Node.Merge, is Node.Interleave, is Node.RestartOnDefect,
+        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.MapAsync,
+        is Node.Conflate, is Node.Merge, is Node.RestartOnDefect,
         -> false
     }
 
@@ -109,8 +109,11 @@ internal fun Node.pull(): Pull =
 
         is Node.Buffer -> if (Turns.taking()) bufferedOnClock(Turns.here()) else buffered(Releases.here())
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Sliding, is Node.MapAsync, is Node.Conflate,
-        is Node.Merge, is Node.Interleave,
+        is Node.Sliding -> sliding()
+
+        is Node.Interleave -> interleave()
+
+        is Node.Native, is Node.Stage, Node.Hole, is Node.MapAsync, is Node.Conflate, is Node.Merge,
         -> error("$operator reached the Forks runner, which start refuses it before")
     }
 
@@ -385,5 +388,82 @@ private fun Node.Probed.probed(): Pull {
     return Pull {
         watch.asked()
         up.next()?.also { watch.emitted() }
+    }
+}
+
+/**
+ * Windows of [Node.Sliding.n], each [Node.Sliding.step] on from the last, as Pekko's `sliding` answers
+ * them: a step longer than the window skips what falls between, and the stream's end emits what is left
+ * only where it holds elements no window has emitted yet.
+ */
+private fun Node.Sliding.sliding(): Pull = Windowing(upstream.pull(), n, step)
+
+private class Windowing(private val up: Pull, private val n: Int, private val step: Int) : Pull {
+
+    private val window = ArrayDeque<Any>()
+
+    /** Elements taken since the last window went out: the end emits a short one only if there are any. */
+    private var unseen = 0
+    private var ended = false
+
+    override fun next(): Any? {
+        var emit: List<Any>? = null
+        while (emit == null && !ended) {
+            val a = up.next()
+            if (a == null) {
+                ended = true
+                emit = window.toList().takeIf { unseen > 0 }
+            } else {
+                emit = taken(a)
+            }
+        }
+        return emit
+    }
+
+    /** Elements still to pass over after a window, where the step is longer than the window. */
+    private var toSkip = 0
+
+    /** [a] into the window, and the window if that fills it. Past a full one, the window moves on first. */
+    private fun taken(a: Any): List<Any>? {
+        if (toSkip > 0) {
+            toSkip--
+            return null
+        }
+        window.addLast(a)
+        unseen++
+        if (window.size < n) return null
+        val full = window.toList()
+        repeat(minOf(step, n)) { window.removeFirst() }
+        toSkip = maxOf(step - n, 0)
+        unseen = 0
+        return full
+    }
+}
+
+/**
+ * [Node.Interleave.segmentSize] elements from the first stream, then as many from the other, in turn;
+ * once either ends, the rest of the other, as Pekko's `interleave` does by default.
+ */
+private fun Node.Interleave.interleave(): Pull {
+    val sides = arrayOf(upstream.pull(), other.pull())
+    val done = booleanArrayOf(false, false)
+    var side = 0
+    var taken = 0
+    return Pull {
+        var element: Any? = null
+        while (element == null && !(done[0] && done[1])) {
+            if (done[side]) {
+                side = 1 - side
+                taken = 0
+            }
+            element = sides[side].next()
+            if (element == null) {
+                done[side] = true
+            } else if (++taken == segmentSize && !done[1 - side]) {
+                side = 1 - side
+                taken = 0
+            }
+        }
+        element
     }
 }
