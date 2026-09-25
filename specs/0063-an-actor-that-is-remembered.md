@@ -24,7 +24,7 @@ sharding stay in 0065–0067.
   settled the interface.
 - **Snapshots.** Recovery replays every event. Snapshots come when a recovery
   is measured to be slow.
-- **Projections and read models.** Reading the journal as a stream is 0067 if
+- **Projections and read models.** Reading the journal as a stream is a spec of its own if
   asked.
 - **Persisted timers.** A timer still ends with the actor, as 0061 has it.
 
