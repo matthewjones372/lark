@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
+import io.github.matthewjones372.lark.VirtualThreads
 import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.CountDownLatch
 
 /** How the stream a buffer holds for ended: marked in the queue after its last element. */
 private sealed interface Ended {
@@ -20,8 +20,7 @@ private sealed interface Ended {
 internal fun Node.Buffer.buffered(releases: Releases?): Pull {
     val up = upstream.pull()
     val queue = ArrayBlockingQueue<Any>(size)
-    val stopped = CountDownLatch(1)
-    val fork = Thread.ofVirtual().unstarted {
+    val fork = InFlight(releases?.on ?: VirtualThreads) {
         try {
             Releases.within(releases) {
                 generateSequence { up.next() }.forEach { a -> queue.put(a) }
@@ -33,15 +32,9 @@ internal fun Node.Buffer.buffered(releases: Releases?): Pull {
             // Waits for room like an element: the pull takes what came before it first, and the run
             // interrupts this if nobody will.
             runCatching { queue.put(Ended.Threw(thrown)) }
-        } finally {
-            stopped.countDown()
         }
     }
-    releases?.add {
-        fork.interrupt()
-        stopped.await()
-    }
-    fork.start()
+    releases?.add(fork::cancel)
     var ended = false
     return Pull {
         if (ended) {
