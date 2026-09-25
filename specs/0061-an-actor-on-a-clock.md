@@ -66,7 +66,8 @@ adoption.pendingTimers shouldBe 1   // Lapse, still two days off
   same `when`, not a `Signal`.
 - **Stash.** `ctx.stash(message)` keeps a message; `ctx.unstashAll()` puts every
   kept message back ahead of the mailbox, in the order kept. The stash holds
-  1,024 by default, and stashing into a full one fails the step, so
+  1,024 by default (`spawn(…, stash = n)`, which an actor's children share),
+  and stashing into a full one fails the step, so
   supervision decides; dropping silently would lose a message nobody knows
   about.
 - **Time is the flock's clock** on threads, one waiting thread per flock for
@@ -93,7 +94,7 @@ nobody cancelled; the keyed form stays for a timer that spans states.
       message never arrives, on both runtimes, under `TestClock` on threads.
 - [x] **`spec-0061-periodic`** ([#125](https://github.com/matthewjones372/lark/pull/125)) — `every` and `receiveTimeout`. Done when: an
       idle actor hears its timeout once per silence, and a message resets it.
-- [ ] **`spec-0061-scoped`** — `ctx.become(state) { … }`. Done when: leaving the
+- [x] **`spec-0061-scoped`** ([#126](https://github.com/matthewjones372/lark/pull/126)) — `ctx.become(state) { … }`. Done when: leaving the
       state cancels its timers, and a copy of the same state keeps them.
 - [ ] **`spec-0061-stash`** — `stash`, `unstashAll`, the bound. Done when:
       unstashed messages are handled before the mailbox, in the order kept.

@@ -42,6 +42,15 @@ interface Ctx<M : Any> {
      */
     fun <S> become(state: S, timers: StateTimers<M>.() -> Unit): Next<S>
 
+    /**
+     * Keeps [message] to handle later, when [unstashAll] puts it back. The stash is bounded, and keeping one more than
+     * it holds fails the step. A restart or a stop drops it.
+     */
+    fun stash(message: M)
+
+    /** Puts every kept message back, to be handled before anything in the mailbox, in the order kept. */
+    fun unstashAll()
+
     /** Hears [Signal.Terminated] once [ref] stops, once however often it is asked; at once if it already has. */
     fun watch(ref: ActorRef<*>)
 

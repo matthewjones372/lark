@@ -28,7 +28,8 @@ import kotlin.time.Duration
 /**
  * Spawns [behaviour] in this flock, on the flock's executor. The actor cannot outlive the scope: closing it stops
  * the actor, after any step already running has returned. A failure asks [restart], which restarts the actor from
- * its initial state after its delay on this flock's clock, or stops it once done; with no schedule it stops.
+ * its initial state after its delay on this flock's clock, or stops it once done; with no schedule it stops. Its
+ * stash keeps at most [stash] messages, and so do its children's.
  */
 fun <F, M : Any, S, E> Flock<F>.spawn(
     name: String,
@@ -36,14 +37,18 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
     capacity: Int = 1024,
     throughput: Int = 64,
     restart: Schedule<Failure<E>, *>? = null,
+    stash: Int = 1024,
 ): ActorRef<M> {
     require(capacity > 0) { "capacity must be positive, was $capacity" }
+    require(stash >= 0) { "stash must not be negative, was $stash" }
     require(throughput > 0) { "throughput must be positive, was $throughput" }
-    // The flock's clock, read here: an activation runs on a thread the flock did not fork, so it would not inherit it.
-    val waits = clock.get()
-    val guardian = guardians.computeIfAbsent(this) { flock -> Guardian(flock, waits).also { g -> async { g.stand() } } }
+    // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
+    // inherit it. Its actors' restarts and timers all wait on it.
+    val guardian = guardians.computeIfAbsent(this) { flock ->
+        Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
+    }
     val address = Address("local", "/user/$name", incarnations.incrementAndGet())
-    return Cell(behaviour, address, capacity, throughput, on, guardian, restart, waits)
+    return Cell(behaviour, address, capacity, throughput, stash, guardian, restart)
         .also { guardian.cells += it }
 }
 
@@ -141,7 +146,8 @@ private class Backlog {
     }
 }
 
-private class Guardian(private val flock: Flock<*>, clock: Clock) {
+/** One flock's actors, the executor they run on and the clock they wait on. */
+private class Guardian(private val flock: Flock<*>, val on: Executor, val clock: Clock) {
     val cells = ConcurrentLinkedQueue<Cell<*, *, *>>()
     val backlog = Backlog()
     val wheel = Wheel(clock) { backlog.awaitEmpty() }
@@ -176,10 +182,9 @@ private class Cell<M : Any, S, E>(
     override val address: Address,
     private val capacity: Int,
     private val throughput: Int,
-    private val on: Executor,
+    private val stashCapacity: Int,
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
-    private val clock: Clock,
 ) : ActorRef<M>, Ctx<M>, Timers<M>, Fired {
     override val self: ActorRef<M> get() = this
 
@@ -254,6 +259,20 @@ private class Cell<M : Any, S, E>(
 
     private fun drop(scope: Scope) = scope.keys.forEach(::cancel)
 
+    // Made with the first message kept, so an actor that never stashes does not carry one.
+    private var stashed: Stash? = null
+
+    override fun stash(message: M) {
+        (stashed ?: Stash(stashCapacity, address.path).also { stashed = it }).keep(message)
+    }
+
+    override fun unstashAll() {
+        stashed?.unstashAll()
+    }
+
+    /** Whether there is anything to handle: a message put back from the stash, or one in the mailbox. */
+    private fun hasWork(): Boolean = stashed?.isReplaying() == true || mailbox.isNotEmpty()
+
     override fun after(key: Any, delay: Duration, message: M) = start(key, delay, message, null)
 
     override fun every(key: Any, interval: Duration, message: M) {
@@ -314,12 +333,14 @@ private class Cell<M : Any, S, E>(
         if (!stopped.get()) enqueue(timer)
     }
 
-    private fun cancelTimers() {
+    /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
+    private fun letGo() {
         armed?.values?.forEach(wheel::cancel)
         armed = null
         silence = null
         scoped = null
         asked = null
+        stashed = null
     }
 
     override fun <C : Any, T, F> spawn(
@@ -332,10 +353,9 @@ private class Cell<M : Any, S, E>(
             Address(address.node, "${address.path}/$name", incarnations.incrementAndGet()),
             capacity,
             throughput,
-            on,
+            stashCapacity,
             guardian,
             restart,
-            clock,
         )
         guardian.cells += child
         children += child
@@ -392,7 +412,7 @@ private class Cell<M : Any, S, E>(
         // takes the cache line away from the actor's own thread.
         if (!scheduled.get() && scheduled.compareAndSet(false, true)) {
             backlog.added()
-            on.execute(::activate)
+            guardian.on.execute(::activate)
         }
     }
 
@@ -415,7 +435,7 @@ private class Cell<M : Any, S, E>(
         stopped.set(true)
         if (scheduled.compareAndSet(false, true)) {
             finish()
-        } else if (on === VirtualThreads) {
+        } else if (guardian.on === VirtualThreads) {
             running.get()?.interrupt()
         }
     }
@@ -455,9 +475,9 @@ private class Cell<M : Any, S, E>(
                 backlog.done()
             }
 
-            mailbox.isNotEmpty() && !Thread.currentThread().isVirtual -> on.execute(::activate)
+            hasWork() && !Thread.currentThread().isVirtual -> guardian.on.execute(::activate)
 
-            mailbox.isNotEmpty() -> {
+            hasWork() -> {
                 Thread.yield()
                 run()
             }
@@ -467,7 +487,7 @@ private class Cell<M : Any, S, E>(
             else -> {
                 scheduled.set(false)
                 // A message that arrived after the last poll and lost the race for `scheduled` is ours to handle.
-                if ((mailbox.isNotEmpty() || stopped.get()) && scheduled.compareAndSet(false, true)) {
+                if ((hasWork() || stopped.get()) && scheduled.compareAndSet(false, true)) {
                     run()
                 } else {
                     backlog.done()
@@ -487,7 +507,7 @@ private class Cell<M : Any, S, E>(
         told = false
         val deadline = System.nanoTime() + LINGER_NANOS
         while (System.nanoTime() < deadline) {
-            if (mailbox.isNotEmpty() || stopped.get()) return true
+            if (hasWork() || stopped.get()) return true
             Thread.onSpinWait()
         }
         return false
@@ -495,21 +515,9 @@ private class Cell<M : Any, S, E>(
 
     private tailrec fun drain(left: Int) {
         if (left == 0 || stopped.get()) return
-        val item = mailbox.poll() ?: return
-        val next = when (item) {
-            is Signalled -> {
-                val handler = behaviour.signal
-                if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state.get(), item.signal) }
-            }
-
-            // Only the timer still running under its key is handled: one cancelled or replaced since is dropped.
-            is Timer -> if (armed?.get(item.key) === item) timed(item) else Next.Stay
-
-            else -> {
-                room.release()
-                stepped(item).also { heard() }
-            }
-        }
+        // A message put back from the stash comes before the mailbox, and took its room back when it was first polled.
+        val replayed = stashed?.next()
+        val next = if (replayed != null) stepped(replayed).also { heard() } else handled(mailbox.poll() ?: return)
         when (next) {
             Next.Stay, Next.Unhandled -> Unit
             is Next.Become -> state.set(next.state)
@@ -517,6 +525,22 @@ private class Cell<M : Any, S, E>(
         }
         settled(next)
         drain(left - 1)
+    }
+
+    /** One item from the mailbox: a signal, a timer or a message. */
+    private fun handled(item: Any): Next<S> = when (item) {
+        is Signalled -> {
+            val handler = behaviour.signal
+            if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state.get(), item.signal) }
+        }
+
+        // Only the timer still running under its key is handled: one cancelled or replaced since is dropped.
+        is Timer -> if (armed?.get(item.key) === item) timed(item) else Next.Stay
+
+        else -> {
+            room.release()
+            stepped(item).also { heard() }
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -531,8 +555,8 @@ private class Cell<M : Any, S, E>(
         when (val decision = supervision.get()?.invoke(failure)) {
             is Schedule.Decision.Continue -> {
                 stopChildren()
-                cancelTimers()
-                clock.sleep(decision.delay)
+                letGo()
+                guardian.clock.sleep(decision.delay)
                 state.set(behaviour.initial)
                 supervision.set(decision.step)
                 Next.Stay
@@ -557,7 +581,7 @@ private class Cell<M : Any, S, E>(
     /** Stops its children, signals [Signal.Stopping], then lets go; watchers hear `Terminated` before [ended] opens. */
     private fun finish() {
         stopChildren()
-        cancelTimers()
+        letGo()
         stopping()
         mailbox.clear()
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
