@@ -62,3 +62,11 @@ because nothing reads it.
    `explain()` becomes `render(optimised = true)`, and one method remains.
 2. **Should lambdas render as anything?** Recommended: no. The build site
    already says where to look, and a lambda's class name says nothing.
+
+Decided while building `spec-0049-render` (2026-09-25), for editing: both
+questions went as recommended. `explain()` is gone, and `render(optimised =
+true)` shows what a backend compiles. A lambda renders as nothing. The build
+holds each Mermaid rendering to the lines of the flowchart grammar this
+renderer writes. Mermaid 11's own parser read all five goldens once, by hand,
+because it needs a DOM that the build does not have. Sources have no line in a
+rendering, because a source node does not carry one.

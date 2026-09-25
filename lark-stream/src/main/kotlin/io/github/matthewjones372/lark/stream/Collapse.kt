@@ -83,20 +83,3 @@ fun Node.canFail(): Boolean =
         is Node.Conflate, is Node.MapError,
         -> children().any { it.canFail() }
     }
-
-/** The stream as it was described and as a backend compiles it, one node a line, each under what it reads. */
-fun Stream<*, *>.explain(): String = explained(node)
-
-/** As [explain], for a whole run. */
-fun Run<*, *>.explain(): String = explained(node)
-
-private fun explained(node: Node): String =
-    "described:\n${node.lines().joinToString("\n")}\ncompiled:\n${node.optimised().lines().joinToString("\n")}"
-
-private fun Node.lines(depth: Int = 1): List<String> =
-    listOf("  ".repeat(depth) + label()) + children().flatMap { it.lines(depth + 1) }
-
-private fun Node.label(): String {
-    val count = (this as? Node.Take)?.n ?: (this as? Node.Drop)?.n
-    return operator + count?.let { "($it)" }.orEmpty() + site?.let { " at $it" }.orEmpty()
-}

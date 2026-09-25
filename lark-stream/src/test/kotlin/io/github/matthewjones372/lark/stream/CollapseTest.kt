@@ -7,16 +7,16 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.junit.jupiter.api.Test
 
-/** Each collapsing rule, on a pipeline built to trigger it, and read back through `explain()`. */
+/** Each collapsing rule, on a pipeline built to trigger it, and read back through `render(optimised = true)`. */
 class CollapseTest {
 
     private data class Odd(val value: Int)
 
     private val numbers = Stream.of(1, 2, 3, 4, 5)
 
-    private fun String.compiled(): String = substringAfter("compiled:")
+    private fun Stream<*, *>.described(): String = render()
 
-    private fun String.described(): String = substringBefore("compiled:")
+    private fun Stream<*, *>.compiled(): String = render(optimised = true)
 
     @Test
     fun `take after take is one take of the smaller count`() {
@@ -26,8 +26,8 @@ class CollapseTest {
             take.n shouldBe 2
             take.upstream shouldBeSameInstanceAs numbers.node
         }
-        stream.explain().described() shouldContain "take(2)\n    take(4)"
-        stream.explain().compiled() shouldContain "take(2)\n    Stream.from"
+        stream.described() shouldBe "Stream.from\ntake(4)\ntake(2)"
+        stream.compiled() shouldBe "Stream.from\ntake(2)"
     }
 
     @Test
@@ -42,9 +42,9 @@ class CollapseTest {
         val risky = numbers.mapOrFail { if (it == 3) raise(Odd(it)) else it }.catchAll { Stream.of(0) }
 
         safe.node.collapsed().shouldBeInstanceOf<Node.Map>()
-        safe.explain().compiled() shouldNotContain "catchAll"
+        safe.compiled() shouldNotContain "catchAll"
         risky.node.collapsed().shouldBeInstanceOf<Node.CatchAll>()
-        risky.explain().compiled() shouldContain "catchAll"
+        risky.compiled() shouldContain "catchAll"
     }
 
     @Test
@@ -69,11 +69,11 @@ class CollapseTest {
     }
 
     @Test
-    fun `explain says where each operator was written, before and after`() {
-        val explained = numbers.map { it + 1 }.filter { it > 2 }.explain()
+    fun `a rendering says where each operator was written, before and after`() {
+        val stream = numbers.map { it + 1 }.filter { it > 2 }
 
-        explained.described() shouldContain "filter at CollapseTest.kt:"
-        explained.described() shouldContain "map at CollapseTest.kt:"
-        explained.compiled() shouldContain "fused[map, filter] at CollapseTest.kt:"
+        stream.described() shouldContain Regex("""map +CollapseTest.kt:\d+""")
+        stream.described() shouldContain Regex("""filter +CollapseTest.kt:\d+""")
+        stream.compiled() shouldContain Regex("""fused\[map, filter] +CollapseTest.kt:\d+""")
     }
 }
