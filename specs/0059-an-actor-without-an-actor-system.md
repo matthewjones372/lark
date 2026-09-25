@@ -94,13 +94,13 @@ Recommended: the context.
 
 ## Stack
 
-- [ ] **`spec-0059-module`** — `lark-actor`, `Behaviour`, `Next`, `Reply`,
+- [x] **`spec-0059-module`** ([#108](https://github.com/matthewjones372/lark/pull/108)) — `lark-actor`, `Behaviour`, `Next`, `Reply`,
       `.test()` for one actor, `ProtocolTest`, `NoOtherDependenciesTest`.
       Done when: the `Shop` above passes its tests with no thread started.
-- [ ] **`spec-0059-runtime`** — mailbox, activation, `spawn`, `tell`, `ask`.
+- [x] **`spec-0059-runtime`** ([#109](https://github.com/matthewjones372/lark/pull/109)) — mailbox, activation, `spawn`, `tell`, `ask`.
       Done when: a step reads `isVirtual`, an idle actor holds no thread, and
       closing the flock stops every actor it spawned.
-- [ ] **`spec-0059-idle`** — the test scope for many actors, and `awaitIdle()`.
+- [x] **`spec-0059-idle`** ([#110](https://github.com/matthewjones372/lark/pull/110)) — the test scope for many actors, and `awaitIdle()`.
       Done when: the same scenarios pass under both runtimes, with no
       `eventually`, sleep or timed expectation (a detekt rule says so).
 - [ ] **`spec-0059-bench`** — `lark-actor-benchmarks`, JMH against Pekko:

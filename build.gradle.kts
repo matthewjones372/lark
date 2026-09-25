@@ -94,7 +94,7 @@ val gradlePluginModules = setOf("lark-app-gradle")
 val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
 
 // Measured, not tested: a benchmark has no assertions for a coverage floor to count.
-val benchmarkModules = setOf("lark-stream-benchmarks")
+val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks")
 
 // Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
 // JDK 28 (JEP 543), and a release must not promise an API the JDK has not.
