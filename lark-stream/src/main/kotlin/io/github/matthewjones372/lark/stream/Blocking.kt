@@ -42,8 +42,9 @@ class Opened(private val node: Node.Blocking) {
             }
         }
 
+    /** Tells a blocked [next] to return; a resource already closed is not asked. */
     fun wake() {
-        if (woken.compareAndSet(false, true)) node.wake(resource)
+        if (woken.compareAndSet(false, true) && !closed.get()) node.wake(resource)
     }
 
     fun close() {

@@ -11,6 +11,7 @@ import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
 import java.util.Optional
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.toJavaDuration
 import org.apache.pekko.japi.Pair as PekkoPair
 
@@ -38,6 +39,25 @@ internal val Run<*, *>.graph: RunnableGraph<PekkoPair<UniqueKillSwitch, Completi
         node.optimised().toPekko().viaMat(KillSwitches.single(), Keep.right()).toMat(end.toPekko(), Keep.both())
     }
 
+/**
+ * Pekko's `unfoldResource`, which reads on the blocking-IO dispatcher so a blocked read holds none of the
+ * stream's threads. A woken read ends the source, so a stop is a drain: what it read still reaches the sink.
+ *
+ * A cancel from downstream wakes it too. Pekko reads ahead, so a `take` that is satisfied finds the source
+ * already blocked on the next read, and the cancel cannot land, nor the resource close, until that returns.
+ */
+@OptIn(SourceSeam::class)
+private fun Node.Blocking.blockingSource(): Source<Any, NotUsed> =
+    Source.fromMaterializer { _, attributes ->
+        val hooks = attributes.hooks()
+        val current = AtomicReference<Opened?>(null)
+        Source.unfoldResource(
+            { Opened(this).also { opened -> current.set(opened).also { hooks.onStop(opened::wake) } } },
+            { opened -> Optional.ofNullable(opened.next()) },
+            { opened -> opened.close() },
+        ).watchTermination { _, terminated -> terminated.whenComplete { _, _ -> current.get()?.wake() } }
+    }.mapMaterializedValue { NotUsed.getInstance() }
+
 /** A value a node holds for one backend, read by that backend; anyone else's is a bug in the refusal. */
 private fun Any.ownedBy(owner: BackendKey): Any =
     if (owner === Pekko) this else error("a value for $owner reached the Pekko compiler")
@@ -62,6 +82,8 @@ internal fun Node.toPekko(): Source<Any, NotUsed> =
                 .mapMaterializedValue { NotUsed.getInstance() }
 
         is Node.FromStage -> (stage as CompletionStage<Any>).asSource(onNull)
+
+        is Node.Blocking -> blockingSource()
 
         is Node.Fail -> Source.failed(DeclaredFailure(error))
 

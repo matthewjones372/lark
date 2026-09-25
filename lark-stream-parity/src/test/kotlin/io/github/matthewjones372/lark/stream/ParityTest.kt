@@ -72,6 +72,23 @@ class ParityTest {
     private fun cases(): List<Case> = listOf(
         Case("Stream.of", done(listOf(1, 2, 3))) { Stream.of(1, 2, 3).all() },
         Case("Stream.single", done(listOf(7))) { Stream.single(7).all() },
+        Case("Stream.blocking", done(listOf(1, 2, 3))) {
+            Stream.blocking(
+                open = { ArrayDeque(listOf(1, 2, 3)) },
+                next = { it.removeFirstOrNull() },
+                wake = { },
+                close = { it.clear() },
+            ).all()
+        },
+        Case("Stream.blocking, cut short by take", done(listOf(1, 2))) {
+            Stream.blocking(
+                open = { generateSequence(1) { it + 1 }.iterator() },
+                next = { it.next() },
+                wake = { },
+                close = { },
+            ).take(2)
+                .all()
+        },
         Case("Stream.empty", done(emptyList<Int>())) { Stream.empty().all() },
         Case("Stream.fail", Expected.Failed(Odd(1))) { Stream.fail(Odd(1)).all() },
         Case("Stream.fromStage", done(listOf("ready"))) {

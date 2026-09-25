@@ -49,18 +49,17 @@ class RunHooks internal constructor() {
 
 internal class RunHooksAttribute(val hooks: RunHooks) : Attributes.Attribute
 
+/** The hooks of the run a source is materialised in; a source run outside one, through toSource(), has none. */
+internal fun Attributes.hooks(): RunHooks =
+    getAttribute(RunHooksAttribute::class.java).map { it.hooks }.orElseGet(::RunHooks)
+
 /** A source that is handed the hooks of each run it is materialised in, restarts included. */
 @SourceSeam
 fun <A : Any> Stream.Companion.hooked(source: (RunHooks) -> Source<A, *>): Stream<Nothing, A> =
     Stream(
         Node.Native(
             Source.fromMaterializer { _, attributes ->
-                // A source run outside a Pekko run of lark's, through toSource(), has no hooks, and nothing will
-                // call these.
-                val hooks = attributes.getAttribute(RunHooksAttribute::class.java)
-                    .map { it.hooks }
-                    .orElseGet(::RunHooks)
-                source(hooks).mapMaterializedValue { NotUsed.notUsed() }
+                source(attributes.hooks()).mapMaterializedValue { NotUsed.notUsed() }
             }.mapMaterializedValue { NotUsed.notUsed() },
             Pekko,
             "Stream.hooked",
