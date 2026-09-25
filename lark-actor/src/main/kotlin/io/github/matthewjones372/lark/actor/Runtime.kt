@@ -9,6 +9,7 @@ import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Deferred
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.clock
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -68,6 +69,22 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
 
         override fun cancel() = Unit
     }
+}
+
+/**
+ * Waits for the latch however often the thread is interrupted, and interrupts it again afterwards. An actor's end
+ * must complete once begun: an interrupt that cut it short would leave its watchers and its flock waiting.
+ */
+private fun CountDownLatch.awaitThroughInterrupts() {
+    var interrupted = false
+    while (count > 0L) {
+        try {
+            await()
+        } catch (again: InterruptedException) {
+            interrupted = true
+        }
+    }
+    if (interrupted) Thread.currentThread().interrupt()
 }
 
 /** A signal on its way through a mailbox. */
@@ -179,6 +196,9 @@ private class Cell<M : Any, S, E>(
     val ended = CountDownLatch(1)
     private val watchers = ConcurrentHashMap.newKeySet<Cell<*, *, *>>()
     private val terminated = AtomicBoolean(false)
+
+    // The thread running this actor's activation, for a stop to interrupt.
+    private val running = AtomicReference<Thread?>()
     private val backlog = guardian.backlog
 
     // Spawned by this actor's steps, so stopped before it; only its own activation reads or writes the list.
@@ -208,7 +228,7 @@ private class Cell<M : Any, S, E>(
     private fun stopChildren() {
         generateSequence { children.poll() }.forEach { child ->
             child.stop()
-            child.ended.await()
+            child.ended.awaitThroughInterrupts()
         }
     }
 
@@ -268,9 +288,18 @@ private class Cell<M : Any, S, E>(
         pending.remove(reply)
     }
 
+    /**
+     * Stops the actor: at once when it is idle, and after its running step otherwise. On virtual threads that step is
+     * interrupted, since each activation has a thread of its own that nothing else will run on; on any other executor
+     * an interrupt could land on the pool's next task, so the step is waited for.
+     */
     fun stop() {
         stopped.set(true)
-        if (scheduled.compareAndSet(false, true)) finish()
+        if (scheduled.compareAndSet(false, true)) {
+            finish()
+        } else if (on === VirtualThreads) {
+            running.get()?.interrupt()
+        }
     }
 
     /** One activation, counted once in the flock's backlog however many messages it handles. */
@@ -278,9 +307,14 @@ private class Cell<M : Any, S, E>(
         var returned = false
         try {
             stepping.set(this)
+            running.set(Thread.currentThread())
             run()
             returned = true
+        } catch (interrupted: InterruptedException) {
+            // The interrupt a stop sends to a running step: the stop is the outcome, not a failure to report.
+            if (!stopped.get()) throw interrupted
         } finally {
+            running.set(null)
             stepping.remove()
             // A throw stops the actor, and still reaches the thread's own handler.
             if (!returned) {

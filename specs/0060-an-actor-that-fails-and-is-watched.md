@@ -76,16 +76,16 @@ express later by answering "continue with the state" if anyone asks for it.
 
 ## Stack
 
-- [ ] **`spec-0060-raise`** — `Behaviour<M, S, E>`, `Raise<E>` in the step,
+- [x] **`spec-0060-raise`** ([#117](https://github.com/matthewjones372/lark/pull/117)) — `Behaviour<M, S, E>`, `Raise<E>` in the step,
       `Failure<E>`. Done when: 0059's tests pass with no change but `, Nothing`
       on a written-out `Behaviour` type, and a `raise` stops the actor.
-- [ ] **`spec-0060-restart`** — `restart` on `spawn`, on the flock's `Clock`.
+- [x] **`spec-0060-restart`** ([#118](https://github.com/matthewjones372/lark/pull/118)) — `restart` on `spawn`, on the flock's `Clock`.
       Done when: a failing actor restarts on the schedule under `TestClock`, and
       its mailbox is intact.
-- [ ] **`spec-0060-watch`** — `Signal`, `onSignal`, `ctx.watch` and
+- [x] **`spec-0060-watch`** ([#119](https://github.com/matthewjones372/lark/pull/119)) — `Signal`, `onSignal`, `ctx.watch` and
       `Flock.watch`. Done when: a watcher hears `Terminated` exactly once, on
       both runtimes.
-- [ ] **`spec-0060-children`** — `ctx.spawn`, stop and restart order. Done when:
+- [x] **`spec-0060-children`** ([#120](https://github.com/matthewjones372/lark/pull/120)) — `ctx.spawn`, stop and restart order. Done when:
       a child's `Stopping` comes before its parent's.
 - [ ] **`spec-0060-interrupt`** — close interrupts a running step on virtual
       threads. Done when: a flock holding a step blocked forever closes.
