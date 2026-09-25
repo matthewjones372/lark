@@ -51,7 +51,7 @@ is where that claim is checked.
 | `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `LarkLocal`, `Clock`, the log | `arrow-core` |
 | `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` |
 | `lark-stream` | `Stream<E, A>` over Pekko Streams: the failure is in the type | `pekko-stream` |
-| `lark-kafka` | a Kafka subscription as a `Stream`, run by committing each offset once its record's work is done | `pekko-connectors-kafka` |
+| `lark-kafka` | a Kafka subscription as a `Stream`, run by committing each offset once its record's work is done, with a record that fails to decode as a value ([`docs/kafka.md`](docs/kafka.md)) | `pekko-connectors-kafka` |
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |

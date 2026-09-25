@@ -18,9 +18,13 @@ class CommittedCompileTest {
 
     /** Both packages imported, as a service using both writes them, so a clash between them would show. */
     private val preamble = """
+        import arrow.core.Either
         import io.github.matthewjones372.lark.kafka.Committed
+        import io.github.matthewjones372.lark.kafka.DecodeError
         import io.github.matthewjones372.lark.kafka.Kafka
         import io.github.matthewjones372.lark.kafka.Topic
+        import io.github.matthewjones372.lark.kafka.absolve
+        import io.github.matthewjones372.lark.kafka.divertLefts
         import io.github.matthewjones372.lark.kafka.filterRecord
         import io.github.matthewjones372.lark.kafka.mapConcatRecord
         import io.github.matthewjones372.lark.kafka.mapParRecord
@@ -28,6 +32,8 @@ class CommittedCompileTest {
         import io.github.matthewjones372.lark.kafka.mapRecord
         import io.github.matthewjones372.lark.kafka.mapRecordOrFail
         import io.github.matthewjones372.lark.stream.Stream
+        import io.github.matthewjones372.lark.stream.absolve
+        import io.github.matthewjones372.lark.stream.divertLefts
         import io.github.matthewjones372.lark.stream.filter
         import io.github.matthewjones372.lark.stream.from
         import io.github.matthewjones372.lark.stream.map
@@ -65,6 +71,22 @@ class CommittedCompileTest {
 
             // lark-stream's own, in the same file, on a stream that is not Kafka's.
             val plain: Stream<Nothing, Int> = Stream.from(listOf("a")).map { it.length }.filter { it > 0 }
+            """.trimIndent(),
+        )
+
+        withClue("errors: $errors") { errors.shouldBeEmpty() }
+        exit shouldBe ExitCode.OK
+    }
+
+    @Test
+    fun `divertLefts and absolve over Committed resolve beside lark-stream's own`() {
+        val (exit, errors) = compile(
+            """
+            fun routed(s: Stream<Nothing, Committed<Either<DecodeError, String>>>): Stream<Nothing, Committed<String>> =
+                s.divertLefts { error -> println(error.offset) }
+
+            fun strict(s: Stream<Nothing, Committed<Either<DecodeError, String>>>): Stream<DecodeError, Committed<String>> =
+                s.absolve()
             """.trimIndent(),
         )
 

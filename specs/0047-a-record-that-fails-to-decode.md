@@ -98,15 +98,15 @@ never written. A function run in the stream is ordered with it.
 
 ## Open questions
 
-1. **Does `transient` have a default?** Recommend no. The obvious default,
+1. **Does `transient` have a default?** Answered: no. The obvious default,
    "an `IOException` somewhere in the causes", misses Confluent's 5xx, which
    arrives as a `RestClientException`, and floods the dead-letter topic. Make
    the service name the rule, and put a Confluent recipe in `docs/`.
-2. **Does `DecodeError` keep the raw bytes?** Recommend yes. A dead letter
+2. **Does `DecodeError` keep the raw bytes?** Answered: yes. A dead letter
    without the payload cannot be replayed. The size is already bounded by the
    broker's record limit.
-3. **Is there one decoder for key and value, or two?** Recommend two, as in the
-   sketch. Keys are often strings when values are Avro, and `part` says which
+3. **Is there one decoder for key and value, or two?** Answered: two, as in
+   the sketch. Keys are often strings when values are Avro, and `part` says which
    one failed.
 4. **Should the petshop use Avro to prove this?** Recommend yes, with avro4k and
    a registry in Testcontainers. Checking whether avro4k works with
