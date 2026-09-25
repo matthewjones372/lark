@@ -12,6 +12,41 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## Runners and a leaner cell, 2026-09-26
+
+The same machine and settings, after spec [0064](../specs/0064-a-fan-out-that-keeps-up.md): woken actors share one
+runner per carrier instead of a thread each, a watcher adds runners while others are parked in blocking steps, and
+an actor's hot state lives in its cell. The raw results are in
+[`baseline/2026-09-26-jdk21-runners.json`](baseline/2026-09-26-jdk21-runners.json).
+
+| Row | Per | lark | Pekko |
+|---|---|---|---|
+| `TellBenchmark.*OneToOne`: 100,000 tells from one thread into one actor | message | 146 ± 25 ns, 28 B | 178 ± 19 ns, 48 B |
+| `TellBenchmark.*ManyToOne`: the same from eight virtual threads at once | message | 214 ± 13 ns, 26 B | 225 ± 9 ns, 48 B |
+| `PingPongBenchmark`: a rally of 100 hops between two actors, p50 | rally | 69 µs | 469 µs |
+| `PingPongBenchmark`: the same, p99 | rally | 139 µs | 638 µs |
+| `FanOutBenchmark`: one message to each of 10,000 idle actors | fan-out | 2.72 ± 0.35 ms, 83 B an actor | 3.52 ± 0.21 ms, 50 B an actor |
+| `BlockingBenchmark`: 100 actors × 10 steps that block 1 ms | burst | 12.2 ± 0.2 ms | 69.4 ± 0.2 ms on its blocking dispatcher, 142.6 ± 0.9 ms on the default |
+| `footprint`: 100,000 actors, each run once and left idle | actor | 598 B | 1,060 B |
+
+What the rows say:
+
+- **lark leads on every row.** Fan-out, the one row Pekko led, is now 23% faster than Pekko's, from 20% slower.
+- **A thread per wake could only ever tie Pekko.** 10,000 bare virtual threads, each counting down a latch, take
+  3.44 ms, the same as Pekko's fan-out; 10,000 bare `ForkJoinPool` tasks take 1.11 ms. Runners make a wake a queue
+  offer: a runner that runs out of work spins 10 µs and leaves, so nothing ever has to wake one.
+- **The flock-wide count of activations cost a tell 60 ns** in a fan-out, since every wake and every runner wrote
+  it. On virtual threads the runners now say when the flock is idle instead.
+- **Blocking is unchanged** because a runner parked in a step does not count as able to run: while fewer than one
+  per carrier can, the watcher starts more, doubling each 50 µs tick the shortfall lasts. Growing on progress
+  instead took blocking to 30 ms, since each new runner took one actor and looked like progress.
+- **Ping-pong improved** (91 to 58–72 µs across runs) because a reply's wake lands on a runner that is already
+  spinning, rather than a new thread.
+- **An idle actor is a third smaller** (787 to 598 B): the mailbox, the room left in it and the flags are fields of
+  the cell, not objects of their own.
+- **The tell to a cold actor is still slower than Pekko's**, about 180 ns against 130 ns in a probe that times the
+  tells apart from the actors; the fan-out wins because the actors finish sooner. That is the next thing to take.
+
 ## With the linger, 2026-09-25
 
 The same machine and settings, after spec 0059's linger entry: an activation that told another actor spins for
