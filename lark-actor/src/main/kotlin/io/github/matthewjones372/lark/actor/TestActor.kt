@@ -64,8 +64,13 @@ class TestActors internal constructor(private val clock: Clock = fixedClock()) {
     }
 
     /** A timer [delay] from now, waiting for [advance] when that is later, and on the queue now otherwise. */
-    internal fun schedule(to: TestActor<*, *, *>, key: Any, delay: Duration, message: Any): TestTimer =
-        TestTimer(time.get() + delay, incarnations.incrementAndGet(), to, key, message)
+    internal fun schedule(
+        to: TestActor<*, *, *>,
+        key: Any,
+        delay: Duration,
+        message: Any,
+        every: Duration? = null,
+    ): TestTimer = TestTimer(time.get() + delay, incarnations.incrementAndGet(), to, key, message, every)
 
     internal fun start(timer: TestTimer) {
         if (timer.at > time.get()) timers.updateAndGet { (it + timer).sortedWith(order) } else post(timer.to, timer)
@@ -130,6 +135,7 @@ class TestActor<M : Any, S, E> internal constructor(
         val ended: Boolean = false,
         val children: List<TestActor<*, *, *>> = emptyList(),
         val timers: Map<Any, TestTimer> = emptyMap(),
+        val silence: Silence? = null,
     )
 
     private val run =
@@ -141,16 +147,24 @@ class TestActor<M : Any, S, E> internal constructor(
         override val self = this@TestActor
 
         override val timers = object : Timers<M> {
-            override fun after(key: Any, delay: Duration, message: M) {
-                cancel(key)
-                val timer = scope.schedule(this@TestActor, key, delay, message)
-                run.updateAndGet { it.copy(timers = it.timers + (key to timer)) }
-                scope.start(timer)
+            override fun after(key: Any, delay: Duration, message: M) = start(key, delay, message, null)
+
+            override fun every(key: Any, interval: Duration, message: M) {
+                require(interval.isPositive()) { "a periodic timer needs a positive interval, was $interval" }
+                start(key, interval, message, interval)
             }
 
-            override fun cancel(key: Any) {
-                run.getAndUpdate { it.copy(timers = it.timers - key) }.timers[key]?.let(scope::unschedule)
-            }
+            override fun cancel(key: Any) = this@TestActor.cancel(key)
+        }
+
+        override fun receiveTimeout(after: Duration, message: M) {
+            run.updateAndGet { it.copy(silence = Silence(after, message)) }
+            start(ReceiveTimeoutKey, after, message, null)
+        }
+
+        override fun receiveTimeout(off: Nothing?) {
+            run.updateAndGet { it.copy(silence = null) }
+            cancel(ReceiveTimeoutKey)
         }
 
         override fun watch(ref: ActorRef<*>) =
@@ -222,8 +236,13 @@ class TestActor<M : Any, S, E> internal constructor(
             @Suppress("UNCHECKED_CAST")
             when (item) {
                 is TestSignalled -> signalled(item.signal)
+
                 is TestTimer -> timed(item)
-                else -> stepped(item as M)
+
+                else -> {
+                    stepped(item as M)
+                    heard()
+                }
             }
         } finally {
             if (stopped) ended()
@@ -235,16 +254,43 @@ class TestActor<M : Any, S, E> internal constructor(
         run.updateAndGet { after(it, next, message) }
     }
 
-    /** Only the timer still running under its key is handled: one cancelled or replaced since is dropped. */
+    private fun start(key: Any, delay: Duration, message: Any, every: Duration?) {
+        cancel(key)
+        val timer = scope.schedule(this, key, delay, message, every)
+        run.updateAndGet { it.copy(timers = it.timers + (key to timer)) }
+        scope.start(timer)
+    }
+
+    private fun cancel(key: Any) {
+        run.getAndUpdate { it.copy(timers = it.timers - key) }.timers[key]?.let(scope::unschedule)
+    }
+
+    /**
+     * Only the timer still running under its key is handled: one cancelled or replaced since is dropped. Unless the
+     * step cancelled or replaced it, a periodic one then starts again from now, and any other is done.
+     */
     private fun timed(timer: TestTimer) {
         if (run.get().timers[timer.key] !== timer) return
-        run.updateAndGet { it.copy(timers = it.timers - timer.key) }
         @Suppress("UNCHECKED_CAST")
         stepped(timer.message as M)
+        if (run.get().timers[timer.key] === timer) {
+            val every = timer.every
+            if (every == null) {
+                run.updateAndGet { it.copy(timers = it.timers - timer.key) }
+            } else {
+                start(timer.key, every, timer.message, every)
+            }
+        }
+        if (timer.key !== ReceiveTimeoutKey) heard()
+    }
+
+    /** A message was handled, so the silence the receive timeout waits for starts again. */
+    private fun heard() {
+        run.get().silence?.let { start(ReceiveTimeoutKey, it.after, it.message, null) }
     }
 
     private fun cancelTimers() {
-        run.getAndUpdate { it.copy(timers = emptyMap()) }.timers.values.forEach(scope::unschedule)
+        run.getAndUpdate { it.copy(timers = emptyMap(), silence = null) }.timers.values.forEach(scope::unschedule)
     }
 
     private fun signalled(signal: Signal) {
@@ -331,7 +377,14 @@ class TestActor<M : Any, S, E> internal constructor(
 }
 
 /** A timer in the test's own time: also what goes on the queue once it falls due. */
-internal class TestTimer(val at: Duration, val seq: Long, val to: TestActor<*, *, *>, val key: Any, val message: Any)
+internal class TestTimer(
+    val at: Duration,
+    val seq: Long,
+    val to: TestActor<*, *, *>,
+    val key: Any,
+    val message: Any,
+    val every: Duration? = null,
+)
 
 /** A signal on its way through the test's queue. */
 private class TestSignalled(val signal: Signal)

@@ -15,10 +15,24 @@ internal fun interface Fired {
 }
 
 /**
- * One timer: its message, due [at], for [to] under [key]. It is also what travels through the mailbox, so that the
- * actor can tell the timer it is running under that key from one cancelled or replaced since.
+ * One timer: its message, due [at], for [to] under [key], and again [every] after it is handled when periodic. It is
+ * also what travels through the mailbox, so that the actor can tell the timer it is running under that key from one
+ * cancelled or replaced since.
  */
-internal class Timer(val at: Instant, val seq: Long, val key: Any, val message: Any, val to: Fired)
+internal class Timer(
+    val at: Instant,
+    val seq: Long,
+    val key: Any,
+    val message: Any,
+    val to: Fired,
+    val every: Duration? = null,
+)
+
+/** The key a receive timeout runs under, which no actor's own key can equal. */
+internal object ReceiveTimeoutKey
+
+/** A receive timeout: [message], once nothing has arrived for [after]. */
+internal class Silence(val after: Duration, val message: Any)
 
 /**
  * Every timer of one flock's actors, on the flock's clock. On a [TestClock] the clock's moves deliver them, each
@@ -39,10 +53,10 @@ internal class Wheel(private val clock: Clock, private val idle: () -> Unit) : T
     private val moves: AutoCloseable? = (clock as? TestClock)?.register(this)
 
     /** Starts a timer [delay] from now, and returns it so that it can be cancelled. */
-    fun schedule(delay: Duration, key: Any, message: Any, to: Fired): Timer {
+    fun schedule(delay: Duration, key: Any, message: Any, to: Fired, every: Duration? = null): Timer {
         val at = clock.now().plusNanos(delay.inWholeNanoseconds)
         return lock.withLock {
-            val timer = Timer(at, seq++, key, message, to)
+            val timer = Timer(at, seq++, key, message, to, every)
             due += timer
             if (due.first() === timer) wake()
             timer
