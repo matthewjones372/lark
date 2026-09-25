@@ -408,19 +408,31 @@ class TestActor<M : Any, S, E> internal constructor(
         run.get().silence?.let { start(ReceiveTimeoutKey, it.after, it.message, null) }
     }
 
-    /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
     // Whether the behaviour's start is to run again, after a restart.
     private val starting = AtomicBoolean(false)
 
     private fun started() {
         starting.set(false)
         val start = behaviour.start ?: return
-        supervised {
-            start(ctx)
-            Next.Stay
-        }
+        val next = supervised { start(this, ctx, state) } ?: return
+        run.updateAndGet { after(it, next, null) }
+        settled(next)
     }
 
+    /**
+     * Restarts the actor as a failure its schedule restarts would, whatever the schedule: its children stop, its
+     * timers, stash and registrations go, its state is the initial one again, and its start runs again.
+     */
+    fun restart() {
+        check(!stopped) { "${address.path} has stopped, so it cannot be restarted" }
+        stopChildren()
+        letGo()
+        run.updateAndGet { it.copy(state = behaviour.initial) }
+        started()
+        if (stopped) ended()
+    }
+
+    /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
     private fun letGo() {
         scope.receptionist.forget(this)
         stashed.set(null)

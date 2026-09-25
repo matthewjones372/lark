@@ -62,7 +62,7 @@ testActors {
     val rex = spawn("rex", pet("rex"))
     rex.send(Feed(50))
     rex.restart()                                   // recovers from the journal
-    rex.state shouldBe Pet.Fed(grams = 50)
+    rex.state shouldBe Remembered(Pet.Fed(grams = 50), sequence = 1)
     journal.events(PersistenceId("pet", "rex")) shouldBe listOf(Fed(50))
 }
 ```
@@ -79,7 +79,11 @@ testActors {
   a second spawn of the same behaviour each start with none. An entity's full
   mailbox fails the manager's step, as any tell from inside an actor does.
 - **Persistent behaviours.** `persistent(id, empty, codec, command, event)` is
-  a `Behaviour<M, S, E>` like any other. On start it replays its events from
+  a `Behaviour<M, Remembered<S>, JournalConflict>` like any other: its state is
+  the value its events built and the sequence number of the last, and a
+  conflicting append is its declared failure. Recovery is its start, which is
+  now a step with no message that may set the state; `onStart` adds to a start
+  rather than replacing it. On start it replays its events from
   the flock's journal through `event` before its first command; commands that
   arrive meanwhile wait. A command answers an `Effect`: `persist(events…)`,
   `none()`, `unhandled()` or `stop()`, and `.then { state -> }` runs after
@@ -117,11 +121,11 @@ entity and every journal.
       Done when: one id is one actor, two ids are two, and an idle entity
       stops and comes back on its next message without losing one sent while
       it stopped, on both runtimes.
-- [ ] **`spec-0063-journal`** — `Journal`, `InMemoryJournal`, `EventCodec`,
+- [x] **`spec-0063-journal`** ([#139](https://github.com/matthewjones372/lark/pull/139)) — `Journal`, `InMemoryJournal`, `EventCodec`,
       `Flock.journal` and the test kit's `journal`. Done when: an append with
       the wrong expected sequence number is a `Conflict`, and a read answers
       what was appended, in order.
-- [ ] **`spec-0063-persistent`** — `persistent`, `Effect`, recovery, and
+- [x] **`spec-0063-persistent`** — `persistent`, `Effect`, recovery, and
       `TestActor.restart()`. Done when: an actor restarted, or passivated and
       started again, comes back with the state its events built, on both
       runtimes, and a command sent during recovery is handled after it.
