@@ -60,7 +60,7 @@ class ReadmeExampleTest {
     /** The build hands the root over, so the pages read here are the ones the repository ships. */
     private fun page(name: String): File {
         val root = System.getProperty("lark.stream.repoRoot")
-        withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream/build.gradle.kts") {
+        withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream-pekko/build.gradle.kts") {
             root.shouldNotBeNull()
         }
         return File(root!!, name)

@@ -1,0 +1,20 @@
+flowchart TD
+    n0["Stream.from"]
+    n1["map · RenderPipelines.kt:40"]
+    n2["Stream.from"]
+    n3["filter · RenderPipelines.kt:41"]
+    n4["take(1)"]
+    n5["merge"]
+    n6["Stream.from"]
+    n7["zipWith · RenderPipelines.kt:42"]
+    n8["map · RenderPipelines.kt:43"]
+    n0 --> n1
+    n2 --> n3
+    n3 --> n4
+    n1 --> n5
+    n4 --> n5
+    n5 --> n7
+    n6 --> n7
+    n7 --> n8
+    run["runCollect"]
+    n8 --> run

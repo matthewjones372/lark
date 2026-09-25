@@ -62,7 +62,7 @@ exceptions:
     # releases after it, so its throw is caught and suppressed onto the failure.
     # Retry.kt is the third: a Schedule<Throwable, *> is asked about whatever the
     # action threw, and `nonFatalOrThrow` puts back what must not be retried.
-    # MapPar.kt is the fourth: an element body that ended its thread with a throw
+    # MapParStage.kt is the fourth: an element body that ended its thread with a throw
     # would leave `mapAsync` waiting on a stage nobody is left to complete.
     # Defect.kt is the fifth: the one guard every stream operator runs caller code
     # through catches whatever the caller did not declare, names it and rethrows it.
@@ -70,7 +70,7 @@ exceptions:
     # it, and a span that ends Ok on a failure is worse than no span at all.
     # Outcome.kt is the seventh: a lark-structured fork holds whatever its body
     # did until it is awaited, as a flock's does.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapPar.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt']
+    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt']
   SwallowedException:
     excludes: ['**/test/**']
 

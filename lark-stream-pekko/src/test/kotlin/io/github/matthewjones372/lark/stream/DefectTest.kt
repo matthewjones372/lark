@@ -79,10 +79,10 @@ class DefectTest {
     /** The build hands the root over, so the file read here is the one this test was compiled from. */
     private fun source(): File {
         val root = System.getProperty("lark.stream.repoRoot")
-        withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream/build.gradle.kts") {
+        withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream-pekko/build.gradle.kts") {
             root.shouldNotBeNull()
         }
-        return File(root!!, "lark-stream/src/test/kotlin/io/github/matthewjones372/lark/stream/DefectTest.kt")
+        return File(root!!, "lark-stream-pekko/src/test/kotlin/io/github/matthewjones372/lark/stream/DefectTest.kt")
     }
 
     /** Where a marked call sits, read out of this file rather than written down as a number that moves. */
