@@ -60,7 +60,7 @@ class Failing<in E> internal constructor() : Raise<E> {
  * here. One signature rather than two: a second over `Source<A, NotUsed>` would erase to this one.
  */
 fun <A : Any> Stream.Companion.from(source: Source<A, *>): Stream<Nothing, A> =
-    Stream(Node.Native(source.mapMaterializedValue { NotUsed.getInstance() }, Pekko))
+    Stream(Node.Native(source.mapMaterializedValue { NotUsed.getInstance() }, Pekko, "Stream.from", buildSite()))
 
 fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Node.Elements(elements))
 

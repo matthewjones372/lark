@@ -18,49 +18,48 @@ class Run<out E, out R> @StreamSpi constructor(
 }
 
 /**
- * A run in progress: the [exit] `run` would have answered, and a way to end it.
- *
- * `AutoCloseable` so that a graph node's release is `Running::close`.
- */
-class Running<out E, out R> internal constructor(
-    private val switch: UniqueKillSwitch,
-    // Unsafe variance for Run's reason: a stage is only ever read from.
-    val exit: CompletionStage<Exit<@UnsafeVariance E, @UnsafeVariance R>>,
-) : AutoCloseable {
-
-    /**
-     * Ends the run now: downstream completes and upstream is cancelled, so the exit is `Done` with
-     * whatever the sink had. What was between stages is dropped. On a run that already ended, nothing.
-     */
-    fun stop() = switch.shutdown()
-
-    /** [stop], then wait for the exit, so whatever the run used is still there until it has let go. */
-    override fun close() {
-        stop()
-        exit.await()
-    }
-}
-
-/**
  * A run described, to the sink named: the sink's materialised value is the run's.
  *
  * A materialised value that is not a `CompletionStage` is refused at the type: [run] would have nothing to wait on.
  */
 fun <E, A : Any, M : Any> Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M> =
-    Run(node, End.Native(sink, Pekko))
+    Run(node, End.Native(sink, Pekko, "runWith", buildSite()))
 
 fun <E, A : Any> Stream<E, A>.runCollect(): Run<E, List<A>> = Run(node, End.Collect)
 
 fun <E, A : Any, R : Any> Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R> =
     Run(node, End.Fold(zero, f.erased()))
 
-fun <E, R : Any> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> =
-    started(system).second
+/** Pekko Streams on [system], the backend lark-stream started on. */
+class PekkoStreams(private val system: ClassicActorSystemProvider) : StreamBackend {
 
-/** The run materialised, as [run] does, with the handle that can end it before it ends itself. */
-fun <E, R : Any> Run<E, R>.start(system: ClassicActorSystemProvider): Running<E, R> {
-    val (switch, exit) = started(system)
-    return Running(switch, exit)
+    @StreamSpi
+    override val key: BackendKey get() = Pekko
+
+    @StreamSpi
+    override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {
+        val (switch, exit) = run.started(system)
+        return PekkoRunning(switch, exit)
+    }
+}
+
+/** [run] on [PekkoStreams], which is what naming a system has always meant. */
+fun <E, R : Any> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> =
+    run(PekkoStreams(system))
+
+fun <E, R : Any> Run<E, R>.start(system: ClassicActorSystemProvider): Running<E, R> = start(PekkoStreams(system))
+
+private class PekkoRunning<E, R>(
+    private val switch: UniqueKillSwitch,
+    override val exit: CompletionStage<Exit<E, R>>,
+) : Running<E, R> {
+
+    override fun stop() = switch.shutdown()
+
+    override fun close() {
+        stop()
+        exit.await()
+    }
 }
 
 private fun <E, R : Any> Run<E, R>.started(

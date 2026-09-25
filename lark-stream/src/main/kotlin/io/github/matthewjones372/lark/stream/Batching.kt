@@ -34,7 +34,7 @@ fun <E, A : Any> Stream<E, A>.groupedWithin(n: Int, within: Duration): Stream<E,
 
 /** Room for [size] elements between a fast producer and a slow consumer, and what to do when it fills. */
 fun <A : Any> Pipe.Companion.buffer(size: Int, strategy: OverflowStrategy): Pipe<Nothing, A, A> =
-    Pipe(Node.Stage(Node.Hole, Flow.create<A>().buffer(size, strategy), Pekko))
+    Pipe(Node.Stage(Node.Hole, Flow.create<A>().buffer(size, strategy), Pekko, "buffer", buildSite()))
 
 fun <E, In, Out : Any> Pipe<E, In, Out>.buffer(size: Int, strategy: OverflowStrategy): Pipe<E, In, Out> =
     via(Pipe.buffer(size, strategy))

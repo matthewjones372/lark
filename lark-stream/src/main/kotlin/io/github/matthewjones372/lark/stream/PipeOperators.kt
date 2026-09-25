@@ -62,9 +62,10 @@ fun <E, In, L : E, R : Any> Pipe<E, In, Either<L, R>>.absolve(): Pipe<E, In, R> 
 fun <L : Any, R : Any> Pipe.Companion.divertLefts(to: Sink<L, *>): Pipe<Nothing, Either<L, R>, R> {
     // Flipped, so that both branches read their element through the one fold `decided` is.
     val lefts = Flow.fromFunction<Either<L, R>, L> { either -> either.swap().decided() }.to(to)
-    val right = guarded("divertLefts", buildSite()) { either: Either<L, R> -> either.decided() }
+    val at = buildSite()
+    val right = guarded("divertLefts", at) { either: Either<L, R> -> either.decided() }
     val flow = Flow.create<Either<L, R>>().divertTo(lefts) { either -> either.isLeft() }.map { either -> right(either) }
-    return Pipe(Node.Stage(Node.Hole, flow, Pekko))
+    return Pipe(Node.Stage(Node.Hole, flow, Pekko, "divertLefts", at))
 }
 
 fun <E, In, L : Any, R : Any> Pipe<E, In, Either<L, R>>.divertLefts(to: Sink<L, *>): Pipe<E, In, R> =

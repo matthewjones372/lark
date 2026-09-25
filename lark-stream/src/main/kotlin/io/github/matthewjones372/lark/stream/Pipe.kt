@@ -20,7 +20,7 @@ class Pipe<out E, in In, out Out : Any> @StreamSpi constructor(@property:StreamS
 }
 
 fun <In, Out : Any> Pipe.Companion.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out> =
-    Pipe(Node.Stage(Node.Hole, flow, Pekko))
+    Pipe(Node.Stage(Node.Hole, flow, Pekko, "Pipe.from", buildSite()))
 
 /** The pipe that changes nothing, which is where a chain of operators starts. */
 fun <A : Any> Pipe.Companion.identity(): Pipe<Nothing, A, A> = Pipe(Node.Hole)

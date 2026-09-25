@@ -19,7 +19,12 @@ import kotlin.time.Duration
 sealed interface Node {
 
     /** A source only [owner] can run, such as a Pekko `Source` a caller handed over. */
-    class Native(val value: Any, val owner: BackendKey) : StreamOnly
+    class Native(
+        val value: Any,
+        override val owner: BackendKey,
+        override val builder: String,
+        override val at: String,
+    ) : StreamOnly, Owned
 
     class Elements(val elements: Iterable<Any>) : StreamOnly
 
@@ -70,7 +75,13 @@ sealed interface Node {
     }
 
     /** A stage only [owner] can run, such as a Pekko `Flow` a caller handed over. */
-    data class Stage(override val upstream: Node, val value: Any, val owner: BackendKey) : Unary {
+    data class Stage(
+        override val upstream: Node,
+        val value: Any,
+        override val owner: BackendKey,
+        override val builder: String,
+        override val at: String,
+    ) : Unary, Owned {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
@@ -221,8 +232,43 @@ sealed interface End {
     class Fold(val zero: Any, val f: (Any, Any) -> Any) : End
 
     /** A sink only [owner] can run, such as a Pekko `Sink` a caller handed over. */
-    class Native(val value: Any, val owner: BackendKey) : End
+    class Native(
+        val value: Any,
+        override val owner: BackendKey,
+        override val builder: String,
+        override val at: String,
+    ) : End, Owned
 }
+
+/** A value only one backend can run, and what a refusal says about it: the builder and the caller's line. */
+@StreamSpi
+interface Owned {
+    val owner: BackendKey
+    val builder: String
+    val at: String
+}
+
+/** The nodes this one reads from, in the order its elements come from them. */
+internal fun Node.children(): List<Node> =
+    when (this) {
+        is Node.Unary -> listOf(upstream)
+
+        is Node.Merge -> listOf(upstream, other)
+
+        is Node.Interleave -> listOf(upstream, other)
+
+        is Node.ZipWith -> listOf(upstream, other)
+
+        is Node.Prepend -> listOf(first, upstream)
+
+        is Node.Concat -> listOf(upstream, next)
+
+        is Node.RestartOnDefect -> listOf(upstream)
+
+        is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail,
+        Node.Empty, Node.Hole,
+        -> emptyList()
+    }
 
 /** A typed caller function as a node holds it. Erasure makes this a no-op; the stream's types say what comes out. */
 @Suppress("UNCHECKED_CAST")
