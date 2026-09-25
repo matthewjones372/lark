@@ -71,6 +71,14 @@ fun <E> Flock<E>.onDeadLetter(handler: (DeadLetter) -> Unit) {
     guardian().deadLetters = handler
 }
 
+/** Keeps this flock's actors' events in [journal]. */
+fun <E> Flock<E>.journal(journal: Journal) {
+    guardian().journal = journal
+}
+
+/** The journal this flock's actors keep their events in; it fails when the flock has been given none. */
+fun <E> Flock<E>.journal(): Journal = guardian().journalOrFail()
+
 /** This flock's guardian, standing from the first call. */
 private fun Flock<*>.guardian(): Guardian =
     // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
@@ -221,6 +229,11 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     val receptionist = Receptionist()
 
     @Volatile
+    var journal: Journal? = null
+
+    fun journalOrFail(): Journal = checkNotNull(journal) { "no journal: give the flock one with journal(…)" }
+
+    @Volatile
     var deadLetters: (DeadLetter) -> Unit = { letter -> logDebug("dead letter: $letter") }
 
     fun stand() {
@@ -260,6 +273,8 @@ private class Cell<M : Any, S, E>(
     override val self: ActorRef<M> get() = this
 
     override val timers: Timers<M> get() = this
+
+    override val journal: Journal get() = guardian.journalOrFail()
 
     // Messages, and signals wrapped in Signalled so that no message type can be taken for one.
     // The mailbox is the cell itself (see Mailbox). The room left in it, and whether an activation holds the actor,

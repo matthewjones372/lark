@@ -26,6 +26,9 @@ interface Ctx<M : Any> {
     /** Messages this actor sends itself later, each under a key; a stop or a restart cancels them all. */
     val timers: Timers<M>
 
+    /** Where this actor's flock keeps events; it fails when the flock has been given none. */
+    val journal: Journal
+
     /**
      * Tells this actor [message] once nothing has arrived for [after], and again only after the next message: once
      * per silence. Any message resets it, a timer's included; a restart turns it off.

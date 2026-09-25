@@ -113,7 +113,7 @@ entity and every journal.
 
 ## Stack
 
-- [ ] **`spec-0063-entities`** — `entities`, `entity(id)`, passivation.
+- [x] **`spec-0063-entities`** ([#138](https://github.com/matthewjones372/lark/pull/138)) — `entities`, `entity(id)`, passivation.
       Done when: one id is one actor, two ids are two, and an idle entity
       stops and comes back on its next message without losing one sent while
       it stopped, on both runtimes.
