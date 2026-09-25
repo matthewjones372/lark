@@ -218,6 +218,42 @@ private class Cell<M : Any, S, E>(
     // The receive timeout, when one is on. Like the timers, only this actor's activation or its end touches it.
     private var silence: Silence? = null
 
+    // The timers of the state the actor is in, and those of a `ctx.become` in the step now running, which are the
+    // state's only if the step returns it.
+    private var scoped: Scope? = null
+    private var asked: Scope? = null
+
+    override fun <T> become(state: T, timers: StateTimers<M>.() -> Unit): Next<T> {
+        asked?.let(::drop)
+        asked = scope(state, timers, ::start)
+        return Next.Become(state)
+    }
+
+    /** The step returned [next]: timers it asked for are the new state's if it is theirs, and cancelled if not. */
+    private fun settled(next: Next<S>) {
+        val asking = asked.also { asked = null }
+        val becoming = (next as? Next.Become<S>)?.state
+        val current = scoped
+        when {
+            next !is Next.Become -> asking?.let(::drop)
+
+            asking != null && asking.state === becoming -> {
+                current?.let(::drop)
+                scoped = asking
+            }
+
+            else -> {
+                asking?.let(::drop)
+                if (current != null && current.endsAt(becoming)) {
+                    drop(current)
+                    scoped = null
+                }
+            }
+        }
+    }
+
+    private fun drop(scope: Scope) = scope.keys.forEach(::cancel)
+
     override fun after(key: Any, delay: Duration, message: M) = start(key, delay, message, null)
 
     override fun every(key: Any, interval: Duration, message: M) {
@@ -282,6 +318,8 @@ private class Cell<M : Any, S, E>(
         armed?.values?.forEach(wheel::cancel)
         armed = null
         silence = null
+        scoped = null
+        asked = null
     }
 
     override fun <C : Any, T, F> spawn(
@@ -477,6 +515,7 @@ private class Cell<M : Any, S, E>(
             is Next.Become -> state.set(next.state)
             Next.Stop -> stopped.set(true)
         }
+        settled(next)
         drain(left - 1)
     }
 

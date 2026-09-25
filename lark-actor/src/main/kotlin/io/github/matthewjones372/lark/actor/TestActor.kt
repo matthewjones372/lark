@@ -136,6 +136,8 @@ class TestActor<M : Any, S, E> internal constructor(
         val children: List<TestActor<*, *, *>> = emptyList(),
         val timers: Map<Any, TestTimer> = emptyMap(),
         val silence: Silence? = null,
+        val scoped: Scope? = null,
+        val asked: Scope? = null,
     )
 
     private val run =
@@ -165,6 +167,13 @@ class TestActor<M : Any, S, E> internal constructor(
         override fun receiveTimeout(off: Nothing?) {
             run.updateAndGet { it.copy(silence = null) }
             cancel(ReceiveTimeoutKey)
+        }
+
+        override fun <T> become(state: T, timers: StateTimers<M>.() -> Unit): Next<T> {
+            run.get().asked?.let(::drop)
+            val asked = scope(state, timers, ::start)
+            run.updateAndGet { it.copy(asked = asked) }
+            return Next.Become(state)
         }
 
         override fun watch(ref: ActorRef<*>) =
@@ -252,6 +261,7 @@ class TestActor<M : Any, S, E> internal constructor(
     private fun stepped(message: M) {
         val next = supervised { behaviour.step(this, ctx, state, message) } ?: return
         run.updateAndGet { after(it, next, message) }
+        settled(next)
     }
 
     private fun start(key: Any, delay: Duration, message: Any, every: Duration?) {
@@ -284,13 +294,41 @@ class TestActor<M : Any, S, E> internal constructor(
         if (timer.key !== ReceiveTimeoutKey) heard()
     }
 
+    /** The step returned [next]: timers it asked for are the new state's if it is theirs, and cancelled if not. */
+    private fun settled(next: Next<S>) {
+        val before = run.getAndUpdate { it.copy(asked = null) }
+        val asking = before.asked
+        val becoming = (next as? Next.Become<S>)?.state
+        val current = before.scoped
+        when {
+            next !is Next.Become -> asking?.let(::drop)
+
+            asking != null && asking.state === becoming -> {
+                current?.let(::drop)
+                run.updateAndGet { it.copy(scoped = asking) }
+            }
+
+            else -> {
+                asking?.let(::drop)
+                if (current != null && current.endsAt(becoming)) {
+                    drop(current)
+                    run.updateAndGet { it.copy(scoped = null) }
+                }
+            }
+        }
+    }
+
+    private fun drop(scope: Scope) = scope.keys.forEach(::cancel)
+
     /** A message was handled, so the silence the receive timeout waits for starts again. */
     private fun heard() {
         run.get().silence?.let { start(ReceiveTimeoutKey, it.after, it.message, null) }
     }
 
     private fun cancelTimers() {
-        run.getAndUpdate { it.copy(timers = emptyMap(), silence = null) }.timers.values.forEach(scope::unschedule)
+        run.getAndUpdate {
+            it.copy(timers = emptyMap(), silence = null, scoped = null, asked = null)
+        }.timers.values.forEach(scope::unschedule)
     }
 
     private fun signalled(signal: Signal) {
@@ -298,6 +336,7 @@ class TestActor<M : Any, S, E> internal constructor(
         val handler = behaviour.signal ?: return
         val next = supervised { handler(this, ctx, state, signal) } ?: return
         run.updateAndGet { after(it, next, null) }
+        settled(next)
     }
 
     /**

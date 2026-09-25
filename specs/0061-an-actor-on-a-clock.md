@@ -26,7 +26,7 @@ actor in a state that cannot take a message yet, a `Connecting` that is sent a
 val adoption = behaviour<Adoption, Stage>(Open) { ctx, stage, message ->
     when (stage) {
         Open -> when (message) {
-            is Approve -> become(Approved(message.applicant)) {        // timers that belong to this state
+            is Approve -> ctx.become(Approved(message.applicant)) {        // timers that belong to this state
                 after(5.days, Remind)
                 after(7.days, Lapse)
             }
@@ -55,9 +55,11 @@ adoption.pendingTimers shouldBe 1   // Lapse, still two days off
   timer never arrives, even one already in the mailbox. `every` is a fixed
   delay, measured from when the last one was handled, so a slow actor is never
   sent a burst of catch-up messages.
-- **Timers that belong to a state.** `become(state) { after(delay, message) }`
+- **Timers that belong to a state.** `ctx.become(state) { after(delay, message) }`
   starts timers that end when the actor next becomes a state of another class.
-  A `copy` of the same state, with a new field, keeps them.
+  A `copy` of the same state, with a new field, keeps them; becoming a state
+  with timers again replaces the ones it had. It is on `ctx`, so the timers'
+  messages are typed as the actor's own.
 - **Receive timeout.** `ctx.receiveTimeout(duration, message)` tells the actor
   `message` when nothing else has arrived for `duration`; any message resets it,
   `null` turns it off. It is a message of the actor's own type, handled in the
@@ -89,9 +91,9 @@ nobody cancelled; the keyed form stays for a timer that spans states.
 - [x] **`spec-0061-timers`** ([#124](https://github.com/matthewjones372/lark/pull/124)) — `after`, `cancel`, keys, the flock's timer
       thread, `advance` and `pendingTimers`. Done when: a cancelled timer's
       message never arrives, on both runtimes, under `TestClock` on threads.
-- [ ] **`spec-0061-periodic`** — `every` and `receiveTimeout`. Done when: an
+- [x] **`spec-0061-periodic`** ([#125](https://github.com/matthewjones372/lark/pull/125)) — `every` and `receiveTimeout`. Done when: an
       idle actor hears its timeout once per silence, and a message resets it.
-- [ ] **`spec-0061-scoped`** — `become(state) { … }`. Done when: leaving the
+- [ ] **`spec-0061-scoped`** — `ctx.become(state) { … }`. Done when: leaving the
       state cancels its timers, and a copy of the same state keeps them.
 - [ ] **`spec-0061-stash`** — `stash`, `unstashAll`, the bound. Done when:
       unstashed messages are handled before the mailbox, in the order kept.
