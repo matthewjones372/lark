@@ -200,6 +200,11 @@ sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
+    /** Adjacent element-at-a-time operators merged by [fused]: one stage a backend runs, [steps] in order. */
+    data class Fused(override val upstream: Node, val steps: List<Step>) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
     /** `S` may be nullable, which is why the state is `Any?` where every element is `Any`. */
     data class StatefulMap(
         override val upstream: Node,
@@ -287,6 +292,8 @@ val Node.operator: String
 
         is Node.Conflate -> "conflateWithSeed"
 
+        is Node.Fused -> steps.joinToString(prefix = "fused[", postfix = "]") { it.operator }
+
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin,
         is Node.Scan, is Node.StatefulMap, is Node.MapConcat, is Node.MapAsync, is Node.Either, is Node.Absolve,
@@ -331,6 +338,8 @@ val Node.site: String?
         is Node.MapPar -> at
 
         is Node.ZipWith -> at
+
+        is Node.Fused -> steps.first().at
 
         is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty, Node.Hole,
         is Node.Merge, is Node.Interleave, is Node.Prepend, is Node.Concat, is Node.RestartOnDefect,

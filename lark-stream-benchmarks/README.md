@@ -56,3 +56,19 @@ per-run rows, 2 forks each. Raw results are in
   a compiled stream (0047) can remove.
 - A run on Forks starts one virtual thread and nothing else, where Pekko materialises a
   graph.
+
+## Fused, 2026-09-25
+
+After spec 0047's `spec-0047-fuse`: adjacent `map`, `mapOrFail`, `filter` and `filterNot`
+compile to one stage. Raw results are in
+[`baseline/2026-09-25-jdk21-fused.json`](baseline/2026-09-25-jdk21-fused.json).
+
+| Row | Per | 0046 baseline | Fused |
+|---|---|---|---|
+| `ChainBenchmark.lark` | element | 149.5 ± 10.9 ns | 91.1 ± 8.3 ns (−39%) |
+| `ChainBenchmark.pekko`, hand-written, unguarded | element | 130.2 ± 6.6 ns | 135.7 ± 6.2 ns |
+| `ChainBenchmark.forks` | element | 28.9 ± 4.0 ns | 29.9 ± 2.8 ns |
+
+The described chain on Pekko is now a third faster than the same five stages written
+against Pekko by hand, because it is one stage where they are five. On Forks the stages
+were already calls in one loop, so fusing changes nothing measurable there.

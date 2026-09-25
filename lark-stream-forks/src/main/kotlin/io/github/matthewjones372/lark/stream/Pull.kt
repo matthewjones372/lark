@@ -19,7 +19,7 @@ internal fun Node.pulls(): Boolean =
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
-        is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith,
+        is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused,
         -> true
 
         is Node.FlatMap -> breadth == null
@@ -84,6 +84,8 @@ internal fun Node.pull(): Pull =
         is Node.Prepend -> first.then(upstream)
 
         is Node.ZipWith -> zipWith()
+
+        is Node.Fused -> fusedLoop()
 
         is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Sliding,
         is Node.MapAsync, is Node.Conflate, is Node.MapPar, is Node.Merge, is Node.Interleave,
@@ -269,7 +271,7 @@ private fun Node.CatchAll.catchAll(): Pull {
         } catch (failure: DeclaredFailure) {
             if (recovered) throw failure
             recovered = true
-            current = f(failure.declared()).pull()
+            current = f(failure.declared()).fused().pull()
             current.next()
         }
     }
@@ -307,7 +309,7 @@ private fun Node.FlatMap.flatMapConcat(): Pull {
     return Pull {
         var element = inner?.next()
         while (element == null) {
-            val started = build(up.next() ?: return@Pull null).node.pull()
+            val started = build(up.next() ?: return@Pull null).node.fused().pull()
             inner = started
             element = started.next()
         }
@@ -334,5 +336,16 @@ private fun Node.ZipWith.zipWith(): Pull {
         val a = left.next() ?: return@Pull null
         val b = right.next() ?: return@Pull null
         combine(a, b)
+    }
+}
+
+/** A fused run as one pull: the steps are calls in a loop, and an element a filter drops pulls the next. */
+private fun Node.Fused.fusedLoop(): Pull {
+    val bodies = steps.map { it.body() }.toTypedArray()
+    val up = upstream.pull()
+    return Pull {
+        var value: Any? = null
+        while (value == null) value = bodies.through(up.next() ?: return@Pull null)
+        value
     }
 }

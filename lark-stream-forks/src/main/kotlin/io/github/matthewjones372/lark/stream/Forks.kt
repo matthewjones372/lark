@@ -57,7 +57,8 @@ private class PullRun<E, R : Any>(private val log: Logger, private val clock: Cl
     @Suppress("TooGenericExceptionCaught", "UNCHECKED_CAST")
     private fun ended(run: Run<E, R>): Exit<E, R> =
         try {
-            val pull = run.node.pull()
+            // The fused tree is the same for every run of a description, so it is worked out once.
+            val pull = run.compiled.getOrCompile(ForksKey) { run.node.fused() }.pull()
             val elements = generateSequence { if (stopped.get()) null else pull.next() }
             val value = when (val end = run.end) {
                 End.Collect -> elements.toList()

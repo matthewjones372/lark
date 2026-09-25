@@ -25,17 +25,17 @@ internal fun pekkoSite(): String = buildSite(PekkoStreams::class.java)
 // from it, so what goes in as `A` comes out as `A`.
 @Suppress("UNCHECKED_CAST")
 internal val <A : Any> Stream<*, A>.source: Source<A, NotUsed>
-    get() = compiled.getOrCompile(Pekko) { node.toPekko() } as Source<A, NotUsed>
+    get() = compiled.getOrCompile(Pekko) { node.fused().toPekko() } as Source<A, NotUsed>
 
 /** The Pekko flow a pipe compiles to, compiled once and kept on the pipe. */
 @Suppress("UNCHECKED_CAST")
 internal val <In, Out : Any> Pipe<*, In, Out>.flow: Flow<In, Out, NotUsed>
-    get() = compiled.getOrCompile(Pekko) { node.toPekkoFlow() } as Flow<In, Out, NotUsed>
+    get() = compiled.getOrCompile(Pekko) { node.fused().toPekkoFlow() } as Flow<In, Out, NotUsed>
 
 /** The Pekko graph a run compiles to: the switch sits right before the sink, so a stop is the sink completing. */
 internal val Run<*, *>.graph: RunnableGraph<PekkoPair<UniqueKillSwitch, CompletionStage<Any>>>
     get() = compiled.getOrCompile(Pekko) {
-        node.toPekko().viaMat(KillSwitches.single(), Keep.right()).toMat(end.toPekko(), Keep.both())
+        node.fused().toPekko().viaMat(KillSwitches.single(), Keep.right()).toMat(end.toPekko(), Keep.both())
     }
 
 /** A value a node holds for one backend, read by that backend; anyone else's is a bug in the refusal. */
@@ -139,7 +139,7 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
         is Node.Absolve -> absolveStage()
 
         is Node.CatchAll ->
-            Flow.create<Any>().recoverWithRetries(1, onDeclaredFailure { e: Any? -> f(e).toPekko() })
+            Flow.create<Any>().recoverWithRetries(1, onDeclaredFailure { e: Any? -> f(e).fused().toPekko() })
 
         is Node.MapError -> mapErrorStage()
 
@@ -148,6 +148,8 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
         is Node.FlatMap -> flatMapStage()
 
         is Node.MapPar -> mapParStage()
+
+        is Node.Fused -> fusedStage()
     } as Flow<Any, Any, NotUsed>
 
 private fun Node.Map.mapStage(): Flow<Any, *, NotUsed> {
