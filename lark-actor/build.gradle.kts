@@ -19,3 +19,8 @@ tasks.test {
         },
     )
 }
+
+// The module's own rules on top of the shared ones: its tests never wait on time. See the file for why.
+extensions.configure<dev.detekt.gradle.extensions.DetektExtension> {
+    config.from(file("detekt.yml"))
+}

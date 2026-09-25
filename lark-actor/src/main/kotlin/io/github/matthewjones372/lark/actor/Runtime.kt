@@ -13,6 +13,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.time.Duration
 
 /**
@@ -27,14 +29,23 @@ fun <E, M : Any, S> Flock<E>.spawn(
 ): ActorRef<M> {
     require(capacity > 0) { "capacity must be positive, was $capacity" }
     require(throughput > 0) { "throughput must be positive, was $throughput" }
-    val cell =
-        Cell(behaviour, Address("local", "/user/$name", incarnations.incrementAndGet()), capacity, throughput, on)
-    guardians.computeIfAbsent(this) { flock -> Guardian(flock).also { g -> async { g.stand() } } }.cells += cell
-    return cell
+    val guardian = guardians.computeIfAbsent(this) { flock -> Guardian(flock).also { g -> async { g.stand() } } }
+    val address = Address("local", "/user/$name", incarnations.incrementAndGet())
+    return Cell(behaviour, address, capacity, throughput, on, guardian.backlog).also { guardian.cells += it }
+}
+
+/**
+ * Waits until every message told to this flock's actors, and every message those caused, has been handled or
+ * dropped. The runtime counts them, so this parks until the count reaches zero rather than polling.
+ */
+fun <E> Flock<E>.awaitIdle() {
+    guardians[this]?.backlog?.awaitEmpty()
 }
 
 /** Asks and waits on the calling thread. An actor that stops before replying answers [AskFailure.Stopped] at once. */
 fun <M : Any, A : Any> ActorRef<M>.ask(within: Duration, message: (Reply<A>) -> M): Either<AskFailure, A> {
+    // A test actor has handled the message before its tell returns, so there is nothing to wait for.
+    if (this is TestActor<M, *>) return ask(message)
     val reply = Answer<A>(Address(address.node, "/temp/ask-${asks.incrementAndGet()}", 1))
     val cell = this as? Cell<M, *>
     if (cell != null && !cell.expect(reply)) return AskFailure.Stopped.left()
@@ -56,8 +67,28 @@ private val stepping = ThreadLocal<Cell<*, *>>()
  */
 private val guardians = ConcurrentHashMap<Flock<*>, Guardian>()
 
+/** Messages told and not yet handled or dropped, across one flock's actors. */
+private class Backlog {
+    private val count = AtomicLong()
+    private val lock = ReentrantLock()
+    private val empty = lock.newCondition()
+
+    fun added() {
+        count.incrementAndGet()
+    }
+
+    fun done() {
+        if (count.decrementAndGet() == 0L) lock.withLock { empty.signalAll() }
+    }
+
+    fun awaitEmpty() = lock.withLock {
+        while (count.get() != 0L) empty.await()
+    }
+}
+
 private class Guardian(private val flock: Flock<*>) {
     val cells = ConcurrentLinkedQueue<Cell<*, *>>()
+    val backlog = Backlog()
 
     fun stand() {
         try {
@@ -89,6 +120,7 @@ private class Cell<M : Any, S>(
     capacity: Int,
     private val throughput: Int,
     private val on: Executor,
+    private val backlog: Backlog,
 ) : ActorRef<M>, Ctx<M> {
     override val self: ActorRef<M> get() = this
 
@@ -110,7 +142,10 @@ private class Cell<M : Any, S>(
             check(room.tryAcquire()) { "the mailbox of ${address.path} is full" }
         }
         if (stopped.get()) return
+        backlog.added()
         mailbox.add(message)
+        // Stopped between the check and the add: nothing will drain it, so take it back unless the stop already did.
+        if (stopped.get() && mailbox.remove(message)) backlog.done()
         if (scheduled.compareAndSet(false, true)) on.execute(::activate)
     }
 
@@ -150,10 +185,14 @@ private class Cell<M : Any, S>(
         if (left == 0 || stopped.get()) return
         val message = mailbox.poll() ?: return
         room.release()
-        when (val next = behaviour.step(this, state.get(), message)) {
-            Next.Stay, Next.Unhandled -> Unit
-            is Next.Become -> state.set(next.state)
-            Next.Stop -> stopped.set(true)
+        try {
+            when (val next = behaviour.step(this, state.get(), message)) {
+                Next.Stay, Next.Unhandled -> Unit
+                is Next.Become -> state.set(next.state)
+                Next.Stop -> stopped.set(true)
+            }
+        } finally {
+            backlog.done()
         }
         drain(left - 1)
     }
@@ -173,7 +212,7 @@ private class Cell<M : Any, S>(
     }
 
     private fun finish() {
-        mailbox.clear()
+        generateSequence { mailbox.poll() }.forEach { _ -> backlog.done() }
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
         room.release(Int.MAX_VALUE / 2)
         finishAsks()
