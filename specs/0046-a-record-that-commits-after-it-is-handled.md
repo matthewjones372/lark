@@ -78,7 +78,7 @@ at-least-once, but every shutdown sends those records again.
 
 - [ ] **`spec-0046-subscribe`**: the `lark-kafka` module, `Committed`,
       `Kafka.subscribe`, `runCommitting` over `Committer.sink`, and the dependency test.
-      Done when: against a broker in Testcontainers, the records a run handles
+      Done when: against a broker in the test JVM, the records a run handles
       are committed, and a second run in the same group sees none of them again.
 - [ ] **`spec-0046-offset-keeping-operators`**: `map`, `mapOrFail`, `mapPar`,
       `mapParOrFail`, `filter` and `mapConcat` over `Committed`, and the log
