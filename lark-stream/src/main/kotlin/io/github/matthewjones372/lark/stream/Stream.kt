@@ -6,20 +6,29 @@ import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import kotlin.time.Duration
-import kotlin.time.toJavaDuration
 
 /**
  * A stream of `A` that can end with a declared failure of `E`, described and
  * not yet running.
  */
-class Stream<out E, out A : Any> internal constructor(
-    // Pekko's Source is a Java generic, so Kotlin reads its element as
-    // invariant. Every operator below only reads from it, so widening A here
-    // is safe in a place the compiler has no way to see that.
-    internal val source: Source<@UnsafeVariance A, NotUsed>,
-) {
+class Stream<out E, out A : Any> internal constructor(internal val node: Node) {
+
+    /**
+     * The Pekko source [node] compiles to, built once and kept: a Pekko graph is an immutable
+     * blueprint, so a stream described once and run per request is compiled once.
+     */
+    // Pekko's Source is a Java generic, so Kotlin reads its element as invariant. Every operator
+    // only reads from it, so widening A here is safe in a place the compiler has no way to see that.
+    @Suppress("UNCHECKED_CAST")
+    internal val source: Source<@UnsafeVariance A, NotUsed> get() = compiled.value as Source<A, NotUsed>
+
+    private val compiled: Lazy<Source<*, NotUsed>> = lazy(LazyThreadSafetyMode.PUBLICATION) { node.toPekko() }
+
     companion object
 }
+
+/** A stream over a Pekko source an operator built, for the operators not yet described as nodes. */
+internal fun <E, A : Any> Stream(source: Source<A, NotUsed>): Stream<E, A> = Stream(Node.Native(source))
 
 /**
  * A declared failure on Pekko's failure channel, unwrapped only by `run`.
@@ -63,17 +72,17 @@ class Failing<in E> internal constructor() : Raise<E> {
 fun <A : Any> Stream.Companion.from(source: Source<A, *>): Stream<Nothing, A> =
     Stream(source.mapMaterializedValue { NotUsed.getInstance() })
 
-fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Source.from(elements))
+fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Node.Elements(elements))
 
 /** The one element named, and `A : Any` is where a nullable is refused so the `?:` is written at the lookup. */
-fun <A : Any> Stream.Companion.single(element: A): Stream<Nothing, A> = Stream(Source.single(element))
+fun <A : Any> Stream.Companion.single(element: A): Stream<Nothing, A> = Stream(Node.Single(element))
 
 /** The elements named, in order; with none of them it is [empty]. */
-fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stream(Source.from(elements.asList()))
+fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stream(Node.Elements(elements.asList()))
 
 /** [element] every [every], the first one [after] the run starts, and no `Cancellable` to unwrap. */
 fun <A : Any> Stream.Companion.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A> =
-    from(Source.tick(after.toJavaDuration(), every.toJavaDuration(), element))
+    Stream(Node.Tick(every, element, after))
 
 /**
  * The stage's value as the one element; a completion with `null` is a defect naming this builder.
@@ -82,17 +91,17 @@ fun <A : Any> Stream.Companion.tick(every: Duration, element: A, after: Duration
  * source with nothing in it — the empty stream this builder exists so that nobody gets by accident.
  */
 fun <A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>): Stream<Nothing, A> =
-    Stream(stage.asSource { NullPointerException(NULL_COMPLETION) })
+    Stream(Node.FromStage(stage) { NullPointerException(NULL_COMPLETION) })
 
 /** As above, with the absence named: a completion with `null` is the declared failure [ifNull]. */
 fun <E, A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A> =
-    Stream(stage.asSource { DeclaredFailure(ifNull) })
+    Stream(Node.FromStage(stage) { DeclaredFailure(ifNull) })
 
-fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Source.failed(DeclaredFailure(error)))
+fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Node.Fail(error))
 
-fun Stream.Companion.empty(): Stream<Nothing, Nothing> = Stream(Source.empty())
+fun Stream.Companion.empty(): Stream<Nothing, Nothing> = Stream(Node.Empty)
 
-fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = via(Pipe.map(f))
+fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = Stream(Node.Map(node, f.erased(), buildSite()))
 
 /**
  * `f` may answer with `fail(e)`, which ends the stream with the `E` it names.
@@ -108,12 +117,14 @@ fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = via(Pipe
 // down there. Kotlin callers never see it.
 @JvmName("mapOrFailDeclaring")
 fun <F, A : Any, B : Any> Stream<Nothing, A>.mapOrFail(f: Failing<F>.(A) -> B): Stream<F, B> =
-    via(Pipe.mapOrFail(f))
+    Stream(Node.MapOrFail(node, f.erased(), buildSite()))
 
 /** As above, for a stream whose failure type is already named. */
-fun <E, A : Any, B : Any> Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B> = via(Pipe.mapOrFail(f))
+fun <E, A : Any, B : Any> Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B> =
+    Stream(Node.MapOrFail(node, f.erased(), buildSite()))
 
-fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> = via(Pipe.filter(predicate))
+fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> =
+    Stream(Node.Filter(node, predicate.erased(), buildSite()))
 
 /** The way out to Pekko, open only once nothing is left that a sink would not understand. */
 fun <A : Any> Stream<Nothing, A>.toSource(): Source<A, NotUsed> = source
@@ -126,7 +137,7 @@ private const val NULL_COMPLETION = "Stream.fromStage: the stage completed with 
  * makes, and the reason the ban on it in `config/detekt/detekt.yml` is a ban with an exception.
  */
 @Suppress("ForbiddenMethodCall")
-private fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Source<A, NotUsed> =
+internal fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Source<A, NotUsed> =
     Source.completionStage(checked(onNull))
 
 /**

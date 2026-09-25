@@ -30,7 +30,7 @@ fun <E, E2 : E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.via(next: Pipe<E2, O
 
 /** The pipe's elements become the stream's, and the failure it declares joins the stream's. */
 fun <E, E2 : E, A : Any, B : Any> Stream<E, A>.via(pipe: Pipe<E2, A, B>): Stream<E, B> =
-    Stream(source.via(pipe.flow))
+    Stream(Node.Via(node, pipe.flow))
 
 /** The way out to Pekko, open only once nothing is left that a graph would not understand. */
 fun <In, Out : Any> Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed> = flow
@@ -43,7 +43,7 @@ fun <In, Out : Any> Pipe<Nothing, In, Out>.toFlow(): Flow<In, Out, NotUsed> = fl
  * which is what stops a fifth operator naming a type nothing here produces.
  */
 internal fun <E2, A : Any, B : Any> Stream<*, A>.replacing(pipe: Pipe<E2, A, B>): Stream<E2, B> =
-    Stream(source.via(pipe.flow))
+    Stream(Node.Via(node, pipe.flow))
 
 /** As above, for a pipe spliced onto a pipe. */
 internal fun <E2, In, Out : Any, Out2 : Any> Pipe<*, In, Out>.replacing(

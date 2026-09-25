@@ -10,11 +10,15 @@ import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletionStage
 
 /** A stream and the sink that ends it, described. Nothing runs until [run] or [start] names a system. */
-class Run<out E, out R> internal constructor(
-    // Invariant for the same reason Stream's source is: a Java generic read
-    // from and never written to.
-    internal val graph: RunnableGraph<org.apache.pekko.japi.Pair<UniqueKillSwitch, CompletionStage<@UnsafeVariance R>>>,
-)
+class Run<out E, out R> internal constructor(internal val node: Node, internal val end: End) {
+
+    /** Compiled once and kept, as a stream's source is: every [run] materialises the same blueprint. */
+    // The switch sits right before the sink, so a stop is the sink completing with what it has.
+    internal val graph: RunnableGraph<org.apache.pekko.japi.Pair<UniqueKillSwitch, CompletionStage<Any>>> by
+        lazy(LazyThreadSafetyMode.PUBLICATION) {
+            node.toPekko().viaMat(KillSwitches.single(), Keep.right()).toMat(end.toPekko(), Keep.both())
+        }
+}
 
 /**
  * A run in progress: the [exit] `run` would have answered, and a way to end it.
@@ -46,13 +50,12 @@ class Running<out E, out R> internal constructor(
  * A materialised value that is not a `CompletionStage` is refused at the type: [run] would have nothing to wait on.
  */
 fun <E, A : Any, M : Any> Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M> =
-    // The switch sits right before the sink, so a stop is the sink completing with what it has.
-    Run(source.viaMat(KillSwitches.single(), Keep.right()).toMat(sink, Keep.both()))
+    Run(node, End.Native(sink))
 
-fun <E, A : Any> Stream<E, A>.runCollect(): Run<E, List<A>> = runWith(Sink.seq())
+fun <E, A : Any> Stream<E, A>.runCollect(): Run<E, List<A>> = Run(node, End.Collect)
 
 fun <E, A : Any, R : Any> Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R> =
-    runWith(Sink.fold(zero) { total, a -> f(total, a) })
+    Run(node, End.Fold(zero, f.erased()))
 
 fun <E, R : Any> Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>> =
     started(system).second
@@ -70,7 +73,9 @@ private fun <E, R : Any> Run<E, R>.started(
     // hand that back as a Done whose value is typed non-null. The same guard Stream.fromStage has.
     val at = buildSite()
     val materialised = graph.run(system)
-    val exit = materialised.second()
+
+    @Suppress("UNCHECKED_CAST")
+    val exit = (materialised.second() as CompletionStage<R>)
         .checked { NullPointerException("$NULL_MATERIALISED, built at $at") }
         .thenApply<Exit<E, R>> { value -> Exit.Done(value) }
         .exceptionally { thrown -> thrown.asExit<E, R>().reportedTo(system) }
