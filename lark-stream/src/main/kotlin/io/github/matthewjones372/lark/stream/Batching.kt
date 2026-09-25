@@ -2,7 +2,8 @@ package io.github.matthewjones372.lark.stream
 
 import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.javadsl.Flow
-import java.time.Duration
+import kotlin.time.Duration
+import kotlin.time.toJavaDuration
 
 /** Elements in batches of [n], the last one short where the stream ended inside it. */
 fun <A : Any> Pipe.Companion.grouped(n: Int): Pipe<Nothing, A, List<A>> =
@@ -24,7 +25,7 @@ fun <E, A : Any> Stream<E, A>.sliding(n: Int, step: Int = 1): Stream<E, List<A>>
 
 /** Batches of at most [n], and never later than [within], so a quiet feed still answers. */
 fun <A : Any> Pipe.Companion.groupedWithin(n: Int, within: Duration): Pipe<Nothing, A, List<A>> =
-    Pipe(Flow.create<A>().groupedWithin(n, within).map { batch -> batch.toList() })
+    Pipe(Flow.create<A>().groupedWithin(n, within.toJavaDuration()).map { batch -> batch.toList() })
 
 fun <E, In, Out : Any> Pipe<E, In, Out>.groupedWithin(n: Int, within: Duration): Pipe<E, In, List<Out>> =
     via(Pipe.groupedWithin(n, within))

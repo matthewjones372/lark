@@ -226,6 +226,7 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | a body that answers a stage: up to `parallelism` at once, in the input's order; a `null` completion dies |
 | `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Raise<E>`; `B : Any`, so no completion drops an element |
 | `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
+| `Stream<E, A>.mapParOrFail(parallelism: Int, f: Raise<F>.(A) -> B): Stream<F, B>` | `mapPar` with the failure read out of the body, on a stream that has not named one; `mapOrFail`'s suffix, and `on` as above |
 | `Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B>` | each element's own elements, in its order; one that answers with none emits none |
 | `Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S>` | a backlog collapsed while downstream is busy: `seed` starts the aggregate and `aggregate` folds each later element in |
 | `Stream<E, A>.filterNot(predicate: (A) -> Boolean): Stream<E, A>` | `filter`'s mirror, Pekko's own name |
@@ -257,11 +258,13 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A>` | the declared failure handled, and a defect still dying |
 | `Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A>` | `other` on a failure, not on an empty stream |
 | `Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A>` | the declared failure said in another vocabulary, without saying recovery |
+| `Stream<E, A>.restartOnDefect(schedule: Schedule<Throwable, *>): Stream<E, A>` | on a defect, the same description run again after the schedule's delay, with a warn line each time; a declared failure passes through, and a schedule that is done lets the defect through as `Died` |
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
 | `Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M>` | a run described, to the sink named; the sink's materialised value is the run's. `M : Any`, and a sink that materialises `null` anyway is `Died`, never `Done(null)` |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | the one call that materialises, on the system it names |
+| `Run<E, R>.start(system: ClassicActorSystemProvider): Running<E, R>` | the same run, with a handle: `exit` is what `run` answers, `stop()` ends it now as `Done` with what the sink has, and `close()` stops and waits, so `Running::close` is a graph node's release |
 | `Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Raise`: `Done` is the value, `Failed` raises, `Died` throws |
 | **Pipes** | |
 | `Pipe.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out>` | the way in from Pekko's `Flow` |
@@ -286,7 +289,7 @@ so `raise`, `bind` and `parZip` are all in reach of it:
 import arrow.core.Either
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapPar
+import io.github.matthewjones372.lark.stream.mapParOrFail
 
 data class Row(val id: Int, val customer: String?)
 
@@ -303,8 +306,14 @@ val directory = Directory()
 val rows = listOf(Row(1, "ada"), Row(2, "grace"))
 
 val customers: Stream<NoCustomer, Customer> =
-    Stream.from(rows).mapPar(4) { row -> directory.lookup(row.id).bind() }   // a virtual thread per element in flight
+    Stream.from(rows).mapParOrFail(4) { row -> directory.lookup(row.id).bind() }   // a virtual thread per element in flight
 ```
+
+`mapPar` keeps the failure type the stream already has, `Nothing` included, so
+a body that cannot fail needs nothing spelled out. On a stream that has not
+named a failure yet, `mapParOrFail` reads one out of the body, as `mapOrFail`
+does. The two cannot share a name, because Kotlin fixes the type before it
+reads the body.
 
 Blocking a virtual thread parks it and leaves the carrier to the next one, so
 four in flight are four threads and not four platform threads — with one

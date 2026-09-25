@@ -8,9 +8,9 @@ import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.javadsl.Sink
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
-import java.time.Duration
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.time.Duration.Companion.milliseconds
 
 /** Batching, buffering, running state, and the taps beside a pipeline. */
 class BatchingTest {
@@ -45,7 +45,7 @@ class BatchingTest {
 
     @Test
     fun `groupedWithin answers whatever it has when the window closes`() {
-        val batched = Stream.from(ids).groupedWithin(10, Duration.ofMillis(50)).collected()
+        val batched = Stream.from(ids).groupedWithin(10, 50.milliseconds).collected()
 
         withClue("ten never arrive, so the window is what ends the batch") {
             batched shouldBe Exit.Done(listOf(ids))
