@@ -146,8 +146,8 @@ class Behaviour<M : Any, S, out E>(
     val step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
     /** How it takes a [Signal]; with none, a signal changes nothing. */
     val signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
-    /** What it does before its first message, and again after each restart. */
-    val start: ((ctx: Ctx<M>) -> Unit)? = null,
+    /** What it does before its first message, and again after each restart: a step with no message. */
+    val start: (Raise<E>.(ctx: Ctx<M>, state: S) -> Next<S>)? = null,
 )
 
 /** This behaviour, taking signals with [handler]. */
@@ -158,10 +158,16 @@ fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
 /**
  * This behaviour, running [handler] before its first message and again after each restart, since a restart loses
  * what the actor had: its registrations, its subscriptions and its timers. A throw from it fails the actor as a
- * step's would.
+ * step's would. It runs after any start the behaviour already has, such as a persistent one's recovery.
  */
-fun <M : Any, S, E> Behaviour<M, S, E>.onStart(handler: (ctx: Ctx<M>) -> Unit): Behaviour<M, S, E> =
-    Behaviour(initial, step, signal, handler)
+fun <M : Any, S, E> Behaviour<M, S, E>.onStart(handler: (ctx: Ctx<M>) -> Unit): Behaviour<M, S, E> {
+    val before = start
+    return Behaviour(initial, step, signal) { ctx, state ->
+        val next = before?.invoke(this, ctx, state) ?: Next.Stay
+        handler(ctx)
+        next
+    }
+}
 
 /**
  * A behaviour whose step may raise [E]. Name all three types, `behaviour<M, S, E>(…)`: left to inference, a call

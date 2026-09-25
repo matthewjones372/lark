@@ -389,10 +389,7 @@ private class Cell<M : Any, S, E>(
     private fun started(): Next<S> {
         starting = false
         val start = behaviour.start ?: return Next.Stay
-        return supervised {
-            start(this@Cell)
-            Next.Stay
-        }
+        return supervised { start(this, this@Cell, state) }
     }
 
     override fun register(key: ServiceKey<M>) = guardian.receptionist.register(key, this)
