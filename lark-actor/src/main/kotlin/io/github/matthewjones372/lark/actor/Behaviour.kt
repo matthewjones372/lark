@@ -64,6 +64,12 @@ interface Ctx<M : Any> {
     fun watch(ref: ActorRef<*>)
 
     /**
+     * Stops [child], one of this actor's own, as a stop from outside would: at once when it is idle, after its running
+     * step otherwise. Watch it to hear when it has.
+     */
+    fun stop(child: ActorRef<*>)
+
+    /**
      * A child: named under this actor, and stopped before it, whether this actor stops, fails or is restarted. A
      * restarted parent has none until its step spawns them again.
      */

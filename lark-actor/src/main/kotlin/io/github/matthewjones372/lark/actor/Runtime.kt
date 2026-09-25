@@ -563,6 +563,11 @@ private class Cell<M : Any, S, E>(
             .watchedBy(this)
     }
 
+    override fun stop(child: ActorRef<*>) {
+        require(child in children) { "$child is not a child of ${address.path}, so it cannot stop it" }
+        (child as Cell<*, *, *>).stop()
+    }
+
     /** Whichever of this and [finish] takes [watcher] out of the set delivers its one `Terminated`. */
     fun watchedBy(watcher: Cell<*, *, *>) {
         if (watchers.add(watcher) && terminated &&
