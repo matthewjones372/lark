@@ -160,6 +160,7 @@ private fun Node.measured(of: (Node) -> Instruments): Node {
         Node.Hole -> this
 
         is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail,
+        is Node.Blocking,
         Node.Empty, is Node.Merge, is Node.Interleave, is Node.ZipWith, is Node.Prepend, is Node.Concat,
         is Node.RestartOnDefect, is Node.Stage, is Node.Take, is Node.Drop, is Node.TakeWhile, is Node.DropWhile,
         is Node.Grouped, is Node.Sliding, is Node.Buffer, is Node.GroupedWithin, is Node.Scan, is Node.StatefulMap,

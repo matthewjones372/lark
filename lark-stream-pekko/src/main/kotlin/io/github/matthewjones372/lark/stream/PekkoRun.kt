@@ -1,7 +1,10 @@
+@file:OptIn(SourceSeam::class)
+
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.pekko.await
 import org.apache.pekko.actor.ClassicActorSystemProvider
+import org.apache.pekko.stream.Attributes
 import org.apache.pekko.stream.UniqueKillSwitch
 import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletionStage
@@ -22,8 +25,9 @@ class PekkoStreams(private val system: ClassicActorSystemProvider) : StreamBacke
 
     @StreamSpi
     override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {
-        val (switch, exit) = run.started(system)
-        return PekkoRunning(switch, exit)
+        val hooks = RunHooks()
+        val (switch, exit) = run.started(system, hooks)
+        return PekkoRunning(switch, hooks, exit)
     }
 }
 
@@ -35,10 +39,14 @@ fun <E, R : Any> Run<E, R>.start(system: ClassicActorSystemProvider): Running<E,
 
 private class PekkoRunning<E, R>(
     private val switch: UniqueKillSwitch,
+    private val hooks: RunHooks,
     override val exit: CompletionStage<Exit<E, R>>,
 ) : Running<E, R> {
 
-    override fun stop() = switch.shutdown()
+    /** A run with a source that drains, such as a Kafka consumer, is stopped by that drain, not the kill switch. */
+    override fun stop() {
+        if (!hooks.stop()) switch.shutdown()
+    }
 
     override fun close() {
         stop()
@@ -48,18 +56,31 @@ private class PekkoRunning<E, R>(
 
 private fun <E, R : Any> Run<E, R>.started(
     system: ClassicActorSystemProvider,
+    hooks: RunHooks,
 ): Pair<UniqueKillSwitch, CompletionStage<Exit<E, R>>> {
     // A sink authored in Java completes with null whatever its type argument says, and Kotlin would
     // hand that back as a Done whose value is typed non-null. The same guard Stream.fromStage has. The
     // line it names was read when the run was described, so starting one walks no stack.
     val at = end.site
-    val materialised = graph.run(system)
+    val materialised = graph.addAttributes(Attributes.apply(RunHooksAttribute(hooks))).run(system)
 
     @Suppress("UNCHECKED_CAST")
     val exit = (materialised.second() as CompletionStage<R>)
         .checked { NullPointerException("$NULL_MATERIALISED, built at $at") }
         .thenApply<Exit<E, R>> { value -> Exit.Done(value) }
         .exceptionally { thrown -> thrown.asExit<E, R>().reportedTo(system) }
+        // A blocking source is closed after a sink that cancelled it completes; the exit waits for that, so a
+        // caller finds every resource closed, as on Forks. A close that threw ends an otherwise Done run Died.
+        .thenCompose { ended ->
+            hooks.closed().handle { _, thrown ->
+                if (thrown != null && ended is Exit.Done) {
+                    Exit.Died(thrown.unwrapped()).reportedTo<E, R>(system)
+                } else {
+                    ended
+                }
+            }
+        }
+        .whenComplete { _, _ -> hooks.ended() }
     return materialised.first() to exit
 }
 

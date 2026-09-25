@@ -18,7 +18,7 @@ internal fun interface Pull {
 /** The operators a pull runs: every one with no backend of its own in it, since spec 0052. */
 internal fun Node.pulls(): Boolean =
     when (this) {
-        is Node.Elements, is Node.Single, Node.Empty, is Node.Fail, is Node.FromStage,
+        is Node.Elements, is Node.Single, Node.Empty, is Node.Fail, is Node.FromStage, is Node.Blocking,
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
@@ -49,6 +49,8 @@ internal fun Node.pull(): Pull =
         is Node.Fail -> Pull { throw DeclaredFailure(error) }
 
         is Node.FromStage -> once { awaited(this) }
+
+        is Node.Blocking -> blocking(Resources.here())
 
         is Node.Map -> map()
 
@@ -131,6 +133,33 @@ private fun once(element: () -> Any): Pull {
         } else {
             given = true
             element()
+        }
+    }
+}
+
+/**
+ * Opened on the first pull rather than when the loop is built, so a stream nobody pulls opens nothing, and
+ * closed as soon as it runs out; the run closes it otherwise, once its loop has ended.
+ */
+@Suppress("TooGenericExceptionCaught") // Only to close before the failure goes on, unchanged.
+private fun Node.Blocking.blocking(resources: Resources?): Pull {
+    var opened: Opened? = null
+    var done = false
+    return Pull {
+        if (done) return@Pull null
+        val resource = opened ?: Opened(this).also { opened = it; resources?.add(it) }
+        // A read that failed closes its resource at once: a restart opens a new one, and must not find the
+        // old one still holding what it held, a consumer's place in its group among them.
+        val next = try {
+            resource.next()
+        } catch (failed: Throwable) {
+            done = true
+            resource.close()
+            throw failed
+        }
+        next ?: null.also {
+            done = true
+            resource.close()
         }
     }
 }
