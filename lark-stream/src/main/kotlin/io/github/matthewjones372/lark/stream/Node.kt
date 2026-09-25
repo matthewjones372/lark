@@ -340,7 +340,8 @@ val Node.site: String?
     }
 
 /** The nodes this one reads from, in the order its elements come from them. */
-internal fun Node.children(): List<Node> =
+@StreamSpi
+fun Node.children(): List<Node> =
     when (this) {
         is Node.Unary -> listOf(upstream)
 

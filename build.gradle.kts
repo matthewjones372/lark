@@ -94,7 +94,7 @@ val benchmarkModules = setOf("lark-stream-benchmarks")
 
 // Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
 // JDK 28 (JEP 543), and a release must not promise an API the JDK has not.
-val unpublished = setOf("lark-structured") + benchmarkModules
+val unpublished = setOf("lark-structured", "lark-stream-parity") + benchmarkModules
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
