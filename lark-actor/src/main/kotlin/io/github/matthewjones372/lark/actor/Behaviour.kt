@@ -35,6 +35,13 @@ interface Ctx<M : Any> {
     /** Turns the receive timeout off: `receiveTimeout(null)`. */
     fun receiveTimeout(off: Nothing?)
 
+    /**
+     * [state], with [timers] that belong to it: they end when the actor next becomes a state of another class, and a
+     * copy of this one keeps them. Becoming a state with timers again replaces the ones it had. Only a step that
+     * returns this becomes it; timers from one it does not return never start.
+     */
+    fun <S> become(state: S, timers: StateTimers<M>.() -> Unit): Next<S>
+
     /** Hears [Signal.Terminated] once [ref] stops, once however often it is asked; at once if it already has. */
     fun watch(ref: ActorRef<*>)
 
@@ -66,6 +73,13 @@ interface Timers<in M : Any> {
 
     /** Cancels the timer under [key], if one is running. */
     fun cancel(key: Any)
+}
+
+/** The timers of one state, started by `ctx.become(state) { … }`; they have no key, since the state is theirs. */
+interface StateTimers<in M : Any> {
+    fun after(delay: Duration, message: M)
+
+    fun every(interval: Duration, message: M)
 }
 
 /** What happens to an actor rather than what is sent to it, handled beside its messages with no `else`. */

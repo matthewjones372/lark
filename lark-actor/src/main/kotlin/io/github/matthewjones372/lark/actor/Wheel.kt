@@ -31,6 +31,34 @@ internal class Timer(
 /** The key a receive timeout runs under, which no actor's own key can equal. */
 internal object ReceiveTimeoutKey
 
+/** The key of one timer that belongs to a state: equal to no other. */
+internal class StateKey
+
+/** Timers started with [state], under [keys]. */
+internal class Scope(val state: Any?, val keys: List<Any>)
+
+/** Whether becoming [next] ends these timers: it does when [next] is of another class than their state. */
+internal fun Scope.endsAt(next: Any?): Boolean = next?.let { it::class } != state?.let { it::class }
+
+/** Runs [timers] for [state], starting each under a key of its own with [start], and returns what it started. */
+internal fun <M : Any> scope(
+    state: Any?,
+    timers: StateTimers<M>.() -> Unit,
+    start: (key: Any, delay: Duration, message: M, every: Duration?) -> Unit,
+): Scope {
+    val keys = mutableListOf<Any>()
+    val starting = object : StateTimers<M> {
+        override fun after(delay: Duration, message: M) = start(StateKey().also(keys::add), delay, message, null)
+
+        override fun every(interval: Duration, message: M) {
+            require(interval.isPositive()) { "a periodic timer needs a positive interval, was $interval" }
+            start(StateKey().also(keys::add), interval, message, interval)
+        }
+    }
+    starting.timers()
+    return Scope(state, keys.toList())
+}
+
 /** A receive timeout: [message], once nothing has arrived for [after]. */
 internal class Silence(val after: Duration, val message: Any)
 
