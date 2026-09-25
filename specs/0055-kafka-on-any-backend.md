@@ -1,0 +1,76 @@
+# 0055 — Kafka on any backend
+
+## Problem
+
+`lark-kafka` (0052, 0053) is Pekko-only. `Kafka.subscribe` wraps Pekko's
+connector `Source`, and `runCommitting` ends on its `Committer.sink`, so a
+pipeline over Kafka is refused by Forks and by TestStreams. A service that
+chose Forks for its speed (0051), or a test that wants `TestStreams`, cannot
+consume a topic.
+
+## Not doing
+
+- **No change to the operators.** `Committed`, the `Record` operators,
+  `Decoder`, `divertLefts` and `absolve` keep their signatures.
+- **No transactions, no manual partition assignment.** As 0052.
+- **The connector does not go.** It prefetches with backpressure, batches
+  commits asynchronously and drains; a service on Pekko may want all three.
+
+## Shape
+
+```kotlin
+val placed: Run<ShopError, Done> =
+    Kafka.consume(consumer, Topic("orders"))            // Stream<Nothing, Committed<ConsumerRecord<K, V>>>
+        .mapRecord { it.value() }
+        .mapRecordOrFail { order -> shop.place(order).bind() }   // blocking is fine: Forks runs it on a virtual thread
+        .runCommitting()                                 // Run<ShopError, Done>, no settings
+
+placed.start(Forks())                                    // or PekkoStreams(system), or TestStreams(clock)
+```
+
+- Two modules. **`lark-kafka`** depends on `lark-stream` and `kafka-clients`
+  only: `Committed`, the operators, `Decoder`, and the consumer loop.
+  **`lark-kafka-pekko`** adds the connector: today's `Kafka.subscribe`, its
+  `runCommitting(CommitterSettings)` and draining stop.
+- `Kafka.consume(props, topics, key, value)` is `Stream.blocking` (0054)
+  over one `KafkaConsumer`. `next` hands out the last poll's records one at a
+  time and polls again when they run out. `wake` is `consumer.wakeup()`.
+- `runCommitting()` is a fold that records each offset as handled. The
+  consumer commits what is recorded before each poll, in its rebalance
+  listener for the partitions it loses, and in `close`. Only the thread that
+  polls touches the consumer.
+- The bytes form with a `Decoder` pair (0053) is written once, over either
+  source.
+
+## Why this shape
+
+The consumer loop is what the Kafka client is built for, one thread doing
+everything, and it is also the loop Forks runs. Committing on the polling
+thread removes the commit sink's cross-thread hand-off. Keeping the connector
+as a second module leaves Pekko services the backpressured prefetch and async
+commits they would otherwise lose.
+
+## Stack
+
+- [ ] **`spec-0055-split`**: move the connector to `lark-kafka-pekko`, leaving
+      the neutral core. Done when: every 0052/0053 test passes unchanged there.
+- [ ] **`spec-0055-consume`**: `Kafka.consume`, `runCommitting()`, the
+      rebalance listener. Done when: the subscribe, operator, decode and
+      routing tests pass on Forks and on Pekko against one broker.
+
+## Acceptance
+
+```bash
+./gradlew spotlessApply && ./gradlew build
+```
+
+## Open questions
+
+1. **Keep the connector at all?** Recommend yes, as `lark-kafka-pekko`.
+2. **`mapParRecord` on Forks?** It waits for 0051. Until then a Forks run
+   refuses it at start, naming the operator. Recommend shipping anyway.
+3. **`restartOnDefect` on Forks?** Forks has no clock (0051 keeps it that
+   way), so a registry that is down ends a Forks run `Died`. Recommend
+   documenting it, and restarting the run from the service's own supervisor.
+4. **Poll timeout?** Recommend 100 ms by default, from the consumer's
+   properties when set.
