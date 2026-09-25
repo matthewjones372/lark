@@ -20,6 +20,18 @@ interface Reply<in A : Any> {
 
 interface Ctx<M : Any> {
     val self: ActorRef<M>
+
+    /** Hears [Signal.Terminated] once [ref] stops, once however often it is asked; at once if it already has. */
+    fun watch(ref: ActorRef<*>)
+}
+
+/** What happens to an actor rather than what is sent to it, handled beside its messages with no `else`. */
+sealed interface Signal {
+    /** The actor is ending, by `stop()`, a failure with nothing left to restart it, or its flock closing. */
+    data object Stopping : Signal
+
+    /** An actor this one watches has stopped. */
+    data class Terminated(val ref: ActorRef<*>) : Signal
 }
 
 sealed interface Next<out S> {
@@ -48,7 +60,14 @@ fun unhandled(): Next<Nothing> = Next.Unhandled
 class Behaviour<M : Any, S, out E>(
     val initial: S,
     val step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+    /** How it takes a [Signal]; with none, a signal changes nothing. */
+    val signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
 )
+
+/** This behaviour, taking signals with [handler]. */
+fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
+    handler: Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>,
+): Behaviour<M, S, E> = Behaviour(initial, step, handler)
 
 /**
  * A behaviour whose step may raise [E]. Name all three types, `behaviour<M, S, E>(…)`: left to inference, a call
