@@ -129,7 +129,7 @@ and can say "this was lost" exactly once.
 - [x] **`spec-0062-receptionist`** ([#130](https://github.com/matthewjones372/lark/pull/130)) — `ServiceKey`, `register`, `subscribe`,
       `Flock.find`, and `onStart` to register from. Done when: a subscriber is told a listing when an actor
       registers and again when it stops, on both runtimes.
-- [ ] **`spec-0062-routers`** — `pool` with `roundRobin` and `hashing`, and
+- [x] **`spec-0062-routers`** ([#131](https://github.com/matthewjones372/lark/pull/131)) — `pool` with `roundRobin` and `hashing`, and
       `group`. Done when: a pool of four hands eight messages two to each, one
       key always reaches one routee, and a failed routee restarts alone.
 - [x] **`spec-0062-app`** ([#132](https://github.com/matthewjones372/lark/pull/132)) — `lark-app-actor`: `actors()` and `actor<M>()`.
