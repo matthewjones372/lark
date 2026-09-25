@@ -32,7 +32,7 @@ here.
 
 ```kotlin
 // A pool: one ref, four workers behind it, each restarted on its own.
-val resizers = ctx.spawn("resizers", pool(4) { resizer() }, restart = Schedule.recurs(3))
+val resizers = ctx.spawn("resizers", pool(4, restart = Schedule.recurs(3)) { resizer() })
 
 // The same pet always reaches the same worker.
 val ledgers = ctx.spawn("ledgers", pool(8, route = hashing { it: Ledger -> it.petId }) { ledger() })
@@ -73,10 +73,13 @@ val app = actors() + actor<Adoption, AdoptionRepository>("desk") { repo -> desk(
 app.use { desk: ActorRef<Adoption> -> … }
 ```
 
-- **Pools.** `pool(size, route = roundRobin()) { behaviour }` is a behaviour: a
-  router actor that spawns `size` children and forwards each message to one.
-  A `restart` given at spawn applies to each routee on its own, so one failing
-  worker restarts without the others; one that stops for good leaves the pool
+- **Pools.** `pool(size, route = roundRobin(), restart) { behaviour }` is a
+  behaviour: a router actor that spawns `size` children on its first message
+  and forwards each message to one. A routee whose mailbox is full is passed
+  over for the next, and a step whose every routee is full fails. `restart` is
+  the pool's, not the spawn's, since a pool cannot read its own spawn's
+  schedule; it applies to each routee on its own, so one failing worker
+  restarts without the others; one that stops for good leaves the pool
   smaller, and a pool with none left stops. Routes are `roundRobin()` and
   `hashing(key)`.
 - **Groups.** `group(refs)` is an `ActorRef` over refs that are already
@@ -123,7 +126,7 @@ and can say "this was lost" exactly once.
 - [x] **`spec-0062-dead-letters`** ([#129](https://github.com/matthewjones372/lark/pull/129)) — `DeadLetter`, the flock's handler, the
       test kit's list. Done when: a message to a stopped actor and one
       answered `unhandled()` each arrive once, on both runtimes.
-- [ ] **`spec-0062-receptionist`** — `ServiceKey`, `register`, `subscribe`,
+- [x] **`spec-0062-receptionist`** ([#130](https://github.com/matthewjones372/lark/pull/130)) — `ServiceKey`, `register`, `subscribe`,
       `Flock.find`, and `onStart` to register from. Done when: a subscriber is told a listing when an actor
       registers and again when it stops, on both runtimes.
 - [ ] **`spec-0062-routers`** — `pool` with `roundRobin` and `hashing`, and
