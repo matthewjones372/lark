@@ -74,13 +74,15 @@ class ForksTest {
     }
 
     @Test
-    fun `an operator that needs a second thread is refused by name before anything runs`() {
+    fun `another backend's own value is refused by name before anything runs`() {
         val pulled = AtomicInteger()
+        val elsewhere =
+            Stream<Nothing, Int>(Node.Native(Any(), BackendKey("Elsewhere"), "Elsewhere.source", "Here.kt:1"))
 
-        val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.merge(Stream.of(0)).collected()
+        val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.merge(elsewhere).collected()
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
-        died.cause.message shouldContain "merge is not something Forks runs"
+        died.cause.message shouldContain "Elsewhere.source, built at Here.kt:1, holds a Elsewhere value"
         pulled.get() shouldBe 0
     }
 

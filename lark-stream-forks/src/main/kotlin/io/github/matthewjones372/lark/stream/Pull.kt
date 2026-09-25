@@ -23,13 +23,12 @@ internal fun Node.pulls(): Boolean =
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Probed,
-        is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave, is Node.MapAsync,
+        is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave, is Node.MapAsync, is Node.FlatMap,
+        is Node.Merge,
         -> true
 
-        is Node.FlatMap -> breadth == null
-
         is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Conflate,
-        is Node.Merge, is Node.RestartOnDefect,
+        is Node.RestartOnDefect,
         -> false
     }
 
@@ -87,7 +86,7 @@ internal fun Node.pull(): Pull =
 
         is Node.OrFailIfEmpty -> orFailIfEmpty()
 
-        is Node.FlatMap -> flatMapConcat()
+        is Node.FlatMap -> flatMapped(breadth)
 
         is Node.Concat -> upstream.then(next)
 
@@ -118,7 +117,9 @@ internal fun Node.pull(): Pull =
         // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them.
         is Node.MapAsync -> awaiting(if (Turns.taking()) 1 else parallelism)
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Conflate, is Node.Merge,
+        is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Releases.here())
+
+        is Node.Native, is Node.Stage, Node.Hole, is Node.Conflate,
         -> error("$operator reached the Forks runner, which start refuses it before")
     }
 
@@ -337,6 +338,14 @@ private fun Node.OrFailIfEmpty.orFailIfEmpty(): Pull {
         a
     }
 }
+
+/** One inner stream after another, or up to [breadth] at once: on a test's clock as workers taking turns. */
+private fun Node.FlatMap.flatMapped(breadth: Int?): Pull =
+    when {
+        breadth == null -> flatMapConcat()
+        Turns.taking() -> mergedOnClock(breadth, Turns.here())
+        else -> merged(breadth, Releases.here())
+    }
 
 private fun Node.FlatMap.flatMapConcat(): Pull {
     val build = guarded("flatMapConcat", at, f)
