@@ -10,6 +10,7 @@ import org.junit.jupiter.api.TestFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Every parity case on Forks, with every thread it starts counted: run to the end, stopped as soon as it
@@ -192,6 +193,26 @@ class HardenedTest {
             .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
         exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.size shouldBe 3
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `a run stopped while a restartOnDefect waits on its next tick ends, and does not restart`() {
+        val counted = Counted()
+        // Like an outbox relay with nothing to send: ticks that never become an element, so the loop is
+        // never back between elements to see the stop itself.
+        val running = Stream.tick(20.milliseconds, 1)
+            .mapPar(2) { it }
+            .mapConcat { emptyList<Int>() }
+            .restartOnDefect(io.github.matthewjones372.lark.Schedule.spaced(10.milliseconds))
+            .runCollect()
+            .start(Forks(counted))
+        Thread.sleep(70)
+
+        running.stop()
+
+        running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+            .shouldBeInstanceOf<Exit.Done<List<Int>>>()
         counted.leftRunning() shouldBe 0
     }
 

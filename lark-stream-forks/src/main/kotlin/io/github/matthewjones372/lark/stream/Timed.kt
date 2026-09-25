@@ -4,10 +4,11 @@ import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Schedule
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 
-// The pulls with time in them, on a test's clock. Each waits by parking on the run's [Turns], so the clock
-// stops at the instant it waits for, and the pull goes on when the test moves the clock there.
+// The pulls with time in them, on a test's clock or on Forks' own. Each waits by parking on the run's
+// [Timeline]: on a test's clock the clock stops at the instant it waits for, and on Forks it waits for it.
 
 private fun Instant.plus(duration: Duration): Instant = plusNanos(duration.inWholeNanoseconds)
 
@@ -15,7 +16,7 @@ private fun Instant.plus(duration: Duration): Instant = plusNanos(duration.inWho
  * The first element [Node.Tick.after] from the first pull, then one every [Node.Tick.every]. A tick that
  * falls due while nothing is asking is dropped, as Pekko's is: the next pull waits for the next one.
  */
-internal fun Node.Tick.tick(turns: Turns): Pull {
+internal fun Node.Tick.tick(turns: Timeline): Pull {
     var due: Instant? = null
     return Pull {
         val now = turns.now()
@@ -30,7 +31,11 @@ internal fun Node.Tick.tick(turns: Turns): Pull {
     }
 }
 
-/** What one worker hands another: an element, or how the stream it pulls from ended, and taken once. */
+/**
+ * What one fork hands another: an element, or how the stream it pulls from ended, taken once. Taking is
+ * one atomic step, since on Forks the two are on threads of their own: a read and a separate clear
+ * would erase an element put down between them.
+ */
 private class Handoff {
     sealed interface Ended {
         data object Done : Ended
@@ -38,24 +43,31 @@ private class Handoff {
         class Threw(val thrown: Throwable) : Ended
     }
 
-    var held: Any? = null
+    private val slot = AtomicReference<Any?>(null)
 
-    fun take(): Any? = held.also { held = null }
+    /** What is held. Only the feed puts something down, and only once the slot is empty. */
+    var held: Any?
+        get() = slot.get()
+        set(value) = slot.set(value)
+
+    fun take(): Any? = slot.getAndSet(null)
 }
 
 /** [up] pulled on a worker of its own, one element at a time into [into], taken before the next is pulled. */
 // The catch is as wide as a pipeline: whatever upstream threw is the consumer's to throw, on its own worker.
 @Suppress("TooGenericExceptionCaught")
-private fun Turns.feed(up: Pull, into: Handoff) = fork {
+private fun Timeline.feed(up: Pull, into: Handoff) = fork {
     try {
         while (!stopped) {
             val next = up.next()
             into.held = next ?: Handoff.Ended.Done
+            wake()
             if (next == null) break
             park { into.held == null }
         }
     } catch (thrown: Throwable) {
         into.held = Handoff.Ended.Threw(thrown)
+        wake()
     }
 }
 
@@ -64,10 +76,10 @@ private fun Turns.feed(up: Pull, into: Handoff) = fork {
  * Windows follow each other every [Node.GroupedWithin.within] from the first pull, and a full group starts
  * the next window from the instant it was emitted, as Pekko's do. A window that closes empty emits nothing.
  */
-internal fun Node.GroupedWithin.groupedWithin(turns: Turns): Pull =
+internal fun Node.GroupedWithin.groupedWithin(turns: Timeline): Pull =
     Windows(n, within, turns, Handoff().also { turns.feed(upstream.pull(), it) })
 
-private class Windows(val n: Int, val within: Duration, val turns: Turns, val handoff: Handoff) : Pull {
+private class Windows(val n: Int, val within: Duration, val turns: Timeline, val handoff: Handoff) : Pull {
 
     private var closes: Instant? = null
     private var ended = false
@@ -83,7 +95,10 @@ private class Windows(val n: Int, val within: Duration, val turns: Turns, val ha
     private fun fill(group: MutableList<Any>): List<Any>? {
         val now = turns.now()
         val window = closes ?: now.plus(within).also { closes = it }
-        return when (val held = handoff.take()) {
+        val held = handoff.take()
+        // Taken, so the feed may pull the next.
+        if (held != null) turns.wake()
+        return when (held) {
             Handoff.Ended.Done -> group.also { ended = true }
             is Handoff.Ended.Threw -> throw held.thrown
             null -> closeOrWait(group, window, now)
@@ -103,11 +118,12 @@ private class Windows(val n: Int, val within: Duration, val turns: Turns, val ha
 
 /**
  * Upstream again, from its first element, after each defect the schedule continues on, and after the delay
- * it asks for on the test's clock. A declared failure is not a defect, and passes through as it is.
+ * it asks for on the run's clock. A declared failure is not a defect, and passes through as it is; nor is
+ * an interruption, which is a stop reaching the run.
  */
 // The catch is as wide as a pipeline, because a defect is whatever upstream threw that it did not declare.
 @Suppress("TooGenericExceptionCaught")
-internal fun Node.RestartOnDefect.restarting(turns: Turns): Pull {
+internal fun Node.RestartOnDefect.restarting(turns: Timeline): Pull {
     var current = upstream.pull()
     var schedule = step
     return Pull {
@@ -120,6 +136,9 @@ internal fun Node.RestartOnDefect.restarting(turns: Turns): Pull {
             } catch (failure: DeclaredFailure) {
                 throw failure
             } catch (defect: Throwable) {
+                // An interruption is a stop reaching the run, never a defect to restart on: restarting
+                // would spend the interrupt, and the run would wait on its next tick for ever.
+                if (defect.isInterruption()) throw defect
                 when (val decision = schedule(defect)) {
                     is Schedule.Decision.Continue -> {
                         logger.log(

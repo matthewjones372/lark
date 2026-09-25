@@ -114,3 +114,23 @@ what it had, as on Pekko. Every thread a Forks run starts comes from its
 executor, which a `mapPar` given one of its own keeps. With the fork's release
 removed from `buffer` on purpose, seven of the checks go red.
 
+Decided while building the gaps (2026-09-25), for editing:
+- `DifferentialTest` holds `sliding`, `interleave` and `mapAsync` to Pekko's
+  answers over a grid of arguments and lengths. It found the first `sliding`
+  skipping the gap before the first window rather than after each one.
+- `merge` on `TestStreams` answers the stream it was called on first, then the
+  one given to it, every time.
+- A `conflate` fork checks for an interruption between elements, since
+  upstream may never block.
+- Time on Forks is a `Timeline` the timed pulls share with `TestStreams`:
+  lark's `clock`, read at `start`, with each wait on real time. The soak found
+  the `groupedWithin` handoff reading and clearing its slot in two steps, which
+  lost an element about once in two hundred runs once the two sides were real
+  threads. Taking is one atomic step now.
+- The parity suite now asserts that no backend refuses any of its cases.
+- `restartOnDefect` on Forks does not restart on an interruption. A stop's
+  interrupt that woke a `tick` inside it was caught as a defect and restarted,
+  which spent the interrupt; a relay with nothing to send never came back
+  between elements to see the stop, and its run never ended. Moving petshop's
+  relay onto Forks found it.
+

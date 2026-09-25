@@ -21,7 +21,9 @@ import kotlin.time.Duration
  * so that is the one furthest upstream, and an element due at an instant reaches a stage before a window
  * of that stage's closes at the same instant.
  */
-internal class Turns(private val time: TestClock, private val on: Executor = VirtualThreads) : TestClock.Waiter {
+internal class Turns(private val time: TestClock, private val on: Executor = VirtualThreads) :
+    TestClock.Waiter,
+    Timeline {
 
     private class Worker {
         var parked = true
@@ -37,16 +39,16 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
 
     /** Set when the run is stopped or over: every park returns, and a stage that sees it ends. */
     @Volatile
-    var stopped = false
+    override var stopped = false
         private set
 
-    fun now(): Instant = time.now()
+    override fun now(): Instant = time.now()
 
     /**
      * [body] as a worker of its own, which runs when it is its turn. It reads lark's `clock` as this
      * run's, and a pull built on it finds this run's turns by [here].
      */
-    fun fork(body: () -> Unit) {
+    override fun fork(body: () -> Unit) {
         val worker = Worker()
         lock.withLock { workers += worker }
         on.execute {
@@ -68,7 +70,7 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
      * Gives up the turn until the clock reaches [until], [ready] answers true, or the run is stopped.
      * [ready] is asked by whichever thread is choosing, and reads only what workers write in their turns.
      */
-    fun park(until: Instant? = null, ready: () -> Boolean = { false }) = lock.withLock {
+    override fun park(until: Instant?, ready: () -> Boolean) = lock.withLock {
         val me = checkNotNull(turn) { "only the worker whose turn it is parks" }
         me.until = until
         me.ready = ready
@@ -77,6 +79,9 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
         while (turn !== me) turned.await()
         me.parked = false
     }
+
+    /** Nothing to do: only the worker whose turn it is runs, and the next turn reads what it changed. */
+    override fun wake() = Unit
 
     /** Parks until [delay] from now has passed. */
     fun sleep(delay: Duration) = park(until = now().plusNanos(delay.inWholeNanoseconds))
