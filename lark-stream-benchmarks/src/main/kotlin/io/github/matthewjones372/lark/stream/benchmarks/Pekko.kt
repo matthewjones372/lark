@@ -23,7 +23,7 @@ open class Pekko {
     @TearDown(Level.Trial)
     fun stop() {
         system.terminate()
-        system.whenTerminated().toCompletableFuture().join()
+        system.getWhenTerminated().toCompletableFuture().join()
     }
 }
 

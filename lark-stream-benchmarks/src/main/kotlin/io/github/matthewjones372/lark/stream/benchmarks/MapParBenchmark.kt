@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 
 private const val ELEMENTS = 10_000
 private const val PARALLELISM = 8
+private const val SCALE = 3L
 
 /** A cheap body forked per element, so the row is the cost of the fork and the reordering, not the body. */
 @State(Scope.Benchmark)
@@ -35,7 +36,7 @@ open class MapParBenchmark {
     @Benchmark
     fun lark(pekko: Pekko): Long =
         Stream.from(ints)
-            .mapPar(PARALLELISM) { it.toLong() * 3 }
+            .mapPar(PARALLELISM) { it.toLong() * SCALE }
             .runFold(0L) { total, n -> total + n }
             .run(pekko.system)
             .done()

@@ -22,6 +22,7 @@ import org.openjdk.jmh.annotations.Warmup
 import java.util.concurrent.TimeUnit
 
 private const val ELEMENTS = 100_000
+private const val SCALE = 3L
 
 private data class Odd(val value: Long)
 
@@ -46,7 +47,7 @@ open class ChainBenchmark {
     fun lark(pekko: Pekko): Long =
         Stream.from(ints)
             .map { it.toLong() }
-            .map { it * 3 }
+            .map { it * SCALE }
             .filter { it % 2 == 0L }
             .map { it + 1 }
             .mapOrFail { if (it % 2 == 0L) fail(Odd(it)) else it }
@@ -58,7 +59,7 @@ open class ChainBenchmark {
     fun pekko(pekko: Pekko): Long =
         Source.from(ints)
             .map { it.toLong() }
-            .map { it * 3 }
+            .map { it * SCALE }
             .filter { it % 2 == 0L }
             .map { it + 1 }
             .map { check(it % 2 != 0L); it }
