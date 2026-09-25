@@ -87,7 +87,7 @@ express later by answering "continue with the state" if anyone asks for it.
       both runtimes.
 - [x] **`spec-0060-children`** ([#120](https://github.com/matthewjones372/lark/pull/120)) — `ctx.spawn`, stop and restart order. Done when:
       a child's `Stopping` comes before its parent's.
-- [ ] **`spec-0060-interrupt`** — close interrupts a running step on virtual
+- [x] **`spec-0060-interrupt`** ([#121](https://github.com/matthewjones372/lark/pull/121)) — close interrupts a running step on virtual
       threads. Done when: a flock holding a step blocked forever closes.
 
 ## Acceptance

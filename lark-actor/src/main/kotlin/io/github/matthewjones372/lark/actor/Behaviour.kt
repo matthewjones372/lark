@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.Schedule
+import kotlin.time.Duration
 
 /** Where an actor lives. A ref is named by one, so that a ref can later name an actor on another node. */
 data class Address(val node: String, val path: String, val incarnation: Long)
@@ -22,6 +23,9 @@ interface Reply<in A : Any> {
 interface Ctx<M : Any> {
     val self: ActorRef<M>
 
+    /** Messages this actor sends itself later, each under a key; a stop or a restart cancels them all. */
+    val timers: Timers<M>
+
     /** Hears [Signal.Terminated] once [ref] stops, once however often it is asked; at once if it already has. */
     fun watch(ref: ActorRef<*>)
 
@@ -34,6 +38,19 @@ interface Ctx<M : Any> {
         behaviour: Behaviour<C, T, F>,
         restart: Schedule<Failure<F>, *>? = null,
     ): ActorRef<C>
+}
+
+/**
+ * An actor's own timers. A timer's message arrives through the mailbox and is handled by the step like any other.
+ * Starting a key that is running replaces it, and a message from a cancelled or replaced timer never arrives, even
+ * one already in the mailbox.
+ */
+interface Timers<in M : Any> {
+    /** Tells this actor [message] once [delay] has passed on its flock's clock; at once when it is not positive. */
+    fun after(key: Any, delay: Duration, message: M)
+
+    /** Cancels the timer under [key], if one is running. */
+    fun cancel(key: Any)
 }
 
 /** What happens to an actor rather than what is sent to it, handled beside its messages with no `else`. */
