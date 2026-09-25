@@ -130,20 +130,7 @@ entity and every journal.
 
 ## Open questions
 
-1. **Ids: strings, or a type parameter?** Recommend strings: sharding needs to
-   hash and send an id, and a typed id would need a codec of its own for no
-   gain a `value class` wrapping the string does not give.
-2. **Passivation: through the manager, or in the runtime?** Recommend the
-   manager, which stops an idle entity and keeps what arrives for it until it
-   has stopped. An idle stop in the runtime would race a message told in the
-   same instant, and dead-letter it.
-3. **Does `persist` block the step?** Recommend yes, as above. The cost is one
-   parked virtual thread per writing actor, which is what they are for.
-4. **Bytes through a codec, or objects in the journal?** Recommend bytes, in
-   the in-memory journal too, so a test fails on the codec a real journal
-   would need. The codec is an interface, `encode(event): ByteArray` and
-   `decode(bytes): event`, with no serialisation library chosen here.
-5. **What does a `Conflict` do?** Recommend it fails the step like any append
-   failure: a restart replays what the other writer wrote, and the command's
-   sender, if it asked, hears `Stopped` or a timeout rather than a wrong
-   answer.
+Nothing. All five were answered as recommended and are in Shape: ids are
+strings, passivation goes through the manager, `persist` blocks the step,
+events cross the journal as bytes through a codec, and a `Conflict` fails the
+step like any append failure.
