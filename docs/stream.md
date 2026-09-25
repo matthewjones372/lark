@@ -258,6 +258,7 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A>` | the declared failure handled, and a defect still dying |
 | `Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A>` | `other` on a failure, not on an empty stream |
 | `Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A>` | the declared failure said in another vocabulary, without saying recovery |
+| `Stream<E, A>.restartOnDefect(schedule: Schedule<Throwable, *>): Stream<E, A>` | on a defect, the same description run again after the schedule's delay, with a warn line each time; a declared failure passes through, and a schedule that is done lets the defect through as `Died` |
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
