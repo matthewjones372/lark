@@ -1,3 +1,5 @@
+@file:OptIn(KafkaSpi::class)
+
 package io.github.matthewjones372.lark.kafka
 
 import arrow.core.Either

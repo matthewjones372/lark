@@ -1,3 +1,5 @@
+@file:OptIn(KafkaSpi::class)
+
 package io.github.matthewjones372.lark.kafka
 
 import arrow.core.raise.Raise
@@ -24,7 +26,7 @@ fun <E, A : Any> Stream<E, Committed<A>>.filterRecord(predicate: (A) -> Boolean)
 fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapConcatRecord(f: (A) -> Iterable<B>): Stream<E, Committed<B>> =
     mapConcat { c: Committed<A> ->
         val elements = c.annotated(f).toList()
-        elements.mapIndexed { i, b -> Committed(b, c.position, c.offset.takeIf { i == elements.lastIndex }) }
+        elements.mapIndexed { i, b -> Committed(b, c.position, c.handle.takeIf { i == elements.lastIndex }) }
     }
 
 @JvmName("mapRecordOrFailDeclaring")

@@ -1,20 +1,13 @@
+@file:OptIn(KafkaSpi::class)
+
 package io.github.matthewjones372.lark.kafka
 
 import arrow.core.Either
 import io.github.matthewjones372.lark.stream.Run
-import io.github.matthewjones372.lark.stream.SourceSeam
 import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.hooked
-import io.github.matthewjones372.lark.stream.mapConcat
-import io.github.matthewjones372.lark.stream.runWith
+import io.github.matthewjones372.lark.stream.map
+import io.github.matthewjones372.lark.stream.runFold
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.apache.pekko.Done
-import org.apache.pekko.kafka.CommitterSettings
-import org.apache.pekko.kafka.ConsumerMessage
-import org.apache.pekko.kafka.ConsumerSettings
-import org.apache.pekko.kafka.Subscriptions
-import org.apache.pekko.kafka.javadsl.Committer
-import org.apache.pekko.kafka.javadsl.Consumer
 
 /**
  * A topic by name, so a subscription's arguments cannot be mistaken for a group id or a server.
@@ -23,44 +16,24 @@ import org.apache.pekko.kafka.javadsl.Consumer
  */
 data class Topic(val name: String)
 
-object Kafka {
+/** Where a subscription starts: [consume] here on any backend, and `subscribe` in lark-kafka-pekko. */
+object Kafka
 
-    /**
-     * Every record on [topics] for the settings' group, each with the offset `runCommitting` commits.
-     *
-     * A run's `stop()` drains: the consumer stops fetching, and the records it already sent finish and are
-     * committed before the exit completes. The consumer is shut down once the run has ended.
-     */
-    @OptIn(SourceSeam::class)
-    fun <K, V> subscribe(
-        settings: ConsumerSettings<K, V>,
-        vararg topics: Topic,
-    ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> =
-        Stream.hooked { hooks ->
-            Consumer.committableSource(settings, Subscriptions.topics(topics.map { it.name }.toSet()))
-                .mapMaterializedValue { control ->
-                    hooks.onStop { control.stop() }
-                    hooks.onEnd { control.shutdown() }
-                }
-                .map { message ->
-                    val offset = message.committableOffset()
-                    Committed(message.record(), offset.partitionOffset(), offset)
-                }
-        }
+/**
+ * A run described that marks each record handled once its element reaches the end of the stream, for records
+ * from [Kafka.consume]; the consumer commits them. It answers how many elements reached the end.
+ */
+fun <E> Stream<E, Committed<*>>.runCommitting(): Run<E, Long> =
+    // Counted from Long rather than folded over Committed, which the guard beside runFold refuses.
+    map { element ->
+        element.handle?.handled()
+        1L
+    }.runFold(0L, Long::plus)
 
-    /**
-     * [subscribe] over bytes, each key and value decoded in the stream: a record that cannot be read is a `Left`
-     * that still carries its offset, so it is routed rather than ending the consumer.
-     */
-    fun <K, V> subscribe(
-        settings: ConsumerSettings<ByteArray?, ByteArray?>,
-        vararg topics: Topic,
-        key: Decoder<K>,
-        value: Decoder<V>,
-    ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
-        subscribe(settings, *topics).mapRecord { record -> record.decoded(key, value) }
-}
-
-/** A run described that commits each element's offset once the element reaches the end of the stream. */
-fun <E> Stream<E, Committed<*>>.runCommitting(settings: CommitterSettings): Run<E, Done> =
-    mapConcat { listOfNotNull(it.offset) }.runWith(Committer.sink<ConsumerMessage.Committable>(settings))
+/** Each record's key and value decoded from bytes in the stream, for a module with a byte-level source. */
+@KafkaSpi
+fun <E, K, V> Stream<E, Committed<ConsumerRecord<ByteArray?, ByteArray?>>>.decodedWith(
+    key: Decoder<K>,
+    value: Decoder<V>,
+): Stream<E, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
+    mapRecord { record -> record.decoded(key, value) }

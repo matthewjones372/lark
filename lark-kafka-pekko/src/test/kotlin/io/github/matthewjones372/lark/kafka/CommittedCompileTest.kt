@@ -31,6 +31,7 @@ class CommittedCompileTest {
         import io.github.matthewjones372.lark.kafka.mapParRecordOrFail
         import io.github.matthewjones372.lark.kafka.mapRecord
         import io.github.matthewjones372.lark.kafka.mapRecordOrFail
+        import io.github.matthewjones372.lark.kafka.subscribe
         import io.github.matthewjones372.lark.stream.Stream
         import io.github.matthewjones372.lark.stream.absolve
         import io.github.matthewjones372.lark.stream.divertLefts

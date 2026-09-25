@@ -80,7 +80,8 @@ val moduleDescriptions = mapOf(
     "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn as it compiles.",
     "lark-app-compiler" to "lark-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
     "lark-structured" to "lark over the JDK's StructuredTaskScope: a flock the thread dump can see.",
-    "lark-kafka" to "Kafka as a lark Stream: a record is committed only after the work on it is done.",
+    "lark-kafka" to "Kafka as a lark Stream on any backend: a record is committed only after the work on it is done.",
+    "lark-kafka-pekko" to "lark-kafka through Pekko's own Kafka connector: prefetch, batched commits, a draining stop.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
