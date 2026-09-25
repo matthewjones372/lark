@@ -73,7 +73,11 @@ testActors {
   `ActorRef<M>` that goes through the manager, so it stays valid while the
   entity comes and goes. An entity idle for `passivateAfter` is stopped by
   the manager, which keeps any message for it that arrives meanwhile and
-  starts it again on the first. Ids are strings.
+  starts it again on the first, so two incarnations of one id never overlap.
+  Ids are strings. The manager stops an entity with `ctx.stop(child)`, new on
+  `Ctx`, and its state is a book made on its first message, so a restart and
+  a second spawn of the same behaviour each start with none. An entity's full
+  mailbox fails the manager's step, as any tell from inside an actor does.
 - **Persistent behaviours.** `persistent(id, empty, codec, command, event)` is
   a `Behaviour<M, S, E>` like any other. On start it replays its events from
   the flock's journal through `event` before its first command; commands that

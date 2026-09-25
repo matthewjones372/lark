@@ -222,6 +222,11 @@ class TestActor<M : Any, S, E> internal constructor(
             requireNotNull(ref as? TestActor<*, *, *>) { "$ref is not a test actor, so a test actor cannot watch it" }
                 .watchedBy(this@TestActor)
 
+        override fun stop(child: ActorRef<*>) {
+            require(child in run.get().children) { "$child is not a child of ${address.path}, so it cannot stop it" }
+            (child as TestActor<*, *, *>).halt()
+        }
+
         override fun <C : Any, T, F> spawn(
             name: String,
             behaviour: Behaviour<C, T, F>,
