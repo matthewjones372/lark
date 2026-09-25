@@ -17,11 +17,11 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
-import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.LockSupport
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.time.Duration
@@ -178,6 +178,12 @@ private val stepping = ThreadLocal<Cell<*, *, *>>()
  */
 private val guardians = ConcurrentHashMap<Flock<*>, Guardian>()
 
+private val SCHEDULED: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
+    AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "scheduledFlag")
+
+private val ROOM: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
+    AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "room")
+
 /**
  * Activations running or scheduled across one flock's actors. A step's tell schedules its target before its own
  * activation ends, so the count reaches zero only once nothing is left to handle.
@@ -250,27 +256,43 @@ private class Cell<M : Any, S, E>(
     private val stashCapacity: Int,
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
-) : ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation {
+) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation {
     override val self: ActorRef<M> get() = this
 
     override val timers: Timers<M> get() = this
 
     // Messages, and signals wrapped in Signalled so that no message type can be taken for one.
-    private val mailbox = Mailbox<Any>()
-    private val room = Semaphore(capacity)
+    // The mailbox is the cell itself (see Mailbox). The room left in it, and whether an activation holds the actor,
+    // are fields of the cell for the same reason: a tell to a cold actor touches one object, not five.
+    @Volatile
+    @JvmField
+    var room: Int = capacity
+
+    @Volatile
+    @JvmField
+    var scheduledFlag: Int = 0
+
+    // Senders parked on a full mailbox, made by the first to park.
+    @Volatile
+    private var roomWaiters: ConcurrentLinkedQueue<Thread>? = null
 
     // Held from the moment a message finds the actor idle until its activation ends, so one step runs at a time.
-    private val scheduled = AtomicBoolean(false)
-    private val stopped = AtomicBoolean(false)
-    private val state = AtomicReference(behaviour.initial)
+    @Volatile
+    private var stopped = false
+
+    @Volatile
+    private var state: S = behaviour.initial
     private val boundary = StepRaise<E>()
 
     // Where the restart schedule has got to; it moves on with each failure.
-    private val supervision = AtomicReference(restart?.step)
+    @Volatile
+    private var supervision = restart?.step
     private val pending = ConcurrentHashMap.newKeySet<Answer<*>>()
     val ended = CountDownLatch(1)
     private val watchers = ConcurrentHashMap.newKeySet<Cell<*, *, *>>()
-    private val terminated = AtomicBoolean(false)
+
+    @Volatile
+    private var terminated = false
 
     // The runner running this actor's activation, for a stop to interrupt. A runner moves on to other actors, so it is
     // set, cleared and interrupted only under this cell's monitor: an interrupt can never land on another actor.
@@ -337,7 +359,7 @@ private class Cell<M : Any, S, E>(
     }
 
     /** Whether there is anything to handle: a message put back from the stash, or one in the mailbox. */
-    private fun hasWork(): Boolean = starting || stashed?.isReplaying() == true || mailbox.isNotEmpty()
+    private fun hasWork(): Boolean = starting || stashed?.isReplaying() == true || isNotEmpty()
 
     // Whether the behaviour's start is still to run: set on spawn and on each restart, and read by the activation.
     private var starting = false
@@ -363,7 +385,7 @@ private class Cell<M : Any, S, E>(
     override fun <K : Any> subscribe(key: ServiceKey<K>, listing: (Set<ActorRef<K>>) -> M) =
         guardian.receptionist.subscribe(key, this) { refs ->
             @Suppress("UNCHECKED_CAST")
-            if (!stopped.get()) enqueue(Listed(listing(refs as Set<ActorRef<K>>)))
+            if (!stopped) enqueue(Listed(listing(refs as Set<ActorRef<K>>)))
         }
 
     override fun after(key: Any, delay: Duration, message: M) = start(key, delay, message, null)
@@ -423,7 +445,7 @@ private class Cell<M : Any, S, E>(
 
     /** A timer falls due: it takes no room, since the wheel must not wait on any one actor. */
     override fun fire(timer: Timer) {
-        if (!stopped.get()) enqueue(timer)
+        if (!stopped) enqueue(timer)
     }
 
     /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
@@ -474,32 +496,66 @@ private class Cell<M : Any, S, E>(
      * One told in the instant the actor stops may be neither handled nor reported.
      */
     override fun tell(message: M) {
-        if (stopped.get()) return dead(message, DeadLetter.Why.Stopped)
+        if (stopped) return dead(message, DeadLetter.Why.Stopped)
         val sender = stepping.get()
         sender?.told = true
         if (sender == null) {
-            room.acquire()
+            acquireRoom()
         } else {
-            check(room.tryAcquire()) { "the mailbox of ${address.path} is full" }
+            check(tryAcquireRoom()) { "the mailbox of ${address.path} is full" }
         }
-        if (stopped.get()) return dead(message, DeadLetter.Why.Stopped)
+        if (stopped) return dead(message, DeadLetter.Why.Stopped)
         enqueue(message)
     }
 
     fun offer(message: M): Boolean {
-        if (stopped.get()) return false
+        if (stopped) return false
         stepping.get()?.told = true
-        if (!room.tryAcquire()) return false
-        if (stopped.get()) return false
+        if (!tryAcquireRoom()) return false
+        if (stopped) return false
         enqueue(message)
         return true
+    }
+
+    private fun tryAcquireRoom(): Boolean {
+        while (true) {
+            val left = room
+            if (left <= 0) return false
+            if (ROOM.compareAndSet(this, left, left - 1)) return true
+        }
+    }
+
+    /** Takes room for one message, parking while the mailbox is full; interruptible, as a semaphore's acquire is. */
+    private fun acquireRoom() {
+        if (Thread.interrupted()) throw InterruptedException()
+        while (!tryAcquireRoom()) awaitRoom()
+    }
+
+    private fun awaitRoom() {
+        val waiters = roomWaiters ?: synchronized(this) {
+            roomWaiters ?: ConcurrentLinkedQueue<Thread>().also { roomWaiters = it }
+        }
+        val me = Thread.currentThread()
+        waiters.add(me)
+        try {
+            // Re-read after joining the waiters: a release after this read sees this thread among them.
+            if (room <= 0) LockSupport.park(this)
+            if (Thread.interrupted()) throw InterruptedException()
+        } finally {
+            waiters.remove(me)
+        }
+    }
+
+    private fun releaseRoom(count: Int) {
+        ROOM.getAndAdd(this, count)
+        roomWaiters?.forEach(LockSupport::unpark)
     }
 
     private fun dead(message: Any, why: DeadLetter.Why) = guardian.deadLetters(DeadLetter(address, message, why))
 
     /** A signal takes no room: the actor that sends one may be ending, and must not wait to. */
     fun signal(signal: Signal) {
-        if (!stopped.get()) enqueue(Signalled(signal))
+        if (!stopped) enqueue(Signalled(signal))
     }
 
     override fun watch(ref: ActorRef<*>) {
@@ -509,18 +565,18 @@ private class Cell<M : Any, S, E>(
 
     /** Whichever of this and [finish] takes [watcher] out of the set delivers its one `Terminated`. */
     fun watchedBy(watcher: Cell<*, *, *>) {
-        if (watchers.add(watcher) && terminated.get() &&
+        if (watchers.add(watcher) && terminated &&
             watchers.remove(watcher)
         ) watcher.signal(Signal.Terminated(this))
     }
 
     private fun enqueue(item: Any) {
-        mailbox.add(item)
+        add(item)
         // Stopped between the check and the add: nothing will handle it, and the stop has let the mailbox go.
-        if (stopped.get()) return
+        if (stopped) return
         // Read before the compare-and-set: a busy actor's flag is almost always taken, and a failed CAS still
         // takes the cache line away from the actor's own thread.
-        if (!scheduled.get() && scheduled.compareAndSet(false, true)) {
+        if (scheduledFlag == 0 && SCHEDULED.compareAndSet(this, 0, 1)) {
             backlog.added()
             schedule()
         }
@@ -534,7 +590,7 @@ private class Cell<M : Any, S, E>(
     /** Registers an ask, so that stopping answers it. False when the actor has already stopped. */
     fun expect(reply: Answer<*>): Boolean {
         pending.add(reply)
-        return !stopped.get()
+        return !stopped
     }
 
     fun forget(reply: Answer<*>) {
@@ -547,8 +603,8 @@ private class Cell<M : Any, S, E>(
      * an interrupt could land on the pool's next task, so the step is waited for.
      */
     fun stop() {
-        stopped.set(true)
-        if (scheduled.compareAndSet(false, true)) {
+        stopped = true
+        if (SCHEDULED.compareAndSet(this, 0, 1)) {
             finish()
         } else if (guardian.on === VirtualThreads) {
             synchronized(this) { running?.interrupt() }
@@ -565,7 +621,7 @@ private class Cell<M : Any, S, E>(
             returned = true
         } catch (interrupted: InterruptedException) {
             // The interrupt a stop sends to a running step: the stop is the outcome, not a failure to report.
-            if (!stopped.get()) throw interrupted
+            if (!stopped) throw interrupted
         } finally {
             // An interrupt a stop sent as the step returned is this actor's, and goes with it.
             synchronized(this) {
@@ -575,7 +631,7 @@ private class Cell<M : Any, S, E>(
             stepping.remove()
             // A throw stops the actor, and still reaches the thread's own handler.
             if (!returned) {
-                stopped.set(true)
+                stopped = true
                 finish()
                 backlog.done()
             }
@@ -589,7 +645,7 @@ private class Cell<M : Any, S, E>(
     private tailrec fun run() {
         drain(throughput)
         when {
-            stopped.get() -> {
+            stopped -> {
                 finish()
                 backlog.done()
             }
@@ -599,9 +655,9 @@ private class Cell<M : Any, S, E>(
             lingered() -> run()
 
             else -> {
-                scheduled.set(false)
+                scheduledFlag = 0
                 // A message that arrived after the last poll and lost the race for `scheduled` is ours to handle.
-                if ((hasWork() || stopped.get()) && scheduled.compareAndSet(false, true)) {
+                if ((hasWork() || stopped) && SCHEDULED.compareAndSet(this, 0, 1)) {
                     run()
                 } else {
                     backlog.done()
@@ -621,19 +677,19 @@ private class Cell<M : Any, S, E>(
         told = false
         val deadline = System.nanoTime() + LINGER_NANOS
         while (System.nanoTime() < deadline) {
-            if (hasWork() || stopped.get()) return true
+            if (hasWork() || stopped) return true
             Thread.onSpinWait()
         }
         return false
     }
 
     private tailrec fun drain(left: Int) {
-        if (left == 0 || stopped.get()) return
+        if (left == 0 || stopped) return
         val next = if (starting) started() else replayedOrPolled() ?: return
         when (next) {
             Next.Stay, Next.Unhandled -> Unit
-            is Next.Become -> state.set(next.state)
-            Next.Stop -> stopped.set(true)
+            is Next.Become -> state = next.state
+            Next.Stop -> stopped = true
         }
         settled(next)
         drain(left - 1)
@@ -645,7 +701,7 @@ private class Cell<M : Any, S, E>(
      */
     private fun replayedOrPolled(): Next<S>? {
         val replayed = stashed?.next()
-        return if (replayed != null) stepped(replayed).also { heard() } else mailbox.poll()?.let(::handled)
+        return if (replayed != null) stepped(replayed).also { heard() } else poll()?.let(::handled)
     }
 
     /** One item from the mailbox: a signal, a timer, a listing, the start's wake-up or a message. */
@@ -656,21 +712,21 @@ private class Cell<M : Any, S, E>(
 
         is Signalled -> {
             val handler = behaviour.signal
-            if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state.get(), item.signal) }
+            if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state, item.signal) }
         }
 
         // Only the timer still running under its key is handled: one cancelled or replaced since is dropped.
         is Timer -> if (armed?.get(item.key) === item) timed(item) else Next.Stay
 
         else -> {
-            room.release()
+            releaseRoom(1)
             stepped(item).also { heard() }
         }
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun stepped(message: Any): Next<S> =
-        supervised { behaviour.step(this, this@Cell, state.get(), message as M) }
+        supervised { behaviour.step(this, this@Cell, state, message as M) }
             .also { if (it === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled) }
 
     /**
@@ -678,19 +734,19 @@ private class Cell<M : Any, S, E>(
      * done. With no schedule a throw goes on to the thread, as it did before there was supervision.
      */
     private fun failed(failure: Failure<E>, thrown: Throwable?): Next<S> =
-        when (val decision = supervision.get()?.invoke(failure)) {
+        when (val decision = supervision?.invoke(failure)) {
             is Schedule.Decision.Continue -> {
                 stopChildren()
                 letGo()
                 guardian.clock.sleep(decision.delay)
-                state.set(behaviour.initial)
-                supervision.set(decision.step)
+                state = behaviour.initial
+                supervision = decision.step
                 starting = behaviour.start != null
                 Next.Stay
             }
 
             else -> {
-                if (thrown != null && supervision.get() == null) throw thrown
+                if (thrown != null && supervision == null) throw thrown
                 Next.Stop
             }
         }
@@ -713,13 +769,13 @@ private class Cell<M : Any, S, E>(
         stopping()
         kept.forEach { dead(it, DeadLetter.Why.Stopped) }
         // Messages still waiting are dead letters; a signal, a timer or a listing is not one, since nobody told it.
-        generateSequence { mailbox.poll() }
+        generateSequence { poll() }
             .filterNot { it is Signalled || it is Timer || it is Listed || it === Started }
             .forEach { dead(it, DeadLetter.Why.Stopped) }
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
-        room.release(Int.MAX_VALUE / 2)
+        releaseRoom(Int.MAX_VALUE / 2)
         finishAsks()
-        terminated.set(true)
+        terminated = true
         watchers.forEach { if (watchers.remove(it)) it.signal(Signal.Terminated(this)) }
         ended.countDown()
     }
@@ -729,7 +785,7 @@ private class Cell<M : Any, S, E>(
     private fun stopping() {
         val handler = behaviour.signal ?: return
         try {
-            boundary.guarded({ handler(this, this@Cell, state.get(), Signal.Stopping) }) { Next.Stop }
+            boundary.guarded({ handler(this, this@Cell, state, Signal.Stopping) }) { Next.Stop }
         } catch (thrown: Throwable) {
             thrown.nonFatalOrThrow()
         }

@@ -61,8 +61,13 @@ Nothing in the API changes. Inside a flock on virtual threads:
   and a runner clears any interrupt left over before it moves on.
 - **A leaner cell.** The flags a tell reads and writes, the mailbox's head
   and tail, and the count of room left are fields of the actor's cell,
-  updated through `VarHandle`s, rather than objects of their own. A tell to an
-  idle actor touches the cell, its new node and the ready queue.
+  updated through field updaters, rather than objects of their own: the cell
+  extends the mailbox, and the semaphore becomes a count with a queue of
+  parked senders made only when one parks. A tell to an idle actor touches the
+  cell, its new node and the ready queue. Keeping the ready queue's head and
+  tail apart, with a swap-only queue, was tried and made the fan-out slower
+  (4.7 ms), since runners contended on taking; the tell was not waiting on
+  the queue.
 
 ## Why this shape
 
@@ -79,7 +84,7 @@ so the cell's hot state lives in the cell.
 
 ## Stack
 
-- [ ] **`spec-0064-runners`** — the ready queue, runners, the watcher, and
+- [x] **`spec-0064-runners`** ([#135](https://github.com/matthewjones372/lark/pull/135)) — the ready queue, runners, the watcher, and
       interrupts that stay with their actor. Done when: `FanOutBenchmark`'s
       lark row is no slower than Pekko's, and blocking, ping-pong and tell
       are within their error of the last baseline.
