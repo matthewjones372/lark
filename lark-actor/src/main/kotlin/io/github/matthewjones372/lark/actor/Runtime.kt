@@ -2,8 +2,12 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.Either
 import arrow.core.left
+import arrow.core.nonFatalOrThrow
 import arrow.core.right
+import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.clock
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -19,19 +23,24 @@ import kotlin.time.Duration
 
 /**
  * Spawns [behaviour] in this flock, on the flock's executor. The actor cannot outlive the scope: closing it stops
- * the actor, after any step already running has returned.
+ * the actor, after any step already running has returned. A failure asks [restart], which restarts the actor from
+ * its initial state after its delay on this flock's clock, or stops it once done; with no schedule it stops.
  */
-fun <E, M : Any, S> Flock<E>.spawn(
+fun <F, M : Any, S, E> Flock<F>.spawn(
     name: String,
-    behaviour: Behaviour<M, S, *>,
+    behaviour: Behaviour<M, S, E>,
     capacity: Int = 1024,
     throughput: Int = 64,
+    restart: Schedule<Failure<E>, *>? = null,
 ): ActorRef<M> {
     require(capacity > 0) { "capacity must be positive, was $capacity" }
     require(throughput > 0) { "throughput must be positive, was $throughput" }
     val guardian = guardians.computeIfAbsent(this) { flock -> Guardian(flock).also { g -> async { g.stand() } } }
     val address = Address("local", "/user/$name", incarnations.incrementAndGet())
-    return Cell(behaviour, address, capacity, throughput, on, guardian.backlog).also { guardian.cells += it }
+    // The flock's clock, read here: an activation runs on a thread the flock did not fork, so it would not inherit it.
+    val waits = clock.get()
+    return Cell(behaviour, address, capacity, throughput, on, guardian.backlog, restart, waits)
+        .also { guardian.cells += it }
 }
 
 /**
@@ -47,7 +56,7 @@ fun <M : Any, A : Any> ActorRef<M>.ask(within: Duration, message: (Reply<A>) -> 
     // A test actor has handled the message before its tell returns, so there is nothing to wait for.
     if (this is TestActor<M, *, *>) return ask(message)
     val reply = Answer<A>(Address(address.node, "/temp/ask-${asks.incrementAndGet()}", 1))
-    val cell = this as? Cell<M, *>
+    val cell = this as? Cell<M, *, *>
     if (cell != null && !cell.expect(reply)) return AskFailure.Stopped.left()
     tell(message(reply))
     val answered = reply.done.await(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)
@@ -62,7 +71,7 @@ private val LINGER_NANOS = TimeUnit.MICROSECONDS.toNanos(20)
 private val asks = AtomicLong()
 
 /** The actor whose step this thread is running, so a `tell` from inside one can refuse to wait. */
-private val stepping = ThreadLocal<Cell<*, *>>()
+private val stepping = ThreadLocal<Cell<*, *, *>>()
 
 /**
  * One guardian per flock: a single parked fork that the flock interrupts on close, which then stops its actors.
@@ -93,7 +102,7 @@ private class Backlog {
 }
 
 private class Guardian(private val flock: Flock<*>) {
-    val cells = ConcurrentLinkedQueue<Cell<*, *>>()
+    val cells = ConcurrentLinkedQueue<Cell<*, *, *>>()
     val backlog = Backlog()
 
     fun stand() {
@@ -120,13 +129,15 @@ private class Answer<A : Any>(override val address: Address) : Reply<A> {
         this.outcome.compareAndSet(null, outcome).also { if (it) done.countDown() }
 }
 
-private class Cell<M : Any, S>(
-    private val behaviour: Behaviour<M, S, *>,
+private class Cell<M : Any, S, E>(
+    private val behaviour: Behaviour<M, S, E>,
     override val address: Address,
     capacity: Int,
     private val throughput: Int,
     private val on: Executor,
     private val backlog: Backlog,
+    restart: Schedule<Failure<E>, *>?,
+    private val clock: Clock,
 ) : ActorRef<M>, Ctx<M> {
     override val self: ActorRef<M> get() = this
 
@@ -137,7 +148,10 @@ private class Cell<M : Any, S>(
     private val scheduled = AtomicBoolean(false)
     private val stopped = AtomicBoolean(false)
     private val state = AtomicReference(behaviour.initial)
-    private val boundary = StepRaise<Any?>()
+    private val boundary = StepRaise<E>()
+
+    // Where the restart schedule has got to; it moves on with each failure.
+    private val supervision = AtomicReference(restart?.step)
     private val pending = ConcurrentHashMap.newKeySet<Answer<*>>()
     val ended = CountDownLatch(1)
 
@@ -249,18 +263,45 @@ private class Cell<M : Any, S>(
         return false
     }
 
+    // A throw is the actor's failure, handed to its schedule like a raise; only a fatal one is not.
+    @Suppress("TooGenericExceptionCaught")
     private tailrec fun drain(left: Int) {
         if (left == 0 || stopped.get()) return
         val message = mailbox.poll() ?: return
         room.release()
-        // A raise stops the actor, as a throw does; supervision (0060) decides what happens after.
-        when (val next = boundary.guarded({ behaviour.step(this, this@Cell, state.get(), message) }) { Next.Stop }) {
+        val next = try {
+            boundary.guarded({ behaviour.step(this, this@Cell, state.get(), message) }) { error ->
+                failed(Failure.Raised(error), null)
+            }
+        } catch (thrown: Throwable) {
+            failed(Failure.Thrown(thrown.nonFatalOrThrow()), thrown)
+        }
+        when (next) {
             Next.Stay, Next.Unhandled -> Unit
             is Next.Become -> state.set(next.state)
             Next.Stop -> stopped.set(true)
         }
         drain(left - 1)
     }
+
+    /**
+     * Restarts from the initial state after the schedule's delay, keeping the mailbox, or stops once the schedule is
+     * done. With no schedule a throw goes on to the thread, as it did before there was supervision.
+     */
+    private fun failed(failure: Failure<E>, thrown: Throwable?): Next<S> =
+        when (val decision = supervision.get()?.invoke(failure)) {
+            is Schedule.Decision.Continue -> {
+                clock.sleep(decision.delay)
+                state.set(behaviour.initial)
+                supervision.set(decision.step)
+                Next.Stay
+            }
+
+            else -> {
+                if (thrown != null && supervision.get() == null) throw thrown
+                Next.Stop
+            }
+        }
 
     private fun finish() {
         mailbox.clear()
