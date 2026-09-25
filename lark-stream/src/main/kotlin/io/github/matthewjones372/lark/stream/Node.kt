@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import org.apache.pekko.NotUsed
+import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.javadsl.Flow
 import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
@@ -56,6 +57,78 @@ internal sealed interface Node {
     }
 
     data class Filter(override val upstream: Node, val predicate: (Any) -> Boolean, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+    data class FilterNot(override val upstream: Node, val predicate: (Any) -> Boolean, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Take(override val upstream: Node, val n: Long) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Drop(override val upstream: Node, val n: Long) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class TakeWhile(override val upstream: Node, val predicate: (Any) -> Boolean, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class DropWhile(override val upstream: Node, val predicate: (Any) -> Boolean, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Grouped(override val upstream: Node, val n: Int) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Sliding(override val upstream: Node, val n: Int, val step: Int) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class GroupedWithin(override val upstream: Node, val n: Int, val within: Duration) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Buffer(override val upstream: Node, val size: Int, val strategy: OverflowStrategy) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Scan(override val upstream: Node, val zero: Any, val f: (Any, Any) -> Any, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class MapConcat(override val upstream: Node, val f: (Any) -> Iterable<Any>, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class MapAsync(
+        override val upstream: Node,
+        val parallelism: Int,
+        val f: (Any) -> CompletionStage<Any>,
+        val at: String,
+    ) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Conflate(
+        override val upstream: Node,
+        val seed: (Any) -> Any,
+        val aggregate: (Any, Any) -> Any,
+        val at: String,
+    ) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    /** `S` may be nullable, which is why the state is `Any?` where every element is `Any`. */
+    data class StatefulMap(
+        override val upstream: Node,
+        val create: () -> Any?,
+        val f: (Any?, Any) -> Pair<Any?, Any>,
+        val onComplete: (Any?) -> Any?,
+        val at: String,
+    ) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 }

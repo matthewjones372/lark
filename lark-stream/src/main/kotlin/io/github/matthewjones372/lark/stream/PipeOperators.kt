@@ -18,11 +18,8 @@ import java.util.concurrent.CompletionStage
  * element "is not passed downstream", and a lookup lifted into a future is the easiest thing in
  * Kotlin to write and the hardest to notice.
  */
-fun <A : Any, B : Any> Pipe.Companion.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Pipe<Nothing, A, B> {
-    val at = buildSite()
-    val stage = guarded("mapAsync", at, f)
-    return Pipe(Flow.create<A>().mapAsync(parallelism) { a -> stage(a).orDieOnNull(a, at) })
-}
+fun <A : Any, B : Any> Pipe.Companion.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Pipe<Nothing, A, B> =
+    Pipe(Node.MapAsync(Node.Hole, parallelism, f.erased(), buildSite()))
 
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapAsync(
     parallelism: Int,
@@ -36,12 +33,8 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapAsync(
  * Both halves run caller code, so both are guarded, and the element a defect names is the one being
  * folded in. Nothing is dropped: what an aggregate leaves out is what the caller left out of it.
  */
-fun <A : Any, S : Any> Pipe.Companion.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Pipe<Nothing, A, S> {
-    val at = buildSite()
-    val start = guarded("conflateWithSeed", at, seed)
-    val fold = guarded("conflateWithSeed", at, aggregate)
-    return Pipe(Flow.create<A>().conflateWithSeed({ a -> start(a) }, { s, a -> fold(s, a) }))
-}
+fun <A : Any, S : Any> Pipe.Companion.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Pipe<Nothing, A, S> =
+    Pipe(Node.Conflate(Node.Hole, seed.erased(), aggregate.erased(), buildSite()))
 
 fun <E, In, Out : Any, S : Any> Pipe<E, In, Out>.conflateWithSeed(
     seed: (Out) -> S,
@@ -49,10 +42,8 @@ fun <E, In, Out : Any, S : Any> Pipe<E, In, Out>.conflateWithSeed(
 ): Pipe<E, In, S> = via(Pipe.conflateWithSeed(seed, aggregate))
 
 /** Each element's own elements, in its order; one that answers with none emits none. */
-fun <A : Any, B : Any> Pipe.Companion.mapConcat(f: (A) -> Iterable<B>): Pipe<Nothing, A, B> {
-    val body = guarded("mapConcat", buildSite(), f)
-    return Pipe(Flow.create<A>().mapConcat { a -> body(a) })
-}
+fun <A : Any, B : Any> Pipe.Companion.mapConcat(f: (A) -> Iterable<B>): Pipe<Nothing, A, B> =
+    Pipe(Node.MapConcat(Node.Hole, f.erased(), buildSite()))
 
 fun <E, In, Out : Any, B : Any> Pipe<E, In, Out>.mapConcat(f: (Out) -> Iterable<B>): Pipe<E, In, B> =
     via(Pipe.mapConcat(f))
@@ -131,7 +122,7 @@ fun <E, In, Out : Any> Pipe<E, In, Out>.orElse(other: Stream<E, Out>): Pipe<E, I
  * them beside it.
  */
 @Suppress("UNCHECKED_CAST")
-private fun <B : Any> CompletionStage<B>.orDieOnNull(element: Any, at: String): CompletionStage<B> =
+internal fun <B : Any> CompletionStage<B>.orDieOnNull(element: Any, at: String): CompletionStage<B> =
     (this as CompletionStage<B?>)
         .whenComplete { _, thrown -> thrown?.unwrapped()?.describedBy("mapAsync", element, at) }
         .thenApply { b ->
