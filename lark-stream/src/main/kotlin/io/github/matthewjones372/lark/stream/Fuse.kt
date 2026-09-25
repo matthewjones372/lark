@@ -82,6 +82,7 @@ fun Node.fused(): Node =
         is Node.RestartOnDefect -> Node.RestartOnDefect(upstream.fused(), step, logger, clock)
 
         is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail,
+        is Node.Blocking,
         Node.Empty, Node.Hole,
         -> this
     }

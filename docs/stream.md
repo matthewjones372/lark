@@ -221,6 +221,7 @@ what changes is what the type says, and what it will not let you write.
 | `Stream.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A>` | `element` every `every`, the first one `after` the run starts; `kotlin.time.Duration`, as lark's own `timeout` takes |
 | `Stream.fromStage(stage: CompletionStage<A>): Stream<Nothing, A>` | the stage's value as one element; a `null` completion is `Died(NullPointerException)`, never `Done` with nothing |
 | `Stream.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A>` | the same, with the absence named: a `null` completion is `Failed(ifNull)` |
+| `Stream.blocking(open, next, wake, close): Stream<Nothing, A>` | a resource opened per run and read by blocking, on any backend: `next` answering `null` ends it, `stop()` calls `wake` to reach a `next` that is blocked, and `close` runs once however the run ended. Pekko reads it on its blocking-IO dispatcher |
 | `Stream.hooked(source: (RunHooks) -> Source<A, *>): Stream<Nothing, A>` | opt-in (`@SourceSeam`), for a module adding a source of its own: each run hands the source hooks, so it can drain on `stop()` and clean up once the run has ended. `lark-kafka` is built on it |
 | `Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A>` | a stream that emitted nothing fails with `error`, for `E : E2`; one that emitted is untouched |
 | **Element by element** | |

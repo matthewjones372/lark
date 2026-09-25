@@ -90,6 +90,8 @@ private class PullRun<E, R : Any>(
 
     private val stopped = AtomicBoolean(false)
 
+    private val resources = Resources()
+
     override val exit = CompletableFuture<Exit<E, R>>()
 
     override fun emitted(): List<Any> = kept?.toList() ?: error("only a run on a test's clock keeps what it emitted")
@@ -97,6 +99,7 @@ private class PullRun<E, R : Any>(
     /** The loop ends before its next element, and the exit is `Done` with what the end had by then. */
     override fun stop() {
         stopped.set(true)
+        resources.wake()
         onStop()
     }
 
@@ -106,7 +109,18 @@ private class PullRun<E, R : Any>(
     }
 
     fun drain(run: Run<E, R>) {
-        exit.complete(ended(run))
+        val ended = resources.around { ended(run) }
+        // Before the exit completes, so a caller that waited for it finds every resource closed. A close
+        // that throws is a defect, and ends a run that would otherwise have been Done.
+        val unclosed = resources.close()
+        exit.complete(
+            if (unclosed != null && ended is Exit.Done) {
+                log.log(LogLine(LogLevel.Error, unclosed.oneLine(), clock.now(), unclosed))
+                Exit.Died(unclosed)
+            } else {
+                ended
+            },
+        )
     }
 
     // The catch is as wide as a pipeline, because everything a stage threw ends the run: a declared

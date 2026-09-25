@@ -16,7 +16,7 @@ internal fun interface Pull {
 /** The operators a pull runs on its own: every one that needs no second thread and no clock. */
 internal fun Node.pulls(): Boolean =
     when (this) {
-        is Node.Elements, is Node.Single, Node.Empty, is Node.Fail, is Node.FromStage,
+        is Node.Elements, is Node.Single, Node.Empty, is Node.Fail, is Node.FromStage, is Node.Blocking,
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
@@ -54,6 +54,8 @@ internal fun Node.pull(): Pull =
         is Node.Fail -> Pull { throw DeclaredFailure(error) }
 
         is Node.FromStage -> once { awaited(this) }
+
+        is Node.Blocking -> blocking(Resources.here())
 
         is Node.Map -> map()
 
@@ -122,6 +124,23 @@ private fun once(element: () -> Any): Pull {
         } else {
             given = true
             element()
+        }
+    }
+}
+
+/**
+ * Opened on the first pull rather than when the loop is built, so a stream nobody pulls opens nothing, and
+ * closed as soon as it runs out; the run closes it otherwise, once its loop has ended.
+ */
+private fun Node.Blocking.blocking(resources: Resources?): Pull {
+    var opened: Opened? = null
+    var done = false
+    return Pull {
+        if (done) return@Pull null
+        val resource = opened ?: Opened(this).also { opened = it; resources?.add(it) }
+        resource.next() ?: null.also {
+            done = true
+            resource.close()
         }
     }
 }
