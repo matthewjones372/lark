@@ -31,7 +31,11 @@ internal fun Node.Buffer.buffered(releases: Releases?): Pull {
         } catch (thrown: Throwable) {
             // Waits for room like an element: the pull takes what came before it first, and the run
             // interrupts this if nobody will.
-            runCatching { queue.put(Ended.Threw(thrown)) }
+            try {
+                queue.put(Ended.Threw(thrown))
+            } catch (_: InterruptedException) {
+                // The run let go while this waited: nobody reads the failure either.
+            }
         }
     }
     releases?.add(fork::cancel)

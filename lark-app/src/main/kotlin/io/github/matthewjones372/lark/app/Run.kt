@@ -92,7 +92,11 @@ internal fun leaving(run: (Shutdown) -> Either<StartupError, Unit>): ExitCode {
     torndown.countDown()
     // Removing it during a shutdown it is already running in is the illegal state, and by then the
     // process is leaving anyway.
-    runCatching { Runtime.getRuntime().removeShutdownHook(hook) }
+    try {
+        Runtime.getRuntime().removeShutdownHook(hook)
+    } catch (_: IllegalStateException) {
+        // The hook is running.
+    }
 
     outcome.leftOrNull()?.let { System.err.println(it.describe()) }
     return outcome.exitCode()

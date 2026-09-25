@@ -215,6 +215,12 @@ style:
     # SystemClock.sleep is the one that has to call it, and everything else
     # waits through whichever Clock the calling thread inherited.
     excludes: ['**/test/**', '**/example/**', '**/Clock.kt']
+  # A second instance of the rule, for main and test sources alike: the first excludes tests, which may sleep.
+  ForbiddenMethodCall/runCatching:
+    active: true
+    methods:
+      - reason: 'runCatching catches every Throwable, interrupts and cancellations included, and turns a declared failure and a bug into one Result. Catch the exception you expect, by name.'
+        value: 'kotlin.runCatching'
 
 # ------------------------------------------------------------- what is meant
 #
