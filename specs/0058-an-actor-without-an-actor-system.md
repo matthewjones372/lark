@@ -59,8 +59,8 @@ shop.state shouldBe Shelf.of(rex)
   the scope. The mailbox is a lock-free multi-producer queue. An idle actor
   holds no thread. A message to an idle actor starts a virtual thread that runs
   up to `throughput` messages (default 5, as Pekko's), then parks or yields.
-  There is no linger before parking unless the benchmark shows it pays. The activation is one
-  compare-and-set state, as in 0037.
+  There is no linger before parking unless the benchmark shows it pays. The
+  activation is one compare-and-set state, as in 0037.
 - **Bounded mailboxes.** Capacity is required. Only a `tell` from outside any
   actor waits while the mailbox is full. A `tell` from inside an actor takes an
   overflow policy, failing or going to dead letters, so two actors each
