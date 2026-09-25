@@ -134,7 +134,7 @@ and can say "this was lost" exactly once.
 - [x] **`spec-0062-routers`** ([#131](https://github.com/matthewjones372/lark/pull/131)) — `pool` with `roundRobin` and `hashing`, and
       `group`. Done when: a pool of four hands eight messages two to each, one
       key always reaches one routee, and a failed routee restarts alone.
-- [ ] **`spec-0062-app`** — `lark-app-actor`: `actors()` and `actor<M>()`.
+- [x] **`spec-0062-app`** ([#132](https://github.com/matthewjones372/lark/pull/132)) — `lark-app-actor`: `actors()` and `actor<M>()`.
       Done when: an application with an actor node starts, and on the way out
       the actor has stopped before the node it depends on is released.
 
