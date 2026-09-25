@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
 import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.Schedule
 
 /** Where an actor lives. A ref is named by one, so that a ref can later name an actor on another node. */
 data class Address(val node: String, val path: String, val incarnation: Long)
@@ -23,6 +24,16 @@ interface Ctx<M : Any> {
 
     /** Hears [Signal.Terminated] once [ref] stops, once however often it is asked; at once if it already has. */
     fun watch(ref: ActorRef<*>)
+
+    /**
+     * A child: named under this actor, and stopped before it, whether this actor stops, fails or is restarted. A
+     * restarted parent has none until its step spawns them again.
+     */
+    fun <C : Any, T, F> spawn(
+        name: String,
+        behaviour: Behaviour<C, T, F>,
+        restart: Schedule<Failure<F>, *>? = null,
+    ): ActorRef<C>
 }
 
 /** What happens to an actor rather than what is sent to it, handled beside its messages with no `else`. */

@@ -41,7 +41,7 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
     val address = Address("local", "/user/$name", incarnations.incrementAndGet())
     // The flock's clock, read here: an activation runs on a thread the flock did not fork, so it would not inherit it.
     val waits = clock.get()
-    return Cell(behaviour, address, capacity, throughput, on, guardian.backlog, restart, waits)
+    return Cell(behaviour, address, capacity, throughput, on, guardian, restart, waits)
         .also { guardian.cells += it }
 }
 
@@ -154,10 +154,10 @@ private class Answer<A : Any>(override val address: Address) : Reply<A> {
 private class Cell<M : Any, S, E>(
     private val behaviour: Behaviour<M, S, E>,
     override val address: Address,
-    capacity: Int,
+    private val capacity: Int,
     private val throughput: Int,
     private val on: Executor,
-    private val backlog: Backlog,
+    private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
     private val clock: Clock,
 ) : ActorRef<M>, Ctx<M> {
@@ -179,6 +179,38 @@ private class Cell<M : Any, S, E>(
     val ended = CountDownLatch(1)
     private val watchers = ConcurrentHashMap.newKeySet<Cell<*, *, *>>()
     private val terminated = AtomicBoolean(false)
+    private val backlog = guardian.backlog
+
+    // Spawned by this actor's steps, so stopped before it; only its own activation reads or writes the list.
+    private val children = ConcurrentLinkedQueue<Cell<*, *, *>>()
+
+    override fun <C : Any, T, F> spawn(
+        name: String,
+        behaviour: Behaviour<C, T, F>,
+        restart: Schedule<Failure<F>, *>?,
+    ): ActorRef<C> {
+        val child = Cell(
+            behaviour,
+            Address(address.node, "${address.path}/$name", incarnations.incrementAndGet()),
+            capacity,
+            throughput,
+            on,
+            guardian,
+            restart,
+            clock,
+        )
+        guardian.cells += child
+        children += child
+        return child
+    }
+
+    /** Stops every child and waits for each to end, so none outlives or overlaps this actor's own ending. */
+    private fun stopChildren() {
+        generateSequence { children.poll() }.forEach { child ->
+            child.stop()
+            child.ended.await()
+        }
+    }
 
     // Whether this activation told another actor anything, so that a reply may be on its way. Read and written
     // only by the thread running this actor's activation.
@@ -336,6 +368,7 @@ private class Cell<M : Any, S, E>(
     private fun failed(failure: Failure<E>, thrown: Throwable?): Next<S> =
         when (val decision = supervision.get()?.invoke(failure)) {
             is Schedule.Decision.Continue -> {
+                stopChildren()
                 clock.sleep(decision.delay)
                 state.set(behaviour.initial)
                 supervision.set(decision.step)
@@ -358,8 +391,9 @@ private class Cell<M : Any, S, E>(
             failed(Failure.Thrown(thrown.nonFatalOrThrow()), thrown)
         }
 
-    /** Signals [Signal.Stopping], then lets everything go; watchers hear `Terminated` before [ended] opens. */
+    /** Stops its children, signals [Signal.Stopping], then lets go; watchers hear `Terminated` before [ended] opens. */
     private fun finish() {
+        stopChildren()
         stopping()
         mailbox.clear()
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.

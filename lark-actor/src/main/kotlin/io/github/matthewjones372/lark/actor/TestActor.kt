@@ -44,8 +44,14 @@ class TestActors internal constructor(private val clock: Clock = fixedClock()) {
         name: String,
         behaviour: Behaviour<M, S, E>,
         restart: Schedule<Failure<E>, *>? = null,
+    ): TestActor<M, S, E> = spawnAt("/user/$name", behaviour, restart)
+
+    internal fun <M : Any, S, E> spawnAt(
+        path: String,
+        behaviour: Behaviour<M, S, E>,
+        restart: Schedule<Failure<E>, *>?,
     ): TestActor<M, S, E> =
-        TestActor(this, behaviour, Address("test", "/user/$name", incarnations.incrementAndGet()), restart, clock)
+        TestActor(this, behaviour, Address("test", path, incarnations.incrementAndGet()), restart, clock)
 
     /** Returns at once: a tell from the test has already run to idle. Here so a scenario reads the same on threads. */
     fun awaitIdle() = Unit
@@ -87,6 +93,7 @@ class TestActor<M : Any, S, E> internal constructor(
         val signals: List<Signal> = emptyList(),
         val watchers: Set<TestActor<*, *, *>> = emptySet(),
         val ended: Boolean = false,
+        val children: List<TestActor<*, *, *>> = emptyList(),
     )
 
     private val run =
@@ -100,6 +107,14 @@ class TestActor<M : Any, S, E> internal constructor(
         override fun watch(ref: ActorRef<*>) =
             requireNotNull(ref as? TestActor<*, *, *>) { "$ref is not a test actor, so a test actor cannot watch it" }
                 .watchedBy(this@TestActor)
+
+        override fun <C : Any, T, F> spawn(
+            name: String,
+            behaviour: Behaviour<C, T, F>,
+            restart: Schedule<Failure<F>, *>?,
+        ): ActorRef<C> = scope.spawnAt("${address.path}/$name", behaviour, restart).also { child ->
+            run.updateAndGet { it.copy(children = it.children + child) }
+        }
     }
 
     val state: S get() = run.get().state
@@ -115,6 +130,9 @@ class TestActor<M : Any, S, E> internal constructor(
 
     /** Every signal this actor has taken, in order. */
     val signals: List<Signal> get() = run.get().signals
+
+    /** The children it has now; a stop or a restart takes them all. */
+    val children: List<ActorRef<*>> get() = run.get().children
 
     /** The delay each restart waited, in order. */
     val delays: List<Duration> get() = run.get().delays
@@ -179,6 +197,16 @@ class TestActor<M : Any, S, E> internal constructor(
             if (stopped) Next.Stop else null
         }
 
+    /** Stops this actor from outside: its children first, then its own Stopping. */
+    internal fun halt() {
+        if (run.getAndUpdate { it.copy(stopped = true) }.stopped) return
+        ended()
+    }
+
+    private fun stopChildren() {
+        run.getAndUpdate { it.copy(children = emptyList()) }.children.forEach { it.halt() }
+    }
+
     internal fun watchedBy(watcher: TestActor<*, *, *>) {
         if (run.get().ended) {
             scope.post(watcher, TestSignalled(Signal.Terminated(this)))
@@ -191,6 +219,7 @@ class TestActor<M : Any, S, E> internal constructor(
     @Suppress("TooGenericExceptionCaught", "SwallowedException")
     private fun ended() {
         if (run.getAndUpdate { it.copy(ended = true) }.ended) return
+        stopChildren()
         run.updateAndGet { it.copy(signals = it.signals + Signal.Stopping) }
         behaviour.signal?.let { handler ->
             try {
@@ -206,6 +235,7 @@ class TestActor<M : Any, S, E> internal constructor(
     private fun failed(failure: Failure<E>): Next<S> =
         when (val decision = run.get().supervision?.invoke(failure)) {
             is Schedule.Decision.Continue -> {
+                stopChildren()
                 clock.sleep(decision.delay)
                 run.updateAndGet {
                     it.copy(state = behaviour.initial, supervision = decision.step, delays = it.delays + decision.delay)
