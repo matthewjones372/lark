@@ -11,7 +11,9 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 
 /**
- * That a restart waits for the delay its schedule decided, on a clock the test moves.
+ * That a restart on Pekko waits for the delay its schedule decided, on a clock the test moves.
+ * `TestStreamsTest` says the same of the test backend; this is the `initialDelay` Pekko's own
+ * restart is built on, which nothing else times.
  *
  * A class of its own because `ManualTime` replaces the system's scheduler, and every timer in any
  * other test on this system would stop with it.
