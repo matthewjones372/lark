@@ -168,10 +168,11 @@ else: no HTTP library, no JSON library, no coroutines, and virtual threads come
 from `java.lang.Thread`. `lark-pekko` adds `pekko-actor` and only that: it
 exists to hand a Pekko dispatcher to `lark` as the executor its forks run on,
 and to await Pekko's stages from a virtual thread. `lark-stream` is
-`Stream<E, A>` over Pekko Streams, and depends on `lark`, on `lark-pekko` —
-`awaitExit` waits through its `await`, so one bridge cancels an abandoned stage
-for a handler and for a run alike — on `pekko-stream` and on the Arrow that
-arrives with `lark`, and on nothing else.
+`Stream<E, A>` as a description, and depends on `lark` and the Arrow that
+arrives with it, and on nothing else: no backend. `lark-stream-pekko` runs one
+on Pekko Streams, and depends on `lark-stream`, on `lark-pekko` — `awaitExit`
+waits through its `await`, so one bridge cancels an abandoned stage for a
+handler and for a run alike — and on `pekko-stream`, and on nothing else.
 
 Each claim is a test. `NoOtherDependenciesTest` asserts the module's main
 runtime classpath, in every module alike.
@@ -230,7 +231,7 @@ Work out which of these a change can break:
 
 ### An actor system belongs to the test class
 
-`lark-pekko` and `lark-stream` tests need an `ActorSystem`. It is created in a
+`lark-pekko` and `lark-stream-pekko` tests need an `ActorSystem`. It is created in a
 `companion object` from a config string and stopped in `@AfterAll`, never by
 hand inside a test and never shared across classes — a system left running
 holds threads that make the next suite's thread assertions lie.

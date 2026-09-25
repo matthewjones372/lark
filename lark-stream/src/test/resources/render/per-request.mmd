@@ -1,0 +1,8 @@
+flowchart TD
+    n0["Stream.from"]
+    n1["map · RenderPipelines.kt:34"]
+    n2["filter · RenderPipelines.kt:35"]
+    n0 --> n1
+    n1 --> n2
+    run["runFold · RenderPipelines.kt:36"]
+    n2 --> run

@@ -1,8 +1,8 @@
-# 0047 — A record that fails to decode
+# 0052 — A record that fails to decode
 
 ## Problem
 
-0046 decodes a record with Kafka's own `Deserializer`, inside the connector's
+0051 decodes a record with Kafka's own `Deserializer`, inside the connector's
 poll. A deserializer that throws fails the consumer stage, so the run ends
 `Died`. `restartOnDefect` then starts again from the last commit and reads the
 same record, so one bad record stops the partition for good.
@@ -27,10 +27,10 @@ record.
   client. It takes any `Deserializer`, and Confluent's, Apicurio's and avro4k's
   are all one.
 - **No dead-letter producer.** `divertLefts` takes a function. Publishing to a
-  dead-letter topic arrives with 0048.
+  dead-letter topic arrives with the producing spec.
 - **No schema compatibility check.** Golden `.avsc` files checked against the
   registry are a later spec.
-- **No change to 0046's `subscribe`.** It stays for deserializers that cannot
+- **No change to 0051's `subscribe`.** It stays for deserializers that cannot
   fail, such as `String` and `Long`.
 
 ## Shape
@@ -79,13 +79,13 @@ never written. A function run in the stream is ordered with it.
 
 ## Stack
 
-- [ ] **`spec-0047-decode-in-stream`**: `Decoder`, `DecodeError`, the bytes
+- [ ] **`spec-0052-decode-in-stream`**: `Decoder`, `DecodeError`, the bytes
       form of `subscribe`.
       Done when: a record whose deserializer throws `SerializationException`
       is a `Left` with its offset and raw bytes, and one whose cause is an
       `IOException` ends the run `Died`. After `restartOnDefect`, that record
       is read again.
-- [ ] **`spec-0047-committed-either`**: `divertLefts` and `absolve` over
+- [ ] **`spec-0052-committed-either`**: `divertLefts` and `absolve` over
       `Committed<Either<L, R>>`.
       Done when: a diverted record is committed only after its function
       returns, and a function that throws leaves the record uncommitted.

@@ -6,11 +6,14 @@ type can never be null, and running it answers an `Exit` that is `Done`,
 `Failed(e)` or `Died(cause)` — never a dropped element and never a failed
 future nobody read.
 
-Every operator delegates to Pekko. `toSource()` and `Stream.from(source)` are
-the way in and out, so nothing Pekko can do is out of reach.
+A stream is a description: the operators build it, and a backend runs it.
+`lark-stream-pekko` is the backend for Pekko Streams, and every operator
+compiles to the Pekko stage it names. `toSource()` and `Stream.from(source)`
+are the way in and out, so nothing Pekko can do is out of reach.
 
-The module is `lark-stream` and everything below is in
-`io.github.matthewjones372.lark.stream`. It was its own library, dipper, until
+A service depends on `lark-stream-pekko`, and `lark-stream`, the description
+with no backend in it, comes with it. Everything below is in
+`io.github.matthewjones372.lark.stream`, whichever of the two it ships in. It was its own library, dipper, until
 lark's [spec 0005](../specs/0005-dipper-comes-home.md) brought it here.
 
 ## The problem
@@ -32,8 +35,8 @@ so.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    // Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
-    implementation("io.github.matthewjones372:lark-stream:0.1.0")
+    // lark-stream, Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.1.0")
 }
 ```
 
@@ -440,16 +443,40 @@ lark's name for it and a `bind()` on a `Left` ends the stream with what the
 awaited — an element body can write too, and the failure it names is the one
 the stream already declares.
 
+## Time a test owns
+
+`tick`, `groupedWithin` and `restartOnDefect` wait on time. On `TestStreams`,
+from `lark-stream-test`, they wait on a `TestClock` and on nothing else, so a
+test moves time rather than sleeping through it:
+
+```kotlin
+val clock = TestClock()
+val running = Stream.tick(1.minutes, "t").runCollect().start(TestStreams(clock))
+
+clock.adjust(1.hours)
+running.emitted().size shouldBe 60
+```
+
+One stage runs at a time, in the same order every time. `start` returns once
+the run is over or waiting on a later time, and each `adjust` stops at every
+instant the run waits for on the way, so what falls due runs in time order
+before `adjust` returns. A stage body that reads lark's `clock` reads the
+test's. A body that blocks on anything else blocks the test with it.
+
 ## What is in the box
 
-`lark-stream` puts the Kotlin standard library, `lark`, `lark-pekko` — whose
-`await` is how `awaitExit` waits, so an interrupt cancels the run rather than
-abandoning it — `pekko-stream` with the Scala runtime, Typesafe Config, the
-Reactive Streams interfaces and the `ssl-config-core` it brings, and
-`arrow-core` on a consumer's classpath, and nothing else — no HTTP library, no JSON library, no coroutines, no second
-functional stack. `NoOtherDependenciesTest` asserts exactly that list against
-the module's real runtime classpath, so a dependency added here is a build
-failure rather than a judgement call.
+`lark-stream` puts the Kotlin standard library, `lark` and `arrow-core` on a
+consumer's classpath, and nothing else: a description names no backend.
+
+`lark-stream-pekko` adds `lark-pekko` — whose `await` is how `awaitExit`
+waits, so an interrupt cancels the run rather than abandoning it — and
+`pekko-stream` with the Scala runtime, Typesafe Config, the Reactive Streams
+interfaces and the `ssl-config-core` it brings, and nothing else — no HTTP
+library, no JSON library, no coroutines, no second functional stack.
+
+Each module's `NoOtherDependenciesTest` asserts its list against the module's
+real runtime classpath, so a dependency added to either is a build failure
+rather than a judgement call.
 
 ## Working on it
 

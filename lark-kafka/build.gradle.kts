@@ -1,4 +1,4 @@
-// Kafka as a lark Stream: lark-stream and Pekko's own Kafka connector, and
+// Kafka as a lark Stream: lark-stream on Pekko, and Pekko's own Kafka connector, and
 // nothing else. NoOtherDependenciesTest asserts that on the classpath a
 // consumer actually gets.
 
@@ -10,7 +10,7 @@ val scalaBinary = "2.13"
 val connectorVersion = "1.1.0"
 
 dependencies {
-    api(project(":lark-stream"))
+    api(project(":lark-stream-pekko"))
     api("org.apache.pekko:pekko-connectors-kafka_$scalaBinary:$connectorVersion")
 
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary:$pekkoVersion")

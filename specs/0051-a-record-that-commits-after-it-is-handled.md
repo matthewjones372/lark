@@ -1,4 +1,4 @@
-# 0046 — A record that commits after it is handled
+# 0051 — A record that commits after it is handled
 
 ## Problem
 
@@ -14,10 +14,10 @@ cannot drain: in-flight work is cut off, and none of it is committed.
 ## Not doing
 
 - **No decoding.** Keys and values come through Kafka's own `Deserializer`.
-  Turning a record that fails to decode into a value, not a defect, is 0047.
-- **No producing.** `publishTo` and a blocking `send` are 0048.
+  Turning a record that fails to decode into a value, not a defect, is 0052.
+- **No producing.** `publishTo` and a blocking `send` are a later spec.
 - **No exactly-once or transactions.** Nobody has asked for them.
-- **No broker-free fake.** A test runs against a real broker until 0048 adds
+- **No broker-free fake.** A test runs against a real broker until the producing spec adds
   the fake.
 - **No lark-app node type.** `singleOf(start, Running::close)` already does the
   job, as in 0044.
@@ -37,7 +37,7 @@ val placed: Running<ShopError, Done> =
 placed.close()   // stop fetching, finish what is in flight, commit it, then wait for the exit
 ```
 
-- A new module, `lark-kafka`. It depends on `lark-stream` and
+- A new module, `lark-kafka`. It depends on `lark-stream-pekko` and
   `pekko-connectors-kafka`, and on nothing else. Its own
   `NoOtherDependenciesTest` holds that.
 - `Kafka.subscribe(settings: ConsumerSettings<K, V>, vararg topics: Topic):
@@ -80,18 +80,18 @@ at-least-once, but every shutdown sends those records again.
 
 ## Stack
 
-- [ ] **`spec-0046-subscribe`**: the `lark-kafka` module, `Committed`,
+- [ ] **`spec-0051-subscribe`**: the `lark-kafka` module, `Committed`,
       `Kafka.subscribe`, `runCommitting` over `Committer.sink`, and the dependency test.
       Done when: against a broker in the test JVM, the records a run handles
       are committed, and a second run in the same group sees none of them again.
-- [ ] **`spec-0046-offset-keeping-operators`**: `mapRecord`,
+- [ ] **`spec-0051-offset-keeping-operators`**: `mapRecord`,
       `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`
       and `mapConcatRecord` over `Committed`, and the log annotations.
       Done when: a compile test holds that `runCollect` over `Committed` does
       not compile; a body that raises on record 3 of 5 leaves offset 2
       committed; and a record expanded to three elements, whose third raises,
       is not committed.
-- [ ] **`spec-0046-draining-stop`**: `stop()` drains through `Consumer.Control`.
+- [ ] **`spec-0051-draining-stop`**: `stop()` drains through `Consumer.Control`.
       Done when: a `stop()` while a slow `mapPar` body is running still commits
       that body's record, and `close()` returns only after the commit.
 
@@ -104,7 +104,8 @@ at-least-once, but every shutdown sends those records again.
 ## Open questions
 
 1. **How does `lark-kafka` reach inside a `Stream`?** Answered: through
-   `Stream.hooked`, which needs the `@SourceSeam` opt-in. Each run hands the
+   `Stream.hooked` in `lark-stream-pekko`, which needs the `@SourceSeam`
+   opt-in. Each Pekko run hands the
    source a `RunHooks`, carried as a Pekko attribute so a restarted source gets
    it too. `onStop` drains in place of the kill switch, and `onEnd` shuts the
    consumer down once the exit has completed. Everything else is built on

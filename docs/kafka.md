@@ -7,12 +7,12 @@ or committing before the work, does not compile.
 
 The module is `lark-kafka`, over Pekko's own Kafka connector, and everything
 below is in `io.github.matthewjones372.lark.kafka`. Specs
-[0046](../specs/0046-a-record-that-commits-after-it-is-handled.md) and
-[0047](../specs/0047-a-record-that-fails-to-decode.md) give the reasons.
+[0051](../specs/0051-a-record-that-commits-after-it-is-handled.md) and
+[0052](../specs/0052-a-record-that-fails-to-decode.md) give the reasons.
 
 ```kotlin
 dependencies {
-    // lark-stream, Pekko's Kafka connector and kafka-clients come with it; nothing else does
+    // lark-stream-pekko, Pekko's Kafka connector and kafka-clients come with it; nothing else does
     implementation("io.github.matthewjones372:lark-kafka:0.1.0")
 }
 ```

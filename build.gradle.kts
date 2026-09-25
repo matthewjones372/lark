@@ -68,7 +68,10 @@ spotless {
 val moduleDescriptions = mapOf(
     "lark" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
     "lark-pekko" to "lark on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
-    "lark-stream" to "A stream that names its failure: Stream<E, A> over Pekko Streams, formerly dipper.",
+    "lark-stream" to "A stream that names its failure: Stream<E, A> described once, run on the backend you pick.",
+    "lark-stream-pekko" to "lark-stream on Pekko Streams: the backend, and the operators that take Pekko's types.",
+    "lark-stream-forks" to "lark-stream on lark's own forks: a run is a pull loop on a virtual thread.",
+    "lark-stream-test" to "lark-stream for tests: every stage on the calling thread, on a clock the test owns.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
@@ -88,9 +91,12 @@ val gradlePluginModules = setOf("lark-app-gradle")
 // test of it is a compilation, and those live in lark-app-gradle where the build that runs them is.
 val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
 
+// Measured, not tested: a benchmark has no assertions for a coverage floor to count.
+val benchmarkModules = setOf("lark-stream-benchmarks")
+
 // Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
 // JDK 28 (JEP 543), and a release must not promise an API the JDK has not.
-val unpublished = setOf("lark-structured")
+val unpublished = setOf("lark-structured", "lark-stream-parity") + benchmarkModules
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
@@ -107,7 +113,7 @@ kover {
 }
 
 dependencies {
-    subprojects.filterNot { it.name in testedByRunningABuild }.forEach { kover(project(it.path)) }
+    subprojects.filterNot { it.name in testedByRunningABuild + benchmarkModules }.forEach { kover(project(it.path)) }
 }
 
 // A floor nobody runs is not a floor: `./gradlew build` checks it.
@@ -159,7 +165,7 @@ subprojects {
         systemProperty("junit.jupiter.execution.timeout.default", "60s")
     }
 
-    if (name !in testedByRunningABuild) {
+    if (name !in testedByRunningABuild + benchmarkModules) {
         apply(plugin = "org.jetbrains.kotlinx.kover")
     }
 
