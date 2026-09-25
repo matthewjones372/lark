@@ -4,6 +4,7 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -35,25 +36,34 @@ class Hub<A : Any>(val capacity: Int = DEFAULT_CAPACITY) : AutoCloseable {
         require(capacity > 0) { "a hub holds at least one element for each subscriber, not $capacity" }
     }
 
+    /**
+     * What the hub holds, as one value: replaced whole, and only under [lock], so that two publishers
+     * cannot interleave and every subscriber sees elements in the same order.
+     */
+    private data class Held<A : Any>(
+        val early: List<A> = emptyList(),
+        val queues: List<Hub<A>.Subscriber> = emptyList(),
+        val subscribedOnce: Boolean = false,
+        val closed: Boolean = false,
+    )
+
     private val lock = ReentrantLock()
-    private val early = ArrayDeque<A>()
-    private val queues = LinkedHashSet<Subscriber>()
-    private var subscribedOnce = false
-    private var closed = false
+    private val held = AtomicReference(Held<A>())
 
     /** How many subscriptions are running now. */
-    val subscribers: Int get() = lock.withLock { queues.size }
+    val subscribers: Int get() = held.get().queues.size
 
     /** [element] to every subscriber, or to none of them with the reason. Never waits for room. */
     fun publish(element: A): Either<HubRefused, A> = lock.withLock {
+        val now = held.get()
         when {
-            closed -> HubRefused.Closed.left()
-            !subscribedOnce && early.size >= capacity -> HubRefused.Full.left()
-            !subscribedOnce -> element.right().also { early.addLast(element) }
-            queues.any { it.size >= capacity } -> HubRefused.Full.left()
-            else -> element.right().also { queues.forEach { queue -> queue.put(element) } }
+            now.closed -> HubRefused.Closed.left()
+            !now.subscribedOnce && now.early.size >= capacity -> HubRefused.Full.left()
+            !now.subscribedOnce -> element.right().also { held.set(now.copy(early = now.early + element)) }
+            now.queues.any { it.size >= capacity } -> HubRefused.Full.left()
+            else -> element.right().also { now.queues.forEach { queue -> queue.put(element) } }
         }
-    }.also { if (it.isRight()) changed() }
+    }.also { if (it.isRight()) held.get().queues.forEach { queue -> queue.waiting?.changed() } }
 
     /**
      * Everything published from the moment a run of this starts, in order; the first run ever also gets
@@ -65,26 +75,21 @@ class Hub<A : Any>(val capacity: Int = DEFAULT_CAPACITY) : AutoCloseable {
 
     /** Takes nothing more, and ends every subscription once it has read what it holds. */
     override fun close() = lock.withLock {
-        closed = true
-        queues.forEach { it.end() }
+        held.updateAndGet { it.copy(closed = true) }.queues.forEach { it.end() }
     }
 
-    /** Asks a subscriber that waits through its backend to look again; outside the lock, which it takes. */
-    private fun changed() = lock.withLock { queues.mapNotNull { it.waiting } }.forEach { it.changed() }
-
     private fun register(): Subscriber = lock.withLock {
+        val now = held.get()
         Subscriber().also { queue ->
-            if (!subscribedOnce) {
-                early.forEach(queue::put)
-                early.clear()
-                subscribedOnce = true
-            }
-            if (closed) queue.end()
-            queues += queue
+            // The first subscriber ever is handed what was held for it; later ones start from now.
+            now.early.forEach(queue::put)
+            if (now.closed) queue.end()
+            held.set(now.copy(early = emptyList(), queues = now.queues + queue, subscribedOnce = true))
         }
     }
 
-    private fun unregister(queue: Subscriber) = lock.withLock { queues -= queue }
+    private fun unregister(queue: Subscriber) =
+        lock.withLock { held.updateAndGet { it.copy(queues = it.queues - queue) } }
 
     /** One subscriber's queue: the elements sent to it, then [End] once the hub closes or the run stops. */
     private inner class Subscriber {
