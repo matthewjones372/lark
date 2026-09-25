@@ -88,18 +88,18 @@ the hub adds only its queues.
 
 ## Open questions
 
-1. **What happens when one subscriber is full?** Recommended: refuse for
+1. **What happens when one subscriber is full?** Answered, as recommended: refuse for
    everyone (see Why). The alternatives are to drop for that subscriber, or to
    let the caller choose a `Full` policy per hub. A policy per hub is easy to
    add later and hard to take back.
 2. **What happens to elements published before the first subscriber?**
-   Recommended: hold up to `capacity` of them for the first subscriber.
+   Answered, as recommended: hold up to `capacity` of them for the first subscriber.
    Petshop depends on this, because its relay starts before its projection
    does. The alternative is to drop them.
-3. **What should it be called: `Hub`, `Bus` or `Topic`?** Recommended: `Hub`.
+3. **What should it be called: `Hub`, `Bus` or `Topic`?** Answered, as recommended: `Hub`.
    Pekko users already know the word, and `Bus` and `Topic` suggest a broker
    in another process.
-4. **Should `publishTo(hub)` exist, or only `publish`?** Recommended: include it.
+4. **Should `publishTo(hub)` exist, or only `publish`?** Answered, as recommended: include it.
    It is one line on top of `mapOrFail`, and it makes a `Full` refusal part
    of the stream's failure type instead of something the caller has to check.
    (It is not `via`, which already composes a flow.)
