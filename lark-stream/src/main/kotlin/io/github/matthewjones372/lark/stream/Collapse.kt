@@ -78,7 +78,7 @@ fun Node.canFail(): Boolean =
 
         is Node.Merge, is Node.Interleave, is Node.ZipWith, is Node.Prepend, is Node.Concat,
         is Node.RestartOnDefect, is Node.Stage, is Node.Map, is Node.Filter, is Node.FilterNot, is Node.Take,
-        is Node.Drop, is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Sliding,
+        is Node.Drop, is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Sliding, is Node.Buffer,
         is Node.GroupedWithin, is Node.Scan, is Node.StatefulMap, is Node.MapConcat, is Node.MapAsync,
         is Node.Conflate, is Node.MapError, is Node.Probed,
         -> children().any { it.canFail() }

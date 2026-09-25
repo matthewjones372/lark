@@ -125,6 +125,11 @@ sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
+    /** Everything upstream runs ahead of what reads it by up to [size] elements, and no further. */
+    data class Buffer(override val upstream: Node, val size: Int) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
     data class GroupedWithin(override val upstream: Node, val n: Int, val within: Duration) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
@@ -304,7 +309,7 @@ val Node.operator: String
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin,
         is Node.Scan, is Node.StatefulMap, is Node.MapConcat, is Node.MapAsync, is Node.Either, is Node.Absolve,
-        is Node.CatchAll, is Node.MapError, is Node.OrFailIfEmpty, is Node.MapPar,
+        is Node.CatchAll, is Node.MapError, is Node.OrFailIfEmpty, is Node.MapPar, is Node.Buffer,
         -> javaClass.simpleName.replaceFirstChar { it.lowercase() }
     }
 
@@ -351,7 +356,7 @@ val Node.site: String?
         is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty, Node.Hole,
         is Node.Merge, is Node.Interleave, is Node.Prepend, is Node.Concat, is Node.RestartOnDefect,
         is Node.Take, is Node.Drop, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin, is Node.Either,
-        is Node.CatchAll, is Node.OrFailIfEmpty, is Node.Probed,
+        is Node.CatchAll, is Node.OrFailIfEmpty, is Node.Probed, is Node.Buffer,
         -> null
     }
 

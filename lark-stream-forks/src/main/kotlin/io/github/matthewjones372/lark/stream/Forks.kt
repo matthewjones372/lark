@@ -157,4 +157,5 @@ internal class Compiled(val tree: Node) {
  * inner streams and a `catchAll`'s recovery are built only when they are needed.
  */
 private fun Node.mayFork(): Boolean =
-    this is Node.MapPar || this is Node.FlatMap || this is Node.CatchAll || children().any { it.mayFork() }
+    this is Node.MapPar || this is Node.Buffer || this is Node.FlatMap || this is Node.CatchAll ||
+        children().any { it.mayFork() }

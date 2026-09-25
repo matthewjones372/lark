@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.stream
 import arrow.core.Either
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.KillSwitches
+import org.apache.pekko.stream.OverflowStrategy
 import org.apache.pekko.stream.UniqueKillSwitch
 import org.apache.pekko.stream.javadsl.Flow
 import org.apache.pekko.stream.javadsl.Keep
@@ -120,6 +121,9 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
         is Node.Grouped -> Flow.create<Any>().grouped(n).map { batch -> batch.toList() }
 
         is Node.Sliding -> Flow.create<Any>().sliding(n, step).map { window -> window.toList() }
+
+        // An async boundary as well, so that what is upstream runs ahead on its own, as it does on Forks.
+        is Node.Buffer -> Flow.create<Any>().buffer(size, OverflowStrategy.backpressure()).async()
 
         is Node.GroupedWithin ->
             Flow.create<Any>().groupedWithin(n, within.toJavaDuration()).map { batch -> batch.toList() }

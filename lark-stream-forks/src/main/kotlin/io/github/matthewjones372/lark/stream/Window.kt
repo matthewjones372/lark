@@ -35,6 +35,17 @@ internal class Releases {
 
         /** The run's releases, or none: a pull built off a Forks run has nothing to register with. */
         fun here(): Releases? = current.get()
+
+        /** Runs [block] on a fork of the run with the run's [releases] bound, which the run lets go of itself. */
+        fun <A> within(releases: Releases?, block: () -> A): A {
+            if (releases == null) return block()
+            current.set(releases)
+            return try {
+                block()
+            } finally {
+                current.remove()
+            }
+        }
     }
 }
 
