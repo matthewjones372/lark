@@ -12,6 +12,7 @@ import org.apache.kafka.common.serialization.StringSerializer
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeAllCallback
 import org.junit.jupiter.api.extension.ExtensionContext
+import java.net.BindException
 import java.net.ServerSocket
 import java.util.concurrent.TimeUnit
 
@@ -23,6 +24,11 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     val bootstrap: String get() = "localhost:${kafka.config().kafkaPort()}"
 
     override fun beforeAll(context: ExtensionContext) {
+        kafka = start(attempt = 1)
+    }
+
+    // A free port is free only until another test JVM takes it, before the broker binds it; then try new ones.
+    private fun start(attempt: Int): EmbeddedK {
         val config = EmbeddedKafkaConfig.apply(
             freePort(),
             freePort(),
@@ -31,8 +37,13 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
             EmbeddedKafkaConfig.`apply$default$4`(),
             EmbeddedKafkaConfig.`apply$default$5`(),
         )
-        kafka = EmbeddedKafka.start(config)
+        return runCatching { EmbeddedKafka.start(config) }.getOrElse { e ->
+            if (attempt < ATTEMPTS && bindFailed(e)) start(attempt + 1) else throw e
+        }
     }
+
+    private fun bindFailed(t: Throwable): Boolean =
+        generateSequence(t) { it.cause }.any { it is BindException }
 
     override fun afterAll(context: ExtensionContext) = kafka.stop(true)
 
@@ -62,5 +73,6 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
 
     private companion object {
         const val TIMEOUT_SECONDS = 30L
+        const val ATTEMPTS = 3
     }
 }
