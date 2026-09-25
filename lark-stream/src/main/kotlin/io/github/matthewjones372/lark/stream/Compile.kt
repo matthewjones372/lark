@@ -32,22 +32,43 @@ internal fun Node.toPekko(): Source<Any, NotUsed> =
 
         Node.Empty -> Source.empty()
 
-        is Node.Via -> upstream.toPekko().via(flow as Flow<Any, Any, NotUsed>)
+        Node.Hole -> error("a pipe's input compiled as though it were a source")
+
+        is Node.Unary -> upstream.toPekko().via(stage())
+    }
+
+/** A pipe's tree as the Pekko flow it describes, its [Node.Hole] the flow's input. */
+internal fun Node.toPekkoFlow(): Flow<Any, Any, NotUsed> =
+    when (this) {
+        Node.Hole -> Flow.create()
+
+        // Straight off the hole, the stage is the flow: `Pipe.from(flow).toFlow()` is that same flow.
+        is Node.Unary -> if (upstream == Node.Hole) stage() else upstream.toPekkoFlow().via(stage())
+
+        is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty ->
+            error("a source compiled as though it were a pipe: $this")
+    }
+
+/** The one Pekko stage a single-input operator is, the same whether it sits on a source or a pipe. */
+@Suppress("UNCHECKED_CAST")
+private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
+    when (this) {
+        is Node.Stage -> flow as Flow<Any, Any, NotUsed>
 
         is Node.Map -> {
             val body = guarded("map", at, f)
-            upstream.toPekko().map { a -> body(a) }
+            Flow.create<Any>().map { a -> body(a) }
         }
 
         is Node.MapOrFail -> {
             val scope = Failing<Any?>()
             val body = guarded("mapOrFail", at) { a: Any -> scope.f(a) }
-            upstream.toPekko().map { a -> body(a) }
+            Flow.create<Any>().map { a -> body(a) }
         }
 
         is Node.Filter -> {
             val test = guarded("filter", at, predicate)
-            upstream.toPekko().filter { a -> test(a) }
+            Flow.create<Any>().filter { a -> test(a) }
         }
     }
 

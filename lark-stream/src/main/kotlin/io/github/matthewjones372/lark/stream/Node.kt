@@ -30,16 +30,49 @@ internal sealed interface Node {
 
     data object Empty : Node
 
-    /** A pipe spliced on. `Pipe` is still a Pekko flow, until its own operators are nodes. */
-    class Via(val upstream: Node, val flow: Flow<*, *, NotUsed>) : Node
+    /** A pipe's input: the place a stream goes when the pipe is spliced onto it. */
+    data object Hole : Node
+
+    /** One input, one output: every operator a [Pipe] can hold, and the ones [spliced] rebuilds. */
+    sealed interface Unary : Node {
+        val upstream: Node
+
+        /** This operator, reading from [upstream] instead. */
+        fun on(upstream: Node): Unary
+    }
+
+    /** A Pekko flow: one a caller handed over, or one an operator not yet described here built. */
+    data class Stage(override val upstream: Node, val flow: Flow<*, *, NotUsed>) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
 
     /** [at] is read where the operator was written, which is the only time the caller's frame is there to read. */
-    class Map(val upstream: Node, val f: (Any) -> Any, val at: String) : Node
+    data class Map(override val upstream: Node, val f: (Any) -> Any, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
 
-    class MapOrFail(val upstream: Node, val f: Failing<Any?>.(Any) -> Any, val at: String) : Node
+    data class MapOrFail(override val upstream: Node, val f: Failing<Any?>.(Any) -> Any, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
 
-    class Filter(val upstream: Node, val predicate: (Any) -> Boolean, val at: String) : Node
+    data class Filter(override val upstream: Node, val predicate: (Any) -> Boolean, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
 }
+
+/**
+ * A pipe's tree with its [Node.Hole] replaced by [onto]: splicing rebuilds the pipe's own nodes and
+ * shares everything upstream, so a pipe reused across streams is copied once per splice.
+ */
+internal fun Node.spliced(onto: Node): Node =
+    when (this) {
+        Node.Hole -> onto
+
+        is Node.Unary -> on(upstream.spliced(onto))
+
+        is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty ->
+            error("a pipe holds single-input operators only, and reached $this")
+    }
 
 /** Where a run's elements go, and what it completes with. */
 internal sealed interface End {
