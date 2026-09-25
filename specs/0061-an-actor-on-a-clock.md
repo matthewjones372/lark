@@ -52,16 +52,21 @@ adoption.pendingTimers shouldBe 1   // Lapse, still two days off
 - **Keyed timers.** `ctx.timers.after(key, delay, message)` and
   `ctx.timers.every(key, interval, message)`, `cancel(key)`. Starting a key
   that is running replaces it, and a message from a cancelled or replaced
-  timer never arrives, even one already in the mailbox.
+  timer never arrives, even one already in the mailbox. `every` is a fixed
+  delay, measured from when the last one was handled, so a slow actor is never
+  sent a burst of catch-up messages.
 - **Timers that belong to a state.** `become(state) { after(delay, message) }`
   starts timers that end when the actor next becomes a state of another class.
-  A copy of the same state keeps them.
+  A `copy` of the same state, with a new field, keeps them.
 - **Receive timeout.** `ctx.receiveTimeout(duration, message)` tells the actor
   `message` when nothing else has arrived for `duration`; any message resets it,
-  `null` turns it off.
+  `null` turns it off. It is a message of the actor's own type, handled in the
+  same `when`, not a `Signal`.
 - **Stash.** `ctx.stash(message)` keeps a message; `ctx.unstashAll()` puts every
-  kept message back ahead of the mailbox, in the order kept. The stash is
-  bounded, and stashing into a full one fails the step.
+  kept message back ahead of the mailbox, in the order kept. The stash holds
+  1,024 by default, and stashing into a full one fails the step, so
+  supervision decides; dropping silently would lose a message nobody knows
+  about.
 - **Time is the flock's clock** on threads, one waiting thread per flock for
   all its actors' timers; `TestClock` drives them through `adjustWhenBlocked`.
   `.test()` keeps its own time, starting at the epoch: `advance(by)` delivers
@@ -97,15 +102,6 @@ nobody cancelled; the keyed form stays for a timer that spans states.
 
 ## Open questions
 
-1. **`every`: a fixed delay or a fixed rate?** Recommend fixed delay, measured
-   from when the last one was handled, so a slow actor is never sent a burst of
-   catch-up messages. Fixed rate can be a second function if asked for.
-2. **State-scoped timers: tied to the state's class, or to the exact value?**
-   Recommend the class: a `copy` of `Approved` with a new field keeps the
-   reminder, and only a move to another state ends it.
-3. **Stash capacity: a default, and what a full one does?** Recommend a
-   default of 1,024 and a full stash failing the step, so supervision decides;
-   dropping silently would lose a message nobody knows about.
-4. **Receive timeout: a message, or a `Signal`?** Recommend a message of the
-   actor's own type, as Pekko does: it is handled in the same `when`, and a
-   `Signal` would need a timeout case every behaviour then ignores.
+Nothing. All four were answered as recommended and are in Shape: `every` is a
+fixed delay, state-scoped timers follow the state's class, the stash holds
+1,024 and a full one fails the step, and the receive timeout is a message.
