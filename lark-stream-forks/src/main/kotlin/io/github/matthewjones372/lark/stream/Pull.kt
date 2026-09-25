@@ -21,23 +21,19 @@ internal fun Node.pulls(): Boolean =
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Probed,
+        is Node.MapPar,
         -> true
 
         is Node.FlatMap -> breadth == null
 
         is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Sliding,
-        is Node.MapAsync, is Node.Conflate, is Node.MapPar, is Node.Merge, is Node.Interleave,
-        is Node.RestartOnDefect,
+        is Node.MapAsync, is Node.Conflate, is Node.Merge, is Node.Interleave, is Node.RestartOnDefect,
         -> false
     }
 
-/**
- * The operators a pull runs on a test's clock, taking turns with the workers of [Turns]: those, time, and
- * `mapPar`, one element at a time in the order they came, which is the answer a test of timing wants.
- */
+/** The operators a pull runs on a test's clock, taking turns with the workers of [Turns]: those, and time. */
 internal fun Node.pullsOnClock(): Boolean =
-    pulls() || this is Node.Tick || this is Node.GroupedWithin || this is Node.RestartOnDefect ||
-        this is Node.MapPar
+    pulls() || this is Node.Tick || this is Node.GroupedWithin || this is Node.RestartOnDefect
 
 /**
  * The pull a node describes. `start` has refused every node its backend cannot run before this is reached,
@@ -107,7 +103,9 @@ internal fun Node.pull(): Pull =
 
         is Node.RestartOnDefect -> restarting(Turns.here())
 
-        is Node.MapPar -> inOrder()
+        // On a test's clock one element at a time, in the order they came, which is the answer a test of
+        // timing wants; on Forks, a window of bodies in flight.
+        is Node.MapPar -> if (Turns.taking()) inOrder() else window(Releases.here())
 
         is Node.Native, is Node.Stage, Node.Hole, is Node.Sliding, is Node.MapAsync, is Node.Conflate,
         is Node.Merge, is Node.Interleave,

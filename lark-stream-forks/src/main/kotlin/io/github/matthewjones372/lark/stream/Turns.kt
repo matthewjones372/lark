@@ -113,6 +113,10 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
         private val current = ThreadLocal<Turns>()
 
         /** The turns of the run whose worker this is. A node with time in it is only pulled on one. */
+
+        /** Whether this thread is a worker of a run on a test's clock. */
+        fun taking(): Boolean = current.get() != null
+
         fun here(): Turns = checkNotNull(current.get()) { "a node with time in it was pulled off a test's clock" }
     }
 }
