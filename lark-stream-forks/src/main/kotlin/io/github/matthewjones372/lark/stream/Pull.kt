@@ -2,8 +2,10 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
 import arrow.core.raise.either
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.ExecutionException
 
 /**
  * One element at a time, on the thread that asks. `null` is the end, which no element can be, because
@@ -21,13 +23,13 @@ internal fun Node.pulls(): Boolean =
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Probed,
-        is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave,
+        is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave, is Node.MapAsync,
         -> true
 
         is Node.FlatMap -> breadth == null
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.MapAsync,
-        is Node.Conflate, is Node.Merge, is Node.RestartOnDefect,
+        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Conflate,
+        is Node.Merge, is Node.RestartOnDefect,
         -> false
     }
 
@@ -113,7 +115,10 @@ internal fun Node.pull(): Pull =
 
         is Node.Interleave -> interleave()
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.MapAsync, is Node.Conflate, is Node.Merge,
+        // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them.
+        is Node.MapAsync -> awaiting(if (Turns.taking()) 1 else parallelism)
+
+        is Node.Native, is Node.Stage, Node.Hole, is Node.Conflate, is Node.Merge,
         -> error("$operator reached the Forks runner, which start refuses it before")
     }
 
@@ -465,5 +470,34 @@ private fun Node.Interleave.interleave(): Pull {
             }
         }
         element
+    }
+}
+
+/**
+ * Up to [window] of the caller's stages at once, each started on the pulling thread, answered in the
+ * order the elements came. A stage that fails is the defect `mapAsync` names, and one that completes
+ * with `null` is too, as on Pekko. The wait is interruptible, so a stop wakes it.
+ */
+private fun Node.MapAsync.awaiting(window: Int): Pull {
+    val start = guarded("mapAsync", at, f)
+    val up = upstream.pull()
+    val started = ArrayDeque<Pair<Any, CompletableFuture<Any?>>>()
+    var drained = false
+    return Pull {
+        while (!drained && started.size < window) {
+            val a = up.next()
+            @Suppress("UNCHECKED_CAST")
+            if (a ==
+                null
+            ) drained = true else started.addLast(a to (start(a) as CompletionStage<Any?>).toCompletableFuture())
+        }
+        started.removeFirstOrNull()?.let { (a, stage) ->
+            val b = try {
+                stage.get()
+            } catch (failed: ExecutionException) {
+                throw (failed.cause ?: failed).unwrapped().describedBy("mapAsync", a, at)
+            }
+            b ?: throw NullPointerException("${facts("mapAsync", a, at)}: the stage completed with null")
+        }
     }
 }
