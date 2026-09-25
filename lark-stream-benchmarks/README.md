@@ -73,6 +73,25 @@ against Pekko by hand, with no lark: `mapAsync(8)` and a virtual thread per elem
   with nothing between it and the loop, where Pekko hands the element to a stage, the stage to
   a future, and the answer back through its own buffer.
 
+## Throughput, 2026-09-25
+
+Elements a second, in JMH's throughput mode (`ThroughputBenchmark.kt`), 2 forks × 5
+iterations of 2 s, on the machine above. `pekko` is each pipeline written against Pekko
+by hand, with no lark in it.
+
+| Workload | Forks | lark on Pekko | Pekko, hand-written |
+|---|---|---|---|
+| `IngestThroughputBenchmark`: 100,000 CSV lines, parsed, validated, filtered, mapped and batched by 100 | **12.9M/s** ± 1.1M | 7.3M/s ± 0.4M | 5.4M/s ± 0.4M |
+| `EnrichThroughputBenchmark`: a 1 ms blocking call per element, 16 in flight | **12,701/s** ± 123 | 11,856/s ± 119 | 12,084/s ± 267 |
+
+- The ingest is CPU-light: the rows are the framework's own cost per element, and on
+  Forks a line goes through all five stages as calls on one thread. Allocation is
+  about 250 B a line on every row, most of it the line's own `split`.
+- The enrich is bounded by the call: sixteen at a time at a millisecond each is 16,000
+  a second at best, and the sleep's own overshoot keeps every row near 12,000. There the
+  backends are within 5% of each other, which is the number to quote for an I/O-bound
+  pipeline.
+
 ## Fused, 2026-09-25
 
 After spec 0047's `spec-0047-fuse`: adjacent `map`, `mapOrFail`, `filter` and `filterNot`
