@@ -30,7 +30,7 @@ private data class Forward(val to: ActorRef<Log>, val message: Log) : Log
 
 private data object Break : Log
 
-private fun log(): Behaviour<Log, List<Int>> = behaviour(emptyList()) { _, seen, message ->
+private fun log(): Behaviour<Log, List<Int>, Nothing> = behaviour(emptyList()) { _, seen, message ->
     when (message) {
         is Add -> become(seen + message.n)
 

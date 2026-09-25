@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** What a scenario needs from a runtime, so the same scenario runs on the threads and on the test scope. */
 private interface Actors {
-    fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S>): ActorRef<M>
+    fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S, *>): ActorRef<M>
 
     fun awaitIdle()
 }
@@ -22,7 +22,7 @@ private val threads = object : Runtime {
     override fun <A> run(scenario: Actors.() -> A): A = flock<Nothing, A> {
         val flock = this
         object : Actors {
-            override fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S>) = flock.spawn(name, behaviour)
+            override fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S, *>) = flock.spawn(name, behaviour)
 
             override fun awaitIdle() = flock.awaitIdle()
         }.scenario()
@@ -35,7 +35,7 @@ private val testScope = object : Runtime {
     override fun <A> run(scenario: Actors.() -> A): A = testActors {
         val scope = this
         object : Actors {
-            override fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S>) = scope.spawn(name, behaviour)
+            override fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S, *>) = scope.spawn(name, behaviour)
 
             override fun awaitIdle() = scope.awaitIdle()
         }.scenario()
@@ -47,7 +47,7 @@ private val testScope = object : Runtime {
 private data class Ball(val left: Int, val back: ActorRef<Ball>)
 
 /** Counts every ball it sees, then returns it with one fewer bounce, until none are left. */
-private fun paddle(seen: AtomicInteger): Behaviour<Ball, Unit> = behaviour(Unit) { ctx, _, ball ->
+private fun paddle(seen: AtomicInteger): Behaviour<Ball, Unit, Nothing> = behaviour(Unit) { ctx, _, ball ->
     seen.incrementAndGet()
     if (ball.left > 0) ball.back.tell(Ball(ball.left - 1, ctx.self))
     stay()

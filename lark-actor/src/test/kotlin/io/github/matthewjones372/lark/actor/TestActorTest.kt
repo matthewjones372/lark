@@ -30,7 +30,7 @@ private data class Forget(val id: String, val reply: Reply<Unit>) : Shop
 
 private data object Close : Shop
 
-private fun shop(): Behaviour<Shop, Map<String, Pet>> = behaviour(emptyMap()) { ctx, shelf, message ->
+private fun shop(): Behaviour<Shop, Map<String, Pet>, Nothing> = behaviour(emptyMap()) { ctx, shelf, message ->
     when (message) {
         is Arrived -> become(shelf + (message.pet.id to message.pet))
 
