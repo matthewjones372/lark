@@ -53,11 +53,18 @@ tally.run(Forks(executor))         // lark-stream-forks: virtual threads and 003
   a `Native` node. It holds the Pekko value, and only that backend reads it.
 - The Pekko interpreter compiles the tree into the `Source` that today's code
   builds directly, with the same guards, `DeclaredFailure` and kill switch.
+  Rewrites that improve on today's stages belong to 0047, not here.
+- A `Run` compiles once per backend and keeps the result. A Pekko graph is an
+  immutable blueprint, so a pipeline described once and run per request pays
+  for the tree walk once, as it pays for building its stages once today.
+- A service depends on the backend it runs on, and the core arrives with it:
+  `lark-stream-pekko` and `lark-stream-forks` each take `lark-stream` as `api`.
+  Only a library that describes pipelines for others depends on the core alone.
 
 ## Why this shape
 
 This is the initial encoding that pelican's endpoints already use. Describing
-the stream as data costs one tree walk per materialisation. In return, a
+the stream as data costs one tree walk per `Run` and backend. In return, a
 pipeline is testable and reusable without an actor system, and a service can
 change backend without touching its pipelines.
 
@@ -71,9 +78,14 @@ builder and where it was built (0010's build site).
 
 ## Stack
 
+- [ ] **`spec-0046-baseline`**: `lark-stream-benchmarks` (JMH), measuring today's `lark-stream`
+      on four pipelines: a `map`/`filter` chain, `mapPar`, `groupedWithin`, and one described
+      once and run 1,000 times. No production code changes.
+      Done when: the numbers are committed, and every later entry reports against them.
 - [ ] **`spec-0046-tree`**: nodes for sources, `map`/`mapOrFail`/`filter`, `Collect`, `Fold`,
       and an internal Pekko compiler. `Stream` keeps its public API.
-      Done when: `StreamTest`, `SourcesTest` and `RaiseInStreamTest` pass unchanged.
+      Done when: `StreamTest`, `SourcesTest` and `RaiseInStreamTest` pass unchanged, and
+      the baseline rows are within noise of their committed numbers.
 - [ ] **`spec-0046-operators`**: the remaining operators become nodes, one PR per file group
       if a PR goes past 200 lines. Done when: the whole existing suite passes unchanged.
 - [ ] **`spec-0046-split`**: `lark-stream-pekko`, `StreamBackend`, the `Native` edges moved,
@@ -94,17 +106,16 @@ builder and where it was built (0010's build site).
 
 ## Open questions
 
-1. **Coordinates.** (a) `lark-stream` becomes the core, and Pekko users add
-   `lark-stream-pekko`. (b) A new `lark-stream-core`, and `lark-stream` stays
-   Pekko. Recommended: (a). The artifact is 0.x, and the core should have the
-   plain name.
-2. **An operator only one backend can run.** Refuse it in `start` (as above), or
+1. **An operator only one backend can run.** Refuse it in `start` (as above), or
    leave it out of the core and put it in that backend's module. Recommended:
    leave it out of the core. `conflateWithSeed` and `wireTap` are the likely
    candidates.
-3. **`buffer(size, OverflowStrategy)`.** Pekko's enum can't stay in the core.
+2. **`buffer(size, OverflowStrategy)`.** Pekko's enum can't stay in the core.
    Recommended: lark's own `Overflow { Backpressure, DropHead, DropTail, Fail }`,
    with the Pekko module mapping it.
-4. **0039.** Recommended: supersede it by this spec. `Feed` is no longer a
+3. **0039.** Recommended: supersede it by this spec. `Feed` is no longer a
    separate type, and its `mapPar`/`buffer` entry becomes the second half of
    `spec-0046-forks`.
+
+Decided (2026-09-25): `lark-stream` is the core, and a service depends on the
+backend module, which brings the core with it.
