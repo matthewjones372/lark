@@ -58,7 +58,8 @@ shop.state shouldBe Shelf.of(rex)
 - **The runtime.** `spawn` holds the actor in its `Flock`, so it cannot outlive
   the scope. The mailbox is a lock-free multi-producer queue. An idle actor
   holds no thread. A message to an idle actor starts a virtual thread that runs
-  up to `throughput` messages, then parks or yields. The activation is one
+  up to `throughput` messages (default 5, as Pekko's), then parks or yields.
+  There is no linger before parking unless the benchmark shows it pays. The activation is one
   compare-and-set state, as in 0037.
 - **Bounded mailboxes.** Capacity is required. Only a `tell` from outside any
   actor waits while the mailbox is full. A `tell` from inside an actor takes an
@@ -116,5 +117,5 @@ Recommended: the context.
 
 ## Open questions
 
-1. **`throughput` default, and a linger before parking?** Recommend 5, as
-   Pekko's, and no linger until the benchmark asks for one.
+Nothing: bounded mailboxes, a readable `state`, `throughput` and one spec are
+settled in Shape and Stack.
