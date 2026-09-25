@@ -583,24 +583,115 @@ type, an element can never be null, and running one answers an `Exit` that is
 is logged at error too, naming the operator, the element and the caller's line
 that built it, so a pipeline run for its effect still says what happened.
 
-A stream is a description, and it names no backend: the backend is a value
-handed to `start`. `lark-stream-pekko` runs it on Pekko Streams, where
-`toSource()` and `Stream.from(source)` are the way out and in, so nothing Pekko
-can do is out of reach. `lark-stream-forks` runs it as a pull loop on one
-virtual thread, and `lark-stream-test` on a clock the test moves.
-
-It was a library of its own, dipper, until this repository took it in; the
-code is the same under `io.github.matthewjones372.lark.stream`, and a handler
-and the stream it runs share one vocabulary: an element body is a `Raise`,
-`mapPar` gives it a virtual thread, and `awaitExit` folds the run's `Exit` back
-into the handler that started it.
+A stream is a description, and it names no backend. The backend is a value
+handed over where the run starts, and each lives in a module of its own, which
+brings `lark-stream` with it:
 
 ```kotlin
 dependencies {
-    // lark-stream, Pekko Streams, lark, lark-pekko and arrow-core come with it; nothing else does
+    // Pekko Streams: lark-stream, Pekko, lark-pekko and arrow-core come with it
     implementation("io.github.matthewjones372:lark-stream-pekko:0.5.0")
+    // or a pull loop on one virtual thread, with nothing under it but lark-stream
+    // implementation("io.github.matthewjones372:lark-stream-forks:0.5.0")
+
+    // time a test owns: tick, groupedWithin and restartOnDefect on a TestClock
+    testImplementation("io.github.matthewjones372:lark-stream-test:0.5.0")
 }
 ```
+
+One description, and the backend picked where it runs:
+
+<!-- backend-example -->
+```kotlin
+import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.stream.Exit
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.PekkoStreams
+import io.github.matthewjones372.lark.stream.Run
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.TestStreams
+import io.github.matthewjones372.lark.stream.filter
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapOrFail
+import io.github.matthewjones372.lark.stream.run
+import io.github.matthewjones372.lark.stream.runFold
+import org.apache.pekko.actor.ActorSystem
+import java.util.concurrent.CompletionStage
+
+data class Order(val id: Int, val pence: Long?)
+
+data class Unpriced(val id: Int)
+
+val orders = listOf(Order(1, 1200), Order(2, 800), Order(3, 4500))
+
+// What happens to an order, and the failure it can end with. No backend is named here.
+val takings: Run<Unpriced, Long> =
+    Stream.from(orders)
+        .mapOrFail { order -> order.pence ?: raise(Unpriced(order.id)) }
+        .filter { pence -> pence >= 1000 }
+        .runFold(0L) { total, pence -> total + pence }
+
+val system: ActorSystem = ActorSystem.create("shop")
+
+val onPekko: CompletionStage<Exit<Unpriced, Long>> = takings.run(PekkoStreams(system))
+val onForks: CompletionStage<Exit<Unpriced, Long>> = takings.run(Forks())
+val inATest: CompletionStage<Exit<Unpriced, Long>> = takings.run(TestStreams(TestClock()))
+```
+
+Each answers the same `Exit`. A backend refuses a run it cannot finish before
+anything starts, naming the operator and the line that built it: `Forks` runs
+nothing that needs a second thread or a clock, and no backend runs another's
+`Source`.
+
+On `TestStreams`, `tick`, `groupedWithin`, `restartOnDefect`'s delays and
+`mapPar` wait on the test's `TestClock` and on nothing else, and each `adjust`
+returns once everything that fell due by then has run, in time order. An hour
+of one-a-minute ticks is one call:
+
+```kotlin
+val clock = TestClock()
+val running = Stream.tick(1.minutes, "t").runCollect().start(TestStreams(clock))
+
+clock.adjust(1.hours)
+running.emitted().size shouldBe 60
+```
+
+### What runs is not what you wrote, and you can see both
+
+Before a run starts, adjacent element-at-a-time stages (`map`, `filter`,
+`mapOrFail` and the like) are fused into one, a `take` of a `take` is one
+`take`, and a `catchAll` over a stream that cannot fail is dropped. A defect
+still names the operator and the line it came from. A five-stage chain on Pekko
+went from 150 ns to 91 ns an element.
+
+`render()` draws the description as text or Mermaid, each stage with the line
+that built it, and `render(optimised = true)` draws what actually runs:
+
+```
+Stream.from
+fused[map, map, filter, map, mapOrFail]  Pipelines.kt:15
+runFold                                  Pipelines.kt:20
+```
+
+`measured(Measured("ingest", metrics))` reports each stage's elements, the time
+in its body and the time it waited for demand, through lark's `Metrics`. A
+`Profiler` keeps those numbers, and `render(profile = profiler.profile())`
+draws where the time went:
+
+```
+map          Pipelines.kt:15  3% · 1.0 µs busy · 3.0 µs waiting · 100000 out
+map          Pipelines.kt:16  67% · 20.0 µs busy · 3.0 µs waiting · 100000 out
+filter       Pipelines.kt:17  3% · 1.0 µs busy · 3.0 µs waiting · 50000 out
+```
+
+### On Pekko Streams
+
+`lark-stream-pekko` also has the operators that take Pekko's own types:
+`Stream.from(source)` and `toSource()` in and out, `divertLefts` and `runWith`
+to a `Sink`, and `run(system)`, which is `run(PekkoStreams(system))`. A handler
+and the stream it runs share one vocabulary: an element body is a `Raise`,
+`mapPar` gives it a virtual thread, and `awaitExit` folds the run's `Exit` back
+into the handler that started it.
 
 Rows in, receipts to one sink, declines to another, and every import it takes:
 
@@ -661,191 +752,11 @@ val settled: Either<IngestError, Done> = either {
 }
 ```
 
-### One description, any backend
-
-The ingest above ends in `.run(system)`, which is `.run(PekkoStreams(system))`.
-A description with no Pekko type in it runs anywhere, and the backend is picked
-where it starts:
-
-```kotlin
-val tally: Run<Nothing, Int> = Stream.from(1..1_000).map { it * 2 }.filter { it % 3 == 0 }.runFold(0) { n, _ -> n + 1 }
-
-tally.run(PekkoStreams(system))                 // on Pekko Streams
-tally.run(Forks())                              // a pull loop on one virtual thread
-tally.run(TestStreams(clock))                   // on a TestClock: an hour of `tick` is one clock.adjust(1.hours)
-```
-
-A backend refuses a run it cannot finish before anything starts, naming the
-operator and the line that built it: `Forks` runs no operator that needs a
-second thread or a clock, and nothing runs another backend's `Source`.
-
-Before a run starts, adjacent element-at-a-time stages (`map`, `filter`,
-`mapOrFail` and the like) are fused into one, a `take` of a `take` is one
-`take`, and a `catchAll` over a stream that cannot fail is dropped. Every
-defect still names the operator and line it came from. A five-stage chain on
-Pekko went from 150 ns to 91 ns an element.
-
-`render()` draws the description as text or Mermaid, each stage with the line
-that built it, and `render(optimised = true)` draws what actually runs:
-
-```
-Stream.from
-fused[map, map, filter, map, mapOrFail]  Pipelines.kt:15
-runFold                                  Pipelines.kt:20
-```
-
-And `measured(Measured("ingest", metrics))` reports each stage's elements, the
-time in its body, and the time it waited for demand, through lark's `Metrics`.
-A `Profiler` keeps those numbers so `render(profile = profiler.profile())` can
-draw where the time went, the busiest stage hottest:
-
-```
-map          Pipelines.kt:15  3% · 1.0 µs busy · 3.0 µs waiting · 100000 out
-map          Pipelines.kt:16  67% · 20.0 µs busy · 3.0 µs waiting · 100000 out
-filter       Pipelines.kt:17  3% · 1.0 µs busy · 3.0 µs waiting · 50000 out
-```
-
-### Before and after
-
-The same ingest twice, from the fixtures and the imports the two need between
-them:
-
-<!-- example-fixtures -->
-```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.divertLefts
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapAsync
-import io.github.matthewjones372.lark.stream.mapOrFail
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Sink
-import org.apache.pekko.stream.javadsl.Source
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionStage
-
-data class Row(val id: Int, val customer: String?)
-
-data class Customer(val id: Int, val name: String)
-
-data class Receipt(val id: Int)
-
-sealed interface IngestError
-
-data class NoCustomer(val id: Int) : IngestError
-
-data class Declined(val id: Int) : IngestError
-
-class Ledger {
-    fun settle(customer: Customer): CompletionStage<Either<Declined, Receipt>> =
-        CompletableFuture.completedFuture(Either.Right(Receipt(customer.id)))
-}
-
-val ledger = Ledger()
-val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
-val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
-```
-
-Before — raw Pekko `Source`:
-
-<!-- before-example -->
-```kotlin
-val receipts: Source<Either<IngestError, Receipt>, NotUsed> =
-    Source.from(rows)
-        .map { row ->                                        // Source<Either<IngestError, Customer>, NotUsed>
-            either<IngestError, Customer> { Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
-        }
-        .mapAsync(4) { customer ->
-            customer.fold(
-                { e -> CompletableFuture.completedFuture<Either<IngestError, Receipt>>(Either.Left(e)) },
-                { c -> ledger.settle(c).thenApply { it.mapLeft { d -> d as IngestError } } },
-            )                                                // the Left carried past a stage that never wanted it,
-        }                                                    // and Declined widened to IngestError by hand
-        .divertTo(
-            declinedSink.contramap<Either<IngestError, Receipt>> { (it as Either.Left).value as Declined },
-            { it is Either.Left && it.value is Declined },    // a cast for the sink, a predicate on the subtype
-        )                                                    // and a NoCustomer Left is still in the stream
-```
-
-After — ours:
-
-<!-- after-example -->
-```kotlin
-val receipts: Stream<IngestError, Receipt> =
-    Stream.from(rows)
-        .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }   // a nullable body does not compile
-        .mapAsync(4) { customer -> ledger.settle(customer) }                                // the same mapAsync, E already on the stream
-        .divertLefts(to = declinedSink)                                                     // no predicate, no cast
-```
-
-Raw Pekko carries the failure in the element, so every stage after the first
-unwraps and re-wraps one: the `mapAsync` that only wanted a customer carries a
-`Left` past itself, and `Declined` is widened to `IngestError` by hand. A
-diverted element and a failed pipeline are then the same thing in one channel,
-told apart by a predicate on the error's subtype — so the `NoCustomer` that
-should have ended the run keeps flowing to the consumer instead, and the
-element type at the end is still `Either<IngestError, Receipt>`, which the
-consumer folds too.
-
-The second says it in the types instead. The failure is on the stream rather
-than in the element, so `mapAsync` sees a `Customer` and hands on the ledger's
-own `Either`, `divertLefts` splits on that rather than on a predicate, and what
-is left at the end is a `Receipt`. Pekko runs the same three stages either way:
-what changes is what the type says, and what it will not let you write.
-
-### Missing is a failure, not an empty stream
-
-A stage that completed with `null`, an empty `Optional`, a lookup that found
-nothing: every builder that reads absence as emptiness makes a source with no
-elements out of a miss, and the run answers `Done` having processed nothing.
-`single` and `of` refuse the nullable where the value is, `fromStage` checks
-the completion the type argument lied about, and `orFailIfEmpty` is the word a
-caller says over a source lark did not build:
-
-<!-- missing-example -->
-```kotlin
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.fail
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.fromStage
-import io.github.matthewjones372.lark.stream.orFailIfEmpty
-import io.github.matthewjones372.lark.stream.single
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Source
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionStage
-
-data class Customer(val id: Int, val name: String)
-
-data class Missing(val id: Int)
-
-// A directory that answers with a customer or with nothing at all, which is the shape of every lookup.
-fun lookup(id: Int): Customer? = if (id == 1) Customer(1, "ada") else null
-
-val id = 1
-val stage: CompletionStage<Customer> = CompletableFuture.completedFuture(Customer(id, "ada"))
-val rows: Source<Customer, NotUsed> = Source.empty()                    // a source lark did not build
-
-val one: Stream<Missing, Customer> =
-    lookup(id)?.let { Stream.single(it) } ?: Stream.fail(Missing(id))   // absence is a failure with a name
-
-val everything: Stream<Missing, Customer> =
-    Stream.from(rows).orFailIfEmpty(Missing(id))                        // zero elements → Failed(Missing(id))
-
-val answered: Stream<Nothing, Customer> = Stream.fromStage(stage)       // a null completion → Died(NullPointerException)
-
-val declared: Stream<Missing, Customer> =
-    Stream.fromStage(stage, ifNull = Missing(id))                       // a null completion → Failed(Missing(id))
-```
-
-The document carries the rest, with the detekt snippet for the builders that
-read absence as emptiness — the code a library cannot reach is the code that
-never enters it.
-
-[`docs/stream.md`](docs/stream.md) is the operator table — every builder,
-combinator and way out with what it answers — and how a declared failure
-travels.
+[`docs/stream.md`](docs/stream.md) has the rest: the same ingest written
+against raw Pekko and against lark-stream side by side, why a missing value is
+a failure rather than an empty stream, the operator table, and how a declared
+failure travels. `lark-stream` was a library of its own, dipper, until this
+repository took it in.
 
 ## Licence
 
