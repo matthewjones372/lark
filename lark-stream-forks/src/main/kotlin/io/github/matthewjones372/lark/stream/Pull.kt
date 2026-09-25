@@ -24,11 +24,10 @@ internal fun Node.pulls(): Boolean =
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Probed,
         is Node.MapPar, is Node.Buffer, is Node.Sliding, is Node.Interleave, is Node.MapAsync, is Node.FlatMap,
-        is Node.Merge,
+        is Node.Merge, is Node.Conflate,
         -> true
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Conflate,
-        is Node.RestartOnDefect,
+        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.RestartOnDefect,
         -> false
     }
 
@@ -119,7 +118,9 @@ internal fun Node.pull(): Pull =
 
         is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Releases.here())
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Conflate,
+        is Node.Conflate -> if (Turns.taking()) conflatedOnClock(Turns.here()) else conflated(Releases.here())
+
+        is Node.Native, is Node.Stage, Node.Hole,
         -> error("$operator reached the Forks runner, which start refuses it before")
     }
 

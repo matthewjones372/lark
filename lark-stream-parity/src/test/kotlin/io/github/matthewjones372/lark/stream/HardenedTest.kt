@@ -164,6 +164,38 @@ class HardenedTest {
     }
 
     @Test
+    fun `conflate gives a slow reader what piled up, and loses nothing`() {
+        val counted = Counted()
+
+        val exit = Stream.from(1..200)
+            .conflateWithSeed({ listOf(it) }, { batch, n -> batch + n })
+            .map { batch ->
+                Thread.sleep(1)
+                batch
+            }
+            .runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        val batches = exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
+        withClue("every element, in order, and fewer batches than elements") {
+            batches.flatten() shouldBe (1..200).toList()
+            (batches.size < 200) shouldBe true
+        }
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `an endless source that never blocks, conflated and cut short, leaves nothing running`() {
+        val counted = Counted()
+
+        val exit = Stream.from(naturals).conflateWithSeed({ 1 }, { count, _ -> count + 1 }).take(3).runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.size shouldBe 3
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
     fun `the count sees a task left running, so a leak would turn these red`() {
         val counted = Counted()
         counted.execute { Thread.sleep(5_000) }
