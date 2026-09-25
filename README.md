@@ -54,6 +54,8 @@ is where that claim is checked.
 | `lark-stream-pekko` | runs a `Stream` on Pekko Streams, and the operators that take Pekko's types | `pekko-stream` |
 | `lark-stream-forks` | runs a `Stream` as a pull loop on one virtual thread, for the operators that need no second one | nothing |
 | `lark-stream-test` | runs a `Stream` on a `TestClock` the test moves: an hour of `tick` is one `adjust`, and each `adjust` returns with what fell due | nothing |
+| `lark-kafka` | a Kafka topic as a `Stream` on any backend: each offset committed once its record's work is done, and a record that fails to decode as a value ([`docs/kafka.md`](docs/kafka.md)) | `kafka-clients` |
+| `lark-kafka-pekko` | the same through Pekko's own Kafka connector: prefetch, batched commits and a draining stop | `pekko-connectors-kafka` |
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |

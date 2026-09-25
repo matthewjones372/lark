@@ -34,6 +34,15 @@ sealed interface Node {
 
     class FromStage(val stage: CompletionStage<*>, val onNull: () -> Throwable) : StreamOnly
 
+    /** A resource opened per run and read by blocking: [Stream.Companion.blocking]'s four functions, erased. */
+    class Blocking(
+        val open: () -> Any,
+        val next: (Any) -> Any?,
+        val wake: (Any) -> Unit,
+        val close: (Any) -> Unit,
+        val at: String,
+    ) : StreamOnly
+
     class Fail(val error: Any?) : StreamOnly
 
     data object Empty : StreamOnly
@@ -280,6 +289,8 @@ val Node.operator: String
 
         is Node.FromStage -> "Stream.fromStage"
 
+        is Node.Blocking -> "Stream.blocking"
+
         is Node.Fail -> "Stream.fail"
 
         Node.Empty -> "Stream.empty"
@@ -345,6 +356,8 @@ val Node.site: String?
 
         is Node.MapError -> at
 
+        is Node.Blocking -> at
+
         is Node.FlatMap -> at
 
         is Node.MapPar -> at
@@ -384,7 +397,7 @@ fun Node.withChildren(transform: (Node) -> Node): Node =
             }
 
         is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail,
-        Node.Empty, Node.Hole,
+        is Node.Blocking, Node.Empty, Node.Hole,
         -> this
     }
 
@@ -413,7 +426,7 @@ fun Node.children(): List<Node> =
         is Node.RestartOnDefect -> listOf(upstream)
 
         is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail,
-        Node.Empty, Node.Hole,
+        is Node.Blocking, Node.Empty, Node.Hole,
         -> emptyList()
     }
 

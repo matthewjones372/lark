@@ -124,7 +124,12 @@ private class Windows(val n: Int, val within: Duration, val turns: Timeline, val
 // The catch is as wide as a pipeline, because a defect is whatever upstream threw that it did not declare.
 @Suppress("TooGenericExceptionCaught")
 internal fun Node.RestartOnDefect.restarting(turns: Timeline): Pull {
-    var current = upstream.pull()
+    // Each attempt opens its blocking sources in a scope of its own, so a restart closes what the attempt it
+    // gives up held (a consumer's place in its group, say) before the next attempt opens its own.
+    val run = Resources.here()
+    var attempt = run?.attempt()
+    fun attempted(): Pull = attempt?.around { upstream.pull() } ?: upstream.pull()
+    var current = attempted()
     var schedule = step
     return Pull {
         var element: Any? = null
@@ -150,8 +155,10 @@ internal fun Node.RestartOnDefect.restarting(turns: Timeline): Pull {
                             ),
                         )
                         schedule = decision.step
+                        attempt?.let { run?.givenUp(it) }?.let(defect::addSuppressed)
                         turns.park(until = turns.now().plus(decision.delay))
-                        current = upstream.pull()
+                        attempt = run?.attempt()
+                        current = attempted()
                     }
 
                     is Schedule.Decision.Done -> throw defect

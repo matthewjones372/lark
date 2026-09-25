@@ -37,6 +37,7 @@ fun Node.collapsed(): Node =
             }
 
         is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail,
+        is Node.Blocking,
         Node.Empty, Node.Hole,
         -> this
     }
@@ -68,7 +69,8 @@ private fun saturated(a: Long, b: Long): Long = if (a > Long.MAX_VALUE - b) Long
 @StreamSpi
 fun Node.canFail(): Boolean =
     when (this) {
-        is Node.Elements, is Node.Single, is Node.Tick, Node.Empty, is Node.Native, is Node.Either -> false
+        is Node.Elements, is Node.Single, is Node.Tick, Node.Empty, is Node.Native, is Node.Either, is Node.Blocking,
+        -> false
 
         is Node.Fail, is Node.FromStage, Node.Hole, is Node.MapOrFail, is Node.MapPar, is Node.Absolve,
         is Node.OrFailIfEmpty, is Node.CatchAll, is Node.FlatMap,

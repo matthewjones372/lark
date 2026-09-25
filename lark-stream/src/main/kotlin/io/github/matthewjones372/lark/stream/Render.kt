@@ -181,6 +181,7 @@ private fun Node.label(): String {
         is Node.FlatMap -> breadth?.toString()
 
         is Node.Native, is Node.Stage, is Node.Elements, is Node.Single, is Node.FromStage, is Node.Fail,
+        is Node.Blocking,
         Node.Empty, Node.Hole, is Node.Merge, is Node.ZipWith, is Node.Prepend, is Node.Concat,
         is Node.RestartOnDefect, is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot,
         is Node.TakeWhile, is Node.DropWhile, is Node.Scan, is Node.StatefulMap, is Node.MapConcat,

@@ -106,6 +106,9 @@ private class PullRun<E, R : Any>(
     /** The thread running the loop, while it runs it: a stop interrupts it there and nowhere else. */
     private var loop: Thread? = null
 
+    /** Every blocking source this run opened: woken by a stop, closed before the exit completes. */
+    private val resources = Resources()
+
     override val exit = CompletableFuture<Exit<E, R>>()
 
     override fun emitted(): List<Any> = kept?.toList() ?: error("only a run on a test's clock keeps what it emitted")
@@ -117,6 +120,8 @@ private class PullRun<E, R : Any>(
      */
     override fun stop() {
         stopped.set(true)
+        // Woken before the interrupt, so a blocking read the interrupt lands in ends the stream, not the run.
+        resources.wake()
         if (interrupting) synchronized(this) { loop?.interrupt() }
         onStop()
     }
@@ -135,10 +140,12 @@ private class PullRun<E, R : Any>(
             // The fused tree is the same for every run of a description, so it is worked out once, and so
             // is whether a run of it can start a thread of its own: one that cannot pays nothing for it.
             val compiled = run.compiled.getOrCompile(ForksKey) { Compiled(run.node.optimised()) }
-            if (compiled.forks) {
-                Releases.around(Releases(on, clock)) { ended(compiled, run.end) }
-            } else {
-                ended(compiled, run.end)
+            resources.around {
+                if (compiled.forks) {
+                    Releases.around(Releases(on, clock)) { ended(compiled, run.end) }
+                } else {
+                    ended(compiled, run.end)
+                }
             }
         } catch (unreleased: Throwable) {
             log.log(LogLine(LogLevel.Error, unreleased.oneLine(), clock.now(), unreleased))
@@ -150,7 +157,17 @@ private class PullRun<E, R : Any>(
                 Thread.interrupted()
             }
         }
-        exit.complete(ended)
+        // After the interrupt is spent, so a close that talks to a server is not cut short by it. A close
+        // that throws is a defect, and ends a run that would otherwise have been Done.
+        val unclosed = resources.close()
+        exit.complete(
+            if (unclosed != null && ended is Exit.Done) {
+                log.log(LogLine(LogLevel.Error, unclosed.oneLine(), clock.now(), unclosed))
+                Exit.Died(unclosed)
+            } else {
+                ended
+            },
+        )
     }
 
     // The catch is as wide as a pipeline, because everything a stage threw ends the run: a declared
