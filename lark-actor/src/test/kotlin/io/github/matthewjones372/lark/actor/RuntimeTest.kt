@@ -4,6 +4,7 @@ import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
@@ -154,5 +155,26 @@ class RuntimeTest {
         }
 
         answers shouldBe (AskFailure.Stopped.left() to listOf(1, 3).right()).right()
+    }
+
+    @Test
+    fun `a sender waiting on a full mailbox is let go when the actor stops, and its message is a dead letter`() {
+        val letters = java.util.concurrent.ConcurrentLinkedQueue<Any>()
+        val letGo = flock<Nothing, Boolean> {
+            onDeadLetter { letters += it.message }
+            val release = CountDownLatch(1)
+            val full = spawn("full", log(), capacity = 1)
+            full.tell(Wait(release))
+            full.tell(Add(1))
+
+            val waiting = Thread.ofVirtual().start { full.tell(Add(2)) }
+            stop(full)
+            release.countDown()
+            watch(full).await()
+            waiting.join(java.time.Duration.ofMinutes(1))
+        }
+
+        letGo shouldBe true.right()
+        letters.toList() shouldContainExactlyInAnyOrder listOf(Add(1), Add(2))
     }
 }
