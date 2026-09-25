@@ -144,7 +144,7 @@ class DefectTest {
         val exit = Stream.from(rows)
             // The type arguments are written out because a body that only throws names no failure,
             // and the `Stream<Nothing, A>` overload reads its `F` out of the body.
-            .mapPar<Nothing, Row, Row>(1) { row -> stamp(row) } // mapPar built here
+            .mapPar(1) { row -> stamp(row) } // mapPar built here
             .runCollect()
             .run(pekko.system)
             .settled()

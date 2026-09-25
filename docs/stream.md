@@ -226,6 +226,7 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | a body that answers a stage: up to `parallelism` at once, in the input's order; a `null` completion dies |
 | `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Raise<E>`; `B : Any`, so no completion drops an element |
 | `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
+| `Stream<E, A>.mapParOrFail(parallelism: Int, f: Raise<F>.(A) -> B): Stream<F, B>` | `mapPar` with the failure read out of the body, on a stream that has not named one; `mapOrFail`'s suffix, and `on` as above |
 | `Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B>` | each element's own elements, in its order; one that answers with none emits none |
 | `Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S>` | a backlog collapsed while downstream is busy: `seed` starts the aggregate and `aggregate` folds each later element in |
 | `Stream<E, A>.filterNot(predicate: (A) -> Boolean): Stream<E, A>` | `filter`'s mirror, Pekko's own name |
@@ -286,7 +287,7 @@ so `raise`, `bind` and `parZip` are all in reach of it:
 import arrow.core.Either
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapPar
+import io.github.matthewjones372.lark.stream.mapParOrFail
 
 data class Row(val id: Int, val customer: String?)
 
@@ -303,8 +304,14 @@ val directory = Directory()
 val rows = listOf(Row(1, "ada"), Row(2, "grace"))
 
 val customers: Stream<NoCustomer, Customer> =
-    Stream.from(rows).mapPar(4) { row -> directory.lookup(row.id).bind() }   // a virtual thread per element in flight
+    Stream.from(rows).mapParOrFail(4) { row -> directory.lookup(row.id).bind() }   // a virtual thread per element in flight
 ```
+
+`mapPar` keeps the failure type the stream already has, `Nothing` included, so
+a body that cannot fail needs nothing spelled out. On a stream that has not
+named a failure yet, `mapParOrFail` reads one out of the body, as `mapOrFail`
+does. The two cannot share a name, because Kotlin fixes the type before it
+reads the body.
 
 Blocking a virtual thread parks it and leaves the carrier to the next one, so
 four in flight are four threads and not four platform threads — with one

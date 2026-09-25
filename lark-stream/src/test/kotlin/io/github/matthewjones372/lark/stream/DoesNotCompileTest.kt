@@ -38,10 +38,13 @@ class DoesNotCompileTest {
         import io.github.matthewjones372.lark.stream.Stream
         import io.github.matthewjones372.lark.stream.divertLefts
         import io.github.matthewjones372.lark.stream.from
+        import io.github.matthewjones372.lark.stream.identity
         import io.github.matthewjones372.lark.stream.map
         import io.github.matthewjones372.lark.stream.mapAsync
         import io.github.matthewjones372.lark.stream.mapConcat
         import io.github.matthewjones372.lark.stream.mapOrFail
+        import io.github.matthewjones372.lark.stream.mapPar
+        import io.github.matthewjones372.lark.stream.mapParOrFail
         import io.github.matthewjones372.lark.stream.single
         import io.github.matthewjones372.lark.stream.toFlow
         import io.github.matthewjones372.lark.stream.toSource
@@ -202,6 +205,41 @@ class DoesNotCompileTest {
         )
 
         withClue("if this ever stops compiling, the way out to Pekko is shut") {
+            errors.shouldBeEmpty()
+        }
+    }
+
+    @Test
+    fun `a blocking body that never raises needs no failure type spelled out`() {
+        val errors = compiles(
+            """
+            $preamble
+            // No expected type on the call itself: one would hand inference the answer.
+            val ids = Stream.from(rows).mapPar(2) { row -> row.id }
+            val piped = Pipe.identity<Row>().mapPar(2) { row -> row.id }
+            val stillCannotFail: Stream<Nothing, Int> = ids
+            val norCanThis: Pipe<Nothing, Row, Int> = piped
+            """.trimIndent(),
+        )
+
+        withClue(errors.joinToString("\n")) {
+            errors.shouldBeEmpty()
+        }
+    }
+
+    @Test
+    fun `mapParOrFail reads the failure out of the body, on a stream that had none`() {
+        val errors = compiles(
+            """
+            $preamble
+            val named = Stream.from(rows).mapParOrFail(2) { row -> row.customer ?: raise(NoCustomer(row.id)) }
+            val piped = Pipe.identity<Row>().mapParOrFail(2) { row -> row.customer ?: raise(NoCustomer(row.id)) }
+            val declared: Stream<NoCustomer, String> = named
+            val pipeDeclared: Pipe<NoCustomer, Row, String> = piped
+            """.trimIndent(),
+        )
+
+        withClue(errors.joinToString("\n")) {
             errors.shouldBeEmpty()
         }
     }

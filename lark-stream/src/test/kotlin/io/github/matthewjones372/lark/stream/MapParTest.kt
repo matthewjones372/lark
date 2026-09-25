@@ -45,7 +45,7 @@ class MapParTest {
         val virtual = ConcurrentLinkedQueue<Boolean>()
 
         val exit = Stream.from(listOf(1, 2, 3, 4))
-            .mapPar(4) { id ->
+            .mapParOrFail(4) { id ->
                 virtual.add(Thread.currentThread().isVirtual)
                 allFour.countDown()
                 // Bodies run one after another would never all reach this, so the claim of
@@ -68,7 +68,7 @@ class MapParTest {
         val seen = ConcurrentLinkedQueue<String>()
 
         val exit = Stream.from(listOf(1, 2, 3, 4))
-            .mapPar(1) { id -> if (id == 2) raise(Declined(id)) else "receipt-$id" }
+            .mapParOrFail(1) { id -> if (id == 2) raise(Declined(id)) else "receipt-$id" }
             .map { receipt ->
                 seen.add(receipt)
                 receipt
@@ -86,7 +86,7 @@ class MapParTest {
     @Test
     fun `a bind on a Left inside a body fails the stream with what the Left holds`() {
         val exit = Stream.from(listOf(1, 2, 3))
-            .mapPar(2) { id -> settle(id).bind() }
+            .mapParOrFail(2) { id -> settle(id).bind() }
             .runCollect()
             .run(pekko.system)
             .settled()
@@ -99,7 +99,7 @@ class MapParTest {
         val cause = IllegalStateException("no ledger")
 
         val exit = Stream.from(listOf(1, 2, 3))
-            .mapPar(2) { id -> if (id == 2) throw cause else paid(id).bind() }
+            .mapParOrFail(2) { id -> if (id == 2) throw cause else paid(id).bind() }
             .runCollect()
             .run(pekko.system)
             .settled()
@@ -115,7 +115,7 @@ class MapParTest {
 
         val exit = try {
             Stream.from(listOf(1, 2, 3))
-                .mapPar(2) { id -> paid(id).bind() }
+                .mapParOrFail(2) { id -> paid(id).bind() }
                 .mapPar(2, on = executor) { receipt ->
                     threads.add(Thread.currentThread().name)
                     receipt.uppercase()
@@ -139,7 +139,7 @@ class MapParTest {
         val most = ConcurrentLinkedQueue<Int>()
 
         val exit = Stream.from(listOf(1, 2, 3, 4))
-            .mapPar(1) { id ->
+            .mapParOrFail(1) { id ->
                 most.add(inFlight.incrementAndGet())
                 Thread.sleep(20)
                 inFlight.decrementAndGet()
@@ -179,7 +179,7 @@ class MapParTest {
         val interrupted = CountDownLatch(3)
 
         val first = Stream.from(listOf(1, 2, 3, 4))
-            .mapPar(4) { id ->
+            .mapParOrFail(4) { id ->
                 allFour.countDown()
                 if (id == 1) {
                     allFour.await(GENEROUS_SECONDS, TimeUnit.SECONDS)

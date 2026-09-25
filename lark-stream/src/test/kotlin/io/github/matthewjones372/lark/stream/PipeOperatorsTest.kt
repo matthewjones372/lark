@@ -160,7 +160,7 @@ class PipeOperatorsTest {
     /** A pipe with no failure named yet reads one out of the body it is given, as `Stream.from` does. */
     @Test
     fun `identity names its failure from the first body that can fail`() {
-        val forked: Pipe<Declined, Int, Int> = Pipe.identity<Int>().mapPar(2) { n -> failingAt(n) }
+        val forked: Pipe<Declined, Int, Int> = Pipe.identity<Int>().mapParOrFail(2) { n -> failingAt(n) }
         val mapped: Pipe<Declined, Int, Int> = Pipe.identity<Int>().mapOrFail { n -> failingAt(n) }
 
         Stream.from(ids).via(forked).collected() shouldBe Exit.Failed(Declined(2))
@@ -244,7 +244,7 @@ class PipeOperatorsTest {
 
     private fun mapParTwin(): Twin = Twin(
         "mapPar",
-        Stream.from(ids).mapPar(2) { n -> failingAt(n) }.collected(),
+        Stream.from(ids).mapParOrFail(2) { n -> failingAt(n) }.collected(),
         Stream.from(ids).via(Pipe.mapPar<Declined, Int, Int>(2) { n -> failingAt(n) }).collected(),
     )
 
