@@ -17,11 +17,15 @@ dependencies {
     // A broker in the test JVM, so the suite needs no Docker. Its kafka-clients
     // matches the connector's.
     testImplementation("io.github.embeddedkafka:embedded-kafka_$scalaBinary:3.8.0")
+    // The compiler, so that which overload a call resolves to, and what does not compile, are tests.
+    testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
 }
 
 tasks.test {
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
+    // CommittedCompileTest runs the compiler in the test JVM, which Gradle's default heap stalls.
+    maxHeapSize = "2g"
     jvmArgumentProviders.add(
         CommandLineArgumentProvider {
             listOf(

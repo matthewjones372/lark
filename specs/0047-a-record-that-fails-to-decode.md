@@ -41,7 +41,7 @@ val orders: Decoder<Order> = Decoder(KafkaAvroDeserializer(registry), transient 
 Kafka.subscribe(bytes, Topic("orders"), key = Decoder.string(), value = orders)
     // Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<String, Order>>>>
     .divertLefts { bad -> deadLetters.send(bad) }  // runs before the offset moves on
-    .mapPar(4) { record -> shop.place(record.value()).bind() }
+    .mapParRecord(4) { record -> shop.place(record.value()).bind() }
     .restartOnDefect(Schedule.exponential(100.milliseconds))  // a registry that is down lands here
     .runCommitting(committer)
 

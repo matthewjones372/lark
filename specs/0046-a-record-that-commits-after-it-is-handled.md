@@ -29,8 +29,8 @@ cannot drain: in-flight work is cut off, and none of it is committed.
 ```kotlin
 val placed: Running<ShopError, Done> =
     Kafka.subscribe(consumer, Topic("orders"))           // Stream<Nothing, Committed<ConsumerRecord<OrderId, Order>>>
-        .map { it.value() }                              // Stream<Nothing, Committed<Order>>
-        .mapParOrFail(4) { order -> shop.place(order).bind() }  // Stream<ShopError, Committed<Receipt>>
+        .mapRecord { it.value() }                        // Stream<Nothing, Committed<Order>>
+        .mapParRecordOrFail(4) { order -> shop.place(order).bind() }  // Stream<ShopError, Committed<Receipt>>
         .runCommitting(committer)                         // Run<ShopError, Done>
         .start(system)
 
@@ -45,16 +45,20 @@ placed.close()   // stop fetching, finish what is in flight, commit it, then wai
 - `Committed<out A>` is an element and the offset that comes with it. The
   offset is not in its public API.
 - On `Stream<E, Committed<A>>`, these operators work on `A` and keep the
-  offset: `map`, `mapOrFail`, `mapPar`, `mapParOrFail`, `filter` and
-  `mapConcat`. A filtered record is committed as handled.
-- `mapConcat` gives the record's offset to the last element it expands to.
+  offset: `mapRecord`, `mapRecordOrFail`, `mapParRecord`,
+  `mapParRecordOrFail`, `filterRecord` and `mapConcatRecord`. A filtered
+  record is committed with the next record on its partition that is not
+  filtered.
+- `mapConcatRecord` gives the record's offset to the last element it expands to.
   The elements before it carry none, so the record commits only once all of
   them have reached the committer. An expansion to nothing commits as a
   filtered record does. This relies on the element operators keeping input
   order, which `mapPar` already does.
 - `Stream<E, Committed<*>>.runCommitting(settings: CommitterSettings):
   Run<E, Done>` is the only way to run a stream of `Committed` elements.
-  `runCollect` and `runWith` over `Committed` do not compile.
+  `runCollect`, `runFold` and `runWith` over `Committed` do not compile. They
+  are overloads deprecated at `ERROR` in lark-stream's package, so importing
+  lark-stream's `runCollect` imports them too.
 - On a `Running` from `runCommitting`, `stop()` is the consumer's
   `drainAndShutdown`. The consumer stops fetching, the elements already in
   flight finish and are committed, and the exit completes after that.
@@ -80,9 +84,9 @@ at-least-once, but every shutdown sends those records again.
       `Kafka.subscribe`, `runCommitting` over `Committer.sink`, and the dependency test.
       Done when: against a broker in the test JVM, the records a run handles
       are committed, and a second run in the same group sees none of them again.
-- [ ] **`spec-0046-offset-keeping-operators`**: `map`, `mapOrFail`, `mapPar`,
-      `mapParOrFail`, `filter` and `mapConcat` over `Committed`, and the log
-      annotations.
+- [ ] **`spec-0046-offset-keeping-operators`**: `mapRecord`,
+      `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`
+      and `mapConcatRecord` over `Committed`, and the log annotations.
       Done when: a compile test holds that `runCollect` over `Committed` does
       not compile; a body that raises on record 3 of 5 leaves offset 2
       committed; and a record expanded to three elements, whose third raises,
@@ -104,11 +108,11 @@ at-least-once, but every shutdown sends those records again.
    `Control`. Recommend a narrow public seam in `lark-stream` behind an
    opt-in annotation. Moving Kafka into `lark-stream` would break that
    module's dependency rule.
-2. **Do the `Committed` overloads resolve without annotations?** The receiver
-   `Stream<E, Committed<A>>` is more specific than `Stream<E, A>`, but 0043
-   showed that inference can surprise us. Recommend a compile test for each
-   operator as the first commit. If one needs a type argument, rename it
-   (`mapRecord`) and do not ship the annotation.
+2. **Do the `Committed` overloads resolve without annotations?** Answered:
+   no. With both packages imported, every overload was ambiguous, because
+   the lambda's parameter type differs between the two and so neither is more
+   specific. The operators carry a `Record` suffix instead, and a compile test
+   pins them beside lark-stream's own.
 3. **Does `grouped` belong here?** When many records become one element, the
    batch has to carry every partition's highest offset. Recommend a later
    spec: the offset batch needs its own design.

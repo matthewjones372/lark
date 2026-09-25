@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.kafka
 import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.map
+import io.github.matthewjones372.lark.stream.mapConcat
 import io.github.matthewjones372.lark.stream.runWith
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.pekko.Done
@@ -30,10 +30,13 @@ object Kafka {
     ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> =
         Stream.from(
             Consumer.committableSource(settings, Subscriptions.topics(topics.map { it.name }.toSet()))
-                .map { message -> Committed(message.record(), message.committableOffset()) },
+                .map { message ->
+                    val offset = message.committableOffset()
+                    Committed(message.record(), offset.partitionOffset(), offset)
+                },
         )
 }
 
 /** A run described that commits each element's offset once the element reaches the end of the stream. */
 fun <E> Stream<E, Committed<*>>.runCommitting(settings: CommitterSettings): Run<E, Done> =
-    map { it.offset }.runWith(Committer.sink<ConsumerMessage.Committable>(settings))
+    mapConcat { listOfNotNull(it.offset) }.runWith(Committer.sink<ConsumerMessage.Committable>(settings))
