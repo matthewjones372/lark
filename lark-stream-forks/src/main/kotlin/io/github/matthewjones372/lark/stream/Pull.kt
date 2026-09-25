@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
+import io.github.matthewjones372.lark.increment
 import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
 
@@ -19,7 +20,7 @@ internal fun Node.pulls(): Boolean =
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
-        is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused,
+        is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Counted,
         -> true
 
         is Node.FlatMap -> breadth == null
@@ -86,6 +87,8 @@ internal fun Node.pull(): Pull =
         is Node.ZipWith -> zipWith()
 
         is Node.Fused -> fusedLoop()
+
+        is Node.Counted -> upstream.pull().let { up -> Pull { up.next()?.also { counter.increment() } } }
 
         is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Sliding,
         is Node.MapAsync, is Node.Conflate, is Node.MapPar, is Node.Merge, is Node.Interleave,

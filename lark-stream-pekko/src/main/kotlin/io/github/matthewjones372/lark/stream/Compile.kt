@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
+import io.github.matthewjones372.lark.increment
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.KillSwitches
 import org.apache.pekko.stream.UniqueKillSwitch
@@ -150,6 +151,8 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
         is Node.MapPar -> mapParStage()
 
         is Node.Fused -> fusedStage()
+
+        is Node.Counted -> Flow.create<Any>().map { a -> a.also { counter.increment() } }
     } as Flow<Any, Any, NotUsed>
 
 private fun Node.Map.mapStage(): Flow<Any, *, NotUsed> {

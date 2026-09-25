@@ -124,7 +124,7 @@ private fun Node.label(): String {
         is Node.RestartOnDefect, is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot,
         is Node.TakeWhile, is Node.DropWhile, is Node.Scan, is Node.StatefulMap, is Node.MapConcat,
         is Node.Conflate, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
-        is Node.OrFailIfEmpty, is Node.Fused,
+        is Node.OrFailIfEmpty, is Node.Fused, is Node.Counted,
         -> null
     }
     return operator + arguments?.let { "($it)" }.orEmpty()

@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.Clock
+import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Logger
 import io.github.matthewjones372.lark.ScheduleStep
 import java.util.concurrent.CompletionStage
@@ -205,6 +206,11 @@ sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
+    /** Counts each element [upstream] emits: how a measured run counts a stage with no body to count in. */
+    data class Counted(override val upstream: Node, val counter: Counter) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
     /** `S` may be nullable, which is why the state is `Any?` where every element is `Any`. */
     data class StatefulMap(
         override val upstream: Node,
@@ -294,6 +300,8 @@ val Node.operator: String
 
         is Node.Fused -> steps.joinToString(prefix = "fused[", postfix = "]") { it.operator }
 
+        is Node.Counted -> "counted"
+
         is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin,
         is Node.Scan, is Node.StatefulMap, is Node.MapConcat, is Node.MapAsync, is Node.Either, is Node.Absolve,
@@ -344,9 +352,43 @@ val Node.site: String?
         is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty, Node.Hole,
         is Node.Merge, is Node.Interleave, is Node.Prepend, is Node.Concat, is Node.RestartOnDefect,
         is Node.Take, is Node.Drop, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin, is Node.Either,
-        is Node.CatchAll, is Node.OrFailIfEmpty,
+        is Node.CatchAll, is Node.OrFailIfEmpty, is Node.Counted,
         -> null
     }
+
+/** This node reading from its children as [transform] answers them, and itself where none of them changed. */
+@StreamSpi
+fun Node.withChildren(transform: (Node) -> Node): Node =
+    when (this) {
+        is Node.Unary -> transform(upstream).let { up -> if (up === upstream) this else on(up) }
+
+        is Node.Merge -> pair(upstream, other, transform) { a, b -> Node.Merge(a, b) }
+
+        is Node.Interleave -> pair(upstream, other, transform) { a, b -> Node.Interleave(a, b, segmentSize) }
+
+        is Node.ZipWith -> pair(upstream, other, transform) { a, b -> Node.ZipWith(a, b, f, at) }
+
+        is Node.Prepend -> pair(upstream, first, transform) { a, b -> Node.Prepend(a, b) }
+
+        is Node.Concat -> pair(upstream, next, transform) { a, b -> Node.Concat(a, b) }
+
+        is Node.RestartOnDefect ->
+            transform(upstream).let { up ->
+                if (up ===
+                    upstream
+                ) this else Node.RestartOnDefect(up, step, logger, clock)
+            }
+
+        is Node.Native, is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail,
+        Node.Empty, Node.Hole,
+        -> this
+    }
+
+private fun Node.pair(left: Node, right: Node, transform: (Node) -> Node, build: (Node, Node) -> Node): Node {
+    val a = transform(left)
+    val b = transform(right)
+    return if (a === left && b === right) this else build(a, b)
+}
 
 /** The nodes this one reads from, in the order its elements come from them. */
 @StreamSpi
