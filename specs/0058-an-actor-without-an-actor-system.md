@@ -60,6 +60,10 @@ shop.state shouldBe Shelf.of(rex)
   holds no thread. A message to an idle actor starts a virtual thread that runs
   up to `throughput` messages, then parks or yields. The activation is one
   compare-and-set state, as in 0037.
+- **Bounded mailboxes.** Capacity is required. Only a `tell` from outside any
+  actor waits while the mailbox is full. A `tell` from inside an actor takes an
+  overflow policy, failing or going to dead letters, so two actors each
+  waiting on the other's full mailbox cannot deadlock.
 - **Replies and asks.** `ask` waits on the calling thread and answers
   `Either<AskFailure, A>`. `AskFailure` is `TimedOut`, `Stopped` or
   `Unreachable`. The last never happens locally, but adding it later would
@@ -67,7 +71,8 @@ shop.state shouldBe Shelf.of(rex)
 - **Tests.** `.test()` runs the same behaviour on the calling thread. `send`
   and `ask` return once the message and everything it caused are handled.
   `told(ref)` lists what was sent, and a missing or doubled reply fails at
-  once. A test scope runs several actors to idle in a fixed order. On threads,
+  once. `state` is readable, since it is an immutable value and not a hidden
+  field. A test scope runs several actors to idle in a fixed order. On threads,
   `awaitIdle()` waits on the runtime's count of messages not yet handled; it
   never polls.
 - **Kept remote-ready.** An `ActorRef` equals by `node / path / incarnation`,
@@ -111,14 +116,5 @@ Recommended: the context.
 
 ## Open questions
 
-1. **Bounded mailboxes, and deadlock between two full ones?** Recommend
-   bounded, with only a `tell` from outside any actor waiting. A `tell` from
-   inside an actor takes an overflow policy (fail or dead letter), so a cycle
-   cannot deadlock.
-2. **May a test read `state`?** Recommend yes: it is an immutable value, not a
-   hidden field. The alternative is to assert only through messages.
-3. **`throughput` default, and a linger before parking?** Recommend 5, as
+1. **`throughput` default, and a linger before parking?** Recommend 5, as
    Pekko's, and no linger until the benchmark asks for one.
-4. **One spec or two?** This runs past a page. The seam is `.test()` and the
-   runtime (entries 1 and 3) against the runtime and the benchmark (2 and 4).
-   Recommend keeping them together, since the parity claim needs both.
