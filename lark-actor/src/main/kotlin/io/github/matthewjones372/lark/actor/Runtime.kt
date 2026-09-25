@@ -47,7 +47,11 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
     val address = Address("local", "/user/$name", incarnations.incrementAndGet())
     return Cell(behaviour, address, capacity, throughput, stash, guardian, restart)
         .also { guardian.cells += it }
+        .also { it.begin() }
 }
+
+/** The actors registered under [key] in this flock now. */
+fun <F, M : Any> Flock<F>.find(key: ServiceKey<M>): Set<ActorRef<M>> = guardian().receptionist.find(key)
 
 /**
  * Hands every [DeadLetter] of this flock's actors to [handler], in place of the default, which logs each at debug.
@@ -109,6 +113,12 @@ private fun CountDownLatch.awaitThroughInterrupts() {
 /** A signal on its way through a mailbox. */
 private class Signalled(val signal: Signal)
 
+/** A listing from the receptionist on its way through a mailbox: nobody told it, so it takes no room. */
+private class Listed(val message: Any)
+
+/** Wakes a new actor whose behaviour has a start, so that it runs before anything is told to it. */
+private object Started
+
 /** Asks and waits on the calling thread. An actor that stops before replying answers [AskFailure.Stopped] at once. */
 fun <M : Any, A : Any> ActorRef<M>.ask(within: Duration, message: (Reply<A>) -> M): Either<AskFailure, A> {
     // A test actor has handled the message before its tell returns, so there is nothing to wait for.
@@ -164,6 +174,7 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     val cells = ConcurrentLinkedQueue<Cell<*, *, *>>()
     val backlog = Backlog()
     val wheel = Wheel(clock) { backlog.awaitEmpty() }
+    val receptionist = Receptionist()
 
     @Volatile
     var deadLetters: (DeadLetter) -> Unit = { letter -> logDebug("dead letter: $letter") }
@@ -287,7 +298,34 @@ private class Cell<M : Any, S, E>(
     }
 
     /** Whether there is anything to handle: a message put back from the stash, or one in the mailbox. */
-    private fun hasWork(): Boolean = stashed?.isReplaying() == true || mailbox.isNotEmpty()
+    private fun hasWork(): Boolean = starting || stashed?.isReplaying() == true || mailbox.isNotEmpty()
+
+    // Whether the behaviour's start is still to run: set on spawn and on each restart, and read by the activation.
+    private var starting = false
+
+    /** Schedules the behaviour's start, if it has one, ahead of anything told to the actor. */
+    fun begin() {
+        if (behaviour.start == null) return
+        starting = true
+        enqueue(Started)
+    }
+
+    private fun started(): Next<S> {
+        starting = false
+        val start = behaviour.start ?: return Next.Stay
+        return supervised {
+            start(this@Cell)
+            Next.Stay
+        }
+    }
+
+    override fun register(key: ServiceKey<M>) = guardian.receptionist.register(key, this)
+
+    override fun <K : Any> subscribe(key: ServiceKey<K>, listing: (Set<ActorRef<K>>) -> M) =
+        guardian.receptionist.subscribe(key, this) { refs ->
+            @Suppress("UNCHECKED_CAST")
+            if (!stopped.get()) enqueue(Listed(listing(refs as Set<ActorRef<K>>)))
+        }
 
     override fun after(key: Any, delay: Duration, message: M) = start(key, delay, message, null)
 
@@ -351,6 +389,7 @@ private class Cell<M : Any, S, E>(
 
     /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
     private fun letGo() {
+        guardian.receptionist.forget(this)
         armed?.values?.forEach(wheel::cancel)
         armed = null
         silence = null
@@ -375,6 +414,7 @@ private class Cell<M : Any, S, E>(
         )
         guardian.cells += child
         children += child
+        child.begin()
         return child
     }
 
@@ -537,9 +577,7 @@ private class Cell<M : Any, S, E>(
 
     private tailrec fun drain(left: Int) {
         if (left == 0 || stopped.get()) return
-        // A message put back from the stash comes before the mailbox, and took its room back when it was first polled.
-        val replayed = stashed?.next()
-        val next = if (replayed != null) stepped(replayed).also { heard() } else handled(mailbox.poll() ?: return)
+        val next = if (starting) started() else replayedOrPolled() ?: return
         when (next) {
             Next.Stay, Next.Unhandled -> Unit
             is Next.Become -> state.set(next.state)
@@ -549,8 +587,21 @@ private class Cell<M : Any, S, E>(
         drain(left - 1)
     }
 
-    /** One item from the mailbox: a signal, a timer or a message. */
+    /**
+     * A message put back from the stash, which comes before the mailbox and took its room back when first polled, or
+     * else the mailbox's next item; null when there is neither.
+     */
+    private fun replayedOrPolled(): Next<S>? {
+        val replayed = stashed?.next()
+        return if (replayed != null) stepped(replayed).also { heard() } else mailbox.poll()?.let(::handled)
+    }
+
+    /** One item from the mailbox: a signal, a timer, a listing, the start's wake-up or a message. */
     private fun handled(item: Any): Next<S> = when (item) {
+        Started -> Next.Stay
+
+        is Listed -> stepped(item.message).also { heard() }
+
         is Signalled -> {
             val handler = behaviour.signal
             if (handler == null) Next.Stay else supervised { handler(this, this@Cell, state.get(), item.signal) }
@@ -582,6 +633,7 @@ private class Cell<M : Any, S, E>(
                 guardian.clock.sleep(decision.delay)
                 state.set(behaviour.initial)
                 supervision.set(decision.step)
+                starting = behaviour.start != null
                 Next.Stay
             }
 
@@ -608,9 +660,9 @@ private class Cell<M : Any, S, E>(
         letGo()
         stopping()
         kept.forEach { dead(it, DeadLetter.Why.Stopped) }
-        // Messages still waiting are dead letters; a signal or a timer is not one, since nobody told it.
+        // Messages still waiting are dead letters; a signal, a timer or a listing is not one, since nobody told it.
         generateSequence { mailbox.poll() }
-            .filterNot { it is Signalled || it is Timer }
+            .filterNot { it is Signalled || it is Timer || it is Listed || it === Started }
             .forEach { dead(it, DeadLetter.Why.Stopped) }
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
         room.release(Int.MAX_VALUE / 2)

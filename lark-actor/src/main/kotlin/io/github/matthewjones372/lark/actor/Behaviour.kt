@@ -51,6 +51,15 @@ interface Ctx<M : Any> {
     /** Puts every kept message back, to be handled before anything in the mailbox, in the order kept. */
     fun unstashAll()
 
+    /** Lists this actor under [key] until it stops or restarts, for [subscribe] and `find` to see. */
+    fun register(key: ServiceKey<M>)
+
+    /**
+     * Tells this actor [listing] of the actors under [key] now, and again whenever it changes, as a message of its
+     * own type, until it stops or restarts.
+     */
+    fun <K : Any> subscribe(key: ServiceKey<K>, listing: (Set<ActorRef<K>>) -> M)
+
     /** Hears [Signal.Terminated] once [ref] stops, once however often it is asked; at once if it already has. */
     fun watch(ref: ActorRef<*>)
 
@@ -128,12 +137,22 @@ class Behaviour<M : Any, S, out E>(
     val step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
     /** How it takes a [Signal]; with none, a signal changes nothing. */
     val signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
+    /** What it does before its first message, and again after each restart. */
+    val start: ((ctx: Ctx<M>) -> Unit)? = null,
 )
 
 /** This behaviour, taking signals with [handler]. */
 fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
     handler: Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>,
-): Behaviour<M, S, E> = Behaviour(initial, step, handler)
+): Behaviour<M, S, E> = Behaviour(initial, step, handler, start)
+
+/**
+ * This behaviour, running [handler] before its first message and again after each restart, since a restart loses
+ * what the actor had: its registrations, its subscriptions and its timers. A throw from it fails the actor as a
+ * step's would.
+ */
+fun <M : Any, S, E> Behaviour<M, S, E>.onStart(handler: (ctx: Ctx<M>) -> Unit): Behaviour<M, S, E> =
+    Behaviour(initial, step, signal, handler)
 
 /**
  * A behaviour whose step may raise [E]. Name all three types, `behaviour<M, S, E>(…)`: left to inference, a call
@@ -178,6 +197,12 @@ internal class StepRaise<E> : Raise<E> {
 
 /** Carries a raise to its [StepRaise]; no stack trace, since it is control flow, not a fault. */
 internal class Raised(val error: Any?, val by: StepRaise<*>) : RuntimeException(null, null, false, false)
+
+/**
+ * A protocol by name, which actors register under and are found by, as refs of that protocol. One id names one
+ * protocol: two keys with the same id are the same key.
+ */
+data class ServiceKey<M : Any>(val id: String)
 
 /** A message nobody handled: told to [recipient] after it stopped, or answered `unhandled()` by its step. */
 data class DeadLetter(val recipient: Address, val message: Any, val why: Why) {

@@ -54,6 +54,11 @@ class TestActors internal constructor(private val clock: Clock = fixedClock()) {
     /** Every message nobody handled, in the order it was found: told to a stopped actor, or answered `unhandled()`. */
     val deadLetters: List<DeadLetter> get() = letters.get()
 
+    internal val receptionist = Receptionist()
+
+    /** The actors registered under [key] now. */
+    fun <M : Any> find(key: ServiceKey<M>): Set<ActorRef<M>> = receptionist.find(key)
+
     internal fun dead(letter: DeadLetter) {
         letters.updateAndGet { it + letter }
     }
@@ -104,7 +109,10 @@ class TestActors internal constructor(private val clock: Clock = fixedClock()) {
         stash: Int,
     ): TestActor<M, S, E> {
         require(stash >= 0) { "stash must not be negative, was $stash" }
-        return TestActor(this, behaviour, Address("test", path, incarnations.incrementAndGet()), restart, clock, stash)
+        val actor =
+            TestActor(this, behaviour, Address("test", path, incarnations.incrementAndGet()), restart, clock, stash)
+        if (behaviour.start != null) post(actor, TestStarted)
+        return actor
     }
 
     /** Returns at once: a tell from the test has already run to idle. Here so a scenario reads the same on threads. */
@@ -191,6 +199,14 @@ class TestActor<M : Any, S, E> internal constructor(
             (stashed.get() ?: Stash(stashCapacity, address.path).also(stashed::set)).keep(message)
         }
 
+        override fun register(key: ServiceKey<M>) = scope.receptionist.register(key, this@TestActor)
+
+        override fun <K : Any> subscribe(key: ServiceKey<K>, listing: (Set<ActorRef<K>>) -> M) =
+            scope.receptionist.subscribe(key, this@TestActor) { refs ->
+                @Suppress("UNCHECKED_CAST")
+                scope.post(this@TestActor, listing(refs as Set<ActorRef<K>>))
+            }
+
         override fun unstashAll() {
             stashed.get()?.unstashAll()
         }
@@ -271,7 +287,7 @@ class TestActor<M : Any, S, E> internal constructor(
     internal fun receive(item: Any) {
         if (stopped) {
             // A message, not a signal or a timer, that reached an actor which had stopped: nobody told those.
-            if (item !is TestSignalled && item !is TestTimer) dead(item, DeadLetter.Why.Stopped)
+            if (item !is TestSignalled && item !is TestTimer && item !== TestStarted) dead(item, DeadLetter.Why.Stopped)
             return
         }
         try {
@@ -281,11 +297,15 @@ class TestActor<M : Any, S, E> internal constructor(
 
                 is TestTimer -> timed(item)
 
+                TestStarted -> started()
+
                 else -> {
                     stepped(item as M)
                     heard()
                 }
             }
+            // A restart while handling it: the start runs again before anything else reaches the actor.
+            if (starting.get() && !stopped) started()
             replayed()
         } finally {
             if (stopped) ended()
@@ -373,7 +393,20 @@ class TestActor<M : Any, S, E> internal constructor(
     }
 
     /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
+    // Whether the behaviour's start is to run again, after a restart.
+    private val starting = AtomicBoolean(false)
+
+    private fun started() {
+        starting.set(false)
+        val start = behaviour.start ?: return
+        supervised {
+            start(ctx)
+            Next.Stay
+        }
+    }
+
     private fun letGo() {
+        scope.receptionist.forget(this)
         stashed.set(null)
         run.getAndUpdate {
             it.copy(timers = emptyMap(), silence = null, scoped = null, asked = null)
@@ -448,6 +481,7 @@ class TestActor<M : Any, S, E> internal constructor(
                 run.updateAndGet {
                     it.copy(state = behaviour.initial, supervision = decision.step, delays = it.delays + decision.delay)
                 }
+                starting.set(behaviour.start != null)
                 Next.Stay
             }
 
@@ -477,6 +511,9 @@ internal class TestTimer(
 
 /** A signal on its way through the test's queue. */
 private class TestSignalled(val signal: Signal)
+
+/** The start of a new test actor, on the queue so that it runs to idle like a message. */
+private object TestStarted
 
 private class TestReply<A : Any>(override val address: Address) : Reply<A> {
     val answer = AtomicReference<A>()
