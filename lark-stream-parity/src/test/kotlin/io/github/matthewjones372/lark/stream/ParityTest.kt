@@ -11,6 +11,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.DynamicContainer
 import org.junit.jupiter.api.DynamicContainer.dynamicContainer
+import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.DynamicTest.dynamicTest
 import org.junit.jupiter.api.TestFactory
 import java.util.concurrent.CompletableFuture
@@ -170,6 +171,17 @@ class ParityTest {
     fun `every case answers alike on every backend, or is refused naming what it cannot run`(): List<DynamicContainer> =
         backends.map { backend ->
             dynamicContainer(backend.key.name, cases().map { case -> dynamicTest(case.name) { check(case, backend) } })
+        }
+
+    @TestFactory
+    fun `no backend refuses any case, since every operator in them has no backend of its own`(): List<DynamicTest> =
+        backends.map { backend ->
+            dynamicTest(backend.key.name) {
+                val refused = cases().mapNotNull { case ->
+                    case.run().node.firstUnrunnableOn(backend)?.let { "${case.name}: ${it.operator}" }
+                }
+                refused shouldBe emptyList()
+            }
         }
 
     internal fun check(case: Case, backend: StreamBackend) {

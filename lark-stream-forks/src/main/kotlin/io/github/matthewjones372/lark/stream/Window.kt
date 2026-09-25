@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
 import arrow.core.raise.either
+import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.VirtualThreads
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -13,9 +14,9 @@ import java.util.concurrent.Executor
  * still filling a buffer. Released in reverse, on the thread that ran the loop, before the exit completes.
  *
  * [on] is where the run starts every thread it starts for itself, so that whoever gave the backend its
- * executor sees them all.
+ * executor sees them all, and [clock] is the time its pulls with time in them read.
  */
-internal class Releases(val on: Executor) {
+internal class Releases(val on: Executor, val clock: Clock) {
 
     /** Where a body given [asked] runs: the run's executor, unless the caller named one of its own. */
     fun executorFor(asked: Executor): Executor = if (asked === VirtualThreads) on else asked
