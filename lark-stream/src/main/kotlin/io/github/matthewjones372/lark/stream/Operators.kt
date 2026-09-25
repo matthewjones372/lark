@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
 import org.apache.pekko.stream.javadsl.Sink
-import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletionStage
 
 /**
@@ -54,6 +53,4 @@ fun <E, A : Any> Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A> = replac
  * cannot see, so it has no way to know whether that source emitted.
  */
 fun <E : E2, E2, A : Any> Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A> =
-    // The alternative is deferred because a plain `Source.failed` fails at materialisation, which would
-    // fail every stream through here rather than the empty ones.
-    Stream(source.orElse(Source.lazySource { Source.failed<A>(DeclaredFailure(error)) }))
+    Stream(Node.OrFailIfEmpty(node, error))

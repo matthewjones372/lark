@@ -5,7 +5,6 @@ import org.apache.pekko.NotUsed
 import org.apache.pekko.japi.pf.PFBuilder
 import org.apache.pekko.stream.Graph
 import org.apache.pekko.stream.SourceShape
-import org.apache.pekko.stream.javadsl.Flow
 import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
 import scala.PartialFunction
@@ -49,41 +48,27 @@ fun <E, In, Out : Any, B : Any> Pipe<E, In, Out>.mapConcat(f: (Out) -> Iterable<
     via(Pipe.mapConcat(f))
 
 /** The declared failure becomes the last element, as a `Left`, leaving none for the type to carry. */
-fun <E, A : Any> Pipe.Companion.either(): Pipe<Nothing, A, Either<E, A>> {
-    val rights: Flow<A, Either<E, A>, NotUsed> = Flow.create<A>().map { a -> Either.Right(a) }
-    return Pipe(
-        rights.recoverWithRetries(1, onDeclaredFailure { e: E -> Source.single<Either<E, A>>(Either.Left(e)) }),
-    )
-}
+fun <E, A : Any> Pipe.Companion.either(): Pipe<Nothing, A, Either<E, A>> = Pipe(Node.Either(Node.Hole))
 
 fun <E, In, Out : Any> Pipe<E, In, Out>.either(): Pipe<Nothing, In, Either<E, Out>> = replacing(Pipe.either<E, Out>())
 
 /** A `Left` fails the pipe with what it holds; a `Right` carries on as the element. */
-fun <E, L : E, R : Any> Pipe.Companion.absolve(): Pipe<E, Either<L, R>, R> {
-    val decided = guarded("absolve", buildSite()) { either: Either<L, R> ->
-        either.fold({ left -> throw DeclaredFailure(left) }, { right -> right })
-    }
-    return Pipe(Flow.create<Either<L, R>>().map { either -> decided(either) })
-}
+fun <E, L : E, R : Any> Pipe.Companion.absolve(): Pipe<E, Either<L, R>, R> = Pipe(Node.Absolve(Node.Hole, buildSite()))
 
 fun <E, In, L : E, R : Any> Pipe<E, In, Either<L, R>>.absolve(): Pipe<E, In, R> = via(Pipe.absolve<E, L, R>())
 
 /** Every `Left` reaches [to] and every `Right` carries on: `divertTo` with no predicate to write. */
-fun <L : Any, R : Any> Pipe.Companion.divertLefts(to: Sink<L, *>): Pipe<Nothing, Either<L, R>, R> {
-    // Flipped, so that both branches read their element through the one cast below.
-    val lefts = Flow.fromFunction<Either<L, R>, L> { either -> either.swap().decided() }.to(to)
-    val right = guarded("divertLefts", buildSite()) { either: Either<L, R> -> either.decided() }
-    return Pipe(
-        Flow.create<Either<L, R>>().divertTo(lefts) { either -> either.isLeft() }.map { either -> right(either) },
-    )
-}
+fun <L : Any, R : Any> Pipe.Companion.divertLefts(to: Sink<L, *>): Pipe<Nothing, Either<L, R>, R> =
+    Pipe(Node.DivertLefts(Node.Hole, to, buildSite()))
 
 fun <E, In, L : Any, R : Any> Pipe<E, In, Either<L, R>>.divertLefts(to: Sink<L, *>): Pipe<E, In, R> =
     via(Pipe.divertLefts(to))
 
 /** Handles a declared failure only: a defect is nothing anyone declared, and still dies. */
-fun <E, E2, A : Any> Pipe.Companion.catchAll(f: (E) -> Stream<E2, A>): Pipe<E2, A, A> =
-    Pipe(Flow.create<A>().recoverWithRetries(1, onDeclaredFailure { e: E -> f(e).source }))
+fun <E, E2, A : Any> Pipe.Companion.catchAll(f: (E) -> Stream<E2, A>): Pipe<E2, A, A> {
+    val recover: (E) -> Node = { e -> f(e).node }
+    return Pipe(Node.CatchAll(Node.Hole, recover.erased()))
+}
 
 fun <E, E2, In, Out : Any> Pipe<E, In, Out>.catchAll(f: (E) -> Stream<E2, Out>): Pipe<E2, In, Out> =
     replacing(Pipe.catchAll(f))
@@ -93,15 +78,8 @@ fun <E, E2, In, Out : Any> Pipe<E, In, Out>.catchAll(f: (E) -> Stream<E2, Out>):
  * reader of `catchAll { Stream.failed(it.toIngestError()) }` reaches the end before learning that
  * nothing was recovered.
  */
-fun <E, E2, A : Any> Pipe.Companion.mapError(f: (E) -> E2): Pipe<E2, A, A> {
-    val mapped = guardedError("mapError", buildSite(), f)
-    return Pipe(
-        Flow.create<A>().recoverWithRetries(
-            1,
-            onDeclaredFailure { e: E -> Source.failed<A>(DeclaredFailure(mapped(e))) },
-        ),
-    )
-}
+fun <E, E2, A : Any> Pipe.Companion.mapError(f: (E) -> E2): Pipe<E2, A, A> =
+    Pipe(Node.MapError(Node.Hole, f.erased(), buildSite()))
 
 fun <E, E2, In, Out : Any> Pipe<E, In, Out>.mapError(f: (E) -> E2): Pipe<E2, In, Out> =
     replacing(Pipe.mapError(f))
@@ -136,7 +114,7 @@ internal fun <B : Any> CompletionStage<B>.orDieOnNull(element: Any, at: String):
  * A fold rather than a cast: nothing is unchecked, and an element on the branch the predicate did not
  * choose dies where it is rather than being dropped by a partial function that does not match it.
  */
-private fun <A : Any> Either<*, A>.decided(): A =
+internal fun <A : Any> Either<*, A>.decided(): A =
     fold({ throw IllegalStateException("divertLefts: $it reached the branch the predicate did not send it to") }) { it }
 
 /**
@@ -145,7 +123,7 @@ private fun <A : Any> Either<*, A>.decided(): A =
  * The graph type is written out rather than left as the `Source` it is built from: `Flow`'s
  * `recoverWithRetries` asks for exactly that type where `Source`'s takes anything extending it.
  */
-private fun <E, A : Any> onDeclaredFailure(
+internal fun <E, A : Any> onDeclaredFailure(
     f: (E) -> Source<A, NotUsed>,
 ): PartialFunction<Throwable, Graph<SourceShape<A>, NotUsed>> =
     PFBuilder<Throwable, Graph<SourceShape<A>, NotUsed>>()

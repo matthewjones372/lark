@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
+import arrow.core.Either
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Flow
 import org.apache.pekko.stream.javadsl.Sink
@@ -91,6 +92,21 @@ private fun Node.Unary.stage(): Flow<Any, Any, NotUsed> =
         is Node.MapAsync -> mapAsyncStage()
 
         is Node.Conflate -> conflateStage()
+
+        is Node.Either -> eitherStage()
+
+        is Node.Absolve -> absolveStage()
+
+        is Node.DivertLefts -> divertLeftsStage()
+
+        is Node.CatchAll ->
+            Flow.create<Any>().recoverWithRetries(1, onDeclaredFailure { e: Any? -> f(e).toPekko() })
+
+        is Node.MapError -> mapErrorStage()
+
+        is Node.OrFailIfEmpty -> orFailIfEmptyStage()
+
+        is Node.Tap -> tapStage()
     } as Flow<Any, Any, NotUsed>
 
 private fun Node.Map.mapStage(): Flow<Any, *, NotUsed> {
@@ -152,6 +168,51 @@ private fun Node.Conflate.conflateStage(): Flow<Any, *, NotUsed> {
     val start = guarded("conflateWithSeed", at, seed)
     val fold = guarded("conflateWithSeed", at, aggregate)
     return Flow.create<Any>().conflateWithSeed({ a -> start(a) }, { s, a -> fold(s, a) })
+}
+
+private fun Node.Either.eitherStage(): Flow<Any, *, NotUsed> {
+    val rights: Flow<Any, Either<Any?, Any>, NotUsed> = Flow.create<Any>().map { a -> Either.Right(a) }
+    return rights.recoverWithRetries(
+        1,
+        onDeclaredFailure { e: Any? -> Source.single<Either<Any?, Any>>(Either.Left(e)) },
+    )
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun Node.Absolve.absolveStage(): Flow<Any, *, NotUsed> {
+    val decided = guarded("absolve", at) { either: Any ->
+        (either as Either<Any?, Any>).fold({ left -> throw DeclaredFailure(left) }, { right -> right })
+    }
+    return Flow.create<Any>().map { either -> decided(either) }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun Node.DivertLefts.divertLeftsStage(): Flow<Any, *, NotUsed> {
+    // Flipped, so that both branches read their element through the one fold `decided` is.
+    val lefts = Flow.fromFunction<Either<Any, Any>, Any> { either -> either.swap().decided() }.to(to as Sink<Any, *>)
+    val right = guarded("divertLefts", at) { either: Either<Any, Any> -> either.decided() }
+    return Flow.create<Either<Any, Any>>()
+        .divertTo(lefts) { either -> either.isLeft() }
+        .map { either -> right(either) } as Flow<Any, *, NotUsed>
+}
+
+private fun Node.MapError.mapErrorStage(): Flow<Any, *, NotUsed> {
+    val mapped = guardedError("mapError", at, f)
+    return Flow.create<Any>().recoverWithRetries(
+        1,
+        onDeclaredFailure { e: Any? -> Source.failed<Any>(DeclaredFailure(mapped(e))) },
+    )
+}
+
+// The alternative is deferred because a plain `Source.failed` fails at materialisation, which would
+// fail every stream through here rather than the empty ones.
+private fun Node.OrFailIfEmpty.orFailIfEmptyStage(): Flow<Any, *, NotUsed> =
+    Flow.create<Any>().orElse(Source.lazySource { Source.failed<Any>(DeclaredFailure(error)) })
+
+@Suppress("UNCHECKED_CAST")
+private fun Node.Tap.tapStage(): Flow<Any, *, NotUsed> {
+    val tap = to as Sink<Any, *>
+    return if (dropping) Flow.create<Any>().wireTap(tap) else Flow.create<Any>().alsoTo(tap)
 }
 
 @Suppress("UNCHECKED_CAST")

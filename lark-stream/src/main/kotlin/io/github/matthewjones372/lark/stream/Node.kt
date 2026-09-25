@@ -121,6 +121,37 @@ internal sealed interface Node {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
 
+    /** The declared failure as a last element, `Left`; every element before it a `Right`. */
+    data class Either(override val upstream: Node) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class Absolve(override val upstream: Node, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class DivertLefts(override val upstream: Node, val to: Sink<*, *>, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    /** [f] answers with the node of the stream that takes over, so the recovery is described too. */
+    data class CatchAll(override val upstream: Node, val f: (Any?) -> Node) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class MapError(override val upstream: Node, val f: (Any?) -> Any?, val at: String) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    data class OrFailIfEmpty(override val upstream: Node, val error: Any?) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
+    /** [dropping] is `wireTap`: the tap is dropped from rather than allowed to slow the pipeline. */
+    data class Tap(override val upstream: Node, val to: Sink<*, *>, val dropping: Boolean) : Unary {
+        override fun on(upstream: Node) = copy(upstream = upstream)
+    }
+
     /** `S` may be nullable, which is why the state is `Any?` where every element is `Any`. */
     data class StatefulMap(
         override val upstream: Node,
