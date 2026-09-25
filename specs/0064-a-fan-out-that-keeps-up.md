@@ -42,10 +42,20 @@ Nothing in the API changes. Inside a flock on virtual threads:
   wakes starts no threads at all, and a burst starts a handful rather than one
   each. A busy actor goes to the back of the queue after `throughput`
   messages, as it yields its carrier now.
-- **Blocking steps.** When every runner is in a step and the queue is not
-  moving, a watcher adds runners, doubling each time the queue stays still,
-  up to a cap well above any burst of blocking actors a benchmark or a service
-  has shown. A blocking step still parks only its own runner.
+- **Blocking steps.** While work is queued, a watcher looks at the runners
+  every 50 µs, and counts as unable to run any that are in a step and parked
+  (`WAITING`, `TIMED_WAITING` or `BLOCKED`). If fewer than one runner per
+  carrier can run, it starts runners to make up the shortfall, doubling each
+  tick the shortfall lasts, up to 2,048. A burst of blocking actors is each on
+  a runner of its own within a few ticks, and a fan-out, whose runners are all
+  running, never grows. A blocking step still parks only its own runner.
+  Watching for progress instead was tried first: each new runner took one
+  actor and looked like progress, so the runners grew by one a tick and
+  blocking took 30 ms rather than 12.
+- **Idle.** On virtual threads the flock is idle when nothing is queued and no
+  runner has an activation in hand, which each runner marks on itself; the
+  flock-wide count of activations, which every wake and every runner wrote,
+  is kept only for other executors. It cost a tell 60 ns in a fan-out.
 - **Stop and interrupt.** A runner serves many actors, so a stop interrupts it
   only while it is running that actor's step, under the actor's own monitor,
   and a runner clears any interrupt left over before it moves on.

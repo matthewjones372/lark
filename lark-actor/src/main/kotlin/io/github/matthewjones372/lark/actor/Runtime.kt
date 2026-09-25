@@ -158,6 +158,17 @@ private val incarnations = AtomicLong()
 private val LINGER_NANOS = TimeUnit.MICROSECONDS.toNanos(20)
 private val asks = AtomicLong()
 
+/**
+ * The most runners one flock's actors share. Runners beyond one per carrier are started only while others are parked
+ * in blocking steps, so this bounds how many steps may block at once: far above Pekko's blocking dispatcher, and
+ * far above any burst the benchmarks or a service have shown.
+ */
+private const val RUNNERS = 2048
+
+/** One runner per carrier: the JDK's own count, which a service may have set. */
+private val PARALLELISM =
+    Integer.getInteger("jdk.virtualThreadScheduler.parallelism", Runtime.getRuntime().availableProcessors())
+
 /** The actor whose step this thread is running, so a `tell` from inside one can refuse to wait. */
 private val stepping = ThreadLocal<Cell<*, *, *>>()
 
@@ -171,28 +182,35 @@ private val guardians = ConcurrentHashMap<Flock<*>, Guardian>()
  * Activations running or scheduled across one flock's actors. A step's tell schedules its target before its own
  * activation ends, so the count reaches zero only once nothing is left to handle.
  */
-private class Backlog {
+private class Backlog(private val runners: Runners?) {
     private val count = AtomicLong()
     private val lock = ReentrantLock()
     private val empty = lock.newCondition()
 
+    // On virtual threads the runners know when the flock is idle, so no activation touches a shared count.
+    private val counting = runners == null
+
     fun added() {
-        count.incrementAndGet()
+        if (counting) count.incrementAndGet()
     }
 
     fun done() {
-        if (count.decrementAndGet() == 0L) lock.withLock { empty.signalAll() }
+        if (counting && count.decrementAndGet() == 0L) lock.withLock { empty.signalAll() }
     }
 
-    fun awaitEmpty() = lock.withLock {
-        while (count.get() != 0L) empty.await()
+    fun awaitEmpty() {
+        if (runners != null) return runners.awaitIdle()
+        lock.withLock {
+            while (count.get() != 0L) empty.await()
+        }
     }
 }
 
 /** One flock's actors, the executor they run on and the clock they wait on. */
 private class Guardian(private val flock: Flock<*>, val on: Executor, val clock: Clock) {
     val cells = ConcurrentLinkedQueue<Cell<*, *, *>>()
-    val backlog = Backlog()
+    val runners = Runners(PARALLELISM, RUNNERS)
+    val backlog = Backlog(runners.takeIf { on === VirtualThreads })
     val wheel = Wheel(clock) { backlog.awaitEmpty() }
     val receptionist = Receptionist()
 
@@ -232,7 +250,7 @@ private class Cell<M : Any, S, E>(
     private val stashCapacity: Int,
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
-) : ActorRef<M>, Ctx<M>, Timers<M>, Fired {
+) : ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation {
     override val self: ActorRef<M> get() = this
 
     override val timers: Timers<M> get() = this
@@ -254,8 +272,9 @@ private class Cell<M : Any, S, E>(
     private val watchers = ConcurrentHashMap.newKeySet<Cell<*, *, *>>()
     private val terminated = AtomicBoolean(false)
 
-    // The thread running this actor's activation, for a stop to interrupt.
-    private val running = AtomicReference<Thread?>()
+    // The runner running this actor's activation, for a stop to interrupt. A runner moves on to other actors, so it is
+    // set, cleared and interrupted only under this cell's monitor: an interrupt can never land on another actor.
+    private var running: Thread? = null
     private val backlog = guardian.backlog
 
     // Spawned by this actor's steps, so stopped before it; only its own activation reads or writes the list.
@@ -503,8 +522,13 @@ private class Cell<M : Any, S, E>(
         // takes the cache line away from the actor's own thread.
         if (!scheduled.get() && scheduled.compareAndSet(false, true)) {
             backlog.added()
-            guardian.on.execute(::activate)
+            schedule()
         }
+    }
+
+    /** Hands the activation to the flock's runners on virtual threads, and to the executor otherwise. */
+    private fun schedule() {
+        if (guardian.on === VirtualThreads) guardian.runners.submit(this) else guardian.on.execute(::activate)
     }
 
     /** Registers an ask, so that stopping answers it. False when the actor has already stopped. */
@@ -527,23 +551,27 @@ private class Cell<M : Any, S, E>(
         if (scheduled.compareAndSet(false, true)) {
             finish()
         } else if (guardian.on === VirtualThreads) {
-            running.get()?.interrupt()
+            synchronized(this) { running?.interrupt() }
         }
     }
 
     /** One activation, counted once in the flock's backlog however many messages it handles. */
-    private fun activate() {
+    override fun activate() {
         var returned = false
         try {
             stepping.set(this)
-            running.set(Thread.currentThread())
+            synchronized(this) { running = Thread.currentThread() }
             run()
             returned = true
         } catch (interrupted: InterruptedException) {
             // The interrupt a stop sends to a running step: the stop is the outcome, not a failure to report.
             if (!stopped.get()) throw interrupted
         } finally {
-            running.set(null)
+            // An interrupt a stop sent as the step returned is this actor's, and goes with it.
+            synchronized(this) {
+                running = null
+                Thread.interrupted()
+            }
             stepping.remove()
             // A throw stops the actor, and still reaches the thread's own handler.
             if (!returned) {
@@ -555,8 +583,8 @@ private class Cell<M : Any, S, E>(
     }
 
     /**
-     * Handles `throughput` messages at a time. Between batches a virtual thread yields its carrier and carries on,
-     * which is as fair to other actors as resubmitting and costs no new thread; any other executor is resubmitted.
+     * Handles `throughput` messages at a time. Between batches the actor goes to the back of the queue it came from,
+     * the flock's runners or its executor, so a busy actor is fair to the others.
      */
     private tailrec fun run() {
         drain(throughput)
@@ -566,12 +594,7 @@ private class Cell<M : Any, S, E>(
                 backlog.done()
             }
 
-            hasWork() && !Thread.currentThread().isVirtual -> guardian.on.execute(::activate)
-
-            hasWork() -> {
-                Thread.yield()
-                run()
-            }
+            hasWork() -> schedule()
 
             lingered() -> run()
 
