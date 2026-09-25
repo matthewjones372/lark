@@ -97,6 +97,13 @@ class ParityTest {
         Case("sliding", done(listOf(listOf(1, 2), listOf(2, 3), listOf(3, 4)))) {
             Stream.of(1, 2, 3, 4).sliding(2).all()
         },
+        Case("buffer", done((1..20).toList())) { Stream.from(1..20).buffer(4).all() },
+        Case("buffer, then take on a stream that never ends", done(listOf(1, 2, 3))) {
+            Stream.from(generateSequence(1) { it + 1 }.asIterable()).buffer(4).take(3).all()
+        },
+        Case("buffer carrying a failure in order", Expected.Failed(Odd(3))) {
+            Stream.of(2, 3, 4).mapOrFail { if (it % 2 == 1) raise(Odd(it)) else it }.buffer(2).all()
+        },
         Case("groupedWithin", done(listOf(listOf(1, 2), listOf(3)))) {
             Stream.of(1, 2, 3).groupedWithin(2, 1.seconds).all()
         },

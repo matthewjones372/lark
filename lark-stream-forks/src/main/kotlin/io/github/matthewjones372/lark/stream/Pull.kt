@@ -21,7 +21,7 @@ internal fun Node.pulls(): Boolean =
         is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Scan, is Node.StatefulMap,
         is Node.MapConcat, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.Concat, is Node.Prepend, is Node.ZipWith, is Node.Fused, is Node.Probed,
-        is Node.MapPar,
+        is Node.MapPar, is Node.Buffer,
         -> true
 
         is Node.FlatMap -> breadth == null
@@ -106,6 +106,8 @@ internal fun Node.pull(): Pull =
         // On a test's clock one element at a time, in the order they came, which is the answer a test of
         // timing wants; on Forks, a window of bodies in flight.
         is Node.MapPar -> if (Turns.taking()) inOrder() else window(Releases.here())
+
+        is Node.Buffer -> if (Turns.taking()) bufferedOnClock(Turns.here()) else buffered(Releases.here())
 
         is Node.Native, is Node.Stage, Node.Hole, is Node.Sliding, is Node.MapAsync, is Node.Conflate,
         is Node.Merge, is Node.Interleave,

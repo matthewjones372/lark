@@ -166,6 +166,8 @@ private fun Node.label(): String {
 
         is Node.Sliding -> "$n, $step"
 
+        is Node.Buffer -> "$size"
+
         is Node.GroupedWithin -> "$n, $within"
 
         is Node.Tick -> "$every"
