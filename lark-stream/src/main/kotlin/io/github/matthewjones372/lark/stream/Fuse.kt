@@ -110,7 +110,7 @@ private fun Node.Unary.asStep(): Step? =
         is Node.FilterNot -> Step.Filter(predicate, keep = false, at)
 
         is Node.Stage, is Node.Take, is Node.Drop, is Node.TakeWhile, is Node.DropWhile, is Node.Grouped,
-        is Node.Sliding, is Node.GroupedWithin, is Node.Scan, is Node.StatefulMap, is Node.MapConcat,
+        is Node.Sliding, is Node.Buffer, is Node.GroupedWithin, is Node.Scan, is Node.StatefulMap, is Node.MapConcat,
         is Node.MapAsync, is Node.Conflate, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.FlatMap, is Node.MapPar, is Node.Fused, is Node.Probed,
         -> null

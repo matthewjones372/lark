@@ -14,8 +14,10 @@ import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * lark-stream on lark's own threads: a run is one pull loop on one fork from [on], and nothing else starts.
- * Every stage runs on that fork, when the stage after it asks, so a stage body can block and `bind`.
+ * lark-stream on lark's own threads: a run is one pull loop on one fork from [on]. Every stage runs on that
+ * fork, when the stage after it asks, so a stage body can block and `bind`. Only `mapPar` and `buffer`
+ * start more, from [on] as well (a `mapPar` given an executor of its own keeps it), and the run lets go
+ * of every one of them before its exit completes.
  */
 class Forks(private val on: Executor = VirtualThreads, name: String = "Forks") : StreamBackend {
 
@@ -29,7 +31,7 @@ class Forks(private val on: Executor = VirtualThreads, name: String = "Forks") :
     @StreamSpi
     override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {
         // Read here, on the caller's thread: the fork inherits neither.
-        val running = PullRun<E, R>(logger.get(), clock.get())
+        val running = PullRun<E, R>(logger.get(), clock.get(), on)
         on.execute { running.drain(run) }
         return running
     }
@@ -60,7 +62,14 @@ class ForksOnClock(private val time: TestClock, name: String) : StreamBackend {
     override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {
         val turns = Turns(time)
         val waiting = time.register(turns)
-        val running = PullRun<E, R>(logger.get(), time, onStop = turns::stop, kept = CopyOnWriteArrayList())
+        val running = PullRun<E, R>(
+            logger.get(),
+            time,
+            VirtualThreads,
+            onStop = turns::stop,
+            kept = CopyOnWriteArrayList(),
+            interrupting = false,
+        )
         turns.fork {
             try {
                 running.drain(run)
@@ -84,22 +93,35 @@ interface Emitting {
 private class PullRun<E, R : Any>(
     private val log: Logger,
     private val clock: Clock,
+    private val on: Executor,
     private val onStop: () -> Unit = {},
     private val kept: MutableList<Any>? = null,
+    /** Whether a stop interrupts the loop: on Forks yes, on a test's clock the workers are parked instead. */
+    private val interrupting: Boolean = true,
 ) : Running<E, R>, Emitting {
 
     private val stopped = AtomicBoolean(false)
 
+    /** The thread running the loop, while it runs it: a stop interrupts it there and nowhere else. */
+    private var loop: Thread? = null
+
+    /** Every blocking source this run opened: woken by a stop, closed before the exit completes. */
     private val resources = Resources()
 
     override val exit = CompletableFuture<Exit<E, R>>()
 
     override fun emitted(): List<Any> = kept?.toList() ?: error("only a run on a test's clock keeps what it emitted")
 
-    /** The loop ends before its next element, and the exit is `Done` with what the end had by then. */
+    /**
+     * Ends the run now: the loop stops before its next element, and whatever it is waiting on (a body in
+     * flight, an empty buffer, a stage that blocks) is interrupted. The exit is `Done` with what the end
+     * had by then.
+     */
     override fun stop() {
         stopped.set(true)
+        // Woken before the interrupt, so a blocking read the interrupt lands in ends the stream, not the run.
         resources.wake()
+        if (interrupting) synchronized(this) { loop?.interrupt() }
         onStop()
     }
 
@@ -108,9 +130,33 @@ private class PullRun<E, R : Any>(
         exit.join()
     }
 
+    // The catch is as wide as the run: an exit that never completes is a caller waiting for ever.
+    @Suppress("TooGenericExceptionCaught")
     fun drain(run: Run<E, R>) {
-        val ended = resources.around { ended(run) }
-        // Before the exit completes, so a caller that waited for it finds every resource closed. A close
+        synchronized(this) { loop = Thread.currentThread() }
+        val ended = try {
+            // What the run holds is let go of before the exit completes: no body or fork outlives its run.
+            // The fused tree is the same for every run of a description, so it is worked out once, and so
+            // is whether a run of it can start a thread of its own: one that cannot pays nothing for it.
+            val compiled = run.compiled.getOrCompile(ForksKey) { Compiled(run.node.optimised()) }
+            resources.around {
+                if (compiled.forks) {
+                    Releases.around(Releases(on)) { ended(compiled, run.end) }
+                } else {
+                    ended(compiled, run.end)
+                }
+            }
+        } catch (unreleased: Throwable) {
+            log.log(LogLine(LogLevel.Error, unreleased.oneLine(), clock.now(), unreleased))
+            Exit.Died(unreleased)
+        } finally {
+            synchronized(this) {
+                loop = null
+                // A stop that came after the loop's last wait leaves the flag set; the thread may be pooled.
+                Thread.interrupted()
+            }
+        }
+        // After the interrupt is spent, so a close that talks to a server is not cut short by it. A close
         // that throws is a defect, and ends a run that would otherwise have been Done.
         val unclosed = resources.close()
         exit.complete(
@@ -124,31 +170,88 @@ private class PullRun<E, R : Any>(
     }
 
     // The catch is as wide as a pipeline, because everything a stage threw ends the run: a declared
-    // failure as `Failed`, and anything else as the `Died` it is logged as.
+    // failure as `Failed`, an interruption a stop caused as `Done`, and anything else as the `Died` it
+    // is logged as.
     @Suppress("TooGenericExceptionCaught", "UNCHECKED_CAST")
-    private fun ended(run: Run<E, R>): Exit<E, R> =
-        try {
-            // The fused tree is the same for every run of a description, so it is worked out once.
-            val pull = run.compiled.getOrCompile(ForksKey) { run.node.optimised() }.pull()
-            val pulled = generateSequence { if (stopped.get()) null else pull.next() }
-            // Only a run on a test's clock keeps what it emitted: a Forks run pays nothing per element for it.
-            val elements = kept?.let { pulled.onEach(it::add) } ?: pulled
-            val value = when (val end = run.end) {
-                End.Collect -> elements.toList()
-                is End.Fold -> elements.fold(end.zero, end.f)
-                is End.Native -> error("${end.builder} reached the Forks runner, which start refuses it before")
+    private fun ended(compiled: Compiled, end: End): Exit<E, R> {
+        val sink = sinkFor(end)
+        return try {
+            val pull = compiled.tree.pull()
+            while (!stopped.get()) {
+                val a = pull.next() ?: break
+                kept?.add(a)
+                sink.add(a)
             }
-            Exit.Done(value as R)
+            Exit.Done(sink.value() as R)
         } catch (failure: DeclaredFailure) {
             Exit.Failed(failure.declared())
         } catch (defect: Throwable) {
-            log.log(LogLine(LogLevel.Error, defect.oneLine(), clock.now(), defect))
-            Exit.Died(defect)
+            if (stopped.get() && defect.isInterruption()) {
+                Exit.Done(sink.value() as R)
+            } else {
+                log.log(LogLine(LogLevel.Error, defect.oneLine(), clock.now(), defect))
+                Exit.Died(defect)
+            }
         }
+    }
 }
+
+/** What the end of a run has so far, kept as it goes so that a stop keeps it too. */
+private sealed interface Sink {
+    fun add(a: Any)
+
+    fun value(): Any
+
+    class Collecting : Sink {
+        private val collected = ArrayList<Any>()
+
+        override fun add(a: Any) {
+            collected.add(a)
+        }
+
+        override fun value(): Any = collected
+    }
+
+    class Folding(private val fold: End.Fold) : Sink {
+        private var folded: Any = fold.zero
+
+        override fun add(a: Any) {
+            folded = fold.f(folded, a)
+        }
+
+        override fun value(): Any = folded
+    }
+}
+
+private fun sinkFor(end: End): Sink =
+    when (end) {
+        End.Collect -> Sink.Collecting()
+        is End.Fold -> Sink.Folding(end)
+        is End.Native -> error("${end.builder} reached the Forks runner, which start refuses it before")
+    }
+
+/** An interruption, or a failure it caused: what a stop leaves behind in whatever it woke. */
+private fun Throwable.isInterruption(): Boolean =
+    generateSequence(this) { it.cause }.take(CAUSES_READ).any { it is InterruptedException }
+
+/** How deep a cause chain is read for an interruption: far enough for a wrapper or two, and no cycle. */
+private const val CAUSES_READ = 8
 
 /** The line the Pekko backend logs a defect with, so a defect reads the same whichever backend ran it. */
 private fun Throwable.oneLine(): String {
     val defect = suppressed.filterIsInstance<Defect>().firstOrNull()
     return if (defect == null) "lark-stream: $this" else "lark-stream: ${defect.message}: $this"
 }
+
+/** A description compiled for Forks, once: its fused tree, and whether a run of it can start a thread. */
+internal class Compiled(val tree: Node) {
+    val forks: Boolean = tree.mayFork()
+}
+
+/**
+ * Whether pulling this starts a thread of its own, or builds a stream later that might: a `flatMap`'s
+ * inner streams and a `catchAll`'s recovery are built only when they are needed.
+ */
+private fun Node.mayFork(): Boolean =
+    this is Node.MapPar || this is Node.Buffer || this is Node.FlatMap || this is Node.CatchAll ||
+        children().any { it.mayFork() }

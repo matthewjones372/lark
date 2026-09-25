@@ -124,4 +124,30 @@ class ConsumeTest {
         seen.last().shouldBeInstanceOf<DecodeError>().offset shouldBe 1L
         kafka.committed("decoding-$on", topic) shouldBe 2L
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `divertLefts hands a bad record on before anything after it is committed`(on: String) {
+        val topic = "diverted-$on"
+        kafka.send(topic, "fine", "bad", "fine again")
+        val strict = Deserializer { _, data: ByteArray ->
+            String(data).also { if (it == "bad") throw SerializationException("unreadable") }
+        }
+        val dead = ConcurrentLinkedQueue<Long>()
+
+        Kafka.consume(
+            properties("diverting-$on"),
+            Topic(topic),
+            key = Decoder.string(),
+            value = Decoder(strict) { false },
+        )
+            .divertLefts { error -> dead.add(error.offset) }
+            .take(2)
+            .runCommitting()
+            .run(backend(on))
+            .settled() shouldBe Exit.Done(2L)
+
+        dead.toList() shouldBe listOf(1L)
+        kafka.committed("diverting-$on", topic) shouldBe 3L
+    }
 }

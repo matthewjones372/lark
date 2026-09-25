@@ -57,6 +57,22 @@ per-run rows, 2 forks each. Raw results are in
 - A run on Forks starts one virtual thread and nothing else, where Pekko materialises a
   graph.
 
+## mapPar on Forks, 2026-09-25
+
+After spec 0051's `spec-0051-mappar`: `mapPar(8)` with a body that multiplies, so the row is the
+cost of a virtual thread per element and the reordering, not the body. `pekko` is the same written
+against Pekko by hand, with no lark: `mapAsync(8)` and a virtual thread per element.
+
+| Row | Per | Time | Allocated |
+|---|---|---|---|
+| `MapParBenchmark.forks` | element | 5.8 ± 0.6 µs | 603 B |
+| `MapParBenchmark.pekko`, hand-written | element | 6.7 ± 0.2 µs | 715 B |
+| `MapParBenchmark.lark`, on Pekko | element | 8.6 ± 0.3 µs | 1,095 B |
+
+- On Forks the window is refilled on the pulling thread and each body is one virtual thread
+  with nothing between it and the loop, where Pekko hands the element to a stage, the stage to
+  a future, and the answer back through its own buffer.
+
 ## Fused, 2026-09-25
 
 After spec 0047's `spec-0047-fuse`: adjacent `map`, `mapOrFail`, `filter` and `filterNot`

@@ -1,4 +1,4 @@
-# 0054 — A source that blocks, on any backend
+# 0055 — A source that blocks, on any backend
 
 ## Problem
 
@@ -6,7 +6,7 @@ A client library that hands out records by blocking — a Kafka consumer's
 `poll`, a JDBC cursor, a queue's `take` — has no backend-neutral way in. Every
 core builder is a value already in hand (`from`, `single`, `fromStage`), and
 the only source that can hold something open is `Stream.hooked` in
-`lark-stream-pekko` (0052), which only Pekko runs.
+`lark-stream-pekko` (0053), which only Pekko runs.
 
 On Forks, `Stream.from(iterable)` over a blocking iterator runs fine but can
 never be cleaned up. A run's `stop()` sets a flag that is read between
@@ -66,11 +66,11 @@ problems `wake` settles once.
 
 ## Stack
 
-- [ ] **`spec-0054-blocking-node`**: `Stream.blocking`, `Node.Blocking`,
+- [ ] **`spec-0055-blocking-node`**: `Stream.blocking`, `Node.Blocking`,
       render and `canFail`, and Forks and TestStreams running it.
       Done when: on Forks, a `stop()` while `next` is blocked returns, the
       run ends `Done`, and `close` ran once.
-- [ ] **`spec-0054-blocking-pekko`**: the Pekko compile on the blocking-IO
+- [ ] **`spec-0055-blocking-pekko`**: the Pekko compile on the blocking-IO
       dispatcher, with `wake` on the kill switch.
       Done when: the parity suite runs the same `blocking` description on
       Pekko, Forks and TestStreams with the same answer.

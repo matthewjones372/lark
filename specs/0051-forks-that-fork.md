@@ -90,3 +90,10 @@ lark-stream-benchmarks/gate.sh origin/main "MapParBenchmark|ChainBenchmark"
 Decided (2026-09-25): every open question goes as recommended. `mapPar` keeps
 input order on Forks and honours `MapPar.on`; in-flight bodies are interrupted
 at an early end; `buffer` on Pekko is `buffer(size, backpressure).async()`.
+
+Decided while building (2026-09-25), for editing: how far upstream runs ahead is
+the buffer and the one element upstream holds while it waits for room, on Forks
+and on `TestStreams`. On Pekko the `async()` boundary brings an input buffer of
+its own (16 by default), so upstream can be that much further ahead there.
+`BufferTest` holds each backend to its own bound.
+

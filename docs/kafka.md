@@ -6,9 +6,9 @@ offset, and the only way to run one is `runCommitting`. Forgetting to commit,
 or committing before the work, does not compile.
 
 Everything below is in `io.github.matthewjones372.lark.kafka`. Specs
-[0052](../specs/0052-a-record-that-commits-after-it-is-handled.md),
-[0053](../specs/0053-a-record-that-fails-to-decode.md) and
-[0055](../specs/0055-kafka-on-any-backend.md) give the reasons.
+[0053](../specs/0053-a-record-that-commits-after-it-is-handled.md),
+[0054](../specs/0054-a-record-that-fails-to-decode.md) and
+[0056](../specs/0056-kafka-on-any-backend.md) give the reasons.
 
 ## Picking a backend
 
@@ -60,8 +60,8 @@ dependencies {
 | Runs on | Forks, Pekko, TestStreams | Pekko |
 | Ends on | `runCommitting(): Run<E, Long>`, the count of elements | `runCommitting(settings): Run<E, Done>` |
 | Commits | on the polling thread, before each poll and on close | through the connector's committer sink, in batches |
-| `mapParRecord`, `divertLefts` | refused by Forks until spec 0051 runs `mapPar` there | yes |
-| `restartOnDefect` | Pekko and TestStreams; Forks has no clock | yes |
+| `mapParRecord`, `divertLefts` | yes, on Forks as a window of bodies in flight (0051) | yes |
+| `restartOnDefect` | Pekko and TestStreams; Forks refuses it until spec 0052 gives it a clock | yes |
 
 ## Operators
 

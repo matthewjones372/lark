@@ -163,7 +163,7 @@ private fun Node.measured(of: (Node) -> Instruments): Node {
         is Node.Blocking,
         Node.Empty, is Node.Merge, is Node.Interleave, is Node.ZipWith, is Node.Prepend, is Node.Concat,
         is Node.RestartOnDefect, is Node.Stage, is Node.Take, is Node.Drop, is Node.TakeWhile, is Node.DropWhile,
-        is Node.Grouped, is Node.Sliding, is Node.GroupedWithin, is Node.Scan, is Node.StatefulMap,
+        is Node.Grouped, is Node.Sliding, is Node.Buffer, is Node.GroupedWithin, is Node.Scan, is Node.StatefulMap,
         is Node.MapAsync, is Node.Conflate, is Node.Either, is Node.Absolve, is Node.CatchAll, is Node.MapError,
         is Node.OrFailIfEmpty, is Node.FlatMap, is Node.Fused, is Node.Probed,
         -> Node.Probed(withChildren(child), stage.probe(counts = true))

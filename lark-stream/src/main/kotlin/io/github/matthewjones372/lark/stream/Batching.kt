@@ -29,3 +29,17 @@ fun <E, In, Out : Any> Pipe<E, In, Out>.groupedWithin(n: Int, within: Duration):
 
 fun <E, A : Any> Stream<E, A>.groupedWithin(n: Int, within: Duration): Stream<E, List<A>> =
     via(Pipe.groupedWithin(n, within))
+
+/**
+ * Lets everything upstream run ahead of what reads it by up to [size] elements, and no further: a slow
+ * stage below no longer holds up a fast one above until the room is gone. Every backend backpressures
+ * when it is full; dropping instead is Pekko's own `buffer(size, strategy)`.
+ */
+fun <A : Any> Pipe.Companion.buffer(size: Int): Pipe<Nothing, A, A> {
+    require(size > 0) { "a buffer holds at least one element, and $size was asked for" }
+    return Pipe(Node.Buffer(Node.Hole, size))
+}
+
+fun <E, In, Out : Any> Pipe<E, In, Out>.buffer(size: Int): Pipe<E, In, Out> = via(Pipe.buffer(size))
+
+fun <E, A : Any> Stream<E, A>.buffer(size: Int): Stream<E, A> = via(Pipe.buffer(size))

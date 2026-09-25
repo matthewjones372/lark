@@ -54,7 +54,8 @@ class RunHooks internal constructor() {
     }
 
     /** Every close registered so far, done; the first that failed, failing it. */
-    internal fun closed(): CompletableFuture<Void> = CompletableFuture.allOf(*closings.get().toTypedArray())
+    internal fun closed(): CompletableFuture<Unit> =
+        closings.get().fold(CompletableFuture.completedFuture(Unit)) { all, one -> all.thenCombine(one) { _, _ -> } }
 }
 
 internal class RunHooksAttribute(val hooks: RunHooks) : Attributes.Attribute
