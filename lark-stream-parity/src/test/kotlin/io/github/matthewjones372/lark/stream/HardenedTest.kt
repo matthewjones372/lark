@@ -110,6 +110,59 @@ class HardenedTest {
         counted.leftRunning() shouldBe 0
     }
 
+    private val naturals: Iterable<Int> = generateSequence(1) { it + 1 }.asIterable()
+
+    @Test
+    fun `two endless streams merged and cut short by take end, and leave nothing running`() {
+        val counted = Counted()
+
+        val exit = Stream.from(naturals).merge(Stream.from(naturals).map { -it }).take(100).runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.size shouldBe 100
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `flatMapMerge never runs more inner streams at once than its breadth`() {
+        val counted = Counted()
+        val running = AtomicInteger()
+        val most = AtomicInteger()
+
+        val exit = Stream.from(1..20)
+            .flatMapMerge(3) { n ->
+                Stream.of(n).map { m ->
+                    most.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+                    Thread.sleep(2)
+                    running.decrementAndGet()
+                    m
+                }
+            }
+            .runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.sorted() shouldBe (1..20).toList()
+        withClue("at most three inner streams at once, and more than one") { (most.get() in 2..3) shouldBe true }
+        counted.leftRunning() shouldBe 0
+    }
+
+    @Test
+    fun `a failing inner stream ends a flatMapMerge Failed, and lets go of the others`() {
+        val counted = Counted()
+
+        val outer: Stream<ParityTest.Odd, Int> = Stream.from(1..4)
+
+        val exit = outer
+            .flatMapMerge(4) { n ->
+                if (n == 2) Stream.fail(ParityTest.Odd(n)) else Stream.from(naturals).map { it * n }
+            }
+            .runCollect()
+            .run(Forks(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+        exit shouldBe Exit.Failed(ParityTest.Odd(2))
+        counted.leftRunning() shouldBe 0
+    }
+
     @Test
     fun `the count sees a task left running, so a leak would turn these red`() {
         val counted = Counted()
