@@ -43,15 +43,19 @@ flock {
   none. A failure asks the schedule; a step restarts from `initial` after its
   delay, on the flock's `Clock`, and the schedule ending stops the actor. The
   mailbox survives a restart, so nothing told to it is lost. `Failure<E>` is
-  `Raised(e)` or `Thrown(t)`.
+  `Raised(e)` or `Thrown(t)`, and one schedule sees both: a caller who wants
+  them apart writes `doWhile` on the case. A restart is in place, with the same
+  ref and address, so holders of the ref need nothing.
 - **Signals.** A sealed `Signal`, handled beside messages with no `else`:
-  `Stopping` before the actor ends, `Terminated(ref)` for an actor it watches.
-  A behaviour with no `onSignal` ignores them.
+  `Stopping` before the actor ends, after a throw too, since that is when
+  giving a resource back matters most; `Terminated(ref)` for an actor it
+  watches. A behaviour with no `onSignal` ignores them.
 - **Watch.** `ctx.watch(ref)` delivers `Terminated`; `Flock.watch(ref)` from
   outside answers a `Deferred`. An `ask` pending on an actor that stops still
   answers `Stopped`, as in 0059.
 - **Children.** `ctx.spawn` spawns into the actor's own nested scope. A child
-  stops before its parent; a parent's restart stops its children first.
+  stops before its parent. A parent's failure stops its children, as Pekko's
+  default does, and a restarted parent spawns them again in its step.
 - **Close interrupts, where it is safe.** On virtual threads, closing a flock
   interrupts a step still running, so a step blocked forever cannot hold the
   flock open. On any other executor it still waits, since an interrupt could
@@ -91,13 +95,6 @@ express later by answering "continue with the state" if anyone asks for it.
 
 ## Open questions
 
-1. **Restart in place, or a new incarnation?** Recommend in place: the same
-   ref and address, so holders of it need nothing. A new incarnation is what a
-   remote node would see, but that is 0065's to decide.
-2. **Should `raise` and a throw share one schedule?** Recommend one schedule
-   over `Failure<E>`: a caller who wants them apart writes `doWhile` on the
-   case, which `Schedule` already has.
-3. **A parent's failure: restart children, or stop them?** Recommend stop, as
-   Pekko does by default; a restarted parent spawns them again in its step.
-4. **`Stopping` after a throw?** Recommend yes: it is the one place to give a
-   resource back, and a throw is when that matters most.
+Nothing. All four were answered as recommended and are in Shape: a restart is
+in place, one schedule sees raised and thrown failures, a parent's failure
+stops its children, and `Stopping` follows a throw.
