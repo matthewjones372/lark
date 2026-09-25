@@ -14,9 +14,13 @@ interface StreamBackend {
     @StreamSpi
     val key: BackendKey
 
-    /** Materialises [run]. Called only once [start] has checked that every native value in it is this backend's. */
+    /** Materialises [run]. Called only once [start] has checked the whole tree against [key] and [runs]. */
     @StreamSpi
     fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R>
+
+    /** Whether this backend can run [node]'s operator. [start] refuses a run holding one it cannot, by name. */
+    @StreamSpi
+    fun runs(node: Node): Boolean = true
 }
 
 /**
@@ -46,20 +50,18 @@ fun <E, R : Any> Run<E, R>.start(backend: StreamBackend): Running<E, R> =
 fun <E, R : Any> Run<E, R>.run(backend: StreamBackend): CompletionStage<Exit<E, R>> = start(backend).exit
 
 /**
- * The defect a run is refused with when it holds another backend's native value, found before anything
- * materialises. It names the builder and where it was written, because the run cannot start to say so.
+ * The defect a run is refused with when it holds another backend's native value or an operator [backend]
+ * cannot run, found before anything materialises. It names the operator and where it was written, because
+ * the run cannot start to say so.
  */
 private fun Run<*, *>.refusedBy(backend: StreamBackend): Throwable? {
     if (admitted.get() === backend.key) return null
-    val foreign = node.foreignTo(backend.key) ?: (end as? Owned)?.takeIf { it.owner !== backend.key }
-    if (foreign == null) {
+    val reason = node.refusalOn(backend) ?: (end as? Owned)?.foreignTo(backend)
+    if (reason == null) {
         admitted.set(backend.key)
         return null
     }
-    val refusal = IllegalStateException(
-        "lark-stream: ${foreign.builder}, built at ${foreign.at}, holds a ${foreign.owner} value, " +
-            "and this run was started on ${backend.key}",
-    )
+    val refusal = IllegalStateException("lark-stream: $reason")
     // A defect is logged before the Exit carrying it is handed back: the stage may be one nobody reads.
     logger.get().log(LogLine(LogLevel.Error, refusal.message.orEmpty(), clock.get().now(), refusal))
     return refusal
@@ -75,12 +77,26 @@ private class Refused<E, R>(cause: Throwable) : Running<E, R> {
 }
 
 /**
- * The first native value in the tree that is not [key]'s, where a walk can see it. A `catchAll` recovery or
- * a `flatMap`'s inner stream is built only when it is needed, so a native value inside one is refused by the
- * backend then. It runs on every run, so it builds nothing on the way down.
+ * Why [backend] cannot run the first node in the tree it cannot, where a walk can see it. A `catchAll`
+ * recovery or a `flatMap`'s inner stream is built only when it is needed, so a node inside one is refused
+ * by the backend then. It builds nothing on the way down.
  */
-private fun Node.foreignTo(key: BackendKey): Owned? {
-    if (this is Owned && owner !== key) return this
-    for (child in children()) child.foreignTo(key)?.let { return it }
+private fun Node.refusalOn(backend: StreamBackend): String? {
+    val here = when {
+        this is Owned -> foreignTo(backend)
+        !backend.runs(this) -> "${named()} is not something ${backend.key} runs"
+        else -> null
+    }
+    if (here != null) return here
+    for (child in children()) child.refusalOn(backend)?.let { return it }
     return null
 }
+
+private fun Node.named(): String = site?.let { "$operator, built at $it," } ?: operator
+
+private fun Owned.foreignTo(backend: StreamBackend): String? =
+    if (owner === backend.key) {
+        null
+    } else {
+        "$builder, built at $at, holds a $owner value, and this run was started on ${backend.key}"
+    }

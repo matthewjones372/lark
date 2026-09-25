@@ -249,6 +249,96 @@ interface Owned {
     val at: String
 }
 
+/** The operator a node is, by the name a caller wrote: what a refusal, a rendering or a metric calls it. */
+@StreamSpi
+val Node.operator: String
+    get() = when (this) {
+        is Node.Native -> builder
+
+        is Node.Stage -> builder
+
+        is Node.Elements -> "Stream.from"
+
+        is Node.Single -> "Stream.single"
+
+        is Node.Tick -> "Stream.tick"
+
+        is Node.FromStage -> "Stream.fromStage"
+
+        is Node.Fail -> "Stream.fail"
+
+        Node.Empty -> "Stream.empty"
+
+        Node.Hole -> "Pipe.identity"
+
+        is Node.Merge -> "merge"
+
+        is Node.Interleave -> "interleave"
+
+        is Node.ZipWith -> "zipWith"
+
+        is Node.Prepend -> "prepend"
+
+        is Node.Concat -> "concat"
+
+        is Node.RestartOnDefect -> "restartOnDefect"
+
+        is Node.FlatMap -> if (breadth == null) "flatMapConcat" else "flatMapMerge"
+
+        is Node.Conflate -> "conflateWithSeed"
+
+        is Node.Map, is Node.MapOrFail, is Node.Filter, is Node.FilterNot, is Node.Take, is Node.Drop,
+        is Node.TakeWhile, is Node.DropWhile, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin,
+        is Node.Scan, is Node.StatefulMap, is Node.MapConcat, is Node.MapAsync, is Node.Either, is Node.Absolve,
+        is Node.CatchAll, is Node.MapError, is Node.OrFailIfEmpty, is Node.MapPar,
+        -> javaClass.simpleName.replaceFirstChar { it.lowercase() }
+    }
+
+/** The caller's line that wrote a node, for the operators that run caller code and so read one. */
+@StreamSpi
+val Node.site: String?
+    get() = when (this) {
+        is Owned -> at
+
+        is Node.Map -> at
+
+        is Node.MapOrFail -> at
+
+        is Node.Filter -> at
+
+        is Node.FilterNot -> at
+
+        is Node.TakeWhile -> at
+
+        is Node.DropWhile -> at
+
+        is Node.Scan -> at
+
+        is Node.StatefulMap -> at
+
+        is Node.MapConcat -> at
+
+        is Node.MapAsync -> at
+
+        is Node.Conflate -> at
+
+        is Node.Absolve -> at
+
+        is Node.MapError -> at
+
+        is Node.FlatMap -> at
+
+        is Node.MapPar -> at
+
+        is Node.ZipWith -> at
+
+        is Node.Elements, is Node.Single, is Node.Tick, is Node.FromStage, is Node.Fail, Node.Empty, Node.Hole,
+        is Node.Merge, is Node.Interleave, is Node.Prepend, is Node.Concat, is Node.RestartOnDefect,
+        is Node.Take, is Node.Drop, is Node.Grouped, is Node.Sliding, is Node.GroupedWithin, is Node.Either,
+        is Node.CatchAll, is Node.OrFailIfEmpty,
+        -> null
+    }
+
 /** The nodes this one reads from, in the order its elements come from them. */
 internal fun Node.children(): List<Node> =
     when (this) {
