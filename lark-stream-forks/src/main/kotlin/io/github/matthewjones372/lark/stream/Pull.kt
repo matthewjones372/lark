@@ -12,7 +12,7 @@ internal fun interface Pull {
     fun next(): Any?
 }
 
-/** The operators a pull runs: every one that needs no second thread and no clock. */
+/** The operators a pull runs on its own: every one that needs no second thread and no clock. */
 internal fun Node.pulls(): Boolean =
     when (this) {
         is Node.Elements, is Node.Single, Node.Empty, is Node.Fail, is Node.FromStage,
@@ -30,7 +30,14 @@ internal fun Node.pulls(): Boolean =
         -> false
     }
 
-/** The pull a node describes. `start` has refused every node [pulls] says no to before this is reached. */
+/** The operators a pull runs on a test's clock, taking turns with the workers of [Turns]: those, and time. */
+internal fun Node.pullsOnClock(): Boolean =
+    pulls() || this is Node.Tick || this is Node.GroupedWithin || this is Node.RestartOnDefect
+
+/**
+ * The pull a node describes. `start` has refused every node its backend cannot run before this is reached,
+ * so a node with time in it is only reached on a worker of [Turns].
+ */
 internal fun Node.pull(): Pull =
     when (this) {
         is Node.Elements -> elements.iterator().let { items -> Pull { items.takeIf { it.hasNext() }?.next() } }
@@ -89,9 +96,14 @@ internal fun Node.pull(): Pull =
 
         is Node.Probed -> probed()
 
-        is Node.Native, is Node.Stage, Node.Hole, is Node.Tick, is Node.GroupedWithin, is Node.Sliding,
-        is Node.MapAsync, is Node.Conflate, is Node.MapPar, is Node.Merge, is Node.Interleave,
-        is Node.RestartOnDefect,
+        is Node.Tick -> tick(Turns.here())
+
+        is Node.GroupedWithin -> groupedWithin(Turns.here())
+
+        is Node.RestartOnDefect -> restarting(Turns.here())
+
+        is Node.Native, is Node.Stage, Node.Hole, is Node.Sliding, is Node.MapAsync, is Node.Conflate,
+        is Node.MapPar, is Node.Merge, is Node.Interleave,
         -> error("$operator reached the Forks runner, which start refuses it before")
     }
 

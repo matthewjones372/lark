@@ -4,10 +4,12 @@ import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Logger
+import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.logger
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -35,14 +37,68 @@ class Forks(private val on: Executor = VirtualThreads, name: String = "Forks") :
 
 internal val ForksKey = BackendKey("Forks")
 
-private class PullRun<E, R : Any>(private val log: Logger, private val clock: Clock) : Running<E, R> {
+/**
+ * The [Forks] pull loop on a clock a test moves: what lark-stream-test's `TestStreams` is, by its own
+ * [name]. It runs what Forks does, and `tick`, `groupedWithin` and `restartOnDefect` besides, which wait
+ * on [time] and on nothing else.
+ *
+ * A run is workers that take turns, so one stage runs at a time and in the same order every time. `start`
+ * returns once the run is over or waiting on a later time, and each move of [time] returns once
+ * everything due by then has run, in time order. A stage body that blocks on anything but [time] blocks
+ * the test with it.
+ */
+@StreamSpi
+class ForksOnClock(private val time: TestClock, name: String) : StreamBackend {
+
+    @StreamSpi
+    override val key: BackendKey = BackendKey(name)
+
+    @StreamSpi
+    override fun runs(node: Node): Boolean = node.pullsOnClock()
+
+    @StreamSpi
+    override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {
+        val turns = Turns(time)
+        val waiting = time.register(turns)
+        val running = PullRun<E, R>(logger.get(), time, onStop = turns::stop, kept = CopyOnWriteArrayList())
+        turns.fork {
+            try {
+                running.drain(run)
+            } finally {
+                // Whatever still waits in the run is let go, and the clock no longer stops for it.
+                turns.end()
+                waiting.close()
+            }
+        }
+        turns.settle()
+        return running
+    }
+}
+
+/** A run that keeps each element that reached its end, so a test can read them before it is over. */
+@StreamSpi
+interface Emitting {
+    fun emitted(): List<Any>
+}
+
+private class PullRun<E, R : Any>(
+    private val log: Logger,
+    private val clock: Clock,
+    private val onStop: () -> Unit = {},
+    private val kept: MutableList<Any>? = null,
+) : Running<E, R>, Emitting {
 
     private val stopped = AtomicBoolean(false)
 
     override val exit = CompletableFuture<Exit<E, R>>()
 
+    override fun emitted(): List<Any> = kept?.toList() ?: error("only a run on a test's clock keeps what it emitted")
+
     /** The loop ends before its next element, and the exit is `Done` with what the end had by then. */
-    override fun stop() = stopped.set(true)
+    override fun stop() {
+        stopped.set(true)
+        onStop()
+    }
 
     override fun close() {
         stop()
@@ -60,7 +116,9 @@ private class PullRun<E, R : Any>(private val log: Logger, private val clock: Cl
         try {
             // The fused tree is the same for every run of a description, so it is worked out once.
             val pull = run.compiled.getOrCompile(ForksKey) { run.node.optimised() }.pull()
-            val elements = generateSequence { if (stopped.get()) null else pull.next() }
+            val pulled = generateSequence { if (stopped.get()) null else pull.next() }
+            // Only a run on a test's clock keeps what it emitted: a Forks run pays nothing per element for it.
+            val elements = kept?.let { pulled.onEach(it::add) } ?: pulled
             val value = when (val end = run.end) {
                 End.Collect -> elements.toList()
                 is End.Fold -> elements.fold(end.zero, end.f)

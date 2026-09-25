@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -166,7 +167,10 @@ class ParityTest {
 
     private fun check(case: Case, backend: StreamBackend) {
         val run = case.run()
-        val exit = run.run(backend).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+        val running = run.start(backend)
+        // A run on a test's clock waits for the test to move it: an hour is past every case's time.
+        (backend as? TestStreams)?.clock?.adjust(1.hours)
+        val exit = running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
         val unrunnable = run.node.firstUnrunnableOn(backend)
         if (unrunnable != null) {
             val died = exit.shouldBeInstanceOf<Exit.Died>()

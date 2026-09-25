@@ -82,3 +82,22 @@ does. `lark-stream-test` therefore depends on `lark-stream-forks`, which brings
 nothing but `lark-stream`. It takes its `TestClock` now, and `spec-0048-time`
 is what reads it. Until then, a stream that never ends and never meets a `take`
 blocks the test that runs it.
+
+Decided while building `spec-0048-time` (2026-09-25), for editing: the run is
+no longer on the calling thread. Waiting on a time needs a stack to wait on, and
+the calling thread's is the test's. So a run is workers on virtual threads that
+take turns: one runs at a time, and the others are parked on an instant or on
+something another worker hands them. `start` returns once no worker can go on,
+which for a run with no time in it is when it is over, as before. Question 2
+went as recommended: `TestClock` takes a `Waiter`, and `adjust` stops at each
+instant a waiter asks for on its way and lets it settle there, so a `Schedule`
+test and a stream test move time through the same call. `groupedWithin` pulls
+upstream on a worker of its own, so a window can close while an element is
+still to come. When an element and a window's close fall due at the same
+instant, the element arrives first: of the workers that can go on, the one
+furthest upstream goes first. Windows are Pekko's: one every `within` from the
+first pull, and a full group starts the next from the instant it was emitted.
+A tick that falls due while nothing is asking is dropped, as Pekko's is.
+`restartOnDefect` waits its schedule's delay on the test's clock and logs at
+the test's time. Stage bodies read the test's clock as lark's `clock`.
+`running.emitted()` reads what reached the end so far.

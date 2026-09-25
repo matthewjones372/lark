@@ -442,6 +442,26 @@ lark's name for it and a `bind()` on a `Left` ends the stream with what the
 awaited — an element body can write too, and the failure it names is the one
 the stream already declares.
 
+## Time a test owns
+
+`tick`, `groupedWithin` and `restartOnDefect` wait on time. On `TestStreams`,
+from `lark-stream-test`, they wait on a `TestClock` and on nothing else, so a
+test moves time rather than sleeping through it:
+
+```kotlin
+val clock = TestClock()
+val running = Stream.tick(1.minutes, "t").runCollect().start(TestStreams(clock))
+
+clock.adjust(1.hours)
+running.emitted().size shouldBe 60
+```
+
+One stage runs at a time, in the same order every time. `start` returns once
+the run is over or waiting on a later time, and each `adjust` stops at every
+instant the run waits for on the way, so what falls due runs in time order
+before `adjust` returns. A stage body that reads lark's `clock` reads the
+test's. A body that blocks on anything else blocks the test with it.
+
 ## What is in the box
 
 `lark-stream` puts the Kotlin standard library, `lark` and `arrow-core` on a
