@@ -150,3 +150,15 @@ fun compared(name: String, before: Pair<Double, Double>?, after: Pair<Double, Do
         slower,
     )
 }
+
+/** Each benchmark's pipeline, measured once and drawn with where its time went, into `build/profiles`. */
+tasks.register<JavaExec>("profiles") {
+    group = "verification"
+    description = "Draws each benchmark's pipeline with its profile, as Mermaid and as text"
+    mainClass.set("io.github.matthewjones372.lark.stream.benchmarks.ProfilesKt")
+    classpath(benchmarkRuntimeClasspath)
+    javaLauncher.set(toolchainLauncher)
+    val out = layout.buildDirectory.dir("profiles")
+    outputs.dir(out)
+    argumentProviders.add(CommandLineArgumentProvider { listOf(out.get().asFile.path) })
+}

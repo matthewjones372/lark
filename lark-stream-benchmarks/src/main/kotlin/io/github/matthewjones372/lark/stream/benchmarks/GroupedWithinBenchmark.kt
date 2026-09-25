@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream.benchmarks
 
+import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.groupedWithin
@@ -21,6 +22,13 @@ import kotlin.time.Duration.Companion.seconds
 private const val ELEMENTS = 100_000
 private const val BATCH = 100
 
+internal fun batchedPipeline(ints: List<Int>): Run<Nothing, Int> =
+    Stream.from(ints)
+        .groupedWithin(BATCH, 1.seconds)
+        .runFold(0) { total, batch -> total + batch.size }
+
+internal fun batchedInts(): List<Int> = (0 until ELEMENTS).toList()
+
 /** Batches that always fill before the window closes, so the row is the operator and not the clock. */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
@@ -34,10 +42,5 @@ open class GroupedWithinBenchmark {
     private val ints = (0 until ELEMENTS).toList()
 
     @Benchmark
-    fun lark(pekko: Pekko): Int =
-        Stream.from(ints)
-            .groupedWithin(BATCH, 1.seconds)
-            .runFold(0) { total, batch -> total + batch.size }
-            .run(pekko.system)
-            .done()
+    fun lark(pekko: Pekko): Int = batchedPipeline(ints).run(pekko.system).done()
 }

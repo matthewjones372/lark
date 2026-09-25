@@ -40,6 +40,11 @@ jobs:
       - name: Benchmarks on the base and on this change
         run: lark-stream-benchmarks/gate.sh "origin/${{ github.base_ref || 'main' }}"
 
+      # Where each benchmark's time went, drawn: the diagrams to read when the gate goes red.
+      - name: Profile each benchmark's pipeline
+        if: always()
+        run: ./gradlew --quiet :lark-stream-benchmarks:profiles
+
       # Every run's rows, so drift shows up in the history before it trips the gate.
       - name: Upload the comparison
         if: always()
@@ -49,4 +54,5 @@ jobs:
           path: |
             lark-stream-benchmarks/build/jmh-compare.txt
             lark-stream-benchmarks/build/jmh-result.json
+            lark-stream-benchmarks/build/profiles/
           retention-days: 90

@@ -87,3 +87,16 @@ touches a stream module and keeps each run's table as an artifact.
 
 The committed numbers above are records, not thresholds: they were measured on one machine, and a gate
 against them on another would be measuring the machine.
+
+## Where the time goes
+
+```bash
+./gradlew :lark-stream-benchmarks:profiles     # build/profiles/<Benchmark>.mmd and .txt
+```
+
+Each benchmark's pipeline is run once, measured on Pekko with every element sampled, and drawn
+with its profile: each stage's share of the busy time, its busy and waiting per element, and
+what it emitted. In the Mermaid, a stage is `hot` from half the time and `warm` from a fifth.
+The profiles taken with the fused baseline are in
+[`baseline/profiles-2026-09-25`](baseline/profiles-2026-09-25). The `benchmarks` workflow uploads
+a fresh set with every gate run.

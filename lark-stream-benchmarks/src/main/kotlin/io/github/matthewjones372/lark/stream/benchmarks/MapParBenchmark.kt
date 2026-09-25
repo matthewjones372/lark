@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream.benchmarks
 
+import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.mapPar
@@ -21,6 +22,13 @@ private const val ELEMENTS = 10_000
 private const val PARALLELISM = 8
 private const val SCALE = 3L
 
+internal fun parallelPipeline(ints: List<Int>): Run<Nothing, Long> =
+    Stream.from(ints)
+        .mapPar(PARALLELISM) { it.toLong() * SCALE }
+        .runFold(0L) { total, n -> total + n }
+
+internal fun parallelInts(): List<Int> = (0 until ELEMENTS).toList()
+
 /** A cheap body forked per element, so the row is the cost of the fork and the reordering, not the body. */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
@@ -34,10 +42,5 @@ open class MapParBenchmark {
     private val ints = (0 until ELEMENTS).toList()
 
     @Benchmark
-    fun lark(pekko: Pekko): Long =
-        Stream.from(ints)
-            .mapPar(PARALLELISM) { it.toLong() * SCALE }
-            .runFold(0L) { total, n -> total + n }
-            .run(pekko.system)
-            .done()
+    fun lark(pekko: Pekko): Long = parallelPipeline(ints).run(pekko.system).done()
 }

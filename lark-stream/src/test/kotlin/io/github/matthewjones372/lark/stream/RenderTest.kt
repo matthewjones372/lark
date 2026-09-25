@@ -52,6 +52,27 @@ class RenderTest {
             }
         }
 
+    /** A profile of `chain` with fixed numbers, so its rendering can be golden: step 2 took most of the time. */
+    private val chainProfile = Profile(
+        mapOf(
+            0 to StageProfile(elements = 100_000, waitingMillis = 0.004),
+            1 to StageProfile(elements = 100_000, busyMillis = 0.001, waitingMillis = 0.003, busySampledMillis = 1.5),
+            2 to StageProfile(elements = 100_000, busyMillis = 0.020, waitingMillis = 0.003, busySampledMillis = 31.0),
+            3 to StageProfile(elements = 50_000, busyMillis = 0.001, waitingMillis = 0.003, busySampledMillis = 1.5),
+            4 to StageProfile(elements = 50_000, busyMillis = 0.004, busySampledMillis = 3.0),
+            5 to StageProfile(elements = 50_000, busyMillis = 0.012, busySampledMillis = 9.0),
+        ),
+    )
+
+    @TestFactory
+    fun `a profiled rendering has each stage's numbers, and colours it by its share`(): List<DynamicTest> =
+        listOf(
+            dynamicTest("chain.profiled.txt") { golden("chain.profiled.txt", chain.render(profile = chainProfile)) },
+            dynamicTest("chain.profiled.mmd") {
+                golden("chain.profiled.mmd", chain.render(Layout.Mermaid, profile = chainProfile))
+            },
+        )
+
     private fun golden(file: String, actual: String) {
         val expected = javaClass.getResource("/render/$file")?.readText()
         if (expected?.trimEnd() != actual) {

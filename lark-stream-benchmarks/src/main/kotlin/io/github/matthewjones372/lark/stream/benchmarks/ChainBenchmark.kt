@@ -26,7 +26,19 @@ import java.util.concurrent.TimeUnit
 private const val ELEMENTS = 100_000
 private const val SCALE = 3L
 
-private data class Odd(val value: Long)
+internal data class Odd(val value: Long)
+
+/** The chain both rows run, and the one `Profiles` draws. */
+internal fun chainPipeline(ints: List<Int>): Run<Odd, Long> =
+    Stream.from(ints)
+        .map { it.toLong() }
+        .map { it * SCALE }
+        .filter { it % 2 == 0L }
+        .map { it + 1 }
+        .mapOrFail { if (it % 2 == 0L) fail(Odd(it)) else it }
+        .runFold(0L) { total, n -> total + n }
+
+internal fun chainInts(): List<Int> = (0 until ELEMENTS).toList()
 
 /**
  * Five cheap stages in a row, per element: the shape 0047's merge rewrites.
@@ -47,14 +59,7 @@ open class ChainBenchmark {
 
     private val forks = Forks()
 
-    private fun chain(): Run<Odd, Long> =
-        Stream.from(ints)
-            .map { it.toLong() }
-            .map { it * SCALE }
-            .filter { it % 2 == 0L }
-            .map { it + 1 }
-            .mapOrFail { if (it % 2 == 0L) fail(Odd(it)) else it }
-            .runFold(0L) { total, n -> total + n }
+    private fun chain(): Run<Odd, Long> = chainPipeline(ints)
 
     @Benchmark
     fun lark(pekko: Pekko): Long = chain().run(pekko.system).done()

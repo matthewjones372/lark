@@ -106,3 +106,12 @@ stages after it ask again at once. MeasuredTest holds that on both backends: the
 stages upstream wait at least ten times as long as the slow stage and the one
 after it. A run of fusable operators is watched by one probe after its last
 step, so measuring still does not stop a run from fusing.
+
+Decided while building `spec-0050-diagram` (2026-09-25), for editing: the
+profile comes from a `Profiler`, a `Metrics` that keeps what a measured run
+reports and passes it on, rather than from `running.profile()`. The `Running`
+a backend answers with does not know the run was measured. A stage's share is
+its sampled busy time over all stages', and its colour is taken from the
+percentage printed, so a stage labelled 20% is never drawn cooler than the 20%
+line. Question 2 went as recommended: busy only. The golden file uses a profile
+with fixed numbers, because a measured one differs on every run.

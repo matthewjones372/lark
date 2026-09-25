@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
+import java.util.Locale
+
 /** How [render] lays a pipeline out: [Text] for a log line or a test failure, [Mermaid] for a document. */
 sealed interface Layout {
     data object Text : Layout
@@ -13,44 +15,99 @@ sealed interface Layout {
  * compiles instead: after `collapsed` and `fused`.
  */
 fun Stream<*, *>.render(layout: Layout = Layout.Text, optimised: Boolean = false): String =
-    rendered(node.maybeOptimised(optimised), end = null, layout)
+    rendered(node.maybeOptimised(optimised), end = null, layout, profile = null)
 
 fun Pipe<*, *, *>.render(layout: Layout = Layout.Text, optimised: Boolean = false): String =
-    rendered(node.maybeOptimised(optimised), end = null, layout)
+    rendered(node.maybeOptimised(optimised), end = null, layout, profile = null)
 
-/** As the stream's, with the end the run completes through as its last step. */
-fun Run<*, *>.render(layout: Layout = Layout.Text, optimised: Boolean = false): String =
-    rendered(node.maybeOptimised(optimised), end, layout)
+/**
+ * As the stream's, with the end the run completes through as its last step, and [profile]'s numbers beside
+ * each stage: its share of the busy time, its `busy` and `waiting` per element, and what it emitted. In
+ * Mermaid a stage is `hot`, `warm` or `cool` by that share. A profile numbers the stages of the run as it
+ * was written, so it goes with the described rendering and not the optimised one.
+ */
+fun Run<*, *>.render(layout: Layout = Layout.Text, optimised: Boolean = false, profile: Profile? = null): String {
+    require(!(optimised && profile != null)) { "a profile numbers the stages as written; render it without optimised" }
+    return rendered(node.maybeOptimised(optimised), end, layout, profile)
+}
 
 private fun Node.maybeOptimised(optimised: Boolean): Node = if (optimised) optimised() else this
 
-private fun rendered(node: Node, end: End?, layout: Layout): String =
-    when (layout) {
-        Layout.Text -> text(node, end)
-        Layout.Mermaid -> mermaid(node, end)
+/** What a profile says about one stage, ready to print, and the class Mermaid colours it with. */
+private class Numbers(val text: String, val heat: String?)
+
+private fun rendered(node: Node, end: End?, layout: Layout, profile: Profile?): String {
+    val order = node.dataOrder()
+    val numbers = { of: Node -> profile?.numbers(order.indexOfFirst { it === of }) }
+    return when (layout) {
+        Layout.Text -> text(node, end, numbers)
+        Layout.Mermaid -> mermaid(order, node, end, numbers)
+    }
+}
+
+private fun Profile.numbers(step: Int): Numbers? =
+    stages[step]?.let { stage ->
+        // Coloured by the percentage printed, so a stage labelled 20% is never drawn below the 20% line.
+        val percent = share(step)?.let { Math.round(it * PERCENT).toInt() }
+        val parts = listOfNotNull(
+            percent?.let { "$it%" },
+            stage.busyMillis?.let { "${duration(it)} busy" },
+            stage.waitingMillis?.let { "${duration(it)} waiting" },
+            "${stage.elements} out",
+        )
+        Numbers(parts.joinToString(" · "), percent?.let(::heat))
     }
 
-/** One line of the text layout: the tree drawing and label on the left, the caller's line on the right. */
-private class Row(val label: String, val site: String?)
+/** A duration in the unit it reads best in: a stage body is often nanoseconds, and a wait often milliseconds. */
+private fun duration(millis: Double): String =
+    when {
+        millis >= 1.0 -> "%.1f ms".format(Locale.ROOT, millis)
+        millis >= MICROS -> "%.1f µs".format(Locale.ROOT, millis / MICROS)
+        else -> "%.0f ns".format(Locale.ROOT, millis / NANOS)
+    }
 
-private fun text(node: Node, end: End?): String {
-    val rows = node.rows() + listOfNotNull(end?.row())
+private const val MICROS = 0.001
+private const val NANOS = 0.000_001
+
+private const val PERCENT = 100
+private const val HOT = 50
+private const val WARM = 20
+
+private fun heat(percent: Int): String =
+    when {
+        percent >= HOT -> "hot"
+        percent >= WARM -> "warm"
+        else -> "cool"
+    }
+
+/** One line of the text layout: the tree drawing and label, the caller's line, and a profile's numbers. */
+private class Row(val label: String, val site: String?, val numbers: String? = null)
+
+private fun text(node: Node, end: End?, numbers: (Node) -> Numbers?): String {
+    val rows = node.rows(numbers) + listOfNotNull(end?.row())
     val width = rows.maxOf { it.label.length } + 2
-    return rows.joinToString("\n") { row -> row.site?.let { row.label.padEnd(width) + it } ?: row.label }
+    val siteWidth = rows.maxOf { it.site?.length ?: 0 } + 2
+    return rows.joinToString("\n") { row ->
+        when {
+            row.numbers != null -> row.label.padEnd(width) + row.site.orEmpty().padEnd(siteWidth) + row.numbers
+            row.site != null -> row.label.padEnd(width) + row.site
+            else -> row.label
+        }
+    }
 }
 
 /**
  * A straight run of operators is a flat list, source first. An operator that reads more than one stream
  * heads a branch for each, drawn beneath it, in the order its elements come from them.
  */
-private fun Node.rows(): List<Row> {
+private fun Node.rows(numbers: (Node) -> Numbers?): List<Row> {
     val inputs = children()
-    val here = Row(label(), site)
+    val here = Row(label(), site, numbers(this)?.text)
     return if (inputs.size < 2) {
-        inputs.flatMap { it.rows() } + here
+        inputs.flatMap { it.rows(numbers) } + here
     } else {
-        listOf(Row("${here.label} of", here.site)) +
-            inputs.flatMapIndexed { index, input -> input.rows().branch(last = index == inputs.lastIndex) }
+        listOf(Row("${here.label} of", here.site, here.numbers)) +
+            inputs.flatMapIndexed { index, input -> input.rows(numbers).branch(last = index == inputs.lastIndex) }
     }
 }
 
@@ -62,7 +119,7 @@ private fun List<Row>.branch(last: Boolean): List<Row> =
             last -> "  "
             else -> "│ "
         }
-        Row(lead + row.label, row.site)
+        Row(lead + row.label, row.site, row.numbers)
     }
 
 private fun End.row(): Row =
@@ -72,25 +129,27 @@ private fun End.row(): Row =
         is End.Native -> Row(builder, at)
     }
 
-private fun mermaid(node: Node, end: End?): String {
-    val nodes = node.inDataOrder()
+private fun mermaid(nodes: List<Node>, node: Node, end: End?, numbers: (Node) -> Numbers?): String {
     val id = { of: Node -> "n${nodes.indexOfFirst { it === of }}" }
-    val declared = nodes.map { "    ${id(it)}[\"${quoted(it.label(), it.site)}\"]" }
+    val declared = nodes.map { each ->
+        val profiled = numbers(each)
+        val label = quoted(each.label(), each.site) + profiled?.let { "<br/>" + quoted(it.text, null) }.orEmpty()
+        "    ${id(each)}[\"$label\"]" + profiled?.heat?.let { ":::$it" }.orEmpty()
+    }
     val edges = nodes.flatMap { to -> to.children().map { from -> "    ${id(from)} --> ${id(to)}" } }
     // `end` is a Mermaid keyword, so the run's last step is `run`.
     val ending = end?.row()?.let { row ->
         listOf("    run[\"${quoted(row.label, row.site)}\"]", "    ${id(node)} --> run")
     }.orEmpty()
-    return (listOf("flowchart TD") + declared + edges + ending).joinToString("\n")
+    val classes = if (nodes.any { numbers(it)?.heat != null }) HEAT_CLASSES else emptyList()
+    return (listOf("flowchart TD") + declared + edges + ending + classes).joinToString("\n")
 }
 
-/** Every node once, each after the nodes it reads from, so the ids read in the order data moves. */
-private fun Node.inDataOrder(): List<Node> =
-    children().fold(emptyList<Node>()) { seen, child ->
-        seen +
-            child.inDataOrder().filter { n -> seen.none { it === n } }
-    }
-        .let { before -> if (before.any { it === this }) before else before + this }
+private val HEAT_CLASSES = listOf(
+    "    classDef hot fill:#f4a6a6,stroke:#b42318",
+    "    classDef warm fill:#fbd38d,stroke:#b7791f",
+    "    classDef cool fill:#c6f6d5,stroke:#2f855a",
+)
 
 /** A Mermaid label in double quotes: a quote inside it is Mermaid's own entity, not the end of the label. */
 private fun quoted(label: String, site: String?): String =

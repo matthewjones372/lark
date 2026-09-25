@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 
 private val request = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
-private fun pipeline(): Run<Nothing, Long> =
+internal fun perRequestPipeline(): Run<Nothing, Long> =
     Stream.from(request)
         .map { it.toLong() }
         .filter { it % 2 == 0L }
@@ -41,13 +41,13 @@ private fun pipeline(): Run<Nothing, Long> =
 @Fork(2)
 open class RunManyBenchmark {
 
-    private val described = pipeline()
+    private val described = perRequestPipeline()
 
     @Benchmark
     fun describedOnce(pekko: Pekko): Long = described.run(pekko.system).done()
 
     @Benchmark
-    fun describedEachTime(pekko: Pekko): Long = pipeline().run(pekko.system).done()
+    fun describedEachTime(pekko: Pekko): Long = perRequestPipeline().run(pekko.system).done()
 
     private val forks = Forks()
 
