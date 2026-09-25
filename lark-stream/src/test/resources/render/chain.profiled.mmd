@@ -1,0 +1,17 @@
+flowchart TD
+    n0["Stream.from<br/>4.0 µs waiting · 100000 out"]
+    n1["map · RenderPipelines.kt:15<br/>3% · 1.0 µs busy · 3.0 µs waiting · 100000 out"]:::cool
+    n2["map · RenderPipelines.kt:16<br/>67% · 20.0 µs busy · 3.0 µs waiting · 100000 out"]:::hot
+    n3["filter · RenderPipelines.kt:17<br/>3% · 1.0 µs busy · 3.0 µs waiting · 50000 out"]:::cool
+    n4["map · RenderPipelines.kt:18<br/>7% · 4.0 µs busy · 50000 out"]:::cool
+    n5["mapOrFail · RenderPipelines.kt:19<br/>20% · 12.0 µs busy · 50000 out"]:::warm
+    n0 --> n1
+    n1 --> n2
+    n2 --> n3
+    n3 --> n4
+    n4 --> n5
+    run["runFold · RenderPipelines.kt:20"]
+    n5 --> run
+    classDef hot fill:#f4a6a6,stroke:#b42318
+    classDef warm fill:#fbd38d,stroke:#b7791f
+    classDef cool fill:#c6f6d5,stroke:#2f855a
