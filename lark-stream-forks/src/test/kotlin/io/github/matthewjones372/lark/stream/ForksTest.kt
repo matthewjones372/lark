@@ -9,7 +9,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A run on lark's own forks: one pull loop, on one virtual thread, and the same exits Pekko answers with. */
@@ -215,5 +217,22 @@ class ForksTest {
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
         (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain "mapPar"
+    }
+
+    @Test
+    fun `mapAsync keeps no more of its stages in flight than it was given, and answers in order`() {
+        val inFlight = AtomicInteger()
+        val most = AtomicInteger()
+        val delayed = CompletableFuture.delayedExecutor(2, TimeUnit.MILLISECONDS)
+
+        val exit = Stream.from(1..30)
+            .mapAsync(3) { n ->
+                most.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
+                CompletableFuture.supplyAsync({ inFlight.decrementAndGet(); n }, delayed)
+            }
+            .collected()
+
+        exit shouldBe Exit.Done((1..30).toList())
+        withClue("at most three stages at once, and more than one") { (most.get() in 2..3) shouldBe true }
     }
 }
