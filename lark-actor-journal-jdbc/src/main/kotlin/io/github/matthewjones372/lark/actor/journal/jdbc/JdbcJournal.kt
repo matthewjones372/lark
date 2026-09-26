@@ -13,7 +13,7 @@ import java.sql.SQLException
 import javax.sql.DataSource
 
 /** The SQL state every database gives a duplicate key: another writer took the sequence number first. */
-private const val DUPLICATE_KEY = "23505"
+internal const val DUPLICATE_KEY = "23505"
 
 /**
  * A [Journal] in one `lark_journal` table, reached through [dataSource], so that every node that reaches the same
@@ -102,7 +102,7 @@ class JdbcJournal(private val dataSource: DataSource) : Journal {
 }
 
 /** [sql] with [values] bound to its parameters in order, handed to [use] and closed after. */
-private fun <T> Connection.statement(sql: String, vararg values: Any, use: (PreparedStatement) -> T): T =
+internal fun <T> Connection.statement(sql: String, vararg values: Any, use: (PreparedStatement) -> T): T =
     prepareStatement(sql).use { statement ->
         values.forEachIndexed { i, value -> statement.setObject(i + 1, value) }
         use(statement)

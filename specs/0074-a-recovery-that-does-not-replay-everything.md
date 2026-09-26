@@ -79,9 +79,10 @@ decision in every command. Recommended: every N, set once on the behaviour.
       same state as a full replay, reading only the 50 events after its last
       snapshot; and a store whose saves throw leaves every command answered.
       ([#186](https://github.com/matthewjones372/lark/pull/186))
-- [ ] **`spec-0074-jdbc`** — `JdbcSnapshots` and its DDL. Done when: it passes
+- [x] **`spec-0074-jdbc`** — `JdbcSnapshots` and its DDL. Done when: it passes
       the contract on H2, and 0072's moved-entity test recovers from a
       snapshot after the move.
+      ([#188](https://github.com/matthewjones372/lark/pull/188))
 
 ## Acceptance
 
@@ -117,3 +118,10 @@ of `persistent`, so every existing call still compiles. A persist that crosses
 a multiple saves the state at the sequence number it reached, not at the
 multiple. A failed save is logged as an error with its cause; an interrupt is
 not a failed save, and still stops the step.
+
+Decided while building `spec-0074-jdbc`: `lark_snapshot` lives in the same DDL
+files as `lark_journal`. A save is one conditional update, `where seq_nr < ?`,
+and an insert when no row is there; a save that loses the insert to another
+runs the update again, so racing saves leave the newest without a lock. The
+moved-entity test snapshots every fourth coin, and the next owner reads the
+journal only from the ninth; without a store it reads from the first.
