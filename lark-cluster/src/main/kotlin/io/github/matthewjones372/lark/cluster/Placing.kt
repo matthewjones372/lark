@@ -4,11 +4,20 @@ import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Ctx
 import io.github.matthewjones372.lark.actor.DeadLetter
-import io.github.matthewjones372.lark.actor.Entities
 import io.github.matthewjones372.lark.actor.deadLetter
-import io.github.matthewjones372.lark.actor.entity
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
+
+/**
+ * What a region runs its shards with: which member owns a shard, what runs one here, and how a message reaches what
+ * runs it. [eager] starts a shard's host as soon as the shard is free here, rather than on its first message.
+ */
+internal class Hosting<M : Any, H : Any>(
+    val eager: Boolean,
+    val owner: (shard: Int, members: List<Member>) -> Node?,
+    val start: (Ctx<Region<M>>, shard: Int) -> ActorRef<H>,
+    val deliver: (host: ActorRef<H>, id: String, message: M) -> Unit,
+)
 
 /** The key of a region's retry timer: one at a time, however many messages ran out of hops. */
 private object RetryKey
@@ -22,20 +31,19 @@ private object RetryKey
  * it nor believes it owns it, so two nodes whose views disagree both wait until the views agree. What arrives for a
  * shard meanwhile is kept, up to a bound.
  */
-internal class Placing<M : Any>(
+internal class Placing<M : Any, H : Any>(
     private val cluster: Cluster,
-    private val kind: String,
     private val shards: Int,
     private val wire: MessageCodec<Region<M>>,
     private val path: String,
-    private val start: (Ctx<Region<M>>, shard: Int) -> ActorRef<Entities<M>>,
+    private val hosting: Hosting<M, H>,
 ) {
     private val self = cluster.self
     private var view = View.None
 
     // Shards this node may run now; the managers of those it has run since; and those it has let go, until they end.
     private val ready = HashSet<Int>()
-    private val hosted = HashMap<Int, ActorRef<Entities<M>>>()
+    private val hosted = HashMap<Int, ActorRef<H>>()
     private val stopping = HashMap<ActorRef<*>, Int>()
 
     // Shards won, and who has yet to release each; and who has asked for a shard this node still holds.
@@ -61,13 +69,15 @@ internal class Placing<M : Any>(
 
     /** A shard's manager has stopped, and every entity of the shard with it. */
     fun ended(ctx: Ctx<Region<M>>, ref: ActorRef<*>) {
+        // What stopped of its own accord, rather than let go, starts again on the shard's next message.
+        hosted.entries.removeIf { it.value == ref }
         val shard = stopping.remove(ref) ?: return
         awaiting[shard]?.remove(self)
         startIfFree(ctx, shard)
         settle()
     }
 
-    private fun owner(shard: Int) = Placement.owner(kind, shard, view.members)
+    private fun owner(shard: Int) = hosting.owner(shard, view.members)
 
     private fun mine(shard: Int) = owner(shard) == self
 
@@ -75,7 +85,7 @@ internal class Placing<M : Any>(
         val shard = Placement.shardOf(envelope.id, shards)
         val owner = owner(shard)
         when {
-            owner == self && shard in ready -> manager(ctx, shard).entity(envelope.id).tell(envelope.message)
+            owner == self && shard in ready -> hosting.deliver(host(ctx, shard), envelope.id, envelope.message)
 
             owner == self || owner == null -> keep(envelope)
 
@@ -113,6 +123,7 @@ internal class Placing<M : Any>(
         if (awaiting[shard]?.isEmpty() != true || !mine(shard)) return
         awaiting -= shard
         ready += shard
+        if (hosting.eager) host(ctx, shard)
         retry(ctx)
     }
 
@@ -138,8 +149,8 @@ internal class Placing<M : Any>(
         }
     }
 
-    private fun manager(ctx: Ctx<Region<M>>, shard: Int) =
-        hosted.getOrPut(shard) { start(ctx, shard).also(ctx::watch) }
+    private fun host(ctx: Ctx<Region<M>>, shard: Int) =
+        hosted.getOrPut(shard) { hosting.start(ctx, shard).also(ctx::watch) }
 
     private fun there(node: Node) = cluster.remote.remote(Address(node.toString(), path, 0), wire)
 

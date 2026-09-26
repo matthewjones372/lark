@@ -3,9 +3,11 @@ package io.github.matthewjones372.lark.cluster
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Behaviour
+import io.github.matthewjones372.lark.actor.Entities
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.entities
+import io.github.matthewjones372.lark.actor.entity
 import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
@@ -31,9 +33,9 @@ internal object Sharding {
 
     private val kinds = Regex("[A-Za-z0-9._-]+")
 
-    fun path(kind: String): String {
-        require(kinds.matches(kind)) { "a kind is letters, digits, '.', '_' and '-', was '$kind'" }
-        return "/user/sharding-$kind"
+    fun path(kind: String, prefix: String = "sharding"): String {
+        require(kinds.matches(kind)) { "a name is letters, digits, '.', '_' and '-', was '$kind'" }
+        return "/user/$prefix-$kind"
     }
 }
 
@@ -97,7 +99,7 @@ class Sharded<M : Any> internal constructor(val kind: String, private val region
     fun entity(id: String): ActorRef<M> = ShardedRef(region, id)
 }
 
-private class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, private val id: String) : ActorRef<M> {
+internal class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, private val id: String) : ActorRef<M> {
     override val address = Address(region.address.node, "${region.address.path}/$id", 0)
 
     override fun tell(message: M) = region.tell(Region.Envelope(id, 0, message))
@@ -123,10 +125,24 @@ fun <M : Any, S, E> Cluster.sharding(
 ): Sharded<M> {
     val path = Sharding.path(kind)
     require(shards > 0) { "shards must be positive, was $shards" }
+    val hosting = Hosting<M, Entities<M>>(
+        eager = false,
+        owner = { shard, members -> Placement.owner(kind, shard, members) },
+        start = { ctx, shard -> ctx.spawn("shard-$shard", entities(passivateAfter, entity = entity)) },
+        deliver = { manager, id, message -> manager.entity(id).tell(message) },
+    )
+    return Sharded(kind, region(path, codec, shards, hosting))
+}
+
+/** A region at [path] on this node, reachable from the others at the same path. */
+internal fun <M : Any, H : Any> Cluster.region(
+    path: String,
+    codec: MessageCodec<M>,
+    shards: Int,
+    hosting: Hosting<M, H>,
+): ActorRef<Region<M>> {
     val wire = RegionCodec(codec)
-    val placing = Placing(this, kind, shards, wire, path) { ctx, shard ->
-        ctx.spawn("shard-$shard", entities(passivateAfter, entity = entity))
-    }
+    val placing = Placing(this, shards, wire, path, hosting)
     val region = flock.spawn(
         path.removePrefix("/user/"),
         behaviour<Region<M>, Unit>(Unit) { ctx, _, step -> stay().also { placing.step(ctx, step) } }
@@ -137,5 +153,5 @@ fun <M : Any, S, E> Cluster.sharding(
     )
     remote.expose(region, wire)
     onView { region.tell(Region.Viewed(it)) }
-    return Sharded(kind, region)
+    return region
 }
