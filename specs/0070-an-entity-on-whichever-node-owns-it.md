@@ -59,9 +59,10 @@ flexible and far more state to keep consistent. Recommended: rendezvous.
 
 ## Stack
 
-- [ ] **`spec-0070-placement`** — shard of an id, owner of a shard from a
+- [x] **`spec-0070-placement`** — shard of an id, owner of a shard from a
       view. Done when: a join moves at most about 1/N of the shards, and the
       same view gives every node the same owners.
+      ([#168](https://github.com/matthewjones372/lark/pull/168))
 - [ ] **`spec-0070-region`** — regions, the envelope, and `sharding(…)`.
       Done when: three nodes in one JVM tell and ask one entity from any node,
       and it runs on the owner only.
