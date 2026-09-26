@@ -68,7 +68,7 @@ optional module later.
 - [x] **`spec-0068-wire`** ([#155](https://github.com/matthewjones372/lark/pull/155)) — framing, handshake, one connection per pair,
       reconnect with backoff. Done when: frames cross loopback in order, and a
       dropped connection comes back without losing the pair's order after.
-- [ ] **`spec-0068-remote`** — `node(…)`, `remote<M>(…)`, inbound dispatch,
+- [x] **`spec-0068-remote`** ([#156](https://github.com/matthewjones372/lark/pull/156)) — `node(…)`, `remote<M>(…)`, inbound dispatch,
       and ask across nodes. Done when: two flocks in one JVM tell and ask.
 - [ ] **`spec-0068-unreachable`** — dead letters for unreachable nodes, and
       `watch` across nodes. Done when: stopping one flock gives the other
@@ -107,3 +107,15 @@ sender and receiver needs nothing more than one writer per connection; Pekko's
 Artery does the same. Frames wait, up to the queue's room, while a connection
 opens, rather than being dropped because it is not yet up, and are dropped when
 an attempt fails or a connection ends. Reconnection backs off on lark's clock.
+
+Decided while building `spec-0068-remote` (2026-09-26), for editing:
+- `node(name, port)` answers a `RemoteNode`, and `remote(address, codec)` is
+  its member rather than the flock's, since a ref needs the node's transport.
+- An actor is reached from another node once it is `expose`d with its codec,
+  or once a ref to it crosses inside a message; a node offers nothing else.
+- A ref or a reply inside a message carries the codec of what will be sent to
+  it (`out.reply(reply, Codecs.int)`, `input.ref(codec)`), since the node that
+  answers is the one that writes the answer. `Codecs` has the common ones.
+- A frame's incarnation of 0 means whichever actor is at the path; any other
+  is that one actor. A reply not answered in ten minutes is forgotten.
+- The node closes with its flock, through a guardian actor's `Stopping`.

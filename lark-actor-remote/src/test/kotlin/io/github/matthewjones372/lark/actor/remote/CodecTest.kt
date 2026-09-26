@@ -33,12 +33,12 @@ private val clinicCodec = object : MessageCodec<Clinic> {
 
         is Weigh -> {
             out.int(2)
-            out.reply(message.reply)
+            out.reply(message.reply, Codecs.int)
         }
 
         is Refer -> {
             out.int(3)
-            out.ref(message.to)
+            out.ref(message.to, this)
             out.long(message.since)
         }
 
@@ -47,8 +47,8 @@ private val clinicCodec = object : MessageCodec<Clinic> {
 
     override fun read(input: WireIn): Clinic = when (val tag = input.int()) {
         1 -> Book(input.string(), input.int(), input.nullable(input::string))
-        2 -> Weigh(input.reply())
-        3 -> Refer(input.ref(), input.long())
+        2 -> Weigh(input.reply(Codecs.int))
+        3 -> Refer(input.ref(this), input.long())
         4 -> Close
         else -> error("no clinic message has the tag $tag")
     }
@@ -58,11 +58,11 @@ private val clinicCodec = object : MessageCodec<Clinic> {
 private class AddressedRefs : Refs {
     val told = mutableListOf<Pair<Address, Any>>()
 
-    override fun address(ref: ActorRef<*>): Address = ref.address
+    override fun <M : Any> address(ref: ActorRef<M>, codec: MessageCodec<M>): Address = ref.address
 
-    override fun address(reply: Reply<*>): Address = reply.address
+    override fun <A : Any> address(reply: Reply<A>, answers: MessageCodec<A>): Address = reply.address
 
-    override fun <M : Any> ref(address: Address): ActorRef<M> = object : ActorRef<M> {
+    override fun <M : Any> ref(address: Address, codec: MessageCodec<M>): ActorRef<M> = object : ActorRef<M> {
         override val address = address
 
         override fun tell(message: M) {
@@ -70,7 +70,7 @@ private class AddressedRefs : Refs {
         }
     }
 
-    override fun <A : Any> reply(address: Address): Reply<A> = object : Reply<A> {
+    override fun <A : Any> reply(address: Address, answers: MessageCodec<A>): Reply<A> = object : Reply<A> {
         override val address = address
 
         override fun invoke(answer: A) {
@@ -95,7 +95,7 @@ class CodecTest {
 
     @Test
     fun `a reply crosses as its address, and answering the one that comes back answers that address`() {
-        val asked = refs.reply<Int>(Address("shop-1@10.0.0.6:25520", "/temp/ask-3", 1))
+        val asked = refs.reply(Address("shop-1@10.0.0.6:25520", "/temp/ask-3", 1), Codecs.int)
 
         val weigh = Weigh(asked).roundTrip().shouldBeInstanceOf<Weigh>()
         weigh.reply(75)
@@ -106,7 +106,8 @@ class CodecTest {
 
     @Test
     fun `a ref crosses as its address, incarnation included, and tells that address`() {
-        val refer = Refer(refs.ref(there), since = 1_700_000_000_000).roundTrip().shouldBeInstanceOf<Refer>()
+        val sent = Refer(refs.ref(there, clinicCodec), since = 1_700_000_000_000)
+        val refer = sent.roundTrip().shouldBeInstanceOf<Refer>()
         refer.to.tell(Close)
 
         refer.since shouldBe 1_700_000_000_000
@@ -127,6 +128,15 @@ class CodecTest {
 
         shouldThrow<WireException> { clinicCodec.decode(cut, refs) }.message shouldBe
             "a message ended after 3 bytes, part way through what its codec reads"
+    }
+
+    @Test
+    fun `the answers most asks want come back as they went`() {
+        Codecs.int.decode(Codecs.int.encode(-7, refs), refs) shouldBe -7
+        Codecs.string.decode(Codecs.string.encode("rex", refs), refs) shouldBe "rex"
+        val longs = Codecs.list(Codecs.long)
+        longs.decode(longs.encode(listOf(1L, 2L), refs), refs) shouldBe listOf(1L, 2L)
+        Codecs.unit.decode(Codecs.unit.encode(Unit, refs), refs) shouldBe Unit
     }
 
     @Test
