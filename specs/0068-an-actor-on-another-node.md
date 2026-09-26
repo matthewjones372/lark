@@ -95,3 +95,8 @@ optional module later.
 - **Does `watch` across nodes need its own `Unreachable` signal?**
   Recommended: no, `Terminated`, as 0060 left it. Membership (0069) can tell
   "stopped" from "unreachable" once it knows which nodes are up.
+
+Decided (2026-09-26): every open question goes as recommended. The transport
+is its own module, `lark-actor-remote`; a full outbound buffer drops to dead
+letters; a node's address is `name@host:port` in `Address.node`; and `watch`
+across nodes answers `Terminated`.
