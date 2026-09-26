@@ -1,0 +1,45 @@
+package io.github.matthewjones372.lark.cluster
+
+import io.github.matthewjones372.lark.actor.remote.Node
+import java.util.zip.CRC32
+
+private const val FNV_OFFSET = -0x340d631b7bdddcdbL
+private const val FNV_PRIME = 0x100000001b3L
+private const val MIX_1 = -0x40a7b892e31b1a47L
+private const val MIX_2 = -0x6b2fb644ecceee15L
+private const val SHIFT_1 = 30
+private const val SHIFT_2 = 27
+private const val SHIFT_3 = 31
+private const val BYTE = 0xff
+
+/**
+ * Where an entity lives, as every node works it out alike from the view it agrees on: an id's shard is a hash of the
+ * id, and a shard's owner is the `Up` member that scores highest for it (rendezvous hashing). A member that joins or
+ * leaves changes the owner only of the shards it wins or held. Every hash here is the same on every JVM.
+ */
+internal object Placement {
+
+    fun shardOf(id: String, shards: Int): Int {
+        val crc = CRC32().apply { update(id.toByteArray(Charsets.UTF_8)) }.value
+        return Math.floorMod(crc, shards.toLong()).toInt()
+    }
+
+    fun owner(kind: String, shard: Int, members: Collection<Member>): Node? =
+        members.filter { it.status == Status.Up }
+            .maxWithOrNull(compareBy({ score(kind, shard, it.node) }, { it.node.toString() }))?.node
+
+    private fun score(kind: String, shard: Int, node: Node): Long = mix(fnv("$kind\u0000$shard\u0000$node"))
+
+    private fun fnv(key: String): Long =
+        key.toByteArray(Charsets.UTF_8).fold(FNV_OFFSET) { hash, byte ->
+            (hash xor (byte.toLong() and BYTE.toLong())) *
+                FNV_PRIME
+        }
+
+    /** SplitMix64's finaliser, so that keys differing in one character score far apart. */
+    private fun mix(value: Long): Long {
+        var z = (value xor (value ushr SHIFT_1)) * MIX_1
+        z = (z xor (z ushr SHIFT_2)) * MIX_2
+        return z xor (z ushr SHIFT_3)
+    }
+}
