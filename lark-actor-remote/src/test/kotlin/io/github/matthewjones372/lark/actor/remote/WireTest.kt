@@ -117,6 +117,31 @@ class WireTest {
     }
 
     @Test
+    fun `a peer known only by host and port is whichever node answers there`() {
+        val two = node("two")
+        val heardByTwo = Heard()
+        Transport(two, heardByTwo).closedAfter().listen()
+        val first = Transport(node("one"), Heard()).closedAfter()
+
+        first.send(Node("", two.host, two.port), frame(7))
+
+        heardByTwo.take(1).map { it.second } shouldContainExactly listOf(7)
+    }
+
+    @Test
+    fun `a peer that answers under another name than the one sent to is not connected to`() {
+        val two = node("two")
+        Transport(two, Heard()).closedAfter().listen()
+        val heard = Heard().apply { droppedCount = CountDownLatch(1) }
+        val first = Transport(node("one"), heard, retryFrom = 1.milliseconds).closedAfter()
+
+        first.send(Node("three", two.host, two.port), frame(1))
+
+        heard.droppedCount.await(1, TimeUnit.MINUTES) shouldBe true
+        heard.connected.isEmpty() shouldBe true
+    }
+
+    @Test
     fun `a node names itself as name at host and port, and reads back the same`() {
         Node.parse("shop-1@10.0.0.7:25520") shouldBe Node("shop-1", "10.0.0.7", 25520)
         Node("shop-1", "10.0.0.7", 25520).toString() shouldBe "shop-1@10.0.0.7:25520"

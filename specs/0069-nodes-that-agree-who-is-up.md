@@ -88,8 +88,9 @@ Recommended: gossip, with downing deciding splits.
 
 ## Stack
 
-- [ ] **`spec-0069-discovery`** — `Discovery`, static and DNS. Done when: DNS
+- [x] **`spec-0069-discovery`** — `Discovery`, static and DNS. Done when: DNS
       answers from a test server become seed nodes.
+      ([#160](https://github.com/matthewjones372/lark/pull/160))
 - [ ] **`spec-0069-gossip`** — SWIM probing, indirect probes, gossip of member
       state, join through a seed. Done when: five nodes in one JVM agree on the
       same view, and a stopped one is seen unreachable by all.
@@ -125,3 +126,9 @@ its own module, `lark-cluster`, on top of `lark-actor-remote`; `stableAfter`
 is 20 seconds by default; a losing side stops what the cluster started and
 tells the service, which decides whether the process ends; and the oldest
 reachable member moves a joiner to `Up` once every reachable member has seen it.
+
+Decided while building `spec-0069-discovery`: a seed is a node known only by
+host and port, with an empty name, and the transport connects to whichever node
+answers there. DNS goes through a `Resolver`, and the test server is a fake one,
+since the JDK has no DNS server to run in a test; the JDK resolver is tested
+against localhost.
