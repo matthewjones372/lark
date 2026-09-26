@@ -22,13 +22,13 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 private sealed interface Tab
 
@@ -149,17 +149,18 @@ class ShardingTest {
         val ports = List(4) { openPort() }
         val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
         val bars = ports.take(3).mapIndexed { i, port -> Bar("n${i + 1}", port, seeds) }.toMutableList()
-        val unanswered = ConcurrentLinkedQueue<String>()
         val stop = AtomicBoolean(false)
         try {
             bars.awaitUp(3)
             val tabs = bars.first().tabs
-            // Tells and asks every tab from the first node for as long as the membership is changing.
+            val ids = (1..200).map { "t-$it" }
+            // Tells and asks every tab from the first node for as long as the membership is changing. An ask already
+            // in a tab's mailbox when its shard moves is a dead letter, as it is when a tab passivates.
             val traffic = Thread.ofVirtual().start {
                 while (!stop.get()) {
-                    (1..200).map { "t-$it" }.forEach { id ->
+                    ids.forEach { id ->
                         tabs.entity(id).tell(Spend(1))
-                        if (tabs.entity(id).ask<Tab, String>(1.minutes) { Bill(it) }.isLeft()) unanswered += id
+                        tabs.entity(id).ask<Tab, String>(3.seconds) { Bill(it) }
                     }
                 }
             }
@@ -174,7 +175,8 @@ class ShardingTest {
             traffic.join()
 
             withClue("a tab ran on two nodes at once") { twice.get() shouldBe false }
-            unanswered.toList().shouldBeEmpty()
+            val unanswered = ids.filter { id -> tabs.entity(id).ask<Tab, String>(1.minutes) { Bill(it) }.isLeft() }
+            withClue("every tab answers once the membership has settled") { unanswered.shouldBeEmpty() }
         } finally {
             stop.set(true)
             bars.forEach(Bar::close)
