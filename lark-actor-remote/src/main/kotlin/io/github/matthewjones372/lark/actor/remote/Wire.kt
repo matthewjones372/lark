@@ -19,12 +19,15 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-/** A node as an address names it: `name@host:port`. */
+/**
+ * A node as an address names it: `name@host:port`. A node whose name is empty is one only its host and port are known
+ * for, as discovery finds a seed: it is whichever node answers there.
+ */
 data class Node(val name: String, val host: String, val port: Int) {
     override fun toString() = "$name@$host:$port"
 
     companion object {
-        private val form = Regex("""([^@]+)@(.+):(\d+)""")
+        private val form = Regex("""([^@]*)@(.+):(\d+)""")
 
         fun parse(node: String): Node {
             val parts = requireNotNull(form.matchEntire(node)) { "$node is not name@host:port" }.destructured
@@ -185,7 +188,8 @@ class Transport(
                 val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
                 output.hello(self, uid)
                 val answered = input.hello()
-                if (answered.name != peer.name) throw IOException("$peer answered as $answered")
+                val stranger = peer.name.isNotEmpty() && answered.name != peer.name
+                if (stranger) throw IOException("$peer answered as $answered")
                 listener.connected(peer)
                 // The peer never writes after its hello: a read that returns is the connection ending.
                 val writer = Thread.currentThread()
