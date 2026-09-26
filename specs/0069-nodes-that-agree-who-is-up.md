@@ -1,0 +1,127 @@
+# 0069 — Nodes that agree who is up
+
+## Problem
+
+0068 lets a flock reach an actor on another node, but only at an address
+someone gave it, and a node that goes away is noticed only as a connection
+timing out. Sharding (0070) needs more: every node must agree which nodes are
+members, so that all of them place an entity in the same place, and a node cut
+off from the rest must stop acting before the rest take over its work. Today
+that means Pekko Cluster, or ZooKeeper, etcd or Consul run beside the service.
+
+## Not doing
+
+- **An external coordinator.** No ZooKeeper, etcd or Consul in the core. A
+  platform can still break a split through a `Lease` (below).
+- **Sharding and singletons.** They are 0070, built on the member events here.
+- **A gRPC or HTTP gateway** for callers that are not lark. Later, on its own.
+- **Multi-datacentre awareness.** One cluster is one network.
+
+## Shape
+
+```kotlin
+flock<Nothing, Unit> {
+    val cluster = cluster(
+        node("orders-1", port = 25520),
+        discovery = Discovery.dns("orders.default.svc.cluster.local", port = 25520),
+        downing = Downing.keepMajority(stableAfter = 20.seconds),
+    )
+    cluster.subscribe(listener)      // MemberUp, Unreachable, Reachable, MemberRemoved
+    cluster.members                  // the agreed view: address, status, when it joined
+}
+```
+
+- **Discovery** finds seed nodes and nothing more. `Discovery.static(…)` and
+  `Discovery.dns(…)` (A/AAAA or SRV) are in the core; they cover a Kubernetes
+  headless service and ECS Service Connect or Cloud Map. `lark-cluster-kubernetes`
+  (the pods API) and `lark-cluster-aws` (Cloud Map and ECS APIs) are optional.
+- **Membership** is gossip, as SWIM does it, over 0068's transport: each node
+  probes a random member each round, asks others to probe one that does not
+  answer, and spreads what it learns with every message. A member is `Joining`,
+  `Up`, `Leaving`, `Down` or `Removed`; reachability is separate, as each node
+  observes it. Joining asks a seed; the oldest reachable member moves joiners
+  to `Up` once the view has converged.
+- **Split brain** is decided by `Downing`, below. 0068's `watch` across nodes
+  answers `Terminated` when membership removes the node, not on a timer.
+- **Tests** run several nodes in one JVM, and cut and heal links between them
+  through the transport, so a partition is a test step, not a guess at timing.
+
+## Split brain
+
+A partition leaves each side seeing the other as unreachable. If both carried
+on, both would run the same singleton and the same entities. lark resolves it
+the way Pekko's split brain resolver does:
+
+1. **Wait for a stable view.** Nothing is decided until reachability has not
+   changed for `stableAfter`, so a slow node or a GC pause does not split the
+   cluster.
+2. **Each side decides alone, and they agree without talking.** Every node
+   applies the same rule to the same last agreed membership:
+   - `keepMajority` (the default): the side with more than half of the members
+     stays, and the other downs itself. On a tie, the side with the lowest
+     address stays.
+   - `staticQuorum(n)`: a side with at least `n` members stays.
+   - `lease(lease)`: the side that acquires a `Lease` stays. It is for two
+     nodes or an even split, where a majority cannot decide. `lark-cluster-kubernetes`
+     ships a Kubernetes `Lease`, and `lark-cluster-aws` a DynamoDB one.
+3. **The losing side stops first.** It downs itself at once: its flock stops
+   its cluster actors and leaves. The winning side waits `stableAfter` again
+   before it removes the unreachable members and takes over their work, so
+   the two never overlap.
+4. **A downed node never comes back as itself.** It must restart and rejoin,
+   and 0068's handshake carries a uid for each life, so its old incarnation is
+   refused.
+5. **Persistence fences what is left.** 0063's journal refuses an append that
+   does not follow the last one, so even an overlap that got through could not
+   write two histories for one entity.
+
+## Why this shape
+
+Gossip needs nothing beside the service, which is the point of not using
+ZooKeeper. Kubernetes knows which pods are scheduled, not which can reach each
+other, so it is a place to find seeds and to hold a lease, not the membership
+itself. Keeping discovery, membership and downing apart lets a user on ECS,
+Kubernetes or plain VMs change only the first and the last. The alternative is
+a consensus protocol (Raft) for membership: it gives a stronger view, but a
+minority side cannot even learn it has lost, and it is far more code.
+Recommended: gossip, with downing deciding splits.
+
+## Stack
+
+- [ ] **`spec-0069-discovery`** — `Discovery`, static and DNS. Done when: DNS
+      answers from a test server become seed nodes.
+- [ ] **`spec-0069-gossip`** — SWIM probing, indirect probes, gossip of member
+      state, join through a seed. Done when: five nodes in one JVM agree on the
+      same view, and a stopped one is seen unreachable by all.
+- [ ] **`spec-0069-events`** — member events, and `watch` across nodes on
+      membership. Done when: a removed node ends every watch on it.
+- [ ] **`spec-0069-downing`** — `keepMajority`, `staticQuorum`, `lease`, and
+      the losing side downing itself. Done when: a 3–2 partition leaves the
+      three up and the two stopped, with no moment where both sides are up.
+- [ ] **`spec-0069-platforms`** — `lark-cluster-kubernetes` and
+      `lark-cluster-aws`: discovery and a `Lease`. Done when: each is tested
+      against a fake of its API.
+
+## Acceptance
+
+```bash
+./gradlew build
+```
+
+## Open questions
+
+- **Its own module (`lark-cluster`) on top of `lark-actor-remote`?**
+  Recommended: yes.
+- **Default `stableAfter`?** Recommended: 20 seconds, as Pekko's, and shorter
+  in tests.
+- **Does the losing side stop the whole flock, or only its cluster actors?**
+  Recommended: only what the cluster started, and a member event the service
+  can act on; ending the process is the service's decision.
+- **Who moves a joiner to `Up`?** Recommended: the oldest reachable member,
+  once every reachable member has seen the joiner.
+
+Decided (2026-09-26): every open question goes as recommended. The cluster is
+its own module, `lark-cluster`, on top of `lark-actor-remote`; `stableAfter`
+is 20 seconds by default; a losing side stops what the cluster started and
+tells the service, which decides whether the process ends; and the oldest
+reachable member moves a joiner to `Up` once every reachable member has seen it.
