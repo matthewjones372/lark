@@ -18,7 +18,7 @@ here.
 ## Not doing
 
 - **Anything across processes.** One flock, one process. The keys and refs
-  here are shaped so that 0065–0067 (transport, membership, sharding) can
+  here are shaped so that 0067–0069 (transport, membership, sharding) can
   extend them, and no further.
 - **A balancing pool with a shared mailbox, and a resizer.** A pool has the
   size it is given.
