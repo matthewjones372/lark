@@ -11,7 +11,9 @@ val scalaBinary = "2.13"
 
 dependencies {
     implementation(project(":lark-actor"))
+    implementation(project(":lark-actor-remote"))
     implementation("org.apache.pekko:pekko-actor-typed_$scalaBinary:$pekkoVersion")
+    implementation("org.apache.pekko:pekko-remote_$scalaBinary:$pekkoVersion")
     implementation("org.openjdk.jmh:jmh-core:$jmhVersion")
 }
 
