@@ -81,7 +81,7 @@ class UnreadMessage(val bytes: ByteArray)
 /**
  * A node: the actors it exposes, the replies it waits on, the watches on other nodes' actors, and the transport to
  * the others. A watch ends with `Terminated` when the actor stops, and when its node has been unreachable for
- * [unreachableAfter].
+ * [unreachableAfter], or, once a membership has [takeOverWatches], when the membership says the node is gone.
  */
 class RemoteNode internal constructor(
     val self: Node,
@@ -104,6 +104,9 @@ class RemoteNode internal constructor(
     private val up = ConcurrentHashMap.newKeySet<Node>()
     private val timing = ConcurrentHashMap.newKeySet<Node>()
 
+    @Volatile
+    private var membershipEndsWatches = false
+
     internal val transport = Transport(self, Inbound())
 
     /** Lets other nodes tell [ref] messages written with [codec], at its path. */
@@ -117,6 +120,15 @@ class RemoteNode internal constructor(
      * not delivered to its successor.
      */
     fun <M : Any> remote(address: Address, codec: MessageCodec<M>): ActorRef<M> = refs.ref(address, codec)
+
+    /**
+     * Hands ending watches on other nodes' actors to a membership, which knows better than a timer when a node is
+     * gone: from now on an unreachable peer ends none, and what this returns ends every watch on the peer it is given.
+     */
+    fun takeOverWatches(): (Node) -> Unit {
+        membershipEndsWatches = true
+        return { peer -> watching.keys.filter { it.node == peer.toString() }.forEach(::terminated) }
+    }
 
     private fun here(address: Address): Address = Address(self.toString(), address.path, address.incarnation)
 
@@ -150,7 +162,7 @@ class RemoteNode internal constructor(
 
     /** [peer] went: if it has not come back after [unreachableAfter], every watch on it ends. */
     private fun maybeUnreachable(peer: Node) {
-        if (!timing.add(peer)) return
+        if (membershipEndsWatches || !timing.add(peer)) return
         Thread.ofVirtual().name("lark-remote-unreachable").start {
             try {
                 time.sleep(unreachableAfter)

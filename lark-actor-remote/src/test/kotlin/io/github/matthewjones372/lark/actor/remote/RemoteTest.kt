@@ -233,6 +233,25 @@ class RemoteTest {
     }
 
     @Test
+    fun `a watch handed to a membership ends when it says the node is gone, while the actor still runs`() {
+        val heard = withWardNode { hospital ->
+            flock<Nothing, Any> {
+                val node = clinic()
+                val gone = node.takeOverWatches()
+                val ward = node.remote(hospital.ward, wardCodec)
+                val watched = watch(ward)
+
+                gone(Node.parse(hospital.ward.node))
+
+                watched.await()
+                ward.ask(1.minutes) { Chart(it) }
+            }
+        }
+
+        heard shouldBe 0.right().right()
+    }
+
+    @Test
     fun `a watch on an actor whose node goes away ends once the node has been unreachable long enough`() {
         val port = freePort()
         val ready = CountDownLatch(1)
