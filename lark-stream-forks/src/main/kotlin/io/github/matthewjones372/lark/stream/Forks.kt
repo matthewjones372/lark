@@ -169,6 +169,7 @@ class Pulling<E, R : Any>(
     private val clock: Clock,
     on: Executor,
     private val kept: MutableList<Any>? = null,
+    private val boundaries: Boundaries? = null,
 ) {
     // The fused tree is the same for every run of a description, so it is worked out once, and so is whether
     // a run of it can start a thread of its own: one that cannot pays nothing for it.
@@ -187,8 +188,17 @@ class Pulling<E, R : Any>(
         resources.wake()
     }
 
-    /** Pulls up to [max] elements into the end: the exit once the run has ended, and null while it goes on. */
-    fun pull(max: Int): Exit<E, R>? = resources.around { Releases.within(releases) { pulled(max) } }
+    /**
+     * Pulls up to [max] elements into the end: the exit once the run has ended, and null while it goes on. The
+     * nodes built as it pulls are offered to the run's [Boundaries] first.
+     */
+    fun pull(max: Int): Exit<E, R>? = within { Boundaries.within(boundaries) { pulled(max) } }
+
+    /**
+     * Runs [block] with the run's resources and forks bound to this thread, as a pull of the run's elsewhere than
+     * its loop needs: a node it builds is registered with the run, and let go of with it.
+     */
+    fun <T> within(block: () -> T): T = resources.around { Releases.within(releases) { block() } }
 
     /** The exit of a run that stops where it is: `Done` with what the end has so far. */
     @Suppress("UNCHECKED_CAST")

@@ -64,7 +64,7 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
       pulling in batches, and every operator Forks runs without a fork.
       Refuses the rest by name. Done when: those parity cases pass, and
       the hardened checks leave no actor running.
-- [ ] **`spec-0066-boundaries`** — `buffer`, `mapPar` and `mapAsync` as
+- [x] **`spec-0066-boundaries`** ([#148](https://github.com/matthewjones372/lark/pull/148)) — `buffer`, `mapPar` and `mapAsync` as
       child actors on credit. Done when: their parity and differential cases
       pass, and at most `n` bodies are in flight.
 - [ ] **`spec-0066-fanin`** — `merge`, `flatMapMerge` and `conflate`. Done
@@ -112,3 +112,14 @@ Decided while building `spec-0066-island` (2026-09-26), for editing:
   The hardened checks also assert that no run is left (`Actors.running`).
 - A run's exit completes in its actor's `Stopping`, so it completes after
   every child the run spawned has stopped.
+
+Decided while building `spec-0066-boundaries` (2026-09-26), for editing:
+- A backend takes an operator over through `Boundaries`, a `@StreamSpi` hook
+  that `Pulling` binds to the thread pulling a batch. `Actors` answers only on
+  its run's own step, since only that step may spawn the run's children; a node
+  built in a feeder's pull is left to Forks.
+- `mapPar(n)` is `n` worker actors told in turn, and `buffer(n)` a feeder
+  actor that pulls a batch at a time while it has room, and stalls until the
+  reader takes one. A `mapPar` given an executor of its own keeps it.
+- `mapAsync` stays as it is on Forks: a window of stages the loop awaits,
+  which starts no thread, so there is nothing for an actor to take over.

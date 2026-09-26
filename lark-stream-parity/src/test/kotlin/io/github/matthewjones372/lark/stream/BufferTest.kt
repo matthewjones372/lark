@@ -34,7 +34,10 @@ class BufferTest {
      * holds while it waits for room. Pekko's async boundary has an input buffer of its own on top.
      */
     private val backends: List<Pair<StreamBackend, Int>> =
-        listOf(PekkoStreams(system) to SIZE + 1 + PEKKO_INPUT_BUFFER, Forks() to SIZE + 1, TestStreams() to SIZE + 1)
+        listOf(
+            PekkoStreams(system) to SIZE + 1 + PEKKO_INPUT_BUFFER, Forks() to SIZE + 1, TestStreams() to SIZE + 1,
+            Actors(heldFlock) to SIZE + 1,
+        )
 
     @TestFactory
     fun `a slow reader lets upstream run ahead by the buffer, and no further`(): List<DynamicTest> =

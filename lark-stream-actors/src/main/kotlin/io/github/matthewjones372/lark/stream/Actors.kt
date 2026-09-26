@@ -24,8 +24,9 @@ private const val BATCH = 64
 /**
  * lark-stream on lark-actor: a run is an actor of [flock]'s, which pulls the run's loop [batch] elements at a time
  * and then tells itself to go on, so runs share the flock's runners and a long one never holds one. A stage that
- * blocks parks its runner, as any step may. The operators that run something beside the loop start it from [on],
- * as on [Forks]. Time is lark's `clock`, read when the run starts. A run cannot outlive [flock]: its close stops it.
+ * blocks parks its runner, as any step may. `mapPar` runs on worker actors and `buffer` on a feeder actor, each a
+ * child of the run's; the other operators that run something beside the loop start it from [on], as on [Forks].
+ * Time is lark's `clock`, read when the run starts. A run cannot outlive [flock]: its close stops it.
  */
 class Actors(
     private val flock: Flock<*>,
@@ -56,8 +57,10 @@ class Actors(
     @StreamSpi
     override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {
         // Read here, on the caller's thread: the actor inherits neither.
-        val pulling = Pulling(run, logger.get(), clock.get(), on)
-        val running = ActorRun(flock, pulling, batch, live)
+        val boundaries = ActorBoundaries(batch)
+        val pulling = Pulling(run, logger.get(), clock.get(), on, boundaries = boundaries)
+        boundaries.pulling = pulling
+        val running = ActorRun(flock, pulling, boundaries, batch, live)
         live.incrementAndGet()
         running.ref = flock.spawn("stream", running.behaviour())
         return running
@@ -70,6 +73,7 @@ private data object More
 private class ActorRun<E, R : Any>(
     private val flock: Flock<*>,
     private val pulling: Pulling<E, R>,
+    private val boundaries: ActorBoundaries,
     private val batch: Int,
     private val live: AtomicInteger,
 ) : Running<E, R> {
@@ -84,7 +88,7 @@ private class ActorRun<E, R : Any>(
 
     fun behaviour(): Behaviour<More, Unit, Nothing> =
         behaviour<More, Unit>(Unit) { ctx, _, _ ->
-            val pulled = pulling.pull(batch)
+            val pulled = boundaries.step(ctx) { pulling.pull(batch) }
             if (pulled == null) {
                 ctx.self.tell(More)
                 stay()
