@@ -69,7 +69,7 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
       pass, and at most `n` bodies are in flight.
 - [x] **`spec-0066-fanin`** ([#149](https://github.com/matthewjones372/lark/pull/149)) — `merge`, `flatMapMerge` and `conflate`. Done
       when: their cases pass under the leak check and the soak.
-- [ ] **`spec-0066-time`** — `tick`, `groupedWithin` and restart on the
+- [x] **`spec-0066-time`** ([#149](https://github.com/matthewjones372/lark/pull/149), decided, not built) — `tick`, `groupedWithin` and restart on the
       flock's timers. Done when: the parity suite refuses nothing on `Actors`.
 - [ ] **`spec-0066-compared`** — an `actors` row in every stream
       benchmark, a baseline JSON, and the three-column table. Done when: the
@@ -133,3 +133,9 @@ Decided while building `spec-0066-fanin` (2026-09-26), for editing:
   a private class is still a class of the package: a `Confluence` of its own
   was loaded in place of Forks' and broke `merge` on Forks. A test now fails
   on any class name two of those modules both have.
+- Time stays on the run's clock, as on Forks: `tick` and the restart delay
+  park the run's step until their instant, and `groupedWithin` forks its feed
+  from `on`. The flock's timers were the plan, but a pull must hand back an
+  element, so a pull waiting on a timer's message would park all the same; an
+  actor's timer would add a hop and take nothing away. `ActorsTest` holds the
+  three to their answers on `Actors`, and the parity suite already did.

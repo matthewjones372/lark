@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream.actors
 
 import arrow.core.right
+import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.stream.Actors
 import io.github.matthewjones372.lark.stream.Exit
@@ -12,15 +13,19 @@ import io.github.matthewjones372.lark.stream.conflateWithSeed
 import io.github.matthewjones372.lark.stream.filter
 import io.github.matthewjones372.lark.stream.flatMapMerge
 import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.groupedWithin
 import io.github.matthewjones372.lark.stream.map
 import io.github.matthewjones372.lark.stream.mapOrFail
 import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.merge
 import io.github.matthewjones372.lark.stream.of
+import io.github.matthewjones372.lark.stream.restartOnDefect
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runCollect
 import io.github.matthewjones372.lark.stream.runFold
 import io.github.matthewjones372.lark.stream.start
+import io.github.matthewjones372.lark.stream.take
+import io.github.matthewjones372.lark.stream.tick
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -31,6 +36,8 @@ import java.util.concurrent.Executor
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 
 /** A stream with no end: a run of it ends only when it is stopped. */
 private fun endless() = Stream.from(Iterable { generateSequence(1) { it + 1 }.iterator() })
@@ -209,6 +216,28 @@ class ActorsTest {
         val batches = exit.getOrNull()!!.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
         batches.flatten() shouldBe (1..200).toList()
         (batches.size < 200) shouldBe true
+    }
+
+    @Test
+    fun `tick, groupedWithin and restartOnDefect run on the run's clock, as on Forks`() {
+        val tries = AtomicInteger()
+        val exits = flock<Nothing, Triple<Any, Any, Any>> {
+            val actors = Actors(this)
+            val ticks = Stream.tick(1.milliseconds, "tick").take(3).runCollect()
+                .run(actors).toCompletableFuture().join()
+            val groups = Stream.from(1..5).groupedWithin(2, 1.hours).runCollect()
+                .run(actors).toCompletableFuture().join()
+            val restarted = Stream.of(1).map { if (tries.incrementAndGet() == 1) error("first try") else it }
+                .restartOnDefect(Schedule.recurs(1)).runCollect()
+                .run(actors).toCompletableFuture().join()
+            Triple(ticks, groups, restarted)
+        }
+
+        exits shouldBe Triple(
+            Exit.Done(listOf("tick", "tick", "tick")),
+            Exit.Done(listOf(listOf(1, 2), listOf(3, 4), listOf(5))),
+            Exit.Done(listOf(1)),
+        ).right()
     }
 
     @Test
