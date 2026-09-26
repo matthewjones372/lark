@@ -12,6 +12,26 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## Across nodes, 2026-09-26
+
+After spec [0068](../specs/0068-an-actor-on-another-node.md): two nodes in one JVM on loopback, lark's over its own
+TCP transport and Pekko's over Artery's TCP transport, each with the codec its messages need (a hand-written one
+for lark, Pekko's built-in serializer for an `Integer`). JDK 21.0.10 on a 4 vCPU Intel Xeon @ 2.80GHz shared cloud
+container, 2 forks each. The raw results are in
+[`baseline/2026-09-26-jdk21-remote.json`](baseline/2026-09-26-jdk21-remote.json).
+
+| Row | Per | lark | Pekko |
+|---|---|---|---|
+| `RemoteAskBenchmark`: an ask to another node and its answer | round trip | **199 ± 31 µs**, 3.5 KB | 547 ± 55 µs, 10.3 KB |
+| `RemoteTellBenchmark`: 2,000 tells to another node, until all are handled | tell | **2.14 ± 0.22 µs**, 626 B | 4.03 ± 0.36 µs, 1,750 B |
+
+- **lark's round trip is 2.8 times faster**, and allocates a third as much. Pekko's ask starts a temporary actor
+  and resolves its path on the other node; lark's reply crosses as an address kept in a table until its answer
+  comes back.
+- **A burst of tells is 1.9 times faster.** Each lark connection is one writer draining a queue into a buffered
+  socket and flushing only when the queue is empty, and the reader dispatches straight into the actor's mailbox.
+- The burst stays under Pekko's outbound queue of 3,072 messages and lark's of 8,192, since both drop past theirs.
+
 ## The cell at rest, tried and dropped, 2026-09-26
 
 Spec [0065](../specs/0065-closing-the-gaps.md)'s last entry: an emptied mailbox moved its tail back onto the cell

@@ -73,7 +73,7 @@ optional module later.
 - [x] **`spec-0068-unreachable`** ([#157](https://github.com/matthewjones372/lark/pull/157)) — dead letters for unreachable nodes, and
       `watch` across nodes. Done when: stopping one flock gives the other
       `Terminated` within `unreachableAfter`.
-- [ ] **`spec-0068-bench`** — remote tell and ping-pong against Pekko's Artery
+- [x] **`spec-0068-bench`** ([#158](https://github.com/matthewjones372/lark/pull/158)) — remote tell and ping-pong against Pekko's Artery
       over TCP on loopback. Done when: the README says where lark stands.
 
 ## Acceptance
@@ -131,3 +131,8 @@ Decided while building `spec-0068-unreachable` (2026-09-26), for editing:
 - A watch across nodes is a frame to the other node, which answers when the
   actor ends, or at once when it is not there; if the node stays unreachable
   for `unreachableAfter` (10 seconds by default), the watch ends there.
+
+Decided while building `spec-0068-bench` (2026-09-26): an ask across nodes is
+199 µs against Pekko's 547 µs, and a tell in a burst 2.14 µs against 4.03 µs,
+on loopback on a shared four-core machine; the rows are in the actor
+benchmarks' README.
