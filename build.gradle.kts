@@ -84,6 +84,8 @@ val moduleDescriptions = mapOf(
     "lark-kafka" to "Kafka as a lark Stream on any backend: a record is committed only after the work on it is done.",
     "lark-kafka-pekko" to "lark-kafka through Pekko's own Kafka connector: prefetch, batched commits, a draining stop.",
     "lark-actor" to "An actor as a value and a step, on virtual threads: no actor system, and tests that never wait.",
+    "lark-actor-journal-jdbc" to
+        "lark-actor's journal on JDBC: events every node reaches, and two writers settled by the primary key.",
     "lark-actor-remote" to "lark-actor across nodes: codecs you own, and one TCP connection per pair of nodes.",
     "lark-actor-remote-avro" to
         "lark-actor-remote's messages in Avro: specific records, resolved across versions, and asks.",
