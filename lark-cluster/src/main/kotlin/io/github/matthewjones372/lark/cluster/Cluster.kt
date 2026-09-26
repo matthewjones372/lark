@@ -19,6 +19,7 @@ import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.clock
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.random.Random
@@ -72,7 +73,7 @@ fun <F> Flock<F>.cluster(
         Random.Default,
         now(),
     )
-    val cluster = Cluster(node.self)
+    val cluster = Cluster(node.self, node, this)
     val steps = Steps(node, membership, cluster, node.takeOverWatches(), now)
     val ref = spawn(
         CLUSTER,
@@ -132,9 +133,14 @@ private class Steps(
 }
 
 /** One node's membership of a cluster: the view it has now, and a way to leave. */
-class Cluster internal constructor(val self: Node) {
+class Cluster internal constructor(
+    val self: Node,
+    internal val remote: RemoteNode,
+    internal val flock: Flock<*>,
+) {
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
+    private val viewers = CopyOnWriteArrayList<(View) -> Unit>()
 
     @Volatile
     var view: View = View.None
@@ -157,6 +163,13 @@ class Cluster internal constructor(val self: Node) {
             view = next
             changed.signalAll()
         }
+        viewers.forEach { it(next) }
+    }
+
+    /** Calls [viewer] with the view now, and with each new one after, on the cluster actor's step. */
+    internal fun onView(viewer: (View) -> Unit) {
+        viewers += viewer
+        viewer(view)
     }
 
     /** Waits up to [within] for a view that [until] holds for; whether one came. */
