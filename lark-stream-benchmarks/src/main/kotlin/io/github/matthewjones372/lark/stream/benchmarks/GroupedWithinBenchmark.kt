@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.stream.benchmarks
 
+import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
@@ -43,4 +44,12 @@ open class GroupedWithinBenchmark {
 
     @Benchmark
     fun lark(pekko: Pekko): Int = batchedPipeline(ints).run(pekko.system).done()
+
+    private val forks = Forks()
+
+    @Benchmark
+    fun forks(): Int = batchedPipeline(ints).run(forks).done()
+
+    @Benchmark
+    fun actors(flocked: Flocked): Int = batchedPipeline(ints).run(flocked.actors).done()
 }

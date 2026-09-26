@@ -11,6 +11,7 @@ val jmhVersion = "1.37"
 dependencies {
     implementation(project(":lark-stream-pekko"))
     implementation(project(":lark-stream-forks"))
+    implementation(project(":lark-stream-actors"))
     implementation("org.openjdk.jmh:jmh-core:$jmhVersion")
 }
 

@@ -68,6 +68,10 @@ open class ChainBenchmark {
     @Benchmark
     fun forks(): Long = chain().run(forks).done()
 
+    /** The same description on `Actors`: the same loop, a batch at a time on an actor. */
+    @Benchmark
+    fun actors(flocked: Flocked): Long = chain().run(flocked.actors).done()
+
     @Benchmark
     fun pekko(pekko: Pekko): Long =
         Source.from(ints)
