@@ -107,9 +107,11 @@ Recommended: gossip, with downing deciding splits.
       the losing side downing itself. Done when: a 3–2 partition leaves the
       three up and the two stopped, with no moment where both sides are up.
       ([#164](https://github.com/matthewjones372/lark/pull/164))
-- [ ] **`spec-0069-platforms`** — `lark-cluster-kubernetes` and
-      `lark-cluster-aws`: discovery and a `Lease`. Done when: each is tested
-      against a fake of its API.
+- [ ] **`spec-0069-kubernetes`** — `lark-cluster-kubernetes`: discovery from
+      the pods API and a `Lease` object. Done when: tested against a fake of
+      its API.
+- [ ] **`spec-0069-aws`** — `lark-cluster-aws`: discovery from Cloud Map and
+      ECS, and a DynamoDB lease. Done when: tested against a fake of its API.
 
 ## Acceptance
 
