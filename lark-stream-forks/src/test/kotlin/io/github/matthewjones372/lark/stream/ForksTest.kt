@@ -11,12 +11,43 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 
 /** A run on lark's own forks: one pull loop, on one virtual thread, and the same exits Pekko answers with. */
 class ForksTest {
+
+    @Test
+    fun `on real time, a window closes with what it held while upstream is blocked, and a full group goes at once`() {
+        val given = LinkedBlockingQueue<Int>(listOf(1, 2))
+        val done = -1
+        val exit = Stream.blocking(
+            open = { given },
+            next = { queue -> queue.take().takeIf { it != done } },
+            wake = { queue -> queue.put(done) },
+            close = { },
+        )
+            .groupedWithin(3, 50.milliseconds)
+            // The first window can only close on time, with upstream blocked; what follows fills a group of three.
+            .map { group -> group.also { if (it == listOf(1, 2)) given.addAll(listOf(3, 4, 5, done)) } }
+            .runCollect()
+            .run(Forks()).toCompletableFuture().get(10, TimeUnit.SECONDS)
+
+        exit shouldBe Exit.Done(listOf(listOf(1, 2), listOf(3, 4, 5)))
+    }
+
+    @Test
+    fun `on real time, groupedWithin hands on every element in order, a group at a time`() {
+        val exit = Stream.from(1..10_000).groupedWithin(100, 1.minutes).runCollect()
+            .run(Forks()).toCompletableFuture().get(10, TimeUnit.SECONDS)
+
+        val groups = exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
+        groups.flatten() shouldBe (1..10_000).toList()
+        groups.all { it.size == 100 } shouldBe true
+    }
 
     private data class Odd(val value: Int)
 
