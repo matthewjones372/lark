@@ -79,6 +79,14 @@ fun <E> Flock<E>.journal(journal: Journal) {
 /** The journal this flock's actors keep their events in; it fails when the flock has been given none. */
 fun <E> Flock<E>.journal(): Journal = guardian().journalOrFail()
 
+/** Keeps this flock's actors' snapshots in [store]; a flock given none takes none (spec 0074). */
+fun <E> Flock<E>.snapshots(store: SnapshotStore) {
+    guardian().snapshots = store
+}
+
+/** The store this flock's actors keep their snapshots in, or null when it has been given none. */
+fun <E> Flock<E>.snapshots(): SnapshotStore? = guardian().snapshots
+
 /** This flock's guardian, standing from the first call. */
 private fun Flock<*>.guardian(): Guardian =
     // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
@@ -251,6 +259,9 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     fun journalOrFail(): Journal = checkNotNull(journal) { "no journal: give the flock one with journal(…)" }
 
     @Volatile
+    var snapshots: SnapshotStore? = null
+
+    @Volatile
     var deadLetters: (DeadLetter) -> Unit = { letter -> logDebug("dead letter: $letter") }
 
     fun stand() {
@@ -293,6 +304,8 @@ private class Cell<M : Any, S, E>(
     override val timers: Timers<M> get() = this
 
     override val journal: Journal get() = guardian.journalOrFail()
+
+    override val snapshots: SnapshotStore? get() = guardian.snapshots
 
     // Messages, and signals wrapped in Signalled so that no message type can be taken for one.
     // The mailbox is the cell itself (see Mailbox). The room left in it, and whether an activation holds the actor,

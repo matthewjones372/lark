@@ -29,6 +29,9 @@ interface Ctx<M : Any> {
     /** Where this actor's flock keeps events; it fails when the flock has been given none. */
     val journal: Journal
 
+    /** Where this actor's flock keeps snapshots, or null when it has been given none and none are taken. */
+    val snapshots: SnapshotStore? get() = null
+
     /**
      * Tells this actor [message] once nothing has arrived for [after], and again only after the next message: once
      * per silence. Any message resets it, a timer's included; a restart turns it off.
