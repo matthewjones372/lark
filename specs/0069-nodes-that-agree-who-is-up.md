@@ -100,8 +100,9 @@ Recommended: gossip, with downing deciding splits.
       transport, and `cluster(…)`. Done when: five nodes in one JVM agree on the
       same view, and a stopped one is seen unreachable by all.
       ([#162](https://github.com/matthewjones372/lark/pull/162))
-- [ ] **`spec-0069-events`** — member events, and `watch` across nodes on
+- [x] **`spec-0069-events`** — member events, and `watch` across nodes on
       membership. Done when: a removed node ends every watch on it.
+      ([#163](https://github.com/matthewjones372/lark/pull/163))
 - [ ] **`spec-0069-downing`** — `keepMajority`, `staticQuorum`, `lease`, and
       the losing side downing itself. Done when: a 3–2 partition leaves the
       three up and the two stopped, with no moment where both sides are up.
@@ -145,3 +146,9 @@ entry is split so the transport comes separately. The lowest seed forms the
 cluster only after `formAfter` with no other seed letting it in; the gossip
 carries the node that formed the cluster, so two clusters never merge; and
 convergence is every live member reporting the same digest of the members.
+
+Decided while building `spec-0069-events`: the events are nested,
+`MemberEvent.Up`, `.Unreachable`, `.Reachable` and `.Removed`; a subscriber is
+an actor, told the view as it is before any change; and a node hands its
+watches to the cluster through `RemoteNode.takeOverWatches()`, after which no
+timer ends them.
