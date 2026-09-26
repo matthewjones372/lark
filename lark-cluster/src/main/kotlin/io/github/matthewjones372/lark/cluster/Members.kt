@@ -24,7 +24,11 @@ data class Member(val node: Node, val uid: Long, val status: Status, val upNumbe
  * The membership as one node sees it: every member not yet removed, oldest first and joiners last, the nodes some
  * member cannot reach, and the oldest reachable member, which moves joiners to `Up`.
  */
-data class View(val members: List<Member>, val unreachable: Set<Node>, val leader: Node?)
+data class View(val members: List<Member>, val unreachable: Set<Node>, val leader: Node?) {
+    internal companion object {
+        val None = View(emptyList(), emptySet(), null)
+    }
+}
 
 /**
  * How a node probes and joins. Each round it probes one member; one that has not answered within [ackWithin] is
