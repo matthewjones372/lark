@@ -1,0 +1,110 @@
+package io.github.matthewjones372.lark.cluster.aws
+
+import io.github.matthewjones372.lark.actor.remote.Node
+import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.cluster.Discovery
+import io.github.matthewjones372.lark.cluster.Lease
+import software.amazon.awssdk.core.exception.SdkException
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
+import software.amazon.awssdk.services.ecs.EcsClient
+import software.amazon.awssdk.services.ecs.model.DesiredStatus
+import software.amazon.awssdk.services.servicediscovery.ServiceDiscoveryClient
+import software.amazon.awssdk.services.servicediscovery.model.HealthStatusFilter
+import java.time.Instant
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/** ECS describes at most this many tasks a call. */
+private const val DESCRIBE_AT_MOST = 100
+
+/** The condition a lease write carries: nobody holds it, this holder does, or its holder let it lapse. */
+internal const val FREE_OR_MINE = "attribute_not_exists(#name) OR #holder = :holder OR #expires < :now"
+
+/** A cluster on AWS: its seeds from Cloud Map or ECS, and its even splits broken by a DynamoDB item. */
+object Aws {
+
+    /**
+     * The instances registered for [service] in the Cloud Map [namespace], healthy ones only when any are, at the
+     * address and port each registered, or at [port] for one that registered none. An API that cannot be asked gives
+     * no seeds, as a DNS name that does not resolve does.
+     */
+    fun cloudMap(client: ServiceDiscoveryClient, namespace: String, service: String, port: Int? = null): Discovery =
+        Discovery {
+            asked {
+                client.discoverInstances {
+                    it.namespaceName(namespace).serviceName(service)
+                        .healthStatus(HealthStatusFilter.HEALTHY_OR_ELSE_ALL)
+                }.instances().mapNotNull { instance ->
+                    val attributes = instance.attributes()
+                    val at = attributes["AWS_INSTANCE_PORT"]?.toIntOrNull() ?: port
+                    attributes["AWS_INSTANCE_IPV4"]?.let { ip -> at?.let { Node("", ip, it) } }
+                }
+            }
+        }
+
+    /** The running tasks of the ECS [service] in [cluster], each at its network interface's address and [port]. */
+    fun ecs(client: EcsClient, cluster: String, service: String, port: Int): Discovery = Discovery {
+        asked {
+            val arns = client.listTasksPaginator {
+                it.cluster(cluster).serviceName(service).desiredStatus(DesiredStatus.RUNNING)
+            }.taskArns().toList()
+            arns.chunked(DESCRIBE_AT_MOST)
+                .flatMap { some -> client.describeTasks { it.cluster(cluster).tasks(some) }.tasks() }
+                .filter { it.lastStatus() == "RUNNING" }
+                .flatMap { task -> task.attachments().filter { it.type() == "ElasticNetworkInterface" } }
+                .mapNotNull { eni -> eni.details().firstOrNull { it.name() == "privateIPv4Address" }?.value() }
+                .map { Node("", it, port) }
+        }
+    }
+
+    /**
+     * The item [name] in the DynamoDB [table], keyed by a string attribute `name`: a holder has it for [holdFor] from
+     * when it last acquired it, and every acquire by the holder renews it. Each write is conditional, so of two
+     * holders racing for a free lease only one gets it.
+     */
+    fun dynamoLease(client: DynamoDbClient, table: String, name: String, holdFor: Duration = 15.seconds): Lease =
+        DynamoLease(client, table, name, holdFor) { clock.get().now() }
+}
+
+private fun asked(seeds: () -> List<Node>): List<Node> = try {
+    seeds().sortedWith(compareBy({ it.host }, { it.port }))
+} catch (_: SdkException) {
+    emptyList()
+}
+
+internal class DynamoLease(
+    private val client: DynamoDbClient,
+    private val table: String,
+    private val name: String,
+    private val holdFor: Duration,
+    private val now: () -> Instant,
+) : Lease {
+
+    override fun acquire(holder: String): Boolean {
+        val at = now().toEpochMilli()
+        return try {
+            client.putItem {
+                it.tableName(table)
+                    .item(
+                        mapOf(
+                            "name" to AttributeValue.fromS(name),
+                            "holder" to AttributeValue.fromS(holder),
+                            "expires" to AttributeValue.fromN((at + holdFor.inWholeMilliseconds).toString()),
+                        ),
+                    )
+                    .conditionExpression(FREE_OR_MINE)
+                    .expressionAttributeNames(mapOf("#name" to "name", "#holder" to "holder", "#expires" to "expires"))
+                    .expressionAttributeValues(
+                        mapOf(":holder" to AttributeValue.fromS(holder), ":now" to AttributeValue.fromN(at.toString())),
+                    )
+            }
+            true
+        } catch (_: ConditionalCheckFailedException) {
+            false
+        } catch (_: SdkException) {
+            false
+        }
+    }
+}

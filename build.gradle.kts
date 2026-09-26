@@ -86,6 +86,8 @@ val moduleDescriptions = mapOf(
     "lark-actor" to "An actor as a value and a step, on virtual threads: no actor system, and tests that never wait.",
     "lark-actor-remote" to "lark-actor across nodes: codecs you own, and one TCP connection per pair of nodes.",
     "lark-cluster" to "lark-actor as a cluster: discovery, gossip membership and downing, with no coordinator.",
+    "lark-cluster-aws" to
+        "lark-cluster on AWS: seeds from Cloud Map or ECS, and a DynamoDB lease to break an even split.",
     "lark-cluster-kubernetes" to
         "lark-cluster on Kubernetes: seeds from the pods API, and a Lease to break an even split.",
     "lark-app-actor" to "lark-app on lark-actor: a flock is a node, and an actor is a node keyed by its protocol.",
