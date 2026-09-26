@@ -111,8 +111,9 @@ Recommended: gossip, with downing deciding splits.
       the pods API and a `Lease` object. Done when: tested against a fake of
       its API.
       ([#165](https://github.com/matthewjones372/lark/pull/165))
-- [ ] **`spec-0069-aws`** — `lark-cluster-aws`: discovery from Cloud Map and
+- [x] **`spec-0069-aws`** — `lark-cluster-aws`: discovery from Cloud Map and
       ECS, and a DynamoDB lease. Done when: tested against a fake of its API.
+      ([#166](https://github.com/matthewjones372/lark/pull/166))
 
 ## Acceptance
 
@@ -168,3 +169,8 @@ Decided while building `spec-0069-kubernetes`: the fabric8 client, on the JDK's
 own HTTP client rather than Vert.x, and its mock API server as the fake. The
 lease is written with the version it read, so a lost race is the API server's
 refusal rather than a second holder.
+
+Decided while building `spec-0069-aws`: the AWS SDK's own clients, on the
+JDK's URL connection client, faked through their interfaces. The lease is one
+item written on the condition that it is free, already the holder's, or
+lapsed.
