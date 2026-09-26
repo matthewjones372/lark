@@ -61,6 +61,7 @@ is where that claim is checked.
 | `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
 | `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
 | `lark-actor-remote` | `lark-actor` across nodes: codecs you own, one TCP connection per peer on JDK sockets and virtual threads, tell and ask across nodes, watch across nodes, and dead letters for what cannot be delivered (spec [0068](specs/0068-an-actor-on-another-node.md)). Against Pekko's Artery over TCP: a remote ask 2.8× faster and a burst of tells 1.9× faster ([numbers](lark-actor-benchmarks/README.md)) | nothing |
+| `lark-cluster` | `lark-actor-remote` as a cluster with no coordinator: seeds from a list, DNS or SRV, and membership agreed by SWIM gossip over the same transport (spec [0069](specs/0069-nodes-that-agree-who-is-up.md)) | nothing |
 | `lark-app-actor` | a `lark-actor` flock as a node for the application's life, and an actor as a node keyed by the `ActorRef<M>` of its protocol (spec [0062](specs/0062-actors-that-find-each-other.md)) | nothing |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
 | `lark-app-typesafe` | a HOCON section as a node, every fault at once, and a setting that picks a module | `com.typesafe:config` |
