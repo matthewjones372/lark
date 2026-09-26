@@ -14,7 +14,7 @@ waits on a step that is blocked forever, because 0059 chose not to interrupt.
 - **Timers, receive timeout, stash** (0061). **Routers, receptionist, dead
   letters** (0062).
 - **Watching across nodes.** `watch` answers `Stopped`; `Unreachable` stays for
-  0067.
+  0068.
 - **Supervision strategies beyond one actor.** No one-for-all, no escalation
   chain past the parent.
 
