@@ -90,3 +90,8 @@ flexible and far more state to keep consistent. Recommended: rendezvous.
   placement changes only when the leader moves a member.
 - **Where does sharding live?** Recommended: in `lark-cluster`, since it needs
   nothing beyond the view and the transport.
+
+Decided (2026-09-26): every open question goes as recommended. Placement is
+rendezvous hashing over the agreed view, with no coordinator; the number of
+shards is fixed per kind, 256 by default and the same on every node; only `Up`
+members host shards; and sharding lives in `lark-cluster`.
