@@ -8,11 +8,15 @@ import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.StreamSpi
 import io.github.matthewjones372.lark.stream.blocking
 import io.github.matthewjones372.lark.stream.buffer
+import io.github.matthewjones372.lark.stream.conflateWithSeed
 import io.github.matthewjones372.lark.stream.filter
+import io.github.matthewjones372.lark.stream.flatMapMerge
 import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.map
 import io.github.matthewjones372.lark.stream.mapOrFail
 import io.github.matthewjones372.lark.stream.mapPar
+import io.github.matthewjones372.lark.stream.merge
+import io.github.matthewjones372.lark.stream.of
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runCollect
 import io.github.matthewjones372.lark.stream.runFold
@@ -147,19 +151,64 @@ class ActorsTest {
     }
 
     @Test
-    fun `mapPar and buffer run on the run's child actors, and start nothing on its executor`() {
+    fun `the operators beside the loop run on the run's child actors, and start nothing on its executor`() {
         val started = AtomicInteger()
         val counting = Executor { task ->
             started.incrementAndGet()
             Thread.ofVirtual().start(task)
         }
         val exit = flock<Nothing, Any> {
-            Stream.from(1..50).mapPar(4) { it + 1 }.buffer(8).runCollect()
-                .run(Actors(this, on = counting)).toCompletableFuture().join()
+            Stream.from(1..50).mapPar(4) { it + 1 }.buffer(8)
+                .merge(Stream.from(1..3).flatMapMerge(2) { Stream.of(it * 1000) })
+                .conflateWithSeed({ listOf(it) }, { batch, n -> batch + n })
+                .runCollect().run(Actors(this, on = counting)).toCompletableFuture().join()
         }
 
-        exit shouldBe Exit.Done((2..51).toList()).right()
+        exit.getOrNull()!!.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value.flatten().sorted() shouldBe
+            ((2..51) + listOf(1000, 2000, 3000)).toList()
         started.get() shouldBe 0
+    }
+
+    @Test
+    fun `merge keeps each stream's order, and flatMapMerge overlaps as many inner streams as its breadth`() {
+        val inFlight = AtomicInteger()
+        val most = AtomicInteger()
+        val together = CyclicBarrier(3)
+        val exits = flock<Nothing, Pair<Any, Any>> {
+            val actors = Actors(this, batch = 3)
+            val merged = Stream.from(1..50).merge(Stream.from(101..150)).runCollect()
+                .run(actors).toCompletableFuture().join()
+            val flat = Stream.from(1..9).flatMapMerge<Nothing, Nothing, Int, Int>(3) { n ->
+                Stream.of(n).map {
+                    most.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
+                    together.await(1, TimeUnit.MINUTES)
+                    inFlight.decrementAndGet()
+                    it
+                }
+            }.runCollect().run(actors).toCompletableFuture().join()
+            merged to flat
+        }
+
+        val merged = exits.getOrNull()!!.first.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        merged.filter { it <= 50 } shouldBe (1..50).toList()
+        merged.filter { it > 100 } shouldBe (101..150).toList()
+        exits.getOrNull()!!.second.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.sorted() shouldBe (1..9).toList()
+        most.get() shouldBe 3
+    }
+
+    @Test
+    fun `conflate folds what upstream sent while the reader was busy, and loses nothing`() {
+        val sent = CountDownLatch(200)
+        val exit = flock<Nothing, Any> {
+            Stream.from(1..200).map { it.also { sent.countDown() } }
+                .conflateWithSeed({ listOf(it) }, { batch, n -> batch + n })
+                .map { batch -> batch.also { sent.await() } }
+                .runCollect().run(Actors(this)).toCompletableFuture().join()
+        }
+
+        val batches = exit.getOrNull()!!.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
+        batches.flatten() shouldBe (1..200).toList()
+        (batches.size < 200) shouldBe true
     }
 
     @Test

@@ -8,13 +8,9 @@ import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Behaviour
 import io.github.matthewjones372.lark.actor.Ctx
 import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.onStart
 import io.github.matthewjones372.lark.actor.stay
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * One run's operators that Forks forks for, as children of the run's actor. [ctx] is the run actor's, set by each
@@ -47,6 +43,9 @@ internal class ActorBoundaries(private val batch: Int) : Boundaries {
         return when (node) {
             is Node.MapPar -> if (node.on === VirtualThreads) node.workers(pulled(node.upstream)) else null
             is Node.Buffer -> node.fed(pulled(node.upstream))
+            is Node.Merge -> node.fed(pulled(node.upstream), pulled(node.other))
+            is Node.FlatMap -> node.breadth?.let { breadth -> node.fed(breadth, pulled(node.upstream), pulled) }
+            is Node.Conflate -> node.fed(pulled(node.upstream))
             else -> null
         }
     }
@@ -86,22 +85,38 @@ internal class ActorBoundaries(private val batch: Int) : Boundaries {
         }
     }
 
-    /** `buffer(n)`: a feeder actor pulls upstream ahead of the reader into a queue, while it has room for `n`. */
+    /** `buffer(n)`: an input actor pulls upstream ahead of the reader, while there is room for `n`. */
     private fun Node.Buffer.fed(up: Pull): Pull {
-        val feeder = Feeder(up, size, batch, pulling)
-        spawn("buffer", feeder.behaviour())
-        var ended = false
-        return Pull {
-            if (ended) {
-                null
-            } else {
-                when (val next = feeder.queue.take()) {
-                    Fed.Done -> null.also { ended = true }
-                    is Fed.Threw -> throw next.thrown.also { ended = true }
-                    else -> next.also { feeder.took() }
-                }
-            }
-        }
+        val confluence = Inflow(room = size, open = 1, outerDone = true)
+        spawn("buffer", Input(up, confluence, batch, pulling).behaviour())
+        return Pull(confluence::next)
+    }
+
+    /** `merge`: each stream an input actor, both into one queue, read in the order their elements arrived. */
+    private fun Node.Merge.fed(up: Pull, others: Pull): Pull {
+        val confluence = Inflow(room = MERGED, open = 2, outerDone = true)
+        spawn("merge", Input(up, confluence, batch, pulling).behaviour())
+        spawn("merge", Input(others, confluence, batch, pulling).behaviour())
+        return Pull(confluence::next)
+    }
+
+    /**
+     * `flatMapMerge(breadth)`: an outer actor pulls the outer stream and starts each inner one as an input actor of
+     * its own, while fewer than `breadth` are running.
+     */
+    private fun Node.FlatMap.fed(breadth: Int, up: Pull, pulled: (Node) -> Pull): Pull {
+        val confluence = Inflow(room = MERGED, open = 0, outerDone = false)
+        val build = guarded("flatMapMerge", at, f)
+        val outer = Outer(up, { a -> pulled(build(a).node.optimised()) }, breadth, confluence, batch, pulling)
+        spawn("flatMapMerge", outer.behaviour())
+        return Pull(confluence::next)
+    }
+
+    /** `conflate`: an actor folds upstream into what is pending while the reader is slow, a batch at a time. */
+    private fun Node.Conflate.fed(up: Pull): Pull {
+        val pile = Heap(guarded("conflateWithSeed", at, seed), guarded("conflateWithSeed", at, aggregate))
+        spawn("conflate", Folding(up, pile, batch, pulling).behaviour())
+        return Pull(pile::take)
     }
 }
 
@@ -119,76 +134,3 @@ private fun worker(body: (Any) -> Either<Any?, Any>): Behaviour<Work, Unit, Noth
         }
         stay()
     }
-
-/** The end of what a feeder pulled, behind every element before it. */
-private sealed interface Fed {
-    data object Done : Fed
-
-    class Threw(val thrown: Throwable) : Fed
-}
-
-/** What a feeder tells itself: that it has room to pull into. */
-private data object Room
-
-/**
- * Pulls [up] into [queue] while there is room for [size] elements, [batch] at a time so that it shares its runner,
- * and stalls when the room runs out until the reader takes one. Of the feeder and the reader, whichever sees the other
- * last wakes it: the feeder stalls before it looks for room again, and the reader makes room before it looks for a
- * stall.
- */
-private class Feeder(private val up: Pull, size: Int, private val batch: Int, private val run: Pulling<*, *>) {
-    val queue = LinkedBlockingQueue<Any>()
-    private val room = AtomicInteger(size)
-    private val stalled = AtomicBoolean(false)
-    private var ended = false
-
-    // Its own ref, taken from its first step: the reader wakes it only after taking an element that step put.
-    @Volatile
-    private lateinit var ref: ActorRef<Room>
-
-    fun behaviour(): Behaviour<Room, Unit, Nothing> =
-        behaviour<Room, Unit>(Unit) { ctx, _, _ ->
-            ref = ctx.self
-            run.within(::feed)
-            stay()
-        }.onStart { ctx -> ctx.self.tell(Room) }
-
-    /** The reader took an element: there is room for one more, and a stalled feeder goes on. */
-    fun took() {
-        room.incrementAndGet()
-        if (stalled.get() && stalled.compareAndSet(true, false)) ref.tell(Room)
-    }
-
-    // Whatever upstream threw ends what the reader sees, after every element before it.
-    @Suppress("TooGenericExceptionCaught")
-    private fun feed() {
-        var pulled = 0
-        while (!ended && room.get() > 0 && pulled < batch) {
-            val a = try {
-                up.next()
-            } catch (thrown: Throwable) {
-                queue.put(Fed.Threw(thrown.nonFatalOrThrow()))
-                ended = true
-                return
-            }
-            if (a == null) {
-                queue.put(Fed.Done)
-                ended = true
-            } else {
-                room.decrementAndGet()
-                queue.put(a)
-                pulled++
-            }
-        }
-        when {
-            ended -> Unit
-
-            room.get() > 0 -> ref.tell(Room)
-
-            else -> {
-                stalled.set(true)
-                if (room.get() > 0 && stalled.compareAndSet(true, false)) ref.tell(Room)
-            }
-        }
-    }
-}

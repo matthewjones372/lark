@@ -67,7 +67,7 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
 - [x] **`spec-0066-boundaries`** ([#148](https://github.com/matthewjones372/lark/pull/148)) — `buffer`, `mapPar` and `mapAsync` as
       child actors on credit. Done when: their parity and differential cases
       pass, and at most `n` bodies are in flight.
-- [ ] **`spec-0066-fanin`** — `merge`, `flatMapMerge` and `conflate`. Done
+- [x] **`spec-0066-fanin`** ([#149](https://github.com/matthewjones372/lark/pull/149)) — `merge`, `flatMapMerge` and `conflate`. Done
       when: their cases pass under the leak check and the soak.
 - [ ] **`spec-0066-time`** — `tick`, `groupedWithin` and restart on the
       flock's timers. Done when: the parity suite refuses nothing on `Actors`.
@@ -123,3 +123,13 @@ Decided while building `spec-0066-boundaries` (2026-09-26), for editing:
   reader takes one. A `mapPar` given an executor of its own keeps it.
 - `mapAsync` stays as it is on Forks: a window of stages the loop awaits,
   which starts no thread, so there is nothing for an actor to take over.
+
+Decided while building `spec-0066-fanin` (2026-09-26), for editing:
+- `merge` is an input actor per stream into one queue with room for 16
+  elements, as on Forks; `flatMapMerge(breadth)` is an outer actor that starts
+  each inner stream as an input actor of its own, and `conflate` an actor that
+  folds a batch a step into what is pending.
+- The module shares its package with lark-stream and lark-stream-forks, where
+  a private class is still a class of the package: a `Confluence` of its own
+  was loaded in place of Forks' and broke `merge` on Forks. A test now fails
+  on any class name two of those modules both have.
