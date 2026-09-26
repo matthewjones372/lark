@@ -64,7 +64,7 @@ the change is judged on JMH's error bars and not on the probe.
       lists; the same for test actors. Done when: after 1,000 passivations of
       one entity the manager has one child, a flock that spawned and stopped
       1,000 actors holds none, and `ctx.stop` of an ended child is a no-op.
-- [ ] **`spec-0065-router-full`** — the threads test for a pool passing over
+- [x] **`spec-0065-router-full`** ([#144](https://github.com/matthewjones372/lark/pull/144)) — the threads test for a pool passing over
       a full routee. Done when: the test fails with the pass-over removed.
 - [ ] **`spec-0065-tell-row`** — the tells-only rows in `FanOutBenchmark`,
       and a README line with where lark stands. Done when: both rows run

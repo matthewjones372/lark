@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
+import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
@@ -8,6 +9,8 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import kotlin.time.Duration.Companion.minutes
 
 private sealed interface Errand
 
@@ -16,6 +19,12 @@ private data class Fetch(val pet: String) : Errand
 private data object Topple : Errand
 
 private data object Resign : Errand
+
+/** Keeps the runner in its step until [open] opens, saying when it began: a routee busy with a full mailbox. */
+private data class Stall(val began: CountDownLatch, val open: CountDownLatch) : Errand
+
+/** Asks which runner took it. */
+private data class Whose(val reply: Reply<String>) : Errand
 
 /** Writes down, under its own path, every pet it fetched. */
 private fun runner(served: ConcurrentHashMap<String, List<String>>) =
@@ -29,6 +38,17 @@ private fun runner(served: ConcurrentHashMap<String, List<String>>) =
             Topple -> error("the runner toppled")
 
             Resign -> stop()
+
+            is Stall -> {
+                message.began.countDown()
+                message.open.await()
+                stay()
+            }
+
+            is Whose -> {
+                message.reply(ctx.self.address.path)
+                stay()
+            }
         }
     }
 
@@ -106,5 +126,31 @@ class RouterTest {
         }
 
         served.values.map { it.size } shouldContainExactly listOf(2, 2, 2, 2)
+    }
+
+    @Test
+    fun `on threads, a pool passes over a routee whose mailbox is full, for the next`() {
+        val began = CountDownLatch(1)
+        val open = CountDownLatch(1)
+        val answers = flock<Nothing, Any> {
+            // Each routee has room for one message: routee-1, busy in its step, fills with one more.
+            val pool = spawn("pool", pool(2) { runner(served) }, capacity = 1)
+            pool.tell(Stall(began, open))
+            began.await()
+            // Round robin: routee-2, then routee-1, whose mailbox this fills, then routee-2, then routee-1 again.
+            val turns = listOf(
+                pool.ask(1.minutes) { Whose(it) },
+                pool.tell(Fetch("fills routee-1")),
+                pool.ask(1.minutes) { Whose(it) },
+            )
+            val passedOver = pool.ask(1.minutes) { Whose(it) }
+            open.countDown()
+            awaitIdle()
+            turns + passedOver
+        }
+
+        val routee2 = "/user/pool/routee-2".right()
+        answers shouldBe listOf(routee2, Unit, routee2, routee2).right()
+        served["/user/pool/routee-1"] shouldBe listOf("fills routee-1")
     }
 }
