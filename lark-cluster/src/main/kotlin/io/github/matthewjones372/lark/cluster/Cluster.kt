@@ -159,11 +159,13 @@ class Cluster internal constructor(
 
     internal fun publish(next: View) {
         if (next == view) return
+        // The viewers first: a region is told the view before anyone waiting on it wakes, so what a waiter tells a
+        // region after its wait is routed by that view or a later one, never an earlier.
+        viewers.forEach { it(next) }
         lock.withLock {
             view = next
             changed.signalAll()
         }
-        viewers.forEach { it(next) }
     }
 
     /** Calls [viewer] with the view now, and with each new one after, on the cluster actor's step. */
