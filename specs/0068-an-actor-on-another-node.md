@@ -65,7 +65,7 @@ optional module later.
 
 - [x] **`spec-0068-codec`** ([#154](https://github.com/matthewjones372/lark/pull/154)) — `MessageCodec`, `Refs`, and refs inside
       messages. Done when: a protocol with a `Reply` round-trips through bytes.
-- [ ] **`spec-0068-wire`** — framing, handshake, one connection per pair,
+- [x] **`spec-0068-wire`** ([#155](https://github.com/matthewjones372/lark/pull/155)) — framing, handshake, one connection per pair,
       reconnect with backoff. Done when: frames cross loopback in order, and a
       dropped connection comes back without losing the pair's order after.
 - [ ] **`spec-0068-remote`** — `node(…)`, `remote<M>(…)`, inbound dispatch,
@@ -100,3 +100,10 @@ Decided (2026-09-26): every open question goes as recommended. The transport
 is its own module, `lark-actor-remote`; a full outbound buffer drops to dead
 letters; a node's address is `name@host:port` in `Address.node`; and `watch`
 across nodes answers `Terminated`.
+
+Decided while building `spec-0068-wire` (2026-09-26), for editing: each
+direction has its own connection, opened by the node that sends, so order per
+sender and receiver needs nothing more than one writer per connection; Pekko's
+Artery does the same. Frames wait, up to the queue's room, while a connection
+opens, rather than being dropped because it is not yet up, and are dropped when
+an attempt fails or a connection ends. Reconnection backs off on lark's clock.
