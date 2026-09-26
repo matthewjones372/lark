@@ -107,9 +107,12 @@ Recommended: gossip, with downing deciding splits.
       the losing side downing itself. Done when: a 3–2 partition leaves the
       three up and the two stopped, with no moment where both sides are up.
       ([#164](https://github.com/matthewjones372/lark/pull/164))
-- [ ] **`spec-0069-platforms`** — `lark-cluster-kubernetes` and
-      `lark-cluster-aws`: discovery and a `Lease`. Done when: each is tested
-      against a fake of its API.
+- [x] **`spec-0069-kubernetes`** — `lark-cluster-kubernetes`: discovery from
+      the pods API and a `Lease` object. Done when: tested against a fake of
+      its API.
+      ([#165](https://github.com/matthewjones372/lark/pull/165))
+- [ ] **`spec-0069-aws`** — `lark-cluster-aws`: discovery from Cloud Map and
+      ECS, and a DynamoDB lease. Done when: tested against a fake of its API.
 
 ## Acceptance
 
@@ -160,3 +163,8 @@ since a partition found one probe at a time otherwise holds still halfway and
 is decided on half of it. A side that goes downs all of itself and says so to
 its members. A lease is asked for under the side's lowest address, so the whole
 side gets one answer. The partition tests run on the simulated network.
+
+Decided while building `spec-0069-kubernetes`: the fabric8 client, on the JDK's
+own HTTP client rather than Vert.x, and its mock API server as the fake. The
+lease is written with the version it read, so a lost race is the API server's
+refusal rather than a second holder.
