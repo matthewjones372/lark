@@ -54,4 +54,8 @@ open class RunManyBenchmark {
     /** Starting a run on `Forks` is one fork and one loop, with no graph to materialise. */
     @Benchmark
     fun describedOnceForks(): Long = described.run(forks).done()
+
+    /** Starting a run on `Actors` is one actor spawned on a flock that is already running. */
+    @Benchmark
+    fun describedOnceActors(flocked: Flocked): Long = described.run(flocked.actors).done()
 }

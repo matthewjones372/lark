@@ -71,7 +71,7 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
       when: their cases pass under the leak check and the soak.
 - [x] **`spec-0066-time`** ([#149](https://github.com/matthewjones372/lark/pull/149), decided, not built) — `tick`, `groupedWithin` and restart on the
       flock's timers. Done when: the parity suite refuses nothing on `Actors`.
-- [ ] **`spec-0066-compared`** — an `actors` row in every stream
+- [x] **`spec-0066-compared`** ([#152](https://github.com/matthewjones372/lark/pull/152)) — an `actors` row in every stream
       benchmark, a baseline JSON, and the three-column table. Done when: the
       README says, row by row, where each backend wins.
 
@@ -139,3 +139,10 @@ Decided while building `spec-0066-fanin` (2026-09-26), for editing:
   element, so a pull waiting on a timer's message would park all the same; an
   actor's timer would add a hop and take nothing away. `ActorsTest` holds the
   three to their answers on `Actors`, and the parity suite already did.
+
+Decided while building `spec-0066-compared` (2026-09-26): the rows are in the
+stream benchmarks' README. Actors win `mapPar` (5.7×), starting a run (2.1×),
+`buffer` and `merge`; Forks keeps the plain chain and a thousand runs at once.
+Both lark backends run `groupedWithin` at about 25 µs an element against
+Pekko's 184 ns, which is Forks' feed and not the backend: spec 0067 takes it
+to 317 ns.

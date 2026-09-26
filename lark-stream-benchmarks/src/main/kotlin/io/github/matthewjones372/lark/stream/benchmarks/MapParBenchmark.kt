@@ -60,6 +60,10 @@ open class MapParBenchmark {
     @Benchmark
     fun forks(): Long = parallelPipeline(ints).run(forks).done()
 
+    /** The same description on `Actors`: eight worker actors, told each element in turn. */
+    @Benchmark
+    fun actors(flocked: Flocked): Long = parallelPipeline(ints).run(flocked.actors).done()
+
     private val virtualThreads = Executors.newVirtualThreadPerTaskExecutor()
 
     @Benchmark
