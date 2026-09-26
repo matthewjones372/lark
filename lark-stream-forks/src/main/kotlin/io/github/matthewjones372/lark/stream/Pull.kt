@@ -11,8 +11,36 @@ import java.util.concurrent.ExecutionException
  * One element at a time, on the thread that asks. `null` is the end, which no element can be, because
  * every element is `Any`. A stage only runs when the one after it asks, so a `take` stops its source.
  */
-internal fun interface Pull {
+@StreamSpi
+fun interface Pull {
     fun next(): Any?
+}
+
+/**
+ * Where a backend built on the pull loop runs the operators Forks forks for, its own way: bound to the thread that
+ * pulls a run's batch, and asked for each node as its pull is built. [pull] answers null for a node it leaves to
+ * Forks, and builds the pull of any node under it with [pulled].
+ */
+@StreamSpi
+fun interface Boundaries {
+    fun pull(node: Node, pulled: (Node) -> Pull): Pull?
+
+    companion object {
+        private val current = ThreadLocal<Boundaries>()
+
+        /** Runs [block] with [boundaries] bound to this thread, and none after it. */
+        fun <A> within(boundaries: Boundaries?, block: () -> A): A {
+            if (boundaries == null) return block()
+            current.set(boundaries)
+            return try {
+                block()
+            } finally {
+                current.remove()
+            }
+        }
+
+        internal fun here(): Boundaries? = current.get()
+    }
 }
 
 /** The operators a pull runs: every one with no backend of its own in it, since spec 0052. */
@@ -39,7 +67,7 @@ internal fun Node.pullsOnClock(): Boolean = pulls()
  * A node with time in it waits on the run's [Timeline]: a test's clock, or the run's own on Forks.
  */
 internal fun Node.pull(): Pull =
-    when (this) {
+    Boundaries.here()?.takeUnless { Turns.taking() }?.pull(this, Node::pull) ?: when (this) {
         is Node.Elements -> elements.iterator().let { items -> Pull { items.takeIf { it.hasNext() }?.next() } }
 
         is Node.Single -> once { element }

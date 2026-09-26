@@ -7,10 +7,12 @@ import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.StreamSpi
 import io.github.matthewjones372.lark.stream.blocking
+import io.github.matthewjones372.lark.stream.buffer
 import io.github.matthewjones372.lark.stream.filter
 import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.map
 import io.github.matthewjones372.lark.stream.mapOrFail
+import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runCollect
 import io.github.matthewjones372.lark.stream.runFold
@@ -20,7 +22,11 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executor
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** A stream with no end: a run of it ends only when it is stopped. */
 private fun endless() = Stream.from(Iterable { generateSequence(1) { it + 1 }.iterator() })
@@ -89,6 +95,71 @@ class ActorsTest {
         }
 
         answer shouldBe (Exit.Done(listOf(1, 2)) to 0).right()
+    }
+
+    @Test
+    fun `mapPar runs its bodies on its workers, never more at once than it allows, and answers in order`() {
+        val inFlight = AtomicInteger()
+        val most = AtomicInteger()
+        // Three bodies meet at the barrier each time, so a mapPar(3) that ran them one at a time would never pass it.
+        val together = CyclicBarrier(3)
+        val exit = flock<Nothing, Any> {
+            Stream.from(1..9).mapPar(3) { n ->
+                most.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
+                together.await(1, TimeUnit.MINUTES)
+                inFlight.decrementAndGet()
+                n * 10
+            }.runCollect().run(Actors(this)).toCompletableFuture().join()
+        }
+
+        exit shouldBe Exit.Done((1..9).map { it * 10 }).right()
+        most.get() shouldBe 3
+    }
+
+    @Test
+    fun `a mapPar body that raises ends the run Failed, and one that throws ends it Died`() {
+        val exits = flock<Nothing, Pair<Any, Any>> {
+            val actors = Actors(this)
+            val numbers: Stream<String, Int> = Stream.from(1..10)
+            val failed = numbers.mapPar(2) { if (it == 4) raise("four") else it }.runCollect()
+                .run(actors).toCompletableFuture().join()
+            val died = Stream.from(1..10).mapPar(2) { check(it < 4) { "too big" } }.runCollect()
+                .run(actors).toCompletableFuture().join()
+            failed to died
+        }
+
+        exits.getOrNull()!!.first shouldBe Exit.Failed("four")
+        exits.getOrNull()!!.second.shouldBeInstanceOf<Exit.Died>()
+    }
+
+    @Test
+    fun `a buffer hands on every element in order, and what upstream threw after what came before it`() {
+        val exits = flock<Nothing, Pair<Any, Any>> {
+            val actors = Actors(this, batch = 2)
+            val all = Stream.from(1..100).buffer(3).runCollect().run(actors).toCompletableFuture().join()
+            val threw = Stream.from(1..10).map { check(it < 6) { "six" } }.buffer(3).runCollect()
+                .run(actors).toCompletableFuture().join()
+            all to threw
+        }
+
+        exits.getOrNull()!!.first shouldBe Exit.Done((1..100).toList())
+        exits.getOrNull()!!.second.shouldBeInstanceOf<Exit.Died>().cause.message shouldBe "six"
+    }
+
+    @Test
+    fun `mapPar and buffer run on the run's child actors, and start nothing on its executor`() {
+        val started = AtomicInteger()
+        val counting = Executor { task ->
+            started.incrementAndGet()
+            Thread.ofVirtual().start(task)
+        }
+        val exit = flock<Nothing, Any> {
+            Stream.from(1..50).mapPar(4) { it + 1 }.buffer(8).runCollect()
+                .run(Actors(this, on = counting)).toCompletableFuture().join()
+        }
+
+        exit shouldBe Exit.Done((2..51).toList()).right()
+        started.get() shouldBe 0
     }
 
     @Test
