@@ -119,3 +119,9 @@ Recommended: gossip, with downing deciding splits.
   can act on; ending the process is the service's decision.
 - **Who moves a joiner to `Up`?** Recommended: the oldest reachable member,
   once every reachable member has seen the joiner.
+
+Decided (2026-09-26): every open question goes as recommended. The cluster is
+its own module, `lark-cluster`, on top of `lark-actor-remote`; `stableAfter`
+is 20 seconds by default; a losing side stops what the cluster started and
+tells the service, which decides whether the process ends; and the oldest
+reachable member moves a joiner to `Up` once every reachable member has seen it.
