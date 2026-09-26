@@ -28,6 +28,10 @@ internal object Placement {
         members.filter { it.status == Status.Up }
             .maxWithOrNull(compareBy({ score(kind, shard, it.node) }, { it.node.toString() }))?.node
 
+    /** The oldest `Up` member, where a singleton runs: the lowest up-number, then the lowest address. */
+    fun oldest(members: Collection<Member>): Node? = members.filter { it.status == Status.Up }
+        .minWithOrNull(compareBy({ it.upNumber }, { it.node.toString() }))?.node
+
     private fun score(kind: String, shard: Int, node: Node): Long = mix(fnv("$kind\u0000$shard\u0000$node"))
 
     private fun fnv(key: String): Long =
