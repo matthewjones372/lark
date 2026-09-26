@@ -60,7 +60,7 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
 
 ## Stack
 
-- [ ] **`spec-0066-island`** — `lark-stream-actors`: a run is one actor
+- [x] **`spec-0066-island`** ([#147](https://github.com/matthewjones372/lark/pull/147)) — `lark-stream-actors`: a run is one actor
       pulling in batches, and every operator Forks runs without a fork.
       Refuses the rest by name. Done when: those parity cases pass, and
       the hardened checks leave no actor running.
@@ -100,3 +100,15 @@ Decided (2026-09-26): every open question goes as recommended. The backend is
 `Actors(flock)`; it reuses Forks' pull operators, which become `@StreamSpi`;
 batch and credit are 64, with a parameter on `Actors`; transport, membership
 and sharding are 0067–0069.
+
+Decided while building `spec-0066-island` (2026-09-26), for editing:
+- Forks' run loop is now `Pulling`, a `@StreamSpi` class that pulls a batch at
+  a time and binds the run's resources and forks to whichever thread pulls it.
+  Forks pulls it once to the end; `Actors` pulls `batch` per step.
+- The island refuses nothing. The operators that run something beside the
+  loop start it from `on`, as on Forks, until the entries below make each an
+  actor. So `Actors` joins `ParityTest`, `DifferentialTest`, `HubTest` and
+  every `HardenedTest` check now, rather than only once it runs everything.
+  The hardened checks also assert that no run is left (`Actors.running`).
+- A run's exit completes in its actor's `Stopping`, so it completes after
+  every child the run spawned has stopped.

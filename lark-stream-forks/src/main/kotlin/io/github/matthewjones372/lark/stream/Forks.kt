@@ -106,8 +106,9 @@ private class PullRun<E, R : Any>(
     /** The thread running the loop, while it runs it: a stop interrupts it there and nowhere else. */
     private var loop: Thread? = null
 
-    /** Every blocking source this run opened: woken by a stop, closed before the exit completes. */
-    private val resources = Resources()
+    /** The run's loop, once the fork has opened it: a stop before then is seen as it opens. */
+    @Volatile
+    private var pulling: Pulling<E, R>? = null
 
     override val exit = CompletableFuture<Exit<E, R>>()
 
@@ -121,7 +122,7 @@ private class PullRun<E, R : Any>(
     override fun stop() {
         stopped.set(true)
         // Woken before the interrupt, so a blocking read the interrupt lands in ends the stream, not the run.
-        resources.wake()
+        pulling?.stop()
         if (interrupting) synchronized(this) { loop?.interrupt() }
         onStop()
     }
@@ -135,21 +136,15 @@ private class PullRun<E, R : Any>(
     @Suppress("TooGenericExceptionCaught")
     fun drain(run: Run<E, R>) {
         synchronized(this) { loop = Thread.currentThread() }
+        var opened: Pulling<E, R>? = null
         val ended = try {
-            // What the run holds is let go of before the exit completes: no body or fork outlives its run.
-            // The fused tree is the same for every run of a description, so it is worked out once, and so
-            // is whether a run of it can start a thread of its own: one that cannot pays nothing for it.
-            val compiled = run.compiled.getOrCompile(ForksKey) { Compiled(run.node.optimised()) }
-            resources.around {
-                if (compiled.forks) {
-                    Releases.around(Releases(on, clock)) { ended(compiled, run.end) }
-                } else {
-                    ended(compiled, run.end)
-                }
-            }
-        } catch (unreleased: Throwable) {
-            log.log(LogLine(LogLevel.Error, unreleased.oneLine(), clock.now(), unreleased))
-            Exit.Died(unreleased)
+            val loop = Pulling(run, log, clock, on, kept).also { opened = it }
+            pulling = loop
+            if (stopped.get()) loop.stop()
+            checkNotNull(loop.pull(Int.MAX_VALUE)) { "a pull of every element ended without an exit" }
+        } catch (unopened: Throwable) {
+            log.log(LogLine(LogLevel.Error, unopened.oneLine(), clock.now(), unopened))
+            Exit.Died(unopened)
         } finally {
             synchronized(this) {
                 loop = null
@@ -157,44 +152,99 @@ private class PullRun<E, R : Any>(
                 Thread.interrupted()
             }
         }
-        // After the interrupt is spent, so a close that talks to a server is not cut short by it. A close
-        // that throws is a defect, and ends a run that would otherwise have been Done.
-        val unclosed = resources.close()
-        exit.complete(
-            if (unclosed != null && ended is Exit.Done) {
-                log.log(LogLine(LogLevel.Error, unclosed.oneLine(), clock.now(), unclosed))
-                Exit.Died(unclosed)
-            } else {
-                ended
-            },
-        )
+        // After the interrupt is spent, so a close that talks to a server is not cut short by it.
+        exit.complete(opened?.finish(ended) ?: ended)
+    }
+}
+
+/**
+ * One run's pull loop, as far as it has got: what [Forks] pulls to the end in one go, and what a backend that
+ * shares its threads between runs pulls a batch at a time. Each batch binds the run's resources and forks to
+ * the thread that pulls it, so the batches may each be on a different thread, as long as it is one at a time.
+ */
+@StreamSpi
+class Pulling<E, R : Any>(
+    run: Run<E, R>,
+    private val log: Logger,
+    private val clock: Clock,
+    on: Executor,
+    private val kept: MutableList<Any>? = null,
+) {
+    // The fused tree is the same for every run of a description, so it is worked out once, and so is whether
+    // a run of it can start a thread of its own: one that cannot pays nothing for it.
+    private val compiled = run.compiled.getOrCompile(ForksKey) { Compiled(run.node.optimised()) }
+
+    /** Every blocking source this run opened: woken by a stop, closed before the exit completes. */
+    private val resources = Resources()
+    private val releases = if (compiled.forks) Releases(on, clock) else null
+    private val sink = sinkFor(run.end)
+    private val stopped = AtomicBoolean(false)
+    private var pull: Pull? = null
+
+    /** The run ends before its next element, and whatever a source is blocked in is woken. */
+    fun stop() {
+        stopped.set(true)
+        resources.wake()
+    }
+
+    /** Pulls up to [max] elements into the end: the exit once the run has ended, and null while it goes on. */
+    fun pull(max: Int): Exit<E, R>? = resources.around { Releases.within(releases) { pulled(max) } }
+
+    /** The exit of a run that stops where it is: `Done` with what the end has so far. */
+    @Suppress("UNCHECKED_CAST")
+    fun done(): Exit<E, R> = Exit.Done(sink.value() as R)
+
+    /**
+     * Lets go of everything the run holds, and answers the exit it ends with: [ended], unless letting go threw.
+     * What is still in flight is let go of first, and then the sources are closed; a close that throws is a
+     * defect, and ends a run that would otherwise have been `Done`.
+     */
+    // The catch is as wide as a release: whatever one threw, the run still ends.
+    @Suppress("TooGenericExceptionCaught")
+    fun finish(ended: Exit<E, R>): Exit<E, R> {
+        val released = try {
+            releases?.releaseAll()
+            ended
+        } catch (unreleased: Throwable) {
+            log.log(LogLine(LogLevel.Error, unreleased.oneLine(), clock.now(), unreleased))
+            Exit.Died(unreleased)
+        }
+        val unclosed = resources.close() ?: return released
+        if (released !is Exit.Done) return released
+        log.log(LogLine(LogLevel.Error, unclosed.oneLine(), clock.now(), unclosed))
+        return Exit.Died(unclosed)
     }
 
     // The catch is as wide as a pipeline, because everything a stage threw ends the run: a declared
     // failure as `Failed`, an interruption a stop caused as `Done`, and anything else as the `Died` it
     // is logged as.
     @Suppress("TooGenericExceptionCaught", "UNCHECKED_CAST")
-    private fun ended(compiled: Compiled, end: End): Exit<E, R> {
-        val sink = sinkFor(end)
-        return try {
-            val pull = compiled.tree.pull()
-            while (!stopped.get()) {
-                val a = pull.next() ?: break
-                kept?.add(a)
-                sink.add(a)
+    private fun pulled(max: Int): Exit<E, R>? =
+        try {
+            val from = pull ?: compiled.tree.pull().also { pull = it }
+            var left = max
+            var ended: Exit<E, R>? = null
+            while (ended == null && left > 0) {
+                val a = if (stopped.get()) null else from.next()
+                if (a == null) {
+                    ended = done()
+                } else {
+                    kept?.add(a)
+                    sink.add(a)
+                    left--
+                }
             }
-            Exit.Done(sink.value() as R)
+            ended
         } catch (failure: DeclaredFailure) {
             Exit.Failed(failure.declared())
         } catch (defect: Throwable) {
             if (stopped.get() && defect.isInterruption()) {
-                Exit.Done(sink.value() as R)
+                done()
             } else {
                 log.log(LogLine(LogLevel.Error, defect.oneLine(), clock.now(), defect))
                 Exit.Died(defect)
             }
         }
-    }
 }
 
 /** What the end of a run has so far, kept as it goes so that a stop keeps it too. */

@@ -30,7 +30,7 @@ class DifferentialTest {
     }
 
     private val pekko = PekkoStreams(system)
-    private val others: List<StreamBackend> = listOf(Forks(), TestStreams())
+    private val others: List<StreamBackend> = listOf(Forks(), TestStreams(), Actors(heldFlock))
 
     private fun <R : Any> Run<*, R>.on(backend: StreamBackend): Exit<*, R> =
         run(backend).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
