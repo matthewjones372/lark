@@ -123,4 +123,47 @@ class TlsTest {
         toldAnonymous.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
         toldAnonymous.dropped.toList() shouldContainExactly listOf(1, 2)
     }
+
+    @Test
+    fun `a node with a good certificate that claims another name is refused when it connects`() {
+        val n3 = nodeNamed("n3")
+        val claimsN2 = nodeNamed("n2")
+        val toldN3 = Told()
+        val toldImpostor = Told(dropping = 2)
+        Transport(n3, toldN3, tls = tlsFor("n3")).closedAfter().listen()
+        val impostor =
+            Transport(claimsN2, toldImpostor, retryFrom = 1.milliseconds, tls = tlsFor("n1")).closedAfter()
+
+        (1..2).forEach { impostor.send(n3, frameOf(it)) }
+
+        toldImpostor.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+        toldN3.received.isEmpty() shouldBe true
+    }
+
+    @Test
+    fun `a node with a good certificate that claims another name is refused when it is connected to`() {
+        val n3 = nodeNamed("n3")
+        val claimsN2 = nodeNamed("n2")
+        val toldN3 = Told(dropping = 2)
+        val toldImpostor = Told()
+        val honest = Transport(n3, toldN3, retryFrom = 1.milliseconds, tls = tlsFor("n3")).closedAfter()
+        Transport(claimsN2, toldImpostor, tls = tlsFor("n1")).closedAfter().listen()
+
+        (1..2).forEach { honest.send(claimsN2, frameOf(it)) }
+
+        toldN3.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+        toldImpostor.received.isEmpty() shouldBe true
+    }
+
+    @Test
+    fun `a seed known only by its address is whichever node its certificate names`() {
+        val n2 = nodeNamed("n2")
+        val toldN2 = Told()
+        Transport(n2, toldN2, tls = tlsFor("n2")).closedAfter().listen()
+        val first = Transport(nodeNamed("n1"), Told(), tls = tlsFor("n1")).closedAfter()
+
+        first.send(Node("", n2.host, n2.port), frameOf(7))
+
+        toldN2.take(1) shouldContainExactly listOf("n1" to 7)
+    }
 }

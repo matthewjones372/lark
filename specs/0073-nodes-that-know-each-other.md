@@ -66,9 +66,10 @@ join. Recommended: mutual TLS.
       exchange frames both ways; a peer signed by another CA, or with none,
       is refused, and what was sent to it is dropped and reported.
       ([#180](https://github.com/matthewjones372/lark/pull/180))
-- [ ] **`spec-0073-names`** — the certificate's name checked against the
+- [x] **`spec-0073-names`** — the certificate's name checked against the
       hello's. Done when: a node with a good certificate for one name that
       claims another is refused, whichever side claims it.
+      ([#181](https://github.com/matthewjones372/lark/pull/181))
 - [ ] **`spec-0073-node`** — `node(…, tls = …)`, through `RemoteNode` to the
       cluster. Done when: three nodes form a cluster, shard an entity and
       ask it over TLS, and a fourth with a certificate from another CA never
@@ -104,3 +105,9 @@ dropping stay as 0068 has them. A failed handshake is a failed connection. The
 test certificates are EC P-256, made by `keytool` with `make.sh`, and a peer
 that speaks TLS but has no certificate of its own is refused as well as one
 another CA signed.
+
+Decided while building `spec-0073-names`: the listening side checks the name
+in the hello before it answers, and the connecting side checks the name in the
+answer, so a seed known only by its address is whichever node its certificate
+names. The name must be a DNS subject alternative name; the subject's CN is not
+read.

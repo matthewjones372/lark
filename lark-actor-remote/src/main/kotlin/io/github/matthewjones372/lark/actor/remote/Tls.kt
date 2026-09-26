@@ -1,8 +1,10 @@
 package io.github.matthewjones372.lark.actor.remote
 
+import java.io.IOException
 import java.net.ServerSocket
 import java.net.Socket
 import java.security.KeyStore
+import java.security.cert.X509Certificate
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLServerSocket
@@ -10,6 +12,9 @@ import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManagerFactory
 
 private const val TLS_1_3 = "TLSv1.3"
+
+/** The type of a subject alternative name that is a DNS name, as X.509 numbers them. */
+private const val DNS_NAME = 2
 
 /**
  * How a node's connections are secured (spec 0073): TLS 1.3 both ways, each side presenting the certificate in
@@ -32,6 +37,18 @@ class Tls(val context: SSLContext) {
             useClientMode = true
             startHandshake()
         }
+
+    /**
+     * Throws unless [socket]'s peer certificate names [claimed] as a DNS subject alternative name: a node's identity
+     * is its certificate, and the name it gives in its hello must be that one.
+     */
+    internal fun check(socket: Socket, claimed: Node) {
+        val certificate = (socket as SSLSocket).session.peerCertificates.first() as X509Certificate
+        val named = certificate.subjectAlternativeNames.orEmpty()
+            .filter { it[0] == DNS_NAME }
+            .map { it[1] as String }
+        if (claimed.name !in named) throw IOException("$claimed gave a certificate for $named")
+    }
 
     companion object {
         /**
