@@ -36,8 +36,10 @@ private class EntityBook<M : Any, S, E>(
             held += message
             return
         }
-        (running[id] ?: start(ctx, id)).tell(message)
+        // The idle timer is armed before the entity has the message, so an entity that is busy with it can already
+        // be passivated: a clock moved on once the entity has begun sees a timer to fire.
         ctx.timers.after(IdleKey(id), passivateAfter, Passivate(id))
+        (running[id] ?: start(ctx, id)).tell(message)
     }
 
     fun passivate(ctx: Ctx<Entities<M>>, id: String) {
