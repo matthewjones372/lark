@@ -3,6 +3,10 @@
 
 dependencies {
     api(project(":lark-actor-remote"))
+
+    // A sharded persistent entity keeps its state across a move only on a journal every node reaches (spec 0072).
+    testImplementation(project(":lark-actor-journal-jdbc"))
+    testImplementation("com.h2database:h2:2.3.232")
 }
 
 tasks.test {
