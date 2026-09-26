@@ -130,6 +130,7 @@ class Transport(
                 val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
                 val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
                 val peer = input.hello()
+                tls?.check(socket, peer)
                 output.hello(self, uid)
                 while (!closed.get()) listener.received(peer, input.frame())
             } catch (_: IOException) {
@@ -193,6 +194,7 @@ class Transport(
                 val answered = input.hello()
                 val stranger = peer.name.isNotEmpty() && answered.name != peer.name
                 if (stranger) throw IOException("$peer answered as $answered")
+                tls?.check(socket, answered)
                 listener.connected(peer)
                 // The peer never writes after its hello: a read that returns is the connection ending.
                 val writer = Thread.currentThread()
