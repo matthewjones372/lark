@@ -85,6 +85,8 @@ val moduleDescriptions = mapOf(
     "lark-kafka-pekko" to "lark-kafka through Pekko's own Kafka connector: prefetch, batched commits, a draining stop.",
     "lark-actor" to "An actor as a value and a step, on virtual threads: no actor system, and tests that never wait.",
     "lark-actor-remote" to "lark-actor across nodes: codecs you own, and one TCP connection per pair of nodes.",
+    "lark-actor-remote-protobuf" to
+        "lark-actor-remote's messages in Protobuf: generated messages, protocols of them, and asks.",
     "lark-cluster" to "lark-actor as a cluster: discovery, gossip membership and downing, with no coordinator.",
     "lark-cluster-aws" to
         "lark-cluster on AWS: seeds from Cloud Map or ECS, and a DynamoDB lease to break an even split.",
