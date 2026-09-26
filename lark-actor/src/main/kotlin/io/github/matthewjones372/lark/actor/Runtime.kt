@@ -45,7 +45,7 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
     require(throughput > 0) { "throughput must be positive, was $throughput" }
     val guardian = guardian()
     val address = Address("local", "/user/$name", incarnations.incrementAndGet())
-    return Cell(behaviour, address, capacity, throughput, stash, guardian, restart)
+    return Cell(behaviour, address, capacity, throughput, stash, guardian, restart, parent = null)
         .also { guardian.cells += it }
         .also { it.begin() }
 }
@@ -121,6 +121,12 @@ fun <F> Flock<F>.stop(ref: ActorRef<*>): Deferred<Signal.Terminated> {
     cell.stop()
     return watch(ref)
 }
+
+/** How many of this flock's actors have not yet ended. */
+internal val Flock<*>.actorCount: Int get() = guardians[this]?.cells?.size ?: 0
+
+/** How many of this actor's children have not yet ended. */
+internal val ActorRef<*>.childCount: Int get() = (this as Cell<*, *, *>).childCount
 
 /**
  * Waits for the latch however often the thread is interrupted, and interrupts it again afterwards. An actor's end
@@ -222,7 +228,8 @@ private class Backlog(private val runners: Runners?) {
 
 /** One flock's actors, the executor they run on and the clock they wait on. */
 private class Guardian(private val flock: Flock<*>, val on: Executor, val clock: Clock) {
-    val cells = ConcurrentLinkedQueue<Cell<*, *, *>>()
+    // The actors that have not yet ended: each leaves as it ends, so a flock that outlives many holds none of them.
+    val cells: MutableSet<Cell<*, *, *>> = ConcurrentHashMap.newKeySet()
     val runners = Runners(PARALLELISM, RUNNERS)
     val backlog = Backlog(runners.takeIf { on === VirtualThreads })
     val wheel = Wheel(clock) { backlog.awaitEmpty() }
@@ -269,6 +276,7 @@ private class Cell<M : Any, S, E>(
     private val stashCapacity: Int,
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
+    private val parent: Cell<*, *, *>?,
 ) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation {
     override val self: ActorRef<M> get() = this
 
@@ -314,8 +322,11 @@ private class Cell<M : Any, S, E>(
     private var running: Thread? = null
     private val backlog = guardian.backlog
 
-    // Spawned by this actor's steps, so stopped before it; only its own activation reads or writes the list.
-    private val children = ConcurrentLinkedQueue<Cell<*, *, *>>()
+    // Spawned by this actor's steps, so stopped before it. Only its own activation adds to it, and each child takes
+    // itself out as it ends.
+    private val children: MutableSet<Cell<*, *, *>> = ConcurrentHashMap.newKeySet()
+
+    val childCount: Int get() = children.size
 
     // The timer running under each key. Only this actor's activation, or its end, reads or writes it. Made with
     // the first timer, so an actor that never starts one does not carry an empty map.
@@ -484,6 +495,7 @@ private class Cell<M : Any, S, E>(
             stashCapacity,
             guardian,
             restart,
+            parent = this,
         )
         guardian.cells += child
         children += child
@@ -493,7 +505,7 @@ private class Cell<M : Any, S, E>(
 
     /** Stops every child and waits for each to end, so none outlives or overlaps this actor's own ending. */
     private fun stopChildren() {
-        generateSequence { children.poll() }.forEach { child ->
+        children.forEach { child ->
             child.stop()
             child.ended.awaitThroughInterrupts()
         }
@@ -576,8 +588,10 @@ private class Cell<M : Any, S, E>(
     }
 
     override fun stop(child: ActorRef<*>) {
-        require(child in children) { "$child is not a child of ${address.path}, so it cannot stop it" }
-        (child as Cell<*, *, *>).stop()
+        // A child that has already ended is no longer among the children, and stopping it again does nothing.
+        val cell = child as? Cell<*, *, *>
+        require(cell?.parent === this) { "$child is not a child of ${address.path}, so it cannot stop it" }
+        cell.stop()
     }
 
     /** Whichever of this and [finish] takes [watcher] out of the set delivers its one `Terminated`. */
@@ -792,6 +806,8 @@ private class Cell<M : Any, S, E>(
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
         releaseRoom(Int.MAX_VALUE / 2)
         finishAsks()
+        parent?.children?.remove(this)
+        guardian.cells.remove(this)
         terminated = true
         watchers.forEach { if (watchers.remove(it)) it.signal(Signal.Terminated(this)) }
         ended.countDown()
