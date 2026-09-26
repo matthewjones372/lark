@@ -92,7 +92,11 @@ Recommended: gossip, with downing deciding splits.
       answers from a test server become seed nodes.
       ([#160](https://github.com/matthewjones372/lark/pull/160))
 - [ ] **`spec-0069-gossip`** — SWIM probing, indirect probes, gossip of member
-      state, join through a seed. Done when: five nodes in one JVM agree on the
+      state, join through a seed, as a protocol with no thread or clock of its
+      own. Done when: five nodes on a simulated network agree on the same view,
+      and a stopped one is seen unreachable by all.
+- [ ] **`spec-0069-gossip-wire`** — the protocol as an actor on 0068's
+      transport, and `cluster(…)`. Done when: five nodes in one JVM agree on the
       same view, and a stopped one is seen unreachable by all.
 - [ ] **`spec-0069-events`** — member events, and `watch` across nodes on
       membership. Done when: a removed node ends every watch on it.

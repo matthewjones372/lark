@@ -1,0 +1,75 @@
+package io.github.matthewjones372.lark.cluster
+
+import io.github.matthewjones372.lark.actor.remote.Node
+import java.util.zip.CRC32
+
+/** One life of a node: a node that restarts is a new incarnation at the same address. */
+internal data class Incarnation(val node: Node, val uid: Long)
+
+internal data class Entry(val status: Status, val upNumber: Int)
+
+/** Whether [by] can reach [of]: only [by] writes it, each time with a higher version. */
+internal data class Observation(val by: Incarnation, val of: Incarnation)
+
+internal data class Seen(val reachable: Boolean, val version: Long)
+
+/** What a member last said the membership was, as a hash, so that a view is agreed once every member says the same. */
+internal data class Digest(val version: Long, val hash: Long)
+
+/**
+ * What nodes tell each other. Every part merges by a rule that ignores order and repeats: a member's status moves
+ * only forward, and an observation or a digest is its writer's latest. [origin] is the node that formed the cluster,
+ * so two clusters never merge.
+ */
+internal data class Gossip(
+    val origin: Incarnation?,
+    val members: Map<Incarnation, Entry>,
+    val observed: Map<Observation, Seen>,
+    val digests: Map<Incarnation, Digest>,
+) {
+    fun merge(other: Gossip): Gossip = copy(
+        members = union(members, other.members) { a, b ->
+            Entry(maxOf(a.status, b.status), maxOf(a.upNumber, b.upNumber))
+        },
+        observed = union(observed, other.observed) { a, b -> if (b.version > a.version) b else a },
+        digests = union(digests, other.digests) { a, b -> if (b.version > a.version) b else a },
+    )
+
+    /** The live members that a live member other than themselves last observed as unreachable. */
+    fun unreachable(): Set<Incarnation> {
+        val live = live()
+        return observed.filter { (seen, record) -> !record.reachable && seen.by in live && seen.of in live }
+            .keys.mapTo(mutableSetOf()) { it.of }
+    }
+
+    fun live(): Set<Incarnation> = members.filterValues { it.status.isLive }.keys
+
+    /** A hash of [members] that is the same on every JVM, as an enum's own hash is not. */
+    fun hash(): Long = CRC32().apply {
+        members.entries.map { (m, e) -> "${m.node}#${m.uid}=${e.status.name}/${e.upNumber};" }.sorted()
+            .forEach { update(it.toByteArray(Charsets.UTF_8)) }
+    }.value
+
+    companion object {
+        val None = Gossip(null, emptyMap(), emptyMap(), emptyMap())
+    }
+}
+
+private fun <K, V : Any> union(a: Map<K, V>, b: Map<K, V>, pick: (V, V) -> V): Map<K, V> =
+    a.toMutableMap().apply { b.forEach { (key, value) -> merge(key, value, pick) } }
+
+/** What one node says to another. A `to` names one life, so a node that has restarted ignores what was for the last. */
+internal sealed interface Swim {
+    data class Join(val from: Incarnation) : Swim
+
+    data class Welcome(val to: Incarnation, val gossip: Gossip) : Swim
+
+    data class Ping(val from: Incarnation, val to: Incarnation, val seq: Long, val gossip: Gossip) : Swim
+
+    /** [from] answered probe [seq]; a helper passes it on to the node that asked, with the same [from]. */
+    data class Ack(val from: Incarnation, val seq: Long, val gossip: Gossip) : Swim
+
+    data class PingReq(val from: Incarnation, val target: Incarnation, val seq: Long, val gossip: Gossip) : Swim
+}
+
+internal data class Send(val to: Node, val message: Swim)
