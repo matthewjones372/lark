@@ -69,7 +69,8 @@ private const val MAX_FRAME = 16 shl 20
  * and virtual threads. Each direction has its own connection, so order holds per sender and receiver. What is sent
  * to a peer waits, up to [room] frames, while its connection opens; past that, and whenever an attempt to connect
  * fails or a connection drops, frames are dropped and reported. A dropped connection is retried with a backoff from
- * [retryFrom] doubling to [retryUpTo], on the clock the transport was made on.
+ * [retryFrom] doubling to [retryUpTo], on the clock the transport was made on. With [tls], every connection both
+ * ways is TLS, and a peer that cannot complete its handshake is one that failed to connect.
  */
 class Transport(
     val self: Node,
@@ -77,6 +78,7 @@ class Transport(
     private val room: Int = 8192,
     private val retryFrom: Duration = 100.milliseconds,
     private val retryUpTo: Duration = 5.seconds,
+    private val tls: Tls? = null,
 ) : AutoCloseable {
 
     /** This node in this life: a peer that sees another one under the same name knows it restarted. */
@@ -86,7 +88,7 @@ class Transport(
     private val closed = AtomicBoolean(false)
     private val outbound = ConcurrentHashMap<Node, Outbound>()
     private val inbound = ConcurrentHashMap.newKeySet<Socket>()
-    private val server = ServerSocket()
+    private val server = tls?.listening() ?: ServerSocket()
     private var accepting: Thread? = null
 
     /** Starts accepting peers on [self]'s host and port, 0 for any free one; the port it bound. */
@@ -180,10 +182,11 @@ class Transport(
 
         /** Whether the handshake got through before the connection ended. */
         private fun connectAndWrite(): Boolean {
-            val socket = Socket().also { socket = it }
-            socket.use {
-                socket.tcpNoDelay = true
-                socket.connect(InetSocketAddress(peer.host, peer.port))
+            val plain = Socket().also { socket = it }
+            plain.use {
+                plain.tcpNoDelay = true
+                plain.connect(InetSocketAddress(peer.host, peer.port))
+                val socket = tls?.over(plain, peer) ?: plain
                 val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
                 val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
                 output.hello(self, uid)
