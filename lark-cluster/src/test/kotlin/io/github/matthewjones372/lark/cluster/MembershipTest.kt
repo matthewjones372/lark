@@ -1,79 +1,11 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.actor.remote.Node
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
-import kotlin.random.Random
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-
-private val settings = Gossiping(probeEvery = 1.seconds, ackWithin = 300.milliseconds, formAfter = 5.seconds)
-
-private fun at(n: Int) = Node("n$n", "10.0.0.$n", 25520)
-
-/** Seeds as DNS gives them: host and port, no name. */
-private fun seeds(vararg n: Int) = n.map { Node("", at(it).host, at(it).port) }
-
-/**
- * Nodes on a network that is a test step: every message sent in a step arrives within it, unless its link is cut or
- * a side has stopped. Time moves only when the test says.
- */
-private class Net(private val seed: Int = 1) {
-    val nodes = mutableMapOf<Node, Membership>()
-    private val cut = mutableSetOf<Set<Node>>()
-    private val stopped = mutableSetOf<Node>()
-    var now: Duration = Duration.ZERO
-        private set
-
-    fun start(n: Int, seeds: List<Node>, uid: Long = n.toLong()): Membership =
-        Membership(Incarnation(at(n), uid), { seeds }, settings, Random(seed * 31 + n + uid.toInt()), now)
-            .also { nodes[at(n)] = it }
-
-    fun stop(n: Int) {
-        stopped += at(n)
-    }
-
-    fun cut(a: Int, b: Int) {
-        cut += setOf(at(a), at(b))
-    }
-
-    fun heal(a: Int, b: Int) {
-        cut -= setOf(at(a), at(b))
-    }
-
-    fun isolate(n: Int, from: List<Int>) = from.forEach { cut(n, it) }
-
-    fun rejoin(n: Int, from: List<Int>) = from.forEach { heal(n, it) }
-
-    /** Runs up to [steps] steps of [every], stopping at the first after which [done] holds; whether it did. */
-    fun until(steps: Int = 200, every: Duration = 100.milliseconds, done: () -> Boolean): Boolean {
-        repeat(steps) {
-            now += every
-            val flying = ArrayDeque<Pair<Node, Send>>()
-            live().forEach { (node, m) -> m.tick(now).forEach { flying += node to it } }
-            while (flying.isNotEmpty()) {
-                val (from, send) = flying.removeFirst()
-                val to = live().keys.firstOrNull { node -> reaches(send.to, node) && setOf(from, node) !in cut }
-                to?.let { there -> nodes.getValue(there).receive(send.message, now).forEach { flying += there to it } }
-            }
-            if (done()) return true
-        }
-        return false
-    }
-
-    private fun live() = nodes.filterKeys { it !in stopped }
-
-    private fun reaches(address: Node, node: Node) =
-        address.host == node.host && address.port == node.port && (address.name.isEmpty() || address.name == node.name)
-
-    fun view(n: Int): View = nodes.getValue(at(n)).view()
-}
-
-private fun View.up() = members.filter { it.status == Status.Up }.map { it.node }
 
 class MembershipTest {
 
@@ -144,7 +76,7 @@ class MembershipTest {
 
     @Test
     fun `a node that restarts joins as a new member, and its earlier life is downed and removed`() {
-        val net = Net().apply { fiveUp() }
+        val net = Net(downing = Downing.keepMajority(2.seconds)).apply { fiveUp() }
 
         net.start(5, seeds(1), uid = 55)
 

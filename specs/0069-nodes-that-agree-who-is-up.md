@@ -103,9 +103,10 @@ Recommended: gossip, with downing deciding splits.
 - [x] **`spec-0069-events`** — member events, and `watch` across nodes on
       membership. Done when: a removed node ends every watch on it.
       ([#163](https://github.com/matthewjones372/lark/pull/163))
-- [ ] **`spec-0069-downing`** — `keepMajority`, `staticQuorum`, `lease`, and
+- [x] **`spec-0069-downing`** — `keepMajority`, `staticQuorum`, `lease`, and
       the losing side downing itself. Done when: a 3–2 partition leaves the
       three up and the two stopped, with no moment where both sides are up.
+      ([#164](https://github.com/matthewjones372/lark/pull/164))
 - [ ] **`spec-0069-platforms`** — `lark-cluster-kubernetes` and
       `lark-cluster-aws`: discovery and a `Lease`. Done when: each is tested
       against a fake of its API.
@@ -152,3 +153,10 @@ Decided while building `spec-0069-events`: the events are nested,
 an actor, told the view as it is before any change; and a node hands its
 watches to the cluster through `RemoteNode.takeOverWatches()`, after which no
 timer ends them.
+
+Decided while building `spec-0069-downing`: a node decides only once it has
+heard, since the view last changed, from every member it counts on its side,
+since a partition found one probe at a time otherwise holds still halfway and
+is decided on half of it. A side that goes downs all of itself and says so to
+its members. A lease is asked for under the side's lowest address, so the whole
+side gets one answer. The partition tests run on the simulated network.

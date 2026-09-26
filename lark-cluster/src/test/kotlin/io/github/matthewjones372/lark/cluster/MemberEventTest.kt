@@ -44,6 +44,15 @@ class MemberEventTest {
     }
 
     @Test
+    fun `a member downed is said to be, once`() {
+        val downed = view(member(1), member(2, Status.Down))
+
+        changes(view(member(1), member(2)), downed) shouldContainExactly
+            listOf(MemberEvent.Downed(member(2, Status.Down)))
+        changes(downed, downed).shouldBeEmpty()
+    }
+
+    @Test
     fun `a view that has not changed says nothing`() {
         changes(view(member(1), member(2)), view(member(1), member(2))).shouldBeEmpty()
     }

@@ -59,7 +59,7 @@ private class Running(
     }
 }
 
-private fun View.up() = members.filter { it.status == Status.Up }.map { it.node.name }.toSet()
+private fun View.upNames() = members.filter { it.status == Status.Up }.map { it.node.name }.toSet()
 
 class ClusterTest {
 
@@ -72,7 +72,7 @@ class ClusterTest {
         try {
             val views = nodes.map { node ->
                 withClue("${node.cluster.self} sees all five Up") {
-                    node.cluster.await(1.minutes) { it.up() == names.toSet() } shouldBe true
+                    node.cluster.await(1.minutes) { it.upNames() == names.toSet() } shouldBe true
                 }
                 node.cluster.view.members
             }

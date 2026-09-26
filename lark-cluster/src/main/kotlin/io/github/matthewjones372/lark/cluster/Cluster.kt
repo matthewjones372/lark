@@ -3,6 +3,8 @@ package io.github.matthewjones372.lark.cluster
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
+import io.github.matthewjones372.lark.actor.Ctx
+import io.github.matthewjones372.lark.actor.Next
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.become
 import io.github.matthewjones372.lark.actor.behaviour
@@ -15,6 +17,7 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.clock
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -50,43 +53,31 @@ private typealias Subscribers = Set<ActorRef<MemberEvent>>
 /**
  * [node] as a member of a cluster whose seeds [discovery] finds, until the flock closes. The membership runs in an
  * actor of its own, which the nodes of the cluster reach at the same path on each, and from now on it decides when
- * a watch on another node's actor ends.
+ * a watch on another node's actor ends. A partition is resolved by [downing]; a node downed stops that actor, and its
+ * subscribers hear it downed and every other member removed: whether the process ends is theirs to decide.
  */
-fun <F> Flock<F>.cluster(node: RemoteNode, discovery: Discovery, gossiping: Gossiping = Gossiping()): Cluster {
+fun <F> Flock<F>.cluster(
+    node: RemoteNode,
+    discovery: Discovery,
+    gossiping: Gossiping = Gossiping(),
+    downing: Downing = Downing.keepMajority(),
+): Cluster {
     val time = clock.get()
-    fun now() = time.now().let { it.epochSecond.seconds + it.nano.nanoseconds }
-    val self = Incarnation(node.self, Random.nextLong())
-    val membership = Membership(self, discovery::seeds, gossiping, Random.Default, now())
+    val now = { time.now().let { it.epochSecond.seconds + it.nano.nanoseconds } }
+    val membership = Membership(
+        Incarnation(node.self, Random.nextLong()),
+        discovery::seeds,
+        gossiping,
+        downing,
+        Random.Default,
+        now(),
+    )
     val cluster = Cluster(node.self)
-    val endWatches = node.takeOverWatches()
-    fun send(sends: List<Send>) = sends.forEach { (to, message) ->
-        node.remote(Address(to.toString(), "/user/$CLUSTER", 0), StepCodec).tell(Step.Heard(message))
-    }
-    fun publish(subscribers: Subscribers) {
-        val events = changes(cluster.view, membership.view())
-        events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
-        subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
-        cluster.publish(membership.view())
-    }
+    val steps = Steps(node, membership, cluster, node.takeOverWatches(), now)
     val ref = spawn(
         CLUSTER,
-        behaviour<Step, Subscribers>(emptySet()) { ctx, subscribers, step ->
-            when (step) {
-                is Step.Heard -> send(membership.receive(step.message, now()))
-
-                Step.Tick -> send(membership.tick(now()))
-
-                Step.Leave -> membership.leave()
-
-                is Step.Subscribe -> {
-                    ctx.watch(step.to)
-                    changes(View.None, cluster.view).forEach(step.to::tell)
-                    return@behaviour become(subscribers + step.to)
-                }
-            }
-            publish(subscribers)
-            stay()
-        }.onStart { ctx -> ctx.timers.every(Step.Tick, gossiping.ackWithin / 2, Step.Tick) }
+        behaviour<Step, Subscribers>(emptySet()) { ctx, subscribers, step -> steps.step(ctx, subscribers, step) }
+            .onStart { ctx -> ctx.timers.every(Step.Tick, gossiping.ackWithin / 2, Step.Tick) }
             .onSignal { _, subscribers, signal ->
                 when (signal) {
                     is Signal.Terminated -> become(subscribers.filterTo(mutableSetOf()) { it != signal.ref })
@@ -97,6 +88,47 @@ fun <F> Flock<F>.cluster(node: RemoteNode, discovery: Discovery, gossiping: Goss
     node.expose(ref, StepCodec)
     cluster.actor = ref
     return cluster
+}
+
+/** What the cluster actor does with each step: the membership's part, then what changed told to whoever hears it. */
+private class Steps(
+    private val node: RemoteNode,
+    private val membership: Membership,
+    private val cluster: Cluster,
+    private val endWatches: (Node) -> Unit,
+    private val now: () -> Duration,
+) {
+    fun step(ctx: Ctx<Step>, subscribers: Subscribers, step: Step): Next<Subscribers> {
+        when (step) {
+            is Step.Heard -> send(membership.receive(step.message, now()))
+
+            Step.Tick -> send(membership.tick(now()))
+
+            Step.Leave -> membership.leave()
+
+            is Step.Subscribe -> {
+                ctx.watch(step.to)
+                changes(View.None, cluster.view).forEach(step.to::tell)
+                return become(subscribers + step.to)
+            }
+        }
+        publish(subscribers)
+        return if (membership.downed) stop() else stay()
+    }
+
+    private fun send(sends: List<Send>) = sends.forEach { (to, message) ->
+        node.remote(Address(to.toString(), "/user/$CLUSTER", 0), StepCodec).tell(Step.Heard(message))
+    }
+
+    private fun publish(subscribers: Subscribers) {
+        val next = membership.view()
+        // A downed node is out of the cluster: every other member is gone as far as it is concerned.
+        val gone = if (membership.downed) next.members.filter { it.node != node.self } else emptyList()
+        val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
+        events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
+        subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
+        cluster.publish(next)
+    }
 }
 
 /** One node's membership of a cluster: the view it has now, and a way to leave. */

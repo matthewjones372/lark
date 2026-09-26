@@ -15,6 +15,7 @@ internal class Membership(
     private val self: Incarnation,
     private val seeds: () -> List<Node>,
     private val settings: Gossiping,
+    private val downing: Downing,
     private val random: Random,
     private val startedAt: Duration,
 ) {
@@ -24,6 +25,14 @@ internal class Membership(
     private val order = ArrayDeque<Incarnation>()
     private val relays = HashMap<Long, Relay>()
     private var joinAt = startedAt
+
+    // The live members and the unreachable ones as they last changed, and when; and when each member was seen downed.
+    private var shape: Pair<Set<Incarnation>, Set<Incarnation>>? = null
+    private var shapeSince = startedAt
+    private val downedAt = HashMap<Incarnation, Duration>()
+
+    // When this node last heard from each member, directly or through a helper's probe.
+    private val heard = HashMap<Incarnation, Duration>()
 
     private class Probe(val target: Incarnation, val seq: Long, val at: Duration) {
         var helped = false
@@ -39,11 +48,21 @@ internal class Membership(
 
     fun tick(now: Duration): List<Send> = when (status) {
         null -> joinOrForm(now)
-        Status.Joining, Status.Up, Status.Leaving -> probing(now).also { lead() }
+        Status.Joining, Status.Up, Status.Leaving -> probing(now).also { lead(now) } + decide(now)
         Status.Down, Status.Removed -> emptyList()
     }
 
-    fun receive(message: Swim, now: Duration): List<Send> = when (message) {
+    fun receive(message: Swim, now: Duration): List<Send> {
+        when (message) {
+            is Swim.Ping -> heard[message.from] = now
+            is Swim.Ack -> heard[message.from] = now
+            is Swim.PingReq -> heard[message.from] = now
+            is Swim.Join, is Swim.Welcome -> Unit
+        }
+        return answer(message, now)
+    }
+
+    private fun answer(message: Swim, now: Duration): List<Send> = when (message) {
         is Swim.Join -> admit(message.from)
         is Swim.Welcome -> welcomed(message)
         is Swim.Ping -> if (accepts(message.gossip) && message.to == self) pinged(message) else emptyList()
@@ -55,6 +74,9 @@ internal class Membership(
     fun leave() {
         if (status == Status.Joining || status == Status.Up) change(self, Status.Leaving)
     }
+
+    /** Whether this node has been downed, by its own side or the other. */
+    val downed: Boolean get() = status == Status.Down
 
     fun view(): View {
         val members = gossip.members.filterValues { it.status != Status.Removed }
@@ -167,15 +189,61 @@ internal class Membership(
         return gossip.unreachable().isEmpty() && gossip.live().all { gossip.digests[it]?.hash == mine }
     }
 
-    private fun lead() {
+    private fun lead(now: Duration) {
+        gossip.members.filterValues { it.status == Status.Down }.keys.forEach { downedAt.putIfAbsent(it, now) }
         if (leader() != self || !converged()) return
         var upNumber = gossip.members.values.maxOf { it.upNumber }
         gossip.members.entries.sortedBy { it.key.node.toString() }.forEach { (m, e) ->
             when (e.status) {
                 Status.Joining -> change(m, Status.Up, ++upNumber)
-                Status.Leaving, Status.Down -> change(m, Status.Removed)
+                Status.Leaving -> change(m, Status.Removed)
+                Status.Down -> if (now - downedAt.getValue(m) >= downing.stableAfter) change(m, Status.Removed)
                 Status.Up, Status.Removed -> Unit
             }
+        }
+    }
+
+    /**
+     * Once who is unreachable has held still for long enough, downs them, or this node's whole side if it does not
+     * stay. A side that goes tells its members as it does, since a member that has downed itself answers no probe,
+     * and one that went quiet first would look to the rest of its side like a new partition, and delay them.
+     *
+     * Every member counted on this side must have been heard from since the view last changed: a partition found
+     * one member at a time would otherwise hold still between two probes, and be decided on half of it.
+     */
+    private fun decide(now: Duration): List<Send> {
+        val live = gossip.live()
+        val unreachable = gossip.unreachable()
+        if (shape != live to unreachable) {
+            shape = live to unreachable
+            shapeSince = now
+        }
+        val side = if (self in unreachable) setOf(self) else live - unreachable
+        if (!settled(now, unreachable, side)) return emptyList()
+        if (stays(side, live)) {
+            unreachable.forEach { change(it, Status.Down) }
+            return emptyList()
+        }
+        side.forEach { change(it, Status.Down) }
+        return (side - self).map { Send(it.node, Swim.Ping(self, it, ++seq, gossip)) }
+    }
+
+    private fun settled(now: Duration, unreachable: Set<Incarnation>, side: Set<Incarnation>): Boolean =
+        unreachable.isNotEmpty() &&
+            now - shapeSince >= downing.stableAfter &&
+            (side - self).all { member -> heard[member]?.let { it >= shapeSince } == true }
+
+    private fun stays(side: Set<Incarnation>, live: Set<Incarnation>): Boolean {
+        val lowest = compareBy(byAddress, Incarnation::node)
+        return when (downing) {
+            is Downing.KeepMajority -> {
+                val even = side.size * 2 == live.size
+                side.size * 2 > live.size || (even && live.minWith(lowest) in side)
+            }
+
+            is Downing.StaticQuorum -> side.size >= downing.size
+
+            is Downing.ByLease -> downing.lease.acquire(side.minWith(lowest).node.toString())
         }
     }
 
