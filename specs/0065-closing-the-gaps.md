@@ -66,7 +66,7 @@ the change is judged on JMH's error bars and not on the probe.
       1,000 actors holds none, and `ctx.stop` of an ended child is a no-op.
 - [ ] **`spec-0065-router-full`** — the threads test for a pool passing over
       a full routee. Done when: the test fails with the pass-over removed.
-- [ ] **`spec-0065-tell-row`** — the tells-only rows in `FanOutBenchmark`,
+- [x] **`spec-0065-tell-row`** ([#145](https://github.com/matthewjones372/lark/pull/145)) — the tells-only rows in `FanOutBenchmark`,
       and a README line with where lark stands. Done when: both rows run
       under `:lark-actor-benchmarks:jmh`.
 - [ ] **`spec-0065-cell-at-rest`** — the mailbox rests on the cell. Done
@@ -79,7 +79,7 @@ the change is judged on JMH's error bars and not on the probe.
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-actor-benchmarks:jmh -Pjmh.includes=FanOut
+./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs=FanOutBenchmark
 ```
 
 ## Open questions

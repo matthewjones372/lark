@@ -12,6 +12,22 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## The tells alone, 2026-09-26
+
+After spec [0065](../specs/0065-closing-the-gaps.md)'s `spec-0065-tell-row`: `FanOutBenchmark.larkTells` and
+`pekkoTells` time only the loop of 10,000 tells, and wait out the actors' handling untimed before the next
+invocation. Measured on a 4 vCPU Intel Xeon @ 2.80GHz shared cloud container, slower than the machine the rows
+below were taken on, so only the rows in this table compare with each other.
+
+| Row | Per | lark | Pekko |
+|---|---|---|---|
+| `FanOutBenchmark`: the whole fan-out | fan-out | 4.46 ± 1.01 ms, 84 B an actor | 6.16 ± 1.66 ms, 51 B an actor |
+| `FanOutBenchmark.*Tells`: the tells alone | fan-out | 3.24 ± 1.87 ms | 5.49 ± 1.07 ms |
+
+- **The tells alone are not slower than Pekko's here.** The probe that put lark's tell at 180 ns against 130 ns
+  was one run of a hand-timed loop; under JMH's forks the difference goes the other way, inside wide error bars
+  on a shared four-core machine.
+
 ## Runners and a leaner cell, 2026-09-26
 
 The same machine and settings, after spec [0064](../specs/0064-a-fan-out-that-keeps-up.md): woken actors share one
