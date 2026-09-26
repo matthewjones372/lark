@@ -63,7 +63,7 @@ optional module later.
 
 ## Stack
 
-- [ ] **`spec-0068-codec`** — `MessageCodec`, `Refs`, and refs inside
+- [x] **`spec-0068-codec`** ([#154](https://github.com/matthewjones372/lark/pull/154)) — `MessageCodec`, `Refs`, and refs inside
       messages. Done when: a protocol with a `Reply` round-trips through bytes.
 - [ ] **`spec-0068-wire`** — framing, handshake, one connection per pair,
       reconnect with backoff. Done when: frames cross loopback in order, and a
