@@ -12,12 +12,12 @@ reads it back on start by hand, and has no way to say "these events happened,
 in this order, exactly once".
 
 0059 put keyed entities and persistence off to here. Transport, membership and
-sharding stay in 0065–0067.
+sharding stay in 0067–0069.
 
 ## Not doing
 
 - **Anything across processes.** Entities of one type live in one flock. The
-  id and the journal are shaped so that 0067 can place an entity on another
+  id and the journal are shaped so that 0069 can place an entity on another
   node, and no further.
 - **A durable journal.** `Journal` is an interface with an in-memory
   implementation; a JDBC or Kafka journal is its own spec once this one has
@@ -111,7 +111,7 @@ because a dispatcher thread cannot wait; here the step waits, and ordering is
 the ordering of the code. Entities are a manager actor rather than runtime
 support because passivation has to hold a message that arrives while its
 entity stops, and an actor that owns the entities is the one place that sees
-both. Strings as ids, and bytes through a codec, are the two things 0067's
+both. Strings as ids, and bytes through a codec, are the two things 0069's
 sharding and a durable journal need, and adding them later would change every
 entity and every journal.
 

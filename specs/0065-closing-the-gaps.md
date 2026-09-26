@@ -23,7 +23,7 @@ fourth that matters more than any of them:
 ## Not doing
 
 - **Transport, membership, sharding.** Still their own specs, renumbered
-  0066–0068.
+  0067–0069, after 0066's stream on actors.
 - **A scheduler of lark's own**, or an intrusive ready queue. 0064 tried a
   swap-only ready queue, and it was slower.
 - **Changing what a stop does.** Only who still holds the cell afterwards.
@@ -84,7 +84,7 @@ the change is judged on JMH's error bars and not on the probe.
 
 ## Open questions
 
-- **Renumber transport, membership and sharding again, to 0066–0068?**
+- **Renumber transport, membership and sharding again, to 0067–0069?**
   Recommended: yes, as 0064 did, so that specs stay in build order.
 - **An ended child that `ctx.stop` names: a no-op, or still an error?**
   Recommended: a no-op. The child can end on its own between the parent's
@@ -94,3 +94,9 @@ the change is judged on JMH's error bars and not on the probe.
 - **If the cell-at-rest change does not beat Pekko's tell, stop there?**
   Recommended: yes. Fan-out already beats Pekko by 23%, and the next
   candidate (the ready queue) was measured slower in 0064.
+
+Decided (2026-09-26): every open question goes as recommended. Transport,
+membership and sharding are 0067–0069, since 0066 is the stream on actors.
+An ended child that `ctx.stop` names is a no-op, and the test actors lose
+stopped children too. If the cell at rest does not beat Pekko's tell, the
+change stops there and the measurement is written down.
