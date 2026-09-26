@@ -96,9 +96,10 @@ Recommended: gossip, with downing deciding splits.
       own. Done when: five nodes on a simulated network agree on the same view,
       and a stopped one is seen unreachable by all.
       ([#161](https://github.com/matthewjones372/lark/pull/161))
-- [ ] **`spec-0069-gossip-wire`** — the protocol as an actor on 0068's
+- [x] **`spec-0069-gossip-wire`** — the protocol as an actor on 0068's
       transport, and `cluster(…)`. Done when: five nodes in one JVM agree on the
       same view, and a stopped one is seen unreachable by all.
+      ([#162](https://github.com/matthewjones372/lark/pull/162))
 - [ ] **`spec-0069-events`** — member events, and `watch` across nodes on
       membership. Done when: a removed node ends every watch on it.
 - [ ] **`spec-0069-downing`** — `keepMajority`, `staticQuorum`, `lease`, and
