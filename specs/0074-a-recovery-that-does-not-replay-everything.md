@@ -74,10 +74,11 @@ decision in every command. Recommended: every N, set once on the behaviour.
       `snapshots(…)` on the flock and in `testActors`, and `SnapshotContract`.
       Done when: the in-memory store passes the contract.
       ([#185](https://github.com/matthewjones372/lark/pull/185))
-- [ ] **`spec-0074-persistent`** — `every(n, codec)` on `persistent`. Done
+- [x] **`spec-0074-persistent`** — `every(n, codec)` on `persistent`. Done
       when: an actor with 1,050 events and snapshots every 100 restarts to the
       same state as a full replay, reading only the 50 events after its last
       snapshot; and a store whose saves throw leaves every command answered.
+      ([#186](https://github.com/matthewjones372/lark/pull/186))
 - [ ] **`spec-0074-jdbc`** — `JdbcSnapshots` and its DDL. Done when: it passes
       the contract on H2, and 0072's moved-entity test recovers from a
       snapshot after the move.
@@ -109,3 +110,10 @@ default of null, so a `Ctx` written outside lark still compiles and takes no
 snapshots; `testActors` gives an in-memory store by default, as it does a
 journal. A store that keeps the last save rather than the newest fails the
 contract's replacement and race tests.
+
+Decided while building `spec-0074-persistent`: the state crosses as bytes
+through a `StateCodec`, beside `EventCodec`; `snapshots` is the last argument
+of `persistent`, so every existing call still compiles. A persist that crosses
+a multiple saves the state at the sequence number it reached, not at the
+multiple. A failed save is logged as an error with its cause; an interrupt is
+not a failed save, and still stops the step.

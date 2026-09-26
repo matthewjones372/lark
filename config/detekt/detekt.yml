@@ -70,7 +70,9 @@ exceptions:
     # it, and a span that ends Ok on a failure is worse than no span at all.
     # Outcome.kt is the seventh: a lark-structured fork holds whatever its body
     # did until it is awaited, as a flock's does.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt']
+    # Persistent.kt is the eighth: a snapshot store may throw anything, and a save
+    # that fails is logged rather than failing a step whose events are written.
+    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt']
   SwallowedException:
     excludes: ['**/test/**']
 
