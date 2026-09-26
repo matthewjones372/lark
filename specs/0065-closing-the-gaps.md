@@ -60,7 +60,7 @@ the change is judged on JMH's error bars and not on the probe.
 
 ## Stack
 
-- [ ] **`spec-0065-let-go`** — ended actors leave their parent's and flock's
+- [x] **`spec-0065-let-go`** ([#143](https://github.com/matthewjones372/lark/pull/143)) — ended actors leave their parent's and flock's
       lists; the same for test actors. Done when: after 1,000 passivations of
       one entity the manager has one child, a flock that spawned and stopped
       1,000 actors holds none, and `ctx.stop` of an ended child is a no-op.

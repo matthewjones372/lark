@@ -155,6 +155,9 @@ class TestActor<M : Any, S, E> internal constructor(
     private val stashCapacity: Int,
 ) : ActorRef<M> {
 
+    // The actor whose step spawned this one, which lets it go as it ends.
+    private var parent: TestActor<*, *, *>? = null
+
     // Made with the first message kept; only the test's own thread touches it.
     private val stashed = AtomicReference<Stash?>()
 
@@ -234,8 +237,12 @@ class TestActor<M : Any, S, E> internal constructor(
                 .watchedBy(this@TestActor)
 
         override fun stop(child: ActorRef<*>) {
-            require(child in run.get().children) { "$child is not a child of ${address.path}, so it cannot stop it" }
-            (child as TestActor<*, *, *>).halt()
+            // A child that has already ended is no longer among the children, and stopping it again does nothing.
+            val actor = child as? TestActor<*, *, *>
+            require(actor?.parent === this@TestActor) {
+                "$child is not a child of ${address.path}, so it cannot stop it"
+            }
+            actor.halt()
         }
 
         override fun <C : Any, T, F> spawn(
@@ -243,6 +250,7 @@ class TestActor<M : Any, S, E> internal constructor(
             behaviour: Behaviour<C, T, F>,
             restart: Schedule<Failure<F>, *>?,
         ): ActorRef<C> = scope.spawnAt("${address.path}/$name", behaviour, restart, stashCapacity).also { child ->
+            child.parent = this@TestActor
             run.updateAndGet { it.copy(children = it.children + child) }
         }
     }
@@ -473,6 +481,10 @@ class TestActor<M : Any, S, E> internal constructor(
         run.getAndUpdate { it.copy(children = emptyList()) }.children.forEach { it.halt() }
     }
 
+    private fun forget(child: TestActor<*, *, *>) {
+        run.updateAndGet { it.copy(children = it.children - child) }
+    }
+
     internal fun watchedBy(watcher: TestActor<*, *, *>) {
         if (run.get().ended) {
             scope.post(watcher, TestSignalled(Signal.Terminated(this)))
@@ -496,6 +508,7 @@ class TestActor<M : Any, S, E> internal constructor(
                 thrown.nonFatalOrThrow()
             }
         }
+        parent?.forget(this)
         run.get().watchers.forEach { scope.post(it, TestSignalled(Signal.Terminated(this))) }
     }
 
