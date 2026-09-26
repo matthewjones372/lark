@@ -21,16 +21,17 @@ interface MessageCodec<M : Any> {
 
 /**
  * Where the refs inside a message go on the way out and come from on the way in: the transport, which knows which
- * node is which, or a test standing in for it.
+ * node is which, or a test standing in for it. Each carries the codec of what will be sent to it, since the side that
+ * sends it on is the side that has to write that.
  */
 interface Refs {
-    fun address(ref: ActorRef<*>): Address
+    fun <M : Any> address(ref: ActorRef<M>, codec: MessageCodec<M>): Address
 
-    fun address(reply: Reply<*>): Address
+    fun <A : Any> address(reply: Reply<A>, answers: MessageCodec<A>): Address
 
-    fun <M : Any> ref(address: Address): ActorRef<M>
+    fun <M : Any> ref(address: Address, codec: MessageCodec<M>): ActorRef<M>
 
-    fun <A : Any> reply(address: Address): Reply<A>
+    fun <A : Any> reply(address: Address, answers: MessageCodec<A>): Reply<A>
 }
 
 /** A message that could not be read: cut short, or not what its codec expected. */
@@ -77,9 +78,11 @@ class WireOut internal constructor(private val refs: Refs) {
         if (value != null) write(value)
     }
 
-    fun ref(ref: ActorRef<*>) = address(refs.address(ref))
+    /** [ref], as an address; [codec] is what a message told to it is written with, wherever it is told from. */
+    fun <M : Any> ref(ref: ActorRef<M>, codec: MessageCodec<M>) = address(refs.address(ref, codec))
 
-    fun reply(reply: Reply<*>) = address(refs.address(reply))
+    /** [reply], as an address; [answers] is what the answer to it is written with, on the node that answers. */
+    fun <A : Any> reply(reply: Reply<A>, answers: MessageCodec<A>) = address(refs.address(reply, answers))
 
     private fun address(address: Address) {
         string(address.node)
@@ -112,9 +115,36 @@ class WireIn internal constructor(bytes: ByteArray, private val refs: Refs) {
 
     fun <T : Any> nullable(read: () -> T): T? = if (boolean()) read() else null
 
-    fun <M : Any> ref(): ActorRef<M> = refs.ref(address())
+    fun <M : Any> ref(codec: MessageCodec<M>): ActorRef<M> = refs.ref(address(), codec)
 
-    fun <A : Any> reply(): Reply<A> = refs.reply(address())
+    fun <A : Any> reply(answers: MessageCodec<A>): Reply<A> = refs.reply(address(), answers)
 
     private fun address(): Address = Address(string(), string(), long())
+}
+
+/** Codecs for the answers most asks want, so that a protocol writes only its own messages. */
+object Codecs {
+    val int: MessageCodec<Int> = codec(WireOut::int, WireIn::int)
+    val long: MessageCodec<Long> = codec(WireOut::long, WireIn::long)
+    val double: MessageCodec<Double> = codec(WireOut::double, WireIn::double)
+    val boolean: MessageCodec<Boolean> = codec(WireOut::boolean, WireIn::boolean)
+    val string: MessageCodec<String> = codec(WireOut::string, WireIn::string)
+    val bytes: MessageCodec<ByteArray> = codec(WireOut::bytes, WireIn::bytes)
+    val unit: MessageCodec<Unit> = codec({ _, _ -> }, { })
+
+    /** Each element with [element], after how many there are. */
+    fun <A : Any> list(element: MessageCodec<A>): MessageCodec<List<A>> = codec(
+        { out, list ->
+            out.int(list.size)
+            list.forEach { element.write(it, out) }
+        },
+        { input -> List(input.int()) { element.read(input) } },
+    )
+
+    private fun <A : Any> codec(write: (WireOut, A) -> Unit, read: (WireIn) -> A): MessageCodec<A> =
+        object : MessageCodec<A> {
+            override fun write(message: A, out: WireOut) = write(out, message)
+
+            override fun read(input: WireIn): A = read(input)
+        }
 }
