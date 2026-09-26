@@ -63,6 +63,7 @@ same tag table and reply order. Recommended: a module per format.
 - [x] **`spec-0071-protobuf`** — `lark-actor-remote-protobuf`: `codec`,
       `oneOf` and `asked`. Done when: a generated message, a `oneOf` protocol
       and an ask cross between two nodes, and a duplicate tag fails when built.
+      ([#173](https://github.com/matthewjones372/lark/pull/173))
 - [ ] **`spec-0071-avro`** — `lark-actor-remote-avro`: `codec` with a
       `SchemaStore`, and `asked`. Done when: a node writing version 2 of a
       record and one reading version 1 understand each other.
@@ -85,3 +86,7 @@ same tag table and reply order. Recommended: a module per format.
 
 Decided (2026-09-26): every open question goes as recommended. Full Protobuf
 only; Avro specific records only; and `oneOf` takes any generated `Message`.
+
+Decided while building `spec-0071-protobuf`: the tests use the well-known
+types `protobuf-java` ships, so the build needs no `protoc`; and bytes Protobuf
+cannot read are a `WireException`, as any other unreadable frame is.
