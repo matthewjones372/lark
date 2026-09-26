@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -40,40 +38,6 @@ private fun diary() = behaviour<Diary, Long>(0L) { ctx, last, message ->
 }
 
 class JournalTest {
-
-    @Test
-    fun `a read answers what was appended, in order, from where it is asked to start`() {
-        val journal = InMemoryJournal()
-
-        journal.append(diaryOf, 0, listOf(text.encode("one"), text.encode("two"))) shouldBe 2L.right()
-        journal.append(diaryOf, 2, listOf(text.encode("three"))) shouldBe 3L.right()
-
-        journal.events(diaryOf, text) shouldContainExactly listOf("one", "two", "three")
-        journal.read(diaryOf, from = 3).map { it.sequence to text.decode(it.bytes) } shouldBe listOf(3L to "three")
-        journal.read(PersistenceId("diary", "nobody")).shouldBeEmpty()
-    }
-
-    @Test
-    fun `an append that expects the wrong sequence number is a conflict, and writes nothing`() {
-        val journal = InMemoryJournal()
-        journal.append(diaryOf, 0, listOf(text.encode("one")))
-
-        journal.append(diaryOf, 0, listOf(text.encode("again"))) shouldBe JournalConflict(diaryOf, 0, 1).left()
-
-        journal.events(diaryOf, text) shouldContainExactly listOf("one")
-    }
-
-    @Test
-    fun `the journal keeps its own copy of the bytes`() {
-        val journal = InMemoryJournal()
-        val bytes = text.encode("one")
-        journal.append(diaryOf, 0, listOf(bytes))
-
-        bytes[0] = 'x'.code.toByte()
-        journal.read(diaryOf).single().bytes[0] = 'y'.code.toByte()
-
-        journal.events(diaryOf, text) shouldContainExactly listOf("one")
-    }
 
     @Test
     fun `a test's actors write to the test's journal, which the test can read`() {

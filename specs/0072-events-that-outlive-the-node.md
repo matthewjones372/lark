@@ -70,9 +70,10 @@ created at start keeps lark out of the service's migrations.
 
 ## Stack
 
-- [ ] **`spec-0072-contract`** — `JournalContract` in `lark-actor`'s test
+- [x] **`spec-0072-contract`** — `JournalContract` in `lark-actor`'s test
       fixtures, run against `InMemoryJournal`. Done when: the suite passes,
       and an in-memory journal that lets both racing writers win fails it.
+      ([#176](https://github.com/matthewjones372/lark/pull/176))
 - [ ] **`spec-0072-jdbc`** — `lark-actor-journal-jdbc`: `JdbcJournal` and its
       DDL, running the contract on H2 in test scope. Done when: the contract
       passes, and the runtime classpath is `lark-actor` and the JDK alone.
@@ -105,3 +106,10 @@ Decided (2026-09-26): every open question goes as recommended. The primary key
 decides conflicts; the DDL ships as a resource per database, Postgres and H2,
 and nothing creates the table at start; CI proves H2 only; and the contract
 lives in `lark-actor`'s test fixtures.
+
+Decided while building `spec-0072-contract`: the contract is an abstract JUnit
+class a journal's test extends, published as `lark-actor`'s test fixtures, and
+detekt reads test fixtures as it reads tests. A journal that lets two racing
+writers both succeed is made to do so every time, by a barrier between its read
+and its write, so the check that the contract catches it does not depend on
+timing.
