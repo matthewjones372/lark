@@ -138,9 +138,12 @@ What the rows say:
 - **Forks keeps the plain chain and many runs at once.** On one thread the chain is calls in a loop on both
   backends; the actor's batch of 64 and its tell to itself cost 11 ns an element. A thousand short runs at once cost
   an actor and a cell each, 1.5 KB against Forks' 0.9 KB, and every one queues for the same four runners.
-- **`groupedWithin` is slow on both, and not because of either backend.** Its feed hands each element over on its
-  own with a lock and a wake, 24–25 µs an element against Pekko's 184 ns. That is the next thing to take.
-- **Both lark backends beat Pekko on every row they share with it**, except `groupedWithin`.
+- **`groupedWithin` was slow on both, and not because of either backend.** Its feed handed each element over on its
+  own with two parks and two wakes, 24–25 µs an element against Pekko's 184 ns. Spec
+  [0067](../specs/0067-a-grouped-within-that-keeps-up.md) queues a group at a time on real time, and the `forks` row
+  is 317 ± 33 ns against 178 ± 14 ns for the Pekko row, measured together afterwards.
+- **Both lark backends beat Pekko on every row they share with it**, except `groupedWithin`, which is within
+  twice Pekko's after 0067.
 
 ## The gate
 
