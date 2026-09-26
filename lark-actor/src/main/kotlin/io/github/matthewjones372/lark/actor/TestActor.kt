@@ -24,13 +24,14 @@ fun <M : Any, S, E> Behaviour<M, S, E>.test(
 /**
  * Several actors stepped by the test itself, each message delivered in the order it was told. A restart waits on
  * [clock], which by default does not wait: each delay is recorded in [TestActor.delays] instead. Events go to
- * [journal], in memory by default, which the test can read.
+ * [journal] and snapshots to [snapshots], both in memory by default, which the test can read.
  */
 fun <A> testActors(
     clock: Clock = fixedClock(),
     journal: Journal = InMemoryJournal(),
+    snapshots: SnapshotStore = InMemorySnapshots(),
     block: TestActors.() -> A,
-): A = TestActors(clock, journal).block()
+): A = TestActors(clock, journal, snapshots).block()
 
 /**
  * The actors of one test. A tell from the test returns once that message, and every message it caused, has been
@@ -40,6 +41,8 @@ class TestActors internal constructor(
     private val clock: Clock = fixedClock(),
     /** Where this test's actors keep their events, for the test to read. */
     val journal: Journal = InMemoryJournal(),
+    /** Where this test's actors keep their snapshots, for the test to read. */
+    val snapshots: SnapshotStore = InMemorySnapshots(),
 ) {
 
     private class Delivery(val to: TestActor<*, *, *>, val item: Any) {
@@ -187,6 +190,8 @@ class TestActor<M : Any, S, E> internal constructor(
         override val self = this@TestActor
 
         override val journal: Journal get() = scope.journal
+
+        override val snapshots: SnapshotStore get() = scope.snapshots
 
         override val timers = object : Timers<M> {
             override fun after(key: Any, delay: Duration, message: M) = start(key, delay, message, null)

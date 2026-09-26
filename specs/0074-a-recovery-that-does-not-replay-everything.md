@@ -70,9 +70,10 @@ decision in every command. Recommended: every N, set once on the behaviour.
 
 ## Stack
 
-- [ ] **`spec-0074-store`** — `SnapshotStore`, `InMemorySnapshots`,
+- [x] **`spec-0074-store`** — `SnapshotStore`, `InMemorySnapshots`,
       `snapshots(…)` on the flock and in `testActors`, and `SnapshotContract`.
       Done when: the in-memory store passes the contract.
+      ([#185](https://github.com/matthewjones372/lark/pull/185))
 - [ ] **`spec-0074-persistent`** — `every(n, codec)` on `persistent`. Done
       when: an actor with 1,050 events and snapshots every 100 restarts to the
       same state as a full replay, reading only the 50 events after its last
@@ -102,3 +103,9 @@ Decided (2026-09-26): every open question goes as recommended. Snapshots are
 taken every N events, set once on the behaviour; a failed save is logged and
 does not fail the step; a store keeps only the latest snapshot per id; and
 snapshots are a store of their own, leaving `Journal` unchanged.
+
+Decided while building `spec-0074-store`: `Ctx.snapshots` is nullable with a
+default of null, so a `Ctx` written outside lark still compiles and takes no
+snapshots; `testActors` gives an in-memory store by default, as it does a
+journal. A store that keeps the last save rather than the newest fails the
+contract's replacement and race tests.
