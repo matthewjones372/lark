@@ -36,6 +36,20 @@ private fun counted() = behaviour<Lookout, Int>(0) { ctx, heard, message ->
     }
 }
 
+/** A ref to something that is not an actor on threads, which says when it has ended once [end] is called. */
+private class Faraway : ActorRef<Unit>, Watchable {
+    override val address = Address("far@127.0.0.1:1", "/user/far", 1)
+    private val notified = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+
+    override fun tell(message: Unit) = Unit
+
+    override fun onTerminated(notify: () -> Unit) {
+        notified += notify
+    }
+
+    fun end() = notified.forEach { it() }
+}
+
 private sealed interface Hand
 
 private data object Leave : Hand
@@ -134,5 +148,34 @@ class WatchTest {
 
         heard shouldBe AskFailure.Stopped.left().right()
         stopping.get() shouldBe listOf("stopping")
+    }
+
+    @Test
+    fun `on threads, a ref that is not an actor here can be watched, by an actor and by the flock, once it says so`() {
+        val far = Faraway()
+        val seen = flock<Nothing, Any> {
+            val lookout = spawn("lookout", counted())
+            lookout.tell(Watch(far))
+            lookout.ask(1.minutes) { Seen(it) }
+            val watched = watch(far)
+            far.end()
+            watched.await()
+            awaitIdle()
+            lookout.ask(1.minutes) { Seen(it) }
+        }
+
+        seen shouldBe 1.right().right()
+    }
+
+    @Test
+    fun `on threads, a letter a transport found reaches the flock's dead-letter handler`() {
+        val letters = java.util.concurrent.ConcurrentLinkedQueue<DeadLetter>()
+        val far = Faraway()
+        flock<Nothing, Unit> {
+            onDeadLetter(letters::add)
+            deadLetter(DeadLetter(far.address, "hello", DeadLetter.Why.Unreachable))
+        }
+
+        letters.toList() shouldContainExactly listOf(DeadLetter(far.address, "hello", DeadLetter.Why.Unreachable))
     }
 }

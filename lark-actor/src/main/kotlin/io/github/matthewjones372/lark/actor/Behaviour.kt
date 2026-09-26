@@ -227,7 +227,21 @@ data class DeadLetter(val recipient: Address, val message: Any, val why: Why) {
 
         /** The actor's step answered `unhandled()`. */
         Unhandled,
+
+        /** The node it was for could not be reached, or had no room left to send it: spec 0068. */
+        Unreachable,
+
+        /** It reached its node, and no actor there was the one it was for. */
+        NoSuchActor,
     }
+}
+
+/**
+ * A ref that is not an actor on threads, and can still be watched: an actor on another node, say. It calls [notify]
+ * once, when what it names has ended or can no longer be reached, and at once if that is already so.
+ */
+interface Watchable {
+    fun onTerminated(notify: () -> Unit)
 }
 
 sealed interface AskFailure {

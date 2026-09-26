@@ -70,7 +70,7 @@ optional module later.
       dropped connection comes back without losing the pair's order after.
 - [x] **`spec-0068-remote`** ([#156](https://github.com/matthewjones372/lark/pull/156)) — `node(…)`, `remote<M>(…)`, inbound dispatch,
       and ask across nodes. Done when: two flocks in one JVM tell and ask.
-- [ ] **`spec-0068-unreachable`** — dead letters for unreachable nodes, and
+- [x] **`spec-0068-unreachable`** ([#157](https://github.com/matthewjones372/lark/pull/157)) — dead letters for unreachable nodes, and
       `watch` across nodes. Done when: stopping one flock gives the other
       `Terminated` within `unreachableAfter`.
 - [ ] **`spec-0068-bench`** — remote tell and ping-pong against Pekko's Artery
@@ -119,3 +119,15 @@ Decided while building `spec-0068-remote` (2026-09-26), for editing:
 - A frame's incarnation of 0 means whichever actor is at the path; any other
   is that one actor. A reply not answered in ten minutes is forgotten.
 - The node closes with its flock, through a guardian actor's `Stopping`.
+
+Decided while building `spec-0068-unreachable` (2026-09-26), for editing:
+- lark-actor gains two small hooks: `DeadLetter.Why` has `Unreachable` and
+  `NoSuchActor`, and `Flock.deadLetter(letter)` posts one; a ref that is not
+  an actor on threads can be `watch`ed if it is `Watchable`.
+- What is sent and dropped is a dead letter on the sending node, with the
+  message itself in it; a frame for a path or incarnation with no actor is one
+  on the receiving node, as an `UnreadMessage` of its bytes when no codec is
+  known for the path.
+- A watch across nodes is a frame to the other node, which answers when the
+  actor ends, or at once when it is not there; if the node stays unreachable
+  for `unreachableAfter` (10 seconds by default), the watch ends there.

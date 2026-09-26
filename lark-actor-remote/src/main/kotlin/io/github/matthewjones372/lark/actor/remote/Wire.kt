@@ -34,8 +34,12 @@ data class Node(val name: String, val host: String, val port: Int) {
     }
 }
 
-/** One message on the wire: the actor it is for, by path and incarnation, and its codec's bytes. */
-class Frame(val path: String, val incarnation: Long, val payload: ByteArray)
+/**
+ * One message on the wire: the actor it is for, by path and incarnation, and its codec's bytes. On the sending side
+ * it keeps the [message] it was written from, so that a frame that is dropped can be a dead letter with it in; that
+ * is not written.
+ */
+class Frame(val path: String, val incarnation: Long, val payload: ByteArray, val message: Any? = null)
 
 /** What a [Transport] tells the node it carries for. Each is called on one of the transport's own threads. */
 interface Listener {

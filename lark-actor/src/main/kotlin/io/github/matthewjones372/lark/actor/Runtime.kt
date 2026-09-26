@@ -101,16 +101,26 @@ fun <E> Flock<E>.awaitIdle() {
  */
 @Suppress("UnusedReceiverParameter")
 fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
-    val cell = requireNotNull(ref as? Cell<*, *, *>) { "$ref is not an actor on threads, so it cannot be watched" }
+    val ended = when (ref) {
+        is Cell<*, *, *> -> ref.ended
+        is Watchable -> CountDownLatch(1).also { latch -> ref.onTerminated(latch::countDown) }
+        else -> throw IllegalArgumentException("$ref is not an actor on threads, so it cannot be watched")
+    }
     return object : Deferred<Signal.Terminated> {
         override fun await(): Signal.Terminated {
-            cell.ended.await()
+            ended.await()
             return Signal.Terminated(ref)
         }
 
         override fun cancel() = Unit
     }
 }
+
+/**
+ * Hands [letter] to this flock's dead-letter handler, as the runtime's own letters are: for a transport or a bridge
+ * that found a message it could not deliver.
+ */
+fun <E> Flock<E>.deadLetter(letter: DeadLetter) = guardian().deadLetters(letter)
 
 /**
  * Stops [ref] from outside, as the flock's close would: at once when it is idle, after its running step otherwise.
@@ -583,8 +593,11 @@ private class Cell<M : Any, S, E>(
     }
 
     override fun watch(ref: ActorRef<*>) {
-        requireNotNull(ref as? Cell<*, *, *>) { "$ref is not an actor on threads, so it cannot be watched from one" }
-            .watchedBy(this)
+        when (ref) {
+            is Cell<*, *, *> -> ref.watchedBy(this)
+            is Watchable -> ref.onTerminated { signal(Signal.Terminated(ref)) }
+            else -> throw IllegalArgumentException("$ref is not an actor on threads, so it cannot be watched from one")
+        }
     }
 
     override fun stop(child: ActorRef<*>) {
