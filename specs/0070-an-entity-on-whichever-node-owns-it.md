@@ -67,10 +67,11 @@ flexible and far more state to keep consistent. Recommended: rendezvous.
       Done when: three nodes in one JVM tell and ask one entity from any node,
       and it runs on the owner only.
       ([#169](https://github.com/matthewjones372/lark/pull/169))
-- [ ] **`spec-0070-handoff`** — letting go of a shard when the view changes.
+- [x] **`spec-0070-handoff`** — letting go of a shard when the view changes.
       Done when: a node joining and one leaving while entities are told
       throughout never has one entity running on two nodes, and loses no
       message that the handoff kept.
+      ([#170](https://github.com/matthewjones372/lark/pull/170))
 - [ ] **`spec-0070-singleton`** — `singleton(…)` and its ref. Done when: the
       oldest member leaving moves the singleton to the next, with no moment
       where both run it.
@@ -97,3 +98,10 @@ Decided (2026-09-26): every open question goes as recommended. Placement is
 rendezvous hashing over the agreed view, with no coordinator; the number of
 shards is fixed per kind, 256 by default and the same on every node; only `Up`
 members host shards; and sharding lives in `lark-cluster`.
+
+Decided while building `spec-0070-handoff`: a node that wins a shard asks every
+other `Up` or `Leaving` member to release it, rather than only the one it
+thinks held it, since two view changes close together can name a previous
+owner that never ran the shard. A member releases only once it neither runs
+the shard nor believes it owns it. A message that runs out of hops is routed
+again after 100 ms rather than kept until the next view, which may never come.
