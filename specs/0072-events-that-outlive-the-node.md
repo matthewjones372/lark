@@ -100,3 +100,8 @@ created at start keeps lark out of the service's migrations.
   reports a dialect gap, as it needs Docker in CI.
 - **Where does the contract live?** Recommended: `lark-actor`'s test fixtures,
   so a service's own journal can run it too.
+
+Decided (2026-09-26): every open question goes as recommended. The primary key
+decides conflicts; the DDL ships as a resource per database, Postgres and H2,
+and nothing creates the table at start; CI proves H2 only; and the contract
+lives in `lark-actor`'s test fixtures.
