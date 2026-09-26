@@ -61,10 +61,11 @@ join. Recommended: mutual TLS.
 
 ## Stack
 
-- [ ] **`spec-0073-tls`** — `Tls`, and `Transport` over TLS 1.3 with client
+- [x] **`spec-0073-tls`** — `Tls`, and `Transport` over TLS 1.3 with client
       authentication. Done when: two nodes whose certificates one CA signed
       exchange frames both ways; a peer signed by another CA, or with none,
       is refused, and what was sent to it is dropped and reported.
+      ([#180](https://github.com/matthewjones372/lark/pull/180))
 - [ ] **`spec-0073-names`** — the certificate's name checked against the
       hello's. Done when: a node with a good certificate for one name that
       claims another is refused, whichever side claims it.
@@ -96,3 +97,10 @@ Decided (2026-09-26): every open question goes as recommended. Mutual TLS, not
 a shared secret; the node name is checked against a DNS subject alternative
 name in the peer's certificate; the test certificates are checked in with the
 script that made them; and TLS 1.3 only.
+
+Decided while building `spec-0073-tls`: `Transport` takes an optional `Tls`,
+and the client side upgrades its connected socket, so connecting, backoff and
+dropping stay as 0068 has them. A failed handshake is a failed connection. The
+test certificates are EC P-256, made by `keytool` with `make.sh`, and a peer
+that speaks TLS but has no certificate of its own is refused as well as one
+another CA signed.
