@@ -12,6 +12,24 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## The cell at rest, tried and dropped, 2026-09-26
+
+Spec [0065](../specs/0065-closing-the-gaps.md)'s last entry: an emptied mailbox moved its tail back onto the cell
+with one compare-and-set as each activation ended, so the next tell to an idle actor would link onto the cell it had
+already loaded rather than onto the last message's node, which had gone cold. Both sides were measured one after
+the other on the machine below, 2 forks each:
+
+| Row | Per | as it is | cell at rest | Pekko |
+|---|---|---|---|---|
+| `FanOutBenchmark`: the whole fan-out | fan-out | 4.70 ± 0.71 ms | 4.70 ± 1.37 ms | 6.03–6.33 ms |
+| `FanOutBenchmark.*Tells`: the tells alone | fan-out | 2.97 ± 0.25 ms | 3.16 ± 0.74 ms | 4.04 ms |
+| `TellBenchmark.*OneToOne` | message | 133 ± 20 ns | 147 ± 11 ns | 200–211 ns |
+| `PingPongBenchmark` | rally | 78.9 ± 0.9 µs | 87.8 ± 0.9 µs | 699–725 µs |
+
+- **Nothing a tell does got faster, and ping-pong got 11% slower**: every activation that empties its mailbox pays
+  the compare-and-set, and a rally empties it on every hop. The change is not in the tree.
+- **The tells alone lead Pekko's** on this machine by a quarter, so there is no gap left for it to close.
+
 ## The tells alone, 2026-09-26
 
 After spec [0065](../specs/0065-closing-the-gaps.md)'s `spec-0065-tell-row`: `FanOutBenchmark.larkTells` and

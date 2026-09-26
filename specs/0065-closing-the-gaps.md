@@ -69,7 +69,7 @@ the change is judged on JMH's error bars and not on the probe.
 - [x] **`spec-0065-tell-row`** ([#145](https://github.com/matthewjones372/lark/pull/145)) — the tells-only rows in `FanOutBenchmark`,
       and a README line with where lark stands. Done when: both rows run
       under `:lark-actor-benchmarks:jmh`.
-- [ ] **`spec-0065-cell-at-rest`** — the mailbox rests on the cell. Done
+- [x] **`spec-0065-cell-at-rest`** ([#146](https://github.com/matthewjones372/lark/pull/146), dropped) — the mailbox rests on the cell. Done
       when: the tells-only row is no slower than Pekko's within its error,
       and fan-out, ping-pong, tell and footprint are within their error of
       the 0064 baseline. If the row does not move, the change is dropped and
@@ -100,3 +100,9 @@ membership and sharding are 0067–0069, since 0066 is the stream on actors.
 An ended child that `ctx.stop` names is a no-op, and the test actors lose
 stopped children too. If the cell at rest does not beat Pekko's tell, the
 change stops there and the measurement is written down.
+
+Decided while building (2026-09-26): under JMH the tells alone lead Pekko's
+(2.97 ms against 4.04 ms for 10,000 on a shared four-core machine), so the
+probe's gap does not reproduce. The cell at rest moved no tell row and made
+ping-pong 11% slower, so it was dropped, as the last entry allowed, and the
+measurement is in the benchmarks' README.
