@@ -108,6 +108,40 @@ The described chain on Pekko is now a third faster than the same five stages wri
 against Pekko by hand, because it is one stage where they are five. On Forks the stages
 were already calls in one loop, so fusing changes nothing measurable there.
 
+## Actors beside Forks and Pekko, 2026-09-26
+
+After spec [0066](../specs/0066-a-stream-on-actors.md): every benchmark gains an `actors` row, run on `Actors` over
+a flock held open for the trial, and two benchmarks are new. `ManyRunsBenchmark` starts a thousand ten-element runs
+at once and awaits them all; `HandOffBenchmark` is `merge` of two halves and `buffer(64)`, the operators that hand
+elements from one thread to another. JDK 21.0.10 on a 4 vCPU Intel Xeon @ 2.80GHz shared cloud container, 2 forks
+each. Raw results are in [`baseline/2026-09-26-jdk21-actors.json`](baseline/2026-09-26-jdk21-actors.json).
+
+| Row | Per | Forks | Actors | lark on Pekko | Pekko, hand-written |
+|---|---|---|---|---|---|
+| `ChainBenchmark`: five cheap stages | element | **43.1 ± 2.4 ns** | 54.3 ± 3.5 ns | 146.4 ± 12.3 ns | 197.3 ± 16.1 ns |
+| `MapParBenchmark`: `mapPar(8)`, a cheap body | element | 7,989 ± 1,094 ns | **1,408 ± 548 ns** | 11,415 ± 811 ns | 9,721 ± 545 ns |
+| `RunManyBenchmark`: 10 elements, described once | run | 43.5 ± 2.6 µs | **20.3 ± 0.9 µs** | 90.8 ± 11.0 µs | |
+| `ManyRunsBenchmark`: a thousand runs at once | run | **772 ± 137 ns** | 1,227 ± 180 ns | | |
+| `HandOffBenchmark`: `buffer(64)` | element | 2,387 ± 222 ns | **978 ± 323 ns** | | |
+| `HandOffBenchmark`: `merge` | element | 2,079 ± 759 ns | **1,353 ± 524 ns** | | |
+| `GroupedWithinBenchmark`: `groupedWithin(100, 1s)` | element | 25,006 ± 1,768 ns | 23,770 ± 1,203 ns | **184 ± 18 ns** | |
+| `IngestThroughputBenchmark`: CSV ingest | element | 7.49M/s ± 0.67M | **7.69M/s** ± 0.34M | 4.22M/s ± 0.35M | 3.25M/s ± 0.18M |
+| `EnrichThroughputBenchmark`: a 1 ms call, 16 in flight | element | 12,963/s ± 138 | **13,219/s** ± 166 | 11,957/s ± 195 | 12,152/s ± 210 |
+
+What the rows say:
+
+- **Actors win where an element crosses threads.** `mapPar` is 5.7× faster than on Forks: a tell to a worker that
+  already exists, where Forks starts a virtual thread per element. `buffer` and `merge` hand a batch a step to a
+  queue the reader takes from, and are 2.4× and 1.5× faster.
+- **Starting a run is twice as fast**: spawning an actor on a flock that is already running costs less than
+  starting a virtual thread, which is what Forks does per run.
+- **Forks keeps the plain chain and many runs at once.** On one thread the chain is calls in a loop on both
+  backends; the actor's batch of 64 and its tell to itself cost 11 ns an element. A thousand short runs at once cost
+  an actor and a cell each, 1.5 KB against Forks' 0.9 KB, and every one queues for the same four runners.
+- **`groupedWithin` is slow on both, and not because of either backend.** Its feed hands each element over on its
+  own with a lock and a wake, 24–25 µs an element against Pekko's 184 ns. That is the next thing to take.
+- **Both lark backends beat Pekko on every row they share with it**, except `groupedWithin`.
+
 ## The gate
 
 ```bash

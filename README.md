@@ -53,6 +53,7 @@ is where that claim is checked.
 | `lark-stream` | `Stream<E, A>`, described: the failure is in the type, and no backend is named | nothing |
 | `lark-stream-pekko` | runs a `Stream` on Pekko Streams, and the operators that take Pekko's types | `pekko-stream` |
 | `lark-stream-forks` | runs a `Stream` as a pull loop on one virtual thread, for the operators that need no second one | nothing |
+| `lark-stream-actors` | runs a `Stream` on `lark-actor`: a run is an actor pulling a batch a step, and `mapPar`, `buffer` and the fan-ins are its child actors. Against Forks: `mapPar` 5.7× faster, a run started 2.1× faster, `buffer` and `merge` 1.5–2.4× faster; the plain chain a quarter slower ([numbers](lark-stream-benchmarks/README.md)) | nothing |
 | `lark-stream-test` | runs a `Stream` on a `TestClock` the test moves: an hour of `tick` is one `adjust`, and each `adjust` returns with what fell due | nothing |
 | `lark-kafka` | a Kafka topic as a `Stream` on any backend: each offset committed once its record's work is done, and a record that fails to decode as a value ([`docs/kafka.md`](docs/kafka.md)) | `kafka-clients` |
 | `lark-kafka-pekko` | the same through Pekko's own Kafka connector: prefetch, batched commits and a draining stop | `pekko-connectors-kafka` |
@@ -597,6 +598,8 @@ dependencies {
     implementation("io.github.matthewjones372:lark-stream-pekko:0.5.0")
     // or a pull loop on one virtual thread, with nothing under it but lark-stream
     // implementation("io.github.matthewjones372:lark-stream-forks:0.5.0")
+    // or runs as actors of a lark-actor flock: Actors(flock)
+    // implementation("io.github.matthewjones372:lark-stream-actors:0.5.0")
 
     // time a test owns: tick, groupedWithin and restartOnDefect on a TestClock
     testImplementation("io.github.matthewjones372:lark-stream-test:0.5.0")
