@@ -1,0 +1,118 @@
+package io.github.matthewjones372.lark.stream
+
+import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.VirtualThreads
+import io.github.matthewjones372.lark.actor.ActorRef
+import io.github.matthewjones372.lark.actor.Behaviour
+import io.github.matthewjones372.lark.actor.Next
+import io.github.matthewjones372.lark.actor.Signal
+import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.onSignal
+import io.github.matthewjones372.lark.actor.onStart
+import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.actor.stop
+import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.logger
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicInteger
+
+/** How many elements a run pulls in one step before it lets its runner go: an actor's throughput. */
+private const val BATCH = 64
+
+/**
+ * lark-stream on lark-actor: a run is an actor of [flock]'s, which pulls the run's loop [batch] elements at a time
+ * and then tells itself to go on, so runs share the flock's runners and a long one never holds one. A stage that
+ * blocks parks its runner, as any step may. The operators that run something beside the loop start it from [on],
+ * as on [Forks]. Time is lark's `clock`, read when the run starts. A run cannot outlive [flock]: its close stops it.
+ */
+class Actors(
+    private val flock: Flock<*>,
+    private val batch: Int = BATCH,
+    private val on: Executor = VirtualThreads,
+    name: String = "Actors",
+) : StreamBackend {
+
+    init {
+        require(batch > 0) { "a batch must be at least one element, was $batch" }
+    }
+
+    // Forks runs every operator the loop does, so it answers for which those are.
+    private val forks = Forks(on, name)
+
+    private val live = AtomicInteger()
+
+    /** How many runs started here have not yet ended, for a test to say that none outlived its exit. */
+    @StreamSpi
+    val running: Int get() = live.get()
+
+    @StreamSpi
+    override val key: BackendKey = forks.key
+
+    @StreamSpi
+    override fun runs(node: Node): Boolean = forks.runs(node)
+
+    @StreamSpi
+    override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {
+        // Read here, on the caller's thread: the actor inherits neither.
+        val pulling = Pulling(run, logger.get(), clock.get(), on)
+        val running = ActorRun(flock, pulling, batch, live)
+        live.incrementAndGet()
+        running.ref = flock.spawn("stream", running.behaviour())
+        return running
+    }
+}
+
+/** What a run's actor tells itself between batches. */
+private data object More
+
+private class ActorRun<E, R : Any>(
+    private val flock: Flock<*>,
+    private val pulling: Pulling<E, R>,
+    private val batch: Int,
+    private val live: AtomicInteger,
+) : Running<E, R> {
+
+    override val exit = CompletableFuture<Exit<E, R>>()
+
+    @Volatile
+    lateinit var ref: ActorRef<More>
+
+    // How the loop ended, once it has; read by the actor's own ending, on the actor's own thread.
+    private var ended: Exit<E, R>? = null
+
+    fun behaviour(): Behaviour<More, Unit, Nothing> =
+        behaviour<More, Unit>(Unit) { ctx, _, _ ->
+            val pulled = pulling.pull(batch)
+            if (pulled == null) {
+                ctx.self.tell(More)
+                stay()
+            } else {
+                ended = pulled
+                // The actor's own stop, not this run's: the member of the same name would stop it from outside.
+                Next.Stop
+            }
+        }.onStart { ctx -> ctx.self.tell(More) }.onSignal { _, _, signal ->
+            // The exit completes as the actor ends, however it ends, and after anything the run started has.
+            if (signal == Signal.Stopping) {
+                live.decrementAndGet()
+                exit.complete(pulling.finish(ended ?: pulling.done()))
+            }
+            stay()
+        }
+
+    /**
+     * Ends the run now: the loop stops before its next element, a source it is blocked in is woken, and a step
+     * that is running is interrupted. The exit is `Done` with what the end had by then.
+     */
+    override fun stop() {
+        pulling.stop()
+        flock.stop(ref)
+    }
+
+    override fun close() {
+        stop()
+        exit.join()
+    }
+}

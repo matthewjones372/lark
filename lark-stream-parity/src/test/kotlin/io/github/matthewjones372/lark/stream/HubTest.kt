@@ -31,7 +31,7 @@ class HubTest {
         private const val SETTLE_SECONDS = 10L
     }
 
-    private val backends: List<StreamBackend> = listOf(PekkoStreams(system), Forks(), TestStreams())
+    private val backends: List<StreamBackend> = listOf(PekkoStreams(system), Forks(), TestStreams(), Actors(heldFlock))
 
     private fun onEvery(check: (StreamBackend) -> Unit): List<DynamicTest> =
         backends.map { backend -> dynamicTest(backend.key.name) { check(backend) } }
