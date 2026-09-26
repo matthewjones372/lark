@@ -78,10 +78,11 @@ created at start keeps lark out of the service's migrations.
       DDL, running the contract on H2 in test scope. Done when: the contract
       passes, and the runtime classpath is `lark-actor` and the JDK alone.
       ([#177](https://github.com/matthewjones372/lark/pull/177))
-- [ ] **`spec-0072-moved`** — a sharded persistent entity keeps its state
+- [x] **`spec-0072-moved`** — a sharded persistent entity keeps its state
       across a move. Done when: three nodes share one H2 database, an entity
       is fed on the node that owns it, that node leaves, and the entity
       answers from the next owner with every event it had.
+      ([#178](https://github.com/matthewjones372/lark/pull/178))
 
 ## Acceptance
 
@@ -121,3 +122,8 @@ event only where the event it expects to follow exists, and a writer ahead
 inserts nothing. A duplicate key is told by SQL state `23505`, which Postgres
 and H2 both give. Dropping the primary key from the H2 DDL fails the contract's
 race.
+
+Decided while building `spec-0072-moved`: nothing in `lark-cluster` changes. A
+region's entities already take the flock's journal, so a shared one is all a
+move needs; the test proves it, and fails with each node on its own
+`InMemoryJournal`, where the moved entity answers from empty.
