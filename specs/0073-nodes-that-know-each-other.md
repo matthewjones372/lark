@@ -91,3 +91,8 @@ join. Recommended: mutual TLS.
   clock.
 - **TLS 1.3 only?** Recommended: yes; every JDK lark supports has it, and it
   leaves no cipher list to choose.
+
+Decided (2026-09-26): every open question goes as recommended. Mutual TLS, not
+a shared secret; the node name is checked against a DNS subject alternative
+name in the peer's certificate; the test certificates are checked in with the
+script that made them; and TLS 1.3 only.
