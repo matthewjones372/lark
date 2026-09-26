@@ -95,3 +95,8 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
   throughput is, with a parameter on `Actors`. Tune it once the rows exist.
 - **Numbering.** This takes 0066. Transport, membership and sharding move to
   0067–0069. Recommended: yes, as before.
+
+Decided (2026-09-26): every open question goes as recommended. The backend is
+`Actors(flock)`; it reuses Forks' pull operators, which become `@StreamSpi`;
+batch and credit are 64, with a parameter on `Actors`; transport, membership
+and sharding are 0067–0069.
