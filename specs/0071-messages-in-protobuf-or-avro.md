@@ -60,7 +60,7 @@ same tag table and reply order. Recommended: a module per format.
 
 ## Stack
 
-- [ ] **`spec-0071-protobuf`** — `lark-actor-remote-protobuf`: `codec`,
+- [x] **`spec-0071-protobuf`** — `lark-actor-remote-protobuf`: `codec`,
       `oneOf` and `asked`. Done when: a generated message, a `oneOf` protocol
       and an ask cross between two nodes, and a duplicate tag fails when built.
 - [ ] **`spec-0071-avro`** — `lark-actor-remote-avro`: `codec` with a
