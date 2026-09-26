@@ -1,8 +1,16 @@
 // An actor as a value and a step, on lark and the Arrow that arrives with it, and nothing else.
 // NoOtherDependenciesTest asserts exactly that, on the classpath a consumer gets.
 
+plugins {
+    // JournalContract: the tests every journal runs, this module's own and any a service writes.
+    `java-test-fixtures`
+}
+
 dependencies {
     api(project(":lark"))
+
+    testFixturesApi("org.junit.jupiter:junit-jupiter-api:6.1.3")
+    testFixturesImplementation("io.kotest:kotest-assertions-core:6.2.4")
 }
 
 tasks.test {
@@ -24,3 +32,5 @@ tasks.test {
 extensions.configure<dev.detekt.gradle.extensions.DetektExtension> {
     config.from(file("detekt.yml"))
 }
+
+tasks.named("check") { dependsOn("detektTestFixtures") }
