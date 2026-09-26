@@ -4,6 +4,8 @@ import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Schedule
 import java.time.Instant
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 
@@ -77,7 +79,81 @@ private fun Timeline.feed(up: Pull, into: Handoff) = fork {
  * the next window from the instant it was emitted, as Pekko's do. A window that closes empty emits nothing.
  */
 internal fun Node.GroupedWithin.groupedWithin(turns: Timeline): Pull =
-    Windows(n, within, turns, Handoff().also { turns.feed(upstream.pull(), it) })
+    if (turns is RealTime) {
+        Queued(n, within, turns, ArrayBlockingQueue<Any>(n + 1).also { turns.feed(upstream.pull(), it) })
+    } else {
+        Windows(n, within, turns, Handoff().also { turns.feed(upstream.pull(), it) })
+    }
+
+/**
+ * [up] pulled on a fork of its own into [into], which has room for a group and one end: the feed runs at most a
+ * group ahead of the reader, and parks only when it is that far ahead.
+ */
+// The catch is as wide as a pipeline: whatever upstream threw is the reader's to throw, after what came before it.
+@Suppress("TooGenericExceptionCaught")
+private fun RealTime.feed(up: Pull, into: ArrayBlockingQueue<Any>) = fork {
+    try {
+        generateSequence { up.next() }.forEach(into::put)
+        into.put(Handoff.Ended.Done)
+    } catch (_: InterruptedException) {
+        // Let go of by the run: nothing reads what would have come next.
+    } catch (thrown: Throwable) {
+        try {
+            into.put(Handoff.Ended.Threw(thrown))
+        } catch (_: InterruptedException) {
+            // Let go of by the run while waiting for room: nobody reads the failure either.
+        }
+    }
+}
+
+/**
+ * [Windows] on real time: the reader drains whatever the feed has queued in one go, and reads the clock and parks
+ * only when the queue is empty, until the window closes. The windows follow the same rules.
+ */
+private class Queued(val n: Int, val within: Duration, val time: RealTime, val queue: ArrayBlockingQueue<Any>) : Pull {
+
+    private var closes: Instant? = null
+    private var ended = false
+    private val drained = ArrayList<Any>(n + 1)
+
+    override fun next(): Any? {
+        val group = ArrayList<Any>(n)
+        var emit: List<Any>? = null
+        while (emit == null && !ended) emit = fill(group)
+        return (emit ?: group).takeIf { it.isNotEmpty() }
+    }
+
+    /** One step of filling [group]: the group to emit, if this step ends it. */
+    private fun fill(group: MutableList<Any>): List<Any>? {
+        if (closes == null) closes = time.now().plus(within)
+        drained.clear()
+        queue.drainTo(drained, n - group.size)
+        if (drained.isEmpty()) queue.poll(untilClose(), TimeUnit.NANOSECONDS)?.let(drained::add)
+        drained.forEach { held ->
+            when (held) {
+                Handoff.Ended.Done -> return group.also { ended = true }
+                is Handoff.Ended.Threw -> throw held.thrown
+                else -> group.add(held)
+            }
+        }
+        return when {
+            group.size == n -> group.also { closes = time.now().plus(within) }
+            drained.isEmpty() -> closed(group)
+            else -> null
+        }
+    }
+
+    private fun untilClose(): Long = java.time.Duration.between(time.now(), closes).toNanos().coerceAtLeast(0)
+
+    /** Nothing came before the window's close: once it has passed, the next window starts and what it held goes. */
+    private fun closed(group: List<Any>): List<Any>? {
+        val now = time.now()
+        val window = checkNotNull(closes)
+        if (window > now) return null
+        closes = generateSequence(window) { it.plus(within) }.first { it > now }
+        return group.takeIf { it.isNotEmpty() }
+    }
+}
 
 private class Windows(val n: Int, val within: Duration, val turns: Timeline, val handoff: Handoff) : Pull {
 

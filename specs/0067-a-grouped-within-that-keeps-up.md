@@ -38,7 +38,7 @@ other option. Not recommended: each element would still cross threads alone.
 
 ## Stack
 
-- [ ] **`spec-0067-queued`** — the queue on real time, and a test that a window
+- [x] **`spec-0067-queued`** ([#151](https://github.com/matthewjones372/lark/pull/151)) — the queue on real time, and a test that a window
       on real time closes with what it held while upstream is blocked. Done
       when: `GroupedWithinBenchmark`'s `forks` row is within twice the Pekko
       row, and the parity and `TestStreams` suites pass unchanged.
@@ -56,3 +56,8 @@ other option. Not recommended: each element would still cross threads alone.
 
 Decided (2026-09-26), since the user asked for problems found on the way to be
 specced and fixed: room for `n`.
+
+Decided while building (2026-09-26): the reader drains whatever is queued in
+one go and reads the clock only when the queue is empty; taking one element
+at a time, with the clock read for each, was 1,174 ns an element. Drained, the
+`forks` row is 317 ± 33 ns against the Pekko row's 178 ± 14 ns, from 25,006.
