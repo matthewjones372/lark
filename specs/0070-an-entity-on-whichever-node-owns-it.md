@@ -63,9 +63,10 @@ flexible and far more state to keep consistent. Recommended: rendezvous.
       view. Done when: a join moves at most about 1/N of the shards, and the
       same view gives every node the same owners.
       ([#168](https://github.com/matthewjones372/lark/pull/168))
-- [ ] **`spec-0070-region`** — regions, the envelope, and `sharding(…)`.
+- [x] **`spec-0070-region`** — regions, the envelope, and `sharding(…)`.
       Done when: three nodes in one JVM tell and ask one entity from any node,
       and it runs on the owner only.
+      ([#169](https://github.com/matthewjones372/lark/pull/169))
 - [ ] **`spec-0070-handoff`** — letting go of a shard when the view changes.
       Done when: a node joining and one leaving while entities are told
       throughout never has one entity running on two nodes, and loses no
