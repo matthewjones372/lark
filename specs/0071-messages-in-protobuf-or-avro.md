@@ -64,9 +64,10 @@ same tag table and reply order. Recommended: a module per format.
       `oneOf` and `asked`. Done when: a generated message, a `oneOf` protocol
       and an ask cross between two nodes, and a duplicate tag fails when built.
       ([#173](https://github.com/matthewjones372/lark/pull/173))
-- [ ] **`spec-0071-avro`** — `lark-actor-remote-avro`: `codec` with a
+- [x] **`spec-0071-avro`** — `lark-actor-remote-avro`: `codec` with a
       `SchemaStore`, and `asked`. Done when: a node writing version 2 of a
       record and one reading version 1 understand each other.
+      ([#174](https://github.com/matthewjones372/lark/pull/174))
 
 ## Acceptance
 
@@ -90,3 +91,11 @@ only; Avro specific records only; and `oneOf` takes any generated `Message`.
 Decided while building `spec-0071-protobuf`: the tests use the well-known
 types `protobuf-java` ships, so the build needs no `protoc`; and bytes Protobuf
 cannot read are a `WireException`, as any other unreadable frame is.
+
+Decided while building `spec-0071-avro`: the tests write a specific record by
+hand, as Avro's compiler would, and write version 2 as a generic record, so
+the build needs no Avro compiler. Avro 1.12 makes only the classes it trusts;
+the codec trusts the record class the service hands it, so a service need not
+set `org.apache.avro.SERIALIZABLE_PACKAGES` for it, though records nested in
+it still need that. Bytes Avro cannot read, or whose schema the store does not
+know, are a `WireException`.
