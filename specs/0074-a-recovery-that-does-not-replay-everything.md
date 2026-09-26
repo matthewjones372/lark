@@ -97,3 +97,8 @@ decision in every command. Recommended: every N, set once on the behaviour.
   the latest; an older one is never read.
 - **A store of its own, or snapshots on `Journal`?** Recommended: a store of
   its own, so existing journals need no change.
+
+Decided (2026-09-26): every open question goes as recommended. Snapshots are
+taken every N events, set once on the behaviour; a failed save is logged and
+does not fail the step; a store keeps only the latest snapshot per id; and
+snapshots are a store of their own, leaving `Journal` unchanged.
