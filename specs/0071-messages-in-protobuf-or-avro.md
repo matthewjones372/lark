@@ -82,3 +82,6 @@ same tag table and reply order. Recommended: a module per format.
 - **`oneOf` over any `Message`, or over a sealed Kotlin type the service
   maps?** Recommended: any `Message`, since generated classes cannot share a
   sealed parent.
+
+Decided (2026-09-26): every open question goes as recommended. Full Protobuf
+only; Avro specific records only; and `oneOf` takes any generated `Message`.
