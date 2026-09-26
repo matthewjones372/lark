@@ -72,9 +72,10 @@ flexible and far more state to keep consistent. Recommended: rendezvous.
       throughout never has one entity running on two nodes, and loses no
       message that the handoff kept.
       ([#170](https://github.com/matthewjones372/lark/pull/170))
-- [ ] **`spec-0070-singleton`** — `singleton(…)` and its ref. Done when: the
+- [x] **`spec-0070-singleton`** — `singleton(…)` and its ref. Done when: the
       oldest member leaving moves the singleton to the next, with no moment
       where both run it.
+      ([#171](https://github.com/matthewjones372/lark/pull/171))
 
 ## Acceptance
 
@@ -105,3 +106,9 @@ thinks held it, since two view changes close together can name a previous
 owner that never ran the shard. A member releases only once it neither runs
 the shard nor believes it owns it. A message that runs out of hops is routed
 again after 100 ms rather than kept until the next view, which may never come.
+
+Decided while building `spec-0070-singleton`: a singleton is a region of one
+shard placed on the oldest `Up` member, whose host is the actor itself and
+starts as soon as the shard is free. A message already in an entity's or a
+singleton's mailbox when it moves is a dead letter, as it is on passivation;
+what the handoff keeps is delivered.
