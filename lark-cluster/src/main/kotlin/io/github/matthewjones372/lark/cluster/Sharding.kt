@@ -3,13 +3,10 @@ package io.github.matthewjones372.lark.cluster
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Behaviour
-import io.github.matthewjones372.lark.actor.Ctx
-import io.github.matthewjones372.lark.actor.DeadLetter
-import io.github.matthewjones372.lark.actor.Entities
+import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.deadLetter
 import io.github.matthewjones372.lark.actor.entities
-import io.github.matthewjones372.lark.actor.entity
+import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.WireIn
@@ -17,6 +14,7 @@ import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 internal object Sharding {
     /** Shards per kind unless a kind says otherwise; every node of a cluster must use the same number. */
@@ -28,6 +26,9 @@ internal object Sharding {
     /** Times a message is passed between nodes that each think another owns it before it waits for the view. */
     const val MOST_HOPS = 3
 
+    /** How long a message that ran out of hops waits before it is routed again. */
+    val RETRY_AFTER = 100.milliseconds
+
     private val kinds = Regex("[A-Za-z0-9._-]+")
 
     fun path(kind: String): String {
@@ -36,27 +37,58 @@ internal object Sharding {
     }
 }
 
-/** What a region handles: a message for one of its kind's entities, or the view it places them by. */
+/**
+ * What a region handles: a message for one of its kind's entities, the view it places them by, and the two halves of
+ * a handoff: a node that has won a shard asks the others to [Release] it, and each says it has once it runs none of it.
+ */
 internal sealed interface Region<M : Any> {
     data class Envelope<M : Any>(val id: String, val hops: Int, val message: M) : Region<M>
 
+    data class Release<M : Any>(val shard: Int, val from: Node) : Region<M>
+
+    data class Released<M : Any>(val shard: Int, val by: Node) : Region<M>
+
     data class Viewed<M : Any>(val view: View) : Region<M>
+
+    /** A region's own timer, to route again what ran out of hops. */
+    class Retry<M : Any> : Region<M>
 }
 
-/** An envelope as it crosses between regions: the id, then the message in the kind's own codec. */
-private class EnvelopeCodec<M : Any>(private val codec: MessageCodec<M>) : MessageCodec<Region<M>> {
+private const val ENVELOPE = 1
+private const val RELEASE = 2
+private const val RELEASED = 3
+
+/** What crosses between regions: an envelope holds the id, then the message in the kind's own codec. */
+private class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : MessageCodec<Region<M>> {
     override fun write(message: Region<M>, out: WireOut) = when (message) {
         is Region.Envelope -> {
+            out.int(ENVELOPE)
             out.string(message.id)
             out.int(message.hops)
             codec.write(message.message, out)
         }
 
-        is Region.Viewed -> error("a view never leaves its node")
+        is Region.Release -> {
+            out.int(RELEASE)
+            out.int(message.shard)
+            out.string(message.from.toString())
+        }
+
+        is Region.Released -> {
+            out.int(RELEASED)
+            out.int(message.shard)
+            out.string(message.by.toString())
+        }
+
+        is Region.Viewed, is Region.Retry -> error("$message never leaves its node")
     }
 
-    override fun read(input: WireIn): Region<M> =
-        Region.Envelope(id = input.string(), hops = input.int(), message = codec.read(input))
+    override fun read(input: WireIn): Region<M> = when (val tag = input.int()) {
+        ENVELOPE -> Region.Envelope(id = input.string(), hops = input.int(), message = codec.read(input))
+        RELEASE -> Region.Release(input.int(), Node.parse(input.string()))
+        RELEASED -> Region.Released(input.int(), Node.parse(input.string()))
+        else -> error("no region message has the tag $tag")
+    }
 }
 
 /** The entities of one kind, spread across the cluster's `Up` members by [Placement]. */
@@ -91,59 +123,19 @@ fun <M : Any, S, E> Cluster.sharding(
 ): Sharded<M> {
     val path = Sharding.path(kind)
     require(shards > 0) { "shards must be positive, was $shards" }
-    val wire = EnvelopeCodec(codec)
-    val placing = Placing(this, kind, shards, wire, path) { ctx ->
-        ctx.spawn("entities", entities(passivateAfter, entity = entity))
+    val wire = RegionCodec(codec)
+    val placing = Placing(this, kind, shards, wire, path) { ctx, shard ->
+        ctx.spawn("shard-$shard", entities(passivateAfter, entity = entity))
     }
     val region = flock.spawn(
         path.removePrefix("/user/"),
-        behaviour<Region<M>, Unit>(Unit) { ctx, _, step -> stay().also { placing.step(ctx, step) } },
+        behaviour<Region<M>, Unit>(Unit) { ctx, _, step -> stay().also { placing.step(ctx, step) } }
+            .onSignal { ctx, _, signal ->
+                if (signal is Signal.Terminated) placing.ended(ctx, signal.ref)
+                stay()
+            },
     )
     remote.expose(region, wire)
     onView { region.tell(Region.Viewed(it)) }
     return Sharded(kind, region)
-}
-
-/** One region's work: each message to the entity here, or to the region of the node that owns its shard. */
-private class Placing<M : Any>(
-    private val cluster: Cluster,
-    private val kind: String,
-    private val shards: Int,
-    private val wire: MessageCodec<Region<M>>,
-    private val path: String,
-    private val start: (Ctx<Region<M>>) -> ActorRef<Entities<M>>,
-) {
-    private var view = View.None
-    private var local: ActorRef<Entities<M>>? = null
-    private val kept = ArrayDeque<Region.Envelope<M>>()
-
-    fun step(ctx: Ctx<Region<M>>, step: Region<M>) = when (step) {
-        is Region.Envelope -> route(ctx, step)
-
-        is Region.Viewed -> {
-            view = step.view
-            val waiting = kept.toList()
-            kept.clear()
-            waiting.forEach { route(ctx, it) }
-        }
-    }
-
-    private fun route(ctx: Ctx<Region<M>>, envelope: Region.Envelope<M>) {
-        val owner = Placement.owner(kind, Placement.shardOf(envelope.id, shards), view.members)
-        when {
-            owner == cluster.self -> here(ctx).entity(envelope.id).tell(envelope.message)
-            owner == null || envelope.hops >= Sharding.MOST_HOPS -> keep(envelope)
-            else -> there(owner).tell(envelope.copy(hops = envelope.hops + 1))
-        }
-    }
-
-    private fun here(ctx: Ctx<Region<M>>) = local ?: start(ctx).also { local = it }
-
-    private fun there(owner: Node) = cluster.remote.remote(Address(owner.toString(), path, 0), wire)
-
-    private fun keep(envelope: Region.Envelope<M>) {
-        if (kept.size < Sharding.KEEP_AT_MOST) return kept.addLast(envelope)
-        val recipient = Address(cluster.self.toString(), "$path/${envelope.id}", 0)
-        cluster.flock.deadLetter(DeadLetter(recipient, envelope.message, DeadLetter.Why.Unreachable))
-    }
 }
