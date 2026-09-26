@@ -91,8 +91,13 @@ Recommended: gossip, with downing deciding splits.
 - [x] **`spec-0069-discovery`** — `Discovery`, static and DNS. Done when: DNS
       answers from a test server become seed nodes.
       ([#160](https://github.com/matthewjones372/lark/pull/160))
-- [ ] **`spec-0069-gossip`** — SWIM probing, indirect probes, gossip of member
-      state, join through a seed. Done when: five nodes in one JVM agree on the
+- [x] **`spec-0069-gossip`** — SWIM probing, indirect probes, gossip of member
+      state, join through a seed, as a protocol with no thread or clock of its
+      own. Done when: five nodes on a simulated network agree on the same view,
+      and a stopped one is seen unreachable by all.
+      ([#161](https://github.com/matthewjones372/lark/pull/161))
+- [ ] **`spec-0069-gossip-wire`** — the protocol as an actor on 0068's
+      transport, and `cluster(…)`. Done when: five nodes in one JVM agree on the
       same view, and a stopped one is seen unreachable by all.
 - [ ] **`spec-0069-events`** — member events, and `watch` across nodes on
       membership. Done when: a removed node ends every watch on it.
@@ -132,3 +137,10 @@ host and port, with an empty name, and the transport connects to whichever node
 answers there. DNS goes through a `Resolver`, and the test server is a fake one,
 since the JDK has no DNS server to run in a test; the JDK resolver is tested
 against localhost.
+
+Decided while building `spec-0069-gossip`: the protocol is a value with no
+thread or clock, so partitions are tested on a simulated network, and the
+entry is split so the transport comes separately. The lowest seed forms the
+cluster only after `formAfter` with no other seed letting it in; the gossip
+carries the node that formed the cluster, so two clusters never merge; and
+convergence is every live member reporting the same digest of the members.
