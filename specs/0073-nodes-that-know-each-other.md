@@ -70,10 +70,11 @@ join. Recommended: mutual TLS.
       hello's. Done when: a node with a good certificate for one name that
       claims another is refused, whichever side claims it.
       ([#181](https://github.com/matthewjones372/lark/pull/181))
-- [ ] **`spec-0073-node`** — `node(…, tls = …)`, through `RemoteNode` to the
+- [x] **`spec-0073-node`** — `node(…, tls = …)`, through `RemoteNode` to the
       cluster. Done when: three nodes form a cluster, shard an entity and
       ask it over TLS, and a fourth with a certificate from another CA never
       joins.
+      ([#182](https://github.com/matthewjones372/lark/pull/182))
 
 ## Acceptance
 
@@ -111,3 +112,9 @@ in the hello before it answers, and the connecting side checks the name in the
 answer, so a seed known only by its address is whichever node its certificate
 names. The name must be a DNS subject alternative name; the subject's CN is not
 read.
+
+Decided while building `spec-0073-node`: the test certificates moved to
+`lark-actor-remote`'s test fixtures, as `TestCertificates`, so `lark-cluster`'s
+tests use the same ones. The fourth node starts only once the three have
+formed, so the same test without TLS fails on the fourth joining rather than
+on the three never settling.

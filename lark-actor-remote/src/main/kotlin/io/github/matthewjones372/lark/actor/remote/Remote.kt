@@ -54,15 +54,17 @@ private fun targetOf(on: Node, payload: ByteArray): Address =
 /**
  * This flock as a node named [name], listening on [host] and [port], until the flock closes. An actor of this node is
  * reached from another only once it is [RemoteNode.expose]d with the codec its messages cross in, or when a ref to it
- * crosses inside a message, which exposes it with the codec the message gave for it.
+ * crosses inside a message, which exposes it with the codec the message gave for it. With [tls], every connection
+ * to and from this node is TLS, and only nodes whose certificates name them are let in (spec 0073).
  */
 fun <F> Flock<F>.node(
     name: String,
     port: Int,
     host: String = "127.0.0.1",
     unreachableAfter: Duration = 10.seconds,
+    tls: Tls? = null,
 ): RemoteNode {
-    val node = RemoteNode(Node(name, host, port), this, unreachableAfter)
+    val node = RemoteNode(Node(name, host, port), this, unreachableAfter, tls)
     node.transport.listen()
     // The flock has no hook of its own for close, and an actor's Stopping is one: the node closes with it.
     spawn(
@@ -87,6 +89,7 @@ class RemoteNode internal constructor(
     val self: Node,
     private val flock: Flock<*>,
     private val unreachableAfter: Duration,
+    tls: Tls? = null,
 ) {
 
     private val exposed = ConcurrentHashMap<String, Exposed<*>>()
@@ -107,7 +110,7 @@ class RemoteNode internal constructor(
     @Volatile
     private var membershipEndsWatches = false
 
-    internal val transport = Transport(self, Inbound())
+    internal val transport = Transport(self, Inbound(), tls = tls)
 
     /** Lets other nodes tell [ref] messages written with [codec], at its path. */
     fun <M : Any> expose(ref: ActorRef<M>, codec: MessageCodec<M>) {

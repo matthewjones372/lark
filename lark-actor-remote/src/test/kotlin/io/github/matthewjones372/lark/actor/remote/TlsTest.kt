@@ -11,14 +11,11 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
-private val password = "lark-test".toCharArray()
+private val password = TestCertificates.password
 
-private fun store(name: String): KeyStore = KeyStore.getInstance("PKCS12").apply {
-    checkNotNull(TlsTest::class.java.getResourceAsStream("/tls/$name.p12")).use { load(it, password) }
-}
+private fun store(name: String) = TestCertificates.store(name)
 
-/** [name]'s key and certificate, trusting only what [ca] signed. See src/test/resources/tls/make.sh. */
-fun tlsFor(name: String, ca: String = "cluster-ca"): Tls = Tls.mutual(store(name), password, store("trusts-$ca"))
+private fun tlsFor(name: String, ca: String = "cluster-ca") = TestCertificates.tls(name, ca)
 
 private fun nodeNamed(name: String) = Node(name, "127.0.0.1", ServerSocket(0).use { it.localPort })
 
