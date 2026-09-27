@@ -59,7 +59,7 @@ purpose. Recommended: leader-proposed overrides in the gossip.
 - [x] **`spec-0090-load`** — per-shard load counted by each region and carried
       in the gossip. Done when: three nodes each see the others' entity counts
       per kind, and the counts are right after entities start and passivate.
-- [ ] **`spec-0090-overrides`** — overrides in the gossip, and placement that
+- [x] **`spec-0090-overrides`** — overrides in the gossip, and placement that
       honours them. Done when: an override set on the leader moves exactly that
       shard, through the usual handoff, and is dropped when its member goes.
 - [ ] **`spec-0090-rebalance`** — `Rebalance.byLoad`, the leader's proposal,
@@ -99,3 +99,12 @@ Decided while building `spec-0090-load`:
 - **Counting.** A region counts a message when it delivers it to a shard here, and a shard's entities through `entities`' `onRunning`. The cluster actor reads the counts on its tick once `every` has passed, and messages count from none again.
 - **Who sees it.** `Cluster.balance` is published with the view, holds only live members, and wakes `await` as a view does. It is internal, and so is `Rebalance` until the next entry makes it public.
 - **What the test catches.** Dropping the load from the merge or the codec fails it, and so does a count that does not fall when entities passivate.
+
+Decided while building `spec-0090-overrides`:
+- **Shape in the gossip.** Moves are kept per kind, as a version and a map from shard to the member's incarnation. The leader raises the version on each change, and a new leader starts from the highest it has merged. Two moves on the same version merge to the same one on every node.
+- **One life only.** A move names the member's incarnation, not its address, so a node started again at the same address does not inherit the shards moved to its last life.
+- **Agreed like membership.** `Gossip.hash` takes the moves in, so the leader moves members on only once every member places alike. A kind with no moves adds nothing, and the hash is unchanged without moves.
+- **Only the leader writes them.** `Membership.move` does nothing on any other node, and ignores a move to a member that is not `Up`. A move to null sends a shard back to its hash owner.
+- **Dropping.** Once converged, the leader drops every move to a member that is no longer `Up`. A `Leaving` member's moved shards go back to their hash owners as it leaves, as its own shards do. Placement ignores such a move even before it is dropped.
+- **How a region learns them.** `Region.Viewed` carries its kind's moves, and `Placing` keeps them beside the view. Its handoff is unchanged. A change of load alone does not tell the regions anything.
+- **What the tests catch.** Placement that ignores the move, or the incarnation, fails them. So do moves left out of the codec, a region not told when only the moves change, and a leader that never drops them.
