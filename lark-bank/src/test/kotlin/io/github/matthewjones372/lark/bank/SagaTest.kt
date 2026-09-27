@@ -159,14 +159,14 @@ class SagaTest {
     fun `every message crosses the wire and every event the journal as it was`() {
         val delivery = Delivery("saga-n1", "a", 3, Delivery.NoOne)
         val accounts = listOf(Debit("t", 1), Credit("t", 2), ToAccount(Credit("t", 4), delivery))
-        val transfers = listOf(Start("a", "b", 3), DebitDone(false), CreditDone, ToTransfer(CreditDone, delivery))
+        val transfers = listOf(Start("a", "b", 3, 9), DebitDone(false), CreditDone, ToTransfer(CreditDone, delivery))
         accounts.forEach { roundTrip(AccountCodec, it) shouldBe it }
         transfers.forEach { roundTrip(TransferCodec, it) shouldBe it }
         val statement = Statement(open = true, balance = 3, movements = listOf(Movement("t", -1), Movement("u", 4)))
         roundTrip(StatementCodec, statement) shouldBe statement
         val events = listOf(AccountEvent.Opened(1), AccountEvent.Debited("t", 2), AccountEvent.Credited("t", 3))
         events.forEach { AccountEvents.decode(AccountEvents.encode(it)) shouldBe it }
-        val steps = listOf(TransferEvent.Requested("a", "b", 1), TransferEvent.Debited, TransferEvent.Credited)
+        val steps = listOf(TransferEvent.Requested("a", "b", 1, 7), TransferEvent.Debited, TransferEvent.Credited)
         steps.forEach { TransferEvents.decode(TransferEvents.encode(it)) shouldBe it }
     }
 }

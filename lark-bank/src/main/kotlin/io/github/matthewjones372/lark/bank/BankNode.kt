@@ -19,7 +19,10 @@ import io.github.matthewjones372.lark.cluster.Sharded
 import io.github.matthewjones372.lark.cluster.Status
 import io.github.matthewjones372.lark.cluster.cluster
 import io.github.matthewjones372.lark.cluster.sharding
+import io.github.matthewjones372.lark.cluster.topic
 import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.increment
+import io.github.matthewjones372.lark.metrics
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -34,6 +37,7 @@ internal data class Settings(
     val downAfter: Duration = 3.seconds,
     val resendAfter: Duration = 1.seconds,
     val passivateAfter: Duration = 2.minutes,
+    val sampleEvery: Duration = 1.seconds,
 )
 
 /** Commands a producer may keep unconfirmed: enough that a load never waits on one. */
@@ -69,6 +73,10 @@ internal class BankNode(
     ended: (String, Saga) -> Unit = { _, _ -> },
 ) : AutoCloseable {
     val members = Members()
+
+    /** This node's browsers' streams, fed by its dashboard. */
+    val hub = Hub()
+    private val recorder = Recorder()
     private val done = CountDownLatch(1)
 
     // Set before the flock closes, so a member removed meanwhile is not adopted by a node on its way out.
@@ -76,16 +84,33 @@ internal class BankNode(
     private var closing = false
     private val started = CompletableFuture<Parts>()
     private val thread = Thread.ofPlatform().name("bank-$name").start {
+        metrics.locally(recorder) { run(port, seeds, journal, settings, ended) }
+    }
+
+    private fun run(port: Int, seeds: Discovery, journal: Journal, settings: Settings, ended: (String, Saga) -> Unit) {
         flock<Nothing, Unit> {
             journal(journal)
             val downing = Downing.keepMajority(stableAfter = settings.downAfter)
             val cluster = cluster(node(name, port), seeds, settings.gossiping, downing, leaveWithin = Duration.ZERO)
+            val stats = cluster.topic("bank-stats", NodeStatsCodec)
+            val events = cluster.topic("bank-events", BankEventCodec)
+            val dashboard = spawn("dashboard", dashboard(hub))
+            stats.subscribe(dashboard)
+            events.subscribe(dashboard)
+            spawn("sampler", sampler(name, recorder, stats, settings.sampleEvery))
+            val announce = { id: String, saga: Saga ->
+                val ms = System.currentTimeMillis() - saga.at
+                recorder.counter(ENDED, mapOf("outcome" to saga.phase.name)).increment()
+                recorder.histogram(TOOK, emptyMap()).record(ms.toDouble())
+                events.publish(BankEvent.Ended(id, saga.from, saga.to, saga.pence, saga.phase.name, ms))
+                ended(id, saga)
+            }
             val outbox = CompletableFuture<Outbox>()
             val accounts = cluster.sharding("account", AccountCodec, settings.passivateAfter) { id ->
                 account(id) { transfer, answer -> outbox.get().toTransfer(transfer, answer) }
             }
             val transfers = cluster.sharding("transfer", TransferCodec, settings.passivateAfter) { id ->
-                transfer(id, { account, command -> outbox.get().toAccount(account, command) }, ended)
+                transfer(id, { account, command -> outbox.get().toAccount(account, command) }, announce)
             }
 
             fun outboxOf(member: Member): Outbox {
@@ -98,6 +123,9 @@ internal class BankNode(
             val watcher = members.subscriber { event, seen ->
                 val oldest = seen.up.firstOrNull()?.node == cluster.self
                 if (event is MemberEvent.Removed && oldest && !closing) outboxOf(event.member)
+                // One member tells the dashboards each change: the oldest that every other can reach.
+                val teller = seen.up.firstOrNull { it.node !in seen.unreachable }?.node == cluster.self
+                if (teller) events.publish(BankEvent.Member(event.member.node.name, event.status()))
             }
             cluster.subscribe(spawn("members", watcher))
             members.await(1.minutes) { seen -> seen.members[cluster.self]?.status == Status.Up }
@@ -116,8 +144,10 @@ internal class BankNode(
         parts.accounts.entity(account).ask(ASK) { Balance(it) }
 
     /** Starts the transfer [id] once its start is kept in this node's journal: from then on no crash loses it. */
-    fun transfer(id: String, from: String, to: String, pence: Long): Either<Full, Unit> =
-        parts.outbox.transfers.send(id) { ToTransfer(Start(from, to, pence), it) }
+    fun transfer(id: String, from: String, to: String, pence: Long): Either<Full, Unit> {
+        val at = System.currentTimeMillis()
+        return parts.outbox.transfers.send(id) { ToTransfer(Start(from, to, pence, at), it) }
+    }
 
     fun status(id: String): Either<AskFailure, String> = parts.transfers.entity(id).ask(ASK) { Status(it) }
 
@@ -125,6 +155,14 @@ internal class BankNode(
         closing = true
         done.countDown()
         thread.join()
+    }
+
+    private fun MemberEvent.status() = when (this) {
+        is MemberEvent.Up -> "Up"
+        is MemberEvent.Unreachable -> "Unreachable"
+        is MemberEvent.Reachable -> "Reachable"
+        is MemberEvent.Downed -> "Downed"
+        is MemberEvent.Removed -> "Removed"
     }
 
     private companion object {

@@ -26,20 +26,15 @@ private fun <A> Either<*, A>.or(status: Int, answer: (A) -> Answer): Answer = fo
 
 /**
  * The consumer's JSON API on one node, served by the JDK's `HttpServer` on [port], each exchange on a virtual thread
- * of its own, with the pages and the admin's stream of [hub]'s events. There is no library, so the routes are a
+ * of its own, with the pages and the admin's stream of the node's events. There is no library, so the routes are a
  * `when` over the method and the path's parts.
  */
-internal class Api(
-    private val node: BankNode,
-    port: Int,
-    hub: Hub = Hub(),
-    streaming: Streaming = Streaming(),
-) : AutoCloseable {
+internal class Api(private val node: BankNode, port: Int, streaming: Streaming = Streaming()) : AutoCloseable {
     private val server: HttpServer = HttpServer.create(InetSocketAddress(port), 0).apply {
         executor = Executors.newVirtualThreadPerTaskExecutor()
         createContext("/api/") { exchange -> exchange.use { respond(it, answer(it)) } }
         createContext("/") { exchange -> exchange.use(::page) }
-        createContext("/admin/stream", streamOf(hub, streaming))
+        createContext("/admin/stream", streamOf(node.hub, streaming))
         start()
     }
 
