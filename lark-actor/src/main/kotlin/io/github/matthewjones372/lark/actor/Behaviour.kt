@@ -262,6 +262,12 @@ data class DeadLetter(val recipient: Address, val message: Any, val why: Why) {
 
         /** It reached its node, and no actor there was the one it was for. */
         NoSuchActor,
+
+        /**
+         * The actor was too busy to take it: lark's own plumbing, a region, an entity manager or a topic, had already
+         * kept as many for it as it may while its mailbox was full (spec 0095).
+         */
+        Full,
     }
 }
 

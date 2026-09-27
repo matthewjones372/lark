@@ -116,8 +116,9 @@ val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
 val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks")
 
 // Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
-// JDK 28 (JEP 543), and a release must not promise an API the JDK has not.
-val unpublished = setOf("lark-structured", "lark-stream-parity") + benchmarkModules
+// JDK 28 (JEP 543), and a release must not promise an API the JDK has not. lark-bank is an application
+// to run, not a library to depend on (spec 0094).
+val unpublished = setOf("lark-structured", "lark-stream-parity", "lark-bank") + benchmarkModules
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
