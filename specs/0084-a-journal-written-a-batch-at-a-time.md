@@ -1,4 +1,4 @@
-# 0082 — A journal written a batch at a time
+# 0084 — A journal written a batch at a time
 
 ## Problem
 
@@ -65,15 +65,15 @@ user until something else needs it.
 
 ## Stack
 
-- [ ] **`spec-0082-steps`** — `Behaviour.steps`, and `drain` handing it a run of plain messages up to the
+- [ ] **`spec-0084-steps`** — `Behaviour.steps`, and `drain` handing it a run of plain messages up to the
       behaviour's batch size.
       Done when: a test behaviour with `steps` sees `[1, 2, 3]` for three messages told before it started, and a
       signal between them splits the run.
-- [ ] **`spec-0082-persistent`** — `persistent(batch = n)`: decide in turn, one append, `then` in order,
+- [ ] **`spec-0084-persistent`** — `persistent(batch = n)`: decide in turn, one append, `then` in order,
       snapshots and delivery marks across the batch.
       Done when: 1,000 commands told at once to a `batch = 64` actor on `JdbcJournal` make ≤ 20 appends; its state
       and journal equal the unbatched actor's; a conflict mid-run recovers to the same final state.
-- [ ] **`spec-0082-numbers`** — the benchmark in `lark-actor-benchmarks` and its README row.
+- [ ] **`spec-0084-numbers`** — the benchmark in `lark-actor-benchmarks` and its README row.
       Done when: one hot persistent actor on embedded Postgres is measured at batch 1 and 64.
 
 ## Acceptance
