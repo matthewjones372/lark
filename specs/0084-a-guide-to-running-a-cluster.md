@@ -61,9 +61,10 @@ module tests already prove the behaviour. Recommended: a compiled guide.
 - [x] **`spec-0084-state`** — sections 4 and 5. Done when: their fences
       compile, including the Postgres DDL's path as the jar ships it.
       ([#229](https://github.com/matthewjones372/lark/pull/229))
-- [ ] **`spec-0084-operating`** — section 6, and the README's link. Done when:
+- [x] **`spec-0084-operating`** — section 6, and the README's link. Done when:
       its fences compile, and the README's module table links the page from
       the cluster, remote and journal rows.
+      ([#230](https://github.com/matthewjones372/lark/pull/230))
 
 ## Acceptance
 
@@ -100,3 +101,12 @@ Decided while building `spec-0084-state`: `lark-cluster`'s tests take
 compiles with the rest. The DDL paths are checked rather than compiled: the
 test reads every `lark/journal/jdbc/….sql` the page names and finds each on the
 journal's classpath, so renaming a file without the page fails it.
+
+Decided while building `spec-0084-operating`: the last section is "stopping,
+watching and telling everyone", so topics sit with the other things an
+operator meets once a cluster runs. The metrics are a table of what each tells
+an operator, not only what it counts. The README's links are held by the same
+test, which reads the three rows and finds the page in each, and the README is
+an input of the test task beside the page. `lark-cluster`'s tests take
+`lark-app-actor` for the example that wires a cluster into an application;
+that module takes `lark-cluster` only in its own tests, so nothing is circular.

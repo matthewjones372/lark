@@ -18,7 +18,7 @@ import java.io.File
 class GuideExampleTest {
 
     private val markers =
-        listOf("remote", "tls", "membership", "entities", "persistent", "read-model", "reliable")
+        listOf("remote", "tls", "membership", "entities", "persistent", "read-model", "reliable", "operating", "topic")
             .map { "<!-- cluster-$it -->" }
 
     @TempDir
@@ -56,6 +56,15 @@ class GuideExampleTest {
     @Test
     fun `an example that no longer matches the library fails to compile`() {
         errors(only(markers.first()).replace("node.expose(", "node.publish(")).shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `the README's cluster, remote and journal rows link the guide`() {
+        val readme = File(System.getProperty("lark.cluster.repoRoot"), "README.md").readLines()
+        listOf("lark-cluster", "lark-actor-remote", "lark-actor-journal-jdbc").forEach { module ->
+            val row = readme.single { it.startsWith("| `$module` |") }
+            withClue(module) { row.contains("(docs/cluster.md)") shouldBe true }
+        }
     }
 
     @Test
