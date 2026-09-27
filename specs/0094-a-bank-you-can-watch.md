@@ -1,4 +1,4 @@
-# 0093 — A bank you can watch
+# 0094 — A bank you can watch
 
 ## Problem
 
@@ -104,26 +104,26 @@ Recommended: SSE, fed by topics.
 
 ## Stack
 
-- [ ] **`spec-0093-bank`** — the module, `Account` and `Transfer`, and three
+- [ ] **`spec-0094-bank`** — the module, `Account` and `Transfer`, and three
       nodes started in one JVM, without HTTP. Done when: 1,000 random
       transfers across three nodes, with one node crashed midway, end with
       every transfer `Done` or `Refused` and the total money unchanged.
-- [ ] **`spec-0093-api`** — the JDK server on virtual threads and the
+- [ ] **`spec-0094-api`** — the JDK server on virtual threads and the
       consumer's JSON API. Done when: a test with `java.net.http.HttpClient`
       opens two accounts, moves money between them on different nodes, reads
       both balances, and gets `Refused` for an overdraft.
-- [ ] **`spec-0093-consumer`** — the consumer page. Done when: it is served
+- [ ] **`spec-0094-consumer`** — the consumer page. Done when: it is served
       from `/`, and a headless Chromium test sends money through the page and
       sees the new balance.
-- [ ] **`spec-0093-sse`** — SSE framing, heartbeats, the bounded queue per
+- [ ] **`spec-0094-sse`** — SSE framing, heartbeats, the bounded queue per
       connection, and closing on failure. Done when: tests show the event
       format, a slow client losing old `stats` and keeping `member` events,
       and a closed client unsubscribed.
-- [ ] **`spec-0093-stats`** — the sampler, the dashboard actor, both topics
+- [ ] **`spec-0094-stats`** — the sampler, the dashboard actor, both topics
       and `/admin/stream`. Done when: a client of node 1's stream reads
       `stats` from all three nodes, then a `member` event naming n3 once n3 is
       crashed.
-- [ ] **`spec-0093-admin`** — the admin page, the load button and "crash n3",
+- [ ] **`spec-0094-admin`** — the admin page, the load button and "crash n3",
       and a README row. Done when: a headless Chromium test starts the load,
       sees the transfers-a-second tile rise above zero, crashes n3, and sees
       its row turn unreachable.
