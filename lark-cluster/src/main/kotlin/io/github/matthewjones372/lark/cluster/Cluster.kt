@@ -41,12 +41,14 @@ internal sealed interface Step {
     data object Leave : Step
 
     data class Subscribe(val to: ActorRef<MemberEvent>) : Step
+
+    data class Move(val kind: String, val to: Map<Int, Node?>) : Step
 }
 
 private val StepCodec = object : MessageCodec<Step> {
     override fun write(message: Step, out: WireOut) = when (message) {
         is Step.Heard -> SwimCodec.write(message.message, out)
-        Step.Tick, Step.Leave, is Step.Subscribe -> error("$message never leaves its node")
+        Step.Tick, Step.Leave, is Step.Subscribe, is Step.Move -> error("$message never leaves its node")
     }
 
     override fun read(input: WireIn): Step = Step.Heard(SwimCodec.read(input))
@@ -124,6 +126,8 @@ private class Steps(
             }
 
             Step.Leave -> membership.leave()
+
+            is Step.Move -> membership.move(step.kind, step.to)
 
             is Step.Subscribe -> {
                 ctx.watch(step.to)
@@ -230,15 +234,19 @@ class Cluster internal constructor(
 
     internal fun publish(next: View, loads: Balance = balance) {
         if (next == view && loads == balance) return
+        val placed = next != view || loads.moved != balance.moved
         balance = loads
         // The viewers first: a region is told the view before anyone waiting on it wakes, so what a waiter tells a
         // region after its wait is routed by that view or a later one, never an earlier.
-        viewers.forEach { it(next) }
+        if (placed) viewers.forEach { it(next) }
         lock.withLock {
             view = next
             changed.signalAll()
         }
     }
+
+    /** Moves [shard] of [kind] to [to], or back to its hash owner if null, if this node leads (spec 0090). */
+    internal fun move(kind: String, shard: Int, to: Node?) = actor.tell(Step.Move(kind, mapOf(shard to to)))
 
     /** Calls [viewer] with the view now, and with each new one after, on the cluster actor's step. */
     internal fun onView(viewer: (View) -> Unit) {

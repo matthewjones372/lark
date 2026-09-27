@@ -1,8 +1,11 @@
 package io.github.matthewjones372.lark.cluster
 
 import io.github.matthewjones372.lark.actor.Reply
+import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.ask
 import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.onSignal
+import io.github.matthewjones372.lark.actor.onStart
 import io.github.matthewjones372.lark.actor.remote.Codecs
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
@@ -15,7 +18,9 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -37,8 +42,17 @@ internal val steady =
 
 internal fun loadPort(): Int = ServerSocket(0).use { it.localPort }
 
-internal fun replyingWith(name: String) =
+/** How many of each entity run now, across every node in this JVM; and which ever ran on two at once. */
+internal val runningNow = ConcurrentHashMap<String, AtomicInteger>()
+internal val ranTwice: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+internal fun replyingWith(name: String, id: String) =
     behaviour<Which, Unit>(Unit) { _, _, which -> stay().also { which.reply(name) } }
+        .onStart { if (runningNow.computeIfAbsent(id) { AtomicInteger() }.incrementAndGet() > 1) ranTwice += id }
+        .onSignal { _, _, signal ->
+            if (signal == Signal.Stopping) runningNow.getValue(id).decrementAndGet()
+            stay()
+        }
 
 internal fun seedsAt(ports: List<Int>) = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
 
@@ -59,7 +73,7 @@ internal class LoadNode(
     private val thread = Thread.ofPlatform().start {
         flock<Nothing, Unit> {
             val cluster = cluster(node(name, port), seeds, steady)
-            val answer = { _: String -> replyingWith(name) }
+            val answer = { id: String -> replyingWith(name, id) }
             val tally = cluster.sharding("tally", whichCodec, passivateAfter, rebalance = rebalance, entity = answer)
             val plain = cluster.sharding("plain", whichCodec, passivateAfter, entity = answer)
             opened.set(Triple(cluster, tally, plain))

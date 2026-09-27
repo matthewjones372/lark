@@ -23,6 +23,12 @@ internal data class ShardLoad(val entities: Int, val messages: Int)
 /** What a member last said it runs, per kind that rebalances and per shard with any load; only it writes it. */
 internal data class Load(val version: Long, val kinds: Map<String, Map<Int, ShardLoad>>)
 
+/** The shards of one kind the leader has moved off their hash owner, and to whom; each leader raises the version. */
+internal data class Moves(val version: Long, val to: Map<Int, Incarnation>) {
+    /** The later of two, or on the same version, one picked alike on every node. */
+    fun latest(other: Moves): Moves = maxOf(this, other, compareBy({ it.version }, { it.to.toSortedMap().toString() }))
+}
+
 /**
  * What nodes tell each other. Every part merges by a rule that ignores order and repeats: a member's status moves
  * only forward, and an observation or a digest is its writer's latest. [origin] is the node that formed the cluster,
@@ -34,6 +40,7 @@ internal data class Gossip(
     val observed: Map<Observation, Seen>,
     val digests: Map<Incarnation, Digest>,
     val loads: Map<Incarnation, Load> = emptyMap(),
+    val moves: Map<String, Moves> = emptyMap(),
 ) {
     fun merge(other: Gossip): Gossip = copy(
         members = union(members, other.members) { a, b ->
@@ -42,6 +49,7 @@ internal data class Gossip(
         observed = union(observed, other.observed) { a, b -> if (b.version > a.version) b else a },
         digests = union(digests, other.digests) { a, b -> if (b.version > a.version) b else a },
         loads = union(loads, other.loads) { a, b -> if (b.version > a.version) b else a },
+        moves = union(moves, other.moves, Moves::latest),
     )
 
     /** The live members that a live member other than themselves last observed as unreachable. */
@@ -53,9 +61,13 @@ internal data class Gossip(
 
     fun live(): Set<Incarnation> = members.filterValues { it.status.isLive }.keys
 
-    /** A hash of [members] that is the same on every JVM, as an enum's own hash is not. It leaves out the load. */
+    /**
+     * A hash of [members] and [moves] that is the same on every JVM, as an enum's own hash is not. It leaves out the
+     * load, which changes too often to agree on, and adds nothing for a kind with no moves.
+     */
     fun hash(): Long = CRC32().apply {
-        members.entries.map { (m, e) -> "${m.node}#${m.uid}=${e.status.name}/${e.upNumber};" }.sorted()
+        val moved = moves.flatMap { (kind, m) -> m.to.map { (shard, to) -> "$kind/$shard>${to.node}#${to.uid};" } }
+        (members.entries.map { (m, e) -> "${m.node}#${m.uid}=${e.status.name}/${e.upNumber};" } + moved).sorted()
             .forEach { update(it.toByteArray(Charsets.UTF_8)) }
     }.value
 

@@ -105,6 +105,14 @@ private fun WireOut.gossip(gossip: Gossip) {
             }
         }
     }
+    map(gossip.moves) { kind, moves ->
+        string(kind)
+        long(moves.version)
+        map(moves.to) { shard, to ->
+            int(shard)
+            incarnation(to)
+        }
+    }
 }
 
 private fun WireIn.gossip() = Gossip(
@@ -113,4 +121,5 @@ private fun WireIn.gossip() = Gossip(
     observed = map { Observation(incarnation(), incarnation()) to Seen(boolean(), long()) },
     digests = map { incarnation() to Digest(long(), long()) },
     loads = map { incarnation() to Load(long(), map { string() to map { int() to ShardLoad(int(), int()) } }) },
+    moves = map { string() to Moves(long(), map { int() to incarnation() }) },
 )

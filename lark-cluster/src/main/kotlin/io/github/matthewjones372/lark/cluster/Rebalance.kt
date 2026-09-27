@@ -7,8 +7,14 @@ import kotlin.time.Duration
 /** How a kind's shards follow the load (spec 0090): each member reports what it runs [every] so often. */
 internal data class Rebalance(val every: Duration, val tolerance: Double, val mostMoves: Int)
 
-/** The load of kinds that rebalance, as the gossip has it: per live member, kind and shard. */
-internal data class Balance(val loads: Map<Node, Map<String, Map<Int, ShardLoad>>>) {
+/**
+ * The load of kinds that rebalance, as the gossip has it: per live member, kind and shard; and per kind, the shards
+ * the leader has moved, and to which life of a member.
+ */
+internal data class Balance(
+    val loads: Map<Node, Map<String, Map<Int, ShardLoad>>>,
+    val moved: Map<String, Map<Int, Incarnation>> = emptyMap(),
+) {
     companion object {
         val None = Balance(emptyMap())
     }

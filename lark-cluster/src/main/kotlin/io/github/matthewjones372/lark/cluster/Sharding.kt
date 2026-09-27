@@ -59,7 +59,7 @@ internal sealed interface Region<M : Any> {
 
     data class Released<M : Any>(val shard: Int, val by: Node) : Region<M>
 
-    data class Viewed<M : Any>(val view: View) : Region<M>
+    data class Viewed<M : Any>(val view: View, val moved: Map<Int, Incarnation> = emptyMap()) : Region<M>
 
     /** A region's own timer, to route again what ran out of hops. */
     class Retry<M : Any> : Region<M>
@@ -190,7 +190,7 @@ internal fun <M : Any, S, E> Cluster.sharding(
     val meter = rebalance?.let { LoadMeter(kind, it, shards).also(meters::add) }
     val hosting = Hosting<M, Entities<M>>(
         eager = false,
-        owner = { shard, members -> Placement.owner(kind, shard, members.holding(role)) },
+        owner = { shard, members, moved -> Placement.owner(kind, shard, members.holding(role), moved[shard]) },
         start = { ctx, shard ->
             val counted = { delta: Int -> onRunning(delta).also { meter?.running(shard, delta) } }
             ctx.spawn("shard-$shard", entities(passivateAfter, onRunning = counted, entity = entity))
@@ -226,7 +226,7 @@ internal fun <M : Any, H : Any> Cluster.region(
             },
     )
     remote.expose(region, wire)
-    onView { region.tell(Region.Viewed(it)) }
+    onView { region.tell(Region.Viewed(it, balance.moved[kind].orEmpty())) }
     return region
 }
 

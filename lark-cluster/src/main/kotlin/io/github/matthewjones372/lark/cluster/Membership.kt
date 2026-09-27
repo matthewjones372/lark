@@ -95,7 +95,36 @@ internal class Membership(
 
     fun balance(): Balance {
         val live = gossip.live()
-        return Balance(gossip.loads.filterKeys { it in live }.entries.associate { (m, load) -> m.node to load.kinds })
+        val loads = gossip.loads.filterKeys { it in live }.entries.associate { (m, load) -> m.node to load.kinds }
+        return Balance(loads, gossip.moves.mapValues { it.value.to })
+    }
+
+    /**
+     * Moves each shard of [kind] in [to] to the `Up` member at that node, or back to its hash owner if null (spec
+     * 0090). Only the leader writes moves, and a shard sent to a member that is not `Up` stays where it is.
+     */
+    fun move(kind: String, to: Map<Int, Node?>) {
+        if (leader() != self) return
+        val up = gossip.members.filterValues { it.status == Status.Up }.keys.associateBy { it.node }
+        val last = gossip.moves[kind]
+        val next = to.entries.fold(last?.to.orEmpty()) { moved, (shard, node) ->
+            if (node == null) moved - shard else up[node]?.let { moved + (shard to it) } ?: moved
+        }
+        if (next != last?.to.orEmpty()) write(kind, next)
+    }
+
+    private fun write(kind: String, moved: Map<Int, Incarnation>) {
+        val moves = Moves((gossip.moves[kind]?.version ?: 0) + 1, moved)
+        gossip = gossip.copy(moves = gossip.moves + (kind to moves))
+        noteDigest()
+    }
+
+    /** Drops the moves to members that are no longer `Up`, whose shards are back with their hash owners. */
+    private fun dropGone() {
+        val up = gossip.members.filterValues { it.status == Status.Up }.keys
+        gossip.moves.forEach { (kind, moves) ->
+            if (!up.containsAll(moves.to.values)) write(kind, moves.to.filterValues { it in up })
+        }
     }
 
     private fun accepts(other: Gossip) = active && other.origin == gossip.origin
@@ -219,6 +248,7 @@ internal class Membership(
                 Status.Up, Status.Removed -> Unit
             }
         }
+        dropGone()
         return left.map { Send(it.node, Swim.Ping(self, it, ++seq, gossip)) }
     }
 

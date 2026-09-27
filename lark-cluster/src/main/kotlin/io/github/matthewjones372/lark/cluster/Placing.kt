@@ -15,7 +15,7 @@ import io.github.matthewjones372.lark.actor.remote.Node
  */
 internal class Hosting<M : Any, H : Any>(
     val eager: Boolean,
-    val owner: (shard: Int, members: List<Member>) -> Node?,
+    val owner: (shard: Int, members: List<Member>, moved: Map<Int, Incarnation>) -> Node?,
     val start: (Ctx<Region<M>>, shard: Int) -> ActorRef<H>,
     val deliver: (host: ActorRef<H>, id: String, message: M) -> Unit,
 )
@@ -45,6 +45,7 @@ internal class Placing<M : Any, H : Any>(
 ) {
     private val self = cluster.self
     private var view = View.None
+    private var moved = emptyMap<Int, Incarnation>()
 
     // Shards this node may run now; the managers of those it has run since; and those it has let go, until they end.
     private val ready = HashSet<Int>()
@@ -70,7 +71,10 @@ internal class Placing<M : Any, H : Any>(
     private fun handle(ctx: Ctx<Region<M>>, step: Region<M>) = when (step) {
         is Region.Envelope -> route(ctx, step)
 
-        is Region.Viewed -> viewed(ctx, step.view)
+        is Region.Viewed -> {
+            moved = step.moved
+            viewed(ctx, step.view)
+        }
 
         is Region.Release -> asked(step.shard, by = step.from)
 
@@ -93,7 +97,7 @@ internal class Placing<M : Any, H : Any>(
         measure()
     }
 
-    private fun owner(shard: Int) = hosting.owner(shard, view.members)
+    private fun owner(shard: Int) = hosting.owner(shard, view.members, moved)
 
     private fun mine(shard: Int) = owner(shard) == self
 
