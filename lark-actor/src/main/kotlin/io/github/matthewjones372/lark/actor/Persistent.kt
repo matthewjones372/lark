@@ -13,13 +13,40 @@ interface StateCodec<S> {
 }
 
 /** When a persistent actor saves its state: after each [every]th event, as bytes through [codec] (spec 0074). */
-class Snapshotting<S> internal constructor(val every: Long, val codec: StateCodec<S>, val prune: Boolean)
+class Snapshotting<S> internal constructor(val every: Long, val codec: StateCodec<S>, val prune: Prune)
 
 /**
- * A snapshot after every [n]th event, the state written by [codec]. With [prune], a journal that is a
- * [JournalPruning] deletes, once each snapshot is saved, the events the one before it covers (spec 0076).
+ * Whether, and how far, a saved snapshot lets its entity's older events go (specs 0076 and 0077): the feed offset
+ * pruning may reach now, or null to keep every event.
  */
-fun <S> every(n: Int, codec: StateCodec<S>, prune: Boolean = false): Snapshotting<S> {
+fun interface Prune {
+    fun readTo(): Long?
+
+    companion object {
+        /** Keeps every event. */
+        val never: Prune = Prune { null }
+
+        /** Deletes what the snapshot before the newest covers, whatever has read it. */
+        val always: Prune = Prune { Long.MAX_VALUE }
+
+        /**
+         * As [always], but no further than every one of [names] has read, by the offsets their projections save to
+         * [offsets]. A name with no offset saved holds back everything.
+         */
+        fun after(offsets: OffsetStore, vararg names: String): Prune {
+            require(names.isNotEmpty()) { "pruning after no read model is Prune.always" }
+            val waited = names.toList()
+            return Prune { waited.minOf { offsets.load(it) ?: 0 } }
+        }
+    }
+}
+
+/**
+ * A snapshot after every [n]th event, the state written by [codec]. With a [prune] other than [Prune.never], a journal
+ * that is a [JournalPruning] deletes, once each snapshot is saved, the events the one before it covers, as far as
+ * [prune] allows (specs 0076 and 0077).
+ */
+fun <S> every(n: Int, codec: StateCodec<S>, prune: Prune = Prune.never): Snapshotting<S> {
     require(n > 0) { "a snapshot every $n events is never" }
     return Snapshotting(n.toLong(), codec, prune)
 }
@@ -126,10 +153,10 @@ private fun <S> SnapshotStore.snapshot(
         save(id, reached.sequence, how.codec.encode(reached.value))
     }
     val pruning = journal as? JournalPruning
-    if (saved && how.prune && pruning != null) {
+    if (saved && how.prune !== Prune.never && pruning != null) {
         val upTo = reached.sequence - how.every
         logged("the events of $id up to $upTo were not deleted; the next snapshot will try again") {
-            pruning.deleteTo(id, upTo)
+            how.prune.readTo()?.let { readTo -> pruning.deleteTo(id, upTo, readTo) }
         }
     }
 }
