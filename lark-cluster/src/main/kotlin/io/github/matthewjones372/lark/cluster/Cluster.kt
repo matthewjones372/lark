@@ -19,6 +19,7 @@ import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.logWarn
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -52,7 +53,9 @@ private val StepCodec = object : MessageCodec<Step> {
 private typealias Subscribers = Set<ActorRef<MemberEvent>>
 
 /**
- * [node] as a member of a cluster whose seeds [discovery] finds, until the flock closes. The membership runs in an
+ * [node] as a member of a cluster whose seeds [discovery] finds, until the flock closes, when it leaves first:
+ * waiting up to [leaveWithin] to be out, before the flock stops its actors (spec 0080). A [leaveWithin] of zero
+ * leaves nothing: the node goes as a crashed one does, and the others down it. The membership runs in an
  * actor of its own, which the nodes of the cluster reach at the same path on each, and from now on it decides when
  * a watch on another node's actor ends. A partition is resolved by [downing]; a node downed stops that actor, and its
  * subscribers hear it downed and every other member removed: whether the process ends is theirs to decide.
@@ -62,6 +65,7 @@ fun <F> Flock<F>.cluster(
     discovery: Discovery,
     gossiping: Gossiping = Gossiping(),
     downing: Downing = Downing.keepMajority(),
+    leaveWithin: Duration = 30.seconds,
 ): Cluster {
     val time = clock.get()
     val now = { time.now().let { it.epochSecond.seconds + it.nano.nanoseconds } }
@@ -88,6 +92,12 @@ fun <F> Flock<F>.cluster(
     )
     node.expose(ref, StepCodec)
     cluster.actor = ref
+    if (leaveWithin.isPositive()) {
+        onClose {
+            val left = cluster.stop(leaveWithin)
+            if (!left) logWarn("${node.self} did not leave its cluster within $leaveWithin; closing anyway")
+        }
+    }
     return cluster
 }
 
@@ -150,6 +160,18 @@ class Cluster internal constructor(
 
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)
+
+    /**
+     * Leaves, and waits up to [within] until this node is out of the cluster (spec 0080): removed by the others, or
+     * downed, or the only member left, with nobody to hand its shards to. While it is `Leaving` its shards move to
+     * their next owners. Whether it was out in time. The flock's close does this by itself, before its actors stop.
+     */
+    fun stop(within: Duration): Boolean {
+        leave()
+        return await(within) { view ->
+            view.members.none { it.node == self && it.status.isLive } || view.members.all { it.node == self }
+        }
+    }
 
     /**
      * Tells [subscriber] every [MemberEvent] from now on, until it stops: first the view as it is, as each member Up
