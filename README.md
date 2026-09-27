@@ -70,6 +70,7 @@ is where that claim is checked.
 | `lark-cluster-kubernetes` | `lark-cluster` on Kubernetes: seeds from the pods API, and a `Lease` object to break an even split | `io.fabric8:kubernetes-client` |
 | `lark-cluster-aws` | `lark-cluster` on AWS: seeds from Cloud Map or ECS, and a DynamoDB item as the lease that breaks an even split | `software.amazon.awssdk` (`servicediscovery`, `ecs`, `dynamodb`) |
 | `lark-app-actor` | a `lark-actor` flock as a node for the application's life, and an actor as a node keyed by the `ActorRef<M>` of its protocol (spec [0062](specs/0062-actors-that-find-each-other.md)) | nothing |
+| `lark-app-cluster` | a `lark-cluster` membership as a node, joined as a HOCON section says: the backend found by name on the classpath, its client closed after the node leaves, and a node the others downed ending its process (spec [0096](specs/0096-a-cluster-joined-from-config.md)) | `lark-app-typesafe` |
 | `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
 | `lark-app-typesafe` | a HOCON section as a node, every fault at once, and a setting that picks a module | `com.typesafe:config` |
 | `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |
