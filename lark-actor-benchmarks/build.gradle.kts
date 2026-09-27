@@ -7,6 +7,9 @@
 
 val jmhVersion = "1.37"
 val pekkoVersion = "1.2.1"
+
+// Released on its own line, not with Pekko: the newest release, whose Pekko modules are pinned to pekkoVersion below.
+val pekkoJdbcVersion = "1.3.0"
 val scalaBinary = "2.13"
 
 dependencies {
@@ -23,6 +26,12 @@ dependencies {
     // Three nodes of a cluster on each side (spec 0092): lark's sharding against Pekko Cluster Sharding.
     implementation(project(":lark-cluster"))
     implementation("org.apache.pekko:pekko-cluster-sharding-typed_$scalaBinary:$pekkoVersion")
+    // A persistent entity and a durable producer on each side, on one H2 in memory per side (spec 0092).
+    implementation("org.apache.pekko:pekko-persistence-typed_$scalaBinary:$pekkoVersion")
+    implementation("org.apache.pekko:pekko-persistence-jdbc_$scalaBinary:$pekkoJdbcVersion")
+    // pekko-persistence-jdbc is built against an older Pekko; every Pekko module must be the one version.
+    implementation("org.apache.pekko:pekko-persistence-query_$scalaBinary:$pekkoVersion")
+    implementation("com.h2database:h2:2.3.232")
     implementation("org.openjdk.jmh:jmh-core:$jmhVersion")
 }
 

@@ -37,6 +37,30 @@ measured iterations of 1 s):
 | `ShardedAskBenchmark`, `owner = local`: an ask to an entity on this node and its answer | round trip | to be measured | to be measured |
 | `ShardedAskBenchmark`, `owner = remote`: the same to an entity on another node | round trip | to be measured | to be measured |
 
+The journal rows put both sides on H2 in memory, one database per side that all three nodes share, each node
+through its own pool of 20 connections: HikariCP under `JdbcJournal` for lark, and Slick's HikariCP pool under
+Persistence JDBC 1.3.0 for Pekko, at its default size. An event is the pence paid in, as decimal text, on both
+sides. The entities sent to reliably keep nothing: they confirm each command once handled, through `delivered` on
+lark and a `ShardingConsumerController` on Pekko, so the rows measure the delivery and not the entity.
+
+```bash
+./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs="(PersistentAppend|ReliableSend|DurableSend)Benchmark"
+```
+
+| Row | Per | lark | Pekko |
+|---|---|---|---|
+| `PersistentAppendBenchmark`, `owner = local`: an ask to a persistent entity on this node, answered once its one event is written | command | to be measured | to be measured |
+| `PersistentAppendBenchmark`, `owner = remote`: the same to an entity on another node | command | to be measured | to be measured |
+| `ReliableSendBenchmark`, `owner = local`: a command sent reliably to an entity on this node, until the producer has its confirmation | command | to be measured | to be measured |
+| `ReliableSendBenchmark`, `owner = remote`: the same to an entity on another node | command | to be measured | to be measured |
+| `DurableSendBenchmark`, `owner = local`: a command sent durably to an entity on this node, until the entity has handled it | command | to be measured | to be measured |
+| `DurableSendBenchmark`, `owner = remote`: the same to an entity on another node | command | to be measured | to be measured |
+
+- **The durable row ends at the entity, not at the producer.** Pekko's durable queue answers a send once the
+  command is stored, not once it is confirmed, so the one point both sides can be timed to is the entity handling
+  it. Each side's producer writes the command before sending it and a confirmation after it; the confirmation's
+  write falls outside the row, except that lark sends the next command to an entity only once the last is
+  confirmed, and Pekko does not wait.
 - **A burst is 1,000, not the 2,000 `RemoteTellBenchmark` uses.** A lark region hands each message to its shard's
   actor, and both have mailboxes of 1,024; a region whose tell finds the shard's mailbox full fails and stops, and a
   burst of 2,000 into one entity did that. Pekko's mailboxes are unbounded.

@@ -1,10 +1,14 @@
 package io.github.matthewjones372.lark.actor.benchmarks
 
+import io.github.matthewjones372.lark.actor.Delivered
+import io.github.matthewjones372.lark.actor.Delivery
+import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.remote.Codecs
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
+import io.github.matthewjones372.lark.actor.remote.delivery
 import org.apache.pekko.actor.ExtendedActorSystem
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.ActorRefResolver
@@ -18,6 +22,9 @@ import java.io.DataOutputStream
 // The cluster benchmarks' messages, once per runtime with the same fields, each written by hand field by field: a
 // lark `MessageCodec` on one side and a Pekko serializer on the other, over the same `DataOutputStream`.
 
+/** The tag [Locate] has in every protocol it is part of. */
+private const val LOCATE = 3
+
 internal sealed interface Shard
 
 /** Counts itself on the burst's latch. */
@@ -27,7 +34,19 @@ internal data class Bump(val n: Int) : Shard
 internal data class Bounce(val n: Int, val reply: Reply<Int>) : Shard
 
 /** Answered with the name of the node the entity runs on. */
-internal data class Locate(val reply: Reply<String>) : Shard
+internal data class Locate(val reply: Reply<String>) : Shard, Account, Paying
+
+internal sealed interface Account
+
+/** Persisted as one event, and answered with the balance once it is written. */
+internal data class Deposit(val pence: Long, val reply: Reply<Long>) : Account
+
+internal sealed interface Paying
+
+/** Sent reliably, and counted on the latch of the send waiting for it. */
+internal data class Payment(val n: Int, override val delivery: Delivery) : Paying, Delivered {
+    override fun redeliver(delivery: Delivery) = copy(delivery = delivery)
+}
 
 internal val shardCodec = object : MessageCodec<Shard> {
     override fun write(message: Shard, out: WireOut) = when (message) {
@@ -43,7 +62,7 @@ internal val shardCodec = object : MessageCodec<Shard> {
         }
 
         is Locate -> {
-            out.int(3)
+            out.int(LOCATE)
             out.reply(message.reply, Codecs.string)
         }
     }
@@ -51,8 +70,57 @@ internal val shardCodec = object : MessageCodec<Shard> {
     override fun read(input: WireIn): Shard = when (val tag = input.int()) {
         1 -> Bump(input.int())
         2 -> Bounce(input.int(), input.reply(Codecs.int))
-        3 -> Locate(input.reply(Codecs.string))
+        LOCATE -> Locate(input.reply(Codecs.string))
         else -> error("no shard message has the tag $tag")
+    }
+}
+
+internal val accountCodec = object : MessageCodec<Account> {
+    override fun write(message: Account, out: WireOut) = when (message) {
+        is Deposit -> {
+            out.int(1)
+            out.long(message.pence)
+            out.reply(message.reply, Codecs.long)
+        }
+
+        is Locate -> {
+            out.int(LOCATE)
+            out.reply(message.reply, Codecs.string)
+        }
+    }
+
+    override fun read(input: WireIn): Account = when (val tag = input.int()) {
+        1 -> Deposit(input.long(), input.reply(Codecs.long))
+        LOCATE -> Locate(input.reply(Codecs.string))
+        else -> error("no account message has the tag $tag")
+    }
+}
+
+/** An event as the pence paid in, in decimal text, as the cluster guide's is; Pekko's is written the same way. */
+internal val deposited = object : EventCodec<Long> {
+    override fun encode(event: Long): ByteArray = event.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+internal val payingCodec = object : MessageCodec<Paying> {
+    override fun write(message: Paying, out: WireOut) = when (message) {
+        is Payment -> {
+            out.int(1)
+            out.int(message.n)
+            out.delivery(message.delivery)
+        }
+
+        is Locate -> {
+            out.int(LOCATE)
+            out.reply(message.reply, Codecs.string)
+        }
+    }
+
+    override fun read(input: WireIn): Paying = when (val tag = input.int()) {
+        1 -> Payment(input.int(), input.delivery())
+        LOCATE -> Locate(input.reply(Codecs.string))
+        else -> error("no paying message has the tag $tag")
     }
 }
 
@@ -65,7 +133,18 @@ data class PekkoBump(val n: Int) : PekkoShard
 
 data class PekkoBounce(val n: Int, val replyTo: ActorRef<Int>) : PekkoShard
 
-data class PekkoLocate(val replyTo: ActorRef<String>) : PekkoShard
+data class PekkoLocate(val replyTo: ActorRef<String>) : PekkoShard, PekkoAccount, PekkoPaying
+
+sealed interface PekkoAccount : PekkoWire
+
+data class PekkoDeposit(val pence: Long, val replyTo: ActorRef<Long>) : PekkoAccount
+
+/** The persistent entity's one event. */
+data class PekkoDeposited(val pence: Long) : PekkoWire
+
+sealed interface PekkoPaying : PekkoWire
+
+data class PekkoPay(val n: Int) : PekkoPaying
 
 /** Pekko's side of the benchmarks' codecs: a ref crosses as the string Pekko's resolver makes of it. */
 class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest() {
@@ -77,6 +156,9 @@ class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest
         is PekkoBump -> "B"
         is PekkoBounce -> "E"
         is PekkoLocate -> "L"
+        is PekkoDeposit -> "D"
+        is PekkoDeposited -> "V"
+        is PekkoPay -> "P"
         else -> throw IllegalArgumentException("no manifest for ${o.javaClass}")
     }
 
@@ -93,6 +175,15 @@ class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest
 
             is PekkoLocate -> out.string(refs.toSerializationFormat(o.replyTo))
 
+            is PekkoDeposit -> {
+                out.writeLong(o.pence)
+                out.string(refs.toSerializationFormat(o.replyTo))
+            }
+
+            is PekkoDeposited -> out.write(o.pence.toString().toByteArray())
+
+            is PekkoPay -> out.writeInt(o.n)
+
             else -> throw IllegalArgumentException("cannot write ${o.javaClass}")
         }
         return buffer.toByteArray()
@@ -104,6 +195,9 @@ class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest
             "B" -> PekkoBump(input.readInt())
             "E" -> PekkoBounce(input.readInt(), refs.resolveActorRef(input.string()))
             "L" -> PekkoLocate(refs.resolveActorRef(input.string()))
+            "D" -> PekkoDeposit(input.readLong(), refs.resolveActorRef(input.string()))
+            "V" -> PekkoDeposited(String(bytes).toLong())
+            "P" -> PekkoPay(input.readInt())
             else -> throw IllegalArgumentException("no message has the manifest $manifest")
         }
     }

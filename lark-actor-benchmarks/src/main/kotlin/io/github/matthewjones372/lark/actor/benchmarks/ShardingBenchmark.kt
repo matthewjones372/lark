@@ -41,6 +41,12 @@ private const val SHARD_BURST = 1_000
 /** Ids tried before giving up on finding one a given node owns: with three nodes, the first few do. */
 private const val IDS_TRIED = 200
 
+/** No rebalancing and no passivation, as lark's hash never moves an entity between members that stay up. */
+internal const val STILL = """
+pekko.cluster.sharding.rebalance-interval = 1h
+pekko.cluster.sharding.passivation.strategy = none
+"""
+
 /** The count down a burst's entity makes, one per message: every node is in this JVM. */
 private val bumped = AtomicReference(CountDownLatch(0))
 
@@ -63,12 +69,12 @@ private fun pekkoEntity(node: String): Behavior<PekkoShard> = Behaviors.receiveM
 }
 
 /** The first id whose entity answers that it runs on [node], asked through [locate]. */
-private fun idOwnedBy(node: String, locate: (String) -> String): String =
+internal fun idOwnedBy(node: String, locate: (String) -> String): String =
     (0 until IDS_TRIED).map { "entity-$it" }.firstOrNull { locate(it) == node }
         ?: error("none of $IDS_TRIED entities runs on $node")
 
 /** The node that owns the entity measured: the one telling it (`local`), or another (`remote`). */
-private fun owner(where: String): String = when (where) {
+internal fun owner(where: String): String = when (where) {
     "local" -> nodeName(0)
     "remote" -> nodeName(1)
     else -> error("an owner is local or remote, was $where")
@@ -111,13 +117,7 @@ open class PekkoShards {
 
     @Setup(Level.Trial)
     fun start() {
-        // No rebalancing and no passivation, as lark's hash never moves an entity between Up members.
-        nodes = PekkoTrio(
-            """
-            pekko.cluster.sharding.rebalance-interval = 1h
-            pekko.cluster.sharding.passivation.strategy = none
-            """.trimIndent(),
-        )
+        nodes = PekkoTrio(STILL)
         val kind = EntityTypeKey.create(PekkoShard::class.java, "entity")
         nodes.systems.forEachIndexed { i, system ->
             ClusterSharding.get(system).init(Entity.of(kind) { pekkoEntity(nodeName(i)) })
