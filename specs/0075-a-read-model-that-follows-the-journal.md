@@ -65,9 +65,10 @@ database. Recommended: at-least-once, with idempotent handlers.
 
 ## Stack
 
-- [ ] **`spec-0075-feed`** — `JournalFeed`, `Followed`, the in-memory feed,
+- [x] **`spec-0075-feed`** — `JournalFeed`, `Followed`, the in-memory feed,
       and `FeedContract` in `lark-actor`'s test fixtures. Done when: the
       in-memory journal passes the contract.
+      ([#190](https://github.com/matthewjones372/lark/pull/190))
 - [ ] **`spec-0075-jdbc-feed`** — the `ordering` column and the JDBC feed
       with gap handling. Done when: it passes the contract on H2, and an
       append whose transaction is still open is not passed until it commits
@@ -102,3 +103,10 @@ Decided (2026-09-27): every open question goes as recommended. Delivery is at
 least once, with handlers that are safe to repeat; a feed is by kind; the JDBC
 feed waits up to `gapTimeout` at a gap and then passes it, logging it; and
 `JdbcJournal`'s table gains `ordering` in place, since 0072 is unreleased.
+
+Decided while building `spec-0075-feed`: an event of the feed is a `FeedEvent`,
+with its offset, id, sequence number and bytes; decoding it is the follower's.
+The in-memory journal's appends take turns under one lock, so an offset is
+never visible before a smaller one, and its offsets count events across every
+kind. The contract's follower reads while eight writers append, and must see
+each event once, in growing offsets.
