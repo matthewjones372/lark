@@ -1,6 +1,10 @@
 package io.github.matthewjones372.lark.app.actor
 
 import arrow.core.right
+import io.github.matthewjones372.lark.Counter
+import io.github.matthewjones372.lark.Gauge
+import io.github.matthewjones372.lark.Histogram
+import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.Signal
@@ -12,6 +16,8 @@ import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.validate
+import io.github.matthewjones372.lark.metricTags
+import io.github.matthewjones372.lark.metrics
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -112,5 +118,36 @@ class ActorTest {
         }
 
         letters.toList() shouldBe listOf(Add(1))
+    }
+
+    @Test
+    fun `within, asked from the actors' own thread, runs there rather than waiting on itself`() {
+        val answer = testApp(actors()) { actors: Actors -> actors.within { actors.within { 42 } } }
+
+        answer shouldBe 42
+    }
+
+    @Test
+    fun `the actors record to the metrics, tags and logger bound where the application runs`() {
+        val counted = ConcurrentLinkedQueue<Pair<String, Map<String, String>>>()
+        val recording = object : Metrics {
+            override fun counter(name: String, tags: Map<String, String>) = Counter { counted += name to tags }
+
+            override fun gauge(name: String, tags: Map<String, String>) = Gauge { }
+
+            override fun histogram(name: String, tags: Map<String, String>) = Histogram { }
+        }
+
+        metrics.locally(recording) {
+            metricTags.locally(mapOf("service" to "tills")) {
+                testApp(actors()) { actors: Actors ->
+                    val greeter = actors.spawn("greeter", greeter())
+                    actors.stop(greeter)
+                    greeter.tell(Hello)
+                }
+            }
+        }
+
+        counted.filter { it.first == "lark.actor.dead_letters" }.map { it.second["service"] } shouldBe listOf("tills")
     }
 }
