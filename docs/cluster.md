@@ -551,7 +551,13 @@ fun Cluster.payments(): (wallet: String, pence: Long) -> Either<Full, Unit> {
 ```
 
 What the producer has not had confirmed lives in its memory: a producer that
-crashes loses it. One that stops properly waits for it first; the next section.
+crashes loses it, and one that stops properly waits for it first (the next
+section). Where a crash must lose nothing, pass `durable = true`: the producer
+keeps each command in the flock's journal before `send` returns, and one started
+again under the same id, on any node, sends what is still unconfirmed. Its
+commands implement `Delivered.redeliver`, usually as
+`copy(delivery = delivery)`
+([spec 0085](../specs/0085-a-sender-that-survives-its-crash.md)).
 
 ## Stopping, watching and telling everyone
 

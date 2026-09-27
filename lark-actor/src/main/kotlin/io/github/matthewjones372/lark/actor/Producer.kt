@@ -9,6 +9,7 @@ import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logWarn
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
@@ -29,18 +30,29 @@ class Producer<M : Any> internal constructor(
     private val keep: Int,
     private val within: Duration,
     private val full: Counter,
+    private val durable: Boolean = false,
+    private val recovered: CountDownLatch? = null,
 ) {
     /**
      * Keeps the command [command] builds for entity [to] and returns, or waits up to `within` while the producer
-     * keeps as many as it may, and then answers [Full]. [command] may be called again for each resend.
+     * keeps as many as it may, and then answers [Full]. [command] may be called again for each resend. A durable
+     * producer returns once the command is written to its journal, and answers [Full] too if that takes longer than
+     * `within`; such a command may still be written, and then sent (spec 0085).
      */
     fun send(to: String, command: (Delivery) -> M): Either<Full, Unit> {
         if (!room.tryAcquire(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) {
             full.increment()
             return Full.left()
         }
-        actor.tell(KeepCommand(to, command))
-        return Unit.right()
+        if (!durable) {
+            actor.tell(KeepCommand(to, command))
+            return Unit.right()
+        }
+        val written = CountDownLatch(1)
+        actor.tell(KeepDurably(to, command, written))
+        if (written.await(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return Unit.right()
+        full.increment()
+        return Full.left()
     }
 
     /**
@@ -48,6 +60,8 @@ class Producer<M : Any> internal constructor(
      * its commands to land. A `send` while it waits may make it wait longer.
      */
     fun drain(within: Duration): Boolean {
+        // A durable producer's recovered commands hold room only once its actor has claimed it.
+        if (recovered?.await(within.inWholeNanoseconds, TimeUnit.NANOSECONDS) == false) return false
         if (!room.tryAcquire(keep, within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return false
         room.release(keep)
         return true
@@ -71,20 +85,27 @@ fun <F, M : Any> Flock<F>.producer(
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    val meters = ProducerMeters(
-        unconfirmed = gauge("lark.delivery.unconfirmed", "producer" to id),
-        resent = counter("lark.delivery.resent", "producer" to id),
-        full = counter("lark.delivery.full", "producer" to id),
-    )
+    val meters = meters(id)
     val actor = spawn("producer-$id", producing(incarnation(id), resendAfter, room, keep, meters, route))
-    val producer = Producer<M>(actor, room, keep, within, meters.full)
+    return Producer<M>(actor, room, keep, within, meters.full).drainedOnClose(this, id, drainWithin)
+}
+
+/** This flock's instruments for the producer [id]. */
+internal fun Flock<*>.meters(id: String) = ProducerMeters(
+    unconfirmed = gauge("lark.delivery.unconfirmed", "producer" to id),
+    resent = counter("lark.delivery.resent", "producer" to id),
+    full = counter("lark.delivery.full", "producer" to id),
+)
+
+/** This producer, waiting up to [drainWithin] for what it keeps when [flock] closes (spec 0080). */
+internal fun <M : Any> Producer<M>.drainedOnClose(flock: Flock<*>, id: String, drainWithin: Duration): Producer<M> {
     if (drainWithin.isPositive()) {
-        onClose {
-            val drained = producer.drain(drainWithin)
+        flock.onClose {
+            val drained = drain(drainWithin)
             if (!drained) logWarn("producer $id closed with commands unconfirmed after $drainWithin")
         }
     }
-    return producer
+    return this
 }
 
 /** A producer among these test actors, as [Flock.producer]; its resends wait on [TestActors.advance]. */
@@ -101,7 +122,7 @@ fun <M : Any> TestActors.producer(
     return Producer(actor, room, keep, within, meters.full)
 }
 
-private fun room(keep: Int): Semaphore {
+internal fun room(keep: Int): Semaphore {
     require(keep > 0) { "a producer that keeps $keep commands can send none" }
     return Semaphore(keep)
 }
@@ -111,8 +132,11 @@ private fun incarnation(id: String) = "$id/${UUID.randomUUID()}"
 /** A command to keep, from [Producer.send]. */
 private class KeepCommand<M : Any>(val to: String, val command: (Delivery) -> M)
 
+/** A command to keep in the journal, from a durable [Producer.send], which waits on [written]. */
+internal class KeepDurably<M : Any>(val to: String, val command: (Delivery) -> M, val written: CountDownLatch)
+
 /** Time to send every entity's unconfirmed command again. */
-private data object ResendUnconfirmed
+internal data object ResendUnconfirmed
 
 /**
  * One entity's commands: the number the next one takes, and those kept, the first of them in flight. It stays once
@@ -123,7 +147,7 @@ private data class Outbox<M : Any>(val next: Long, val kept: List<Unconfirmed<M>
 private data class Unconfirmed<M : Any>(val sequence: Long, val command: (Delivery) -> M)
 
 /** A producer's instruments (spec 0081): what it keeps unconfirmed, what it sent again, and each `Full`. */
-private class ProducerMeters(val unconfirmed: Gauge, val resent: Counter, val full: Counter)
+internal class ProducerMeters(val unconfirmed: Gauge, val resent: Counter, val full: Counter)
 
 /** The producer's actor: numbers and keeps commands, sends each entity its first, and frees room as they confirm. */
 @Suppress("LongParameterList")

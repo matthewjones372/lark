@@ -8,6 +8,7 @@ import io.github.matthewjones372.lark.actor.Entities
 import io.github.matthewjones372.lark.actor.Producer
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.durableProducer
 import io.github.matthewjones372.lark.actor.entities
 import io.github.matthewjones372.lark.actor.entity
 import io.github.matthewjones372.lark.actor.gauge
@@ -17,6 +18,7 @@ import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
+import io.github.matthewjones372.lark.actor.remote.outbox
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import java.util.concurrent.locks.ReentrantLock
@@ -106,6 +108,7 @@ class Sharded<M : Any> internal constructor(
     private val region: ActorRef<Region<M>>,
     private val flock: Flock<*>,
     private val leaveWithin: Duration,
+    private val codec: MessageCodec<M>,
 ) {
     /** The entity [id], wherever it runs now: a ref that stays good while it moves between nodes. */
     fun entity(id: String): ActorRef<M> = ShardedRef(region, id)
@@ -116,13 +119,26 @@ class Sharded<M : Any> internal constructor(
      * command's `Delivery` with `WireOut.delivery`, and its entities are wrapped in `delivered`; a persistent one
      * drops the duplicates a resend makes. See `Flock.producer` for [keep] and [within]. When the node's flock
      * closes, the producer waits for its commands to be confirmed as long as the cluster waits to leave, and before it.
+     *
+     * A [durable] producer keeps its commands in the flock's journal rather than in memory (spec 0085), so one whose
+     * node crashes loses none: started again with the same [producerId], on any node, it sends what is unconfirmed.
+     * Its commands implement `Delivered.redeliver`, and `send` returns once each is written.
      */
+    @Suppress("LongParameterList")
     fun reliable(
         producerId: String,
         resendAfter: Duration = 2.seconds,
         keep: Int = 1_000,
         within: Duration = 5.seconds,
-    ): Producer<M> = flock.producer("$kind-$producerId", resendAfter, keep, within, leaveWithin, ::entity)
+        durable: Boolean = false,
+    ): Producer<M> {
+        val id = "$kind-$producerId"
+        return if (durable) {
+            flock.durableProducer(id, codec.outbox(), resendAfter, keep, within, leaveWithin, ::entity)
+        } else {
+            flock.producer(id, resendAfter, keep, within, leaveWithin, ::entity)
+        }
+    }
 }
 
 internal class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, private val id: String) : ActorRef<M> {
@@ -167,7 +183,7 @@ fun <M : Any, S, E> Cluster.sharding(
         },
         deliver = { manager, id, message -> manager.entity(id).tell(message) },
     )
-    return Sharded(kind, region(path, codec, shards, hosting, kind), flock, leaveWithin)
+    return Sharded(kind, region(path, codec, shards, hosting, kind), flock, leaveWithin, codec)
 }
 
 /** A region at [path] on this node, reachable from the others at the same path. */

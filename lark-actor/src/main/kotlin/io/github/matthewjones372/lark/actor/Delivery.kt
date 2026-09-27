@@ -12,6 +12,16 @@ import java.io.DataOutputStream
 data class Delivery(val producer: String, val to: String, val sequence: Long, val confirmTo: ActorRef<Confirmed>) {
     /** Tells the producer this command was handled, so it stops sending it again. */
     fun confirm() = confirmTo.tell(Confirmed(to, sequence))
+
+    /** This delivery with nowhere to confirm to: how a durable producer keeps a command (spec 0085). */
+    fun blank(): Delivery = copy(confirmTo = NoOne)
+
+    /** Where a blank delivery confirms: nobody, since the producer that kept it may be gone. */
+    object NoOne : ActorRef<Confirmed> {
+        override val address = Address("", "/nobody", 0)
+
+        override fun tell(message: Confirmed) = Unit
+    }
 }
 
 /**
@@ -20,6 +30,14 @@ data class Delivery(val producer: String, val to: String, val sequence: Long, va
  */
 interface Delivered {
     val delivery: Delivery
+
+    /**
+     * This command with [delivery] in place of its own: how a durable producer sends a kept command again, naming
+     * itself as it runs now (spec 0085). A data class implements it as `copy(delivery = delivery)`; a command only
+     * a producer in memory sends need not.
+     */
+    fun redeliver(delivery: Delivery): Delivered =
+        throw UnsupportedOperationException("${this::class.simpleName} is sent durably, so it must implement redeliver")
 }
 
 /** The command numbered [sequence] to entity [to] was handled; its producer need not send it again. */
