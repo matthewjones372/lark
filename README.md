@@ -88,6 +88,13 @@ show under their caller in a thread dump and inherit `ScopedValue` bindings. Tha
 JDK 27, and the module is published when JDK 28 makes it final
 ([0040](specs/0040-a-flock-the-jdk-can-see.md)).
 
+`lark-bank` is not published either: it is an application to run.
+`./gradlew :lark-bank:run` starts three nodes in one JVM with accounts and
+transfers sharded across them. It serves a page to send money on at
+<http://localhost:8081>, and an admin page at `/admin` that streams the
+cluster's numbers, with a load button and "crash n3"
+([0094](specs/0094-a-bank-you-can-watch.md)).
+
 Before, on `arrow-fx-coroutines`:
 
 ```kotlin

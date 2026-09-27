@@ -4,6 +4,7 @@ import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.cluster.Discovery
 import io.github.matthewjones372.lark.logInfo
+import java.util.concurrent.CompletableFuture
 import kotlin.time.Duration.Companion.minutes
 
 /** The three nodes: each one's name, the port its cluster listens on, and the port it serves HTTP on. */
@@ -22,8 +23,23 @@ fun main(args: Array<String>) {
     require(only == null || jdbc != null) { "--node needs --jdbc: separate processes must share one journal" }
     val journal = JdbcJournal(if (jdbc == null) h2("bank") else database(jdbc))
     val seeds = nodes.map { (_, port) -> Node("", "127.0.0.1", port) }.let { Discovery { it } }
-    val running = nodes.filter { (name) -> only == null || name == only }
-        .map { (name, port, http) -> BankNode(name, port, seeds, journal).let { it to Api(it, http) } }
+    val chosen = nodes.filter { (name) -> only == null || name == only }
+    val started = CompletableFuture<List<Pair<BankNode, Api>>>()
+    // The admin's crash button: the node and its server go as a crash does, on a thread of their own.
+    val crash = { name: String ->
+        val found = started.get().firstOrNull { (node) -> node.name == name }
+        found?.let { (node, api) ->
+            Thread.ofVirtual().start {
+                api.close()
+                node.close()
+            }
+        }
+        found != null
+    }
+    val running = chosen.map { (name, port, http) ->
+        BankNode(name, port, seeds, journal).let { it to Api(it, http, crash = crash) }
+    }
+    started.complete(running)
     Runtime.getRuntime().addShutdownHook(
         Thread {
             running.forEach { (node, api) ->

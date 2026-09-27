@@ -106,3 +106,19 @@ td.out { color: var(--bad); }
 
 #message:empty { display: none; }
 #message { color: var(--bad); margin: 12px 0 0; }
+
+.controls { display: flex; gap: 8px; align-items: center; margin-bottom: 24px; }
+button.danger { background: var(--bad); border-color: var(--bad); }
+.muted { color: var(--muted); font-size: 13px; margin-left: 8px; }
+
+.tiles { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 24px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; }
+.tile .label { display: block; font-size: 13px; color: var(--muted); }
+.tile strong { font-size: 32px; font-variant-numeric: tabular-nums; }
+
+main > .card { margin-bottom: 24px; }
+canvas { display: block; width: 100%; height: 80px; }
+
+.status.Up { color: var(--good); }
+.status.Unreachable, .status.Downed { color: var(--bad); }
+.status.Removed { color: var(--muted); }

@@ -26,10 +26,16 @@ private fun <A> Either<*, A>.or(status: Int, answer: (A) -> Answer): Answer = fo
 
 /**
  * The consumer's JSON API on one node, served by the JDK's `HttpServer` on [port], each exchange on a virtual thread
- * of its own, with the pages and the admin's stream of the node's events. There is no library, so the routes are a
+ * of its own, with the pages and the admin's stream of the node's events. [crash] ends a node in this process as a
+ * crash would, for the admin's "crash" button. There is no library, so the routes are a
  * `when` over the method and the path's parts.
  */
-internal class Api(private val node: BankNode, port: Int, streaming: Streaming = Streaming()) : AutoCloseable {
+internal class Api(
+    private val node: BankNode,
+    port: Int,
+    streaming: Streaming = Streaming(),
+    private val crash: (node: String) -> Boolean = { false },
+) : AutoCloseable {
     private val server: HttpServer = HttpServer.create(InetSocketAddress(port), 0).apply {
         executor = Executors.newVirtualThreadPerTaskExecutor()
         createContext("/api/") { exchange -> exchange.use { respond(it, answer(it)) } }
@@ -49,6 +55,8 @@ internal class Api(private val node: BankNode, port: Int, streaming: Streaming =
             posted && body == null -> failed(400, "the body is not a flat JSON object")
             posted && path == listOf("accounts") -> open(body.orEmpty())
             posted && path == listOf("transfers") -> transfer(body.orEmpty())
+            posted && path == listOf("load") -> load(body.orEmpty())
+            posted && path == listOf("crash") -> crash(body.orEmpty())
             got && path[0] == "accounts" -> account(path[1])
             got && path[0] == "transfers" -> status(path[1])
             else -> failed(404, "no route for ${exchange.requestMethod} ${exchange.requestURI.path}")
@@ -57,7 +65,11 @@ internal class Api(private val node: BankNode, port: Int, streaming: Streaming =
 
     /** A page or what it loads, from the jar's `web` resources; `/` is the consumer's page. */
     private fun page(exchange: HttpExchange) {
-        val name = exchange.requestURI.path.removePrefix("/").ifEmpty { "index.html" }
+        val name = when (val path = exchange.requestURI.path.removePrefix("/")) {
+            "" -> "index.html"
+            "admin" -> "admin.html"
+            else -> path
+        }
         val type = types[name.substringAfterLast('.')]?.takeIf { pages.matches(name) }
         val bytes = type?.let { Api::class.java.getResource("/web/$name")?.readBytes() }
         if (bytes == null) respond(exchange, failed(404, "no page $name")) else respond(exchange, 200, type, bytes)
@@ -83,6 +95,17 @@ internal class Api(private val node: BankNode, port: Int, streaming: Streaming =
         if (node.statement(to).getOrNull()?.open != true) return failed(404, "no account $to")
         val id = "t-${UUID.randomUUID()}"
         return node.transfer(id, from, to, pence).or(503) { Answer(202, mapOf("id" to id)) }
+    }
+
+    private fun load(body: Map<String, String>): Answer {
+        val on = body["on"]?.toBooleanStrictOrNull() ?: return failed(400, "on is true or false")
+        node.load(on)
+        return Answer(202, mapOf("load" to on))
+    }
+
+    private fun crash(body: Map<String, String>): Answer {
+        val name = body["node"].orEmpty()
+        return if (crash(name)) Answer(202, mapOf("crashed" to name)) else failed(404, "no node $name in this process")
     }
 
     private fun status(id: String): Answer = node.status(id).or(503) { phase ->

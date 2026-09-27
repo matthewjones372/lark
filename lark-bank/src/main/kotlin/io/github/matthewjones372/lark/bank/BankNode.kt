@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.bank
 
 import arrow.core.Either
+import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.AskFailure
 import io.github.matthewjones372.lark.actor.Full
 import io.github.matthewjones372.lark.actor.Journal
@@ -38,6 +39,7 @@ internal data class Settings(
     val resendAfter: Duration = 1.seconds,
     val passivateAfter: Duration = 2.minutes,
     val sampleEvery: Duration = 1.seconds,
+    val loadEvery: Duration = 20.milliseconds,
 )
 
 /** Commands a producer may keep unconfirmed: enough that a load never waits on one. */
@@ -57,6 +59,7 @@ private class Parts(
     val accounts: Sharded<AccountMsg>,
     val transfers: Sharded<TransferMsg>,
     val outbox: Outbox,
+    val load: ActorRef<Load>,
 )
 
 /**
@@ -98,6 +101,7 @@ internal class BankNode(
             stats.subscribe(dashboard)
             events.subscribe(dashboard)
             spawn("sampler", sampler(name, recorder, stats, settings.sampleEvery))
+            val load = spawn("load", load(this@BankNode, settings.loadEvery))
             val announce = { id: String, saga: Saga ->
                 val ms = System.currentTimeMillis() - saga.at
                 recorder.counter(ENDED, mapOf("outcome" to saga.phase.name)).increment()
@@ -125,12 +129,13 @@ internal class BankNode(
                 if (event is MemberEvent.Removed && oldest && !closing) outboxOf(event.member)
                 // One member tells the dashboards each change: the oldest that every other can reach.
                 val teller = seen.up.firstOrNull { it.node !in seen.unreachable }?.node == cluster.self
-                if (teller) events.publish(BankEvent.Member(event.member.node.name, event.status()))
+                val status = event.status()
+                if (teller && status != null) events.publish(BankEvent.Member(event.member.node.name, status))
             }
             cluster.subscribe(spawn("members", watcher))
             members.await(1.minutes) { seen -> seen.members[cluster.self]?.status == Status.Up }
             outbox.complete(outboxOf(members.seen.members.getValue(cluster.self)))
-            started.complete(Parts(cluster, accounts, transfers, outbox.get()))
+            started.complete(Parts(cluster, accounts, transfers, outbox.get(), load))
             done.await()
         }
     }
@@ -151,16 +156,20 @@ internal class BankNode(
 
     fun status(id: String): Either<AskFailure, String> = parts.transfers.entity(id).ask(ASK) { Status(it) }
 
+    /** Starts or stops this node's load of random transfers. */
+    fun load(on: Boolean) = parts.load.tell(if (on) Load.On else Load.Off)
+
     override fun close() {
         closing = true
         done.countDown()
         thread.join()
     }
 
-    private fun MemberEvent.status() = when (this) {
+    /** What the admin page is told; null for a member downed as it stops being unreachable, since `Downed` follows. */
+    private fun MemberEvent.status(): String? = when (this) {
         is MemberEvent.Up -> "Up"
         is MemberEvent.Unreachable -> "Unreachable"
-        is MemberEvent.Reachable -> "Reachable"
+        is MemberEvent.Reachable -> "Reachable".takeIf { member.status != Status.Down }
         is MemberEvent.Downed -> "Downed"
         is MemberEvent.Removed -> "Removed"
     }
