@@ -41,9 +41,17 @@ private class TillNode(name: String, port: Int, seeds: Discovery, roles: Set<Str
         }
     }
 
-    val cluster: Cluster get() = ready.await().let { opened.get().first }
+    val cluster: Cluster
+        get() {
+            ready.await()
+            return opened.get().first
+        }
 
-    val tills: Sharded<Int> get() = ready.await().let { opened.get().second }
+    val tills: Sharded<Int>
+        get() {
+            ready.await()
+            return opened.get().second
+        }
 
     override fun close() {
         done.countDown()
@@ -55,7 +63,7 @@ class BusyEntityTest {
 
     @Test
     fun `a burst of 5,000 from another node to a busy entity is applied in order, and no region stops`() {
-        val ports = List(3) { ServerSocket(0).use { it.localPort } }
+        val ports = List(3) { ServerSocket(0).use { socket -> socket.localPort } }
         val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
         val open = CountDownLatch(1)
         val nodes = listOf(
