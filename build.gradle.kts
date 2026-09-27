@@ -1,5 +1,7 @@
 plugins {
     kotlin("jvm") version "2.4.10" apply false
+    // @Serializable classes: lark-actor-remote-kotlinx's tests, and the services that use it (spec 0093).
+    kotlin("plugin.serialization") version "2.4.10" apply false
     id("com.diffplug.spotless") version "8.10.0"
     id("dev.detekt") version "2.0.0-alpha.6" apply false
     id("org.jetbrains.kotlinx.kover") version "0.9.9"

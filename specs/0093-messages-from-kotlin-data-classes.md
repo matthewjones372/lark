@@ -51,7 +51,8 @@ val proto: String = Kotlinx.proto(events, package = "bank.v1")
 - **`oneOf`** writes the tag and then the class's bytes. Like `Protobuf.oneOf`,
   it refuses a tag or a class given twice when it is built, and a class it has no
   tag for when it writes. From one table it gives a `MessageCodec`, an
-  `EventCodec` and a `StateCodec`.
+  `EventCodec` and a `StateCodec`. It writes the tag as a protobuf key, so a
+  value is exactly a message with a `oneof` whose field numbers are the tags.
 - **`asked`** writes the reply as 0068 does, and the request in the format
   beside it, as 0071's `asked` does.
 - **`proto`** is kotlinx's `ProtoBufSchemaGenerator` over the classes in a
@@ -69,12 +70,12 @@ never changes is the rule every lark codec already follows.
 
 ## Stack
 
-- [ ] **`spec-0093-codecs`**: the module, `codec`, `state`, `oneOf` (message
+- [x] **`spec-0093-codecs`**: the module, `codec`, `state`, `oneOf` (message
       and event codecs) and `asked`, with `NoOtherDependenciesTest`.
       Done when: a sealed hierarchy of data classes, value classes and enums
       crosses two nodes and survives a journal replay, and a tag given twice
       fails when the table is built.
-- [ ] **`spec-0093-proto`**: `proto()`, and a reference test that `protoc`
+- [x] **`spec-0093-proto`**: `proto()`, and a reference test that `protoc`
       parses what it writes.
       Done when: the `.proto` for the test hierarchy is pinned as a golden file,
       and bytes written by the codec parse with the classes `protoc` generates
