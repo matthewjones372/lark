@@ -4,6 +4,9 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /** Whose events these are: a kind of entity, and the id of one. */
 data class PersistenceId(val kind: String, val id: String)
@@ -36,24 +39,35 @@ interface Journal {
 /** The events of [id], decoded by [codec]. */
 fun <E> Journal.events(id: PersistenceId, codec: EventCodec<E>): List<E> = read(id).map { codec.decode(it.bytes) }
 
-/** A journal in memory, for tests and for a service that can lose its events. It keeps copies of the bytes. */
-class InMemoryJournal : Journal {
+/**
+ * A journal in memory, for tests and for a service that can lose its events. It keeps copies of the bytes, and is a
+ * [JournalFeed] whose offsets count appended events: appends take turns, so no offset is seen before a smaller one.
+ */
+class InMemoryJournal : Journal, JournalFeed {
     private val kept = ConcurrentHashMap<PersistenceId, List<StoredEvent>>()
+    private val feed = ConcurrentSkipListMap<Long, FeedEvent>()
+    private val appending = ReentrantLock()
 
-    override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> {
-        var conflict: JournalConflict? = null
-        val after = kept.compute(id) { _, before ->
-            val so = before.orEmpty()
-            if (so.size.toLong() != expected) {
-                conflict = JournalConflict(id, expected, so.size.toLong())
-                so
-            } else {
-                so + events.mapIndexed { i, bytes -> StoredEvent(expected + i + 1, bytes.copyOf()) }
+    override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
+        appending.withLock {
+            val before = kept[id].orEmpty()
+            if (before.size.toLong() != expected) return JournalConflict(id, expected, before.size.toLong()).left()
+            val stored = events.mapIndexed { i, bytes -> StoredEvent(expected + i + 1, bytes.copyOf()) }
+            kept[id] = before + stored
+            stored.forEach { event ->
+                val offset = (feed.lastEntry()?.key ?: 0) + 1
+                feed[offset] = FeedEvent(offset, id, event.sequence, event.bytes)
             }
+            (expected + events.size).right()
         }
-        return conflict?.left() ?: after.orEmpty().size.toLong().right()
-    }
 
     override fun read(id: PersistenceId, from: Long): List<StoredEvent> =
         kept[id].orEmpty().drop((from - 1).coerceAtLeast(0).toInt()).map { StoredEvent(it.sequence, it.bytes.copyOf()) }
+
+    override fun after(kind: String, offset: Long, limit: Int): List<FeedEvent> =
+        feed.tailMap(offset, false).values.asSequence()
+            .filter { it.id.kind == kind }
+            .take(limit)
+            .map { FeedEvent(it.offset, it.id, it.sequence, it.bytes.copyOf()) }
+            .toList()
 }

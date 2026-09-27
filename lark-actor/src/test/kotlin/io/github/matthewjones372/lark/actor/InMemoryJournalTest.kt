@@ -41,3 +41,7 @@ class JournalContractTest {
         }
     }
 }
+
+class InMemoryFeedTest : FeedContract<InMemoryJournal>() {
+    override fun journal() = InMemoryJournal()
+}
