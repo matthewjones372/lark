@@ -19,6 +19,8 @@ import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.metricTags
 import io.github.matthewjones372.lark.metrics
 import java.time.Instant
+import java.util.Collections
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -110,12 +112,24 @@ fun <E> Flock<E>.snapshots(store: SnapshotStore) {
 fun <E> Flock<E>.snapshots(): SnapshotStore? = guardian().snapshots
 
 /** This flock's guardian, standing from the first call. */
-private fun Flock<*>.guardian(): Guardian =
+private fun Flock<*>.guardian(): Guardian = checkNotNull(standing()) { "this flock has closed, and its actors with it" }
+
+/**
+ * This flock's guardian, standing from the first call, or null once the flock has closed. The closed check is made
+ * inside the map's own update, so a thread that races the close either finds the guardian or finds the flock closed.
+ */
+private fun Flock<*>.standing(): Guardian? =
     // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
     // inherit it. Its actors' restarts and timers all wait on it.
     guardians.computeIfAbsent(this) { flock ->
-        Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
+        if (flock in closed) null else Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
     }
+
+/**
+ * Flocks whose actors have all stopped, held weakly: a dead letter told to one afterwards, from a thread it did not
+ * fork, must not stand a second guardian on it.
+ */
+private val closed: MutableSet<Flock<*>> = Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap()))
 
 /**
  * Waits until every message told to this flock's actors, and every message those caused, has been handled or
@@ -150,17 +164,24 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
  * Hands [letter] to this flock's dead-letter handler, as the runtime's own letters are: for a transport or a bridge
  * that found a message it could not deliver.
  */
-fun <E> Flock<E>.deadLetter(letter: DeadLetter) = guardian().dead(letter)
+fun <E> Flock<E>.deadLetter(letter: DeadLetter) {
+    // After the flock has closed there is no handler left to hand it to.
+    val guardian = standing()
+    if (guardian == null) logDebug("dead letter after its flock closed: $letter") else guardian.dead(letter)
+}
 
 /**
  * The counter [name] of this flock (spec 0081): with the tags bound where the flock's actors first stood, those
  * [tagMetrics] added since, and [tags]. Measured through the `metrics` bound there, since an actor's step runs on a
  * thread the flock did not fork and would not inherit them. Held once looked up, so a hot path may call this.
  */
-fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter = guardian().counter(name, tags)
+fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter =
+    // A closed flock measures nothing: a transport's thread may still count after it has gone.
+    standing()?.counter(name, tags) ?: Counter { }
 
 /** The gauge [name] of this flock, as [counter]. */
-fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge = guardian().gauge(name, tags)
+fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge =
+    standing()?.gauge(name, tags) ?: Gauge { }
 
 /**
  * Adds [tags] to every metric of this flock from now on, such as the name of the node it runs: an instrument looked
@@ -246,7 +267,9 @@ private val stepping = ThreadLocal<Cell<*, *, *>>()
  * One guardian per flock: a single parked fork that the flock interrupts on close, which then stops its actors.
  * Keyed by the flock itself, since `Flock` has no hook of its own for close.
  */
-private val guardians = ConcurrentHashMap<Flock<*>, Guardian>()
+// Its value type is nullable only so that a lookup may decline to stand a guardian on a closed flock: a
+// ConcurrentHashMap never holds a null.
+private val guardians = ConcurrentHashMap<Flock<*>, Guardian?>()
 
 private val SCHEDULED: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
     AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "scheduledFlag")
@@ -373,8 +396,9 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
         wheel.close()
         cells.forEach { it.stop() }
         cells.forEach { it.ended.await() }
-        // Only now: an actor stopping may still tell the flock of a dead letter, which must find this guardian rather
-        // than stand a second one on a flock already closing.
+        // Marked closed before the guardian goes: a thread the flock did not fork, such as a transport's, that looks
+        // for it afterwards finds the flock closed, rather than no guardian and a flock it would stand a second one on.
+        closed += flock
         guardians.remove(flock)
     }
 }

@@ -368,6 +368,21 @@ class FlockTest {
     }
 
     @Test
+    fun `a close hook registered while the flock closes runs too, after the one that registered it`() {
+        val ran = mutableListOf<String>()
+
+        flock<Nothing, Unit> {
+            onClose { ran += "first" }
+            onClose {
+                ran += "second"
+                onClose { ran += "registered while closing" }
+            }
+        }
+
+        ran shouldBe listOf("second", "registered while closing", "first")
+    }
+
+    @Test
     fun `a close hook that throws an Error still interrupts and joins every fork, and the Error is thrown after`() {
         val ran = mutableListOf<String>()
 

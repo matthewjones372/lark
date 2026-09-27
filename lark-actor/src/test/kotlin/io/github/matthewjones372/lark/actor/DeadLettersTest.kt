@@ -1,12 +1,16 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.flock
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicBoolean
 
 private sealed interface Mail
 
@@ -115,6 +119,21 @@ class DeadLettersTest {
     }
 
     @Test
+    fun `after its flock has closed, a dead letter is only logged, and a spawn is refused`() {
+        val letters = ConcurrentLinkedQueue<DeadLetter>()
+        val closed = flock<Nothing, Flock<Nothing>> {
+            onDeadLetter(letters::add)
+            spawn("postbox", postbox())
+            this
+        }.getOrNull()!!
+
+        closed.deadLetter(DeadLetter(Address("local", "/user/postbox", 1), Letter(1), DeadLetter.Why.Unreachable))
+
+        letters.toList() shouldBe emptyList()
+        shouldThrow<IllegalStateException> { closed.spawn("late", postbox()) }
+    }
+
+    @Test
     fun `a dead letter the flock is told of while its actors stop reaches its handler`() {
         val letters = ConcurrentLinkedQueue<DeadLetter>()
 
@@ -129,5 +148,39 @@ class DeadLettersTest {
         }
 
         letters.map { it.message } shouldContainExactly listOf(1)
+    }
+
+    @Test
+    fun `a thread the flock did not fork, telling it of dead letters while it closes, stands no second guardian`() {
+        val failed = ConcurrentLinkedQueue<Throwable>()
+        val letter = DeadLetter(Address("local", "/user/postbox", 1), Letter(1), DeadLetter.Why.Unreachable)
+
+        // A race, so it is run many times: each close meets a transport's thread at a different point.
+        repeat(RACES) {
+            val done = AtomicBoolean(false)
+            val telling = CountDownLatch(1)
+            lateinit var transport: Thread
+            flock<Nothing, Unit> {
+                spawn("postbox", postbox())
+                val closing = this
+                transport = Thread.ofPlatform().start {
+                    telling.countDown()
+                    try {
+                        while (!done.get()) closing.deadLetter(letter)
+                    } catch (thrown: IllegalStateException) {
+                        failed += thrown
+                    }
+                }
+                telling.await()
+            }
+            done.set(true)
+            transport.join()
+        }
+
+        failed.toList() shouldBe emptyList()
+    }
+
+    private companion object {
+        const val RACES = 200
     }
 }
