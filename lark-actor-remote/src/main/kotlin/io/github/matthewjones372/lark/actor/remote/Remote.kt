@@ -11,12 +11,16 @@ import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.Watchable
 import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.counter
 import io.github.matthewjones372.lark.actor.deadLetter
+import io.github.matthewjones372.lark.actor.gauge
 import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.actor.tagMetrics
 import io.github.matthewjones372.lark.actor.watch
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logger
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -64,6 +68,8 @@ fun <F> Flock<F>.node(
     unreachableAfter: Duration = 10.seconds,
     tls: Tls? = null,
 ): RemoteNode {
+    // Every metric of this flock names the node it runs, so several nodes in one JVM are told apart (spec 0081).
+    tagMetrics("node" to name)
     val node = RemoteNode(Node(name, host, port), this, unreachableAfter, tls)
     node.transport.listen()
     // The flock has no hook of its own for close, and an actor's Stopping is one: the node closes with it.
@@ -91,6 +97,24 @@ class RemoteNode internal constructor(
     private val unreachableAfter: Duration,
     tls: Tls? = null,
 ) {
+    /** One peer's instruments, looked up once: counting a frame is then a map hit and no allocation. */
+    private inner class PeerMetrics(peer: Node) {
+        private val name = peer.toString()
+        val sent = flock.counter("lark.remote.frames", "peer" to name, "direction" to "out")
+        val received = flock.counter("lark.remote.frames", "peer" to name, "direction" to "in")
+        val dropped = flock.counter("lark.remote.dropped", "peer" to name)
+        val connected = flock.gauge("lark.remote.connected", "peer" to name)
+    }
+
+    private val measured = ConcurrentHashMap<Node, PeerMetrics>()
+
+    private fun measure(peer: Node): PeerMetrics = measured.computeIfAbsent(peer) { PeerMetrics(it) }
+
+    /** Hands [frame] to the transport for [peer], counting it. */
+    private fun send(peer: Node, frame: Frame) {
+        measure(peer).sent.increment()
+        transport.send(peer, frame)
+    }
 
     private val exposed = ConcurrentHashMap<String, Exposed<*>>()
     private val pending = ConcurrentHashMap<String, Pending<*>>()
@@ -144,7 +168,7 @@ class RemoteNode internal constructor(
     /** Asks [peer] to say when the actor at [address] ends; [notify] runs then, or once [peer] is unreachable. */
     private fun watch(peer: Node, address: Address, notify: () -> Unit) {
         watching.computeIfAbsent(address) { CopyOnWriteArrayList() } += notify
-        transport.send(peer, Frame(WATCH, 0, target(address)))
+        send(peer, Frame(WATCH, 0, target(address)))
     }
 
     /** Another node watches [address] here: it hears once the actor there ends, or at once if none is there. */
@@ -153,11 +177,11 @@ class RemoteNode internal constructor(
         val actor = exposed[address.path]?.ref
             ?.takeIf { address.incarnation == 0L || it.address.incarnation == address.incarnation }
         val terminated = Frame(TERMINATED, 0, target(address))
-        if (actor == null) return transport.send(peer, terminated)
+        if (actor == null) return send(peer, terminated)
         Thread.ofVirtual().name("lark-remote-watch").start {
             flock.watch(actor).await()
             watched -= peer to address
-            transport.send(peer, terminated)
+            send(peer, terminated)
         }
     }
 
@@ -190,6 +214,7 @@ class RemoteNode internal constructor(
         // A frame this node cannot read ends only that frame: the connection, and the frames after it, go on.
         @Suppress("TooGenericExceptionCaught")
         override fun received(from: Node, frame: Frame) {
+            measure(from).received.increment()
             try {
                 when {
                     frame.path.startsWith(REPLIES) -> pending.remove(frame.path)?.answer(frame.payload, refs)
@@ -225,15 +250,18 @@ class RemoteNode internal constructor(
         }
 
         override fun connected(peer: Node) {
+            measure(peer).connected.set(1.0)
             up += peer
         }
 
         override fun disconnected(peer: Node) {
+            measure(peer).connected.set(0.0)
             up -= peer
             maybeUnreachable(peer)
         }
 
         override fun dropped(peer: Node, frame: Frame) {
+            measure(peer).dropped.increment()
             val recipient = Address(peer.toString(), frame.path, frame.incarnation)
             val message = frame.message ?: UnreadMessage(frame.payload)
             flock.deadLetter(DeadLetter(recipient, message, DeadLetter.Why.Unreachable))
@@ -287,7 +315,7 @@ class RemoteNode internal constructor(
         private val codec: MessageCodec<M>,
     ) : ActorRef<M>, Watchable {
         override fun tell(message: M) =
-            transport.send(peer, Frame(address.path, address.incarnation, codec.encode(message, refs), message))
+            send(peer, Frame(address.path, address.incarnation, codec.encode(message, refs), message))
 
         override fun onTerminated(notify: () -> Unit) = watch(peer, address, notify)
 
@@ -305,6 +333,6 @@ class RemoteNode internal constructor(
         private val answers: MessageCodec<A>,
     ) : Reply<A> {
         override fun invoke(answer: A) =
-            transport.send(peer, Frame(address.path, address.incarnation, answers.encode(answer, refs), answer))
+            send(peer, Frame(address.path, address.incarnation, answers.encode(answer, refs), answer))
     }
 }
