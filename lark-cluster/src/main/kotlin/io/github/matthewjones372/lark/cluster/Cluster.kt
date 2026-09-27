@@ -118,7 +118,10 @@ private class Steps(
         when (step) {
             is Step.Heard -> send(membership.receive(step.message, now()))
 
-            Step.Tick -> send(membership.tick(now()))
+            Step.Tick -> {
+                report()
+                send(membership.tick(now()))
+            }
 
             Step.Leave -> membership.leave()
 
@@ -130,6 +133,10 @@ private class Steps(
         }
         publish(subscribers)
         return if (membership.downed) stop() else stay()
+    }
+
+    private fun report() = cluster.meters.forEach { meter ->
+        meter.due(now())?.let { membership.report(meter.kind, it) }
     }
 
     private fun send(sends: List<Send>) = sends.forEach { (to, message) ->
@@ -159,7 +166,7 @@ private class Steps(
         events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
         subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
         measure(next, events)
-        cluster.publish(next)
+        cluster.publish(next, membership.balance())
     }
 }
 
@@ -174,11 +181,19 @@ class Cluster internal constructor(
     private val changed = lock.newCondition()
     private val viewers = CopyOnWriteArrayList<(View) -> Unit>()
 
+    /** What each kind that rebalances counts here, for the cluster actor to report (spec 0090). */
+    internal val meters = CopyOnWriteArrayList<LoadMeter>()
+
     @Volatile
     var view: View = View.None
         private set
 
     internal lateinit var actor: ActorRef<Step>
+
+    /** The load of the kinds that rebalance, as of [view]: published with it, and waited on as it is. */
+    @Volatile
+    internal var balance: Balance = Balance.None
+        private set
 
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)
@@ -213,8 +228,9 @@ class Cluster internal constructor(
      */
     fun subscribe(subscriber: ActorRef<MemberEvent>) = actor.tell(Step.Subscribe(subscriber))
 
-    internal fun publish(next: View) {
-        if (next == view) return
+    internal fun publish(next: View, loads: Balance = balance) {
+        if (next == view && loads == balance) return
+        balance = loads
         // The viewers first: a region is told the view before anyone waiting on it wakes, so what a waiter tells a
         // region after its wait is routed by that view or a later one, never an earlier.
         viewers.forEach { it(next) }

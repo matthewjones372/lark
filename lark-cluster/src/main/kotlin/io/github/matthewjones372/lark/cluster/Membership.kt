@@ -85,6 +85,19 @@ internal class Membership(
         return View(members, gossip.unreachable().mapTo(mutableSetOf()) { it.node }, leader()?.node)
     }
 
+    /** Writes what this member runs of [kind] now, for every member to see (spec 0090). */
+    fun report(kind: String, shards: Map<Int, ShardLoad>) {
+        val last = gossip.loads[self]
+        if (!active || last?.kinds?.get(kind) == shards) return
+        val load = Load((last?.version ?: 0) + 1, last?.kinds.orEmpty() + (kind to shards))
+        gossip = gossip.copy(loads = gossip.loads + (self to load))
+    }
+
+    fun balance(): Balance {
+        val live = gossip.live()
+        return Balance(gossip.loads.filterKeys { it in live }.entries.associate { (m, load) -> m.node to load.kinds })
+    }
+
     private fun accepts(other: Gossip) = active && other.origin == gossip.origin
 
     private fun isSelf(node: Node) = node.host == self.node.host && node.port == self.node.port

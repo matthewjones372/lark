@@ -167,6 +167,18 @@ fun <M : Any, S, E> Cluster.sharding(
     shards: Int = Sharding.SHARDS,
     role: String? = null,
     entity: (id: String) -> Behaviour<M, S, E>,
+): Sharded<M> = sharding(kind, codec, passivateAfter, shards, role, rebalance = null, entity)
+
+/** [sharding], with each shard's load counted and reported in the gossip if the kind [rebalance]s (spec 0090). */
+@Suppress("LongParameterList")
+internal fun <M : Any, S, E> Cluster.sharding(
+    kind: String,
+    codec: MessageCodec<M>,
+    passivateAfter: Duration,
+    shards: Int = Sharding.SHARDS,
+    role: String? = null,
+    rebalance: Rebalance?,
+    entity: (id: String) -> Behaviour<M, S, E>,
 ): Sharded<M> {
     val path = Sharding.path(kind)
     require(shards > 0) { "shards must be positive, was $shards" }
@@ -175,13 +187,18 @@ fun <M : Any, S, E> Cluster.sharding(
     val counting = ReentrantLock()
     var count = 0L
     val onRunning = { delta: Int -> counting.withLock { running.set((count + delta).also { count = it }.toDouble()) } }
+    val meter = rebalance?.let { LoadMeter(kind, it, shards).also(meters::add) }
     val hosting = Hosting<M, Entities<M>>(
         eager = false,
         owner = { shard, members -> Placement.owner(kind, shard, members.holding(role)) },
         start = { ctx, shard ->
-            ctx.spawn("shard-$shard", entities(passivateAfter, onRunning = onRunning, entity = entity))
+            val counted = { delta: Int -> onRunning(delta).also { meter?.running(shard, delta) } }
+            ctx.spawn("shard-$shard", entities(passivateAfter, onRunning = counted, entity = entity))
         },
-        deliver = { manager, id, message -> manager.entity(id).tell(message) },
+        deliver = { manager, id, message ->
+            meter?.handled(Placement.shardOf(id, shards))
+            manager.entity(id).tell(message)
+        },
     )
     return Sharded(kind, region(path, codec, shards, hosting, kind), flock, leaveWithin, codec)
 }
