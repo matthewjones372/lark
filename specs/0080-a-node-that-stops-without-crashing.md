@@ -100,3 +100,9 @@ service that wants to do it earlier.
 - **Hooks on every flock, or only on a cluster's?** Recommended: every flock,
   as `onClose` in `lark-actor`; the cluster is one user of it, and a service
   gets the same place for its own last step.
+
+Decided (2026-09-27): every open question goes as recommended. A cluster
+leaves on its flock's close, with `stop()` for a service that wants to leave
+earlier; one deadline, `leaveWithin`, covers leaving and draining; a producer
+drains on close whether or not its flock is in a cluster; and close hooks are
+`onClose` on every flock, in `lark-actor`.
