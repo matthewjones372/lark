@@ -156,6 +156,11 @@ class SagaTest {
     }
 
     @Test
+    fun `a start written before it carried its time is read back as started at zero`() {
+        TransferEvents.decode("R|a|b|5".toByteArray()) shouldBe TransferEvent.Requested("a", "b", 5, at = 0)
+    }
+
+    @Test
     fun `every message crosses the wire and every event the journal as it was`() {
         val delivery = Delivery("saga-n1", "a", 3, Delivery.NoOne)
         val accounts = listOf(Debit("t", 1), Credit("t", 2), ToAccount(Credit("t", 4), delivery))

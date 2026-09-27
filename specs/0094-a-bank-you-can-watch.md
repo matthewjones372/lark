@@ -208,6 +208,7 @@ Decided while building `spec-0094-stats`:
 - **The bank's own numbers.** A transfer that ends is counted by outcome and timed through the same recorder. The time runs from the start the API sent, which now carries `at`. `transfersPerSecond` and `refused` are per sample; `p99Ms` is over the transfers that ended in that second.
 - **Who tells of a member.** Every node sees each change, so one tells: the oldest `Up` member that every other can reach. When that member is the one that crashed, the next oldest tells instead.
 - **Ids.** Stats carry an `id:` line counting up on each node, as the spec's example does. Member and transfer events carry none.
+- **Old starts still read.** A `Requested` event written before it carried `at` has four fields. It is read as started at zero, so a journal kept with `--jdbc` by an earlier build still replays.
 - **A transfer heard twice.** A transfer whose end is repeated after a crash is published again, so the feed may show it twice.
 - **What the test catches.** A stats topic that stays on its node fails it: node 1 hears only itself. So does a node that never publishes member changes.
 - **Past the soft cap.** About 330 lines, a third of them the two topic codecs and the stats' JSON.

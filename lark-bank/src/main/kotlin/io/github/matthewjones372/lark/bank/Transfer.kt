@@ -121,7 +121,8 @@ internal object TransferEvents : EventCodec<TransferEvent> {
     override fun decode(bytes: ByteArray): TransferEvent {
         val fields = String(bytes).split("|")
         return when (fields[0]) {
-            "R" -> fields.let { (_, from, to, pence, at) ->
+            // A start written before it carried its time has no fifth field, and is read as started at zero.
+            "R" -> (fields + "0").let { (_, from, to, pence, at) ->
                 TransferEvent.Requested(from, to, pence.toLong(), at.toLong())
             }
 
