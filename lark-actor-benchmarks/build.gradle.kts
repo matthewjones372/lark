@@ -20,6 +20,9 @@ dependencies {
     implementation(platform("io.zonky.test.postgres:embedded-postgres-binaries-bom:17.5.0"))
     implementation("org.apache.pekko:pekko-actor-typed_$scalaBinary:$pekkoVersion")
     implementation("org.apache.pekko:pekko-remote_$scalaBinary:$pekkoVersion")
+    // Three nodes of a cluster on each side (spec 0092): lark's sharding against Pekko Cluster Sharding.
+    implementation(project(":lark-cluster"))
+    implementation("org.apache.pekko:pekko-cluster-sharding-typed_$scalaBinary:$pekkoVersion")
     implementation("org.openjdk.jmh:jmh-core:$jmhVersion")
 }
 

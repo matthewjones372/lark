@@ -12,6 +12,35 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## A cluster, to be measured
+
+After spec [0092](../specs/0092-cluster-numbers.md): three nodes of one cluster in one JVM on loopback on each side,
+lark's `lark-cluster` over its own TCP transport and Pekko Cluster over Artery's TCP transport, both with the probes
+and gossip at their defaults. The messages have the same fields on both sides, each written field by field over a
+`DataOutputStream`: a `MessageCodec` for lark and a `SerializerWithStringManifest` for Pekko, where a reply crosses as
+the string `ActorRefResolver` makes of it. Every row is taken from the first node. `local` is an entity that node
+owns and `remote` one another node owns, each found by asking entities where they run until one answers. Pekko's
+rebalancing and passivation are off, as lark's placement never moves an entity between members that stay up.
+
+The numbers are not taken yet: they are taken on the same machine class as the rows below, not in the container
+these benchmarks were written in. To reproduce, with the settings each class declares (2 forks, 5 warmup and 5
+measured iterations of 1 s):
+
+```bash
+./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs="Sharded"
+```
+
+| Row | Per | lark | Pekko |
+|---|---|---|---|
+| `ShardedTellBenchmark`, `owner = local`: 1,000 tells to an entity on this node, until all are handled | tell | to be measured | to be measured |
+| `ShardedTellBenchmark`, `owner = remote`: the same to an entity on another node | tell | to be measured | to be measured |
+| `ShardedAskBenchmark`, `owner = local`: an ask to an entity on this node and its answer | round trip | to be measured | to be measured |
+| `ShardedAskBenchmark`, `owner = remote`: the same to an entity on another node | round trip | to be measured | to be measured |
+
+- **A burst is 1,000, not the 2,000 `RemoteTellBenchmark` uses.** A lark region hands each message to its shard's
+  actor, and both have mailboxes of 1,024; a region whose tell finds the shard's mailbox full fails and stops, and a
+  burst of 2,000 into one entity did that. Pekko's mailboxes are unbounded.
+
 ## A journal across databases, 2026-09-27
 
 After spec [0088](../specs/0088-a-journal-across-databases.md): 10,000 payments spread round-robin over 256
