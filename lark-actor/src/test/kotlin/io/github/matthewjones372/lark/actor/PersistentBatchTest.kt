@@ -135,7 +135,8 @@ class PersistentBatchTest {
             batchTill.tell(BatchDeposit(10, first))
             batchTill.tell(BatchDeposit(5, first.copy(sequence = 2)))
             opened.countDown()
-            batchTill.ask(1.minutes) { BatchCount(it) }
+            // The confirmations are tells to another actor, and a close drops what it has not handled yet.
+            batchTill.ask(1.minutes) { BatchCount(it) }.also { awaitIdle() }
         }
         counted shouldBe Either.Right(Either.Right(15))
         journal.events(batchTillId, batchPence) shouldContainExactly listOf(10, 5)
