@@ -58,8 +58,9 @@ module tests already prove the behaviour. Recommended: a compiled guide.
       Done when: each marked fence compiles in the test, and one fence broken
       on purpose fails it.
       ([#228](https://github.com/matthewjones372/lark/pull/228))
-- [ ] **`spec-0084-state`** — sections 4 and 5. Done when: their fences
+- [x] **`spec-0084-state`** — sections 4 and 5. Done when: their fences
       compile, including the Postgres DDL's path as the jar ships it.
+      ([#229](https://github.com/matthewjones372/lark/pull/229))
 - [ ] **`spec-0084-operating`** — section 6, and the README's link. Done when:
       its fences compile, and the README's module table links the page from
       the cluster, remote and journal rows.
@@ -93,3 +94,9 @@ differently. The compiler is `lark-stream-pekko`'s `EmbeddedKotlin`, copied
 into `lark-cluster`'s tests, and the page is an input of the test task, so an
 edit to it reruns the test. The test also compiles one example with a call
 renamed and expects errors, so a harness that compiled nothing would fail.
+
+Decided while building `spec-0084-state`: `lark-cluster`'s tests take
+`lark-actor-projection` and `lark-stream-forks`, so the read model's example
+compiles with the rest. The DDL paths are checked rather than compiled: the
+test reads every `lark/journal/jdbc/….sql` the page names and finds each on the
+journal's classpath, so renaming a file without the page fails it.

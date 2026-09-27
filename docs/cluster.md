@@ -25,6 +25,8 @@ dependencies {
 1. [Two nodes](#two-nodes)
 2. [A cluster](#a-cluster)
 3. [Entities](#entities)
+4. [State that survives](#state-that-survives)
+5. [Commands that must arrive](#commands-that-must-arrive)
 
 ## Two nodes
 
@@ -306,4 +308,246 @@ fun addAndRead(baskets: Sharded<Basket>) =
 ```
 
 An entity here loses its state when it moves or passivates. To keep it, make
-the entity persistent.
+the entity persistent: the next section.
+
+## State that survives
+
+A persistent behaviour is remembered by its events. A command answers an
+effect: `persist` writes events to the flock's journal and then applies them,
+`none` writes nothing, and `then` runs once they are written. On start, and on
+every move, the entity replays its events before its first command
+([spec 0063](../specs/0063-an-actor-that-is-remembered.md)). Two writers for
+one entity cannot both succeed: the second append is a conflict, raised as the
+entity's failure for its supervision to decide.
+
+For a cluster the journal must be one every node reaches. `JdbcJournal` keeps
+events in one table over the `DataSource` you give it, and ships its DDL in the
+jar as `lark/journal/jdbc/postgres.sql` and `lark/journal/jdbc/h2.sql` for your
+migrations to apply; nothing creates tables at start
+([spec 0072](../specs/0072-events-that-outlive-the-node.md),
+[spec 0078](../specs/0078-the-journal-on-postgres.md)).
+
+- **Snapshots.** With `snapshots = every(100, codec)` the entity saves its state
+  after each hundredth event, and a start replays only what came after the
+  newest snapshot ([spec 0074](../specs/0074-a-recovery-that-does-not-replay-everything.md)).
+- **Pruning.** Give `every` a `Prune` and the events a snapshot covers are
+  deleted: `Prune.always`, or `Prune.after(offsets, "name", …)` to wait until
+  every named read model has read them
+  ([spec 0076](../specs/0076-a-journal-that-does-not-grow-forever.md),
+  [spec 0077](../specs/0077-pruning-that-waits-for-read-models.md)).
+- **Read models.** `Projection.follow` is every event of one kind, across
+  entities, in one order, as a stream on any lark-stream backend.
+  `runProjecting()` saves each event's offset once its work is done, so a read
+  model started again goes on where it left off. Delivery is at least once:
+  write handlers that are safe to repeat, keyed by the entity and the event's
+  sequence number ([spec 0075](../specs/0075-a-read-model-that-follows-the-journal.md)).
+
+<!-- cluster-persistent -->
+```kotlin
+import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.actor.EventCodec
+import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.Prune
+import io.github.matthewjones372.lark.actor.Reply
+import io.github.matthewjones372.lark.actor.StateCodec
+import io.github.matthewjones372.lark.actor.every
+import io.github.matthewjones372.lark.actor.journal
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcSnapshots
+import io.github.matthewjones372.lark.actor.persistent
+import io.github.matthewjones372.lark.actor.remote.Codecs
+import io.github.matthewjones372.lark.actor.remote.MessageCodec
+import io.github.matthewjones372.lark.actor.remote.WireIn
+import io.github.matthewjones372.lark.actor.remote.WireOut
+import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.lark.actor.snapshots
+import io.github.matthewjones372.lark.cluster.Discovery
+import io.github.matthewjones372.lark.cluster.Sharded
+import io.github.matthewjones372.lark.cluster.cluster
+import io.github.matthewjones372.lark.cluster.sharding
+import javax.sql.DataSource
+import kotlin.time.Duration.Companion.minutes
+
+sealed interface Account
+
+data class Deposit(val pence: Long) : Account
+
+data class Balance(val reply: Reply<Long>) : Account
+
+object AccountCodec : MessageCodec<Account> {
+    override fun write(message: Account, out: WireOut) = when (message) {
+        is Deposit -> {
+            out.int(1)
+            out.long(message.pence)
+        }
+
+        is Balance -> {
+            out.int(2)
+            out.reply(message.reply, Codecs.long)
+        }
+    }
+
+    override fun read(input: WireIn): Account = when (val tag = input.int()) {
+        1 -> Deposit(input.long())
+        2 -> Balance(input.reply(Codecs.long))
+        else -> error("no account message has the tag $tag")
+    }
+}
+
+/** The one event: pence paid in, as its decimal text. */
+object Deposited : EventCodec<Long> {
+    override fun encode(event: Long): ByteArray = event.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+object Pence : StateCodec<Long> {
+    override fun encode(state: Long): ByteArray = state.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+/** An account remembered by its deposits, snapshotted every hundred, pruned once the ledger read model has read. */
+fun account(id: String, offsets: JdbcOffsets) = persistent<Account, Long, Long>(
+    id = PersistenceId("account", id),
+    empty = 0,
+    codec = Deposited,
+    snapshots = every(100, Pence, prune = Prune.after(offsets, "ledger")),
+    command = { _, balance, command ->
+        when (command) {
+            is Deposit -> persist(command.pence)
+            is Balance -> none().then { command.reply(balance) }
+        }
+    },
+    event = { balance, deposited -> balance + deposited },
+)
+
+/** Every node of the bank: one Postgres every node reaches, holding the journal, the snapshots and the offsets. */
+fun Flock<Nothing>.bank(database: DataSource): Sharded<Account> {
+    journal(JdbcJournal(database))
+    snapshots(JdbcSnapshots(database))
+    val offsets = JdbcOffsets(database)
+    val cluster = cluster(node("bank-1", 25520, host = "0.0.0.0"), Discovery.srv("_lark._tcp.bank.internal"))
+    return cluster.sharding("account", AccountCodec, passivateAfter = 5.minutes) { id -> account(id, offsets) }
+}
+```
+
+The ledger the account above waits for is a read model: one per service, run
+by one node, a singleton being the natural place to start it.
+
+<!-- cluster-read-model -->
+```kotlin
+import io.github.matthewjones372.lark.actor.EventCodec
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.lark.actor.projection.Projection
+import io.github.matthewjones372.lark.actor.projection.mapFollowed
+import io.github.matthewjones372.lark.actor.projection.runProjecting
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.Running
+import io.github.matthewjones372.lark.stream.start
+import javax.sql.DataSource
+
+object Deposits : EventCodec<Long> {
+    override fun encode(event: Long): ByteArray = event.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+/** Where the ledger writes: keyed by account and sequence number, so a deposit handled twice is written once. */
+fun interface Ledger {
+    fun record(account: String, sequence: Long, pence: Long)
+}
+
+/** Every deposit of every account, from the one after the last the ledger saved, until the run is stopped. */
+fun ledger(database: DataSource, ledger: Ledger): Running<Nothing, Long> {
+    val offsets = JdbcOffsets(database)
+    val deposits = Projection.follow(JdbcJournal(database), "account", Deposits, offsets, name = "ledger")
+    return deposits
+        .mapFollowed { deposit -> ledger.record(deposit.id.id, deposit.sequence, deposit.value) }
+        .runProjecting()
+        .start(Forks())
+}
+```
+
+## Commands that must arrive
+
+A tell across nodes is at most once, and a message already in an entity's
+mailbox when its shard moves is dropped. For a command that must not be lost,
+such as a payment, send it reliably
+([spec 0079](../specs/0079-a-message-that-arrives-when-its-entity-moves.md)):
+
+- **The command carries its delivery.** It implements `Delivered`, and its
+  codec writes the `Delivery` with `out.delivery(…)` and reads it back with
+  `input.delivery()`. The producer's address crosses inside it, so the
+  confirmation finds its way back.
+- **The entity confirms.** Wrap the behaviour in `delivered(…)`: each
+  delivered command is confirmed once its step has run, after its events are
+  written. A persistent entity remembers the last sequence number it handled
+  from each producer, in the same append as the events, and drops a
+  duplicate, confirming it again.
+- **The producer resends.** `sharded.reliable(id)` numbers each command per
+  entity, keeps it until it is confirmed, and sends it again every
+  `resendAfter`. One command per entity is in flight at a time, so they arrive
+  in order however many copies are lost. `send` waits for room when `keep` are
+  unconfirmed, and answers `Full` after `within`.
+
+<!-- cluster-reliable -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.actor.Delivered
+import io.github.matthewjones372.lark.actor.Delivery
+import io.github.matthewjones372.lark.actor.EventCodec
+import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.delivered
+import io.github.matthewjones372.lark.actor.persistent
+import io.github.matthewjones372.lark.actor.remote.MessageCodec
+import io.github.matthewjones372.lark.actor.remote.WireIn
+import io.github.matthewjones372.lark.actor.remote.WireOut
+import io.github.matthewjones372.lark.actor.remote.delivery
+import io.github.matthewjones372.lark.cluster.Cluster
+import io.github.matthewjones372.lark.cluster.sharding
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+/** A payment into a wallet, sent reliably. */
+data class Pay(val pence: Long, override val delivery: Delivery) : Delivered
+
+object PayCodec : MessageCodec<Pay> {
+    override fun write(message: Pay, out: WireOut) {
+        out.long(message.pence)
+        out.delivery(message.delivery)
+    }
+
+    override fun read(input: WireIn): Pay = Pay(input.long(), input.delivery())
+}
+
+object Paid : EventCodec<Long> {
+    override fun encode(event: Long): ByteArray = event.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+/** A wallet that applies each payment once, however many times it is sent. */
+fun wallet(id: String) = delivered(
+    persistent<Pay, Long, Long>(
+        id = PersistenceId("wallet", id),
+        empty = 0,
+        codec = Paid,
+        command = { _, _, pay -> persist(pay.pence) },
+        event = { balance, paid -> balance + paid },
+    ),
+)
+
+/** Pays into a wallet from this node; the payment arrives however the wallet moves meanwhile. */
+fun Cluster.payments(): (wallet: String, pence: Long) -> Either<Full, Unit> {
+    val wallets = sharding("wallet", PayCodec, passivateAfter = 5.minutes) { id -> wallet(id) }
+    val checkout = wallets.reliable("checkout", resendAfter = 2.seconds, keep = 10_000)
+    return { wallet, pence -> checkout.send(wallet) { delivery -> Pay(pence, delivery) } }
+}
+```
+
+What the producer has not had confirmed lives in its memory: a producer that
+crashes loses it. One that stops properly waits for it first; the next section.
