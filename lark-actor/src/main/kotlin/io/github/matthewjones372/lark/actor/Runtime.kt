@@ -68,6 +68,22 @@ internal fun <M : Any> ActorRef<M>.offer(message: M): Boolean {
     return cell.offer(message)
 }
 
+/**
+ * [message] told if this has room, or has stopped, where a tell is a dead letter: false only when it is an actor's
+ * full mailbox, and a tell from a step would throw (spec 0095). An entity's ref asks its manager.
+ */
+internal fun <M : Any> ActorRef<M>.tellIfRoom(message: M): Boolean = when (this) {
+    is Cell<*, *, *> -> {
+        @Suppress("UNCHECKED_CAST")
+        val cell = this as Cell<M, *, *>
+        cell.offer(message) || (cell.isStopped && true.also { cell.tell(message) })
+    }
+
+    is EntityRef<M> -> manager.tellIfRoom(Deliver(id, message))
+
+    else -> true.also { tell(message) }
+}
+
 /** The actors registered under [key] in this flock now. */
 fun <F, M : Any> Flock<F>.find(key: ServiceKey<M>): Set<ActorRef<M>> = guardian().receptionist.find(key)
 
@@ -120,7 +136,7 @@ private val closed: MutableSet<Flock<*>> = Collections.synchronizedSet(Collectio
  * dropped. The runtime counts them, so this parks until the count reaches zero rather than polling.
  */
 fun <E> Flock<E>.awaitIdle() {
-    guardians[this]?.backlog?.awaitEmpty()
+    guardians[this]?.backlog?.awaitSettled()
 }
 
 /**
@@ -287,6 +303,25 @@ private class Backlog(private val runners: Runners?) {
             while (count.get() != 0L) empty.await()
         }
     }
+
+    // Messages lark's own plumbing keeps for a busy receiver (spec 0095): told, and not yet handled or dropped.
+    private val held = AtomicLong()
+    private val released = lock.newCondition()
+
+    fun held(delta: Int) {
+        if (held.addAndGet(delta.toLong()) == 0L) lock.withLock { released.signalAll() }
+    }
+
+    /** Idle, with nothing kept for a busy receiver: what [awaitIdle] promises. The wheel settles on [awaitEmpty]. */
+    fun awaitSettled() {
+        while (true) {
+            awaitEmpty()
+            if (held.get() == 0L) return
+            lock.withLock {
+                while (held.get() != 0L) released.await()
+            }
+        }
+    }
 }
 
 /** One flock's actors, the executor they run on and the clock they wait on. */
@@ -317,13 +352,23 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     private var tags: Map<String, String> = metricTags.get()
     private val counters = ConcurrentHashMap<Pair<String, Map<String, String>>, Counter>()
     private val gauges = ConcurrentHashMap<Pair<String, Map<String, String>>, Gauge>()
-    private val deadCounters = DeadLetter.Why.entries.associateWith { why ->
-        lazy { counter("lark.actor.dead_letters", arrayOf("reason" to why.name.lowercase())) }
+
+    // Made again whenever the tags change, so a count taken before a node was named is not kept under no name.
+    @Volatile
+    private var tallies = Tallies()
+
+    val restarts: Counter get() = tallies.restarts
+
+    /** The guardian's own counters under the tags as they are now, each resolved on first use. */
+    private inner class Tallies {
+        val dead = DeadLetter.Why.entries.associateWith { why ->
+            lazy { counter("lark.actor.dead_letters", arrayOf("reason" to why.name.lowercase())) }
+        }
+        val restarts: Counter by lazy { counter("lark.actor.restarts", emptyArray()) }
     }
-    val restarts: Counter by lazy { counter("lark.actor.restarts", emptyArray()) }
 
     fun dead(letter: DeadLetter) {
-        deadCounters.getValue(letter.why).value.increment()
+        tallies.dead.getValue(letter.why).value.increment()
         deadLetters(letter)
     }
 
@@ -339,6 +384,7 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
 
     fun tag(more: Array<out Pair<String, String>>) {
         tags = tags + more
+        tallies = Tallies()
     }
 
     fun stand() {
@@ -378,8 +424,12 @@ private class Cell<M : Any, S, E>(
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
     private val parent: Cell<*, *, *>?,
-) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation {
+) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation, DeadLetters {
     override val self: ActorRef<M> get() = this
+
+    override fun deadLetter(letter: DeadLetter) = guardian.dead(letter)
+
+    override fun kept(delta: Int) = backlog.held(delta)
 
     override val timers: Timers<M> get() = this
 
@@ -405,6 +455,8 @@ private class Cell<M : Any, S, E>(
     // Held from the moment a message finds the actor idle until its activation ends, so one step runs at a time.
     @Volatile
     private var stopped = false
+
+    val isStopped: Boolean get() = stopped
 
     @Volatile
     private var state: S = behaviour.initial

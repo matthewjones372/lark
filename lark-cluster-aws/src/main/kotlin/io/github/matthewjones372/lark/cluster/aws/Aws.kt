@@ -3,7 +3,12 @@ package io.github.matthewjones372.lark.cluster.aws
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.cluster.Discovery
+import io.github.matthewjones372.lark.cluster.Downing
+import io.github.matthewjones372.lark.cluster.JoinOptions
+import io.github.matthewjones372.lark.cluster.Joining
+import io.github.matthewjones372.lark.cluster.Joins
 import io.github.matthewjones372.lark.cluster.Lease
+import software.amazon.awssdk.core.SdkClient
 import software.amazon.awssdk.core.exception.SdkException
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue
@@ -66,6 +71,88 @@ object Aws {
      */
     fun dynamoLease(client: DynamoDbClient, table: String, name: String, holdFor: Duration = 15.seconds): Lease =
         DynamoLease(client, table, name, holdFor) { clock.get().now() }
+
+    /**
+     * Joining an ECS service: its running tasks at [port] are the seeds, and an even split goes to whoever holds the
+     * item [lease] in the DynamoDB [table]. Both clients are the SDK's defaults, from the task's own role and region,
+     * and closing the joining closes them (spec 0096).
+     */
+    @Suppress("LongParameterList")
+    fun ecs(
+        cluster: String,
+        service: String,
+        port: Int,
+        table: String,
+        lease: String,
+        holdFor: Duration = 15.seconds,
+        stableAfter: Duration = 20.seconds,
+    ): Joining = joining(EcsClient::create, DynamoDbClient::create, table, lease, holdFor, stableAfter) {
+        ecs(it, cluster, service, port)
+    }
+
+    /** Joining through the Cloud Map [service] in [namespace], as [ecs] does through an ECS service. */
+    @Suppress("LongParameterList")
+    fun cloudMap(
+        namespace: String,
+        service: String,
+        port: Int?,
+        table: String,
+        lease: String,
+        holdFor: Duration = 15.seconds,
+        stableAfter: Duration = 20.seconds,
+    ): Joining = joining(ServiceDiscoveryClient::create, DynamoDbClient::create, table, lease, holdFor, stableAfter) {
+        cloudMap(it, namespace, service, port)
+    }
+
+    @Suppress("LongParameterList")
+    internal fun <C : SdkClient> joining(
+        open: () -> C,
+        openDynamo: () -> DynamoDbClient,
+        table: String,
+        lease: String,
+        holdFor: Duration,
+        stableAfter: Duration,
+        discovery: (C) -> Discovery,
+    ): Joining {
+        val finder = open()
+        val dynamo = try {
+            openDynamo()
+        } catch (failed: SdkException) {
+            finder.close()
+            throw failed
+        }
+        return Joining(discovery(finder), Downing.lease(dynamoLease(dynamo, table, lease, holdFor), stableAfter)) {
+            finder.use { dynamo.close() }
+        }
+    }
+}
+
+/** `join = ecs`: the `cluster` and `service`, and the DynamoDB `table` and `lease` that break an even split. */
+class EcsJoins : Joins {
+    override val name = "ecs"
+
+    override fun joining(options: JoinOptions): Joining = Aws.ecs(
+        options.string("cluster"),
+        options.string("service"),
+        options.port,
+        options.string("table"),
+        options.string("lease"),
+        stableAfter = options.stableAfter,
+    )
+}
+
+/** `join = cloudmap`: the Cloud Map `namespace` and `service`, and the DynamoDB `table` and `lease`. */
+class CloudMapJoins : Joins {
+    override val name = "cloudmap"
+
+    override fun joining(options: JoinOptions): Joining = Aws.cloudMap(
+        options.string("namespace"),
+        options.string("service"),
+        options.port,
+        options.string("table"),
+        options.string("lease"),
+        stableAfter = options.stableAfter,
+    )
 }
 
 private fun asked(seeds: () -> List<Node>): List<Node> = try {

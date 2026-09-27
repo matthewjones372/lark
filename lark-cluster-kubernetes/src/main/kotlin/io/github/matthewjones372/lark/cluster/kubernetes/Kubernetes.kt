@@ -3,11 +3,18 @@ package io.github.matthewjones372.lark.cluster.kubernetes
 import io.fabric8.kubernetes.api.model.coordination.v1.LeaseBuilder
 import io.fabric8.kubernetes.api.model.coordination.v1.LeaseSpecBuilder
 import io.fabric8.kubernetes.client.KubernetesClient
+import io.fabric8.kubernetes.client.KubernetesClientBuilder
 import io.fabric8.kubernetes.client.KubernetesClientException
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.cluster.Discovery
+import io.github.matthewjones372.lark.cluster.Downing
+import io.github.matthewjones372.lark.cluster.JoinOptions
+import io.github.matthewjones372.lark.cluster.Joining
+import io.github.matthewjones372.lark.cluster.Joins
 import io.github.matthewjones372.lark.cluster.Lease
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -41,6 +48,64 @@ object Kubernetes {
      */
     fun lease(client: KubernetesClient, namespace: String, name: String, holdFor: Duration = 15.seconds): Lease =
         KubernetesLease(client, namespace, name, holdFor) { clock.get().now() }
+
+    /**
+     * Joining from inside a pod: seeds are the pods labelled [selector] at [port], and an even split goes to whoever
+     * holds the `Lease` named [lease]. The client is the pod's own, from its service account, and closing the
+     * joining closes it. The namespace is the pod's own unless given (spec 0096).
+     */
+    fun joining(
+        selector: Map<String, String>,
+        port: Int,
+        lease: String,
+        namespace: String = ownNamespace(),
+        holdFor: Duration = 15.seconds,
+        stableAfter: Duration = 20.seconds,
+    ): Joining = joining({ KubernetesClientBuilder().build() }, selector, port, lease, namespace, holdFor, stableAfter)
+
+    @Suppress("LongParameterList")
+    internal fun joining(
+        open: () -> KubernetesClient,
+        selector: Map<String, String>,
+        port: Int,
+        lease: String,
+        namespace: String,
+        holdFor: Duration,
+        stableAfter: Duration,
+    ): Joining {
+        val client = open()
+        return Joining(
+            discovery(client, namespace, selector, port),
+            Downing.lease(lease(client, namespace, lease, holdFor), stableAfter),
+            client::close,
+        )
+    }
+
+    /**
+     * The namespace this pod runs in: its service account's, else `POD_NAMESPACE`. Refused when neither says, rather
+     * than falling back to `default`, which is how two environments come to share one lease.
+     */
+    fun ownNamespace(): String = ownNamespace(SERVICE_ACCOUNT_NAMESPACE, System::getenv)
+
+    internal fun ownNamespace(file: Path, env: (String) -> String?): String =
+        file.takeIf(Files::isReadable)?.let { Files.readString(it).trim() }?.takeIf(String::isNotEmpty)
+            ?: env("POD_NAMESPACE")?.trim()?.takeIf(String::isNotEmpty)
+            ?: throw IllegalArgumentException("no namespace: $file is not there and POD_NAMESPACE is not set")
+
+    private val SERVICE_ACCOUNT_NAMESPACE = Path.of("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+}
+
+/** `join = kubernetes`: a `selector` section, a `lease` name, and optionally the `namespace`. */
+class KubernetesJoins : Joins {
+    override val name = "kubernetes"
+
+    override fun joining(options: JoinOptions): Joining = Kubernetes.joining(
+        selector = options.labels("selector"),
+        port = options.port,
+        lease = options.string("lease"),
+        namespace = options.stringOrNull("namespace") ?: Kubernetes.ownNamespace(),
+        stableAfter = options.stableAfter,
+    )
 }
 
 internal class KubernetesLease(
