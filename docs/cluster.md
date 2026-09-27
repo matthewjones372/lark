@@ -229,6 +229,17 @@ that wins a shard waits until the one that had it has stopped it, so an entity
 never runs on two nodes at once. What arrives meanwhile is kept, up to a
 bound, and delivered once the shard settles.
 
+Shards spread evenly by count, not by work. A kind whose ids are skewed can
+ask its shards to follow the load with
+`rebalance = Rebalance.byLoad(every = 1.minutes, tolerance = 0.2, mostMoves = 4)`
+([spec 0090](../specs/0090-shards-that-follow-the-load.md)). Each member
+gossips what it runs, and every `every` the leader moves up to `mostMoves` of
+the busiest member's shards to the least-loaded members, while it is over the
+mean by more than `tolerance`. Load is messages handled where there are any,
+and running entities otherwise. A moved shard goes through the same handoff,
+stays put for three intervals, and goes back to its hash owner if the member
+it moved to leaves. A kind that does not ask stays where the hash puts it.
+
 A singleton is one actor in the whole cluster, on the oldest `Up` member, and
 moves by the same handoff when that member goes.
 

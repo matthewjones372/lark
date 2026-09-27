@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-private fun LoadNode.moved() = cluster.balance.moved["tally"].orEmpty()
-
 class OverrideTest {
 
     @Test

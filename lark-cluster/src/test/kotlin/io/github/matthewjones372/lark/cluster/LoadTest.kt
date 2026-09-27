@@ -91,12 +91,18 @@ internal class LoadNode(
 
     fun tally(id: String): String = opened().second.entity(id).ask(1.minutes) { Which(it) }.getOrNull()!!
 
+    /** Asks [id] of "tally" where it runs, or null if the ask is lost, as one can be while its shard moves. */
+    fun tryTally(id: String): String? = opened().second.entity(id).ask(5.seconds) { Which(it) }.getOrNull()
+
     fun plain(id: String): String = opened().third.entity(id).ask(1.minutes) { Which(it) }.getOrNull()!!
 
     /** The entities of [kind] each member says it runs, by the member's name, as this node's gossip has it now. */
     fun running(kind: String): Map<String, Int> = cluster.view.members.associate { member ->
         member.node.name to (cluster.balance.loads[member.node]?.get(kind)?.values?.sumOf { it.entities } ?: 0)
     }
+
+    /** The shards of "tally" the leader has moved, as this node's gossip has it now. */
+    fun moved() = cluster.balance.moved["tally"].orEmpty()
 
     override fun close() {
         done.countDown()

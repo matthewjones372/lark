@@ -2,13 +2,23 @@ package io.github.matthewjones372.lark.cluster
 
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.doubles.shouldBeLessThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 private val three = (1..3).map { Member(Node("m$it", "10.0.0.$it", 25520), it.toLong(), Status.Up, it) }
 
@@ -91,5 +101,76 @@ class RebalanceTest {
 
         val moved = emptyMap<Int, Incarnation>().after(first)
         balancer.round(rebalance.every * 2, balance(mapOf(c to 10, d to 10), moved)).shouldBeEmpty()
+    }
+
+    @Test
+    fun `with one hot range of ids on one node of three, its entities spread out, and no shard moves twice at once`() {
+        val every = 1.seconds
+        val ports = List(3) { loadPort() }
+        val seeds = seedsAt(ports)
+        val byLoad = Rebalance.byLoad(every = every, tolerance = 0.2, mostMoves = 4)
+        val nodes = ports.indices.map { LoadNode("b${it + 1}", ports[it], seeds, byLoad, 1.minutes) }
+        val pacer = Executors.newSingleThreadScheduledExecutor()
+        val senders = Executors.newVirtualThreadPerTaskExecutor()
+        try {
+            nodes.forEach { n ->
+                n.cluster.await(30.seconds) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
+            }
+            val lead = nodes.first().cluster.view.leader
+            nodes.forEach { n -> n.cluster.await(20.seconds) { v -> v.leader == lead } shouldBe true }
+            val leader = nodes.first { it.cluster.self == lead }
+            val history = CopyOnWriteArrayList<Pair<TimeSource.Monotonic.ValueTimeMark, Map<Int, Incarnation>>>()
+            leader.cluster.onView { history += TimeSource.Monotonic.markNow() to leader.moved() }
+
+            val hot = nodes.last()
+            val members = hot.cluster.view.members
+            val shards = (0 until Sharding.SHARDS)
+                .filter { Placement.owner("tally", it, members) == hot.cluster.self }.take(12).toSet()
+            val ids = (0 until 100_000).map { "h-$it" }.filter { Placement.shardOf(it, Sharding.SHARDS) in shards }
+                .groupBy { Placement.shardOf(it, Sharding.SHARDS) }.values.map { it.take(10) }
+            ids.flatten() shouldHaveSize 120
+            // Every entity is asked once per tick, however long any one ask takes, so messages follow the entities.
+            val round = AtomicInteger()
+            pacer.scheduleAtFixedRate({
+                val next = round.getAndIncrement()
+                ids.flatten().forEachIndexed { i, id -> senders.execute { nodes[(next + i) % 3].tryTally(id) } }
+            }, 0, 100, TimeUnit.MILLISECONDS)
+
+            val evenAt = AtomicReference<TimeSource.Monotonic.ValueTimeMark>()
+            val even = leader.cluster.await(30.seconds) { _ ->
+                val running = leader.running("tally").values
+                (running.sum() == 120 && running.max() <= 120 / 3 * 1.2).also {
+                    if (it) evenAt.set(TimeSource.Monotonic.markNow())
+                }
+            }
+            val story = {
+                val t0 = history.first().first
+                history.map { (at, m) -> "${(at - t0).inWholeMilliseconds}ms " + m.mapValues { it.value.node.name } } +
+                    listOf("even at ${evenAt.get()?.let { it - t0 }}", "hot ${hot.name} ${shards.sorted()}")
+            }
+            withClue({ "entities by member: ${leader.running("tally")} ${story()}" }) { even shouldBe true }
+            pacer.shutdownNow()
+
+            val rounds = history.filter { it.first <= evenAt.get() }.zipWithNext().count { (was, now) ->
+                was.second != now.second
+            }
+            withClue({ "the leader moved shards in at most three rounds before they were even ${story()}" }) {
+                rounds shouldBeLessThanOrEqual 3
+            }
+            shards.forEach { shard ->
+                val times = history.zipWithNext().filter { (was, now) -> was.second[shard] != now.second[shard] }
+                    .map { it.second.first }
+                times.zipWithNext().forEach { (was, now) ->
+                    withClue("shard $shard moved twice within ${now - was}") {
+                        (now - was >= every * 3 - 100.milliseconds) shouldBe true
+                    }
+                }
+            }
+            withClue("no entity ran on two nodes at once") { ranTwice.filter { it.startsWith("h-") }.shouldBeEmpty() }
+        } finally {
+            pacer.shutdownNow()
+            senders.shutdownNow()
+            nodes.forEach(LoadNode::close)
+        }
     }
 }
