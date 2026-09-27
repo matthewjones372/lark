@@ -81,7 +81,7 @@ over.
       deleteTo) and `ShardedSnapshots`.
       Done when: on two in-memory journals, an id always lands in the same one,
       a conflict is still a conflict, and 10,000 ids split within 5% of even.
-- [ ] **`spec-0088-feeds`** — `feeds`, `Prune.readTo(id)`, and `Prune.after`
+- [x] **`spec-0088-feeds`** — `feeds`, `Prune.readTo(id)`, and `Prune.after`
       reading the id's own database's offset.
       Done when: two projections over two databases see every event once, and
       pruning in one database waits only on that database's offset.
