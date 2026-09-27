@@ -85,3 +85,8 @@ letter.
 - **A new `Why.Full`, or reuse `Unreachable`?** Recommended: a new reason. A
   full mailbox on this node is a different fault from a node that cannot be
   reached, and the metric should say which.
+
+Decided (2026-09-27): every open question goes as recommended. What does not
+fit is kept, in order, up to a bound, and then counted as a dead letter; one
+bound, `KEEP_AT_MOST`, serves the region, the entity manager and a topic; and
+the dead letter has a new reason, `DeadLetter.Why.Full`.
