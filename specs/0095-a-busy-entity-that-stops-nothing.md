@@ -59,17 +59,20 @@ letter.
 
 ## Stack
 
-- [ ] **`spec-0095-entities`** — the entity manager keeps rather than fails,
+- [x] **`spec-0095-entities`** — the entity manager keeps rather than fails,
       and `DeadLetter.Why.Full`. Done when: 5,000 tells to one entity on
       `testActors` and on threads all arrive in order, and the manager never
       stops.
-- [ ] **`spec-0095-region`** — the region keeps per shard. Done when: three
+      ([#268](https://github.com/matthewjones372/lark/pull/268))
+- [x] **`spec-0095-region`** — the region keeps per shard. Done when: three
       nodes, a burst of 5,000 to one entity from another node, all applied in
       order and no region stopped. The 0092 sharding benchmark's burst goes
       back to 2,000.
-- [ ] **`spec-0095-topic`** — a topic's actor keeps per subscriber. Done when:
+      ([#269](https://github.com/matthewjones372/lark/pull/269))
+- [x] **`spec-0095-topic`** — a topic's actor keeps per subscriber. Done when:
       one stalled subscriber does not stop the topic, the others hear
       everything, and the stalled one's overflow is counted as `full`.
+      ([#270](https://github.com/matthewjones372/lark/pull/270))
 
 ## Acceptance
 
@@ -90,3 +93,46 @@ Decided (2026-09-27): every open question goes as recommended. What does not
 fit is kept, in order, up to a bound, and then counted as a dead letter; one
 bound, `KEEP_AT_MOST`, serves the region, the entity manager and a topic; and
 the dead letter has a new reason, `DeadLetter.Why.Full`.
+
+Decided while building `spec-0095-entities`:
+- **When it tries again.** Kept messages are offered again on a 10 ms timer
+  while any are kept, not when the receiver takes some. The runtime has no
+  way to hear that a mailbox has room.
+- **`awaitIdle` counts what is kept.** A kept message was told and not yet
+  handled, so `awaitIdle` waits for it. Without that the flock closed with
+  messages still kept, and the tests caught it. The timer wheel settles on
+  idle actors alone, since under a `TestClock` a drain timer not yet due
+  would hold it for ever.
+- **Stopping.** An entity with messages kept for it is not passivated. What
+  is kept for one that stops by itself goes to its next instance, before
+  anything newer. When the manager stops, what it keeps becomes `Stopped`
+  dead letters.
+- **On `testActors`.** A test actor always has room, so the test for this
+  entry runs on threads. The `testActors` half of the done-when holds
+  trivially.
+
+Decided while building `spec-0095-region`:
+- **One seam.** The keeping is `HandOn` in `lark-actor`, behind an opt-in
+  `@PlumbingSeam`, as `lark-stream` and `lark-kafka` expose their seams.
+  `lark-cluster` cannot see `lark-actor`'s internals. The entity manager moved
+  onto it, so there is one mechanism.
+- **Keyed by entity, not shard.** The region keeps per entity id. Order holds
+  per entity, which is all a sender is promised. When the region lets a shard
+  go, it knows which kept messages to route again.
+- **The tests.** `BusyEntityTest` is the done-when as written. On three
+  nodes, a burst of 5,000 from one node reaches a busy entity on another, in
+  order, and the region answers after it. It fails on `main`. But a burst to
+  a sharded entity stalls in the entity manager (#268) before the region
+  feels it. So `BusySingletonTest` checks the region's own hand-off: a
+  singleton, which the region tells directly. It fails without this change.
+- **The benchmark.** The 0092 sharding benchmark's burst goes back to 2,000 on
+  its own branch, once this and #259 have both merged.
+
+Decided while building `spec-0095-topic`:
+- **Keyed by subscriber.** A topic keeps per subscriber, so one slow
+  subscriber delays only itself. Unsubscribing drops what was kept for it.
+- **`awaitIdle` and a stalled subscriber.** `awaitIdle` does not return while
+  a subscriber is stalled, since messages are kept for it and it is busy. The
+  test waits on the other subscribers' own queues instead.
+- **The steps.** They moved into a small `TopicSteps` class, which keeps
+  detekt's complexity limit.
