@@ -95,3 +95,8 @@ the journal and `persistent` do not change.
   event is the common case a field rename cannot express.
 - **What does a projection (0075) see?** Recommended: the upgraded events,
   through the same codec, so a read model never sees an old shape.
+
+Decided (2026-09-27): every open question goes as recommended. Versioning is
+a wrapper codec, and the journal stays bytes; unmarked data is version 1; an
+upgrade may turn one event into several; and a projection sees the upgraded
+events.
