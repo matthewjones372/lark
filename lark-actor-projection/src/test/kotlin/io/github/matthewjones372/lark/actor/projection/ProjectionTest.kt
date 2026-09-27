@@ -1,10 +1,18 @@
 package io.github.matthewjones372.lark.actor.projection
 
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.actor.Confirmed
+import io.github.matthewjones372.lark.actor.Delivered
+import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.InMemoryJournal
 import io.github.matthewjones372.lark.actor.InMemoryOffsets
 import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.delivered
+import io.github.matthewjones372.lark.actor.persistent
+import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.actor.testActors
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
@@ -31,6 +39,20 @@ private fun InMemoryJournal.place(n: Int) {
     val id = PersistenceId("order", "o-$n")
     append(id, 0, listOf(text.encode("placed $n")))
 }
+
+/** An order placed reliably. */
+private data class Place(val n: Int, override val delivery: Delivery) : Delivered
+
+/** Places orders sent reliably, so each append carries its delivery's mark after the event. */
+private fun placing(n: Int) = delivered(
+    persistent<Place, String, Unit>(
+        id = PersistenceId("order", "o-$n"),
+        empty = Unit,
+        codec = text,
+        command = { _, _, place -> persist("placed ${place.n}") },
+        event = { _, _ -> },
+    ),
+)
 
 private fun <E, R> CompletionStage<Exit<E, R>>.settled(): Exit<E, R> = toCompletableFuture().get(1, TimeUnit.MINUTES)
 
@@ -86,5 +108,18 @@ class ProjectionTest {
             running.stop()
             running.exit.settled() shouldBe Exit.Done(2L)
         }
+    }
+
+    @Test
+    fun `the marks of reliable deliveries are skipped, and the offset passes them`() {
+        testActors(journal = journal) {
+            val confirms = spawn("confirms", behaviour<Confirmed, Unit>(Unit) { _, _, _ -> stay() })
+            for (n in 1..3) spawn("o-$n", placing(n)).send(Place(n, Delivery("checkout", "o-$n", 1, confirms)))
+        }
+
+        totals().take(3).runProjecting().run(Forks()).settled() shouldBe Exit.Done(3L)
+
+        handled.toList() shouldContainExactly (1..3).map { "o-$it: placed $it" }
+        offsets.load("totals") shouldBe journal.after("order", 0, 100)[4].offset
     }
 }

@@ -36,8 +36,9 @@ interface Journal {
     fun read(id: PersistenceId, from: Long = 1): List<StoredEvent>
 }
 
-/** The events of [id], decoded by [codec]. */
-fun <E> Journal.events(id: PersistenceId, codec: EventCodec<E>): List<E> = read(id).map { codec.decode(it.bytes) }
+/** The events of [id], decoded by [codec], without the marks of deliveries (spec 0079). */
+fun <E> Journal.events(id: PersistenceId, codec: EventCodec<E>): List<E> =
+    read(id).filterNot { isDeliveryMark(it.bytes) }.map { codec.decode(it.bytes) }
 
 /**
  * A journal that can let go of an entity's early events once a snapshot covers them (spec 0076). An interface beside

@@ -1,5 +1,10 @@
 package io.github.matthewjones372.lark.actor
 
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
+
 /**
  * Where a command sent reliably came from (spec 0079): its [producer], the entity it is [to], its [sequence] among
  * that producer's commands to that entity, counting from 1, and where to confirm it.
@@ -33,3 +38,50 @@ fun <M : Any, S, E> delivered(behaviour: Behaviour<M, S, E>): Behaviour<M, S, E>
     signal = behaviour.signal,
     start = behaviour.start,
 )
+
+private val MARK = "\u0000lark:delivered\u0000".toByteArray()
+
+/**
+ * Whether [bytes] in a journal are the mark a persistent entity writes of a delivery it handled (spec 0079), not one
+ * of its events. A follower of the feed skips them.
+ */
+fun isDeliveryMark(bytes: ByteArray): Boolean =
+    bytes.size >= MARK.size && bytes.copyOf(MARK.size).contentEquals(MARK)
+
+/** The mark of [delivery], written with the events its command persisted. */
+internal fun mark(delivery: Delivery): ByteArray = MARK + "${delivery.sequence}:${delivery.producer}".toByteArray()
+
+/** The producer and sequence number a mark records. */
+internal fun unmark(bytes: ByteArray): Pair<String, Long> {
+    val (sequence, producer) = String(bytes, MARK.size, bytes.size - MARK.size).split(":", limit = 2)
+    return producer to sequence.toLong()
+}
+
+/**
+ * [remembered] as a snapshot's bytes: [codec]'s alone when no delivery is remembered, so snapshots of entities that
+ * are never sent to reliably are the service's own bytes; otherwise a mark, the last sequence number per producer,
+ * and then [codec]'s.
+ */
+internal fun <S> encode(codec: StateCodec<S>, remembered: Remembered<S>): ByteArray {
+    val state = codec.encode(remembered.value)
+    if (remembered.delivered.isEmpty()) return state
+    val out = ByteArrayOutputStream()
+    DataOutputStream(out).use { data ->
+        data.write(MARK)
+        data.writeInt(remembered.delivered.size)
+        remembered.delivered.forEach { (producer, sequence) ->
+            data.writeUTF(producer)
+            data.writeLong(sequence)
+        }
+        data.write(state)
+    }
+    return out.toByteArray()
+}
+
+/** The state and the deliveries a snapshot's [bytes] hold, at [sequence]. */
+internal fun <S> decode(codec: StateCodec<S>, bytes: ByteArray, sequence: Long): Remembered<S> {
+    if (!isDeliveryMark(bytes)) return Remembered(codec.decode(bytes), sequence)
+    val data = DataInputStream(ByteArrayInputStream(bytes, MARK.size, bytes.size - MARK.size))
+    val delivered = buildMap { repeat(data.readInt()) { put(data.readUTF(), data.readLong()) } }
+    return Remembered(codec.decode(data.readAllBytes()), sequence, delivered)
+}
