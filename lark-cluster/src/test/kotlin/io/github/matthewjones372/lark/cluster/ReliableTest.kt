@@ -153,4 +153,30 @@ class ReliableTest {
             banks.forEach(Bank::close)
         }
     }
+
+    @Test
+    fun `payments a node sends just before it closes are each applied once, from wherever their accounts run`() {
+        val journal = JdbcJournal(accountsDatabase())
+        val ports = List(3) { openPort() }
+        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+        val banks = ports.mapIndexed { i, port -> Bank("b${i + 1}", port, seeds, journal, 30.seconds) }
+        try {
+            banks.forEach { bank ->
+                bank.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe
+                    true
+            }
+            val closing = banks.last()
+            val payments = closing.accounts.reliable("checkout", keep = 1_000)
+            val accounts = List(200) { "a-$it" }
+
+            for (pence in 1..2) {
+                accounts.forEach { id -> payments.send(id) { PayInto(pence, it) } shouldBe Unit.right() }
+            }
+            closing.close()
+
+            accounts.forEach { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
+        } finally {
+            banks.forEach(Bank::close)
+        }
+    }
 }

@@ -102,6 +102,7 @@ class Sharded<M : Any> internal constructor(
     val kind: String,
     private val region: ActorRef<Region<M>>,
     private val flock: Flock<*>,
+    private val leaveWithin: Duration,
 ) {
     /** The entity [id], wherever it runs now: a ref that stays good while it moves between nodes. */
     fun entity(id: String): ActorRef<M> = ShardedRef(region, id)
@@ -110,14 +111,15 @@ class Sharded<M : Any> internal constructor(
      * A producer on this node that sends to these entities at least once (spec 0079): a command lost to a move or a
      * passivation is sent again every [resendAfter] until its entity confirms it. The kind's codec writes each
      * command's `Delivery` with `WireOut.delivery`, and its entities are wrapped in `delivered`; a persistent one
-     * drops the duplicates a resend makes. See `Flock.producer` for [keep] and [within].
+     * drops the duplicates a resend makes. See `Flock.producer` for [keep] and [within]. When the node's flock
+     * closes, the producer waits for its commands to be confirmed as long as the cluster waits to leave, and before it.
      */
     fun reliable(
         producerId: String,
         resendAfter: Duration = 2.seconds,
         keep: Int = 1_000,
         within: Duration = 5.seconds,
-    ): Producer<M> = flock.producer("$kind-$producerId", resendAfter, keep, within, ::entity)
+    ): Producer<M> = flock.producer("$kind-$producerId", resendAfter, keep, within, leaveWithin, ::entity)
 }
 
 internal class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, private val id: String) : ActorRef<M> {
@@ -152,7 +154,7 @@ fun <M : Any, S, E> Cluster.sharding(
         start = { ctx, shard -> ctx.spawn("shard-$shard", entities(passivateAfter, entity = entity)) },
         deliver = { manager, id, message -> manager.entity(id).tell(message) },
     )
-    return Sharded(kind, region(path, codec, shards, hosting), flock)
+    return Sharded(kind, region(path, codec, shards, hosting), flock, leaveWithin)
 }
 
 /** A region at [path] on this node, reachable from the others at the same path. */

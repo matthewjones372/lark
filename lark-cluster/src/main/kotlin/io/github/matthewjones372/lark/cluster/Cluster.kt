@@ -77,7 +77,7 @@ fun <F> Flock<F>.cluster(
         Random.Default,
         now(),
     )
-    val cluster = Cluster(node.self, node, this)
+    val cluster = Cluster(node.self, node, this, leaveWithin)
     val steps = Steps(node, membership, cluster, node.takeOverWatches(), now)
     val ref = spawn(
         CLUSTER,
@@ -147,6 +147,7 @@ class Cluster internal constructor(
     val self: Node,
     internal val remote: RemoteNode,
     internal val flock: Flock<*>,
+    internal val leaveWithin: Duration = Duration.ZERO,
 ) {
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
