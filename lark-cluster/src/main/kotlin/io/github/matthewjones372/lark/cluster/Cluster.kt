@@ -158,7 +158,7 @@ private class Steps(
         val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
         events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
         subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
-        measure(next, events)
+        measure(next.measuredBy(node.self, membership.downed), events)
         cluster.publish(next)
     }
 }
@@ -197,14 +197,13 @@ class Cluster internal constructor(
 
     /**
      * Leaves, and waits up to [within] until this node is out of the cluster (spec 0080): removed by the others, or
-     * downed, or the only member left, with nobody to hand its shards to. While it is `Leaving` its shards move to
-     * their next owners. Whether it was out in time. The flock's close does this by itself, before its actors stop.
+     * downed, or with no other member `Up`, so nobody to hand its shards to or to remove it. While it is `Leaving` its
+     * shards move to their next owners. Whether it was out in time. The flock's close does this by itself, before its
+     * actors stop.
      */
     fun stop(within: Duration): Boolean {
         leave()
-        return await(within) { view ->
-            view.members.none { it.node == self && it.status.isLive } || view.members.all { it.node == self }
-        }
+        return await(within) { view -> view.outFor(self) }
     }
 
     /**
@@ -240,3 +239,17 @@ class Cluster internal constructor(
         true
     }
 }
+
+/**
+ * Whether [self] is out of the cluster this view shows: no longer a live member, or with no other member `Up`. With
+ * none `Up` there is no leader to remove it, and a member `Down` or `Joining` would keep it waiting for nothing.
+ */
+internal fun View.outFor(self: Node): Boolean =
+    members.none { it.node == self && it.status.isLive } || members.none { it.node != self && it.status == Status.Up }
+
+/**
+ * This view as [self] measures it: all of it, or, once [self] has downed itself, [self] alone, since every other
+ * member is gone as far as it is concerned, and it has no leader and nothing it could reach.
+ */
+internal fun View.measuredBy(self: Node, downed: Boolean): View =
+    if (downed) View(members.filter { it.node == self }, emptySet(), null) else this
