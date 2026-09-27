@@ -59,13 +59,17 @@ purpose. Recommended: leader-proposed overrides in the gossip.
 - [x] **`spec-0090-load`** — per-shard load counted by each region and carried
       in the gossip. Done when: three nodes each see the others' entity counts
       per kind, and the counts are right after entities start and passivate.
+      ([#264](https://github.com/matthewjones372/lark/pull/264))
 - [x] **`spec-0090-overrides`** — overrides in the gossip, and placement that
       honours them. Done when: an override set on the leader moves exactly that
       shard, through the usual handoff, and is dropped when its member goes.
+      ([#265](https://github.com/matthewjones372/lark/pull/265))
 - [x] **`spec-0090-rebalance`** — `Rebalance.byLoad`, the leader's proposal,
       and damping. Done when: with one hot id range on one node of three, the
       busiest member's entity count falls within `tolerance` of the mean within
       three intervals, and no shard moves twice within its damping window.
+      ([#266](https://github.com/matthewjones372/lark/pull/266),
+      [#267](https://github.com/matthewjones372/lark/pull/267))
 
 ## Acceptance
 
