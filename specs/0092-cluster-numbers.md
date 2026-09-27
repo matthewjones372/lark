@@ -60,7 +60,7 @@ side by side, and publish the result whichever way it goes.
 
 - [x] **`spec-0092-sharding`** — sharded tell and ask, both sides. Done when:
       the benchmarks run with `-Pjmh`, and the README's table has their rows.
-- [ ] **`spec-0092-persistence`** — persistent append and reliable and durable
+- [x] **`spec-0092-persistence`** — persistent append and reliable and durable
       sends, both sides. Done when: the same.
 - [ ] **`spec-0092-topics`** — topic fan-out, and the README row for
       `lark-cluster`. Done when: the same, and the headline is stated.
@@ -93,3 +93,11 @@ Decided while building `spec-0092-sharding`:
 - **Nothing moves.** Pekko's rebalancing and passivation are off, and lark passivates after an hour, so an entity stays where it was found for the whole trial.
 - **Gossip.** Both sides probe at their defaults. lark forms after 1 s rather than 5 s, which only shortens a trial's setup.
 - **Setup and teardown.** Both sides are three nodes from one helper per runtime, and each trial starts only its own side, so the other's gossip is never running. A lark node closes without leaving (`leaveWithin = ZERO`), since all three stop together.
+
+Decided while building `spec-0092-persistence`:
+- **Through sharding.** The persistent entity is sharded, measured with its owner local and remote, so each row is a cluster's command, not a lone actor's.
+- **The journals.** Each side has one H2 in memory, shared by its three nodes, each node through its own pool of 20: HikariCP under `JdbcJournal`, and Slick's under Persistence JDBC at its default size. H2 takes a login only as the user that created it, so both sides use `sa`.
+- **Pekko Persistence JDBC is 1.3.0.** It ships on its own line, built against Pekko 1.1.5, so `pekko-persistence-query` is pinned to `pekkoVersion` to keep every Pekko module on 1.2.1.
+- **Entities sent to keep nothing.** They confirm each command once handled, through `delivered` and `ShardingConsumerController`, so the reliable rows measure the delivery, not a journal.
+- **Durable is compared, but to the entity.** Pekko's durable queue answers a send once it is stored, not once it is confirmed. The durable row ends when the entity has handled the command, the one point both sides share. lark sends an entity's next command only once the last is confirmed, and Pekko does not wait, which the README says.
+- **Pekko's producer.** The benchmark's thread takes one `RequestNext` per command, from an actor that queues them, so it never sends without demand.
