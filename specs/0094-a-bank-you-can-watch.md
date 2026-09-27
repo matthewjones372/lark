@@ -115,7 +115,7 @@ Recommended: SSE, fed by topics.
 - [x] **`spec-0094-consumer`** — the consumer page. Done when: it is served
       from `/`, and a headless Chromium test sends money through the page and
       sees the new balance.
-- [ ] **`spec-0094-sse`** — SSE framing, heartbeats, the bounded queue per
+- [x] **`spec-0094-sse`** — SSE framing, heartbeats, the bounded queue per
       connection, and closing on failure. Done when: tests show the event
       format, a slow client losing old `stats` and keeping `member` events,
       and a closed client unsubscribed.
@@ -196,3 +196,9 @@ Decided while building `spec-0094-consumer`:
 - **Waiting in the test.** Playwright's `assertThat(…).hasText` waits for the page, so the test has no waiting loop of its own.
 - **What the test catches.** A page that does not follow its transfer fails it: the status never reads `Done`.
 - **Past the soft cap.** About 360 lines, most of them the page's HTML, CSS and script.
+
+Decided while building `spec-0094-sse`:
+- **The queue.** Each stream holds at most `capacity` events, 256 by default. When the queue is full, the oldest `stats` event makes room. With none to drop, the new event is lost, and a queue that has been full for `fullFor` (10 s) closes the stream. `heartbeat` is 15 s. All three are settings, so the tests run in milliseconds.
+- **Closing.** Closing a chunked body writes to the socket. A stalled browser may never read it, so the close runs on a virtual thread of its own, and the dashboard that offered the event never waits for it. A writer blocked in a write to that browser ends when the socket fails.
+- **Unsubscribing.** The hub drops a stream whose write failed, one that was closed for being full, and one an offer found closed.
+- **What the tests catch.** A queue that drops its oldest event of any kind fails them. So does a stream whose writer leaves the hub in place when it ends.
