@@ -54,9 +54,10 @@ module tests already prove the behaviour. Recommended: a compiled guide.
 
 ## Stack
 
-- [ ] **`spec-0084-nodes`** — the page, `GuideExampleTest`, and sections 1–3.
+- [x] **`spec-0084-nodes`** — the page, `GuideExampleTest`, and sections 1–3.
       Done when: each marked fence compiles in the test, and one fence broken
       on purpose fails it.
+      ([#228](https://github.com/matthewjones372/lark/pull/228))
 - [ ] **`spec-0084-state`** — sections 4 and 5. Done when: their fences
       compile, including the Postgres DDL's path as the jar ships it.
 - [ ] **`spec-0084-operating`** — section 6, and the README's link. Done when:
@@ -84,3 +85,11 @@ module tests already prove the behaviour. Recommended: a compiled guide.
 Decided (2026-09-27): every open question goes as recommended. The guide's
 examples are compiled, with no runnable project; the compile test lives in
 `lark-cluster`'s tests; and the guide is one page with a contents list.
+
+Decided while building `spec-0084-nodes`: each example is an extension on the
+service's own `Flock<Nothing>`, so it compiles alone and says nothing about
+where the flock comes from, which `flock { }` and `Actors.within` answer
+differently. The compiler is `lark-stream-pekko`'s `EmbeddedKotlin`, copied
+into `lark-cluster`'s tests, and the page is an input of the test task, so an
+edit to it reruns the test. The test also compiles one example with a call
+renamed and expects errors, so a harness that compiled nothing would fail.
