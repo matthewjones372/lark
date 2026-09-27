@@ -161,3 +161,10 @@ hand-written for the example's few flat shapes; the consumer page follows its
 own transfers by asking, with no stream of its own yet; the two page tests use
 Playwright for Java against the Chromium the environment has; and `run` starts
 three nodes in one JVM, with a form for running them as separate processes.
+
+Decided while building `spec-0094-bank`:
+- **Split in two.** `spec-0094-bank` is the module and the two entities, proved on `testActors`; `spec-0094-bank-cluster` is three nodes, the producers and the crash. The entry's done-when is proved, and the entry ticked, on the second.
+- **Past the soft cap.** About 550 lines: two hand-written wire codecs and two event codecs are half of it, and the tests most of the rest.
+- **Not `delivered`.** A persistent entity wrapped in `delivered` drops a resent command without a step, so what that step sent on is lost if the node crashed between writing the events and sending. `repeatable` hands each entity every copy, unwrapped, and confirms it once the step returns.
+- **A repeat is answered from state.** An account keeps every transfer id it has debited, refused or credited, and answers a repeat the same way without writing. A transfer that hears a start or an answer again sends on again whatever the first sent.
+- **What the tests catch.** An account that debits a repeat again, or that does not refuse an overdraft, fails them.
