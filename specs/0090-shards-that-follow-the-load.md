@@ -62,7 +62,7 @@ purpose. Recommended: leader-proposed overrides in the gossip.
 - [x] **`spec-0090-overrides`** — overrides in the gossip, and placement that
       honours them. Done when: an override set on the leader moves exactly that
       shard, through the usual handoff, and is dropped when its member goes.
-- [ ] **`spec-0090-rebalance`** — `Rebalance.byLoad`, the leader's proposal,
+- [x] **`spec-0090-rebalance`** — `Rebalance.byLoad`, the leader's proposal,
       and damping. Done when: with one hot id range on one node of three, the
       busiest member's entity count falls within `tolerance` of the mean within
       three intervals, and no shard moves twice within its damping window.
@@ -116,3 +116,10 @@ Decided while building `spec-0090-rebalance`:
 - **The proposal.** It is a pure function. Load is messages if any member handled any in its last interval, and entities otherwise. Each shard counts on the member that owns it now, taking the larger of two reports while both owners still report it. The busiest member's heaviest shards go first, each to the least-loaded member. It stops at `mostMoves`, or once the busiest member is within `tolerance`. It makes a move only if the target ends up lighter than the busiest member, so one hot shard is never moved from member to member. A move back to a shard's hash owner drops its override.
 - **Damping.** The leader keeps the time and load of each shard it moves. For `every × 3`, it does not move that shard again, and counts it at no less than the load it moved with. Without the second part, the three-node test moved shards back and forth, because a new owner's first report sees only part of a shard. A node that comes to lead damps every shard that is already moved.
 - **What the tests catch.** Dropping the damping, the held load or the `mostMoves` limit fails a test. So does damping that expires at once.
+
+Decided while building `spec-0090-rebalance-cluster`:
+- **Where the box is ticked.** The rebalance entry is ticked here, where its done-when is shown on three nodes.
+- **"Within three intervals".** The unit test checks it exactly: three of the leader's intervals. On three nodes it is checked as at most three rounds of moves before the entities are even, not as wall-clock time.
+- **Steady traffic.** The test asks each entity once every 100 ms on a timer. With one sender asking in turn, a slow ask during a move held up the rest, so message counts no longer followed the entities, and the leader moved too much.
+- **What the test catches.** Taking the rebalancing out of the cluster actor's tick fails it. With damping removed it failed one run in three, so the unit tests are what pin damping.
+- **The guide.** Its Entities section has a paragraph on `rebalance`, and no new example.
