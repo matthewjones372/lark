@@ -51,9 +51,10 @@ to keep consistent across nodes. Recommended: named on the behaviour.
 
 ## Stack
 
-- [ ] **`spec-0077-bound`** — `readTo` on `JournalPruning`, in memory and on
+- [x] **`spec-0077-bound`** — `readTo` on `JournalPruning`, in memory and on
       JDBC, and in `PruneContract`. Done when: a deletion bounded by a feed
       offset keeps every event after it, on both journals.
+      ([#199](https://github.com/matthewjones372/lark/pull/199))
 - [ ] **`spec-0077-prune`** — `Prune.never`, `Prune.always` and
       `Prune.after`. Done when: a read model behind the snapshots holds
       pruning back to its offset, a read model with no offset holds it back
@@ -80,3 +81,9 @@ to keep consistent across nodes. Recommended: named on the behaviour.
 Decided (2026-09-27): every open question goes as recommended. A behaviour
 names the read models its pruning waits for; a read model with no saved
 offset holds back everything; and `Prune` replaces `prune: Boolean`.
+
+Decided while building `spec-0077-bound`: `readTo` is a parameter of
+`deleteTo` with no bound as its default, so 0076's callers read the same. A
+journal turns it into the last sequence number of the id at or before that
+offset, and deletes up to the smallest of that, the sequence asked for, and
+one before the newest.
