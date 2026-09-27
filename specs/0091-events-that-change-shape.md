@@ -78,7 +78,7 @@ the journal and `persistent` do not change.
       an entity recovers from an old snapshot and newer events. Done when:
       that recovery reaches the same state as a full replay.
       ([#258](https://github.com/matthewjones372/lark/pull/258))
-- [ ] **`spec-0091-guide`** — a section in `docs/actors.md` (spec 0089) on
+- [x] **`spec-0091-guide`** — a section in `docs/actors.md` (spec 0089) on
       changing an event, compiled with the rest.
 
 ## Acceptance
@@ -129,3 +129,13 @@ Decided while building `spec-0091-state`:
 - **What the test proves.** It deletes the events the old snapshot covers. A
   recovery that ignored the snapshot could not start, so the test shows the
   old snapshot is read and upgraded, not just that the numbers agree.
+
+Decided while building `spec-0091-guide`:
+- **Where it sits.** "Changing an event" is section 6 of the actors guide,
+  between remembering and testing, and its example compiles with the rest
+  under the marker `actors-versioned`.
+- **What it shows.** It shows the case a field rename cannot express: an
+  old event read as a new one of a different class.
+- **Stacked on two stacks.** It needs both the guide (#254, #255) and the
+  codec (#257, #258), so its branch merges the guide into the codec's, and
+  its diff shows the guide too until those merge.

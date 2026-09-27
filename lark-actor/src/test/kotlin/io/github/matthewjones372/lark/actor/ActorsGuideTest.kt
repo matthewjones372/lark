@@ -21,7 +21,7 @@ import java.net.URLClassLoader
 class ActorsGuideTest {
 
     private val markers =
-        listOf("actor", "failure", "time", "routing", "persistent", "testing").map { "<!-- actors-$it -->" }
+        listOf("actor", "failure", "time", "routing", "persistent", "versioned", "testing").map { "<!-- actors-$it -->" }
 
     private val testing = "<!-- actors-testing -->"
 

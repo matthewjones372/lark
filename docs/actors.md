@@ -24,7 +24,8 @@ dependencies {
 3. [Time](#time)
 4. [Finding and routing](#finding-and-routing)
 5. [Remembering](#remembering)
-6. [Testing](#testing)
+6. [Changing an event](#changing-an-event)
+7. [Testing](#testing)
 
 ## An actor
 
@@ -462,6 +463,69 @@ fun main() {
     println(balance) // Either.Right(Either.Right(300))
 }
 ```
+
+## Changing an event
+
+Events outlive the code that wrote them. When an event's class changes, the
+journal still holds every event written in the old shape, and a replay has to
+read them ([spec 0091](../specs/0091-events-that-change-shape.md)).
+
+`versioned` wraps the codec a service already has. It writes each event as
+the current version, behind a short mark, and reads an older one through an
+upgrade from each version on the way. An upgrade turns the bytes of version
+n into the bytes of version n+1, one event or several, so a new version adds
+one upgrade and the older ones stay as they are. Bytes with no mark were
+written before the codec was versioned, and are version 1. A chain with a gap
+is refused when the codec is built, not when an old event is replayed.
+
+`versionedState` does the same for a snapshot's state, one state for one.
+
+<!-- actors-versioned -->
+```kotlin
+import io.github.matthewjones372.lark.actor.EventCodec
+import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.Upgrade
+import io.github.matthewjones372.lark.actor.persistent
+import io.github.matthewjones372.lark.actor.versioned
+
+/** Version 1: an order paid in one go. */
+data class PaidV1(val pence: Long)
+
+/** Version 2, today's: a payment of one part of an order, so one old payment is one part. */
+data class PartPaid(val part: Int, val pence: Long)
+
+object PaidV1Codec : EventCodec<PaidV1> {
+    override fun encode(event: PaidV1): ByteArray = "${event.pence}".toByteArray()
+
+    override fun decode(bytes: ByteArray): PaidV1 = PaidV1(String(bytes).toLong())
+}
+
+object PartPaidCodec : EventCodec<PartPaid> {
+    override fun encode(event: PartPaid): ByteArray = "${event.part}:${event.pence}".toByteArray()
+
+    override fun decode(bytes: ByteArray): PartPaid =
+        String(bytes).split(":").let { (part, pence) -> PartPaid(part.toInt(), pence.toLong()) }
+}
+
+val payments = versioned(
+    current = 2,
+    codec = PartPaidCodec,
+    upgrades = mapOf(
+        1 to Upgrade { bytes -> listOf(PartPaidCodec.encode(PartPaid(1, PaidV1Codec.decode(bytes).pence))) },
+    ),
+)
+
+fun order(id: String) = persistent<Long, PartPaid, Long>(
+    id = PersistenceId("order", id),
+    empty = 0,
+    codec = payments,
+    command = { _, _, pence -> persist(PartPaid(1, pence)) },
+    event = { paid, part -> paid + part.pence },
+)
+```
+
+A read model following the journal sees the upgraded events through the same
+codec, so it never meets an old shape.
 
 ## Testing
 
