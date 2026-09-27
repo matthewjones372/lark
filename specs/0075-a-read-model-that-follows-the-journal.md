@@ -74,11 +74,12 @@ database. Recommended: at-least-once, with idempotent handlers.
       append whose transaction is still open is not passed until it commits
       or `gapTimeout` runs out.
       ([#191](https://github.com/matthewjones372/lark/pull/191))
-- [ ] **`spec-0075-follow`** — `lark-actor-projection`: `follow`,
+- [x] **`spec-0075-follow`** — `lark-actor-projection`: `follow`,
       `OffsetStore`, `InMemoryOffsets` and `runProjecting`. Done when: on
       `TestStreams`, a projection stopped after 30 of 50 events and started
       again handles events 31 to 50, and an event appended while it runs
       reaches it on the next poll.
+      ([#192](https://github.com/matthewjones372/lark/pull/192))
 - [ ] **`spec-0075-offsets-jdbc`** — `JdbcOffsets` and its DDL. Done when: it
       passes an `OffsetContract` on H2.
 
@@ -118,3 +119,10 @@ feed reads a kind's rows and then the orderings below the last of them; a row
 of the kind that committed between the two reads is held back like a gap, or
 it would be skipped. The contract's follower caught that as 196 events of 200.
 The gap timeout runs on lark's clock, so a test moves it rather than waits.
+
+Decided while building `spec-0075-follow`: `follow` is a `Stream.blocking`
+source, and a run's `stop()` interrupts its wait for the next poll. An element
+is a `Followed`, which carries its offset through `mapFollowed` and
+`mapFollowedOrFail`, as lark-kafka's `Committed` does, and whose body sees the
+id and sequence number as well as the value, for idempotency. The tests run on
+Forks with a `TestClock`, since a blocking source waits on its own thread.
