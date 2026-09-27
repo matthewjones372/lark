@@ -73,6 +73,7 @@ class ClusterMetricsTest {
             listOf(first, second).forEach { n ->
                 n.cluster.await(1.minutes) { v -> v.unreachable.any { it.name == crashed.name } } shouldBe true
                 n.cluster.ready() shouldBe false
+                n.measured.gauge("lark.cluster.unreachable", "node" to n.name) shouldBe 1.0
             }
             listOf(first, second).forEach { n ->
                 n.cluster.await(1.minutes) { v -> v.members.none { it.node.name == crashed.name } } shouldBe true
@@ -80,6 +81,8 @@ class ClusterMetricsTest {
                 n.measured.gauge("lark.cluster.unreachable", "node" to n.name) shouldBe 0.0
                 n.measured.counter("lark.cluster.downed", "node" to n.name) shouldBe 1.0
             }
+            listOf(first, second).sumOf { n -> n.measured.gauge("lark.cluster.leader", "node" to n.name)!! } shouldBe
+                1.0
         } finally {
             nodes.forEach(MeasuredNode::close)
         }
