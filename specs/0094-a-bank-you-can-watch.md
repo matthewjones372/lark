@@ -119,7 +119,7 @@ Recommended: SSE, fed by topics.
       connection, and closing on failure. Done when: tests show the event
       format, a slow client losing old `stats` and keeping `member` events,
       and a closed client unsubscribed.
-- [ ] **`spec-0094-stats`** — the sampler, the dashboard actor, both topics
+- [x] **`spec-0094-stats`** — the sampler, the dashboard actor, both topics
       and `/admin/stream`. Done when: a client of node 1's stream reads
       `stats` from all three nodes, then a `member` event naming n3 once n3 is
       crashed.
@@ -202,3 +202,12 @@ Decided while building `spec-0094-sse`:
 - **Closing.** Closing a chunked body writes to the socket. A stalled browser may never read it, so the close runs on a virtual thread of its own, and the dashboard that offered the event never waits for it. A writer blocked in a write to that browser ends when the socket fails.
 - **Unsubscribing.** The hub drops a stream whose write failed, one that was closed for being full, and one an offer found closed.
 - **What the tests catch.** A queue that drops its oldest event of any kind fails them. So does a stream whose writer leaves the hub in place when it ends.
+
+Decided while building `spec-0094-stats`:
+- **The recorder.** Each node's thread binds a `Recorder`, lark's `Metrics` kept in memory, with `metrics.locally`, so its flock's own metrics land there. The sampler reads shards, entities, unconfirmed deliveries and dead letters from it, each summed over its tags.
+- **The bank's own numbers.** A transfer that ends is counted by outcome and timed through the same recorder. The time runs from the start the API sent, which now carries `at`. `transfersPerSecond` and `refused` are per sample; `p99Ms` is over the transfers that ended in that second.
+- **Who tells of a member.** Every node sees each change, so one tells: the oldest `Up` member that every other can reach. When that member is the one that crashed, the next oldest tells instead.
+- **Ids.** Stats carry an `id:` line counting up on each node, as the spec's example does. Member and transfer events carry none.
+- **A transfer heard twice.** A transfer whose end is repeated after a crash is published again, so the feed may show it twice.
+- **What the test catches.** A stats topic that stays on its node fails it: node 1 hears only itself. So does a node that never publishes member changes.
+- **Past the soft cap.** About 330 lines, a third of them the two topic codecs and the stats' JSON.
