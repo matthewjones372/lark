@@ -80,3 +80,8 @@ side by side, and publish the result whichever way it goes.
 - **Where are they run?** Recommended: on the same machine class as the
   existing numbers, recorded beside them. This container's numbers are
   noisy, so the published run is yours.
+
+Decided (2026-09-27): every open question goes as recommended. The numbers
+are taken against Pekko, side by side; a result worse than Pekko's is
+published as readily as a better one; and the published run is taken on the
+same machine class as the existing numbers, not in this container.
