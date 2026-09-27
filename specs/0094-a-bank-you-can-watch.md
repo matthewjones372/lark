@@ -104,7 +104,7 @@ Recommended: SSE, fed by topics.
 
 ## Stack
 
-- [ ] **`spec-0094-bank`** — the module, `Account` and `Transfer`, and three
+- [x] **`spec-0094-bank`** — the module, `Account` and `Transfer`, and three
       nodes started in one JVM, without HTTP. Done when: 1,000 random
       transfers across three nodes, with one node crashed midway, end with
       every transfer `Done` or `Refused` and the total money unchanged.
@@ -168,3 +168,12 @@ Decided while building `spec-0094-bank`:
 - **Not `delivered`.** A persistent entity wrapped in `delivered` drops a resent command without a step, so what that step sent on is lost if the node crashed between writing the events and sending. `repeatable` hands each entity every copy, unwrapped, and confirms it once the step returns.
 - **A repeat is answered from state.** An account keeps every transfer id it has debited, refused or credited, and answers a repeat the same way without writing. A transfer that hears a start or an answer again sends on again whatever the first sent.
 - **What the tests catch.** An account that debits a repeat again, or that does not refuse an overdraft, fails them.
+
+Decided while building `spec-0094-bank-cluster`:
+- **Producers by incarnation.** Each node's two durable producers are named by its name and its member uid, so a node started again under the same name never shares a producer with its earlier life.
+- **Adopted on removal.** When a member is removed, the oldest `Up` member left starts that member's producers again, and they send what it kept. A node that is closing adopts nothing.
+- **Waiting without `Cluster.await`.** That is internal to `lark-cluster`, so each node keeps its own view from its `MemberEvent`s, with a condition to wait on.
+- **Waiting for transfers.** An ask can be dead-lettered while a crashed node's shards move, so the test does not ask each transfer how it ended. Each node reports every transfer that ends, and the test waits on a blocking queue until all 1,000 have. A repeated answer reports the end again, so a report lost to a crash is made again.
+- **The crash bites.** One sender per node runs at once, and n3 goes halfway through its share. Without adoption, transfers never end, and the test fails. An account that debits a repeat again ends with 1,713 of the 20,000.
+- **Postgres is cheap.** `--jdbc URL` takes a Postgres or H2 URL, and creates the journal's tables if they are missing. The Postgres driver is one jar on the classpath, and embedded Postgres is used only in the tests. `--node n2 --jdbc URL` runs one node alone. The cluster ports are 25521 to 25523.
+- **Found in the library.** A node closing sometimes logs a `ConcurrentModificationException` from `Flock`'s close. Something touches the flock from another thread while it closes. The results are not affected.
