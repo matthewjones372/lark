@@ -11,18 +11,34 @@ dependencies {
 
     testFixturesApi("org.junit.jupiter:junit-jupiter-api:6.1.3")
     testFixturesImplementation("io.kotest:kotest-assertions-core:6.2.4")
+
+    // ActorsGuideTest compiles the examples out of docs/actors.md (spec 0089).
+    testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
 }
+
+// Read at configuration time, so the configuration cache survives it.
+val repoRoot = rootProject.projectDir.absolutePath
+val guide = files(
+    rootProject.layout.projectDirectory.file("docs/actors.md"),
+    rootProject.layout.projectDirectory.file("docs/cluster.md"),
+    rootProject.layout.projectDirectory.file("README.md"),
+)
 
 tasks.test {
     // The main runtime classpath, so the dependency test can assert on what is
     // actually shipped rather than on what the test JVM happens to load.
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
+    // An edit to the guide is a change to what this task tests, or its examples would ride a cached green.
+    inputs.files(guide).withPropertyName("guide")
+    // The embedded compiler needs more than Gradle's default heap, or a GC stall trips the 60s timeout.
+    maxHeapSize = "2g"
     jvmArgumentProviders.add(
         CommandLineArgumentProvider {
             listOf(
                 "-Dlark.actor.runtimeClasspath=" +
                     mainRuntime.get().joinToString(File.pathSeparator) { it.name },
+                "-Dlark.actor.repoRoot=$repoRoot",
             )
         },
     )

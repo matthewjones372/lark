@@ -64,13 +64,15 @@ need gossip. Recommended: a page of its own.
 
 ## Stack
 
-- [ ] **`spec-0089-actors`** — the page, `ActorsGuideTest`, and sections 1–3.
+- [x] **`spec-0089-actors`** — the page, `ActorsGuideTest`, and sections 1–3.
       Done when: each marked fence compiles, and one broken on purpose fails
       the test.
-- [ ] **`spec-0089-more`** — sections 4–6, with the testing section's
+      ([#254](https://github.com/matthewjones372/lark/pull/254))
+- [x] **`spec-0089-more`** — sections 4–6, with the testing section's
       examples run, and the README's and cluster guide's links. Done when:
       those fences compile, the testing examples pass as tests, and the links
       are checked by the same test.
+      ([#255](https://github.com/matthewjones372/lark/pull/255))
 
 ## Acceptance
 
@@ -93,3 +95,25 @@ Decided (2026-09-27): every open question goes as recommended. The actors
 guide is a page of its own; its compile test lives in `lark-actor`'s tests
 with the embedded compiler in test scope; and the testing section's examples
 are run as well as compiled.
+
+Decided while building `spec-0089-actors`:
+- **The embedded compiler.** `ActorsGuideTest` keeps a copy of the cluster
+  guide's `EmbeddedKotlin` in `lark-actor`'s tests rather than sharing one
+  through test fixtures, since `lark-actor`'s test fixtures are published and
+  would carry the compiler to every service that uses `JournalContract`.
+- **What the test checks.** Besides compiling each fence, it checks that every
+  `<!-- actors-… -->` marker on the page is one it knows. A fence added
+  without its marker in the test fails the build instead of going unchecked.
+- **What it caught.** The failure example was missing its `watch` import.
+- **Where the page stops.** It closes, for now, with a line pointing to the
+  cluster guide. `spec-0089-more` replaces that line with sections 4–6.
+
+Decided while building `spec-0089-more`:
+- **How the tests are run.** The testing section's example is a plain JUnit
+  class. `ActorsGuideTest` compiles it, loads it, and invokes each `@Test`
+  method on a new instance. It expects three tests to pass. It also checks
+  that the example with one expectation changed to a false one fails when run.
+- **What the testing example covers.** Its till raises a declared failure
+  rather than throwing, so the example can show `delays` holding each back-off.
+- **The links.** The README's `lark-actor` row and the cluster guide's opening
+  now link the page, and the same test checks both links.
