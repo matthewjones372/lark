@@ -89,7 +89,7 @@ restarting outbox.
       answer while down, the counter and the two log lines. Done when: a send
       while the journal is down answers `Unwritten` in under a tenth of
       `within`, and one after it recovers answers `Right`.
-- [ ] **`spec-0098-guide`** — the cluster guide's reliable delivery section
+- [x] **`spec-0098-guide`** — the cluster guide's reliable delivery section
       shows the `when` above. Done when: that example compiles in
       `GuideExampleTest`.
 
@@ -129,3 +129,8 @@ Decided while building `spec-0098-unwritten`:
 - **Seen.** `lark.delivery.unwritten` is counted where `send` answers, prompt or not. The warning names the cause, and the recovery line is at info.
 - **The guide.** Its reliable example returns `Either<NotSent, Unit>`, since `Either<Full, Unit>` no longer compiles, and its metrics table lists `lark.delivery.unwritten`.
 - **The test.** On a flock, six sends while appends throw each answer `Unwritten` in under 500 ms, a tenth of `within`, and after the journal is back a send is written, delivered and drained. Without the prompt answer, the fifth send took 803 ms. Without the answer from the failed step, the first answered `Full` after `within`. On `testActors`, one throw logs one warning and one recovery line.
+
+Decided while building `spec-0098-guide`:
+- **Its own fence.** The `when` is a fence of its own, marked `cluster-reliable-answers`, since each fence compiles alone and the reliable fence already runs long. It maps a send's answer to an HTTP status: 202, 429 for `Full`, 503 for `Unwritten`.
+- **The prose.** The paragraph before it says what `Unwritten` means, that the producer restarts with backoff, and that it answers at once while the journal is down.
+- **The test.** `GuideExampleTest` lists the new marker, so it fails until the page holds exactly one such fence, and then compiles it.
