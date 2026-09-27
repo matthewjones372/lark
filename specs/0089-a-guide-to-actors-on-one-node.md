@@ -88,3 +88,8 @@ need gossip. Recommended: a page of its own.
 - **Run the testing section's examples, or only compile them?** Recommended:
   run them. They are tests, and showing a failing one would teach the wrong
   thing.
+
+Decided (2026-09-27): every open question goes as recommended. The actors
+guide is a page of its own; its compile test lives in `lark-actor`'s tests
+with the embedded compiler in test scope; and the testing section's examples
+are run as well as compiled.
