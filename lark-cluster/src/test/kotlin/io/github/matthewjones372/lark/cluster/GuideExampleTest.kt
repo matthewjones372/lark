@@ -18,7 +18,10 @@ import java.io.File
 class GuideExampleTest {
 
     private val markers =
-        listOf("remote", "tls", "membership", "entities", "persistent", "read-model", "reliable", "operating", "topic")
+        listOf(
+            "remote", "tls", "membership", "entities", "persistent", "read-model", "sharded", "reliable", "operating",
+            "topic",
+        )
             .map { "<!-- cluster-$it -->" }
 
     @TempDir

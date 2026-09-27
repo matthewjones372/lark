@@ -8,6 +8,8 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.Semaphore
 
 /**
  * What a run has to let go of when it ends, however it ends: the bodies still in flight and the forks
@@ -130,9 +132,10 @@ internal class InFlight<T>(on: Executor, body: () -> T) {
 
 /**
  * Up to [Node.MapPar.parallelism] bodies at once, each on the node's executor (the run's, where the node
- * was left with the default), answered in the order the
- * elements came. Upstream is pulled only on the pulling thread, and only while the window has room, so
- * the stages above stay on one thread. The window is let go of when the run ends, and a failure it
+ * was left with the default), answered in the order the elements came. Upstream is on a fork of its own,
+ * which starts each body as its element arrives, so a body that is done is passed on even while upstream
+ * waits for the next element: a source that blocks, a Kafka consumer on a quiet topic among them, waits for
+ * as long as it is quiet. The fork and the bodies are let go of when the run ends, and a failure the window
  * answers with interrupts the bodies behind it.
  */
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
@@ -140,26 +143,40 @@ internal class InFlight<T>(on: Executor, body: () -> T) {
 internal fun Node.MapPar.window(releases: Releases?): Pull {
     val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
     val up = upstream.pull()
-    val window = ArrayDeque<InFlight<Either<Any?, Any>>>()
     val executor = releases?.executorFor(on) ?: on
-    val cancelAll = { generateSequence { window.removeFirstOrNull() }.forEach { it.cancel() } }
+    val room = Semaphore(parallelism)
+    val started = LinkedBlockingQueue<Any>()
+    val fork = InFlight(releases?.on ?: VirtualThreads) {
+        Releases.within(releases) { feed(up, room, started) { a -> InFlight(executor) { body(a) } } }
+    }
+    // The fork first, so nothing is started behind the bodies being let go of.
+    val cancelAll = {
+        fork.cancel()
+        generateSequence { started.poll() }.filterIsInstance<InFlight<*>>().forEach { it.cancel() }
+    }
     releases?.add(cancelAll)
-    var drained = false
+    var ended = false
     return Pull {
-        while (!drained && window.size < parallelism) {
-            val a = up.next()
-            if (a == null) drained = true else window.addLast(InFlight(executor) { body(a) })
-        }
-        window.removeFirstOrNull()?.let { head ->
-            val answer = try {
-                head.await()
-            } catch (thrown: Throwable) {
-                // The head is out of the window by now, so it is let go of here, with the rest.
-                head.cancel()
-                cancelAll()
-                throw thrown
+        if (ended) return@Pull null
+        when (val next = started.take()) {
+            Fed.Done -> null.also { ended = true }
+
+            is Fed.Threw -> throw next.thrown.also { ended = true }
+
+            else -> {
+                @Suppress("UNCHECKED_CAST")
+                val head = next as InFlight<Either<Any?, Any>>
+                val answer = try {
+                    head.await()
+                } catch (thrown: Throwable) {
+                    // The head is out of the queue by now, so it is let go of here, with the rest.
+                    head.cancel()
+                    cancelAll()
+                    throw thrown
+                }
+                room.release()
+                answer.fold({ e -> cancelAll(); throw DeclaredFailure(e) }, { b -> b })
             }
-            answer.fold({ e -> cancelAll(); throw DeclaredFailure(e) }, { b -> b })
         }
     }
 }

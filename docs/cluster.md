@@ -172,6 +172,12 @@ seed and nobody answers. Membership is agreed by gossip, with no coordinator
   of a partition stays: `keepMajority` by default, `staticQuorum` for a fixed
   size, or `lease` for two nodes or an even split, where a majority cannot
   decide. `stableAfter` is how long the partition must hold still first.
+- **Restarts.** A node that restarts at the same address is a new life of it,
+  with a new `cluster.uid`. The earlier life is downed as the new one joins,
+  then removed, and the new life hears both, under its own address.
+  `cluster.isSelf(member)` tells this life from an earlier one, so compare
+  with it, not with `cluster.self`. A watch ends with the life it was made on
+  ([spec 0097](../specs/0097-a-node-that-restarts-where-it-was.md)).
 - **Ready.** `cluster.ready()` is true while this node is `Up`, has a leader,
   and can reach every member it sees. It is the answer to `/ready`
   ([spec 0081](../specs/0081-a-cluster-you-can-see.md)).
@@ -201,7 +207,11 @@ fun Flock<Nothing>.joinShop(): Cluster {
     )
     val watcher = spawn(
         "membership-log",
-        behaviour<MemberEvent, Unit>(Unit) { _, _, event -> stay().also { logInfo("cluster: $event") } },
+        behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
+            // isSelf, not the address: a node restarted where it was hears its earlier life downed at its own.
+            if (event is MemberEvent.Downed && cluster.isSelf(event.member)) logInfo("cluster: this node was downed")
+            stay().also { logInfo("cluster: $event") }
+        },
     )
     cluster.subscribe(watcher)
     return cluster
@@ -212,6 +222,51 @@ fun Flock<Nothing>.joinShop(): Cluster {
 take. The defaults suit a busy node on a real network; tests that want a
 cluster in a second set them lower, and a node under heavy load with them set
 too low will see live members as unreachable.
+
+### Joined from config
+
+An application in `lark-app` need not assemble any of that. `lark-app-cluster`
+makes the cluster a node of the graph, joined as a HOCON section says
+([spec 0096](../specs/0096-a-cluster-joined-from-config.md)). `join` names the
+backend, and the section of that name holds what it needs. The backend is
+found on the classpath, so add `lark-cluster-kubernetes` or `lark-cluster-aws`
+to join through it. A name whose module is missing refuses the start, naming
+the module. The backend brings its own client and closes it once the node has
+left, and it chooses the downing that suits it: a lease on Kubernetes and AWS,
+and keep-majority for `static`, `dns` and `srv`.
+
+<!-- cluster-joined -->
+```hocon
+shop.cluster {
+  node {
+    name = "shop-1"
+    name = ${?POD_NAME}
+    host = "127.0.0.1"
+    host = ${?POD_IP}
+    port = 25520
+  }
+  # static, dns or srv from lark-cluster itself; kubernetes, ecs or cloudmap from their modules.
+  join = "static"
+  join = ${?CLUSTER_JOIN}
+  static.seeds = ["127.0.0.1:25520"]
+  # The pods labelled app=shop; the namespace is the pod's own.
+  kubernetes { selector { app = "shop" }, lease = "shop-split-brain" }
+  downing.stableAfter = 20s
+  gossip { probeEvery = 1s, ackWithin = 600ms, formAfter = 5s }
+  leaveWithin = 30s
+  # exit: a node the others downed ends its process, so its orchestrator starts a new one.
+  whenDowned = exit
+}
+```
+
+```kotlin
+val shop = loadedConfig() + actors() + cluster("shop.cluster") + single { cluster: Cluster -> Orders(cluster) }
+```
+
+The `Cluster` node is started once `cluster.ready()`, and the flock leaves the
+cluster before the application's actors stop. `cluster(ClusterSettings(...))`
+takes the same settings from code, for an application that reads its
+configuration its own way.
 
 ## Entities
 
@@ -470,6 +525,61 @@ fun ledger(database: DataSource, ledger: Ledger): Running<Nothing, Long> {
         .runProjecting()
         .start(Forks())
 }
+```
+
+## A journal across databases
+
+One database takes every write from every node. When that is the limit, split
+the journal by entity across several
+([spec 0088](../specs/0088-a-journal-across-databases.md)):
+
+- **Each id lives in one database.** Its slice is murmur3 of `kind|id`, out
+  of 1,024 fixed forever, and each database owns a contiguous range of slices
+  in the order given. An append and its conflict check stay in one
+  transaction, so nothing spans two databases.
+- **Name them, and never reorder them.** The same names in the same order
+  route an id the same way every time. Give snapshots the same list, and an
+  id's snapshot sits beside its events.
+- **A read model is one projection per database.** Each database keeps its
+  own feed and order. `ShardedJournal.progress(name, database)` names each
+  one's offset, and `Prune.after(offsets, journal, names)` lets a database
+  prune once what reads it has caught up. Order within an id holds; there is
+  no order across databases.
+
+<!-- cluster-sharded -->
+```kotlin
+import io.github.matthewjones372.lark.actor.EventCodec
+import io.github.matthewjones372.lark.actor.ShardedJournal
+import io.github.matthewjones372.lark.actor.ShardedSnapshots
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcSnapshots
+import io.github.matthewjones372.lark.actor.projection.Projection
+import io.github.matthewjones372.lark.actor.projection.runProjecting
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.Running
+import io.github.matthewjones372.lark.stream.start
+import javax.sql.DataSource
+
+object Paid : EventCodec<Long> {
+    override fun encode(event: Long): ByteArray = event.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+/** The same names, in the same order, for events and for snapshots. */
+fun journal(a: DataSource, b: DataSource) = ShardedJournal(listOf("db-a" to JdbcJournal(a), "db-b" to JdbcJournal(b)))
+
+fun snapshots(a: DataSource, b: DataSource) =
+    ShardedSnapshots(listOf("db-a" to JdbcSnapshots(a), "db-b" to JdbcSnapshots(b)))
+
+/** The ledger as one projection per database, each saving its own offset. */
+fun ledgers(journal: ShardedJournal, offsets: JdbcOffsets): List<Running<Nothing, Long>> =
+    journal.feeds.map { (database, feed) ->
+        Projection.follow(feed, "account", Paid, offsets, ShardedJournal.progress("ledger", database))
+            .runProjecting()
+            .start(Forks())
+    }
 ```
 
 ## Commands that must arrive

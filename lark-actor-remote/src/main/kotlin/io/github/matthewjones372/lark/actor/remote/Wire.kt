@@ -34,6 +34,18 @@ data class Node(val name: String, val host: String, val port: Int) {
             val (name, host, port) = parts
             return Node(name, host, port.toInt())
         }
+
+        private val seed = Regex("""(.+):(\d{1,5})""")
+
+        /** A node known by `host:port` alone, as a seed is written in config: whichever node answers there. */
+        fun at(address: String): Node {
+            val found = requireNotNull(seed.matchEntire(address.trim())) { "$address is not host:port" }
+            val (host, port) = found.destructured
+            require(port.toInt() in 1..MAX_PORT) { "$address has no port a node can listen on" }
+            return Node("", host, port.toInt())
+        }
+
+        private const val MAX_PORT = 65_535
     }
 }
 

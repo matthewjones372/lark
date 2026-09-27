@@ -5,10 +5,14 @@ import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.minutes
 
@@ -176,5 +180,87 @@ class EntitiesTest {
         }
 
         seen shouldBe (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right()).right()
+    }
+
+    /** An entity whose first message holds its step until [open], then keeps every number it is told, in order. */
+    private fun held(open: CountDownLatch, heard: MutableList<Int>) = behaviour<Int, Unit>(Unit) { _, _, n ->
+        if (n == 0) open.await() else heard += n
+        stay()
+    }
+
+    @Test
+    fun `a burst to a busy entity is kept in order, and its manager goes on`() {
+        val heard = ConcurrentHashMap<String, MutableList<Int>>()
+        fun heardBy(id: String) = heard.computeIfAbsent(id) { Collections.synchronizedList(mutableListOf()) }
+        val open = CountDownLatch(1)
+        val letters = ConcurrentLinkedQueue<DeadLetter>()
+
+        flock<Nothing, Unit> {
+            onDeadLetter(letters::add)
+            val kennel = spawn("kennel", entities(passivateAfter = 10.minutes) { id -> held(open, heardBy(id)) })
+            val rex = kennel.entity("rex")
+            rex.tell(0)
+            (1..5_000).forEach(rex::tell)
+            open.countDown()
+            kennel.entity("bo").tell(7)
+            awaitIdle()
+        }
+
+        heardBy("rex").toList() shouldContainExactly (1..5_000).toList()
+        heardBy("bo").toList() shouldContainExactly listOf(7)
+        letters.toList() shouldBe emptyList()
+    }
+
+    @Test
+    fun `past what a manager may keep, a message to a busy entity is a dead letter for being full`() {
+        val heard = Collections.synchronizedList(mutableListOf<Int>())
+        val open = CountDownLatch(1)
+        val letters = ConcurrentLinkedQueue<DeadLetter>()
+
+        flock<Nothing, Unit> {
+            onDeadLetter(letters::add)
+            val rex = spawn("kennel", entities(passivateAfter = 10.minutes) { _ -> held(open, heard) }).entity("rex")
+            rex.tell(0)
+            (1..KEEP_AT_MOST + 2_000).forEach(rex::tell)
+            open.countDown()
+            awaitIdle()
+        }
+
+        val full = letters.filter { it.why == DeadLetter.Why.Full }
+        full.size shouldBeGreaterThan 0
+        full.first().recipient.path shouldBe "/user/kennel/rex"
+        (heard.size + full.size) shouldBe KEEP_AT_MOST + 2_000
+        heard.toList() shouldBe heard.sorted()
+    }
+
+    @Test
+    fun `the running count falls as entities passivate, stop themselves, and stop with their manager`() {
+        val moving = TestClock()
+        val running = AtomicInteger()
+        val counts = mutableListOf<Int>()
+        val leaving = behaviour<String, Unit>(Unit) { _, _, message -> if (message == "leave") stop() else stay() }
+
+        clock.locally(moving) {
+            flock<Nothing, Unit> {
+                val manager = spawn("kennel", entities(10.minutes, onRunning = { running.addAndGet(it) }) { leaving })
+                fun counted() {
+                    awaitIdle()
+                    counts += running.get()
+                }
+                listOf("rex", "bo", "fido").forEach { manager.entity(it).tell("hello") }
+                counted()
+                manager.entity("bo").tell("leave")
+                counted()
+                moving.adjust(5.minutes)
+                manager.entity("fido").tell("hello")
+                moving.adjust(5.minutes)
+                counted()
+                stop(manager).await()
+                counted()
+            }
+        }
+
+        // Three run; bo stops itself; rex passivates while fido, told again, runs on; then fido stops with the manager.
+        counts shouldContainExactly listOf(3, 2, 1, 0)
     }
 }

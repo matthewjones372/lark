@@ -1,7 +1,10 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.increment
+import kotlin.time.Duration.Companion.milliseconds
 
 /** What a topic's actor is told (spec 0082). */
 sealed interface TopicMessage<M : Any> {
@@ -16,11 +19,18 @@ sealed interface TopicMessage<M : Any> {
     data class Unsubscribe<M : Any>(val subscriber: ActorRef<M>) : TopicMessage<M>
 }
 
+/** A topic's own timer, to hand busy subscribers what it kept for them (spec 0095). */
+internal class DrainTopic<M : Any> : TopicMessage<M>
+
+/** The key of a topic's drain timer. */
+private object TopicDrainKey
+
 /**
  * A topic on this node: every message published to it reaches every subscriber, at most once, in the order one
  * publisher published them. A subscriber that stops is dropped; one that cannot be watched, such as a sharded entity
  * or a singleton, hears until it unsubscribes. A cluster's topic reaches the subscribers of every `Up` member
- * (spec 0082).
+ * (spec 0082). A subscriber too busy to take a message has it kept for it, in order, and past what may be kept it is
+ * a dead letter for being full; the others hear on (spec 0095).
  */
 class Topic<M : Any> internal constructor(val name: String, val ref: ActorRef<TopicMessage<M>>) {
     /** [subscriber] hears every message published from now on, until it stops or [unsubscribe]. */
@@ -38,40 +48,73 @@ class Topic<M : Any> internal constructor(val name: String, val ref: ActorRef<To
  * It records `lark.topic.published`, `lark.topic.delivered` and `lark.topic.subscribers` (spec 0081).
  */
 fun <M : Any> Flock<*>.topic(name: String, forward: (M) -> Unit = {}): Topic<M> {
-    val published = counter("lark.topic.published", "topic" to name)
-    val delivered = counter("lark.topic.delivered", "topic" to name)
-    val subscribers = gauge("lark.topic.subscribers", "topic" to name)
-    fun Set<ActorRef<M>>.hear(message: M) = forEach {
-        it.tell(message)
-        delivered.increment()
-    }
-
-    fun Set<ActorRef<M>>.counted() = also { subscribers.set(size.toDouble()) }
+    val steps = TopicSteps<M>(
+        published = counter("lark.topic.published", "topic" to name),
+        delivered = counter("lark.topic.delivered", "topic" to name),
+        subscribers = gauge("lark.topic.subscribers", "topic" to name),
+    )
     val actor = behaviour<TopicMessage<M>, Set<ActorRef<M>>>(emptySet()) { ctx, heard, message ->
         when (message) {
-            is TopicMessage.Publish -> {
-                published.increment()
-                heard.hear(message.message)
+            is TopicMessage.Publish -> stay().also {
+                steps.published.increment()
+                steps.hear(ctx, heard, message.message)
                 forward(message.message)
-                stay()
             }
 
-            is TopicMessage.Arrive -> stay().also { heard.hear(message.message) }
+            is TopicMessage.Arrive -> stay().also { steps.hear(ctx, heard, message.message) }
 
             is TopicMessage.Subscribe -> {
                 // One that cannot be watched stays until it unsubscribes.
                 if (message.subscriber.canBeWatched()) ctx.watch(message.subscriber)
-                become((heard + message.subscriber).counted())
+                become(steps.counted(heard + message.subscriber))
             }
 
-            is TopicMessage.Unsubscribe -> become((heard - message.subscriber).counted())
+            is TopicMessage.Unsubscribe -> become(steps.unsubscribed(ctx, heard, message.subscriber))
+
+            is DrainTopic -> stay().also { steps.drain(ctx) }
         }
-    }.onSignal { _, heard, signal ->
-        if (signal is Signal.Terminated) {
-            become(heard.filterTo(mutableSetOf()) { it != signal.ref }.counted())
-        } else {
-            stay()
+    }.onSignal { ctx, heard, signal ->
+        when (signal) {
+            is Signal.Terminated -> become(steps.counted(heard.filterTo(mutableSetOf()) { it != signal.ref }))
+            Signal.Stopping -> stay().also { steps.stopping(ctx) }
         }
     }
     return Topic(name, spawn("topic-$name", actor))
 }
+
+/** A topic's counts, and what it keeps for busy subscribers (spec 0095). */
+@OptIn(PlumbingSeam::class)
+private class TopicSteps<M : Any>(
+    val published: Counter,
+    private val delivered: Counter,
+    private val subscribers: Gauge,
+) {
+    private val handOn = HandOn<ActorRef<M>, M>()
+
+    fun counted(heard: Set<ActorRef<M>>) = heard.also { subscribers.set(it.size.toDouble()) }
+
+    /** [message] to every subscriber that has room, and kept, in order, for those that have none. */
+    fun hear(ctx: Ctx<TopicMessage<M>>, heard: Set<ActorRef<M>>, message: M) {
+        var kept = false
+        heard.forEach {
+            if (handOn.tell(ctx, it, it, message)) kept = true
+            delivered.increment()
+        }
+        if (kept) ctx.timers.after(TopicDrainKey, TOPIC_DRAIN_AFTER, DrainTopic())
+    }
+
+    /** [subscriber] gone, and what was kept for it with it. */
+    fun unsubscribed(ctx: Ctx<TopicMessage<M>>, heard: Set<ActorRef<M>>, subscriber: ActorRef<M>): Set<ActorRef<M>> {
+        handOn.take(ctx, subscriber)
+        return counted(heard - subscriber)
+    }
+
+    fun drain(ctx: Ctx<TopicMessage<M>>) {
+        if (handOn.drain(ctx)) ctx.timers.after(TopicDrainKey, TOPIC_DRAIN_AFTER, DrainTopic())
+    }
+
+    fun stopping(ctx: Ctx<TopicMessage<M>>) = handOn.drop(ctx, DeadLetter.Why.Stopped)
+}
+
+/** How soon a topic offers a busy subscriber what it kept for it again. */
+private val TOPIC_DRAIN_AFTER = 10.milliseconds
