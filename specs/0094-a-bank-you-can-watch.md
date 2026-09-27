@@ -112,7 +112,7 @@ Recommended: SSE, fed by topics.
       consumer's JSON API. Done when: a test with `java.net.http.HttpClient`
       opens two accounts, moves money between them on different nodes, reads
       both balances, and gets `Refused` for an overdraft.
-- [ ] **`spec-0094-consumer`** — the consumer page. Done when: it is served
+- [x] **`spec-0094-consumer`** — the consumer page. Done when: it is served
       from `/`, and a headless Chromium test sends money through the page and
       sees the new balance.
 - [ ] **`spec-0094-sse`** — SSE framing, heartbeats, the bounded queue per
@@ -188,3 +188,11 @@ Decided while building `spec-0094-api-server`:
 - **Ids.** An id is 1 to 64 letters, digits, `-` or `_`, since the events are written with `|` between fields. A transfer's id is `t-` and a UUID. A transfer to an account that is not open is a 404 before anything is sent.
 - **Waiting in the test.** The test does not poll a status. Each node reports every transfer that ends, and the test waits on a blocking queue for the id it sent, then reads the status once.
 - **What the test catches.** An API that answers 202 without sending the transfer fails it: the transfer never ends.
+
+Decided while building `spec-0094-consumer`:
+- **Served from resources.** `/` is `web/index.html`, with `consumer.js` and `bank.css` beside it. The server serves only names like `name.html`, `.js` or `.css` from `web/`, so a path cannot climb out.
+- **Following a transfer.** The page asks for the transfer's status every 200 ms until it is `Done` or `Refused`, then reads the account again.
+- **Playwright 1.56.0.** It drives Chromium 141, build 1194, which is the build in `/opt/pw-browsers`, so no `executablePath` is needed. The test task sets `PLAYWRIGHT_BROWSERS_PATH`, from the environment or `/opt/pw-browsers`, and `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`. The test ran in headless Chromium 141.0.7390.37.
+- **Waiting in the test.** Playwright's `assertThat(…).hasText` waits for the page, so the test has no waiting loop of its own.
+- **What the test catches.** A page that does not follow its transfer fails it: the status never reads `Done`.
+- **Past the soft cap.** About 400 lines, most of them the page's HTML, CSS and script.
