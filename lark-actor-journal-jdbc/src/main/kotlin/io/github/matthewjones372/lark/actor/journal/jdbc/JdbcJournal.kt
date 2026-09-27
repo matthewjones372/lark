@@ -3,14 +3,23 @@ package io.github.matthewjones372.lark.actor.journal.jdbc
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalConflict
+import io.github.matthewjones372.lark.actor.JournalFeed
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.StoredEvent
+import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.logWarn
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.SQLException
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import javax.sql.DataSource
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.toKotlinDuration
 
 /** The SQL state every database gives a duplicate key: another writer took the sequence number first. */
 internal const val DUPLICATE_KEY = "23505"
@@ -23,8 +32,23 @@ internal const val DUPLICATE_KEY = "23505"
  * Of two writers for one id, the table's primary key decides: an append inserts its first event only if the one it
  * expects to follow is there, and two that both expect it collide on the key, so exactly one commits. A database
  * that cannot answer throws its [SQLException].
+ *
+ * It is a [JournalFeed] too (spec 0075), its offsets the table's `ordering`. An append takes its `ordering` when it
+ * inserts and is seen when it commits, so a smaller one can commit after a larger one is read: the feed answers
+ * nothing past a missing `ordering` until it fills, or until it has been missing for [gapTimeout], after which it is
+ * taken for an append that never committed and passed, with a warning.
  */
-class JdbcJournal(private val dataSource: DataSource) : Journal {
+class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Duration = 10.seconds) :
+    Journal,
+    JournalFeed {
+
+    private val time = clock.get()
+
+    /** Each `ordering` found missing, and when it was first found so. */
+    private val gaps = ConcurrentHashMap<Long, Instant>()
+
+    /** The `ordering`s missing for longer than [gapTimeout], which the feed reads past. */
+    private val passed = ConcurrentHashMap.newKeySet<Long>()
 
     override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
         dataSource.connection.use { connection ->
@@ -54,6 +78,65 @@ class JdbcJournal(private val dataSource: DataSource) : Journal {
         ) { select ->
             select.executeQuery().use { rows ->
                 generateSequence { if (rows.next()) StoredEvent(rows.getLong(1), rows.getBytes(2)) else null }.toList()
+            }
+        }
+    }
+
+    override fun after(kind: String, offset: Long, limit: Int): List<FeedEvent> = dataSource.connection.use {
+            connection ->
+        val rows = connection.statement(
+            "select ordering, id, seq_nr, bytes from lark_journal where kind = ? and ordering > ? " +
+                "order by ordering fetch first ? rows only",
+            kind,
+            offset,
+            limit,
+        ) { select ->
+            select.executeQuery().use { rows ->
+                generateSequence {
+                    if (!rows.next()) return@generateSequence null
+                    val id = PersistenceId(kind, rows.getString(2))
+                    FeedEvent(rows.getLong(1), id, rows.getLong(3), rows.getBytes(4))
+                }.toList()
+            }
+        }
+        val held = rows.lastOrNull()?.let { connection.heldBack(kind, offset, rows) } ?: return@use rows
+        rows.takeWhile { it.offset < held }
+    }
+
+    /**
+     * The first `ordering` after [offset] and below the last of [read] that the feed cannot yet read past: one missing
+     * for less than [gapTimeout], or one of [kind] that committed after [read] was selected and is not in it. Null
+     * when there is none.
+     */
+    private fun Connection.heldBack(kind: String, offset: Long, read: List<FeedEvent>): Long? {
+        val top = read.last().offset
+        val present = statement(
+            "select ordering, kind from lark_journal where ordering > ? and ordering < ?",
+            offset,
+            top,
+        ) { select ->
+            select.executeQuery().use { rows ->
+                generateSequence { if (rows.next()) rows.getLong(1) to rows.getString(2) else null }.toMap()
+            }
+        }
+        val seen = read.mapTo(HashSet()) { it.offset }
+        val now = time.now()
+        return (offset + 1 until top).firstOrNull { ordering ->
+            val of = present[ordering]
+            when {
+                of != null -> (of == kind && ordering !in seen).also { gaps.remove(ordering) }
+
+                ordering in passed -> false
+
+                else -> {
+                    val waited = java.time.Duration.between(gaps.computeIfAbsent(ordering) { now }, now)
+                    val holding = waited.toKotlinDuration() < gapTimeout
+                    if (!holding && passed.add(ordering)) {
+                        gaps.remove(ordering)
+                        logWarn("the feed passes ordering $ordering, missing for $waited: an append never committed")
+                    }
+                    holding
+                }
             }
         }
     }

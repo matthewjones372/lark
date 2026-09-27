@@ -69,10 +69,11 @@ database. Recommended: at-least-once, with idempotent handlers.
       and `FeedContract` in `lark-actor`'s test fixtures. Done when: the
       in-memory journal passes the contract.
       ([#190](https://github.com/matthewjones372/lark/pull/190))
-- [ ] **`spec-0075-jdbc-feed`** — the `ordering` column and the JDBC feed
+- [x] **`spec-0075-jdbc-feed`** — the `ordering` column and the JDBC feed
       with gap handling. Done when: it passes the contract on H2, and an
       append whose transaction is still open is not passed until it commits
       or `gapTimeout` runs out.
+      ([#191](https://github.com/matthewjones372/lark/pull/191))
 - [ ] **`spec-0075-follow`** — `lark-actor-projection`: `follow`,
       `OffsetStore`, `InMemoryOffsets` and `runProjecting`. Done when: on
       `TestStreams`, a projection stopped after 30 of 50 events and started
@@ -110,3 +111,10 @@ The in-memory journal's appends take turns under one lock, so an offset is
 never visible before a smaller one, and its offsets count events across every
 kind. The contract's follower reads while eight writers append, and must see
 each event once, in growing offsets.
+
+Decided while building `spec-0075-jdbc-feed`: `ordering` is one identity
+across every kind, so a gap is an `ordering` missing from the whole table. The
+feed reads a kind's rows and then the orderings below the last of them; a row
+of the kind that committed between the two reads is held back like a gap, or
+it would be skipped. The contract's follower caught that as 196 events of 200.
+The gap timeout runs on lark's clock, so a test moves it rather than waits.

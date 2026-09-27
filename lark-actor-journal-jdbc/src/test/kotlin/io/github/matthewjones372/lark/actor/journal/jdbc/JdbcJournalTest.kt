@@ -13,12 +13,12 @@ import java.util.UUID
 import javax.sql.DataSource
 
 /** An H2 database in memory that lasts as long as the JVM, empty, with a name no other test uses. */
-private fun database(): DataSource = JdbcDataSource().apply {
+internal fun database(): DataSource = JdbcDataSource().apply {
     setURL("jdbc:h2:mem:journal-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
 }
 
 /** The DDL the jar ships for [database], as a service would apply it. */
-private fun DataSource.migrated(database: String): DataSource = also {
+internal fun DataSource.migrated(database: String): DataSource = also {
     val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/$database.sql")).readText()
     connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
 }
