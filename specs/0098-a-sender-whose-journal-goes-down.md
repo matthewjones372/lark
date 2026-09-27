@@ -80,7 +80,7 @@ restarting outbox.
 
 ## Stack
 
-- [ ] **`spec-0098-survive`** — the durable producer's actor restarts with
+- [x] **`spec-0098-survive`** — the durable producer's actor restarts with
       backoff on a journal throw, and a command's room is released when its
       write fails. Done when: with a journal that throws for four sends and
       then works, the next send after it recovers is written and delivered,
@@ -116,3 +116,9 @@ Decided (2026-09-27): every open question goes as recommended. `send`
 answers `Either<NotSent, Unit>`, with `Full` and `Unwritten(cause)` as its
 cases; the backoff is 100 ms doubling to 5 s, not configurable yet; and a
 replay that succeeds clears "down".
+
+Decided while building `spec-0098-survive`:
+- **Where the catch sits.** The producer's persistent behaviour is wrapped so a step that throws tells the outbox which message it was on, then throws on to supervision unchanged. A raise, such as a journal conflict, goes on untold.
+- **Room.** `send` takes the room before the write, so the outbox gives it back when the step throws before the write lands. A command counts as written, and holds its room, from the first line of its `then`, so a throw after the write keeps the room for the replay to find.
+- **The backoff.** `Schedule.exponential(100.milliseconds)`, capped at 5 s through `delayed`, is used by the flock's and `testActors`' producer alike.
+- **The test.** On `testActors`, with a journal whose producer appends throw four times and a `keep` of 4, the fifth send is written and delivered, and `drain` is true. On `main` the first throw reaches the test. With the restart but without the room given back, the fifth send answers `Full`.
