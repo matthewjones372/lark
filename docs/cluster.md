@@ -472,6 +472,61 @@ fun ledger(database: DataSource, ledger: Ledger): Running<Nothing, Long> {
 }
 ```
 
+## A journal across databases
+
+One database takes every write from every node. When that is the limit, split
+the journal by entity across several
+([spec 0088](../specs/0088-a-journal-across-databases.md)):
+
+- **Each id lives in one database.** Its slice is murmur3 of `kind|id`, out
+  of 1,024 fixed forever, and each database owns a contiguous range of slices
+  in the order given. An append and its conflict check stay in one
+  transaction, so nothing spans two databases.
+- **Name them, and never reorder them.** The same names in the same order
+  route an id the same way every time. Give snapshots the same list, and an
+  id's snapshot sits beside its events.
+- **A read model is one projection per database.** Each database keeps its
+  own feed and order. `ShardedJournal.progress(name, database)` names each
+  one's offset, and `Prune.after(offsets, journal, names)` lets a database
+  prune once what reads it has caught up. Order within an id holds; there is
+  no order across databases.
+
+<!-- cluster-sharded -->
+```kotlin
+import io.github.matthewjones372.lark.actor.EventCodec
+import io.github.matthewjones372.lark.actor.ShardedJournal
+import io.github.matthewjones372.lark.actor.ShardedSnapshots
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcSnapshots
+import io.github.matthewjones372.lark.actor.projection.Projection
+import io.github.matthewjones372.lark.actor.projection.runProjecting
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.Running
+import io.github.matthewjones372.lark.stream.start
+import javax.sql.DataSource
+
+object Paid : EventCodec<Long> {
+    override fun encode(event: Long): ByteArray = event.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+/** The same names, in the same order, for events and for snapshots. */
+fun journal(a: DataSource, b: DataSource) = ShardedJournal(listOf("db-a" to JdbcJournal(a), "db-b" to JdbcJournal(b)))
+
+fun snapshots(a: DataSource, b: DataSource) =
+    ShardedSnapshots(listOf("db-a" to JdbcSnapshots(a), "db-b" to JdbcSnapshots(b)))
+
+/** The ledger as one projection per database, each saving its own offset. */
+fun ledgers(journal: ShardedJournal, offsets: JdbcOffsets): List<Running<Nothing, Long>> =
+    journal.feeds.map { (database, feed) ->
+        Projection.follow(feed, "account", Paid, offsets, ShardedJournal.progress("ledger", database))
+            .runProjecting()
+            .start(Forks())
+    }
+```
+
 ## Commands that must arrive
 
 A tell across nodes is at most once, and a message already in an entity's

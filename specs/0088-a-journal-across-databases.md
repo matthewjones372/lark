@@ -89,6 +89,10 @@ over.
       a `SpreadPersistentBenchmark`, many ids, on one and two databases.
       Done when: two databases write at least 1.6× one for writes spread over
       many ids.
+      Built, and the Postgres tests pass. The 1.6× is not shown yet: on one
+      4 vCPU machine, two servers share its cores and its disk, and write no
+      faster than one (about 9,500 events a second either way; see
+      `lark-actor-benchmarks/README.md`). It needs each database on its own host.
 
 ## Acceptance
 
