@@ -80,3 +80,7 @@ module tests already prove the behaviour. Recommended: a compiled guide.
   compile them.
 - **One page or several?** Recommended: one, with a contents list; it is
   read top to bottom the first time and searched afterwards.
+
+Decided (2026-09-27): every open question goes as recommended. The guide's
+examples are compiled, with no runnable project; the compile test lives in
+`lark-cluster`'s tests; and the guide is one page with a contents list.
