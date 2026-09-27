@@ -98,10 +98,11 @@ richer.
       leader among them, and after one crashes the others read one
       unreachable and `ready()` false until it is downed.
       ([#218](https://github.com/matthewjones372/lark/pull/218))
-- [ ] **`spec-0081-sharding`** — shards, entities and buffered envelopes per
+- [x] **`spec-0081-sharding`** — shards, entities and buffered envelopes per
       kind, and the producer's unconfirmed, resent and full. Done when: 0079's
       test ends with the survivors' shards summing to 256 and every producer
       gauge at zero, and the crash counted resends.
+      ([#219](https://github.com/matthewjones372/lark/pull/219))
 
 ## Acceptance
 
@@ -156,3 +157,9 @@ none, so a status that empties reads zero rather than its last count. The
 test crashes a node and finds `ready()` false while it is unreachable, then
 true again once it is downed and removed; `ready()` without the reachability
 check fails it.
+
+Decided while building `spec-0081-sharding`:
+- **Entities.** `entities(…)` takes `onRunning`, told +1 as an entity starts, -1 as it ends, and minus what is left as its manager stops. A kind's shards add to one count under a lock, so the gauge is never set from a stale sum.
+- **Regions.** A region sets its shards and buffered gauges after each step. A singleton's region measures under the kind `singleton-<name>`.
+- **Producers.** A producer's unconfirmed gauge is the room its `send`s have taken, so it costs nothing to keep. It is set as commands are kept and confirmed, and `Full` is counted where `send` gives up. On `testActors` the instruments do nothing.
+- **The test.** 0079's crash test now also finds 256 shards and 200 running accounts between the survivors, nothing buffered, nothing unconfirmed, and resends counted. Dropping the +1 or the resend count fails it.

@@ -23,6 +23,7 @@ private data class IdleKey(val id: String)
 private class EntityBook<M : Any, S, E>(
     private val passivateAfter: Duration,
     private val restart: Schedule<Failure<E>, *>?,
+    private val onRunning: (delta: Int) -> Unit,
     private val entity: (id: String) -> Behaviour<M, S, E>,
 ) {
     private val running = HashMap<String, ActorRef<M>>()
@@ -51,6 +52,7 @@ private class EntityBook<M : Any, S, E>(
     /** An entity has stopped, by passivation or by itself; what arrived for it meanwhile starts it again. */
     fun ended(ctx: Ctx<Entities<M>>, ref: ActorRef<*>) {
         val id = ids.remove(ref) ?: return
+        onRunning(-1)
         if (running[id] == ref) {
             running.remove(id)
             ctx.timers.cancel(IdleKey(id))
@@ -63,7 +65,14 @@ private class EntityBook<M : Any, S, E>(
         ctx.watch(ref)
         running[id] = ref
         ids[ref] = id
+        onRunning(1)
         return ref
+    }
+
+    /** The manager is stopping, and its entities with it: none of them is running from now on. */
+    fun stopping() {
+        if (ids.isNotEmpty()) onRunning(-ids.size)
+        ids.clear()
     }
 }
 
@@ -71,17 +80,19 @@ private class EntityBook<M : Any, S, E>(
  * A manager of entities: one actor per id, spawned by [entity] as the manager's child on the id's first message, and
  * stopped once it has had nothing for [passivateAfter]. A message for an entity that is stopping is kept, and starts
  * it again once it has stopped. Talk to one through [entity], whose ref stays good while the entity comes and goes.
- * [restart] applies to each entity on its own.
+ * [restart] applies to each entity on its own. [onRunning] hears each entity start (+1) and end (-1), and every one
+ * still running when the manager stops, for a count of what runs (spec 0081); it runs on the manager's step.
  */
 fun <M : Any, S, E> entities(
     passivateAfter: Duration,
     restart: Schedule<Failure<E>, *>? = null,
+    onRunning: (delta: Int) -> Unit = {},
     entity: (id: String) -> Behaviour<M, S, E>,
 ): Behaviour<Entities<M>, Any?, Nothing> {
     require(passivateAfter.isPositive()) { "passivateAfter must be positive, was $passivateAfter" }
     return behaviour<Entities<M>, Any?>(null) { ctx, state, message ->
         @Suppress("UNCHECKED_CAST")
-        val book = state as EntityBook<M, S, E>? ?: EntityBook(passivateAfter, restart, entity)
+        val book = state as EntityBook<M, S, E>? ?: EntityBook(passivateAfter, restart, onRunning, entity)
         when (message) {
             is Deliver -> book.deliver(ctx, message.id, message.message)
             is Passivate -> book.passivate(ctx, message.id)
@@ -91,6 +102,7 @@ fun <M : Any, S, E> entities(
         @Suppress("UNCHECKED_CAST")
         val book = state as EntityBook<M, S, E>?
         if (signal is Signal.Terminated && book != null) book.ended(ctx, signal.ref)
+        if (signal == Signal.Stopping) book?.stopping()
         stay()
     }
 }
