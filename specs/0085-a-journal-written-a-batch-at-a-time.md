@@ -70,10 +70,11 @@ user until something else needs it.
       behaviour's batch size.
       Done when: a test behaviour with `steps` sees `[1, 2, 3]` for three messages told before it started, and a
       signal between them splits the run.
-- [ ] **`spec-0085-persistent`** — `persistent(batch = n)`: decide in turn, one append, `then` in order,
+- [x] **`spec-0085-persistent`** — `persistent(batch = n)`: decide in turn, one append, `then` in order,
       snapshots and delivery marks across the batch.
       Done when: 1,000 commands told at once to a `batch = 64` actor on `JdbcJournal` make ≤ 20 appends; its state
-      and journal equal the unbatched actor's; a conflict mid-run recovers to the same final state.
+      and journal equal the unbatched actor's; a conflicted batch is lost as a failed step's message is, and the
+      actor recovers to what the journal holds.
 - [ ] **`spec-0085-numbers`** — the benchmark in `lark-actor-benchmarks` and its README row.
       Done when: one hot persistent actor on embedded Postgres is measured at batch 1 and 64.
 
