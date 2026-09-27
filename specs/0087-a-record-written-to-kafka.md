@@ -89,15 +89,15 @@ window was full before answering the first stage. A Kafka consumer on a quiet
 topic never answers the pull that would fill it, so records that were already
 acknowledged were never committed. Upstream now runs on a fork of its own that
 starts each stage as its element arrives, as `buffer`'s does. `mapPar` on Forks
-pulls the same way and is the next entry.
+pulled the same way, and now starts its bodies from a feeding fork too.
 
 ## Stack
 
-- [x] **`spec-0087-produce`** — `Producer`, `publishTo`, `publishRecord`,
+- [x] **`spec-0087-produce`** ([#236](https://github.com/matthewjones372/lark/pull/236)) — `Producer`, `publishTo`, `publishRecord`,
       `deadLetters`, and Forks' `mapAsync` fed by a fork.
       Done when: `ProduceTest` passes on Forks and Pekko, and `BlockingTest`
       holds a finished stage passed on while its source blocks.
-- [ ] **`spec-0087-mappar-fed`** — Forks' `mapPar` passes a finished body on
+- [x] **`spec-0087-mappar-fed`** — Forks' `mapPar` passes a finished body on
       while upstream blocks, as `mapAsync` now does.
       Done when: `mapParRecord` over a consumer on a quiet topic commits every
       record it handled.
