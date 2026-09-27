@@ -69,9 +69,10 @@ Recommended: one producer per sender, one wrapper per entity.
       each delivered command after its step, a plain one never, and a step
       that fails confirms nothing.
       ([#206](https://github.com/matthewjones372/lark/pull/206))
-- [ ] **`spec-0079-dedup`** — deduplication in `persistent`. Done when: a
+- [x] **`spec-0079-dedup`** — deduplication in `persistent`. Done when: a
       persistent entity sees a command sent twice once, confirms both, and
       still drops the duplicate after a restart, from a snapshot or a replay.
+      ([#207](https://github.com/matthewjones372/lark/pull/207))
 - [ ] **`spec-0079-send`** — the producer: numbering, keeping, resending,
       pushing back. Done when: in one flock, with the entity stopped and
       started while commands are sent, every command is handled, and `send`
@@ -107,3 +108,14 @@ commands stay its own type: a reliable command implements `Delivered` and
 carries its `Delivery`, so the entity's timers, stash and state are
 untouched, and `delivered(behaviour)` only confirms once the step returns. A
 wrapper that confirmed before the step fails the test of a failing step.
+
+Decided while building `spec-0079-dedup`: `Remembered` gains `delivered`, the
+last sequence number per producer, with an empty default. A delivered command
+that persists events appends a mark of its delivery after them in the same
+append, so the mark is written exactly when the events are; replay reads marks
+back into `delivered`, and a snapshot carries it ahead of the state's own
+bytes, which stay the service's alone when nothing was delivered. A command
+that persists nothing writes no mark, and after a restart is handled again,
+where it changes nothing the journal holds. `Journal.events` and `follow`
+skip marks, and a follower's offset passes them. Dropping the map from the
+snapshot, or the marks from replay, fails the tests.

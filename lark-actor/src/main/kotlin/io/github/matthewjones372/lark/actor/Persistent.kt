@@ -2,8 +2,11 @@ package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.logError
 
-/** A persistent actor's state: the [value] its events built, and the sequence number of the last of them. */
-data class Remembered<S>(val value: S, val sequence: Long)
+/**
+ * A persistent actor's state: the [value] its events built, the sequence number of the last of them, and the last
+ * sequence number it handled from each producer that sends to it reliably (spec 0079).
+ */
+data class Remembered<S>(val value: S, val sequence: Long, val delivered: Map<String, Long> = emptyMap())
 
 /** How a persistent actor's state becomes bytes for a snapshot, and back. */
 interface StateCodec<S> {
@@ -92,6 +95,11 @@ class Effects<Ev, S> internal constructor() {
  * its `every` saves the state it reached, before `then`; a start loads the newest snapshot and replays only the
  * events after it. A save that throws is logged and the step goes on: the events are already written, and the next
  * multiple saves again.
+ *
+ * A [Delivered] command whose sequence number is no greater than the last this actor handled from its producer is
+ * dropped without a step (spec 0079). One that persists events writes a mark of its delivery in the same append, so
+ * the actor remembers it across restarts and moves, as a snapshot does; one that persists nothing is remembered until
+ * the actor stops, and handled again after that, where it changes nothing the journal holds.
  */
 @Suppress("LongParameterList")
 fun <M : Any, Ev, S> persistent(
@@ -106,23 +114,34 @@ fun <M : Any, Ev, S> persistent(
     return Behaviour(
         initial = Remembered(empty, 0),
         step = { ctx, remembered, message ->
-            val effect = effects.command(ctx, remembered.value, message)
-            val after = if (effect.events.isEmpty()) {
-                remembered
+            val delivery = (message as? Delivered)?.delivery
+            if (remembered.handled(delivery)) {
+                Next.Stay
             } else {
-                val sequence = ctx.journal.append(id, remembered.sequence, effect.events.map(codec::encode)).bind()
-                Remembered(effect.events.fold(remembered.value, event), sequence).also { reached ->
-                    if (snapshots !=
-                        null
-                    ) ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
+                val effect = effects.command(ctx, remembered.value, message)
+                val after = when {
+                    effect.events.isNotEmpty() -> {
+                        val written = effect.events.map(codec::encode) + listOfNotNull(delivery?.let(::mark))
+                        val sequence = ctx.journal.append(id, remembered.sequence, written).bind()
+                        val value = effect.events.fold(remembered.value, event)
+                        Remembered(value, sequence, remembered.delivered.after(delivery)).also { reached ->
+                            if (snapshots != null) {
+                                ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
+                            }
+                        }
+                    }
+
+                    delivery != null -> remembered.copy(delivered = remembered.delivered.after(delivery))
+
+                    else -> remembered
                 }
+                effect.then?.invoke(after.value)
+                effect.next ?: if (after === remembered) Next.Stay else Next.Become(after)
             }
-            effect.then?.invoke(after.value)
-            effect.next ?: if (after === remembered) Next.Stay else Next.Become(after)
         },
         start = { ctx, _ ->
             val from = snapshots?.let { ctx.snapshots?.latest(id) }
-                ?.let { Remembered(snapshots.codec.decode(it.bytes), it.sequence) }
+                ?.let { decode(snapshots.codec, it.bytes, it.sequence) }
                 ?: Remembered(empty, 0)
             val stored = ctx.journal.read(id, from.sequence + 1)
             val first = stored.firstOrNull()?.sequence ?: (from.sequence + 1)
@@ -130,11 +149,27 @@ fun <M : Any, Ev, S> persistent(
                 "$id cannot be recovered: events ${from.sequence + 1} to ${first - 1} were deleted, and no snapshot " +
                     "covers them"
             }
-            val value = stored.fold(from.value) { state, kept -> event(state, codec.decode(kept.bytes)) }
-            Next.Become(Remembered(value, stored.lastOrNull()?.sequence ?: from.sequence))
+            Next.Become(stored.fold(from) { state, kept -> state.replay(kept, codec, event) })
         },
     )
 }
+
+/** Whether [delivery] is one this state already handled: no later than the last from its producer. */
+private fun Remembered<*>.handled(delivery: Delivery?): Boolean =
+    delivery != null && delivery.sequence <= (delivered[delivery.producer] ?: 0)
+
+/** This state after [kept]: an event applied through [event], or the mark of a delivery remembered. */
+private fun <Ev, S> Remembered<S>.replay(kept: StoredEvent, codec: EventCodec<Ev>, event: (S, Ev) -> S): Remembered<S> =
+    if (isDeliveryMark(kept.bytes)) {
+        val (producer, sequence) = unmark(kept.bytes)
+        copy(delivered = delivered + (producer to sequence), sequence = kept.sequence)
+    } else {
+        copy(value = event(value, codec.decode(kept.bytes)), sequence = kept.sequence)
+    }
+
+/** These deliveries, with [delivery] the last handled from its producer. */
+private fun Map<String, Long>.after(delivery: Delivery?): Map<String, Long> =
+    if (delivery == null) this else this + (delivery.producer to delivery.sequence)
 
 /**
  * Saves [reached] if the persist from [before] crossed a multiple of [how]'s `every`, and then, when [how] prunes,
@@ -150,7 +185,7 @@ private fun <S> SnapshotStore.snapshot(
 ) {
     if (before / how.every == reached.sequence / how.every) return
     val saved = logged("the snapshot of $id at ${reached.sequence} was not saved; the next one will be") {
-        save(id, reached.sequence, how.codec.encode(reached.value))
+        save(id, reached.sequence, encode(how.codec, reached))
     }
     val pruning = journal as? JournalPruning
     if (saved && how.prune !== Prune.never && pruning != null) {

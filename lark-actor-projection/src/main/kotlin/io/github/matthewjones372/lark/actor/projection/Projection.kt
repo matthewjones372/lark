@@ -6,6 +6,7 @@ import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.JournalFeed
 import io.github.matthewjones372.lark.actor.OffsetStore
 import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.isDeliveryMark
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.stream.Failing
 import io.github.matthewjones372.lark.stream.Run
@@ -40,7 +41,8 @@ object Projection {
     /**
      * Every event of [kind] from [feed], decoded by [codec], from the one after the offset [offsets] holds for [name]
      * or from the first. Once it has caught up it asks the feed again every [every], on lark's clock, and it never
-     * ends by itself: a run's `stop()` wakes it. Each event is handled at least once; end it with `runProjecting`.
+     * ends by itself: a run's `stop()` wakes it. Each event is handled at least once; end it with `runProjecting`. The
+     * marks persistent entities write of reliable deliveries (spec 0079) are skipped.
      */
     @Suppress("LongParameterList")
     fun <E : Any> follow(
@@ -86,9 +88,14 @@ private class Cursor(
         reader = Thread.currentThread()
         while (read.isEmpty()) {
             val more = feed.after(kind, last, batch)
-            if (more.isEmpty()) time.sleep(every) else read += more
+            if (more.isEmpty()) {
+                time.sleep(every)
+            } else {
+                last = more.last().offset
+                read += more.filterNot { isDeliveryMark(it.bytes) }
+            }
         }
-        return read.removeFirst().also { last = it.offset }
+        return read.removeFirst()
     }
 
     fun wake() {
