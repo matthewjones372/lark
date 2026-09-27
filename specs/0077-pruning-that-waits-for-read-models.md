@@ -76,3 +76,7 @@ to keep consistent across nodes. Recommended: named on the behaviour.
   Recommended: hold back everything; ignoring it deletes what it has not read.
 - **Replace `prune: Boolean` with `Prune`, since 0076 is unreleased?**
   Recommended: yes, rather than carrying both.
+
+Decided (2026-09-27): every open question goes as recommended. A behaviour
+names the read models its pruning waits for; a read model with no saved
+offset holds back everything; and `Prune` replaces `prune: Boolean`.
