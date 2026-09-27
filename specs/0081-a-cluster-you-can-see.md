@@ -83,10 +83,11 @@ richer.
 
 ## Stack
 
-- [ ] **`spec-0081-actors`** — dead letters by reason and restarts, per flock,
+- [x] **`spec-0081-actors`** — dead letters by reason and restarts, per flock,
       in `lark-actor`. Done when: on `capturingMetrics`, a tell to a stopped
       actor and a restart are each counted once, and a tell's allocation in
       the ping-pong benchmark is unchanged.
+      ([#216](https://github.com/matthewjones372/lark/pull/216))
 - [ ] **`spec-0081-remote`** — frames, dropped frames and connection state per
       peer, in `lark-actor-remote`. Done when: two nodes exchanging ten
       frames count ten each way, and a peer that goes away reads 0 and counts
@@ -125,3 +126,12 @@ Decided (2026-09-27): every open question goes as recommended. Metrics are
 recorded through `metrics` by the actor that owns each number; a `node` tag is
 bound once per flock from its remote node's name; `ready()` requires every
 member it sees to be reachable; and mailbox depth waits.
+
+Decided while building `spec-0081-actors`: a flock's guardian takes the
+`metrics` and tags bound where it first stands, since an actor's step runs on
+a runner that inherits neither, and holds each instrument by name and tags.
+`Flock.counter`, `Flock.gauge` and `Flock.tagMetrics` are public, so the
+remote, cluster and delivery modules record through their flock the same
+way, and a node names itself once with `tagMetrics`. Dead letters are counted
+where every one already passes, the guardian's handler; nothing on the tell
+path changed, so the ping-pong benchmark was not rerun.
