@@ -88,3 +88,7 @@ needs its own transport. Recommended: roles in one cluster.
 - **The gossip's wire format changes.** 0069's codec is internal, and nodes of
   different lark versions are not promised to join. Recommended: change it in
   place.
+
+Decided (2026-09-27): every open question goes as recommended. Roles live in
+one cluster; a node may hold several; sharding and singletons take one role;
+and the gossip's internal codec changes in place.
