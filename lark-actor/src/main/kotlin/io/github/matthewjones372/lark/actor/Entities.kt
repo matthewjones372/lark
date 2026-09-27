@@ -135,7 +135,9 @@ private class EntityBook<M : Any, S, E>(
  * stopped once it has had nothing for [passivateAfter]. A message for an entity that is stopping is kept, and starts
  * it again once it has stopped. Talk to one through [entity], whose ref stays good while the entity comes and goes.
  * [restart] applies to each entity on its own. [onRunning] hears each entity start (+1) and end (-1), and every one
- * still running when the manager stops, for a count of what runs (spec 0081); it runs on the manager's step.
+ * still running when the manager stops, for a count of what runs (spec 0081); it runs on the manager's step. A manager
+ * restarted by its own supervision stops its entities without hearing of it, so it keeps a count only when it is
+ * spawned without a restart, as sharding spawns it.
  */
 fun <M : Any, S, E> entities(
     passivateAfter: Duration,

@@ -32,6 +32,9 @@ private object RetryKey
 /** The key of a region's timer that hands busy hosts what it kept for them. */
 private object DrainKey
 
+/** The key of a region's timer that asks again for the shards it waits on. */
+private object AskAgainKey
+
 /**
  * One region's work: each message to the entity here, or to the region of the node that owns its shard; and the
  * handoff that keeps an entity from running on two nodes at once.
@@ -39,7 +42,8 @@ private object DrainKey
  * A node that wins a shard asks every other member that could hold it, `Up` or `Leaving`, to release it, and runs
  * none of the shard until each has, or has left the view. A member releases a shard only once it neither runs any of
  * it nor believes it owns it, so two nodes whose views disagree both wait until the views agree. What arrives for a
- * shard meanwhile is kept, up to a bound.
+ * shard meanwhile is kept, up to a bound. The ask is repeated while any member has yet to answer it: a member whose
+ * region did not exist yet when it was asked drops the ask, and would otherwise never answer.
  */
 internal class Placing<M : Any, H : Any>(
     private val cluster: Cluster,
@@ -62,6 +66,7 @@ internal class Placing<M : Any, H : Any>(
     private val owed = HashMap<Int, MutableSet<Node>>()
 
     private val kept = ArrayDeque<Region.Envelope<M>>()
+    private var asking = false
 
     // What a busy host could not take yet, per entity id and in order (spec 0095).
     @OptIn(PlumbingSeam::class)
@@ -92,6 +97,8 @@ internal class Placing<M : Any, H : Any>(
         is Region.Retry -> retry(ctx)
 
         is Region.Drain -> drain(ctx)
+
+        is Region.AskAgain -> askAgain(ctx)
     }
 
     /** A shard's manager has stopped, and every entity of the shard with it. */
@@ -140,6 +147,23 @@ internal class Placing<M : Any, H : Any>(
         awaiting.keys.toList().forEach { startIfFree(ctx, it) }
         settle()
         retry(ctx)
+        if (!asking && waitingOnOthers()) {
+            asking = true
+            ctx.timers.every(AskAgainKey, Sharding.ASK_AGAIN_EVERY, Region.AskAgain())
+        }
+    }
+
+    private fun waitingOnOthers() = awaiting.values.any { left -> left.any { it != self } }
+
+    /** Asks each member again for the shards it has yet to release, until none is left to ask. */
+    private fun askAgain(ctx: Ctx<Region<M>>) {
+        awaiting.forEach { (shard, left) ->
+            left.filter { it != self }.forEach { there(it).tell(Region.Release(shard, self)) }
+        }
+        if (!waitingOnOthers()) {
+            asking = false
+            ctx.timers.cancel(AskAgainKey)
+        }
     }
 
     private fun win(shard: Int, holders: Set<Node>) {
