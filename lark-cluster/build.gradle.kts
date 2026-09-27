@@ -11,6 +11,9 @@ dependencies {
     testImplementation(testFixtures(project(":lark-actor-remote")))
     // GuideExampleTest compiles the examples out of docs/cluster.md (spec 0084).
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
+    // The guide's read model follows the journal on a stream (spec 0084).
+    testImplementation(project(":lark-actor-projection"))
+    testImplementation(project(":lark-stream-forks"))
 }
 
 // Read at configuration time, so the configuration cache survives it.

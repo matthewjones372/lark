@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -16,7 +17,9 @@ import java.io.File
  */
 class GuideExampleTest {
 
-    private val markers = listOf("remote", "tls", "membership", "entities").map { "<!-- cluster-$it -->" }
+    private val markers =
+        listOf("remote", "tls", "membership", "entities", "persistent", "read-model", "reliable")
+            .map { "<!-- cluster-$it -->" }
 
     @TempDir
     lateinit var workspace: File
@@ -53,5 +56,13 @@ class GuideExampleTest {
     @Test
     fun `an example that no longer matches the library fails to compile`() {
         errors(only(markers.first()).replace("node.expose(", "node.publish(")).shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `the DDL the page tells a service to apply is where the journal's jar ships it`() {
+        val named = Regex("""`(lark/journal/jdbc/[a-z0-9]+\.sql)`""").findAll(guide()).map { it.groupValues[1] }.toSet()
+
+        named shouldBe setOf("lark/journal/jdbc/postgres.sql", "lark/journal/jdbc/h2.sql")
+        named.forEach { path -> withClue(path) { JdbcJournal::class.java.getResource("/$path").shouldNotBeNull() } }
     }
 }
