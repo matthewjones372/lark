@@ -74,9 +74,10 @@ the journal and `persistent` do not change.
       prefix), 2 and 3 replay as version 3, one version-1 event replays as two,
       and a missing upgrade is refused when the codec is built.
       ([#257](https://github.com/matthewjones372/lark/pull/257))
-- [ ] **`spec-0091-state`** — `versionedState` for snapshots, and a test that
+- [x] **`spec-0091-state`** — `versionedState` for snapshots, and a test that
       an entity recovers from an old snapshot and newer events. Done when:
       that recovery reaches the same state as a full replay.
+      ([#258](https://github.com/matthewjones372/lark/pull/258))
 - [ ] **`spec-0091-guide`** — a section in `docs/actors.md` (spec 0089) on
       changing an event, compiled with the rest.
 
@@ -119,3 +120,12 @@ Decided while building `spec-0091-versioned`:
   promises.
 - **What a replay says.** One that meets a version the codec cannot read names
   the entity, the event's sequence number and the version.
+
+Decided while building `spec-0091-state`:
+- **The upgrade's shape.** A `StateUpgrade` takes the bytes of one state
+  version to the bytes of the next, one state to one state. The chain is
+  walked by the same code as events, so the mark and the check when the codec
+  is built are the same.
+- **What the test proves.** It deletes the events the old snapshot covers. A
+  recovery that ignored the snapshot could not start, so the test shows the
+  old snapshot is read and upgraded, not just that the numbers agree.
