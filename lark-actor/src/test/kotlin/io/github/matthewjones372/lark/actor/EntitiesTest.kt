@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.minutes
 
@@ -176,5 +177,36 @@ class EntitiesTest {
         }
 
         seen shouldBe (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right()).right()
+    }
+
+    @Test
+    fun `the running count falls as entities passivate, stop themselves, and stop with their manager`() {
+        val moving = TestClock()
+        val running = AtomicInteger()
+        val counts = mutableListOf<Int>()
+        val leaving = behaviour<String, Unit>(Unit) { _, _, message -> if (message == "leave") stop() else stay() }
+
+        clock.locally(moving) {
+            flock<Nothing, Unit> {
+                val manager = spawn("kennel", entities(10.minutes, onRunning = { running.addAndGet(it) }) { leaving })
+                fun counted() {
+                    awaitIdle()
+                    counts += running.get()
+                }
+                listOf("rex", "bo", "fido").forEach { manager.entity(it).tell("hello") }
+                counted()
+                manager.entity("bo").tell("leave")
+                counted()
+                moving.adjust(5.minutes)
+                manager.entity("fido").tell("hello")
+                moving.adjust(5.minutes)
+                counted()
+                stop(manager).await()
+                counted()
+            }
+        }
+
+        // Three run; bo stops itself; rex passivates while fido, told again, runs on; then fido stops with the manager.
+        counts shouldContainExactly listOf(3, 2, 1, 0)
     }
 }
