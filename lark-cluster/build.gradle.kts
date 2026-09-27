@@ -14,11 +14,16 @@ dependencies {
     // The guide's read model follows the journal on a stream (spec 0084).
     testImplementation(project(":lark-actor-projection"))
     testImplementation(project(":lark-stream-forks"))
+    // The guide's stopping section wires a cluster into an application, and probes it.
+    testImplementation(project(":lark-app-actor"))
 }
 
 // Read at configuration time, so the configuration cache survives it.
 val repoRoot = rootProject.projectDir.absolutePath
-val guide = files(rootProject.layout.projectDirectory.file("docs/cluster.md"))
+val guide = files(
+    rootProject.layout.projectDirectory.file("docs/cluster.md"),
+    rootProject.layout.projectDirectory.file("README.md"),
+)
 
 tasks.test {
     val mainRuntime = configurations.runtimeClasspath

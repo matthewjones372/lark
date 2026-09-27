@@ -27,6 +27,7 @@ dependencies {
 3. [Entities](#entities)
 4. [State that survives](#state-that-survives)
 5. [Commands that must arrive](#commands-that-must-arrive)
+6. [Stopping, watching and telling everyone](#stopping-watching-and-telling-everyone)
 
 ## Two nodes
 
@@ -551,3 +552,130 @@ fun Cluster.payments(): (wallet: String, pence: Long) -> Either<Full, Unit> {
 
 What the producer has not had confirmed lives in its memory: a producer that
 crashes loses it. One that stops properly waits for it first; the next section.
+
+## Stopping, watching and telling everyone
+
+### Stopping
+
+A node whose flock closes leaves its cluster first. Its close hooks run before
+any actor stops, so the node is still whole while it leaves. First a producer
+on it waits for what it keeps to be confirmed: up to `drainWithin` for
+`flock.producer`, and up to the cluster's `leaveWithin` for `reliable`. Then
+the node leaves, waiting up to `leaveWithin` (30 seconds by default) to be
+removed. Its shards move to their next owners while it is `Leaving`. The
+others see it leave and remove it, rather than finding it unreachable and
+downing it `stableAfter` later
+([spec 0080](../specs/0080-a-node-that-stops-without-crashing.md)).
+`cluster.stop(within)` does the same before the flock closes, for a service
+that has something of its own to do after. A `leaveWithin` of zero leaves
+nothing, and the node goes as a crashed one does.
+
+In a `lark-app` application, start the cluster in the actors' flock with
+`Actors.within`, so that releasing the application on SIGTERM leaves the
+cluster before its actors stop. The same node answers `/ready` through a probe
+on `ready()`.
+
+<!-- cluster-operating -->
+```kotlin
+import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.actor.Actors
+import io.github.matthewjones372.lark.app.actor.actors
+import io.github.matthewjones372.lark.app.probe
+import io.github.matthewjones372.lark.app.single
+import io.github.matthewjones372.lark.cluster.Cluster
+import io.github.matthewjones372.lark.cluster.Discovery
+import io.github.matthewjones372.lark.cluster.cluster
+import kotlin.time.Duration.Companion.seconds
+
+/** The cluster as a node of the application: in the actors' flock, left on release, and ready once it is in. */
+val clusterNode: Module = actors() +
+    single { actors: Actors ->
+        actors.within {
+            val node = node("shop-1", 25520, host = "0.0.0.0")
+            cluster(node, Discovery.srv("_lark._tcp.shop.internal"), leaveWithin = 20.seconds)
+        }
+    }.probe("cluster", timeout = 2.seconds) { cluster: Cluster -> cluster.ready() }
+```
+
+Give the platform's grace period room for both deadlines. A pod given 30
+seconds to stop, with a producer that may drain for 20 and a cluster that may
+leave for 20, is killed partway through leaving, and the others then treat it
+as crashed.
+
+### Watching
+
+Every flock records through lark's `metrics`, so a service with
+`lark-micrometer` installed exports these with nothing more to write. Each
+carries a `node` tag naming the node it was recorded on
+([spec 0081](../specs/0081-a-cluster-you-can-see.md)).
+
+| Metric | Kind | What it tells an operator |
+| --- | --- | --- |
+| `lark.actor.dead_letters{reason}` | counter | Messages to actors that had stopped, left unhandled, or for a node that could not be reached |
+| `lark.actor.restarts` | counter | Actors supervision restarted after a failure |
+| `lark.remote.frames{peer, direction}` | counter | Traffic to and from each peer |
+| `lark.remote.dropped{peer}` | counter | Frames for a peer that was down or whose queue was full |
+| `lark.remote.connected{peer}` | gauge | Whether this node's connection to a peer is up |
+| `lark.cluster.members{status}` | gauge | How many members this node sees in each status |
+| `lark.cluster.unreachable` | gauge | Members some member cannot reach: nothing moves on while this is above zero |
+| `lark.cluster.leader` | gauge | Whether this node leads |
+| `lark.cluster.downed` | counter | Members downed: a crash, or a partition decided |
+| `lark.sharding.shards{kind}` | gauge | Shards this node may run now |
+| `lark.sharding.entities{kind}` | gauge | Entities running here |
+| `lark.sharding.buffered{kind}` | gauge | Messages kept for a shard without an owner yet |
+| `lark.delivery.unconfirmed{producer}` | gauge | Commands a producer keeps and no entity has confirmed |
+| `lark.delivery.resent{producer}` | counter | Commands sent again: a move, a crash, or a lost confirmation |
+| `lark.delivery.full{producer}` | counter | Sends that gave up waiting for room |
+| `lark.topic.published{topic}` | counter | Messages published on this node |
+| `lark.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
+| `lark.topic.subscribers{topic}` | gauge | Subscribers on this node |
+
+Nothing counts each tell or times each step: a metric on the hottest path
+would cost what the actors are built to avoid.
+
+### Telling everyone
+
+An event several nodes must hear, such as a price every node caches, is a
+topic ([spec 0082](../specs/0082-a-topic-every-node-hears.md)). A publish on
+any member reaches every subscriber on every member. Delivery is at most once
+to each subscriber, and one member's publishes arrive in the order it made
+them. A subscriber that stops is dropped. Every node calls `topic` with the
+same name and codec.
+
+<!-- cluster-topic -->
+```kotlin
+import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.actor.Topic
+import io.github.matthewjones372.lark.actor.become
+import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.remote.MessageCodec
+import io.github.matthewjones372.lark.actor.remote.WireIn
+import io.github.matthewjones372.lark.actor.remote.WireOut
+import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.cluster.Cluster
+import io.github.matthewjones372.lark.cluster.topic
+
+data class PriceChanged(val sku: String, val pence: Long)
+
+object PriceCodec : MessageCodec<PriceChanged> {
+    override fun write(message: PriceChanged, out: WireOut) {
+        out.string(message.sku)
+        out.long(message.pence)
+    }
+
+    override fun read(input: WireIn): PriceChanged = PriceChanged(input.string(), input.long())
+}
+
+/** Every node's price cache hears every change, wherever it was published. */
+fun Flock<Nothing>.prices(cluster: Cluster): Topic<PriceChanged> {
+    val prices = cluster.topic("prices", PriceCodec)
+    val cache = behaviour<PriceChanged, Map<String, Long>>(emptyMap()) { _, known, change ->
+        become(known + (change.sku to change.pence))
+    }
+    prices.subscribe(spawn("price-cache", cache))
+    return prices
+}
+```
+
+`flock.topic(name)` is the same on one node, with nothing sent to others.
