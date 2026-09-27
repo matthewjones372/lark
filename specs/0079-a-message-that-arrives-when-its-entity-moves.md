@@ -73,10 +73,11 @@ Recommended: one producer per sender, one wrapper per entity.
       persistent entity sees a command sent twice once, confirms both, and
       still drops the duplicate after a restart, from a snapshot or a replay.
       ([#207](https://github.com/matthewjones372/lark/pull/207))
-- [ ] **`spec-0079-send`** — the producer: numbering, keeping, resending,
+- [x] **`spec-0079-send`** — the producer: numbering, keeping, resending,
       pushing back. Done when: in one flock, with the entity stopped and
       started while commands are sent, every command is handled, and `send`
       fails with `Full` when `keep` are unconfirmed.
+      ([#208](https://github.com/matthewjones372/lark/pull/208))
 - [ ] **`spec-0079-sharded`** — `reliable(…)` on `Sharded` and the codec,
       across nodes. Done when: three nodes, with one leaving while payments
       are sent to 200 persistent entities, end with every payment applied
@@ -119,3 +120,16 @@ that persists nothing writes no mark, and after a restart is handled again,
 where it changes nothing the journal holds. `Journal.events` and `follow`
 skip marks, and a follower's offset passes them. Dropping the map from the
 snapshot, or the marks from replay, fails the tests.
+
+Decided while building `spec-0079-send`: a producer has one command in flight
+per entity, and sends the next once the one before is confirmed. Otherwise a
+lost copy lets a later command through first, the entity remembers the later
+number, and drops the resent earlier one as a duplicate: lost after all. The
+first test catches that when every command is sent at once. `send` takes the
+command as a function of its `Delivery`, `send("o-42") { Pay(10, it) }`,
+since the command carries its delivery and a resend builds it again. A
+producer's deliveries carry its id and a random incarnation, so one started
+again under the same id is not taken for the old one's duplicates; each
+incarnation that sends to an entity adds an entry to its `delivered`. The
+producer is an actor, `producer(…)` on a flock or on `testActors`, and `send`
+waits for room on a semaphore, in real time as an ask does.
