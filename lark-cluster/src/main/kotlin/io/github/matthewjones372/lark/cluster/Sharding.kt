@@ -1,14 +1,17 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Behaviour
 import io.github.matthewjones372.lark.actor.Entities
+import io.github.matthewjones372.lark.actor.Producer
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.entities
 import io.github.matthewjones372.lark.actor.entity
 import io.github.matthewjones372.lark.actor.onSignal
+import io.github.matthewjones372.lark.actor.producer
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.WireIn
@@ -17,6 +20,7 @@ import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 internal object Sharding {
     /** Shards per kind unless a kind says otherwise; every node of a cluster must use the same number. */
@@ -94,9 +98,26 @@ private class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : Message
 }
 
 /** The entities of one kind, spread across the cluster's `Up` members by [Placement]. */
-class Sharded<M : Any> internal constructor(val kind: String, private val region: ActorRef<Region<M>>) {
+class Sharded<M : Any> internal constructor(
+    val kind: String,
+    private val region: ActorRef<Region<M>>,
+    private val flock: Flock<*>,
+) {
     /** The entity [id], wherever it runs now: a ref that stays good while it moves between nodes. */
     fun entity(id: String): ActorRef<M> = ShardedRef(region, id)
+
+    /**
+     * A producer on this node that sends to these entities at least once (spec 0079): a command lost to a move or a
+     * passivation is sent again every [resendAfter] until its entity confirms it. The kind's codec writes each
+     * command's `Delivery` with `WireOut.delivery`, and its entities are wrapped in `delivered`; a persistent one
+     * drops the duplicates a resend makes. See `Flock.producer` for [keep] and [within].
+     */
+    fun reliable(
+        producerId: String,
+        resendAfter: Duration = 2.seconds,
+        keep: Int = 1_000,
+        within: Duration = 5.seconds,
+    ): Producer<M> = flock.producer("$kind-$producerId", resendAfter, keep, within, ::entity)
 }
 
 internal class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, private val id: String) : ActorRef<M> {
@@ -131,7 +152,7 @@ fun <M : Any, S, E> Cluster.sharding(
         start = { ctx, shard -> ctx.spawn("shard-$shard", entities(passivateAfter, entity = entity)) },
         deliver = { manager, id, message -> manager.entity(id).tell(message) },
     )
-    return Sharded(kind, region(path, codec, shards, hosting))
+    return Sharded(kind, region(path, codec, shards, hosting), flock)
 }
 
 /** A region at [path] on this node, reachable from the others at the same path. */

@@ -2,6 +2,8 @@ package io.github.matthewjones372.lark.actor.remote
 
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
+import io.github.matthewjones372.lark.actor.Confirmed
+import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.protocolFaults
 import io.kotest.assertions.throwables.shouldThrow
@@ -142,5 +144,24 @@ class CodecTest {
     @Test
     fun `the clinic's messages could all cross`() {
         protocolFaults<Clinic>().shouldBeEmpty()
+    }
+
+    @Test
+    fun `a delivery crosses with its producer's address, and confirming the one that comes back tells it`() {
+        val producer = Address("shop-1@10.0.0.6:25520", "/user/producer-till", 3)
+        val delivery = Delivery("till/1", "o-42", 9, refs.ref(producer, Codecs.confirmed))
+        val carried = object : MessageCodec<Delivery> {
+            override fun write(message: Delivery, out: WireOut) = out.delivery(message)
+
+            override fun read(input: WireIn): Delivery = input.delivery()
+        }
+
+        val crossed = carried.decode(carried.encode(delivery, refs), refs)
+        crossed.confirm()
+
+        crossed.copy(confirmTo = delivery.confirmTo) shouldBe delivery
+        crossed.confirmTo.address shouldBe producer
+        refs.told shouldContainExactly listOf(producer to Confirmed("o-42", 9))
+        Codecs.confirmed.decode(Codecs.confirmed.encode(Confirmed("o-42", 9), refs), refs) shouldBe Confirmed("o-42", 9)
     }
 }

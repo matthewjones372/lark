@@ -2,6 +2,8 @@ package io.github.matthewjones372.lark.actor.remote
 
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
+import io.github.matthewjones372.lark.actor.Confirmed
+import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.Reply
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -132,6 +134,15 @@ object Codecs {
     val bytes: MessageCodec<ByteArray> = codec(WireOut::bytes, WireIn::bytes)
     val unit: MessageCodec<Unit> = codec({ _, _ -> }, { })
 
+    /** A producer's confirmation (spec 0079), which crosses back to it from the entity that handled the command. */
+    val confirmed: MessageCodec<Confirmed> = codec(
+        { out, confirmed ->
+            out.string(confirmed.to)
+            out.long(confirmed.sequence)
+        },
+        { input -> Confirmed(input.string(), input.long()) },
+    )
+
     /** Each element with [element], after how many there are. */
     fun <A : Any> list(element: MessageCodec<A>): MessageCodec<List<A>> = codec(
         { out, list ->
@@ -148,3 +159,17 @@ object Codecs {
             override fun read(input: WireIn): A = read(input)
         }
 }
+
+/**
+ * A reliable command's [Delivery] (spec 0079), for a codec whose commands carry one: its producer, entity and
+ * sequence number, and the producer's address, so the entity's confirmation crosses back to it.
+ */
+fun WireOut.delivery(delivery: Delivery) {
+    string(delivery.producer)
+    string(delivery.to)
+    long(delivery.sequence)
+    ref(delivery.confirmTo, Codecs.confirmed)
+}
+
+/** A [Delivery] written by [WireOut.delivery]. */
+fun WireIn.delivery(): Delivery = Delivery(string(), string(), long(), ref(Codecs.confirmed))
