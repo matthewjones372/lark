@@ -3,7 +3,9 @@ package io.github.matthewjones372.lark.actor.remote
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Confirmed
+import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
+import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Reply
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -173,3 +175,39 @@ fun WireOut.delivery(delivery: Delivery) {
 
 /** A [Delivery] written by [WireOut.delivery]. */
 fun WireIn.delivery(): Delivery = Delivery(string(), string(), long(), ref(Codecs.confirmed))
+
+/**
+ * These messages as a durable producer keeps them (spec 0085): each with its delivery blanked, since the producer
+ * that kept it may be gone by the time it is sent again, and read back with that blank delivery for the producer to
+ * replace through [Delivered.redeliver]. A kept command carries no other ref or reply, and this refuses one that
+ * does: nothing would answer it after a crash.
+ */
+fun <M : Any> MessageCodec<M>.outbox(): EventCodec<M> = object : EventCodec<M> {
+    override fun encode(event: M): ByteArray {
+        @Suppress("UNCHECKED_CAST")
+        val blank = if (event is Delivered) event.redeliver(event.delivery.blank()) as M else event
+        return this@outbox.encode(blank, Unbound)
+    }
+
+    override fun decode(bytes: ByteArray): M = this@outbox.decode(bytes, Unbound)
+}
+
+/** The refs of a kept command: only a blank delivery's, which confirms to nobody. */
+private object Unbound : Refs {
+    override fun <M : Any> address(ref: ActorRef<M>, codec: MessageCodec<M>): Address {
+        require(ref === Delivery.NoOne) { "a command kept by a durable producer carries no ref but its delivery's" }
+        return ref.address
+    }
+
+    override fun <A : Any> address(reply: Reply<A>, answers: MessageCodec<A>): Address =
+        throw IllegalArgumentException("a command kept by a durable producer carries no reply: nothing would answer it")
+
+    override fun <M : Any> ref(address: Address, codec: MessageCodec<M>): ActorRef<M> {
+        require(address == Delivery.NoOne.address) { "a kept command names $address, which is not a blank delivery's" }
+        @Suppress("UNCHECKED_CAST")
+        return Delivery.NoOne as ActorRef<M>
+    }
+
+    override fun <A : Any> reply(address: Address, answers: MessageCodec<A>): Reply<A> =
+        throw IllegalArgumentException("a kept command carries no reply")
+}
