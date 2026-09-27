@@ -669,6 +669,32 @@ commands implement `Delivered.redeliver`, usually as
 `copy(delivery = delivery)`
 ([spec 0085](../specs/0085-a-sender-that-survives-its-crash.md)).
 
+A durable `send` can fail for a second reason: the journal throws, because the
+database is down or a connection was lost. It then answers `Unwritten` with
+what the journal threw, and nothing was kept. The producer restarts itself,
+100 ms after the throw and doubling to 5 s, and until its journal can be read
+again every `send` answers `Unwritten` at once rather than waiting out
+`within`. Neither answer is retried for the caller, so a service tells "slow
+down" from "unavailable" by matching on `NotSent`
+([spec 0098](../specs/0098-a-sender-whose-journal-goes-down.md)):
+
+<!-- cluster-reliable-answers -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
+import io.github.matthewjones372.lark.actor.Unwritten
+
+/** The HTTP status a checkout answers for a payment it sent, or did not. */
+fun status(sent: Either<NotSent, Unit>): Int = when (sent) {
+    is Either.Right -> 202
+    is Either.Left -> when (val why = sent.value) {
+        Full -> 429 // too many unconfirmed: slow down
+        is Unwritten -> 503 // the journal refused it: why.cause says why
+    }
+}
+```
+
 ## Stopping, watching and telling everyone
 
 ### Stopping
