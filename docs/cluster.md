@@ -610,7 +610,7 @@ import arrow.core.Either
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.delivered
 import io.github.matthewjones372.lark.actor.persistent
@@ -653,7 +653,7 @@ fun wallet(id: String) = delivered(
 )
 
 /** Pays into a wallet from this node; the payment arrives however the wallet moves meanwhile. */
-fun Cluster.payments(): (wallet: String, pence: Long) -> Either<Full, Unit> {
+fun Cluster.payments(): (wallet: String, pence: Long) -> Either<NotSent, Unit> {
     val wallets = sharding("wallet", PayCodec, passivateAfter = 5.minutes) { id -> wallet(id) }
     val checkout = wallets.reliable("checkout", resendAfter = 2.seconds, keep = 10_000)
     return { wallet, pence -> checkout.send(wallet) { delivery -> Pay(pence, delivery) } }
@@ -743,6 +743,7 @@ carries a `node` tag naming the node it was recorded on
 | `lark.delivery.unconfirmed{producer}` | gauge | Commands a producer keeps and no entity has confirmed |
 | `lark.delivery.resent{producer}` | counter | Commands sent again: a move, a crash, or a lost confirmation |
 | `lark.delivery.full{producer}` | counter | Sends that gave up waiting for room |
+| `lark.delivery.unwritten{producer}` | counter | Durable sends refused because the journal threw |
 | `lark.topic.published{topic}` | counter | Messages published on this node |
 | `lark.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
 | `lark.topic.subscribers{topic}` | gauge | Subscribers on this node |
