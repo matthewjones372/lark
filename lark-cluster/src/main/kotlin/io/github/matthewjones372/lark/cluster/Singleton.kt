@@ -21,5 +21,5 @@ fun <M : Any, S, E> Cluster.singleton(
         start = { ctx, _ -> ctx.spawn(name, behaviour()) },
         deliver = { actor, _, message -> actor.tell(message) },
     )
-    return ShardedRef(region(Sharding.path(name, prefix = "singleton"), codec, 1, hosting), name)
+    return ShardedRef(region(Sharding.path(name, prefix = "singleton"), codec, 1, hosting, "singleton-$name"), name)
 }

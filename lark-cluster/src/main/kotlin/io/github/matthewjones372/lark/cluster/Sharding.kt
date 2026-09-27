@@ -10,6 +10,7 @@ import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.entities
 import io.github.matthewjones372.lark.actor.entity
+import io.github.matthewjones372.lark.actor.gauge
 import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.producer
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
@@ -18,6 +19,8 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -148,13 +151,20 @@ fun <M : Any, S, E> Cluster.sharding(
 ): Sharded<M> {
     val path = Sharding.path(kind)
     require(shards > 0) { "shards must be positive, was $shards" }
+    // Every shard's manager adds to one count of this kind's entities running here (spec 0081).
+    val running = flock.gauge("lark.sharding.entities", "kind" to kind)
+    val counting = ReentrantLock()
+    var count = 0L
+    val onRunning = { delta: Int -> counting.withLock { running.set((count + delta).also { count = it }.toDouble()) } }
     val hosting = Hosting<M, Entities<M>>(
         eager = false,
         owner = { shard, members -> Placement.owner(kind, shard, members) },
-        start = { ctx, shard -> ctx.spawn("shard-$shard", entities(passivateAfter, entity = entity)) },
+        start = { ctx, shard ->
+            ctx.spawn("shard-$shard", entities(passivateAfter, onRunning = onRunning, entity = entity))
+        },
         deliver = { manager, id, message -> manager.entity(id).tell(message) },
     )
-    return Sharded(kind, region(path, codec, shards, hosting), flock, leaveWithin)
+    return Sharded(kind, region(path, codec, shards, hosting, kind), flock, leaveWithin)
 }
 
 /** A region at [path] on this node, reachable from the others at the same path. */
@@ -163,9 +173,14 @@ internal fun <M : Any, H : Any> Cluster.region(
     codec: MessageCodec<M>,
     shards: Int,
     hosting: Hosting<M, H>,
+    kind: String,
 ): ActorRef<Region<M>> {
     val wire = RegionCodec(codec)
-    val placing = Placing(this, shards, wire, path, hosting)
+    val meters = RegionMeters(
+        shards = flock.gauge("lark.sharding.shards", "kind" to kind),
+        buffered = flock.gauge("lark.sharding.buffered", "kind" to kind),
+    )
+    val placing = Placing(this, shards, wire, path, hosting, meters)
     val region = flock.spawn(
         path.removePrefix("/user/"),
         behaviour<Region<M>, Unit>(Unit) { ctx, _, step -> stay().also { placing.step(ctx, step) } }

@@ -1,9 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Counter
-import io.github.matthewjones372.lark.Gauge
-import io.github.matthewjones372.lark.Histogram
-import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.flock
@@ -11,33 +7,12 @@ import io.github.matthewjones372.lark.metrics
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.atomic.DoubleAdder
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-
-/** One node's metrics, kept by name and tags. */
-private class NodeMetrics : Metrics {
-    private val counters = ConcurrentHashMap<Pair<String, Map<String, String>>, DoubleAdder>()
-    private val gauges = ConcurrentHashMap<Pair<String, Map<String, String>>, Double>()
-
-    override fun counter(name: String, tags: Map<String, String>): Counter {
-        val adder = counters.computeIfAbsent(name to tags) { DoubleAdder() }
-        return Counter { adder.add(it) }
-    }
-
-    override fun gauge(name: String, tags: Map<String, String>): Gauge = Gauge { gauges[name to tags] = it }
-
-    override fun histogram(name: String, tags: Map<String, String>): Histogram = Histogram { }
-
-    fun counter(name: String, vararg tags: Pair<String, String>): Double = counters[name to tags.toMap()]?.sum() ?: 0.0
-
-    fun gauge(name: String, vararg tags: Pair<String, String>): Double? = gauges[name to tags.toMap()]
-}
 
 private val brisk =
     Gossiping(probeEvery = 200.milliseconds, ackWithin = 60.milliseconds, formAfter = 1_000.milliseconds)
