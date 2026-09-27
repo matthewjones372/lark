@@ -122,6 +122,7 @@ private class Steps(
 
             Step.Tick -> {
                 report()
+                rebalance()
                 send(membership.tick(now()))
             }
 
@@ -142,6 +143,11 @@ private class Steps(
     private fun report() = cluster.meters.forEach { meter ->
         meter.due(now())?.let { membership.report(meter.kind, it) }
     }
+
+    private val balancer = Balancer()
+
+    private fun rebalance() = balancer.moves(now(), cluster.meters, cluster.view, node.self, cluster.balance)
+        .forEach { (kind, moves) -> if (moves.isNotEmpty()) membership.move(kind, moves) }
 
     private fun send(sends: List<Send>) = sends.forEach { (to, message) ->
         node.remote(Address(to.toString(), "/user/$CLUSTER", 0), StepCodec).tell(Step.Heard(message))

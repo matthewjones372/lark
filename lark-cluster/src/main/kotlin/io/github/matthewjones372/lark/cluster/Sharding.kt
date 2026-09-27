@@ -158,7 +158,8 @@ internal class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, priv
  * stopped once it has had nothing for [passivateAfter]. Every node that runs the cluster runs this too, with the same
  * [kind], [codec] and [shards]; a message told on any of them reaches the owner through its region. With a [role],
  * only members started with it host shards (spec 0083); the rest route to them, and while none is up, what is told
- * is kept.
+ * is kept. With [rebalance], the leader moves shards off members busier than the rest (spec 0090); without, a shard
+ * stays with its hash owner.
  */
 fun <M : Any, S, E> Cluster.sharding(
     kind: String,
@@ -166,18 +167,7 @@ fun <M : Any, S, E> Cluster.sharding(
     passivateAfter: Duration,
     shards: Int = Sharding.SHARDS,
     role: String? = null,
-    entity: (id: String) -> Behaviour<M, S, E>,
-): Sharded<M> = sharding(kind, codec, passivateAfter, shards, role, rebalance = null, entity)
-
-/** [sharding], with each shard's load counted and reported in the gossip if the kind [rebalance]s (spec 0090). */
-@Suppress("LongParameterList")
-internal fun <M : Any, S, E> Cluster.sharding(
-    kind: String,
-    codec: MessageCodec<M>,
-    passivateAfter: Duration,
-    shards: Int = Sharding.SHARDS,
-    role: String? = null,
-    rebalance: Rebalance?,
+    rebalance: Rebalance? = null,
     entity: (id: String) -> Behaviour<M, S, E>,
 ): Sharded<M> {
     val path = Sharding.path(kind)
@@ -187,7 +177,7 @@ internal fun <M : Any, S, E> Cluster.sharding(
     val counting = ReentrantLock()
     var count = 0L
     val onRunning = { delta: Int -> counting.withLock { running.set((count + delta).also { count = it }.toDouble()) } }
-    val meter = rebalance?.let { LoadMeter(kind, it, shards).also(meters::add) }
+    val meter = rebalance?.let { LoadMeter(kind, it, shards, role).also(meters::add) }
     val hosting = Hosting<M, Entities<M>>(
         eager = false,
         owner = { shard, members, moved -> Placement.owner(kind, shard, members.holding(role), moved[shard]) },

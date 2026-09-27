@@ -15,7 +15,7 @@ class OverrideTest {
     fun `an override set on the leader moves exactly its shard through the handoff, and goes when its member does`() {
         val ports = List(3) { loadPort() }
         val seeds = seedsAt(ports)
-        val rarely = Rebalance(every = 1.minutes, tolerance = 0.2, mostMoves = 4)
+        val rarely = Rebalance.byLoad(every = 1.minutes)
         val nodes = ports.indices.map { LoadNode("v${it + 1}", ports[it], seeds, rarely, 1.minutes) }.toMutableList()
         try {
             nodes.forEach { n ->

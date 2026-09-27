@@ -110,7 +110,8 @@ class LoadTest {
     fun `every member sees each member's running entities of a kind that rebalances, as they start and passivate`() {
         val ports = List(3) { loadPort() }
         val seeds = seedsAt(ports)
-        val every = Rebalance(every = 200.milliseconds, tolerance = 0.2, mostMoves = 4)
+        // So wide a tolerance that nothing moves: this is about the load, not what the leader does with it.
+        val every = Rebalance.byLoad(every = 200.milliseconds, tolerance = 100.0)
         val nodes = ports.indices.map { LoadNode("l${it + 1}", ports[it], seeds, every, passivateAfter = 6.seconds) }
         try {
             nodes.forEach { n ->
