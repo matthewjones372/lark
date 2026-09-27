@@ -90,3 +90,9 @@ shows the frames matter.
 - **What a topic's messages need.** A codec for the kind, as sharding takes.
   Recommended: yes, the same `MessageCodec`, so Protobuf and Avro work
   unchanged.
+
+Decided (2026-09-27): every open question goes as recommended. A publish is
+broadcast to every `Up` member rather than to a registry of subscribers; a
+publisher that subscribes hears its own publish; `flock.topic(name)` is the
+one-node topic that `cluster.topic` builds on; and a topic's messages cross in
+the kind's own `MessageCodec`.
