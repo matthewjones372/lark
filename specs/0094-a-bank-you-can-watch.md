@@ -123,7 +123,7 @@ Recommended: SSE, fed by topics.
       and `/admin/stream`. Done when: a client of node 1's stream reads
       `stats` from all three nodes, then a `member` event naming n3 once n3 is
       crashed.
-- [ ] **`spec-0094-admin`** — the admin page, the load button and "crash n3",
+- [x] **`spec-0094-admin`** — the admin page, the load button and "crash n3",
       and a README row. Done when: a headless Chromium test starts the load,
       sees the transfers-a-second tile rise above zero, crashes n3, and sees
       its row turn unreachable.
@@ -212,3 +212,11 @@ Decided while building `spec-0094-stats`:
 - **A transfer heard twice.** A transfer whose end is repeated after a crash is published again, so the feed may show it twice.
 - **What the test catches.** A stats topic that stays on its node fails it: node 1 hears only itself. So does a node that never publishes member changes.
 - **Past the soft cap.** About 330 lines, a third of them the two topic codecs and the stats' JSON.
+
+Decided while building `spec-0094-admin`:
+- **The load.** An actor on the page's node sends one random transfer every 20 ms, about 50 a second, between 50 accounts that it opens the first time it starts. It is paced by a timer, so no account gets a burst (0095).
+- **Crashing.** `POST /api/crash {node}` closes that node and its server in this JVM, as a crash does, on a thread of their own. A node in another process answers 404.
+- **What the page shows.** The tiles sum the latest stats of every node heard from in the last 3 s, and the p99 tile is the highest. A row's status comes from member events, and a node heard from is `Up` until one arrives. The sparkline keeps 300 seconds.
+- **A downed member is not reachable.** When a crashed member is downed, the library says it is `Reachable` just before it says it is `Downed`, because a downed member leaves the unreachable set. The bank does not pass that `Reachable` on, so the page never shows the dead node as up.
+- **What the test catches.** A load that never ticks fails it, since the tile stays at 0. So does a page that ignores member events, since n3's row never turns unreachable.
+- **Past the soft cap.** About 430 lines, most of them the page's HTML, CSS and script.
