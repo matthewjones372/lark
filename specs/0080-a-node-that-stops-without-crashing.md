@@ -82,9 +82,10 @@ service that wants to do it earlier.
       that sends payments to 200 accounts and closes straight away has every
       one applied once, wherever its account runs.
       ([#213](https://github.com/matthewjones372/lark/pull/213))
-- [ ] **`spec-0080-app`** — `lark-app-actor` closes through the hooks. Done
+- [x] **`spec-0080-app`** — `lark-app-actor` closes through the hooks. Done
       when: an application released while its node is in a cluster leaves it
       before its flock is gone.
+      ([#214](https://github.com/matthewjones372/lark/pull/214))
 
 ## Acceptance
 
@@ -142,3 +143,14 @@ never are. `Flock.producer` takes `drainWithin`, 30 seconds by default, zero
 for none; `Sharded.reliable` passes its cluster's `leaveWithin`. The two
 deadlines run one after the other, drain then leave, since a producer's hook
 is registered after its cluster's.
+
+Decided while building `spec-0080-app`: `Actors` closed its flock already, so
+hooks ran on release; what was missing was any way to start a node in that
+flock. `Actors.within { … }` runs a block on the flock's own thread, which now
+takes tasks until release instead of only waiting, since a flock's forks are
+its own thread's to start. The test found a bug in 0069's leaving: the leader
+removes a leaving member and then never gossips to it again, so a node that
+left learned it was out only once it was alone and downed itself, 20 seconds
+later. The leader now sends a member it removes the gossip that removes it,
+and an application's release takes under three seconds rather than
+twenty-two.

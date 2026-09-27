@@ -48,7 +48,7 @@ internal class Membership(
 
     fun tick(now: Duration): List<Send> = when (status) {
         null -> joinOrForm(now)
-        Status.Joining, Status.Up, Status.Leaving -> probing(now).also { lead(now) } + decide(now)
+        Status.Joining, Status.Up, Status.Leaving -> probing(now) + lead(now) + decide(now)
         Status.Down, Status.Removed -> emptyList()
     }
 
@@ -189,18 +189,24 @@ internal class Membership(
         return gossip.unreachable().isEmpty() && gossip.live().all { gossip.digests[it]?.hash == mine }
     }
 
-    private fun lead(now: Duration) {
+    /**
+     * Moves members on, if this node leads and every member agrees. A member it removes after leaving is sent the
+     * gossip that removes it, since nobody probes a removed member, and it would otherwise never learn it is out.
+     */
+    private fun lead(now: Duration): List<Send> {
         gossip.members.filterValues { it.status == Status.Down }.keys.forEach { downedAt.putIfAbsent(it, now) }
-        if (leader() != self || !converged()) return
+        if (leader() != self || !converged()) return emptyList()
         var upNumber = gossip.members.values.maxOf { it.upNumber }
+        val left = mutableListOf<Incarnation>()
         gossip.members.entries.sortedBy { it.key.node.toString() }.forEach { (m, e) ->
             when (e.status) {
                 Status.Joining -> change(m, Status.Up, ++upNumber)
-                Status.Leaving -> change(m, Status.Removed)
+                Status.Leaving -> change(m, Status.Removed).also { left += m }
                 Status.Down -> if (now - downedAt.getValue(m) >= downing.stableAfter) change(m, Status.Removed)
                 Status.Up, Status.Removed -> Unit
             }
         }
+        return left.map { Send(it.node, Swim.Ping(self, it, ++seq, gossip)) }
     }
 
     /**

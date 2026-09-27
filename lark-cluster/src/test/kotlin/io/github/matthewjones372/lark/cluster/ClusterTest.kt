@@ -146,8 +146,11 @@ class ClusterTest {
                 node.cluster.onView { view -> seen += view.members.filter { it.node.name == "n3" }.map { it.status } }
             }
 
+            val closing = TimeSource.Monotonic.markNow()
             nodes.last().close()
 
+            // It learns it is out as soon as it is, and does not wait out its deadline.
+            closing.elapsedNow() shouldBeLessThan 10.seconds
             // Removed well inside the 20 seconds a crashed node waits before it is even downed.
             nodes.take(2).forEach { node ->
                 node.cluster.await(10.seconds) { view -> view.members.none { it.node.name == "n3" } } shouldBe true
