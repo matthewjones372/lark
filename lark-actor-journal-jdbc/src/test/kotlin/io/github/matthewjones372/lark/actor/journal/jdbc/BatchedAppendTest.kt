@@ -24,7 +24,7 @@ private val cents = object : EventCodec<Int> {
     override fun decode(bytes: ByteArray): Int = String(bytes).toInt()
 }
 
-/** Spec 0085 on Postgres: commands waiting at once become one statement's worth of rows each batch. */
+/** Spec 0086 on Postgres: commands waiting at once become one statement's worth of rows each batch. */
 class BatchedAppendTest {
 
     private class Counted(private val kept: Journal) : Journal by kept {

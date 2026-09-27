@@ -7,7 +7,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration
 
-/** Spec 0085: a behaviour with `steps` is handed the plain messages already waiting, a run at a time. */
+/** Spec 0086: a behaviour with `steps` is handed the plain messages already waiting, a run at a time. */
 class StepsTest {
 
     /** Every run it is handed, and every message handed it alone, in the order they came. */
