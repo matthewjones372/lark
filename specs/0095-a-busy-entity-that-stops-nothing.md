@@ -69,9 +69,10 @@ letter.
       order and no region stopped. The 0092 sharding benchmark's burst goes
       back to 2,000.
       ([#269](https://github.com/matthewjones372/lark/pull/269))
-- [ ] **`spec-0095-topic`** — a topic's actor keeps per subscriber. Done when:
+- [x] **`spec-0095-topic`** — a topic's actor keeps per subscriber. Done when:
       one stalled subscriber does not stop the topic, the others hear
       everything, and the stalled one's overflow is counted as `full`.
+      ([#270](https://github.com/matthewjones372/lark/pull/270))
 
 ## Acceptance
 
@@ -126,3 +127,12 @@ Decided while building `spec-0095-region`:
   singleton, which the region tells directly. It fails without this change.
 - **The benchmark.** The 0092 sharding benchmark's burst goes back to 2,000 on
   its own branch, once this and #259 have both merged.
+
+Decided while building `spec-0095-topic`:
+- **Keyed by subscriber.** A topic keeps per subscriber, so one slow
+  subscriber delays only itself. Unsubscribing drops what was kept for it.
+- **`awaitIdle` and a stalled subscriber.** `awaitIdle` does not return while
+  a subscriber is stalled, since messages are kept for it and it is busy. The
+  test waits on the other subscribers' own queues instead.
+- **The steps.** They moved into a small `TopicSteps` class, which keeps
+  detekt's complexity limit.
