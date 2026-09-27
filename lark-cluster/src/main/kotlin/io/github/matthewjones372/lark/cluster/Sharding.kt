@@ -65,7 +65,7 @@ internal sealed interface Region<M : Any> {
 
     data class Released<M : Any>(val shard: Int, val by: Node) : Region<M>
 
-    data class Viewed<M : Any>(val view: View) : Region<M>
+    data class Viewed<M : Any>(val view: View, val moved: Map<Int, Incarnation> = emptyMap()) : Region<M>
 
     /** A region's own timer, to route again what ran out of hops. */
     class Retry<M : Any> : Region<M>
@@ -171,7 +171,8 @@ internal class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, priv
  * stopped once it has had nothing for [passivateAfter]. Every node that runs the cluster runs this too, with the same
  * [kind], [codec] and [shards]; a message told on any of them reaches the owner through its region. With a [role],
  * only members started with it host shards (spec 0083); the rest route to them, and while none is up, what is told
- * is kept.
+ * is kept. With [rebalance], the leader moves shards off members busier than the rest (spec 0090); without, a shard
+ * stays with its hash owner.
  */
 fun <M : Any, S, E> Cluster.sharding(
     kind: String,
@@ -179,6 +180,7 @@ fun <M : Any, S, E> Cluster.sharding(
     passivateAfter: Duration,
     shards: Int = Sharding.SHARDS,
     role: String? = null,
+    rebalance: Rebalance? = null,
     entity: (id: String) -> Behaviour<M, S, E>,
 ): Sharded<M> {
     val path = Sharding.path(kind)
@@ -188,13 +190,19 @@ fun <M : Any, S, E> Cluster.sharding(
     val counting = ReentrantLock()
     var count = 0L
     val onRunning = { delta: Int -> counting.withLock { running.set((count + delta).also { count = it }.toDouble()) } }
+    val meter = rebalance?.let { LoadMeter(kind, it, shards, role).also(meters::add) }
     val hosting = Hosting<M, Entities<M>>(
         eager = false,
-        owner = { shard, members -> Placement.owner(kind, shard, members.holding(role)) },
+        owner = { shard, members, moved -> Placement.owner(kind, shard, members.holding(role), moved[shard]) },
         start = { ctx, shard ->
-            ctx.spawn("shard-$shard", entities(passivateAfter, onRunning = onRunning, entity = entity))
+            val counted = { delta: Int -> onRunning(delta).also { meter?.running(shard, delta) } }
+            ctx.spawn("shard-$shard", entities(passivateAfter, onRunning = counted, entity = entity))
         },
-        target = { manager, id -> manager.entity(id) },
+        // Counted once each message is handed to its entity here, which is the load a rebalance weighs (spec 0090).
+        target = { manager, id ->
+            meter?.handled(Placement.shardOf(id, shards))
+            manager.entity(id)
+        },
     )
     return Sharded(kind, region(path, codec, shards, hosting, kind), flock, leaveWithin, codec)
 }
@@ -225,7 +233,7 @@ internal fun <M : Any, H : Any> Cluster.region(
             },
     )
     remote.expose(region, wire)
-    onView { region.tell(Region.Viewed(it)) }
+    onView { region.tell(Region.Viewed(it, balance.moved[kind].orEmpty())) }
     return region
 }
 
