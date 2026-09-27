@@ -40,6 +40,9 @@ internal object Sharding {
     /** How long a message that ran out of hops waits before it is routed again. */
     val RETRY_AFTER = 100.milliseconds
 
+    /** How often a region asks again for a shard it won that a member has not released: that ask may have been lost. */
+    val ASK_AGAIN_EVERY = 1.seconds
+
     private val kinds = Regex("[A-Za-z0-9._-]+")
 
     fun path(kind: String, prefix: String = "sharding"): String {
@@ -63,6 +66,9 @@ internal sealed interface Region<M : Any> {
 
     /** A region's own timer, to route again what ran out of hops. */
     class Retry<M : Any> : Region<M>
+
+    /** A region's own timer, to ask again for the shards it won that a member has not yet released. */
+    class AskAgain<M : Any> : Region<M>
 }
 
 private const val ENVELOPE = 1
@@ -91,7 +97,7 @@ private class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : Message
             out.string(message.by.toString())
         }
 
-        is Region.Viewed, is Region.Retry -> error("$message never leaves its node")
+        is Region.Viewed, is Region.Retry, is Region.AskAgain -> error("$message never leaves its node")
     }
 
     override fun read(input: WireIn): Region<M> = when (val tag = input.int()) {
