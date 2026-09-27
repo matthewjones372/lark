@@ -64,3 +64,28 @@ internal fun upgraded(bytes: ByteArray, current: Int, upgrade: (Int) -> Upgrade)
     if (version < 1) throw UnreadableEvent("version $version, which no codec writes")
     return (version until current).fold(listOf(body)) { at, from -> at.flatMap { upgrade(from).upgrade(it) } }
 }
+
+/** One version's state as the next version's: the bytes of a state written as version n, as those of version n+1. */
+fun interface StateUpgrade {
+    fun upgrade(bytes: ByteArray): ByteArray
+}
+
+/**
+ * [codec] for a persistent actor's snapshots, versioned as [versioned] versions events: each state written as version
+ * [current], and an older one read through [upgrades] from each version on the way. A snapshot written with no
+ * version is version 1, and a chain with a gap is refused here (spec 0091).
+ */
+fun <S> versionedState(
+    current: Int,
+    codec: StateCodec<S>,
+    upgrades: Map<Int, StateUpgrade> = emptyMap(),
+): StateCodec<S> {
+    chained(current, upgrades.keys)
+    // Each state upgrade as an event one that answers exactly one, so the chain is walked the same way.
+    val steps = upgrades.mapValues { (_, state) -> Upgrade { bytes -> listOf(state.upgrade(bytes)) } }
+    return object : StateCodec<S> {
+        override fun encode(state: S): ByteArray = versionedBytes(current, codec.encode(state))
+
+        override fun decode(bytes: ByteArray): S = codec.decode(upgraded(bytes, current, steps::getValue).single())
+    }
+}
