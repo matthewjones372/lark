@@ -8,6 +8,8 @@ import io.github.matthewjones372.lark.actor.Next
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.become
 import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.counter
+import io.github.matthewjones372.lark.actor.gauge
 import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.onStart
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
@@ -55,7 +57,8 @@ private typealias Subscribers = Set<ActorRef<MemberEvent>>
 /**
  * [node] as a member of a cluster whose seeds [discovery] finds, until the flock closes, when it leaves first:
  * waiting up to [leaveWithin] to be out, before the flock stops its actors (spec 0080). A [leaveWithin] of zero
- * leaves nothing: the node goes as a crashed one does, and the others down it. The membership runs in an
+ * leaves nothing: the node goes as a crashed one does, and the others down it. [roles] say what this node was
+ * started to do, and every member sees them in its view (spec 0083). The membership runs in an
  * actor of its own, which the nodes of the cluster reach at the same path on each, and from now on it decides when
  * a watch on another node's actor ends. A partition is resolved by [downing]; a node downed stops that actor, and its
  * subscribers hear it downed and every other member removed: whether the process ends is theirs to decide.
@@ -66,11 +69,13 @@ fun <F> Flock<F>.cluster(
     gossiping: Gossiping = Gossiping(),
     downing: Downing = Downing.keepMajority(),
     leaveWithin: Duration = 30.seconds,
+    roles: Set<String> = emptySet(),
 ): Cluster {
+    require(roles.none(String::isBlank)) { "a role needs a name, was $roles" }
     val time = clock.get()
     val now = { time.now().let { it.epochSecond.seconds + it.nano.nanoseconds } }
     val membership = Membership(
-        Incarnation(node.self, Random.nextLong()),
+        Incarnation(node.self, Random.nextLong(), roles),
         discovery::seeds,
         gossiping,
         downing,
@@ -131,6 +136,21 @@ private class Steps(
         node.remote(Address(to.toString(), "/user/$CLUSTER", 0), StepCodec).tell(Step.Heard(message))
     }
 
+    // Held once, and set on each step that publishes, by the one actor that owns the view (spec 0081).
+    private val members =
+        Status.entries.associateWith { status -> cluster.flock.gauge("lark.cluster.members", "status" to status.name) }
+    private val unreachable = cluster.flock.gauge("lark.cluster.unreachable")
+    private val leader = cluster.flock.gauge("lark.cluster.leader")
+    private val downed = cluster.flock.counter("lark.cluster.downed")
+
+    private fun measure(view: View, events: List<MemberEvent>) {
+        val counts = view.members.groupingBy { it.status }.eachCount()
+        members.forEach { (status, gauge) -> gauge.set((counts[status] ?: 0).toDouble()) }
+        unreachable.set(view.unreachable.size.toDouble())
+        leader.set(if (view.leader == node.self) 1.0 else 0.0)
+        downed.increment(events.count { it is MemberEvent.Downed }.toDouble())
+    }
+
     private fun publish(subscribers: Subscribers) {
         val next = membership.view()
         // A downed node is out of the cluster: every other member is gone as far as it is concerned.
@@ -138,6 +158,7 @@ private class Steps(
         val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
         events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
         subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
+        measure(next, events)
         cluster.publish(next)
     }
 }
@@ -161,6 +182,18 @@ class Cluster internal constructor(
 
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)
+
+    /**
+     * Whether this node is fully in its cluster, for a readiness probe (spec 0081): `Up`, with a leader, and every
+     * member it sees reachable. While one is unreachable the cluster moves no one on, so the shards it owned answer
+     * nothing; a node that is `Joining`, `Leaving`, downed or waiting for a partition to be decided is not ready.
+     */
+    fun ready(): Boolean {
+        val now = view
+        return now.members.any { it.node == self && it.status == Status.Up } &&
+            now.leader != null &&
+            now.unreachable.isEmpty()
+    }
 
     /**
      * Leaves, and waits up to [within] until this node is out of the cluster (spec 0080): removed by the others, or

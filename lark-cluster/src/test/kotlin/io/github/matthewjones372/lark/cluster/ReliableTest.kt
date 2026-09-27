@@ -18,6 +18,8 @@ import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.delivery
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.metrics
+import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import org.h2.jdbcx.JdbcDataSource
 import org.junit.jupiter.api.Test
@@ -80,7 +82,12 @@ private class Bank(val name: String, port: Int, seeds: Discovery, journal: Journ
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Pair<Cluster, Sharded<PayInto>>>()
+    val measured = NodeMetrics()
     private val thread = Thread.ofPlatform().start {
+        metrics.locally(measured) { open(port, seeds, journal, leaveWithin) }
+    }
+
+    private fun open(port: Int, seeds: Discovery, journal: Journal, leaveWithin: Duration) {
         flock<Nothing, Unit> {
             journal(journal)
             val cluster =
@@ -149,6 +156,18 @@ class ReliableTest {
 
             payments.drain(40.seconds) shouldBe true
             accounts.forEach { id -> journal.events(accountOf(id), paidPence) shouldBe (1..5).toList() }
+
+            // What the survivors gauge (spec 0081): every shard and every account between them, nothing kept for a
+            // shard without an owner, nothing unconfirmed, and the crash made the producer send again.
+            val survivors = listOf(sender, stays)
+            fun sum(name: String) =
+                survivors.sumOf { it.measured.gauge(name, "node" to it.name, "kind" to "account") ?: 0.0 }
+            sum("lark.sharding.shards") shouldBe 256.0
+            sum("lark.sharding.entities") shouldBe 200.0
+            sum("lark.sharding.buffered") shouldBe 0.0
+            val producer = arrayOf("node" to sender.name, "producer" to "account-checkout")
+            sender.measured.gauge("lark.delivery.unconfirmed", *producer) shouldBe 0.0
+            sender.measured.counter("lark.delivery.resent", *producer) shouldBeGreaterThan 0.0
         } finally {
             banks.forEach(Bank::close)
         }

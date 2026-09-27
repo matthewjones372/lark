@@ -83,22 +83,26 @@ richer.
 
 ## Stack
 
-- [ ] **`spec-0081-actors`** — dead letters by reason and restarts, per flock,
+- [x] **`spec-0081-actors`** — dead letters by reason and restarts, per flock,
       in `lark-actor`. Done when: on `capturingMetrics`, a tell to a stopped
       actor and a restart are each counted once, and a tell's allocation in
       the ping-pong benchmark is unchanged.
-- [ ] **`spec-0081-remote`** — frames, dropped frames and connection state per
+      ([#216](https://github.com/matthewjones372/lark/pull/216))
+- [x] **`spec-0081-remote`** — frames, dropped frames and connection state per
       peer, in `lark-actor-remote`. Done when: two nodes exchanging ten
       frames count ten each way, and a peer that goes away reads 0 and counts
       what was dropped for it.
-- [ ] **`spec-0081-cluster`** — membership gauges, the downed counter, and
+      ([#217](https://github.com/matthewjones372/lark/pull/217))
+- [x] **`spec-0081-cluster`** — membership gauges, the downed counter, and
       `Cluster.ready()`. Done when: three nodes read three `Up` with one
       leader among them, and after one crashes the others read one
       unreachable and `ready()` false until it is downed.
-- [ ] **`spec-0081-sharding`** — shards, entities and buffered envelopes per
+      ([#218](https://github.com/matthewjones372/lark/pull/218))
+- [x] **`spec-0081-sharding`** — shards, entities and buffered envelopes per
       kind, and the producer's unconfirmed, resent and full. Done when: 0079's
       test ends with the survivors' shards summing to 256 and every producer
       gauge at zero, and the crash counted resends.
+      ([#219](https://github.com/matthewjones372/lark/pull/219))
 
 ## Acceptance
 
@@ -125,3 +129,37 @@ Decided (2026-09-27): every open question goes as recommended. Metrics are
 recorded through `metrics` by the actor that owns each number; a `node` tag is
 bound once per flock from its remote node's name; `ready()` requires every
 member it sees to be reachable; and mailbox depth waits.
+
+Decided while building `spec-0081-actors`: a flock's guardian takes the
+`metrics` and tags bound where it first stands, since an actor's step runs on
+a runner that inherits neither, and holds each instrument by name and tags.
+`Flock.counter`, `Flock.gauge` and `Flock.tagMetrics` are public, so the
+remote, cluster and delivery modules record through their flock the same
+way, and a node names itself once with `tagMetrics`. Dead letters are counted
+where every one already passes, the guardian's handler; nothing on the tell
+path changed, so the ping-pong benchmark was not rerun.
+
+Decided while building `spec-0081-remote`: a `RemoteNode` holds each peer's
+instruments once, so counting a frame is a map hit; a frame is counted out
+when it is handed to the transport, and in when the transport reads it, so one
+that is then dropped is counted both as sent and as dropped. The peer tag is
+the peer's full `name@host:port`, since a seed is known by its address before
+its name. `node(…)` tags its flock with the node's name. `CapturedMetrics`
+keeps a counter by name alone, so the test measures through a `Metrics` of its
+own, keyed by name and tags, and waits on the connection gauge rather than
+polling it.
+
+Decided while building `spec-0081-cluster`: the cluster actor sets the gauges
+on each step that publishes a view, from the view it publishes, and counts
+each `Downed` event it tells its subscribers, so each surviving node counts a
+downing once. `members` has one gauge per status, set to zero where there are
+none, so a status that empties reads zero rather than its last count. The
+test crashes a node and finds `ready()` false while it is unreachable, then
+true again once it is downed and removed; `ready()` without the reachability
+check fails it.
+
+Decided while building `spec-0081-sharding`:
+- **Entities.** `entities(…)` takes `onRunning`, told +1 as an entity starts, -1 as it ends, and minus what is left as its manager stops. A kind's shards add to one count under a lock, so the gauge is never set from a stale sum.
+- **Regions.** A region sets its shards and buffered gauges after each step. A singleton's region measures under the kind `singleton-<name>`.
+- **Producers.** A producer's unconfirmed gauge is the room its `send`s have taken, so it costs nothing to keep. It is set as commands are kept and confirmed, and `Full` is counted where `send` gives up. On `testActors` the instruments do nothing.
+- **The test.** 0079's crash test now also finds 256 shards and 200 running accounts between the survivors, nothing buffered, nothing unconfirmed, and resends counted. Dropping the +1 or the resend count fails it.

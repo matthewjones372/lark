@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Ctx
@@ -19,6 +20,9 @@ internal class Hosting<M : Any, H : Any>(
     val deliver: (host: ActorRef<H>, id: String, message: M) -> Unit,
 )
 
+/** What a region gauges (spec 0081): the shards it may run now, and what it keeps for a shard with no owner yet. */
+internal class RegionMeters(val shards: Gauge, val buffered: Gauge)
+
 /** The key of a region's retry timer: one at a time, however many messages ran out of hops. */
 private object RetryKey
 
@@ -37,6 +41,7 @@ internal class Placing<M : Any, H : Any>(
     private val wire: MessageCodec<Region<M>>,
     private val path: String,
     private val hosting: Hosting<M, H>,
+    private val meters: RegionMeters,
 ) {
     private val self = cluster.self
     private var view = View.None
@@ -52,7 +57,17 @@ internal class Placing<M : Any, H : Any>(
 
     private val kept = ArrayDeque<Region.Envelope<M>>()
 
-    fun step(ctx: Ctx<Region<M>>, step: Region<M>) = when (step) {
+    fun step(ctx: Ctx<Region<M>>, step: Region<M>) {
+        handle(ctx, step)
+        measure()
+    }
+
+    private fun measure() {
+        meters.shards.set(ready.size.toDouble())
+        meters.buffered.set(kept.size.toDouble())
+    }
+
+    private fun handle(ctx: Ctx<Region<M>>, step: Region<M>) = when (step) {
         is Region.Envelope -> route(ctx, step)
 
         is Region.Viewed -> viewed(ctx, step.view)
@@ -75,6 +90,7 @@ internal class Placing<M : Any, H : Any>(
         awaiting[shard]?.remove(self)
         startIfFree(ctx, shard)
         settle()
+        measure()
     }
 
     private fun owner(shard: Int) = hosting.owner(shard, view.members)

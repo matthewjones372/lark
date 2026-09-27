@@ -4,7 +4,8 @@ import io.github.matthewjones372.lark.actor.remote.Node
 import java.util.zip.CRC32
 
 /** One life of a node: a node that restarts is a new incarnation at the same address. */
-internal data class Incarnation(val node: Node, val uid: Long)
+/** One life of a node: its address, a number no other life of it has, and the roles it was started with. */
+internal data class Incarnation(val node: Node, val uid: Long, val roles: Set<String> = emptySet())
 
 internal data class Entry(val status: Status, val upNumber: Int)
 

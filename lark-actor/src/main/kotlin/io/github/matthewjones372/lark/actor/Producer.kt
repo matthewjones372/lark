@@ -3,7 +3,10 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.Gauge
+import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logWarn
 import java.util.UUID
 import java.util.concurrent.Semaphore
@@ -25,13 +28,17 @@ class Producer<M : Any> internal constructor(
     private val room: Semaphore,
     private val keep: Int,
     private val within: Duration,
+    private val full: Counter,
 ) {
     /**
      * Keeps the command [command] builds for entity [to] and returns, or waits up to `within` while the producer
      * keeps as many as it may, and then answers [Full]. [command] may be called again for each resend.
      */
     fun send(to: String, command: (Delivery) -> M): Either<Full, Unit> {
-        if (!room.tryAcquire(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return Full.left()
+        if (!room.tryAcquire(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) {
+            full.increment()
+            return Full.left()
+        }
         actor.tell(KeepCommand(to, command))
         return Unit.right()
     }
@@ -64,8 +71,13 @@ fun <F, M : Any> Flock<F>.producer(
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    val producer =
-        Producer<M>(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, keep, within)
+    val meters = ProducerMeters(
+        unconfirmed = gauge("lark.delivery.unconfirmed", "producer" to id),
+        resent = counter("lark.delivery.resent", "producer" to id),
+        full = counter("lark.delivery.full", "producer" to id),
+    )
+    val actor = spawn("producer-$id", producing(incarnation(id), resendAfter, room, keep, meters, route))
+    val producer = Producer<M>(actor, room, keep, within, meters.full)
     if (drainWithin.isPositive()) {
         onClose {
             val drained = producer.drain(drainWithin)
@@ -84,7 +96,9 @@ fun <M : Any> TestActors.producer(
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    return Producer(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, keep, within)
+    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
+    val actor = spawn("producer-$id", producing(incarnation(id), resendAfter, room, keep, meters, route))
+    return Producer(actor, room, keep, within, meters.full)
 }
 
 private fun room(keep: Int): Semaphore {
@@ -108,24 +122,34 @@ private data class Outbox<M : Any>(val next: Long, val kept: List<Unconfirmed<M>
 
 private data class Unconfirmed<M : Any>(val sequence: Long, val command: (Delivery) -> M)
 
+/** A producer's instruments (spec 0081): what it keeps unconfirmed, what it sent again, and each `Full`. */
+private class ProducerMeters(val unconfirmed: Gauge, val resent: Counter, val full: Counter)
+
 /** The producer's actor: numbers and keeps commands, sends each entity its first, and frees room as they confirm. */
+@Suppress("LongParameterList")
 private fun <M : Any> producing(
     producer: String,
     resendAfter: Duration,
     room: Semaphore,
+    keep: Int,
+    meters: ProducerMeters,
     route: (String) -> ActorRef<M>,
 ): Behaviour<Any, Map<String, Outbox<M>>, Nothing> {
     fun Ctx<Any>.send(to: String, kept: Unconfirmed<M>) =
         route(to).tell(kept.command(Delivery(producer, to, kept.sequence, self)))
+
+    // Room taken is what `send` has kept and no entity has confirmed yet.
+    fun measure() = meters.unconfirmed.set((keep - room.availablePermits()).toDouble())
     return behaviour<Any, Map<String, Outbox<M>>>(emptyMap()) { ctx, queues, message ->
         when (message) {
             is KeepCommand<*> -> {
                 @Suppress("UNCHECKED_CAST")
-                val keep = message as KeepCommand<M>
-                val queue = queues[keep.to] ?: Outbox(1, emptyList())
-                val kept = Unconfirmed(queue.next, keep.command)
-                if (queue.kept.isEmpty()) ctx.send(keep.to, kept)
-                become(queues + (keep.to to Outbox(queue.next + 1, queue.kept + kept)))
+                val asked = message as KeepCommand<M>
+                val queue = queues[asked.to] ?: Outbox(1, emptyList())
+                val kept = Unconfirmed(queue.next, asked.command)
+                if (queue.kept.isEmpty()) ctx.send(asked.to, kept)
+                measure()
+                become(queues + (asked.to to Outbox(queue.next + 1, queue.kept + kept)))
             }
 
             is Confirmed -> {
@@ -134,6 +158,7 @@ private fun <M : Any> producing(
                     stay()
                 } else {
                     room.release()
+                    measure()
                     val rest = queue.kept.drop(1)
                     rest.firstOrNull()?.let { ctx.send(message.to, it) }
                     become(queues + (message.to to queue.copy(kept = rest)))
@@ -141,11 +166,23 @@ private fun <M : Any> producing(
             }
 
             ResendUnconfirmed -> {
-                queues.forEach { (to, queue) -> queue.kept.firstOrNull()?.let { ctx.send(to, it) } }
+                resendFirsts(queues, meters) { to, kept -> ctx.send(to, kept) }
                 stay()
             }
 
             else -> unhandled()
         }
     }.onStart { ctx -> ctx.timers.every(ResendUnconfirmed, resendAfter, ResendUnconfirmed) }
+}
+
+/** Sends each entity's first unconfirmed command again, counting each. */
+private fun <M : Any> resendFirsts(
+    queues: Map<String, Outbox<M>>,
+    meters: ProducerMeters,
+    send: (String, Unconfirmed<M>) -> Unit,
+) = queues.forEach { (to, queue) ->
+    queue.kept.firstOrNull()?.let {
+        meters.resent.increment()
+        send(to, it)
+    }
 }
