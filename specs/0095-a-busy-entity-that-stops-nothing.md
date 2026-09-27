@@ -59,10 +59,11 @@ letter.
 
 ## Stack
 
-- [ ] **`spec-0095-entities`** — the entity manager keeps rather than fails,
+- [x] **`spec-0095-entities`** — the entity manager keeps rather than fails,
       and `DeadLetter.Why.Full`. Done when: 5,000 tells to one entity on
       `testActors` and on threads all arrive in order, and the manager never
       stops.
+      ([#268](https://github.com/matthewjones372/lark/pull/268))
 - [ ] **`spec-0095-region`** — the region keeps per shard. Done when: three
       nodes, a burst of 5,000 to one entity from another node, all applied in
       order and no region stopped. The 0092 sharding benchmark's burst goes
@@ -90,3 +91,20 @@ Decided (2026-09-27): every open question goes as recommended. What does not
 fit is kept, in order, up to a bound, and then counted as a dead letter; one
 bound, `KEEP_AT_MOST`, serves the region, the entity manager and a topic; and
 the dead letter has a new reason, `DeadLetter.Why.Full`.
+
+Decided while building `spec-0095-entities`:
+- **When it tries again.** Kept messages are offered again on a 10 ms timer
+  while any are kept, not when the receiver takes some. The runtime has no
+  way to hear that a mailbox has room.
+- **`awaitIdle` counts what is kept.** A kept message was told and not yet
+  handled, so `awaitIdle` waits for it. Without that the flock closed with
+  messages still kept, and the tests caught it. The timer wheel settles on
+  idle actors alone, since under a `TestClock` a drain timer not yet due
+  would hold it for ever.
+- **Stopping.** An entity with messages kept for it is not passivated. What
+  is kept for one that stops by itself goes to its next instance, before
+  anything newer. When the manager stops, what it keeps becomes `Stopped`
+  dead letters.
+- **On `testActors`.** A test actor always has room, so the test for this
+  entry runs on threads. The `testActors` half of the done-when holds
+  trivially.
