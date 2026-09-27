@@ -50,9 +50,17 @@ private class Exchange(val name: String, port: Int, seeds: Discovery, listens: B
         }
     }
 
-    val cluster: Cluster get() = ready.await().let { opened.get().first }
+    val cluster: Cluster
+        get() {
+            ready.await()
+            return opened.get().first
+        }
 
-    val prices: Topic<Int> get() = ready.await().let { opened.get().second }
+    val prices: Topic<Int>
+        get() {
+            ready.await()
+            return opened.get().second
+        }
 
     /** The next [n] numbers heard, each within a minute. */
     fun next(n: Int): List<Int> = List(n) { heard.poll(1, TimeUnit.MINUTES) ?: error("$name heard nothing more") }
