@@ -64,11 +64,12 @@ the journal.
       when: a command stored and read back with a new delivery equals the
       original but for the delivery.
       ([#233](https://github.com/matthewjones372/lark/pull/233))
-- [ ] **`spec-0085-durable`** — the durable producer in `lark-actor`: events,
+- [x] **`spec-0085-durable`** — the durable producer in `lark-actor`: events,
       replay, resend with a rebuilt delivery, snapshots and pruning. Done
       when: on `testActors`, a producer stopped with 50 unconfirmed commands
       and started again under the same id delivers all 50 once, and numbers
       the next command after them.
+      ([#234](https://github.com/matthewjones372/lark/pull/234))
 - [ ] **`spec-0085-sharded`** — `reliable(…, durable = true)`. Done when:
       three nodes, the producer's node crashed mid-burst and its producer
       started on another, end with every accepted payment applied exactly
@@ -109,3 +110,11 @@ producer in memory compiles unchanged. A blank delivery confirms to
 is what a persistent actor's events need. It refuses a kept command that
 carries a reply or any ref but a blank delivery's, since nothing would answer
 either after a crash. Storing a command without blanking it fails the tests.
+
+Decided while building `spec-0085-durable`:
+- **Where it lives.** `durableProducer(id, codec)` sits on a flock and on `testActors`, beside `producer`, and answers the same `Producer`.
+- **What it keeps.** It is a persistent actor whose events are `Kept`, holding the command's bytes, and `Done`. It sends each entity's first unconfirmed command at once after a start, rather than a `resendAfter` later.
+- **Room.** Only commands kept in this life hold room: one recovered from the journal was never given any, so its confirmation frees none, and room never exceeds `keep`.
+- **What `send` does.** It waits up to `within` for the write, and answers `Full` if the write takes longer. Such a command may still be written and sent, which the KDoc says.
+- **Pruning.** It keeps no more than the 1,000 events since the snapshot before the newest.
+- **What the tests catch.** A producer without the immediate send after a start fails them, and so does one whose id changes between lives.
