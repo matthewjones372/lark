@@ -124,6 +124,9 @@ internal val payingCodec = object : MessageCodec<Paying> {
     }
 }
 
+/** A topic's message: a price for [n], or, below zero, a probe that a subscriber is hearing. */
+internal val priceCodec: MessageCodec<Int> = Codecs.int
+
 /** What [WireSerializer] writes: every Pekko message a cluster benchmark sends between nodes. */
 interface PekkoWire
 
@@ -146,6 +149,9 @@ sealed interface PekkoPaying : PekkoWire
 
 data class PekkoPay(val n: Int) : PekkoPaying
 
+/** A topic's message, as lark's `Int` is: a price, or, below zero, a probe. */
+data class PekkoPrice(val n: Int) : PekkoWire
+
 /** Pekko's side of the benchmarks' codecs: a ref crosses as the string Pekko's resolver makes of it. */
 class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest() {
     private val refs = ActorRefResolver.get(Adapter.toTyped(system))
@@ -159,6 +165,7 @@ class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest
         is PekkoDeposit -> "D"
         is PekkoDeposited -> "V"
         is PekkoPay -> "P"
+        is PekkoPrice -> "R"
         else -> throw IllegalArgumentException("no manifest for ${o.javaClass}")
     }
 
@@ -184,6 +191,8 @@ class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest
 
             is PekkoPay -> out.writeInt(o.n)
 
+            is PekkoPrice -> out.writeInt(o.n)
+
             else -> throw IllegalArgumentException("cannot write ${o.javaClass}")
         }
         return buffer.toByteArray()
@@ -198,6 +207,7 @@ class WireSerializer(system: ExtendedActorSystem) : SerializerWithStringManifest
             "D" -> PekkoDeposit(input.readLong(), refs.resolveActorRef(input.string()))
             "V" -> PekkoDeposited(String(bytes).toLong())
             "P" -> PekkoPay(input.readInt())
+            "R" -> PekkoPrice(input.readInt())
             else -> throw IllegalArgumentException("no message has the manifest $manifest")
         }
     }

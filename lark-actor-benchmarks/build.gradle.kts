@@ -26,6 +26,8 @@ dependencies {
     // Three nodes of a cluster on each side (spec 0092): lark's sharding against Pekko Cluster Sharding.
     implementation(project(":lark-cluster"))
     implementation("org.apache.pekko:pekko-cluster-sharding-typed_$scalaBinary:$pekkoVersion")
+    // Distributed pub-sub: Pekko's Topic finds its instances on other nodes through the cluster's receptionist.
+    implementation("org.apache.pekko:pekko-cluster-typed_$scalaBinary:$pekkoVersion")
     // A persistent entity and a durable producer on each side, on one H2 in memory per side (spec 0092).
     implementation("org.apache.pekko:pekko-persistence-typed_$scalaBinary:$pekkoVersion")
     implementation("org.apache.pekko:pekko-persistence-jdbc_$scalaBinary:$pekkoJdbcVersion")
