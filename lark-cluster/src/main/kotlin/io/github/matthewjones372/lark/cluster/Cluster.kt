@@ -152,12 +152,27 @@ private class Steps(
         downed.increment(events.count { it is MemberEvent.Downed }.toDouble())
     }
 
+    /**
+     * Watches end with the life they were made on (spec 0097). A later life seen at an address ends the watches held
+     * there, since nothing could have watched its actors before it was known; removing an earlier life then ends
+     * none, since by that time they may be on the later life's actors.
+     */
+    private fun endWatches(before: View, next: View, events: List<MemberEvent>) {
+        fun Member.lifeIn(view: View) = view.members.any { it.node == node && it.uid == uid }
+        fun Member.laterIn(view: View) = view.members.any { it.node == node && it.uid != uid && it.status.isLive }
+        val replaced = next.members.filter { member ->
+            member.node != node.self && !member.lifeIn(before) && before.members.any { it.node == member.node }
+        }
+        val removed = events.filterIsInstance<MemberEvent.Removed>().map { it.member }.filterNot { it.laterIn(next) }
+        (replaced + removed).map { it.node }.distinct().forEach(endWatches)
+    }
+
     private fun publish(subscribers: Subscribers) {
         val next = membership.view()
         // A downed node is out of the cluster: every other member is gone as far as it is concerned.
         val gone = if (membership.downed) next.members.filter { it.node != node.self } else emptyList()
         val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
-        events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
+        endWatches(cluster.view, next, events)
         subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
         measure(next, events)
         cluster.publish(next)
