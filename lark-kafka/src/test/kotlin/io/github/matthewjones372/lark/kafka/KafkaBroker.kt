@@ -5,15 +5,20 @@ import io.github.embeddedkafka.EmbeddedKafka
 import io.github.embeddedkafka.EmbeddedKafkaConfig
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
+import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.ConsumerRecord
+import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeAllCallback
 import org.junit.jupiter.api.extension.ExtensionContext
 import java.net.BindException
 import java.net.ServerSocket
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 /** A broker in the test JVM for one test class, started and stopped by JUnit 5 as the actor system is. */
@@ -60,6 +65,24 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
             }
     }
 
+    /** The first [count] records on [topic], read from the start by a consumer of no group. */
+    fun read(topic: String, count: Int): List<ConsumerRecord<String?, String?>> =
+        KafkaConsumer(
+            mapOf<String, Any>(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap),
+            StringDeserializer(),
+            StringDeserializer(),
+        ).use { consumer ->
+            val partition = TopicPartition(topic, 0)
+            consumer.assign(listOf(partition))
+            consumer.seekToBeginning(listOf(partition))
+            val read = mutableListOf<ConsumerRecord<String?, String?>>()
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)
+            while (read.size < count && System.nanoTime() < until) {
+                read += consumer.poll(Duration.ofMillis(POLL_MILLIS))
+            }
+            read.take(count)
+        }
+
     /** The offset the group has committed on the topic's only partition, or null for none. */
     fun committed(group: String, topic: String): Long? =
         Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
@@ -78,5 +101,6 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     private companion object {
         const val TIMEOUT_SECONDS = 30L
         const val ATTEMPTS = 3
+        const val POLL_MILLIS = 200L
     }
 }
