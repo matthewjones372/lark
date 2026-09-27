@@ -85,7 +85,7 @@ restarting outbox.
       write fails. Done when: with a journal that throws for four sends and
       then works, the next send after it recovers is written and delivered,
       and `drain` shows all `keep` room free again. On `main` both fail.
-- [ ] **`spec-0098-unwritten`** — `NotSent`, `Unwritten(cause)`, the prompt
+- [x] **`spec-0098-unwritten`** — `NotSent`, `Unwritten(cause)`, the prompt
       answer while down, the counter and the two log lines. Done when: a send
       while the journal is down answers `Unwritten` in under a tenth of
       `within`, and one after it recovers answers `Right`.
@@ -122,3 +122,10 @@ Decided while building `spec-0098-survive`:
 - **Room.** `send` takes the room before the write, so the outbox gives it back when the step throws before the write lands. A command counts as written, and holds its room, from the first line of its `then`, so a throw after the write keeps the room for the replay to find.
 - **The backoff.** `Schedule.exponential(100.milliseconds)`, capped at 5 s through `delayed`, is used by the flock's and `testActors`' producer alike.
 - **The test.** On `testActors`, with a journal whose producer appends throw four times and a `keep` of 4, the fifth send is written and delivered, and `drain` is true. On `main` the first throw reaches the test. With the restart but without the room given back, the fifth send answers `Full`.
+
+Decided while building `spec-0098-unwritten`:
+- **Down.** The producer and its actor share one reference to the journal's last throw. A throw sets it before the waiting `send` is answered, so the next `send` already sees it. A start that reads the journal clears it. A throw from a start sets it too, so a producer whose journal is down when it first starts answers at once as well.
+- **The answer.** `KeepDurably` carries its own answer: written, or refused with the cause. A command is answered `Unwritten` only if its write had not landed, so a throw after the write does not refuse a kept command.
+- **Seen.** `lark.delivery.unwritten` is counted where `send` answers, prompt or not. The warning names the cause, and the recovery line is at info.
+- **The guide.** Its reliable example returns `Either<NotSent, Unit>`, since `Either<Full, Unit>` no longer compiles, and its metrics table lists `lark.delivery.unwritten`.
+- **The test.** On a flock, six sends while appends throw each answer `Unwritten` in under 500 ms, a tenth of `within`, and after the journal is back a send is written, delivered and drained. Without the prompt answer, the fifth send took 803 ms. Without the answer from the failed step, the first answered `Full` after `within`. On `testActors`, one throw logs one warning and one recovery line.
