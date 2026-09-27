@@ -4,7 +4,8 @@
 > [what this is](../README.md#what-this-is). Everything here works and is tested;
 > none of it is settled.
 
-`lark-actor` runs actors in one process. This page is what comes after: a
+`lark-actor` runs actors in one process, which the
+[actors guide](actors.md) covers. This page is what comes after: a
 second node, then a cluster of them, then entities spread across it. It is
 ordered the way a service meets these things, and each section says which spec
 argued for the design, for the reasoning this page leaves out.

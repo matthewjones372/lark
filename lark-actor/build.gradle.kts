@@ -18,7 +18,11 @@ dependencies {
 
 // Read at configuration time, so the configuration cache survives it.
 val repoRoot = rootProject.projectDir.absolutePath
-val guide = files(rootProject.layout.projectDirectory.file("docs/actors.md"))
+val guide = files(
+    rootProject.layout.projectDirectory.file("docs/actors.md"),
+    rootProject.layout.projectDirectory.file("docs/cluster.md"),
+    rootProject.layout.projectDirectory.file("README.md"),
+)
 
 tasks.test {
     // The main runtime classpath, so the dependency test can assert on what is
