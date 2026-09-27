@@ -88,10 +88,11 @@ richer.
       actor and a restart are each counted once, and a tell's allocation in
       the ping-pong benchmark is unchanged.
       ([#216](https://github.com/matthewjones372/lark/pull/216))
-- [ ] **`spec-0081-remote`** — frames, dropped frames and connection state per
+- [x] **`spec-0081-remote`** — frames, dropped frames and connection state per
       peer, in `lark-actor-remote`. Done when: two nodes exchanging ten
       frames count ten each way, and a peer that goes away reads 0 and counts
       what was dropped for it.
+      ([#217](https://github.com/matthewjones372/lark/pull/217))
 - [ ] **`spec-0081-cluster`** — membership gauges, the downed counter, and
       `Cluster.ready()`. Done when: three nodes read three `Up` with one
       leader among them, and after one crashes the others read one
@@ -135,3 +136,13 @@ remote, cluster and delivery modules record through their flock the same
 way, and a node names itself once with `tagMetrics`. Dead letters are counted
 where every one already passes, the guardian's handler; nothing on the tell
 path changed, so the ping-pong benchmark was not rerun.
+
+Decided while building `spec-0081-remote`: a `RemoteNode` holds each peer's
+instruments once, so counting a frame is a map hit; a frame is counted out
+when it is handed to the transport, and in when the transport reads it, so one
+that is then dropped is counted both as sent and as dropped. The peer tag is
+the peer's full `name@host:port`, since a seed is known by its address before
+its name. `node(…)` tags its flock with the node's name. `CapturedMetrics`
+keeps a counter by name alone, so the test measures through a `Metrics` of its
+own, keyed by name and tags, and waits on the connection gauge rather than
+polling it.
