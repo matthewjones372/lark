@@ -33,7 +33,8 @@ out, so two databases cannot be joined behind them by hand.
 val journal = ShardedJournal(
     databases = listOf("db-a" to JdbcJournal(a), "db-b" to JdbcJournal(b)),   // named, so offsets can say which
 )
-flock { journal(journal); snapshots(ShardedSnapshots(journal.slices, listOf(snapA, snapB))); … }
+val snapshots = ShardedSnapshots(listOf("db-a" to JdbcSnapshots(a), "db-b" to JdbcSnapshots(b)))
+flock { journal(journal); snapshots(snapshots); … }
 
 // One read model is one projection per database, each with its own offset: "statements@db-a", "statements@db-b".
 journal.feeds.map { (database, feed) ->
@@ -41,20 +42,21 @@ journal.feeds.map { (database, feed) ->
 }
 ```
 
-- **`Slices`**: an id's slice is `floorMod(("$kind|$id").hashCode(), 1024)`.
-  Each database owns a contiguous range of slices, in the order given.
-  `String.hashCode` is part of the language spec, so an id's slice can never
-  change under it.
+- **`Slices`**: an id's slice is murmur3 (x86, 32-bit, seed 0) of the UTF-8
+  bytes of `"$kind|$id"`, modulo 1,024. The hash is copied into lark and pinned
+  by a test of known values, so an id's slice can never change under it. Each
+  database owns a contiguous range of slices, in the order given.
 - **`ShardedJournal`** is a `Journal` and a `JournalPruning`. `append`, `read`
   and `deleteTo` go to the id's database, so each id's optimistic check, and
   each batched append (0086), stays in one transaction.
 - **`feeds: List<Pair<String, JournalFeed>>`**: each database's own feed, gap
   handling (0075) included. There is no merged feed.
-- **`ShardedSnapshots`** routes by the same `Slices`, so an id's snapshot sits
-  in the same database as its events.
+- **`ShardedSnapshots`** routes by the same `Slices`. Given the same names in
+  the same order, an id's snapshot sits in the same database as its events.
 - **`Prune.readTo(id)`**: `Prune` is told whose events it is pruning, and
   defaults to today's `readTo()`. `Prune.after(offsets, journal, names)` reads
-  `"$name@$database"` for the id's own database, so pruning compares that
+  `ShardedJournal.progress(name, database)`, which is `"$name@$database"`, for
+  the id's own database, so pruning compares that
   database's offsets with that database's orderings.
 - **Offsets** live in one `OffsetStore`. It holds a row per read model per
   database: a few rows, written once a batch.
@@ -97,20 +99,16 @@ over.
 
 ## Open questions
 
-1. **1,024 slices, fixed?** It is enough for 1,024 databases, and cheap.
-   Recommended: yes, and a constant rather than a setting. A setting that is
-   changed after data exists silently moves every id.
-2. **`String.hashCode` or murmur3?** `hashCode` is stable by the language spec
-   but spreads poorly over similar ids. Murmur3 spreads well, but needs a copy
-   in lark or a dependency. Recommended: murmur3, copied in, about 30 lines,
-   pinned by a test of known values.
-3. **Should the durable producer's outbox (0085) follow its producer's id?**
-   It does already, since it is an id like any other. Recommended: no change,
-   and a test that it does.
-4. **How does `Prune` learn the id?** A default `readTo(id)` beside
-   `readTo()` keeps every existing `Prune` lambda compiling. Changing the one
-   method breaks them all. Recommended: the default.
-5. **Offsets beside each database, or in one store?** Beside each would let a
-   read model save its offset in the same transaction as its rows, if the read
-   model shared that database. Recommended: one store for now, since no read
-   model shares a database with the journal today.
+Answered 2026-09-27, taking each recommendation:
+
+1. **1,024 slices, fixed?** Yes, as a constant rather than a setting. A setting
+   changed after data exists would silently move every id.
+2. **`String.hashCode` or murmur3?** Murmur3, copied in and pinned by a test of
+   known values. `hashCode` spreads poorly over similar ids.
+3. **Does the durable producer's outbox (0085) follow its producer's id?** It
+   already does, since it is an id like any other. No change, and a test holds
+   it.
+4. **How does `Prune` learn the id?** A default `readTo(id)` beside `readTo()`,
+   so every existing `Prune` lambda still compiles.
+5. **Offsets beside each database, or in one store?** One store for now. No
+   read model shares a database with the journal today.
