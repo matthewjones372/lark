@@ -343,6 +343,9 @@ private class Answer<A : Any>(override val address: Address) : Reply<A> {
         this.outcome.compareAndSet(null, outcome).also { if (it) done.countDown() }
 }
 
+/** Whether an actor on threads can watch this ref: one of its own, or one that is [Watchable]. */
+internal fun ActorRef<*>.canBeWatched() = this is Cell<*, *, *> || this is Watchable
+
 private class Cell<M : Any, S, E>(
     private val behaviour: Behaviour<M, S, E>,
     override val address: Address,
