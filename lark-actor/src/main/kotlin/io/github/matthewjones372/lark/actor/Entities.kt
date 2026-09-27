@@ -65,7 +65,8 @@ private class EntityBook<M : Any, S, E>(
     private val stopping = HashMap<String, MutableList<M>>()
 
     // What an entity's full mailbox could not take yet, in order: everything after it waits behind it (spec 0095).
-    private val waiting = HashMap<String, ArrayDeque<M>>()
+    @OptIn(PlumbingSeam::class)
+    private val handOn = HandOn<String, M>()
 
     /** Tells the entity [id] [message], starting it if it is not running, and keeping it if it is stopping. */
     fun deliver(ctx: Ctx<Entities<M>>, id: String, message: M) {
@@ -78,41 +79,20 @@ private class EntityBook<M : Any, S, E>(
         // be passivated: a clock moved on once the entity has begun sees a timer to fire.
         ctx.timers.after(IdleKey(id), passivateAfter, Passivate(id))
         val ref = running[id] ?: start(ctx, id)
-        val kept = waiting[id]
-        when {
-            kept == null && ref.offer(message) -> Unit
-
-            kept != null && kept.size >= KEEP_AT_MOST ->
-                ctx.deadLetter(DeadLetter(ref.address, message, DeadLetter.Why.Full))
-
-            else -> {
-                (kept ?: ArrayDeque<M>().also { waiting[id] = it }) += message
-                ctx.kept(1)
-                ctx.timers.after(DrainKey, DRAIN_AFTER, Drain())
-            }
-        }
+        @OptIn(PlumbingSeam::class)
+        if (handOn.tell(ctx, id, ref, message)) ctx.timers.after(DrainKey, DRAIN_AFTER, Drain())
     }
 
     /** Offers each busy entity what was kept for it, in order, as far as it has room, and comes back for the rest. */
+    @OptIn(PlumbingSeam::class)
     fun drain(ctx: Ctx<Entities<M>>) {
-        var handed = 0
-        waiting.entries.removeIf { (id, kept) ->
-            val ref = running[id]
-            if (ref != null) {
-                while (kept.isNotEmpty() && ref.offer(kept.first())) {
-                    kept.removeFirst()
-                    handed++
-                }
-            }
-            kept.isEmpty()
-        }
-        ctx.kept(-handed)
-        if (waiting.isNotEmpty()) ctx.timers.after(DrainKey, DRAIN_AFTER, Drain())
+        if (handOn.drain(ctx)) ctx.timers.after(DrainKey, DRAIN_AFTER, Drain())
     }
 
     fun passivate(ctx: Ctx<Entities<M>>, id: String) {
         // An entity with messages still kept for it is busy, not idle.
-        if (id in waiting) return ctx.timers.after(IdleKey(id), passivateAfter, Passivate(id))
+        @OptIn(PlumbingSeam::class)
+        if (id in handOn) return ctx.timers.after(IdleKey(id), passivateAfter, Passivate(id))
         val ref = running.remove(id) ?: return
         stopping[id] = mutableListOf()
         ctx.stop(ref)
@@ -127,8 +107,8 @@ private class EntityBook<M : Any, S, E>(
             ctx.timers.cancel(IdleKey(id))
         }
         // What was kept for an entity that stopped by itself goes to the next one, before anything newer.
-        val waited = waiting.remove(id).orEmpty()
-        ctx.kept(-waited.size)
+        @OptIn(PlumbingSeam::class)
+        val waited = handOn.take(ctx, id)
         (waited + stopping.remove(id).orEmpty()).forEach { deliver(ctx, id, it) }
     }
 
@@ -142,15 +122,11 @@ private class EntityBook<M : Any, S, E>(
     }
 
     /** The manager is stopping, and its entities with it: none of them is running from now on. */
+    @OptIn(PlumbingSeam::class)
     fun stopping(ctx: Ctx<Entities<M>>) {
         if (ids.isNotEmpty()) onRunning(-ids.size)
         ids.clear()
-        waiting.forEach { (id, kept) ->
-            val recipient = Address(ctx.self.address.node, "${ctx.self.address.path}/$id", ctx.self.address.incarnation)
-            kept.forEach { ctx.deadLetter(DeadLetter(recipient, it, DeadLetter.Why.Stopped)) }
-            ctx.kept(-kept.size)
-        }
-        waiting.clear()
+        handOn.drop(ctx, DeadLetter.Why.Stopped)
     }
 }
 
@@ -189,7 +165,7 @@ fun <M : Any, S, E> entities(
 /** The entity [id] of these entities, as a ref of its own protocol: good whether or not it is running now. */
 fun <M : Any> ActorRef<Entities<M>>.entity(id: String): ActorRef<M> = EntityRef(this, id)
 
-private class EntityRef<M : Any>(private val manager: ActorRef<Entities<M>>, private val id: String) : ActorRef<M> {
+internal class EntityRef<M : Any>(val manager: ActorRef<Entities<M>>, val id: String) : ActorRef<M> {
     override val address = Address(manager.address.node, "${manager.address.path}/$id", manager.address.incarnation)
 
     override fun tell(message: M) = manager.tell(Deliver(id, message))
