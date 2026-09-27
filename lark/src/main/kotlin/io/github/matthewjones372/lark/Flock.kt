@@ -134,16 +134,21 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
      * a fork whose turn on the executor has not come yet starts its body interrupted instead.
      */
     fun close() {
-        runHooks()
-        forks.forEach { it.interrupt() }
-        forks.forEach { it.join() }
+        // A hook that throws an Error still leaves no fork running: it is thrown once every one has ended.
+        try {
+            runHooks()
+        } finally {
+            forks.forEach { it.interrupt() }
+            forks.forEach { it.join() }
+        }
     }
 
     fun unnoticedFailure(): Failure<E>? = forks.firstNotNullOfOrNull { it.unnoticedFailure() }
 
     private fun runHooks() {
         var interrupted = false
-        hooks.reversed().forEach { hook ->
+        // Last registered first, and one registered while closing runs too: it is the last now.
+        generateSequence { hooks.removeLastOrNull() }.forEach { hook ->
             try {
                 hook()
             } catch (stop: InterruptedException) {

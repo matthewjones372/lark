@@ -12,10 +12,31 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## A journal across databases, 2026-09-27
+
+After spec [0088](../specs/0088-a-journal-across-databases.md): 10,000 payments spread round-robin over 256
+persistent actors, one event and one append each (`batch = 1`), on a `ShardedJournal` over one or two Postgres 17
+servers. Each server runs in the benchmark's JVM with durable commits (`fsync` and `synchronous_commit` on) behind
+a HikariCP pool of 32. JDK 21 on a 4 vCPU shared cloud container, one fork, 5 warmup and 10 measured iterations.
+The raw results are in [`baseline/2026-09-27-jdk21-spread-persistent.json`](baseline/2026-09-27-jdk21-spread-persistent.json).
+
+| Row | Per | 1 database | 2 databases |
+|---|---|---|---|
+| `SpreadPersistentBenchmark`: 10,000 payments over 256 actors, settled iterations only | burst | ~1,040 ms | ~1,080 ms |
+
+**This machine cannot show what the spec is for, and the gate of 1.6× is not met here.** Two servers on the same
+four cores and the same disk share everything a second database would add. Once settled, both configurations write
+about 9,500 events a second, and the JVM and the servers together hold the CPU. The iterations before that took 5 to
+18 seconds each, while the container's disk stalled on `fsync`. JMH's averages include those iterations (2,035 ±
+3,247 ms for one database, 1,083 ± 83 ms for two), so the averages are not a measure of sharding. With `fsync` off
+the servers are bound on CPU alone, and two came out no faster than one (4,155 against 5,369 ms, both ± 4.6 s).
+The comparison needs each database on its own host.
+
 ## A journal written a batch at a time, 2026-09-27
 
 After spec [0086](../specs/0086-a-journal-written-a-batch-at-a-time.md): one persistent actor on `JdbcJournal`,
-against a Postgres 17 started in the benchmark's JVM with its defaults (a commit waits for its WAL flush), taking
+against a Postgres 17 started in the benchmark's JVM with the embedded server's defaults, which are `fsync=off` and
+`synchronous_commit=off`, so a commit is a round trip rather than a flush to disk. It takes
 1,000 payments told at once. It is the one account every payment goes to, which sharding cannot spread. JDK 21 on
 a 4 vCPU shared cloud container, one fork. There is no Pekko row, because this measures the journal, not the
 runtime. The raw results are in

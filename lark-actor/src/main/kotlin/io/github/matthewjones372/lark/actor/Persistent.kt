@@ -26,6 +26,9 @@ class Snapshotting<S> internal constructor(val every: Long, val codec: StateCode
 fun interface Prune {
     fun readTo(): Long?
 
+    /** How far [id]'s events may go: a journal across databases (spec 0088) answers by [id]'s own database's feed. */
+    fun readTo(id: PersistenceId): Long? = readTo()
+
     companion object {
         /** Keeps every event. */
         val never: Prune = Prune { null }
@@ -41,6 +44,24 @@ fun interface Prune {
             require(names.isNotEmpty()) { "pruning after no read model is Prune.always" }
             val waited = names.toList()
             return Prune { waited.minOf { offsets.load(it) ?: 0 } }
+        }
+
+        /**
+         * As [after], for a [journal] across databases (spec 0088): each id waits only on what [names] have read of
+         * its own database, by the offsets saved under [ShardedJournal.progress].
+         */
+        fun after(offsets: OffsetStore, journal: ShardedJournal, vararg names: String): Prune {
+            require(names.isNotEmpty()) { "pruning after no read model is Prune.always" }
+            val waited = names.toList()
+            return object : Prune {
+                // Without an id there is no database to ask, so nothing goes.
+                override fun readTo(): Long? = null
+
+                override fun readTo(id: PersistenceId): Long {
+                    val database = journal.database(id)
+                    return waited.minOf { offsets.load(ShardedJournal.progress(it, database)) ?: 0 }
+                }
+            }
         }
     }
 }
@@ -303,7 +324,7 @@ private fun <S> SnapshotStore.snapshot(
     if (saved && how.prune !== Prune.never && pruning != null) {
         val upTo = reached.sequence - how.every
         logged("the events of $id up to $upTo were not deleted; the next snapshot will try again") {
-            how.prune.readTo()?.let { readTo -> pruning.deleteTo(id, upTo, readTo) }
+            how.prune.readTo(id)?.let { readTo -> pruning.deleteTo(id, upTo, readTo) }
         }
     }
 }

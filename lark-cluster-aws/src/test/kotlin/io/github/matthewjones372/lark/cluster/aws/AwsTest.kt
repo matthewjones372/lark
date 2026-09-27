@@ -1,9 +1,12 @@
 package io.github.matthewjones372.lark.cluster.aws
 
 import io.github.matthewjones372.lark.actor.remote.Node
+import io.github.matthewjones372.lark.cluster.Joins
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import software.amazon.awssdk.core.exception.SdkClientException
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
@@ -57,7 +60,11 @@ private class FakeEcs(private val tasks: List<Task>) : EcsClient {
 
     override fun serviceName() = "ecs"
 
-    override fun close() = Unit
+    var closed = false
+
+    override fun close() {
+        closed = true
+    }
 }
 
 private fun task(arn: String, status: String, ip: String) = Task.builder().taskArn(arn).lastStatus(status)
@@ -87,7 +94,11 @@ private class FakeDynamo : DynamoDbClient {
 
     override fun serviceName() = "dynamodb"
 
-    override fun close() = Unit
+    var closed = false
+
+    override fun close() {
+        closed = true
+    }
 }
 
 class AwsTest {
@@ -158,5 +169,27 @@ class AwsTest {
         lease.acquire("10.2.0.9") shouldBe true
 
         table.items.getValue("orders").getValue("holder").s() shouldBe "10.2.0.9"
+    }
+
+    @Test
+    fun `a joining finds seeds and takes the lease through its own clients, and closing it closes both`() {
+        val ecs = FakeEcs(listOf(task("t1", "RUNNING", "10.3.0.7")))
+        val dynamo = FakeDynamo()
+
+        Aws.joining({ ecs }, { dynamo }, "leases", "orders", 15.seconds, 20.seconds) {
+            Aws.ecs(it, "shop", "orders", 25520)
+        }.use { joining ->
+            joining.discovery.seeds() shouldContainExactly listOf(Node("", "10.3.0.7", 25520))
+            joining.downing shouldNotBe null
+            (ecs.closed || dynamo.closed) shouldBe false
+        }
+        ecs.closed shouldBe true
+        dynamo.closed shouldBe true
+    }
+
+    @Test
+    fun `join = ecs and join = cloudmap are found by their names`() {
+        Joins.available()["ecs"].shouldBeInstanceOf<EcsJoins>()
+        Joins.available()["cloudmap"].shouldBeInstanceOf<CloudMapJoins>()
     }
 }
