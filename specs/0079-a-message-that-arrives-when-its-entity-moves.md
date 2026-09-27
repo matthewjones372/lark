@@ -78,10 +78,11 @@ Recommended: one producer per sender, one wrapper per entity.
       started while commands are sent, every command is handled, and `send`
       fails with `Full` when `keep` are unconfirmed.
       ([#208](https://github.com/matthewjones372/lark/pull/208))
-- [ ] **`spec-0079-sharded`** — `reliable(…)` on `Sharded` and the codec,
+- [x] **`spec-0079-sharded`** — `reliable(…)` on `Sharded` and the codec,
       across nodes. Done when: three nodes, with one leaving while payments
       are sent to 200 persistent entities, end with every payment applied
       exactly once.
+      ([#209](https://github.com/matthewjones372/lark/pull/209))
 
 ## Acceptance
 
@@ -133,3 +134,18 @@ again under the same id is not taken for the old one's duplicates; each
 incarnation that sends to an entity adds an entry to its `delivered`. The
 producer is an actor, `producer(…)` on a flock or on `testActors`, and `send`
 waits for room on a semaphore, in real time as an ask does.
+
+Decided while building `spec-0079-sharded`: `Sharded.reliable(…)` is a
+producer on the node's flock that routes by `entity(id)`. The wire gains
+`WireOut.delivery` and `WireIn.delivery`, which a kind's codec calls for a
+command's `Delivery`, and `Codecs.confirmed`; the producer's ref crosses as
+its address, as any ref does, so a confirmation needs no codec of the
+service's. `Producer.drain(within)` waits for every kept command to be
+confirmed, for a service about to stop and for the test. A node that leaves
+gracefully hands its shards over without losing a copy, so the test crashes
+the third node instead, just after a round of payments is sent: without
+resends it never drains, and without deduplication some accounts apply a
+payment twice. The test's probes are calmer than the other cluster tests':
+at 200 ms, 200 entities writing to one H2 database made the two live nodes
+miss each other's acks, and keeping the majority then downed both, which is
+right for a real split and wrong for this one.

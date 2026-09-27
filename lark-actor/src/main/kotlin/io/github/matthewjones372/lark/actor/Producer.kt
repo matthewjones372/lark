@@ -22,6 +22,7 @@ data object Full
 class Producer<M : Any> internal constructor(
     private val actor: ActorRef<Any>,
     private val room: Semaphore,
+    private val keep: Int,
     private val within: Duration,
 ) {
     /**
@@ -32,6 +33,16 @@ class Producer<M : Any> internal constructor(
         if (!room.tryAcquire(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return Full.left()
         actor.tell(KeepCommand(to, command))
         return Unit.right()
+    }
+
+    /**
+     * Whether every command kept was confirmed within [within]: for a service about to stop, or a test that waits for
+     * its commands to land. A `send` while it waits may make it wait longer.
+     */
+    fun drain(within: Duration): Boolean {
+        if (!room.tryAcquire(keep, within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return false
+        room.release(keep)
+        return true
     }
 }
 
@@ -48,7 +59,7 @@ fun <F, M : Any> Flock<F>.producer(
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    return Producer(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, within)
+    return Producer(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, keep, within)
 }
 
 /** A producer among these test actors, as [Flock.producer]; its resends wait on [TestActors.advance]. */
@@ -60,7 +71,7 @@ fun <M : Any> TestActors.producer(
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    return Producer(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, within)
+    return Producer(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, keep, within)
 }
 
 private fun room(keep: Int): Semaphore {
