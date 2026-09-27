@@ -22,7 +22,7 @@ private val sum = object : StateCodec<Long> {
 /** Adds [amount] to the ledger, as one event. */
 private data class Post(val amount: Int)
 
-private fun ledger(prune: Boolean) = persistent<Post, Int, Long>(
+private fun ledger(prune: Prune) = persistent<Post, Int, Long>(
     id = ledgerOf,
     empty = 0,
     codec = entry,
@@ -40,7 +40,7 @@ class PruneTest {
     @Test
     fun `with pruning, 1,050 events keep only 901 to 1,050, and a restart reaches the same state`() {
         testActors(journal = journal) {
-            val book = spawn("ledger", ledger(prune = true))
+            val book = spawn("ledger", ledger(prune = Prune.always))
             (1..1_050).forEach { book.send(Post(it)) }
             val before = book.state
 
@@ -54,7 +54,7 @@ class PruneTest {
     @Test
     fun `without pruning, every event is kept`() {
         testActors(journal = journal) {
-            val book = spawn("ledger", ledger(prune = false))
+            val book = spawn("ledger", ledger(prune = Prune.never))
             (1..250).forEach { book.send(Post(it)) }
 
             kept() shouldBe (1L..250L).toList()
@@ -69,7 +69,7 @@ class PruneTest {
             override fun latest(id: PersistenceId): Snapshot? = null
         }
         testActors(journal = journal, snapshots = broken) {
-            val book = spawn("ledger", ledger(prune = true))
+            val book = spawn("ledger", ledger(prune = Prune.always))
             (1..250).forEach { book.send(Post(it)) }
 
             kept() shouldBe (1L..250L).toList()
@@ -79,14 +79,43 @@ class PruneTest {
     @Test
     fun `a start that finds a pruned history and no snapshot fails, and names the gap`() {
         testActors(journal = journal) {
-            val book = spawn("ledger", ledger(prune = true))
+            val book = spawn("ledger", ledger(prune = Prune.always))
             (1..250).forEach { book.send(Post(it)) }
         }
 
         testActors(journal = journal, snapshots = InMemorySnapshots()) {
-            val failed = shouldThrow<IllegalStateException> { spawn("ledger", ledger(prune = true)) }
+            val failed = shouldThrow<IllegalStateException> { spawn("ledger", ledger(prune = Prune.always)) }
 
             failed.message shouldContain "events 1 to 100 were deleted, and no snapshot covers them"
+        }
+    }
+
+    @Test
+    fun `pruning after a read model deletes no further than it has read, and more once it catches up`() {
+        val offsets = InMemoryOffsets()
+        testActors(journal = journal) {
+            val book = spawn("ledger", ledger(prune = Prune.after(offsets, "totals", "search")))
+            offsets.save("totals", 150)
+            offsets.save("search", 900)
+            (1..350).forEach { book.send(Post(it)) }
+
+            kept() shouldBe (151L..350L).toList()
+
+            offsets.save("totals", 900)
+            (351..450).forEach { book.send(Post(it)) }
+
+            kept() shouldBe (301L..450L).toList()
+        }
+    }
+
+    @Test
+    fun `a read model with no offset saved holds pruning back entirely`() {
+        val offsets = InMemoryOffsets().also { it.save("totals", 10_000) }
+        testActors(journal = journal) {
+            val book = spawn("ledger", ledger(prune = Prune.after(offsets, "totals", "never-ran")))
+            (1..350).forEach { book.send(Post(it)) }
+
+            kept() shouldBe (1L..350L).toList()
         }
     }
 }

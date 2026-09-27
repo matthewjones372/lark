@@ -55,10 +55,11 @@ to keep consistent across nodes. Recommended: named on the behaviour.
       JDBC, and in `PruneContract`. Done when: a deletion bounded by a feed
       offset keeps every event after it, on both journals.
       ([#199](https://github.com/matthewjones372/lark/pull/199))
-- [ ] **`spec-0077-prune`** — `Prune.never`, `Prune.always` and
+- [x] **`spec-0077-prune`** — `Prune.never`, `Prune.always` and
       `Prune.after`. Done when: a read model behind the snapshots holds
       pruning back to its offset, a read model with no offset holds it back
       entirely, and once it catches up the next snapshot deletes the rest.
+      ([#200](https://github.com/matthewjones372/lark/pull/200))
 - [ ] **`spec-0077-follow`** — the two together. Done when: in
       `lark-actor-projection`, a projection following a kind that prunes
       after it handles every one of 1,050 events.
@@ -87,3 +88,10 @@ Decided while building `spec-0077-bound`: `readTo` is a parameter of
 journal turns it into the last sequence number of the id at or before that
 offset, and deletes up to the smallest of that, the sequence asked for, and
 one before the newest.
+
+Decided while building `spec-0077-prune`: `Prune` is a `fun interface` that
+answers the feed offset pruning may reach now, or null for none, so a service
+can write its own rule; `never`, `always` and `after` are on its companion.
+`after` reads its offsets when a snapshot is saved, inside the same logged
+block as the deletion, so an offset store that throws deletes nothing and
+fails no step. A name with no offset counts as offset 0.
