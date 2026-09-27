@@ -108,7 +108,7 @@ Recommended: SSE, fed by topics.
       nodes started in one JVM, without HTTP. Done when: 1,000 random
       transfers across three nodes, with one node crashed midway, end with
       every transfer `Done` or `Refused` and the total money unchanged.
-- [ ] **`spec-0094-api`** — the JDK server on virtual threads and the
+- [x] **`spec-0094-api`** — the JDK server on virtual threads and the
       consumer's JSON API. Done when: a test with `java.net.http.HttpClient`
       opens two accounts, moves money between them on different nodes, reads
       both balances, and gets `Refused` for an overdraft.
@@ -182,3 +182,9 @@ Decided while building `spec-0094-api`:
 - **Split in two.** `spec-0094-api` is the JSON and the account's statement; `spec-0094-api-server` is the server and its routes. The entry's done-when is proved, and the entry ticked, on the second.
 - **JSON by hand.** One writer takes maps, lists, strings, numbers and booleans. One reader takes a flat object and answers null for anything else. Values come back as text, and the route parses the numbers.
 - **The statement.** The balance ask answers whether the account is open, its balance, and its 50 latest movements, newest first. A movement is a transfer's id and a signed amount. A refusal moves nothing, so it is not a movement.
+
+Decided while building `spec-0094-api-server`:
+- **Routes.** `POST /api/accounts {id, amount}` opens an account. `GET /api/accounts/{id}` is its statement. `POST /api/transfers {from, to, amount}` answers `202 {id}`. `GET /api/transfers/{id}` answers `{id, status}`, where the status is `Requested`, `Debited`, `Done` or `Refused`. Bad input is a 400 with `{error}`, an unknown account or transfer is a 404, and an ask that timed out is a 503.
+- **Ids.** An id is 1 to 64 letters, digits, `-` or `_`, since the events are written with `|` between fields. A transfer's id is `t-` and a UUID. A transfer to an account that is not open is a 404 before anything is sent.
+- **Waiting in the test.** The test does not poll a status. Each node reports every transfer that ends, and the test waits on a blocking queue for the id it sent, then reads the status once.
+- **What the test catches.** An API that answers 202 without sending the transfer fails it: the transfer never ends.
