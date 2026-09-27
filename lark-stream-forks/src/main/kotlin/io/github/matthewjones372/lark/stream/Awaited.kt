@@ -8,8 +8,8 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.Semaphore
 
-/** How the stream the feeding fork read ended: marked in the queue after its last stage. */
-private sealed interface Fed {
+/** How the stream a feeding fork read ended: marked in its queue after the last thing it started. */
+internal sealed interface Fed {
     data object Done : Fed
 
     class Threw(val thrown: Throwable) : Fed
@@ -31,7 +31,12 @@ internal fun Node.MapAsync.fed(window: Int, releases: Releases?): Pull {
     val room = Semaphore(window)
     val started = LinkedBlockingQueue<Any>()
     val fork = InFlight(releases?.on ?: VirtualThreads) {
-        Releases.within(releases) { feed(up, room, started) { a -> start(a) as CompletionStage<*> } }
+        Releases.within(releases) {
+            feed(up, room, started) { a ->
+                @Suppress("UNCHECKED_CAST")
+                Started(a, (start(a) as CompletionStage<Any?>).toCompletableFuture())
+            }
+        }
     }
     releases?.add(fork::cancel)
     var ended = false
@@ -45,22 +50,25 @@ internal fun Node.MapAsync.fed(window: Int, releases: Releases?): Pull {
     }
 }
 
-/** Upstream's elements, each with its stage started once there is room for it, then how upstream ended. */
+/**
+ * Upstream's elements, each started by [start] once there is [room] for it and queued in order, then how
+ * upstream ended. `offer` rather than `put`: the queue has no bound, and a put an interrupt cut short would
+ * lose what was started, which then nothing would let go of.
+ */
 // The catch is as wide as a pipeline: whatever upstream threw is the pull's to throw, after what came first.
 @Suppress("TooGenericExceptionCaught")
-private fun feed(up: Pull, room: Semaphore, started: BlockingQueue<Any>, start: (Any) -> CompletionStage<*>) {
+internal fun feed(up: Pull, room: Semaphore, started: BlockingQueue<Any>, start: (Any) -> Any) {
     try {
         while (true) {
             room.acquire()
             val a = up.next() ?: break
-            @Suppress("UNCHECKED_CAST")
-            started.put(Started(a, start(a).toCompletableFuture() as CompletableFuture<Any?>))
+            started.offer(start(a))
         }
-        started.put(Fed.Done)
+        started.offer(Fed.Done)
     } catch (_: InterruptedException) {
         // Let go of by the run: nothing reads what would have come next.
     } catch (thrown: Throwable) {
-        started.put(Fed.Threw(thrown))
+        started.offer(Fed.Threw(thrown))
     }
 }
 
