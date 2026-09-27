@@ -5,6 +5,8 @@ import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Ctx
 import io.github.matthewjones372.lark.actor.DeadLetter
+import io.github.matthewjones372.lark.actor.HandOn
+import io.github.matthewjones372.lark.actor.PlumbingSeam
 import io.github.matthewjones372.lark.actor.deadLetter
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
@@ -12,12 +14,13 @@ import io.github.matthewjones372.lark.actor.remote.Node
 /**
  * What a region runs its shards with: which member owns a shard, what runs one here, and how a message reaches what
  * runs it. [eager] starts a shard's host as soon as the shard is free here, rather than on its first message.
+ * [target] is what a message for an id is told to, through its host.
  */
 internal class Hosting<M : Any, H : Any>(
     val eager: Boolean,
     val owner: (shard: Int, members: List<Member>) -> Node?,
     val start: (Ctx<Region<M>>, shard: Int) -> ActorRef<H>,
-    val deliver: (host: ActorRef<H>, id: String, message: M) -> Unit,
+    val target: (host: ActorRef<H>, id: String) -> ActorRef<M>,
 )
 
 /** What a region gauges (spec 0081): the shards it may run now, and what it keeps for a shard with no owner yet. */
@@ -25,6 +28,9 @@ internal class RegionMeters(val shards: Gauge, val buffered: Gauge)
 
 /** The key of a region's retry timer: one at a time, however many messages ran out of hops. */
 private object RetryKey
+
+/** The key of a region's timer that hands busy hosts what it kept for them. */
+private object DrainKey
 
 /**
  * One region's work: each message to the entity here, or to the region of the node that owns its shard; and the
@@ -57,6 +63,10 @@ internal class Placing<M : Any, H : Any>(
 
     private val kept = ArrayDeque<Region.Envelope<M>>()
 
+    // What a busy host could not take yet, per entity id and in order (spec 0095).
+    @OptIn(PlumbingSeam::class)
+    private val handOn = HandOn<String, M>()
+
     fun step(ctx: Ctx<Region<M>>, step: Region<M>) {
         handle(ctx, step)
         measure()
@@ -80,6 +90,8 @@ internal class Placing<M : Any, H : Any>(
         }
 
         is Region.Retry -> retry(ctx)
+
+        is Region.Drain -> drain(ctx)
     }
 
     /** A shard's manager has stopped, and every entity of the shard with it. */
@@ -101,7 +113,7 @@ internal class Placing<M : Any, H : Any>(
         val shard = Placement.shardOf(envelope.id, shards)
         val owner = owner(shard)
         when {
-            owner == self && shard in ready -> hosting.deliver(host(ctx, shard), envelope.id, envelope.message)
+            owner == self && shard in ready -> handOver(ctx, shard, envelope)
 
             owner == self || owner == null -> keep(envelope)
 
@@ -143,7 +155,30 @@ internal class Placing<M : Any, H : Any>(
         retry(ctx)
     }
 
+    /** Tells the message to its target here, or keeps it while the target is too busy to take it (spec 0095). */
+    @OptIn(PlumbingSeam::class)
+    private fun handOver(ctx: Ctx<Region<M>>, shard: Int, envelope: Region.Envelope<M>) {
+        val target = hosting.target(host(ctx, shard), envelope.id)
+        if (handOn.tell(ctx, envelope.id, target, envelope.message)) {
+            ctx.timers.after(DrainKey, Sharding.DRAIN_AFTER, Region.Drain())
+        }
+    }
+
+    @OptIn(PlumbingSeam::class)
+    private fun drain(ctx: Ctx<Region<M>>) {
+        if (handOn.drain(ctx)) ctx.timers.after(DrainKey, Sharding.DRAIN_AFTER, Region.Drain())
+    }
+
+    /** The region is stopping: what it kept for busy hosts is lost with it. */
+    @OptIn(PlumbingSeam::class)
+    fun stopping(ctx: Ctx<Region<M>>) = handOn.drop(ctx, DeadLetter.Why.Stopped)
+
     private fun letGo(ctx: Ctx<Region<M>>, shard: Int) {
+        // What was kept for the shard's entities goes wherever the shard is now, in order, with the next retry.
+        @OptIn(PlumbingSeam::class)
+        handOn.keys.filter { Placement.shardOf(it, shards) == shard }.forEach { id ->
+            handOn.take(ctx, id).forEach { keep(Region.Envelope(id, 0, it)) }
+        }
         ready -= shard
         hosted.remove(shard)?.let { manager ->
             stopping[manager] = shard

@@ -66,6 +66,22 @@ internal fun <M : Any> ActorRef<M>.offer(message: M): Boolean {
     return cell.offer(message)
 }
 
+/**
+ * [message] told if this has room, or has stopped, where a tell is a dead letter: false only when it is an actor's
+ * full mailbox, and a tell from a step would throw (spec 0095). An entity's ref asks its manager.
+ */
+internal fun <M : Any> ActorRef<M>.tellIfRoom(message: M): Boolean = when (this) {
+    is Cell<*, *, *> -> {
+        @Suppress("UNCHECKED_CAST")
+        val cell = this as Cell<M, *, *>
+        cell.offer(message) || (cell.isStopped && true.also { cell.tell(message) })
+    }
+
+    is EntityRef<M> -> manager.tellIfRoom(Deliver(id, message))
+
+    else -> true.also { tell(message) }
+}
+
 /** The actors registered under [key] in this flock now. */
 fun <F, M : Any> Flock<F>.find(key: ServiceKey<M>): Set<ActorRef<M>> = guardian().receptionist.find(key)
 
@@ -402,6 +418,8 @@ private class Cell<M : Any, S, E>(
     // Held from the moment a message finds the actor idle until its activation ends, so one step runs at a time.
     @Volatile
     private var stopped = false
+
+    val isStopped: Boolean get() = stopped
 
     @Volatile
     private var state: S = behaviour.initial
