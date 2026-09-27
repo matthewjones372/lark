@@ -140,13 +140,16 @@ internal class ShardedRef<M : Any>(private val region: ActorRef<Region<M>>, priv
 /**
  * The entities of [kind], one actor per id made by [entity], each run on the `Up` member that owns its shard and
  * stopped once it has had nothing for [passivateAfter]. Every node that runs the cluster runs this too, with the same
- * [kind], [codec] and [shards]; a message told on any of them reaches the owner through its region.
+ * [kind], [codec] and [shards]; a message told on any of them reaches the owner through its region. With a [role],
+ * only members started with it host shards (spec 0083); the rest route to them, and while none is up, what is told
+ * is kept.
  */
 fun <M : Any, S, E> Cluster.sharding(
     kind: String,
     codec: MessageCodec<M>,
     passivateAfter: Duration,
     shards: Int = Sharding.SHARDS,
+    role: String? = null,
     entity: (id: String) -> Behaviour<M, S, E>,
 ): Sharded<M> {
     val path = Sharding.path(kind)
@@ -158,7 +161,7 @@ fun <M : Any, S, E> Cluster.sharding(
     val onRunning = { delta: Int -> counting.withLock { running.set((count + delta).also { count = it }.toDouble()) } }
     val hosting = Hosting<M, Entities<M>>(
         eager = false,
-        owner = { shard, members -> Placement.owner(kind, shard, members) },
+        owner = { shard, members -> Placement.owner(kind, shard, members.holding(role)) },
         start = { ctx, shard ->
             ctx.spawn("shard-$shard", entities(passivateAfter, onRunning = onRunning, entity = entity))
         },
@@ -193,3 +196,6 @@ internal fun <M : Any, H : Any> Cluster.region(
     onView { region.tell(Region.Viewed(it)) }
     return region
 }
+
+/** The members that may host what [role] names: all of them when it is null. */
+internal fun List<Member>.holding(role: String?): List<Member> = if (role == null) this else filter { role in it.roles }
