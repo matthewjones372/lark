@@ -39,7 +39,8 @@ data class Node(val name: String, val host: String, val port: Int) {
 
         /** A node known by `host:port` alone, as a seed is written in config: whichever node answers there. */
         fun at(address: String): Node {
-            val (host, port) = requireNotNull(seed.matchEntire(address.trim())) { "$address is not host:port" }.destructured
+            val found = requireNotNull(seed.matchEntire(address.trim())) { "$address is not host:port" }
+            val (host, port) = found.destructured
             require(port.toInt() in 1..MAX_PORT) { "$address has no port a node can listen on" }
             return Node("", host, port.toInt())
         }

@@ -45,7 +45,8 @@ class JoiningTest {
             Joins.named("static", JoinOptions(25520, 20.seconds, emptyMap(), "lark.cluster.static"))
         }.message shouldBe "lark.cluster.static.seeds is missing"
         shouldThrow<IllegalArgumentException> {
-            Joins.named("dns", JoinOptions(25520, 20.seconds, mapOf("name" to "x", "port" to "high"), "lark.cluster.dns"))
+            val options = mapOf("name" to "x", "port" to "high")
+            Joins.named("dns", JoinOptions(25520, 20.seconds, options, "lark.cluster.dns"))
         }.message shouldBe "lark.cluster.dns.port is not a number"
     }
 

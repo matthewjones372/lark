@@ -32,7 +32,7 @@ interface Joins {
         fun available(): Map<String, Joins> =
             ServiceLoader.load(Joins::class.java, Joins::class.java.classLoader).associateBy { it.name }
 
-        /** The joining [name] builds from [options]; a name that is not on the classpath is refused, naming its module. */
+        /** The joining [name] builds from [options]; a name not on the classpath is refused, naming its module. */
         fun named(name: String, options: JoinOptions): Joining {
             val found = available()
             val joins = found[name] ?: throw IllegalArgumentException(
@@ -90,7 +90,10 @@ class StaticJoins : Joins {
     override fun joining(options: JoinOptions): Joining {
         val seeds = options.strings("seeds")
         require(seeds.isNotEmpty()) { "static.seeds is empty: a node needs somewhere to join through" }
-        return Joining(Discovery.static(seeds.first(), *seeds.drop(1).toTypedArray()), Downing.keepMajority(options.stableAfter))
+        return Joining(
+            Discovery.static(seeds.first(), *seeds.drop(1).toTypedArray()),
+            Downing.keepMajority(options.stableAfter),
+        )
     }
 }
 
