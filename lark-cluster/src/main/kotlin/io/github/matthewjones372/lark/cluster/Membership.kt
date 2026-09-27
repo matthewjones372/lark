@@ -227,7 +227,8 @@ internal class Membership(
         val side = if (self in unreachable) setOf(self) else live - unreachable
         if (!settled(now, unreachable, side)) return emptyList()
         if (stays(side, live)) {
-            unreachable.forEach { change(it, Status.Down) }
+            // Suspected by the others is not the same as lost: the side that stays never downs itself.
+            (unreachable - side).forEach { change(it, Status.Down) }
             return emptyList()
         }
         side.forEach { change(it, Status.Down) }

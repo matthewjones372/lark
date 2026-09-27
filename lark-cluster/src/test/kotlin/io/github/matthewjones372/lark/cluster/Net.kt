@@ -20,6 +20,7 @@ internal fun seeds(vararg n: Int) = n.map { Node("", at(it).host, at(it).port) }
 internal class Net(private val seed: Int = 1, private val downing: Downing = Downing.keepMajority(20.seconds)) {
     val nodes = mutableMapOf<Node, Membership>()
     private val cut = mutableSetOf<Set<Node>>()
+    private val deaf = mutableSetOf<Set<Node>>()
     private val stopped = mutableSetOf<Node>()
     var now: Duration = Duration.ZERO
         private set
@@ -34,6 +35,11 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
 
     fun cut(a: Int, b: Int) {
         cut += setOf(at(a), at(b))
+    }
+
+    /** Acks between [a] and [b] go missing while their gossip still arrives: a JVM too busy to ack in time. */
+    fun dropAcks(a: Int, b: Int) {
+        deaf += setOf(at(a), at(b))
     }
 
     fun heal(a: Int, b: Int) {
@@ -52,7 +58,10 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
             live().forEach { (node, m) -> m.tick(now).forEach { flying += node to it } }
             while (flying.isNotEmpty()) {
                 val (from, send) = flying.removeFirst()
-                val to = live().keys.firstOrNull { node -> reaches(send.to, node) && setOf(from, node) !in cut }
+                val to = live().keys.firstOrNull { node ->
+                    reaches(send.to, node) && setOf(from, node) !in cut &&
+                        !(send.message is Swim.Ack && setOf(from, node) in deaf)
+                }
                 to?.let { there -> nodes.getValue(there).receive(send.message, now).forEach { flying += there to it } }
             }
             if (done()) return true

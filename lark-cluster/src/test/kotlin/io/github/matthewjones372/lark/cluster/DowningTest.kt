@@ -68,6 +68,20 @@ class DowningTest {
         (1..5).forEach { net.view(it).up().size shouldBe 5 }
     }
 
+    /**
+     * Each suspects the other while their gossip still flows, so each learns that it is suspected too. The side that
+     * stays is the one with the lowest address, and it must not count itself among the unreachable it downs.
+     */
+    @Test
+    fun `two members that stop hearing each other's acks keep the lowest up rather than downing both`() {
+        val net = Net(downing = Downing.keepMajority(2.seconds)).apply { upAll(1, 2) }
+
+        net.dropAcks(1, 2)
+
+        net.until { !net.active(2) } shouldBe true
+        net.active(1) shouldBe true
+    }
+
     @Test
     fun `an even split keeps the side with the lowest address`() {
         val net = Net(downing = Downing.keepMajority(2.seconds)).apply { upAll(1, 2, 3, 4) }
