@@ -53,9 +53,10 @@ are written. Recommended: embedded Postgres.
 
 ## Stack
 
-- [ ] **`spec-0078-contracts`** — `Postgres` and the five contracts on it. Done
+- [x] **`spec-0078-contracts`** — `Postgres` and the five contracts on it. Done
       when: every contract passes on Postgres, and the module's runtime
       classpath is unchanged.
+      ([#203](https://github.com/matthewjones372/lark/pull/203))
 - [ ] **`spec-0078-gaps`** — the feed's gap tests on Postgres. Done when: an
       append open on one connection holds the feed back on another until it
       commits, and a rolled-back one is passed after `gapTimeout`.
@@ -78,3 +79,9 @@ are written. Recommended: embedded Postgres.
 Decided (2026-09-27): every open question goes as recommended. Embedded
 Postgres rather than Testcontainers; the H2 runs stay; and the Postgres version
 is the embedded binaries' default, pinned in the build.
+
+Decided while building `spec-0078-contracts`: embedded-postgres 2.1.0 with the
+binaries' BOM pinned at 17.5.0 and the 42.7.7 driver, all test scope. It runs
+where this was built, as root and with no Docker. Every contract passed on
+Postgres unchanged, and a wrong duplicate-key SQL state fails the Postgres
+journal's two conflict tests, so they exercise Postgres's own errors.
