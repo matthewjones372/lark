@@ -70,8 +70,19 @@ class JoinOptions(
 
     fun strings(key: String): List<String> = when (val value = values[key]) {
         is List<*> -> value.map { it.toString() }
+
+        // `-Dpath.seeds.0=…` system properties arrive as an object keyed by index, which HOCON reads as a list.
+        is Map<*, *> -> numbered(key, value)
+
         null -> throw IllegalArgumentException("${path(key)} is missing")
+
         else -> throw IllegalArgumentException("${path(key)} is not a list")
+    }
+
+    private fun numbered(key: String, value: Map<*, *>): List<String> {
+        val indexed = value.entries.associate { (index, item) -> index.toString().toIntOrNull() to item.toString() }
+        require(indexed.isNotEmpty() && null !in indexed.keys) { "${path(key)} is not a list" }
+        return indexed.entries.sortedBy { it.key }.map { it.value }
     }
 
     /** A section of `name = value` pairs, as a label selector is written. */
