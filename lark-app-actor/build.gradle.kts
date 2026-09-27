@@ -18,3 +18,8 @@ tasks.test {
         },
     )
 }
+
+dependencies {
+    // A cluster made in the actors' flock, to show it leaves as the application is released (spec 0080).
+    testImplementation(project(":lark-cluster"))
+}

@@ -21,15 +21,19 @@ import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.logDebug
+import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.FutureTask
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * A flock held open for the application's life, for its actors to live in. It is opened on a thread of its own that
- * waits until the node is released, and releasing it closes the flock, which stops every actor after its running
- * step. Everything here is the flock's own call.
+ * waits until the node is released, and releasing it closes the flock: its close hooks run first, and then every
+ * actor stops after its running step. Everything here is the flock's own call.
  */
-class Actors internal constructor(private val flock: Flock<Nothing>, private val closing: CountDownLatch) {
+class Actors internal constructor(private val flock: Flock<Nothing>, private val tasks: BlockingQueue<Runnable>) {
 
     fun <M : Any, S, E> spawn(
         name: String,
@@ -48,15 +52,37 @@ class Actors internal constructor(private val flock: Flock<Nothing>, private val
 
     fun awaitIdle() = flock.awaitIdle()
 
+    /**
+     * Runs [block] on the flock's own thread and answers what it returned, or throws what it threw: for what must be
+     * started in the flock itself, such as a remote node or a cluster. What it starts closes with the flock, through
+     * its close hooks, so a cluster made here leaves before the application's actors stop (spec 0080).
+     */
+    fun <A> within(block: Flock<Nothing>.() -> A): A {
+        check(!closed.get()) { "the actors' flock has closed" }
+        val task = FutureTask { flock.block() }
+        tasks.put(task)
+        return try {
+            task.get()
+        } catch (failed: ExecutionException) {
+            throw failed.cause ?: failed
+        }
+    }
+
     // The thread holding the flock open, set as soon as it has started.
     internal lateinit var holder: Thread
 
+    private val closed = AtomicBoolean(false)
+
     /** Lets the flock close, and waits for it to have: every actor has stopped once this returns. */
     internal fun close() {
-        closing.countDown()
+        closed.set(true)
+        tasks.put(Close)
         holder.join()
     }
 }
+
+/** What the flock's thread takes to stop running tasks and let the flock close. */
+private val Close = Runnable { }
 
 /**
  * The [Actors] node. [onDeadLetter] is handed every dead letter of its actors; by default each is logged at debug.
@@ -69,14 +95,15 @@ fun actors(onDeadLetter: (DeadLetter) -> Unit = { logDebug("dead letter: $it") }
 private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
     val waits = clock.get()
     val opened = CompletableFuture<Actors>()
-    val closing = CountDownLatch(1)
+    val tasks = LinkedBlockingQueue<Runnable>()
     val holder = Thread.ofVirtual().name("lark-app-actors").start {
         clock.locally(waits) {
             flock<Nothing, Unit> {
                 // The guardian stands up here, on the flock's own thread, before any spawn from elsewhere.
                 onDeadLetter(onDeadLetter)
-                opened.complete(Actors(this, closing))
-                closing.await()
+                opened.complete(Actors(this, tasks))
+                // The flock's thread runs what `within` hands it until the node is released.
+                generateSequence { tasks.take() }.takeWhile { it !== Close }.forEach(Runnable::run)
             }
         }
     }
