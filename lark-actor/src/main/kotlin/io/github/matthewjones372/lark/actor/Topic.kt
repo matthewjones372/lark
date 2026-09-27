@@ -36,7 +36,7 @@ class Topic<M : Any> internal constructor(val name: String, val ref: ActorRef<To
  * which is how a cluster's topic reaches the other members; a message from them arrives as [TopicMessage.Arrive].
  * It records `lark.topic.published`, `lark.topic.delivered` and `lark.topic.subscribers` (spec 0081).
  */
-fun <F, M : Any> Flock<F>.topic(name: String, forward: (M) -> Unit = {}): Topic<M> {
+fun <M : Any> Flock<*>.topic(name: String, forward: (M) -> Unit = {}): Topic<M> {
     val published = counter("lark.topic.published", "topic" to name)
     val delivered = counter("lark.topic.delivered", "topic" to name)
     val subscribers = gauge("lark.topic.subscribers", "topic" to name)

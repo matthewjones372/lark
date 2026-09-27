@@ -23,7 +23,7 @@ class TopicTest {
         capturingMetrics { captured ->
             flock<Nothing, Unit> {
                 onDeadLetter(letters::add)
-                val prices = topic<Nothing, Int>("prices")
+                val prices = topic<Int>("prices")
                 val listeners = listOf("a", "b", "c").map { spawn(it, listener(it)) }
                 listeners.forEach(prices::subscribe)
                 (1..50).forEach(prices::publish)
@@ -52,7 +52,7 @@ class TopicTest {
         val forwarded = ConcurrentLinkedQueue<Int>()
 
         flock<Nothing, Unit> {
-            val prices = topic<Nothing, Int>("prices") { forwarded += it }
+            val prices = topic<Int>("prices") { forwarded += it }
             prices.subscribe(spawn("a", listener("a")))
             prices.publish(1)
             prices.ref.tell(TopicMessage.Arrive(2))
