@@ -111,3 +111,8 @@ resumer's own death. Recommended: the singleton.
 4. **Should the life in the id use 0097's `Cluster.uid`?** Recommended: yes.
    It is the life the membership already knows, so the registry and the
    member events agree on it.
+
+Decided (2026-09-27): every open question goes as recommended. Resuming is on
+by default for `reliable(durable = true)`; a `lark-producers` singleton
+decides it; resumed producers run on the singleton's node; and the life in a
+producer's id is the node's name and `Cluster.uid`.
