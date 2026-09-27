@@ -213,6 +213,51 @@ take. The defaults suit a busy node on a real network; tests that want a
 cluster in a second set them lower, and a node under heavy load with them set
 too low will see live members as unreachable.
 
+### Joined from config
+
+An application in `lark-app` need not assemble any of that. `lark-app-cluster`
+makes the cluster a node of the graph, joined as a HOCON section says
+([spec 0096](../specs/0096-a-cluster-joined-from-config.md)). `join` names the
+backend, and the section of that name holds what it needs. The backend is
+found on the classpath, so add `lark-cluster-kubernetes` or `lark-cluster-aws`
+to join through it. A name whose module is missing refuses the start, naming
+the module. The backend brings its own client and closes it once the node has
+left, and it chooses the downing that suits it: a lease on Kubernetes and AWS,
+and keep-majority for `static`, `dns` and `srv`.
+
+<!-- cluster-joined -->
+```hocon
+shop.cluster {
+  node {
+    name = "shop-1"
+    name = ${?POD_NAME}
+    host = "127.0.0.1"
+    host = ${?POD_IP}
+    port = 25520
+  }
+  # static, dns or srv from lark-cluster itself; kubernetes, ecs or cloudmap from their modules.
+  join = "static"
+  join = ${?CLUSTER_JOIN}
+  static.seeds = ["127.0.0.1:25520"]
+  # The pods labelled app=shop; the namespace is the pod's own.
+  kubernetes { selector { app = "shop" }, lease = "shop-split-brain" }
+  downing.stableAfter = 20s
+  gossip { probeEvery = 1s, ackWithin = 600ms, formAfter = 5s }
+  leaveWithin = 30s
+  # exit: a node the others downed ends its process, so its orchestrator starts a new one.
+  whenDowned = exit
+}
+```
+
+```kotlin
+val shop = loadedConfig() + actors() + cluster("shop.cluster") + single { cluster: Cluster -> Orders(cluster) }
+```
+
+The `Cluster` node is started once `cluster.ready()`, and the flock leaves the
+cluster before the application's actors stop. `cluster(ClusterSettings(...))`
+takes the same settings from code, for an application that reads its
+configuration its own way.
+
 ## Entities
 
 An entity is an actor with an id, run on whichever member owns it.
