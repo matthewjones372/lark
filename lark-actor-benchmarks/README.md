@@ -40,7 +40,7 @@ iterations of 1 s, `-prof gc`), is one command, about 15 minutes:
 
 | Row | Per | lark | Pekko |
 |---|---|---|---|
-| `ShardedTellBenchmark`, `owner = local`: 1,000 tells to an entity on this node, until all are handled | tell | to be measured | to be measured |
+| `ShardedTellBenchmark`, `owner = local`: 2,000 tells to an entity on this node, until all are handled | tell | to be measured | to be measured |
 | `ShardedTellBenchmark`, `owner = remote`: the same to an entity on another node | tell | to be measured | to be measured |
 | `ShardedAskBenchmark`, `owner = local`: an ask to an entity on this node and its answer | round trip | to be measured | to be measured |
 | `ShardedAskBenchmark`, `owner = remote`: the same to an entity on another node | round trip | to be measured | to be measured |
@@ -57,9 +57,9 @@ iterations of 1 s, `-prof gc`), is one command, about 15 minutes:
   it. Each side's producer writes the command before sending it and a confirmation after it; the confirmation's
   write falls outside the row, except that lark sends the next command to an entity only once the last is
   confirmed, and Pekko does not wait.
-- **A burst is 1,000, not the 2,000 `RemoteTellBenchmark` uses.** A lark region hands each message to its shard's
-  actor, and both have mailboxes of 1,024; a region whose tell finds the shard's mailbox full fails and stops, and a
-  burst of 2,000 into one entity did that. Pekko's mailboxes are unbounded.
+- **A burst is 2,000, as `RemoteTellBenchmark` uses.** A lark region hands each message to its shard's actor, and
+  both have mailboxes of 1,024. What a full mailbox cannot take yet is kept, in order, and handed on as it drains
+  (spec 0095). Pekko's mailboxes are unbounded.
 - **A topic crosses once per node on both sides.** lark's topic tells each other `Up` member's topic once, and
   Pekko's `Topic` tells each topic instance its receptionist has found once; each then tells its own subscribers.
   A trial starts only once a probe has reached all 30 subscribers, so neither side is measured while its nodes

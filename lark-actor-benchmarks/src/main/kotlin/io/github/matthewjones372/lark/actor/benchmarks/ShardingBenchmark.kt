@@ -33,10 +33,10 @@ import kotlin.time.Duration.Companion.hours
 import kotlin.time.toKotlinDuration
 
 /**
- * Under the 1,024 a lark region and shard spawn their actors with: a region whose tell finds the shard's mailbox full
- * fails its step and stops, which a burst of 2,000 into one entity did. Pekko's mailboxes are unbounded.
+ * As `RemoteTellBenchmark`'s burst: over the 1,024 a lark region and shard spawn their actors with, since a region and
+ * an entity manager keep what a busy mailbox cannot take yet (spec 0095). Pekko's mailboxes are unbounded.
  */
-private const val SHARD_BURST = 1_000
+private const val SHARD_BURST = 2_000
 
 /** Ids tried before giving up on finding one a given node owns: with three nodes, the first few do. */
 private const val IDS_TRIED = 200

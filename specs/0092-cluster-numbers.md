@@ -91,7 +91,7 @@ same machine class as the existing numbers, not in this container.
 
 Decided while building `spec-0092-sharding`:
 - **Where an entity runs.** `owner = local` is an entity the telling node owns, and `remote` one another node owns. Each is found by asking entities where they run, on both sides, since lark's placement is internal.
-- **The burst is 1,000, not 2,000.** A lark region's tell into its shard's full mailbox of 1,024 fails the region's step, and the region stops. A burst of 2,000 into one entity did that, and every tell after it was a dead letter. It is a limit in `lark-cluster`, left for its own change, not worked around here.
+- **The burst is 1,000, not 2,000.** A lark region's tell into its shard's full mailbox of 1,024 fails the region's step, and the region stops. A burst of 2,000 into one entity did that, and every tell after it was a dead letter. It is a limit in `lark-cluster`, left for its own change, not worked around here. Spec 0095 lifted that limit, and the burst is 2,000 again.
 - **Serialisation.** Both sides write the same fields by hand over a `DataOutputStream`: a `MessageCodec` for lark, and a `SerializerWithStringManifest` for Pekko, where a reply crosses as `ActorRefResolver`'s string.
 - **Nothing moves.** Pekko's rebalancing and passivation are off, and lark passivates after an hour, so an entity stays where it was found for the whole trial.
 - **Gossip.** Both sides probe at their defaults. lark forms after 1 s rather than 5 s, which only shortens a trial's setup.
