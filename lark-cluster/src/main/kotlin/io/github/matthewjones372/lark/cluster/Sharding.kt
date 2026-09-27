@@ -107,6 +107,7 @@ class Sharded<M : Any> internal constructor(
     private val region: ActorRef<Region<M>>,
     private val cluster: Cluster,
     private val codec: MessageCodec<M>,
+    private val producers: Producers?,
 ) {
     /** The entity [id], wherever it runs now: a ref that stays good while it moves between nodes. */
     fun entity(id: String): ActorRef<M> = ShardedRef(region, id)
@@ -120,8 +121,8 @@ class Sharded<M : Any> internal constructor(
      *
      * A [durable] producer keeps its commands in the flock's journal rather than in memory (spec 0085), so one whose
      * node crashes loses none. It is kept under this node's life as well as [producerId] (spec 0099), so each life
-     * has an outbox of its own however often the node restarts. Its commands implement `Delivered.redeliver`, and
-     * `send` returns once each is written.
+     * has an outbox of its own however often the node restarts, and the cluster's `lark-producers` singleton lists
+     * it with that life. Its commands implement `Delivered.redeliver`, and `send` returns once each is written.
      */
     @Suppress("LongParameterList")
     fun reliable(
@@ -136,6 +137,7 @@ class Sharded<M : Any> internal constructor(
         return if (durable) {
             val kept = "$id-${cluster.life}"
             cluster.flock.durableProducer(kept, codec.outbox(), resendAfter, keep, within, drainWithin, ::entity)
+                .also { producers?.register(kept, kind) }
         } else {
             cluster.flock.producer(id, resendAfter, keep, within, drainWithin, ::entity)
         }
@@ -184,7 +186,7 @@ fun <M : Any, S, E> Cluster.sharding(
         },
         deliver = { manager, id, message -> manager.entity(id).tell(message) },
     )
-    return Sharded(kind, region(path, codec, shards, hosting, kind), this, codec)
+    return Sharded(kind, region(path, codec, shards, hosting, kind), this, codec, producers)
 }
 
 /** A region at [path] on this node, reachable from the others at the same path. */
