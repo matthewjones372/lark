@@ -9,6 +9,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -33,8 +34,10 @@ fun <F, M : Any> Flock<F>.durableProducer(
 ): Producer<M> {
     val room = room(keep)
     val meters = meters(id)
-    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, route))
-    return Producer<M>(actor, room, keep, within, meters.full, durable = true).drainedOnClose(this, id, drainWithin)
+    val recovered = CountDownLatch(1)
+    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
+    return Producer<M>(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
+        .drainedOnClose(this, id, drainWithin)
 }
 
 /** A durable producer among these test actors, as [Flock.durableProducer]; its resends wait on [TestActors.advance]. */
@@ -49,8 +52,9 @@ fun <M : Any> TestActors.durableProducer(
 ): Producer<M> {
     val room = room(keep)
     val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
-    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, route))
-    return Producer(actor, room, keep, within, meters.full, durable = true)
+    val recovered = CountDownLatch(1)
+    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
+    return Producer(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
 }
 
 /** What a durable producer writes: a command kept, as bytes, and a command confirmed. */
@@ -69,7 +73,7 @@ private const val KEPT = 1
 private const val DONE = 2
 private const val SNAPSHOT_EVERY = 1_000
 
-/** The key of the timer that sends what a start recovered, at once. */
+/** Sent at once after a start: claim room for what it recovered, and send it. */
 private data object Recovered
 
 /** The durable producer's actor: [producing]'s protocol, with each command kept and confirmed in the journal first. */
@@ -81,6 +85,7 @@ private fun <M : Any> outbox(
     room: Semaphore,
     keep: Int,
     meters: ProducerMeters,
+    recovered: CountDownLatch,
     route: (String) -> ActorRef<M>,
 ): Behaviour<Any, Remembered<Outboxes>, JournalConflict> {
     val steps = OutboxSteps(producer, codec, room, keep, meters, route)
@@ -92,16 +97,25 @@ private fun <M : Any> outbox(
         command = { ctx, outboxes, message ->
             when (message) {
                 is KeepDurably<*> -> steps.keep(this, ctx, outboxes, message)
+
                 is Confirmed -> steps.confirmed(this, ctx, outboxes, message)
+
                 ResendUnconfirmed -> none().then { now -> steps.resend(ctx, now) }
+
+                Recovered -> none().then { now ->
+                    steps.claim(now)
+                    recovered.countDown()
+                    steps.resend(ctx, now)
+                }
+
                 else -> unhandled()
             }
         },
         event = ::applied,
     ).onStart { ctx ->
         ctx.timers.every(ResendUnconfirmed, resendAfter, ResendUnconfirmed)
-        // What the start recovered goes out at once, rather than a resendAfter later.
-        ctx.timers.after(Recovered, Duration.ZERO, ResendUnconfirmed)
+        // What the start recovered holds room, and goes out at once rather than a resendAfter later.
+        ctx.timers.after(Recovered, Duration.ZERO, Recovered)
     }
 }
 
@@ -115,8 +129,19 @@ private class OutboxSteps<M : Any>(
     private val meters: ProducerMeters,
     private val route: (String) -> ActorRef<M>,
 ) {
-    // The commands kept in this life, which alone hold room: one recovered from the journal was never given any.
+    // The commands that hold room: each kept here, and each recovered that there was room for, so room never
+    // exceeds keep and a drain waits for what was recovered as well as what was sent.
     private val holding = ConcurrentHashMap.newKeySet<Pair<String, Long>>()
+
+    /** Takes room for each recovered command that holds none yet, as far as there is room. */
+    fun claim(outboxes: Outboxes) {
+        outboxes.forEach { (to, stored) ->
+            stored.kept.forEach { (sequence, _) ->
+                if (to to sequence !in holding && room.tryAcquire()) holding += to to sequence
+            }
+        }
+        measure()
+    }
 
     fun keep(
         effects: Effects<OutboxEvent, Outboxes>,

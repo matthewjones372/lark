@@ -1,10 +1,13 @@
 package io.github.matthewjones372.lark.actor
 
+import arrow.core.left
+import arrow.core.right
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.nio.ByteBuffer
+import kotlin.time.Duration
 
 /** Tops a wallet up by [pence], sent durably. */
 private data class TopUp(val pence: Long, override val delivery: Delivery) : Delivered {
@@ -59,6 +62,7 @@ class DurableProducerTest {
             for (n in 0 until 50) crashed.send(ids[n % 5]) { TopUp(n.toLong(), it) }
 
             val again = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }
+            again.drain(Duration.ZERO) shouldBe true
             again.send("w-0") { TopUp(1_000, it) }
 
             ids.forEachIndexed { w, id ->
@@ -82,6 +86,21 @@ class DurableProducerTest {
 
             journal.events(walletOf("w-0"), pence).last() shouldBe 7L
             wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 301L)
+        }
+    }
+
+    @Test
+    fun `what a start recovers holds room, so a drain waits for it`() {
+        testActors {
+            val crashed = durableProducer("till", topUpCodec) { nowhere }
+            for (n in 0 until 3) crashed.send("w-$n") { TopUp(n.toLong(), it) }
+
+            val again = durableProducer("till", topUpCodec, keep = 5, within = Duration.ZERO) { nowhere }
+
+            again.drain(Duration.ZERO) shouldBe false
+            again.send("w-0") { TopUp(9, it) } shouldBe Unit.right()
+            again.send("w-1") { TopUp(9, it) } shouldBe Unit.right()
+            again.send("w-2") { TopUp(9, it) } shouldBe Full.left()
         }
     }
 }

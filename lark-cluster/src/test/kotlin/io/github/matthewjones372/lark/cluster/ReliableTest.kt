@@ -34,7 +34,9 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** Pays [pence] into an account, sent reliably. */
-private data class PayInto(val pence: Int, override val delivery: Delivery) : Delivered
+private data class PayInto(val pence: Int, override val delivery: Delivery) : Delivered {
+    override fun redeliver(delivery: Delivery) = copy(delivery = delivery)
+}
 
 private val payIntoCodec = object : MessageCodec<PayInto> {
     override fun write(message: PayInto, out: WireOut) {
@@ -76,9 +78,20 @@ private fun accountsDatabase(): DataSource = JdbcDataSource().apply {
     connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
 }
 
-/** A node with the accounts sharded on it and [journal] as its flock's, on a thread of its own, until [close]. */
-private class Bank(val name: String, port: Int, seeds: Discovery, journal: Journal, leaveWithin: Duration) :
-    AutoCloseable {
+/**
+ * A node with the accounts sharded on it and [journal] as its flock's, on a thread of its own, until [close]. With a
+ * [ledger] role, accounts run only on members that hold it, and this one holds it if [ledger] is true.
+ */
+private class Bank(
+    val name: String,
+    port: Int,
+    seeds: Discovery,
+    journal: Journal,
+    leaveWithin: Duration,
+    private val role: String? = null,
+    ledger: Boolean = false,
+) : AutoCloseable {
+    private val roles = if (ledger) setOfNotNull(role) else emptySet()
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Pair<Cluster, Sharded<PayInto>>>()
@@ -90,9 +103,10 @@ private class Bank(val name: String, port: Int, seeds: Discovery, journal: Journ
     private fun open(port: Int, seeds: Discovery, journal: Journal, leaveWithin: Duration) {
         flock<Nothing, Unit> {
             journal(journal)
-            val cluster =
-                cluster(node(name, port), seeds, calm, Downing.keepMajority(stableAfter = 3.seconds), leaveWithin)
-            val accounts = cluster.sharding("account", payIntoCodec, passivateAfter = 1.minutes, entity = ::account)
+            val downing = Downing.keepMajority(stableAfter = 3.seconds)
+            val cluster = cluster(node(name, port), seeds, calm, downing, leaveWithin, roles)
+            val accounts =
+                cluster.sharding("account", payIntoCodec, passivateAfter = 1.minutes, role = role, entity = ::account)
             opened.set(cluster to accounts)
             ready.countDown()
             done.await()
@@ -193,6 +207,39 @@ class ReliableTest {
             }
             closing.close()
 
+            accounts.forEach { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
+        } finally {
+            banks.forEach(Bank::close)
+        }
+    }
+
+    @Test
+    fun `payments a durable producer accepted before its node crashed are each applied once, sent by its successor`() {
+        val journal = JdbcJournal(accountsDatabase())
+        val ports = List(4) { openPort() }
+        val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
+        // Accounts run only on a ledger, and none is up until the crash: every payment is still unconfirmed then.
+        // Each node goes as a crashed one does, without leaving or draining.
+        val bank = { i: Int -> Bank("b${i + 1}", ports[i], seeds, journal, Duration.ZERO, "ledger", ledger = i == 3) }
+        val banks = (0 until 3).map(bank).toMutableList()
+        try {
+            banks.forEach { b ->
+                b.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe true
+            }
+            val (crashing, successor) = banks
+            val accepted = crashing.accounts.reliable("checkout", keep = 1_000, durable = true)
+            val accounts = List(200) { "a-$it" }
+            for (pence in 1..2) {
+                accounts.forEach { id -> accepted.send(id) { PayInto(pence, it) } shouldBe Unit.right() }
+            }
+
+            crashing.close()
+            // 400 kept and none confirmed: what the successor sends, it has only from the journal.
+            journal.read(PersistenceId("lark-producer", "account-checkout")).size shouldBe 400
+            banks += bank(3)
+            val sending = successor.accounts.reliable("checkout", resendAfter = 200.milliseconds, durable = true)
+
+            sending.drain(1.minutes) shouldBe true
             accounts.forEach { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
         } finally {
             banks.forEach(Bank::close)
