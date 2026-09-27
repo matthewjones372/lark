@@ -73,7 +73,7 @@ resumer's own death. Recommended: the singleton.
 
 ## Stack
 
-- [ ] **`spec-0099-life`** — durable producers from `reliable` are named by
+- [x] **`spec-0099-life`** — durable producers from `reliable` are named by
       the node's life. Done when: two lives of one node, restarted in place,
       keep separate outboxes in the journal, and each one's commands are
       delivered.
@@ -116,3 +116,8 @@ Decided (2026-09-27): every open question goes as recommended. Resuming is on
 by default for `reliable(durable = true)`; a `lark-producers` singleton
 decides it; resumed producers run on the singleton's node; and the life in a
 producer's id is the node's name and `Cluster.uid`.
+
+Decided while building `spec-0099-life`:
+- **The life's form.** It is the node's name, a dash, and `Cluster.uid` as an unsigned number in base 36, as lark-bank wrote it. Only `reliable(durable = true)` carries it; an in-memory producer already has an incarnation of its own.
+- **Between this entry and resume.** A crashed life's commands wait until something starts its producer by the full id. `ReliableTest`'s successor does that by hand for now.
+- **What the test catches.** Naming the producer without the life fails it: both lives share one outbox, and neither life-named id holds anything.
