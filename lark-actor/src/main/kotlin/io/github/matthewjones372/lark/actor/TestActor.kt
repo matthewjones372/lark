@@ -186,8 +186,13 @@ class TestActor<M : Any, S, E> internal constructor(
     private val boundary = StepRaise<E>()
     private val asks = AtomicLong()
 
-    private val ctx = object : Ctx<M> {
+    private val ctx = object : Ctx<M>, DeadLetters {
         override val self = this@TestActor
+
+        override fun deadLetter(letter: DeadLetter) = scope.dead(letter)
+
+        // A test actor always has room, so nothing is ever kept for one.
+        override fun kept(delta: Int) = Unit
 
         override val journal: Journal get() = scope.journal
 

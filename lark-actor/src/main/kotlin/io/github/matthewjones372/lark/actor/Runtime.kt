@@ -106,7 +106,7 @@ private fun Flock<*>.guardian(): Guardian =
  * dropped. The runtime counts them, so this parks until the count reaches zero rather than polling.
  */
 fun <E> Flock<E>.awaitIdle() {
-    guardians[this]?.backlog?.awaitEmpty()
+    guardians[this]?.backlog?.awaitSettled()
 }
 
 /**
@@ -264,6 +264,25 @@ private class Backlog(private val runners: Runners?) {
             while (count.get() != 0L) empty.await()
         }
     }
+
+    // Messages lark's own plumbing keeps for a busy receiver (spec 0095): told, and not yet handled or dropped.
+    private val held = AtomicLong()
+    private val released = lock.newCondition()
+
+    fun held(delta: Int) {
+        if (held.addAndGet(delta.toLong()) == 0L) lock.withLock { released.signalAll() }
+    }
+
+    /** Idle, with nothing kept for a busy receiver: what [awaitIdle] promises. The wheel settles on [awaitEmpty]. */
+    fun awaitSettled() {
+        while (true) {
+            awaitEmpty()
+            if (held.get() == 0L) return
+            lock.withLock {
+                while (held.get() != 0L) released.await()
+            }
+        }
+    }
 }
 
 /** One flock's actors, the executor they run on and the clock they wait on. */
@@ -352,8 +371,12 @@ private class Cell<M : Any, S, E>(
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
     private val parent: Cell<*, *, *>?,
-) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation {
+) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation, DeadLetters {
     override val self: ActorRef<M> get() = this
+
+    override fun deadLetter(letter: DeadLetter) = guardian.dead(letter)
+
+    override fun kept(delta: Int) = backlog.held(delta)
 
     override val timers: Timers<M> get() = this
 
