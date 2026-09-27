@@ -67,11 +67,12 @@ shows the frames matter.
       and publish on one node. Done when: three subscribers hear every
       publish in order, and one that stops is dropped without a dead letter.
       ([#221](https://github.com/matthewjones372/lark/pull/221))
-- [ ] **`spec-0082-cluster`** — `cluster.topic(name, codec)`, the forward to
+- [x] **`spec-0082-cluster`** — `cluster.topic(name, codec)`, the forward to
       every `Up` member, and the metrics. Done when: on three nodes with
       subscribers on two, 100 publishes from the third reach each subscriber
       once and in order, and a node that joins later hears what is published
       after it subscribes.
+      ([#222](https://github.com/matthewjones372/lark/pull/222))
 
 ## Acceptance
 
@@ -106,3 +107,12 @@ needs. The three metrics are recorded here, by the actor that owns them, not
 in the cluster entry as drafted. A subscriber is watched as it subscribes, and
 a stopped one is dropped once its `Terminated` is handled; a publish between
 its stop and that is a dead letter, as any tell to a stopped actor is.
+
+Decided while building `spec-0082-cluster`: `flock.topic` became an extension
+on `Flock<*>`, as the flock's metrics are, since a cluster holds its flock with
+its error type unknown. A topic's actor is exposed to the other nodes with a
+codec that carries only `Arrive`, so a message from elsewhere can never be
+published again; reading it as a `Publish` fails the test. The test ends by
+publishing one more message and finding it the next each subscriber hears,
+which shows nothing was heard twice without waiting to see that nothing more
+comes.
