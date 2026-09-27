@@ -64,10 +64,14 @@ Recommended: one producer per sender, one wrapper per entity.
 
 ## Stack
 
-- [ ] **`spec-0079-receive`** — `delivered(behaviour)`, deduplication, and
-      confirmation, in `lark-actor`. Done when: an entity sees a command sent
-      twice once, confirms after its step, and a persistent one still drops
-      the duplicate after a restart.
+- [x] **`spec-0079-receive`** — `Delivery`, `Delivered`, `Confirmed` and
+      `delivered(behaviour)`, in `lark-actor`. Done when: an entity confirms
+      each delivered command after its step, a plain one never, and a step
+      that fails confirms nothing.
+      ([#206](https://github.com/matthewjones372/lark/pull/206))
+- [ ] **`spec-0079-dedup`** — deduplication in `persistent`. Done when: a
+      persistent entity sees a command sent twice once, confirms both, and
+      still drops the duplicate after a restart, from a snapshot or a replay.
 - [ ] **`spec-0079-send`** — the producer: numbering, keeping, resending,
       pushing back. Done when: in one flock, with the entity stopped and
       started while commands are sent, every command is handled, and `send`
@@ -96,3 +100,10 @@ Recommended: one producer per sender, one wrapper per entity.
 Decided (2026-09-27): every open question goes as recommended. A persistent
 entity keeps its deduplication state in its own state; an entity confirms
 after its step; and `send` blocks up to `within`, then fails with `Full`.
+
+Decided while building `spec-0079-receive`: the stack splits in four, since
+deduplication changes `persistent` and confirmation does not. An entity's
+commands stay its own type: a reliable command implements `Delivered` and
+carries its `Delivery`, so the entity's timers, stash and state are
+untouched, and `delivered(behaviour)` only confirms once the step returns. A
+wrapper that confirmed before the step fails the test of a failing step.
