@@ -7,6 +7,8 @@ import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.nio.ByteBuffer
+import java.sql.SQLException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration
 
 /** Tops a wallet up by [pence], sent durably. */
@@ -48,6 +50,21 @@ private val nowhere = object : ActorRef<TopUp> {
     override val address = Address("test", "/nowhere", 0)
 
     override fun tell(message: TopUp) = Unit
+}
+
+/** A journal whose producers' appends throw for the first [failures], as a database that is down does. */
+private class Flaky(failures: Int) : Journal {
+    private val kept = InMemoryJournal()
+    private val left = AtomicInteger(failures)
+
+    override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>) =
+        if (id.kind == "lark-producer" && left.getAndDecrement() > 0) {
+            throw SQLException("the database is down")
+        } else {
+            kept.append(id, expected, events)
+        }
+
+    override fun read(id: PersistenceId, from: Long) = kept.read(id, from)
 }
 
 class DurableProducerTest {
@@ -122,6 +139,20 @@ class DurableProducerTest {
             again.send("w-0") { TopUp(9, it) } shouldBe Unit.right()
             again.send("w-1") { TopUp(9, it) } shouldBe Unit.right()
             again.send("w-2") { TopUp(9, it) } shouldBe Full.left()
+        }
+    }
+
+    @Test
+    fun `a producer whose journal throws for a while sends what it writes once it is back, and holds no room`() {
+        testActors(journal = Flaky(failures = 4)) {
+            val wallets = ids.associateWith { spawn(it, wallet(it)) }
+            val producer =
+                durableProducer("till", topUpCodec, keep = 4, within = Duration.ZERO) { wallets.getValue(it) }
+            for (n in 0 until 4) producer.send("w-0") { TopUp(n.toLong(), it) }
+
+            producer.send("w-0") { TopUp(7, it) } shouldBe Unit.right()
+            journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(7L)
+            producer.drain(Duration.ZERO) shouldBe true
         }
     }
 }

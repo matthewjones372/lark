@@ -1,8 +1,10 @@
 package io.github.matthewjones372.lark.actor
 
+import arrow.core.raise.either
 import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Gauge
+import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.increment
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -12,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -20,7 +23,9 @@ import kotlin.time.Duration.Companion.seconds
  * and numbers on from where it stopped. Its deliveries carry [id] alone, so an entity's deduplication holds across
  * the restart. [codec] keeps each command with its delivery blanked, and a command is sent again through
  * [Delivered.redeliver]. Two producers running under one [id] at once conflict, as two writers for one entity do.
- * It snapshots every 1,000 events and prunes what a snapshot covers, where the flock's stores allow.
+ * It snapshots every 1,000 events and prunes what a snapshot covers, where the flock's stores allow. A journal that
+ * throws restarts its actor, 100 ms after the first throw and doubling to 5 s, and the restart replays what was written
+ * (spec 0098).
  */
 @Suppress("LongParameterList")
 fun <F, M : Any> Flock<F>.durableProducer(
@@ -35,7 +40,11 @@ fun <F, M : Any> Flock<F>.durableProducer(
     val room = room(keep)
     val meters = meters(id)
     val recovered = CountDownLatch(1)
-    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
+    val actor = spawn(
+        "producer-$id",
+        outbox(id, codec, resendAfter, room, keep, meters, recovered, route),
+        restart = backoff(),
+    )
     return Producer<M>(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
         .drainedOnClose(this, id, drainWithin)
 }
@@ -53,9 +62,17 @@ fun <M : Any> TestActors.durableProducer(
     val room = room(keep)
     val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
     val recovered = CountDownLatch(1)
-    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
+    val actor = spawn(
+        "producer-$id",
+        outbox(id, codec, resendAfter, room, keep, meters, recovered, route),
+        restart = backoff(),
+    )
     return Producer(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
 }
+
+/** A durable producer's restarts: short enough that a blip costs little, long enough not to hammer a dead journal. */
+private fun <E> backoff(): Schedule<Failure<E>, Duration> =
+    Schedule.exponential<Failure<E>>(100.milliseconds).delayed { _, delay -> minOf(delay, 5.seconds) }
 
 /** What a durable producer writes: a command kept, as bytes, and a command confirmed. */
 private sealed interface OutboxEvent {
@@ -112,11 +129,36 @@ private fun <M : Any> outbox(
             }
         },
         event = ::applied,
-    ).onStart { ctx ->
+    ).onThrow { message -> if (message is KeepDurably<*>) steps.unwritten(message) }.onStart { ctx ->
         ctx.timers.every(ResendUnconfirmed, resendAfter, ResendUnconfirmed)
         // What the start recovered holds room, and goes out at once rather than a resendAfter later.
         ctx.timers.after(Recovered, Duration.ZERO, Recovered)
     }
+}
+
+/**
+ * This behaviour, telling [failed] of each message whose step throws, on the throw's way to supervision. A raise is
+ * not a throw, and goes on untold.
+ */
+// A journal may throw anything, and whatever it threw goes on to supervision unchanged.
+@Suppress("TooGenericExceptionCaught")
+private fun <M : Any, S, E> Behaviour<M, S, E>.onThrow(failed: (M) -> Unit): Behaviour<M, S, E> {
+    val inner = step
+    return Behaviour(
+        initial = initial,
+        step = { ctx, state, message ->
+            try {
+                either<E, Next<S>> { inner(this, ctx, state, message) }
+            } catch (thrown: Exception) {
+                failed(message)
+                throw thrown
+            }.bind()
+        },
+        signal = signal,
+        start = start,
+        steps = steps,
+        batch = batch,
+    )
 }
 
 /** What a durable producer does with each message; the journal has the rest. */
@@ -153,12 +195,19 @@ private class OutboxSteps<M : Any>(
         val asked = message as KeepDurably<M>
         val sequence = outboxes[asked.to]?.next ?: 1
         val bytes = codec.encode(asked.command(Delivery(producer, asked.to, sequence, Delivery.NoOne)))
-        holding += asked.to to sequence
         return effects.persist(OutboxEvent.Kept(asked.to, sequence, bytes)).then { after ->
+            // Written: from here a throw leaves its room held, for the restart's replay to find it.
+            holding += asked.to to sequence
+            asked.written.countDown()
             if (after.getValue(asked.to).kept.size == 1) ctx.send(asked.to, sequence, bytes)
             measure()
-            asked.written.countDown()
         }
+    }
+
+    /** Frees the room [asked] took, when the step that was to write it threw first. */
+    fun unwritten(asked: KeepDurably<*>) {
+        if (asked.written.count > 0) room.release()
+        measure()
     }
 
     fun confirmed(
