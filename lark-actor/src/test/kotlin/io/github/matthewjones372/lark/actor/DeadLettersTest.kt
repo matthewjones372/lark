@@ -1,6 +1,8 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.flock
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -112,5 +114,20 @@ class DeadLettersTest {
             DeadLetter(address, Letter(3), DeadLetter.Why.Stopped),
         )
         letters.size shouldBe 5
+    }
+
+    @Test
+    fun `after its flock has closed, a dead letter is only logged, and a spawn is refused`() {
+        val letters = ConcurrentLinkedQueue<DeadLetter>()
+        val closed = flock<Nothing, Flock<Nothing>> {
+            onDeadLetter(letters::add)
+            spawn("postbox", postbox())
+            this
+        }.getOrNull()!!
+
+        closed.deadLetter(DeadLetter(Address("local", "/user/postbox", 1), Letter(1), DeadLetter.Why.Unreachable))
+
+        letters.toList() shouldBe emptyList()
+        shouldThrow<IllegalStateException> { closed.spawn("late", postbox()) }
     }
 }

@@ -143,7 +143,8 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
 
     private fun runHooks() {
         var interrupted = false
-        hooks.reversed().forEach { hook ->
+        // Last registered first, and one registered while closing runs too: it is the last now.
+        generateSequence { hooks.removeLastOrNull() }.forEach { hook ->
             try {
                 hook()
             } catch (stop: InterruptedException) {

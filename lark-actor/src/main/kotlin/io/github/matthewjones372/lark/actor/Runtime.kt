@@ -19,6 +19,8 @@ import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.metricTags
 import io.github.matthewjones372.lark.metrics
 import java.time.Instant
+import java.util.Collections
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -98,8 +100,15 @@ private fun Flock<*>.guardian(): Guardian =
     // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
     // inherit it. Its actors' restarts and timers all wait on it.
     guardians.computeIfAbsent(this) { flock ->
+        check(flock !in closed) { "this flock has closed, and its actors with it" }
         Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
     }
+
+/**
+ * Flocks whose actors have all stopped, held weakly: a dead letter told to one afterwards, from a thread it did not
+ * fork, must not stand a second guardian on it.
+ */
+private val closed: MutableSet<Flock<*>> = Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap()))
 
 /**
  * Waits until every message told to this flock's actors, and every message those caused, has been handled or
@@ -134,17 +143,24 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
  * Hands [letter] to this flock's dead-letter handler, as the runtime's own letters are: for a transport or a bridge
  * that found a message it could not deliver.
  */
-fun <E> Flock<E>.deadLetter(letter: DeadLetter) = guardian().dead(letter)
+fun <E> Flock<E>.deadLetter(letter: DeadLetter) {
+    // After the flock has closed there is no handler left to hand it to.
+    if (this in closed) return logDebug("dead letter after its flock closed: $letter")
+    guardian().dead(letter)
+}
 
 /**
  * The counter [name] of this flock (spec 0081): with the tags bound where the flock's actors first stood, those
  * [tagMetrics] added since, and [tags]. Measured through the `metrics` bound there, since an actor's step runs on a
  * thread the flock did not fork and would not inherit them. Held once looked up, so a hot path may call this.
  */
-fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter = guardian().counter(name, tags)
+fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter =
+    // A closed flock measures nothing: a transport's thread may still count after it has gone.
+    if (this in closed) Counter { } else guardian().counter(name, tags)
 
 /** The gauge [name] of this flock, as [counter]. */
-fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge = guardian().gauge(name, tags)
+fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge =
+    if (this in closed) Gauge { } else guardian().gauge(name, tags)
 
 /**
  * Adds [tags] to every metric of this flock from now on, such as the name of the node it runs: an instrument looked
@@ -328,6 +344,8 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
         wheel.close()
         cells.forEach { it.stop() }
         cells.forEach { it.ended.await() }
+        // Once every actor has ended: an actor stopping may still tell the flock of a dead letter.
+        closed += flock
     }
 }
 
