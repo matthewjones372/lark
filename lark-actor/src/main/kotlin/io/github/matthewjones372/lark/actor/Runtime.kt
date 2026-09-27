@@ -818,7 +818,7 @@ private class Cell<M : Any, S, E>(
     /**
      * One item from the mailbox: a signal, a timer, a listing, the start's wake-up or a message. A message to a
      * behaviour with `steps` takes the plain messages behind it along, up to its batch and to what is [left] of this
-     * activation's turn (spec 0085).
+     * activation's turn (spec 0086).
      */
     private fun handled(item: Any, left: Int): Next<S> = when (item) {
         Started -> Next.Stay

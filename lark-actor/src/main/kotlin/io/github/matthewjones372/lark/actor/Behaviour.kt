@@ -152,7 +152,7 @@ class Behaviour<M : Any, S, out E> internal constructor(
     /** What it does before its first message, and again after each restart: a step with no message. */
     val start: (Raise<E>.(ctx: Ctx<M>, state: S) -> Next<S>)?,
     /**
-     * A step over a run of the plain messages already waiting, up to [batch] of them (spec 0085). With none, or a
+     * A step over a run of the plain messages already waiting, up to [batch] of them (spec 0086). With none, or a
      * batch of 1, each message has a [step] of its own. Signals, timers and replayed messages always do.
      */
     internal val steps: (Raise<E>.(ctx: Ctx<M>, state: S, messages: List<M>) -> Batched<S>)?,

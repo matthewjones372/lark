@@ -37,7 +37,7 @@ private val cents = object : EventCodec<Int> {
 /**
  * One persistent actor taking [PAYMENTS] payments told at once, on a real Postgres in the benchmark's JVM: the
  * single account every payment goes to, which sharding cannot spread. [batch] 1 is one append per payment, as
- * before spec 0085; 64 decides the payments waiting and writes them in one append.
+ * before spec 0086; 64 decides the payments waiting and writes them in one append.
  */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)

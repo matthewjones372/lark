@@ -14,7 +14,7 @@ Results land in `build/jmh-result.json`. Compare numbers only against a baseline
 
 ## A journal written a batch at a time, 2026-09-27
 
-After spec [0085](../specs/0085-a-journal-written-a-batch-at-a-time.md): one persistent actor on `JdbcJournal`,
+After spec [0086](../specs/0086-a-journal-written-a-batch-at-a-time.md): one persistent actor on `JdbcJournal`,
 against a Postgres 17 started in the benchmark's JVM with its defaults (a commit waits for its WAL flush), taking
 1,000 payments told at once. It is the one account every payment goes to, which sharding cannot spread. JDK 21 on
 a 4 vCPU shared cloud container, one fork. There is no Pekko row, because this measures the journal, not the

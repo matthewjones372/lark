@@ -111,7 +111,7 @@ fun <M : Any, Ev, S> persistent(
     event: (state: S, event: Ev) -> S,
     snapshots: Snapshotting<S>? = null,
     /**
-     * How many of the commands already waiting are decided before one append writes all their events (spec 0085).
+     * How many of the commands already waiting are decided before one append writes all their events (spec 0086).
      * With more than 1, each command is still decided against the state the one before it left, and each `then` runs
      * after the append, in order; a conflict fails the whole batch.
      */
