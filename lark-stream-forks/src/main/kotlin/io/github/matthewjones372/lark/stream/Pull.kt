@@ -142,8 +142,8 @@ internal fun Node.pull(): Pull =
 
         is Node.Interleave -> interleave()
 
-        // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them.
-        is Node.MapAsync -> awaiting(if (Turns.taking()) 1 else parallelism)
+        // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them fed by a fork.
+        is Node.MapAsync -> if (Turns.taking()) awaiting(1) else fed(parallelism, Releases.here())
 
         is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Releases.here())
 
@@ -540,8 +540,8 @@ private fun Node.Interleave.interleave(): Pull {
 }
 
 /**
- * Up to [window] of the caller's stages at once, each started on the pulling thread, answered in the
- * order the elements came. A stage that fails is the defect `mapAsync` names, and one that completes
+ * On a test's clock: up to [window] of the caller's stages at once, each started on the pulling thread,
+ * answered in the order the elements came. A stage that fails is the defect `mapAsync` names, and one that completes
  * with `null` is too, as on Pekko. The wait is interruptible, so a stop wakes it.
  */
 private fun Node.MapAsync.awaiting(window: Int): Pull {

@@ -4,6 +4,7 @@ import io.github.matthewjones372.lark.Schedule
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -110,6 +111,23 @@ class BlockingTest {
         exit shouldBe Exit.Done(listOf(2))
         withClue("the failed resource was closed before the second read, and the second when the run ended") {
             closed.get() shouldBe 2
+        }
+    }
+
+    @Test
+    fun `a stage that is done is passed on while the source blocks for the next element`() {
+        val queue = Queue(1)
+
+        val exit = blocking(queue)
+            .mapAsync(4) { n -> CompletableFuture.completedFuture(n * 10) }
+            .take(1)
+            .runCollect()
+            .run(Forks())
+            .settled()
+
+        exit shouldBe Exit.Done(listOf(10))
+        withClue("the source was let go of while it blocked, and closed once") {
+            queue.closed.get() shouldBe 1
         }
     }
 

@@ -7,8 +7,9 @@ or committing before the work, does not compile.
 
 Everything below is in `io.github.matthewjones372.lark.kafka`. Specs
 [0053](../specs/0053-a-record-that-commits-after-it-is-handled.md),
-[0054](../specs/0054-a-record-that-fails-to-decode.md) and
-[0056](../specs/0056-kafka-on-any-backend.md) give the reasons.
+[0054](../specs/0054-a-record-that-fails-to-decode.md),
+[0056](../specs/0056-kafka-on-any-backend.md) and
+[0087](../specs/0087-a-record-written-to-kafka.md) give the reasons.
 
 ## Picking a backend
 
@@ -49,9 +50,9 @@ that drains. Pekko runs it and nothing else does, and it ends on
 ```kotlin
 dependencies {
     // Any backend: lark-stream and kafka-clients come with it, and the backend is the service's own choice.
-    implementation("io.github.matthewjones372:lark-kafka:0.6.0")
+    implementation("io.github.matthewjones372:lark-kafka:0.7.0")
     // Or Pekko's connector: lark-kafka, lark-stream-pekko and pekko-connectors-kafka come with it.
-    implementation("io.github.matthewjones372:lark-kafka-pekko:0.6.0")
+    implementation("io.github.matthewjones372:lark-kafka-pekko:0.7.0")
 }
 ```
 
@@ -73,10 +74,55 @@ dependencies {
 | `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | lark-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside lark-stream's would be ambiguous |
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
 | `absolve()` | the first `Left` ends the run `Failed` |
+| `publishTo(producer) { a -> record }`, `publishRecord(producer) { value -> record }` | each element sent, and passed on in order once the broker has it; see below |
 | `runCommitting()` / `runCommitting(settings)` | the run, committing each offset once its record's element reaches the end; `runCollect`, `runFold` and `runWith` over `Committed` do not compile, and each source's records end on their own one |
 
 Every body runs with `kafka.topic`, `kafka.partition` and `kafka.offset` on
 its log lines.
+
+## Writing to Kafka
+
+A `Producer` is one `KafkaProducer`, opened once and shared: the client is
+thread-safe, and it batches what every caller sends. Whoever opens it closes
+it, which sends what is pending.
+
+```kotlin
+import io.github.matthewjones372.lark.kafka.Kafka
+import io.github.matthewjones372.lark.kafka.Topic
+import io.github.matthewjones372.lark.kafka.deadLetters
+import io.github.matthewjones372.lark.kafka.divertLefts
+import io.github.matthewjones372.lark.kafka.producer
+import io.github.matthewjones372.lark.kafka.publishRecord
+import io.github.matthewjones372.lark.kafka.record
+import org.apache.kafka.common.serialization.ByteArraySerializer
+import org.apache.kafka.common.serialization.StringSerializer
+
+val orders = Kafka.producer(producerProperties, key = StringSerializer(), value = orderSerializer)
+val bytes = Kafka.producer(producerProperties, key = ByteArraySerializer(), value = ByteArraySerializer())
+
+Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value = carts)
+    .divertLefts(bytes.deadLetters(Topic("carts.dead")))
+    .mapRecord { cart -> cart.value().checkout() }
+    .publishRecord(orders) { order -> Topic("orders").record(order.id, order) }
+    .runCommitting()
+```
+
+- **`publishRecord` commits after the output.** Up to `inFlight` (256)
+  records wait on the broker at once, so the producer fills its batches. Each
+  element passes on in the order it came, once it and every one before it are
+  acknowledged, so an offset is never committed ahead of what it produced. A
+  stop or a restart sends the rest again: at-least-once.
+- **`publishTo`** is the same on any stream, for a source that is not Kafka.
+- **A record the producer gives up on is a defect**, for `restartOnDefect`.
+  The client has already retried what it could, for up to
+  `delivery.timeout.ms`. `producer.publish(record)` answers
+  `Either<PublishFailed, Published>` for a caller that wants to route it.
+- **`deadLetters(topic)`** is `divertLefts`' function: the unreadable record's
+  bytes and headers, plus `lark.dead-letter.topic`, `.partition`, `.offset`,
+  `.part` and `.cause`. It returns once the letter is acknowledged, so the bad
+  record is never committed past a letter that was not written.
+
+There are no transactions: exactly-once is a later spec.
 
 ## A registry that is down is not a bad record
 

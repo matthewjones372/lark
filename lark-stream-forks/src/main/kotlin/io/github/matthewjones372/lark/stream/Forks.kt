@@ -315,8 +315,8 @@ internal class Compiled(val tree: Node) {
  */
 private fun Node.mayFork(): Boolean =
     when (this) {
-        is Node.MapPar, is Node.Buffer, is Node.Merge, is Node.Conflate, is Node.FlatMap, is Node.CatchAll,
-        is Node.Tick, is Node.GroupedWithin, is Node.RestartOnDefect,
+        is Node.MapPar, is Node.MapAsync, is Node.Buffer, is Node.Merge, is Node.Conflate, is Node.FlatMap,
+        is Node.CatchAll, is Node.Tick, is Node.GroupedWithin, is Node.RestartOnDefect,
         -> true
 
         else -> children().any { it.mayFork() }
