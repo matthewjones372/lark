@@ -86,7 +86,9 @@ class LateRegionTest {
     fun `a member that opens its region after a shard was won still lets the winner run it`() {
         val ports = List(2) { freePort() }
         val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val now = CountDownLatch(0)
+        // The ledger opens its region only once both are Up, so it wins its shards with the web node there to ask:
+        // opened sooner, it wins them alone and asks nobody.
+        val now = CountDownLatch(1)
         val later = CountDownLatch(1)
         val ledger = LateNode("ledger", ports[0], seeds, setOf("ledger"), now)
         val web = LateNode("web", ports[1], seeds, setOf("web"), later)
@@ -94,6 +96,7 @@ class LateRegionTest {
             listOf(ledger, web).forEach { n ->
                 n.cluster().await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 2 } shouldBe true
             }
+            now.countDown()
             // The winner has asked the web node to release its shards, before there was a region there to hear it.
             val region = Sharding.path("ledger")
             generateSequence { web.letters.poll(1, TimeUnit.MINUTES) }.first { it.recipient.path == region }
