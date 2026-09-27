@@ -17,6 +17,8 @@ each service. Such a service now writes the same tag table and reply order that
 - **No JSON.** Only binary formats: ProtoBuf by default, and any kotlinx
   `BinaryFormat` a service passes, such as CBOR.
 - **No versioning.** 0091's `versioned` wraps these codecs like any other.
+- **No proto3.** kotlinx's schema generator writes proto2. The bytes are the
+  same either way, so a proto3 reader parses them already.
 - **No Gradle plugin.** The `.proto` is text a function returns; the service
   decides where it is written.
 
