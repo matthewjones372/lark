@@ -4,6 +4,7 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.logWarn
 import java.util.UUID
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
@@ -49,17 +50,29 @@ class Producer<M : Any> internal constructor(
 /**
  * A producer in this flock that sends to the entity [route] names. Its deliveries carry [id] and an incarnation of
  * its own, so a producer started again under the same [id] is not taken for a duplicate of the one before. It keeps
- * at most [keep] unconfirmed commands, and a `send` waits up to [within] for room.
+ * at most [keep] unconfirmed commands, and a `send` waits up to [within] for room. When the flock closes, it waits
+ * up to [drainWithin] for what it keeps to be confirmed before its actor stops, so a service that stops does not lose
+ * what it has sent (spec 0080); a [drainWithin] of zero loses it, as a crash does.
  */
+@Suppress("LongParameterList")
 fun <F, M : Any> Flock<F>.producer(
     id: String,
     resendAfter: Duration = 2.seconds,
     keep: Int = 1_000,
     within: Duration = 5.seconds,
+    drainWithin: Duration = 30.seconds,
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    return Producer(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, keep, within)
+    val producer =
+        Producer<M>(spawn("producer-$id", producing(incarnation(id), resendAfter, room, route)), room, keep, within)
+    if (drainWithin.isPositive()) {
+        onClose {
+            val drained = producer.drain(drainWithin)
+            if (!drained) logWarn("producer $id closed with commands unconfirmed after $drainWithin")
+        }
+    }
+    return producer
 }
 
 /** A producer among these test actors, as [Flock.producer]; its resends wait on [TestActors.advance]. */

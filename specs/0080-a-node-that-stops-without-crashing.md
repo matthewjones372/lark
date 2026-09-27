@@ -78,9 +78,10 @@ service that wants to do it earlier.
       being downed; and a node that cannot finish leaving closes by its
       deadline.
       ([#212](https://github.com/matthewjones372/lark/pull/212))
-- [ ] **`spec-0080-drain`** — producers drain on close. Done when: 0079's
-      test, with the third node's flock closed rather than crashed, applies
-      every payment once with the producer's resend turned off.
+- [x] **`spec-0080-drain`** — producers drain on close. Done when: a node
+      that sends payments to 200 accounts and closes straight away has every
+      one applied once, wherever its account runs.
+      ([#213](https://github.com/matthewjones372/lark/pull/213))
 - [ ] **`spec-0080-app`** — `lark-app-actor` closes through the hooks. Done
       when: an application released while its node is in a cluster leaves it
       before its flock is gone.
@@ -130,3 +131,14 @@ cannot finish leaving, with the others unreachable and not yet downed, closes
 after its deadline and a logged warning. Without the hook, a closed node is
 seen unreachable rather than `Leaving`, and the test that it is removed
 without being downed fails.
+
+Decided while building `spec-0080-drain`: the done-when changed. As drafted it
+closed 0079's third node with resends off, but that node sends nothing, so it
+tested the shards' handover and not the drain; and a handover still drops what
+is in an entity's mailbox when its shard is released (0070), so resends stay
+on. The test that proves the drain closes the node that sends: straight after
+it sends 400 payments, and every one is applied once; without the hook some
+never are. `Flock.producer` takes `drainWithin`, 30 seconds by default, zero
+for none; `Sharded.reliable` passes its cluster's `leaveWithin`. The two
+deadlines run one after the other, drain then leave, since a producer's hook
+is registered after its cluster's.
