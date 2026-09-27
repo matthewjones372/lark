@@ -112,7 +112,8 @@ internal class BankNode(
     fun open(account: String, pence: Long): Either<AskFailure, Long> =
         parts.accounts.entity(account).ask(ASK) { Open(pence, it) }
 
-    fun balance(account: String): Either<AskFailure, Long> = parts.accounts.entity(account).ask(ASK) { Balance(it) }
+    fun statement(account: String): Either<AskFailure, Statement> =
+        parts.accounts.entity(account).ask(ASK) { Balance(it) }
 
     /** Starts the transfer [id] once its start is kept in this node's journal: from then on no crash loses it. */
     fun transfer(id: String, from: String, to: String, pence: Long): Either<Full, Unit> =

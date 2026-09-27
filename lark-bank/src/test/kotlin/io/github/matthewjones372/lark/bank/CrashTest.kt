@@ -81,7 +81,7 @@ class CrashTest {
                 .firstOrNull { it.size == transfers.size }
             outcomes?.keys shouldBe transfers.map { it.first }.toSet()
             outcomes?.values?.toSet() shouldBe setOf(Phase.Done, Phase.Refused)
-            accounts.sumOf { n1.balance(it).getOrNull() ?: 0 } shouldBe 20_000L
+            accounts.sumOf { n1.statement(it).getOrNull()?.balance ?: 0 } shouldBe 20_000L
         } finally {
             nodes.forEach(BankNode::close)
         }
