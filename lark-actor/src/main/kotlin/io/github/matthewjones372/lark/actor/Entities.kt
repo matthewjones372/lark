@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.Schedule
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /** What an entities manager is told: a message for one entity, or its own bookkeeping. */
 sealed interface Entities<M : Any>
@@ -12,8 +13,41 @@ internal class Deliver<M : Any>(val id: String, val message: M) : Entities<M>
 /** The entity [id] has had nothing for its `passivateAfter`. */
 internal class Passivate<M : Any>(val id: String) : Entities<M>
 
+/** Time to hand busy entities what was kept for them. */
+internal class Drain<M : Any> : Entities<M>
+
 /** The key of the timer that passivates [id]. */
 private data class IdleKey(val id: String)
+
+/** The key of the timer that hands busy entities what was kept for them. */
+private object DrainKey
+
+/**
+ * How many messages lark's own plumbing keeps for one busy receiver, an entity, a shard or a subscriber, before the
+ * next is a dead letter for being [DeadLetter.Why.Full] (spec 0095).
+ */
+internal const val KEEP_AT_MOST = 10_000
+
+/** How soon kept messages are offered to a busy receiver again. */
+private val DRAIN_AFTER = 10.milliseconds
+
+/**
+ * What lark's own plumbing tells its flock through a ctx: a dead letter it found itself, and how many messages it keeps
+ * for busy receivers, which `awaitIdle` counts as not yet handled (spec 0095).
+ */
+internal interface DeadLetters {
+    fun deadLetter(letter: DeadLetter)
+
+    fun kept(delta: Int)
+}
+
+internal fun Ctx<*>.deadLetter(letter: DeadLetter) {
+    (this as? DeadLetters)?.deadLetter(letter)
+}
+
+internal fun Ctx<*>.kept(delta: Int) {
+    if (delta != 0) (this as? DeadLetters)?.kept(delta)
+}
 
 /**
  * One manager's bookkeeping: the entity running for each id, the id of each running entity, and what has arrived for
@@ -30,6 +64,10 @@ private class EntityBook<M : Any, S, E>(
     private val ids = HashMap<ActorRef<*>, String>()
     private val stopping = HashMap<String, MutableList<M>>()
 
+    // What an entity's full mailbox could not take yet, in order: everything after it waits behind it (spec 0095).
+    @OptIn(PlumbingSeam::class)
+    private val handOn = HandOn<String, M>()
+
     /** Tells the entity [id] [message], starting it if it is not running, and keeping it if it is stopping. */
     fun deliver(ctx: Ctx<Entities<M>>, id: String, message: M) {
         val held = stopping[id]
@@ -40,10 +78,21 @@ private class EntityBook<M : Any, S, E>(
         // The idle timer is armed before the entity has the message, so an entity that is busy with it can already
         // be passivated: a clock moved on once the entity has begun sees a timer to fire.
         ctx.timers.after(IdleKey(id), passivateAfter, Passivate(id))
-        (running[id] ?: start(ctx, id)).tell(message)
+        val ref = running[id] ?: start(ctx, id)
+        @OptIn(PlumbingSeam::class)
+        if (handOn.tell(ctx, id, ref, message)) ctx.timers.after(DrainKey, DRAIN_AFTER, Drain())
+    }
+
+    /** Offers each busy entity what was kept for it, in order, as far as it has room, and comes back for the rest. */
+    @OptIn(PlumbingSeam::class)
+    fun drain(ctx: Ctx<Entities<M>>) {
+        if (handOn.drain(ctx)) ctx.timers.after(DrainKey, DRAIN_AFTER, Drain())
     }
 
     fun passivate(ctx: Ctx<Entities<M>>, id: String) {
+        // An entity with messages still kept for it is busy, not idle.
+        @OptIn(PlumbingSeam::class)
+        if (id in handOn) return ctx.timers.after(IdleKey(id), passivateAfter, Passivate(id))
         val ref = running.remove(id) ?: return
         stopping[id] = mutableListOf()
         ctx.stop(ref)
@@ -57,7 +106,10 @@ private class EntityBook<M : Any, S, E>(
             running.remove(id)
             ctx.timers.cancel(IdleKey(id))
         }
-        stopping.remove(id)?.forEach { deliver(ctx, id, it) }
+        // What was kept for an entity that stopped by itself goes to the next one, before anything newer.
+        @OptIn(PlumbingSeam::class)
+        val waited = handOn.take(ctx, id)
+        (waited + stopping.remove(id).orEmpty()).forEach { deliver(ctx, id, it) }
     }
 
     private fun start(ctx: Ctx<Entities<M>>, id: String): ActorRef<M> {
@@ -70,9 +122,11 @@ private class EntityBook<M : Any, S, E>(
     }
 
     /** The manager is stopping, and its entities with it: none of them is running from now on. */
-    fun stopping() {
+    @OptIn(PlumbingSeam::class)
+    fun stopping(ctx: Ctx<Entities<M>>) {
         if (ids.isNotEmpty()) onRunning(-ids.size)
         ids.clear()
+        handOn.drop(ctx, DeadLetter.Why.Stopped)
     }
 }
 
@@ -96,13 +150,14 @@ fun <M : Any, S, E> entities(
         when (message) {
             is Deliver -> book.deliver(ctx, message.id, message.message)
             is Passivate -> book.passivate(ctx, message.id)
+            is Drain -> book.drain(ctx)
         }
         if (state == null) become(book) else stay()
     }.onSignal { ctx, state, signal ->
         @Suppress("UNCHECKED_CAST")
         val book = state as EntityBook<M, S, E>?
         if (signal is Signal.Terminated && book != null) book.ended(ctx, signal.ref)
-        if (signal == Signal.Stopping) book?.stopping()
+        if (signal == Signal.Stopping) book?.stopping(ctx)
         stay()
     }
 }
@@ -110,7 +165,7 @@ fun <M : Any, S, E> entities(
 /** The entity [id] of these entities, as a ref of its own protocol: good whether or not it is running now. */
 fun <M : Any> ActorRef<Entities<M>>.entity(id: String): ActorRef<M> = EntityRef(this, id)
 
-private class EntityRef<M : Any>(private val manager: ActorRef<Entities<M>>, private val id: String) : ActorRef<M> {
+internal class EntityRef<M : Any>(val manager: ActorRef<Entities<M>>, val id: String) : ActorRef<M> {
     override val address = Address(manager.address.node, "${manager.address.path}/$id", manager.address.incarnation)
 
     override fun tell(message: M) = manager.tell(Deliver(id, message))

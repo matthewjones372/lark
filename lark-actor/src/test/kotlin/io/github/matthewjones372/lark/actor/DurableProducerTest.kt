@@ -74,6 +74,27 @@ class DurableProducerTest {
     }
 
     @Test
+    fun `across databases the outbox sits in its producer's own database, and a restart finds it there`() {
+        val databases = listOf("db-a" to InMemoryJournal(), "db-b" to InMemoryJournal())
+        val sharded = ShardedJournal(databases)
+        testActors(journal = sharded) {
+            val wallets = ids.associateWith { spawn(it, wallet(it)) }
+            val crashed = durableProducer("till", topUpCodec) { nowhere }
+            for (n in 0 until 10) crashed.send(ids[n % 5]) { TopUp(n.toLong(), it) }
+
+            val outbox = PersistenceId("lark-producer", "till")
+            databases.forEach { (name, kept) ->
+                kept.read(outbox).isNotEmpty() shouldBe
+                    (name == sharded.database(outbox))
+            }
+
+            val again = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }
+            again.drain(Duration.ZERO) shouldBe true
+            ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 10
+        }
+    }
+
+    @Test
     fun `snapshots keep the outbox small, and a producer started from one numbers on`() {
         testActors {
             val wallets = ids.associateWith { spawn(it, wallet(it)) }

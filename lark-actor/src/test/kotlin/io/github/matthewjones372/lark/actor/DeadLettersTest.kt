@@ -113,4 +113,21 @@ class DeadLettersTest {
         )
         letters.size shouldBe 5
     }
+
+    @Test
+    fun `a dead letter the flock is told of while its actors stop reaches its handler`() {
+        val letters = ConcurrentLinkedQueue<DeadLetter>()
+
+        flock<Nothing, Unit> {
+            onDeadLetter(letters::add)
+            // As a transport does when its actor stops: what it could not deliver becomes this flock's dead letter.
+            val transport = behaviour<Int, Unit>(Unit) { _, _, _ -> stay() }.onSignal { ctx, _, signal ->
+                if (signal is Signal.Stopping) deadLetter(DeadLetter(ctx.self.address, 1, DeadLetter.Why.Unreachable))
+                stay()
+            }
+            spawn("transport", transport)
+        }
+
+        letters.map { it.message } shouldContainExactly listOf(1)
+    }
 }
