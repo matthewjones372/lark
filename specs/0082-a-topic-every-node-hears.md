@@ -63,9 +63,10 @@ shows the frames matter.
 
 ## Stack
 
-- [ ] **`spec-0082-local`** — `Topic`, the topic actor, subscribe, unsubscribe
+- [x] **`spec-0082-local`** — `Topic`, the topic actor, subscribe, unsubscribe
       and publish on one node. Done when: three subscribers hear every
       publish in order, and one that stops is dropped without a dead letter.
+      ([#221](https://github.com/matthewjones372/lark/pull/221))
 - [ ] **`spec-0082-cluster`** — `cluster.topic(name, codec)`, the forward to
       every `Up` member, and the metrics. Done when: on three nodes with
       subscribers on two, 100 publishes from the third reach each subscriber
@@ -96,3 +97,12 @@ broadcast to every `Up` member rather than to a registry of subscribers; a
 publisher that subscribes hears its own publish; `flock.topic(name)` is the
 one-node topic that `cluster.topic` builds on; and a topic's messages cross in
 the kind's own `MessageCodec`.
+
+Decided while building `spec-0082-local`: `flock.topic(name, forward)` takes
+where each publish goes besides this node's subscribers, and the topic actor's
+protocol, `TopicMessage`, is public, with `Arrive` for a message from another
+node that is heard here and handed on no further. That is all `cluster.topic`
+needs. The three metrics are recorded here, by the actor that owns them, not
+in the cluster entry as drafted. A subscriber is watched as it subscribes, and
+a stopped one is dropped once its `Terminated` is handled; a publish between
+its stop and that is a dead letter, as any tell to a stopped actor is.
