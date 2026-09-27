@@ -11,6 +11,13 @@ create table lark_journal (
 create unique index lark_journal_ordering on lark_journal (ordering);
 create index lark_journal_kind_ordering on lark_journal (kind, ordering);
 
+-- The orderings each deletion (spec 0076) spanned, so the feed reads past rows deleted rather than waiting on them.
+create table lark_journal_pruned (
+    from_ordering bigint not null,
+    to_ordering   bigint not null
+);
+create index lark_journal_pruned_to on lark_journal_pruned (to_ordering);
+
 -- JdbcSnapshots' table (spec 0074): one row per id, the newest snapshot saved.
 create table lark_snapshot (
     kind   varchar(255) not null,

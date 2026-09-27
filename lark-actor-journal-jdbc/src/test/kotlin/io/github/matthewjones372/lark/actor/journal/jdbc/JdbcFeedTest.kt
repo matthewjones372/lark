@@ -4,6 +4,7 @@ import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.actor.FeedContract
 import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.PruneContract
 import io.github.matthewjones372.lark.clock
 import io.kotest.matchers.collections.shouldContainExactly
 import org.junit.jupiter.api.Test
@@ -74,4 +75,8 @@ class JdbcFeedGapTest {
 
         source.pending("o-2").use { journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1") }
     }
+}
+
+class JdbcPruneTest : PruneContract<JdbcJournal>() {
+    override fun journal() = JdbcJournal(database().migrated("h2"))
 }

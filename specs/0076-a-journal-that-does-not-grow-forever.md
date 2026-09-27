@@ -69,8 +69,9 @@ Recommended: one flag on `every`.
       the same state; a failed save deletes nothing; and one whose snapshot
       store has lost its snapshots fails its start rather than recovering.
       ([#196](https://github.com/matthewjones372/lark/pull/196))
-- [ ] **`spec-0076-jdbc`** — `JdbcJournal`'s deletion. Done when: it passes
+- [x] **`spec-0076-jdbc`** — `JdbcJournal`'s deletion. Done when: it passes
       the contract on H2.
+      ([#197](https://github.com/matthewjones372/lark/pull/197))
 
 ## Acceptance
 
@@ -106,3 +107,10 @@ snapshot is saved; a deletion that throws is logged like a failed save, and
 the next snapshot deletes again. A start checks that the first event it reads
 follows the snapshot, or is number 1, and throws naming the missing events if
 not; under `testActors` that throw comes from `spawn`, as any failed start's does.
+
+Decided while building `spec-0076-jdbc`: a deleted row leaves a missing
+`ordering` that 0075's feed would wait on as a gap, so each deletion records
+the span of orderings it removed in `lark_journal_pruned`, in the same
+transaction, and the feed reads past a missing ordering inside a recorded
+span. That is one row per deletion, not per event. The contract's feed test
+fails without it.

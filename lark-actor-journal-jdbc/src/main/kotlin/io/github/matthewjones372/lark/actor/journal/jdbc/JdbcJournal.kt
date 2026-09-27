@@ -7,6 +7,7 @@ import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.JournalFeed
+import io.github.matthewjones372.lark.actor.JournalPruning
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.StoredEvent
 import io.github.matthewjones372.lark.clock
@@ -40,7 +41,8 @@ internal const val DUPLICATE_KEY = "23505"
  */
 class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Duration = 10.seconds) :
     Journal,
-    JournalFeed {
+    JournalFeed,
+    JournalPruning {
 
     private val time = clock.get()
 
@@ -104,6 +106,45 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
     }
 
     /**
+     * Deletes [id]'s events up to [sequence], never its newest, and records the orderings the deleted rows spanned in
+     * `lark_journal_pruned`, in the same transaction, so the feed reads past them rather than waiting on them as gaps.
+     */
+    override fun deleteTo(id: PersistenceId, sequence: Long) {
+        dataSource.connection.use { connection ->
+            connection.autoCommit = false
+            try {
+                connection.prune(id, minOf(sequence, connection.last(id) - 1))
+                connection.commit()
+            } catch (failed: SQLException) {
+                connection.rollback()
+                throw failed
+            }
+        }
+    }
+
+    private fun Connection.prune(id: PersistenceId, upTo: Long) {
+        val span = statement(
+            "select min(ordering), max(ordering) from lark_journal where kind = ? and id = ? and seq_nr <= ?",
+            id.kind,
+            id.id,
+            upTo,
+        ) { select ->
+            select.executeQuery().use { rows ->
+                rows.next()
+                val first = rows.getLong(1)
+                if (rows.wasNull()) null else first to rows.getLong(2)
+            }
+        } ?: return
+        statement("delete from lark_journal where kind = ? and id = ? and seq_nr <= ?", id.kind, id.id, upTo) {
+            it.executeUpdate()
+        }
+        val (from, to) = span
+        statement("insert into lark_journal_pruned (from_ordering, to_ordering) values (?, ?)", from, to) {
+            it.executeUpdate()
+        }
+    }
+
+    /**
      * The first `ordering` after [offset] and below the last of [read] that the feed cannot yet read past: one missing
      * for less than [gapTimeout], or one of [kind] that committed after [read] was selected and is not in it. Null
      * when there is none.
@@ -119,6 +160,17 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
                 generateSequence { if (rows.next()) rows.getLong(1) to rows.getString(2) else null }.toMap()
             }
         }
+        // Read after the rows: a deletion commits its rows' removal and its span together, so a row missing here
+        // was either never committed or is inside a span this reads.
+        val pruned = statement(
+            "select from_ordering, to_ordering from lark_journal_pruned where to_ordering > ? and from_ordering < ?",
+            offset,
+            top,
+        ) { select ->
+            select.executeQuery().use { rows ->
+                generateSequence { if (rows.next()) rows.getLong(1)..rows.getLong(2) else null }.toList()
+            }
+        }
         val seen = read.mapTo(HashSet()) { it.offset }
         val now = time.now()
         return (offset + 1 until top).firstOrNull { ordering ->
@@ -126,7 +178,7 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
             when {
                 of != null -> (of == kind && ordering !in seen).also { gaps.remove(ordering) }
 
-                ordering in passed -> false
+                ordering in passed || pruned.any { ordering in it } -> false
 
                 else -> {
                     val waited = java.time.Duration.between(gaps.computeIfAbsent(ordering) { now }, now)
