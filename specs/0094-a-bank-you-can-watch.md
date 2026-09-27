@@ -192,7 +192,8 @@ Decided while building `spec-0094-api-server`:
 Decided while building `spec-0094-consumer`:
 - **Served from resources.** `/` is `web/index.html`, with `consumer.js` and `bank.css` beside it. The server serves only names like `name.html`, `.js` or `.css` from `web/`, so a path cannot climb out.
 - **Following a transfer.** The page asks for the transfer's status every 200 ms until it is `Done` or `Refused`, then reads the account again.
-- **Playwright 1.56.0.** It drives Chromium 141, build 1194, which is the build in `/opt/pw-browsers`, so no `executablePath` is needed. The test task sets `PLAYWRIGHT_BROWSERS_PATH`, from the environment or `/opt/pw-browsers`, and `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`. The test ran in headless Chromium 141.0.7390.37.
+- **Playwright 1.56.0.** It drives Chromium 141, build 1194, which is the build in `/opt/pw-browsers`, so no `executablePath` is needed. The test ran in headless Chromium 141.0.7390.37.
+- **Browsers on CI.** The test task sets `PLAYWRIGHT_BROWSERS_PATH` and `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` only when the environment sets `PLAYWRIGHT_BROWSERS_PATH`, as this one does. A runner that sets neither, such as GitHub Actions, lets Playwright download its own Chromium.
 - **Waiting in the test.** Playwright's `assertThat(…).hasText` waits for the page, so the test has no waiting loop of its own.
 - **What the test catches.** A page that does not follow its transfer fails it: the status never reads `Done`.
 - **Past the soft cap.** About 360 lines, most of them the page's HTML, CSS and script.
