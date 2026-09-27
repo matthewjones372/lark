@@ -45,3 +45,7 @@ class JournalContractTest {
 class InMemoryFeedTest : FeedContract<InMemoryJournal>() {
     override fun journal() = InMemoryJournal()
 }
+
+class InMemoryOffsetsTest : OffsetContract() {
+    override fun store(): OffsetStore = InMemoryOffsets()
+}

@@ -80,8 +80,9 @@ database. Recommended: at-least-once, with idempotent handlers.
       again handles events 31 to 50, and an event appended while it runs
       reaches it on the next poll.
       ([#192](https://github.com/matthewjones372/lark/pull/192))
-- [ ] **`spec-0075-offsets-jdbc`** — `JdbcOffsets` and its DDL. Done when: it
+- [x] **`spec-0075-offsets-jdbc`** — `JdbcOffsets` and its DDL. Done when: it
       passes an `OffsetContract` on H2.
+      ([#193](https://github.com/matthewjones372/lark/pull/193))
 
 ## Acceptance
 
@@ -126,3 +127,9 @@ is a `Followed`, which carries its offset through `mapFollowed` and
 `mapFollowedOrFail`, as lark-kafka's `Committed` does, and whose body sees the
 id and sequence number as well as the value, for idempotency. The tests run on
 Forks with a `TestClock`, since a blocking source waits on its own thread.
+
+Decided while building `spec-0075-offsets-jdbc`: `OffsetStore` and
+`InMemoryOffsets` moved to `lark-actor`, beside `JournalFeed`, so
+`lark-actor-journal-jdbc` implements the store without depending on
+`lark-stream`; `OffsetContract` is in `lark-actor`'s test fixtures. A save
+replaces the row, or inserts it and replaces it again if another insert won.
