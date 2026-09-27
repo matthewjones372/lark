@@ -1,6 +1,9 @@
 package io.github.matthewjones372.lark.cluster
 
 import arrow.core.right
+import io.github.matthewjones372.lark.actor.Journal
+import io.github.matthewjones372.lark.actor.JournalConflict
+import io.github.matthewjones372.lark.actor.JournalPruning
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.events
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
@@ -10,9 +13,20 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+
+/** [journal], keeping each append that another writer beat: two producers running under one id. */
+private class Conflicts(private val journal: JdbcJournal) :
+    Journal by journal,
+    JournalPruning by journal {
+    val seen = CopyOnWriteArrayList<JournalConflict>()
+
+    override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>) =
+        journal.append(id, expected, events).onLeft { seen += it }
+}
 
 class ProducersTest {
 
@@ -75,6 +89,56 @@ class ProducersTest {
             val registry = checkNotNull(banks.single { it.cluster.self == oldest }.cluster.producers)
             withClue({ "the registry lists ${registry.listed}" }) {
                 registry.await(30.seconds) { it == expected } shouldBe true
+            }
+        } finally {
+            banks.forEach(Bank::close)
+        }
+    }
+
+    @Test
+    fun `a crashed node's commands are delivered, though the node that resumed them crashes straight after`() {
+        val journal = Conflicts(JdbcJournal(accountsDatabase()))
+        val ports = List(4) { ServerSocket(0).use(ServerSocket::getLocalPort) }
+        val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
+        // Accounts run only on a ledger, and none is up until both crashes, so nothing is confirmed before them. A
+        // side of one stays, so the last of the three goes on alone.
+        val bank = { i: Int ->
+            val downing = Downing.staticQuorum(1, stableAfter = 3.seconds)
+            Bank("b${i + 1}", ports[i], seeds, journal, Duration.ZERO, "ledger", ledger = i == 3, downing = downing)
+        }
+        val banks = (0 until 3).map(bank).toMutableList()
+        val ids = List(20) { "a-$it" }
+        try {
+            banks.forEach { b ->
+                b.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe true
+            }
+            val payments = banks.mapIndexed { i, b ->
+                b.accounts.reliable("checkout", durable = true).also { payments ->
+                    ids.forEach { id -> payments.send(id) { PayInto(i + 1, it) } shouldBe Unit.right() }
+                }
+            }
+            val oldest = checkNotNull(Placement.oldest(banks.first().cluster.view.members))
+            val resumer = banks.single { it.cluster.self == oldest }
+            val (stays, crashing) = banks - resumer
+            fun outbox(bank: Bank) = "account-checkout-${bank.cluster.life}"
+            val outboxes = banks.associateWith(::outbox)
+
+            crashing.close()
+            val resumed = checkNotNull(resumer.cluster.producers)
+            resumed.await(30.seconds) { it?.get(outbox(crashing))?.runner == resumer.cluster.life } shouldBe true
+            resumer.close()
+            banks += bank(3)
+
+            payments[banks.indexOf(stays)].drain(1.minutes) shouldBe true
+            val registry = checkNotNull(stays.cluster.producers)
+            withClue({ "the registry lists ${registry.listed}" }) {
+                registry.await(30.seconds) { it?.keys == setOf(outbox(stays)) } shouldBe true
+            }
+            ids.forEach { id -> journal.events(accountOf(id), paidPence).sorted() shouldBe listOf(1, 2, 3) }
+            journal.seen.shouldBeEmpty()
+            // A retired outbox keeps only its newest event, which the journal needs to check the next append.
+            listOf(resumer, crashing).forEach { gone ->
+                journal.read(PersistenceId("lark-producer", outboxes.getValue(gone))).size shouldBe 1
             }
         } finally {
             banks.forEach(Bank::close)

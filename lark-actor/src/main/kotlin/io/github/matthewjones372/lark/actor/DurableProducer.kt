@@ -57,6 +57,24 @@ fun <M : Any> TestActors.durableProducer(
     return Producer(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
 }
 
+/**
+ * The durable producer [id] started again as a child of this actor, to send only what an earlier run of it kept
+ * (spec 0099), and that child, which stopping stops it. It holds room for all it recovers, so its `drain` waits for
+ * every command; it takes no new ones.
+ */
+fun <M : Any> Ctx<*>.resumedProducer(
+    id: String,
+    codec: EventCodec<M>,
+    resendAfter: Duration,
+    route: (to: String) -> ActorRef<M>,
+): Pair<Producer<M>, ActorRef<*>> {
+    val room = room(Int.MAX_VALUE)
+    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
+    val recovered = CountDownLatch(1)
+    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, Int.MAX_VALUE, meters, recovered, route))
+    return Producer<M>(actor, room, Int.MAX_VALUE, Duration.ZERO, meters.full, durable = true, recovered) to actor
+}
+
 /** What a durable producer writes: a command kept, as bytes, and a command confirmed. */
 private sealed interface OutboxEvent {
     data class Kept(val to: String, val sequence: Long, val bytes: ByteArray) : OutboxEvent

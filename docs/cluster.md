@@ -668,7 +668,11 @@ again under the same id sends what is still unconfirmed. Its commands implement
 `Delivered.redeliver`, usually as `copy(delivery = delivery)`
 ([spec 0085](../specs/0085-a-sender-that-survives-its-crash.md)). The journal
 keeps it under the node's life as well as the id, its name and `Cluster.uid`,
-so each restart of a node has an outbox of its own
+so each restart of a node has an outbox of its own. A singleton,
+`lark-producers`, lists every such producer. When a life leaves the cluster,
+the singleton starts that life's producers on its own node, and retires each
+once everything it kept is confirmed. A node that never comes back loses
+nothing it accepted
 ([spec 0099](../specs/0099-commands-a-crashed-node-left-behind.md)).
 
 ## Stopping, watching and telling everyone

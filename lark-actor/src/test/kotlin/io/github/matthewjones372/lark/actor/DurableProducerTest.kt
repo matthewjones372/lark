@@ -7,7 +7,9 @@ import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /** Tops a wallet up by [pence], sent durably. */
 private data class TopUp(val pence: Long, override val delivery: Delivery) : Delivered {
@@ -122,6 +124,24 @@ class DurableProducerTest {
             again.send("w-0") { TopUp(9, it) } shouldBe Unit.right()
             again.send("w-1") { TopUp(9, it) } shouldBe Unit.right()
             again.send("w-2") { TopUp(9, it) } shouldBe Full.left()
+        }
+    }
+
+    @Test
+    fun `a producer resumed under an actor sends what an earlier run kept, and then drains`() {
+        testActors {
+            val wallets = ids.associateWith { spawn(it, wallet(it)) }
+            val crashed = durableProducer("till", topUpCodec, keep = 10) { nowhere }
+            for (n in 0 until 10) crashed.send(ids[n % 5]) { TopUp(n.toLong(), it) }
+            val resumed = AtomicReference<Producer<TopUp>>()
+            val resumer = behaviour<Unit, Unit>(Unit) { _, _, _ -> stay() }.onStart { ctx ->
+                resumed.set(ctx.resumedProducer("till", topUpCodec, 2.seconds) { id -> wallets.getValue(id) }.first)
+            }
+
+            spawn("resumer", resumer)
+
+            resumed.get().drain(Duration.ZERO) shouldBe true
+            ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 10
         }
     }
 }

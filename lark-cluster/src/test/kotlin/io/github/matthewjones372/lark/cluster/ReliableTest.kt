@@ -1,14 +1,12 @@
 package io.github.matthewjones372.lark.cluster
 
 import arrow.core.right
-import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.delivered
-import io.github.matthewjones372.lark.actor.durableProducer
 import io.github.matthewjones372.lark.actor.events
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
@@ -19,7 +17,6 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.delivery
 import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.actor.remote.outbox
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.metrics
 import io.kotest.matchers.doubles.shouldBeGreaterThan
@@ -93,11 +90,12 @@ internal class Bank(
     leaveWithin: Duration,
     private val role: String? = null,
     ledger: Boolean = false,
+    private val downing: Downing = Downing.keepMajority(stableAfter = 3.seconds),
 ) : AutoCloseable {
     private val roles = if (ledger) setOfNotNull(role) else emptySet()
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
-    private val opened = AtomicReference<Triple<Cluster, Sharded<PayInto>, Flock<*>>>()
+    private val opened = AtomicReference<Pair<Cluster, Sharded<PayInto>>>()
     val measured = NodeMetrics()
     private val thread = Thread.ofPlatform().start {
         metrics.locally(measured) { open(port, seeds, journal, leaveWithin) }
@@ -106,11 +104,10 @@ internal class Bank(
     private fun open(port: Int, seeds: Discovery, journal: Journal, leaveWithin: Duration) {
         flock<Nothing, Unit> {
             journal(journal)
-            val downing = Downing.keepMajority(stableAfter = 3.seconds)
             val cluster = cluster(node(name, port), seeds, calm, downing, leaveWithin, roles)
             val accounts =
                 cluster.sharding("account", payIntoCodec, passivateAfter = 1.minutes, role = role, entity = ::account)
-            opened.set(Triple(cluster, accounts, this))
+            opened.set(cluster to accounts)
             ready.countDown()
             done.await()
         }
@@ -126,12 +123,6 @@ internal class Bank(
         get() {
             ready.await()
             return opened.get().second
-        }
-
-    val flock: Flock<*>
-        get() {
-            ready.await()
-            return opened.get().third
         }
 
     override fun close() {
@@ -223,7 +214,7 @@ class ReliableTest {
     }
 
     @Test
-    fun `payments a durable producer accepted before its node crashed are each applied once, sent by its successor`() {
+    fun `payments a durable producer accepted before its node crashed are each applied once, sent by the registry`() {
         val journal = JdbcJournal(accountsDatabase())
         val ports = List(4) { openPort() }
         val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -235,7 +226,7 @@ class ReliableTest {
             banks.forEach { b ->
                 b.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe true
             }
-            val (crashing, successor) = banks
+            val (crashing) = banks
             val accepted = crashing.accounts.reliable("checkout", keep = 1_000, durable = true)
             val accounts = List(200) { "a-$it" }
             for (pence in 1..2) {
@@ -244,14 +235,18 @@ class ReliableTest {
 
             val kept = "account-checkout-${crashing.cluster.life}"
             crashing.close()
-            // 400 kept and none confirmed: what the successor sends, it has only from the journal.
+            // 400 kept and none confirmed: what the registry resumes, it has only from the journal.
             journal.read(PersistenceId("lark-producer", kept)).size shouldBe 400
             banks += bank(3)
-            val sending = successor.flock.durableProducer(kept, payIntoCodec.outbox(), 200.milliseconds) {
-                successor.accounts.entity(it)
+            val survivors = banks.drop(1)
+            survivors.forEach { b ->
+                b.cluster.await(1.minutes) { view -> view.members.none { it.node.name == crashing.name } } shouldBe true
             }
+            val oldest = checkNotNull(Placement.oldest(survivors.first().cluster.view.members))
+            val registry = checkNotNull(survivors.single { it.cluster.self == oldest }.cluster.producers)
 
-            sending.drain(1.minutes) shouldBe true
+            // Resumed on the registry's node, and retired once every payment it kept is confirmed.
+            registry.await(30.seconds) { listed -> listed != null && kept !in listed } shouldBe true
             accounts.forEach { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
         } finally {
             banks.forEach(Bank::close)
