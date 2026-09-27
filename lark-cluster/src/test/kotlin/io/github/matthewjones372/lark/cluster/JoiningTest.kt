@@ -64,4 +64,15 @@ class JoiningTest {
         Joining(Discovery.static(), Downing.keepMajority()) { released++ }.use { released shouldBe 0 }
         released shouldBe 1
     }
+
+    @Test
+    fun `a list given as numbered keys, as system properties give one, is read in its numbers' order`() {
+        val numbered = mapOf("seeds" to mapOf("1" to "b:2", "0" to "a:1", "10" to "c:3"))
+        Joins.named("static", JoinOptions(25520, 20.seconds, numbered)).use { joining ->
+            joining.discovery.seeds() shouldContainExactly listOf(Node("", "a", 1), Node("", "b", 2), Node("", "c", 3))
+        }
+        shouldThrow<IllegalArgumentException> {
+            Joins.named("static", JoinOptions(25520, 20.seconds, mapOf("seeds" to mapOf("first" to "a:1")), "at"))
+        }.message shouldBe "at.seeds is not a list"
+    }
 }

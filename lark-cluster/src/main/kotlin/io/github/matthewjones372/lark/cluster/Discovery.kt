@@ -20,8 +20,10 @@ fun interface Discovery {
         fun static(vararg seeds: Node): Discovery = Discovery { seeds.toList() }
 
         /** The same seeds every time, each written `host:port` as config gives them; a bad one is refused now. */
-        fun static(first: String, vararg rest: String): Discovery =
-            static(*(listOf(first) + rest).map(Node::at).toTypedArray())
+        fun static(first: String, vararg rest: String): Discovery {
+            val seeds = (listOf(first) + rest).map(Node::at)
+            return Discovery { seeds }
+        }
 
         /**
          * Every address [name] resolves to, each at [port]: a Kubernetes headless service, or ECS Service Connect and

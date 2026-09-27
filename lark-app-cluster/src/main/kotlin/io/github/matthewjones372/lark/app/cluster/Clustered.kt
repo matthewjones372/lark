@@ -91,7 +91,8 @@ private const val READY_ATTEMPTS = 120
 
 // On a thread of its own: the exit runs the shutdown hooks, which close the flock this actor is stepping in.
 private fun exitWhenDowned(cluster: Cluster, exit: () -> Unit) = behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
-    if (event is MemberEvent.Downed && event.member.node == cluster.self) {
+    // This life, not an earlier one at the same address: its downing reaches the life that replaced it (spec 0097).
+    if (event is MemberEvent.Downed && cluster.isSelf(event.member)) {
         logError("${cluster.self} was downed by the others; ending the process so it can join again as a new node")
         Thread.ofPlatform().name("lark-cluster-downed").start(exit)
     }

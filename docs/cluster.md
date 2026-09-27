@@ -172,6 +172,12 @@ seed and nobody answers. Membership is agreed by gossip, with no coordinator
   of a partition stays: `keepMajority` by default, `staticQuorum` for a fixed
   size, or `lease` for two nodes or an even split, where a majority cannot
   decide. `stableAfter` is how long the partition must hold still first.
+- **Restarts.** A node that restarts at the same address is a new life of it,
+  with a new `cluster.uid`. The earlier life is downed as the new one joins,
+  then removed, and the new life hears both, under its own address.
+  `cluster.isSelf(member)` tells this life from an earlier one, so compare
+  with it, not with `cluster.self`. A watch ends with the life it was made on
+  ([spec 0097](../specs/0097-a-node-that-restarts-where-it-was.md)).
 - **Ready.** `cluster.ready()` is true while this node is `Up`, has a leader,
   and can reach every member it sees. It is the answer to `/ready`
   ([spec 0081](../specs/0081-a-cluster-you-can-see.md)).
@@ -201,7 +207,11 @@ fun Flock<Nothing>.joinShop(): Cluster {
     )
     val watcher = spawn(
         "membership-log",
-        behaviour<MemberEvent, Unit>(Unit) { _, _, event -> stay().also { logInfo("cluster: $event") } },
+        behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
+            // isSelf, not the address: a node restarted where it was hears its earlier life downed at its own.
+            if (event is MemberEvent.Downed && cluster.isSelf(event.member)) logInfo("cluster: this node was downed")
+            stay().also { logInfo("cluster: $event") }
+        },
     )
     cluster.subscribe(watcher)
     return cluster
