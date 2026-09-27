@@ -60,10 +60,13 @@ side by side, and publish the result whichever way it goes.
 
 - [x] **`spec-0092-sharding`** — sharded tell and ask, both sides. Done when:
       the benchmarks run with `-Pjmh`, and the README's table has their rows.
+      ([#259](https://github.com/matthewjones372/lark/pull/259))
 - [x] **`spec-0092-persistence`** — persistent append and reliable and durable
       sends, both sides. Done when: the same.
+      ([#260](https://github.com/matthewjones372/lark/pull/260))
 - [x] **`spec-0092-topics`** — topic fan-out, and the README row for
       `lark-cluster`. Done when: the same, and the headline is stated.
+      ([#261](https://github.com/matthewjones372/lark/pull/261))
 
 ## Acceptance
 
