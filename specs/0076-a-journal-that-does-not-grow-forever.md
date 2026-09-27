@@ -86,3 +86,8 @@ Recommended: one flag on `every`.
 - **Should pruning wait for read models?** Recommended: not here; a service
   that prunes a kind it projects keeps its projections ahead, and a later
   spec can make pruning wait for named offsets.
+
+Decided (2026-09-27): every open question goes as recommended. Pruning keeps one
+snapshot interval of events behind the newest snapshot; a start that finds a
+pruned history with no usable snapshot fails; and pruning does not wait for
+read models here.
