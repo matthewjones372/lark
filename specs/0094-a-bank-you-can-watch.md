@@ -1,0 +1,163 @@
+# 0094 — A bank you can watch
+
+## Problem
+
+Everything 0059–0085 built is proved by tests and described in a guide, and
+none of it has been used together by something that looks like a service. No
+one has sent money between two accounts sharded across three nodes, through a
+page in a browser, while another page shows what the cluster is doing. The
+questions only such an application raises have not been asked:
+- does a transfer that touches two entities on two nodes stay correct when a
+  node dies;
+- can an operator see that happen, live, without a metrics stack beside it;
+- what does it take to serve lark over HTTP at all?
+
+A reader choosing lark has the guides and nothing to run.
+
+## Not doing
+
+- **A real bank.** No authentication, no currencies, no interest, no limits
+  beyond "the balance cannot go below zero". An account is picked by id on the
+  page.
+- **An HTTP library in lark.** The server is the JDK's
+  `com.sun.net.httpserver`, and it lives in the example, not in a published
+  module. A general `lark-http` is a spec of its own if this one shows it is
+  wanted.
+- **A frontend build.** Plain HTML, CSS and JavaScript served from resources:
+  no npm, no bundler, no framework. Charts are drawn on a `<canvas>` by hand.
+- **Grafana, Prometheus or OpenTelemetry.** The admin page reads lark's own
+  metrics, streamed from the nodes; exporting them elsewhere is
+  `lark-micrometer`'s and `lark-otel`'s already.
+- **Publishing.** `lark-bank` is built and tested with the rest and never
+  published, like the benchmarks.
+
+## Shape
+
+A new module, `lark-bank`: an application you run.
+
+```bash
+./gradlew :lark-bank:run          # three nodes in one JVM, on ports 8081–8083
+```
+
+**The platform.** Three cluster nodes (0069, 0073) with H2 in memory as their
+journal (0072), or Postgres when `--jdbc` is given.
+- **`Account`,** a persistent sharded entity (0070): `Opened`, `Debited`,
+  `Credited`, `Refused`. A debit that would go below zero is refused.
+- **`Transfer`,** a persistent sharded entity that drives one transfer as a
+  saga: `Requested → Debited → Credited`, or `Refused`. It sends `Debit` to the
+  source account and then `Credit` to the destination, each through a durable
+  reliable producer (0079, 0085), so a node that dies mid-transfer delays it
+  and never loses or doubles money.
+
+**The consumer page** (`/`), on any node:
+- pick or open an account, and see its balance and its last 50 movements;
+- send money: `POST /api/transfers {from, to, amount}` answers `202` with the
+  transfer's id, and the page follows it until `Done` or `Refused`.
+
+**The admin page** (`/admin`), on any node, fed by one SSE stream,
+`GET /admin/stream`:
+
+```
+event: stats
+id: 1843
+data: {"node":"n2","at":"…","transfersPerSecond":212,"refused":3,"p99Ms":41,
+       "shards":34,"entities":1209,"unconfirmed":7,"deadLetters":0}
+
+event: member
+data: {"node":"n3","status":"Unreachable"}
+
+event: transfer
+data: {"id":"t-9f2…","from":"a-12","to":"a-40","amount":250,"outcome":"Done","ms":18}
+```
+
+- **Streamed from the platform, not polled by the page.** Each node runs a
+  sampler actor that reads its own flock's metrics (0081) once a second and
+  publishes a `NodeStats` to the cluster topic `bank-stats` (0082). Membership
+  changes and finished transfers go to the topic `bank-events`. Every node
+  keeps a dashboard actor subscribed to both, so an admin connected to any one
+  node sees all three.
+- **One SSE connection, one virtual thread.** The server's executor is virtual
+  threads. Each connection has a bounded queue; a slow browser loses older
+  `stats` (the newest supersedes them) before it loses anything else, and a
+  queue full for 10 s closes the connection. A comment line every 15 s keeps
+  proxies from closing an idle stream. A write that fails unsubscribes the
+  connection.
+- **The page shows:** tiles for the cluster's transfers a second, refusals and
+  p99; a table per node with status, shards, entities and unconfirmed
+  deliveries; a sparkline of the last five minutes; and the live transfer
+  feed.
+
+**A load button** on the admin page starts and stops a generator of random
+transfers, and **"crash n3"** kills a node, so the reader can watch shards move
+and deliveries resend without writing a line.
+
+## Why this shape
+
+SSE over WebSockets: the admin stream only flows from server to browser,
+`EventSource` reconnects by itself, and SSE is plain HTTP that the JDK server
+can write with no library. The alternative, a WebSocket, needs an upgrade the
+JDK server does not do, and a library to do it. Stats travel over a cluster
+topic rather than the page asking each node, because that is the pattern a
+real service would use and it exercises 0082; the alternative, the admin node
+scraping the others over HTTP, is simpler but shows nothing of lark.
+Recommended: SSE, fed by topics.
+
+## Stack
+
+- [ ] **`spec-0094-bank`** — the module, `Account` and `Transfer`, and three
+      nodes started in one JVM, without HTTP. Done when: 1,000 random
+      transfers across three nodes, with one node crashed midway, end with
+      every transfer `Done` or `Refused` and the total money unchanged.
+- [ ] **`spec-0094-api`** — the JDK server on virtual threads and the
+      consumer's JSON API. Done when: a test with `java.net.http.HttpClient`
+      opens two accounts, moves money between them on different nodes, reads
+      both balances, and gets `Refused` for an overdraft.
+- [ ] **`spec-0094-consumer`** — the consumer page. Done when: it is served
+      from `/`, and a headless Chromium test sends money through the page and
+      sees the new balance.
+- [ ] **`spec-0094-sse`** — SSE framing, heartbeats, the bounded queue per
+      connection, and closing on failure. Done when: tests show the event
+      format, a slow client losing old `stats` and keeping `member` events,
+      and a closed client unsubscribed.
+- [ ] **`spec-0094-stats`** — the sampler, the dashboard actor, both topics
+      and `/admin/stream`. Done when: a client of node 1's stream reads
+      `stats` from all three nodes, then a `member` event naming n3 once n3 is
+      crashed.
+- [ ] **`spec-0094-admin`** — the admin page, the load button and "crash n3",
+      and a README row. Done when: a headless Chromium test starts the load,
+      sees the transfers-a-second tile rise above zero, crashes n3, and sees
+      its row turn unreachable.
+
+## Acceptance
+
+```bash
+./gradlew :lark-bank:build
+./gradlew :lark-bank:run    # then open http://localhost:8081 and /admin
+```
+
+## Open questions
+
+- **Which HTTP server?** Recommended: the JDK's `HttpServer` on a
+  virtual-thread executor, with no library. The alternatives are Ktor or
+  Javalin, which are nicer to route with but bring a second runtime that the
+  reader has to see past.
+- **JSON: a library, or hand-written?** Recommended: a small hand-written
+  encoder and parser in the example for the half-dozen flat shapes it sends.
+  `kotlinx.serialization` is the alternative if the shapes grow.
+- **Does the consumer page get SSE too,** so a balance moves as money arrives
+  from someone else? Recommended: not in this spec; the page follows its own
+  transfer by asking. It is one more stream on the same machinery, and a small
+  spec after this one if wanted.
+- **Browser tests: Playwright, or HTTP tests only?** Recommended: Playwright
+  for Java against the Chromium the environment already has, two tests in all
+  (the consumer and admin entries). They are the only proof the pages work.
+- **One JVM or three processes?** Recommended: one JVM with three nodes for
+  `run`, as the tests do, and a `--node n2 --seed 8081` form for running them
+  as separate processes.
+
+Decided (2026-09-27): every open question goes as recommended. The server is
+the JDK's `HttpServer` on virtual threads, with no library; JSON is
+hand-written for the example's few flat shapes; the consumer page follows its
+own transfers by asking, with no stream of its own yet; the two page tests use
+Playwright for Java against the Chromium the environment has; and `run` starts
+three nodes in one JVM, with a form for running them as separate processes.
