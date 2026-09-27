@@ -66,11 +66,12 @@ needs its own transport. Recommended: roles in one cluster.
       each see every member's roles, and a node that restarts with other roles
       shows the new ones.
       ([#224](https://github.com/matthewjones372/lark/pull/224))
-- [ ] **`spec-0083-placement`** — `role` on `sharding` and `singleton`. Done
+- [x] **`spec-0083-placement`** — `role` on `sharding` and `singleton`. Done
       when: of four nodes, two with the role, 500 entities spread over the two
       only and are reached from all four; a singleton runs on the older of the
       two; and with both gone, messages are kept and delivered once one with
       the role joins.
+      ([#225](https://github.com/matthewjones372/lark/pull/225))
 
 ## Acceptance
 
@@ -100,3 +101,12 @@ written wherever a member is named. A node started again with other roles is
 a new incarnation, like any restart, so its roles need no merging. `Member.roles`
 defaults to none, so a `Member` written before this still compiles. A codec
 that drops the roles fails the test.
+
+Decided while building `spec-0083-placement`: a role only narrows the members
+a placement sees; the handoff, the keeping and the routing are 0070's
+unchanged. A member without the role is still asked to release a shard, and
+answers at once, since it never holds one. `role` sits before the trailing
+lambda on `sharding` and `singleton`, so every existing call compiles. The
+test's last part asks from a node while no member has the role, starts one
+that has it, and gets the answer from it; placement that ignores the role
+fails the test's first part.
