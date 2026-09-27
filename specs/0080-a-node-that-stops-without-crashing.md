@@ -72,11 +72,12 @@ service that wants to do it earlier.
       waits for its answer gets it, and a hook that throws is logged and the
       flock still closes.
       ([#211](https://github.com/matthewjones372/lark/pull/211))
-- [ ] **`spec-0080-leave`** — `Cluster.stop(within)` and the close hook in
+- [x] **`spec-0080-leave`** — `Cluster.stop(within)` and the close hook in
       `cluster(…)`. Done when: of three nodes, one whose flock closes is
       removed from the others' views within `stableAfter`, rather than after
       being downed; and a node that cannot finish leaving closes by its
       deadline.
+      ([#212](https://github.com/matthewjones372/lark/pull/212))
 - [ ] **`spec-0080-drain`** — producers drain on close. Done when: 0079's
       test, with the third node's flock closed rather than crashed, applies
       every payment once with the producer's resend turned off.
@@ -118,3 +119,14 @@ already interrupted and could never tell the cluster it is leaving. A hook
 runs on the closing thread before any interrupt, so every fork, actor and
 timer is still running for it. Running the hooks after the interrupt, or in
 registration order, fails the tests.
+
+Decided while building `spec-0080-leave`: `stop(within)` asks to leave and
+waits until this node is no longer a live member of its own view, or is the
+only member. `cluster(…)` takes `leaveWithin`, and a `leaveWithin` of zero
+registers no hook, so the node goes as a crashed one does: the tests that are
+about a crash say so, since the five-node test's own cleanup otherwise waited
+on leaves that a crashed member held up, for 54 of its 60 seconds. A node that
+cannot finish leaving, with the others unreachable and not yet downed, closes
+after its deadline and a logged warning. Without the hook, a closed node is
+seen unreachable rather than `Leaving`, and the test that it is removed
+without being downed fails.

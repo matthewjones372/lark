@@ -26,6 +26,7 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import javax.sql.DataSource
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -74,7 +75,8 @@ private fun accountsDatabase(): DataSource = JdbcDataSource().apply {
 }
 
 /** A node with the accounts sharded on it and [journal] as its flock's, on a thread of its own, until [close]. */
-private class Bank(val name: String, port: Int, seeds: Discovery, journal: Journal) : AutoCloseable {
+private class Bank(val name: String, port: Int, seeds: Discovery, journal: Journal, leaveWithin: Duration) :
+    AutoCloseable {
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Pair<Cluster, Sharded<PayInto>>>()
@@ -82,7 +84,7 @@ private class Bank(val name: String, port: Int, seeds: Discovery, journal: Journ
         flock<Nothing, Unit> {
             journal(journal)
             val cluster =
-                cluster(node(name, port), seeds, calm, Downing.keepMajority(stableAfter = 3.seconds))
+                cluster(node(name, port), seeds, calm, Downing.keepMajority(stableAfter = 3.seconds), leaveWithin)
             val accounts = cluster.sharding("account", payIntoCodec, passivateAfter = 1.minutes, entity = ::account)
             opened.set(cluster to accounts)
             ready.countDown()
@@ -115,7 +117,10 @@ class ReliableTest {
         val journal = JdbcJournal(accountsDatabase())
         val ports = List(3) { openPort() }
         val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val banks = ports.mapIndexed { i, port -> Bank("b${i + 1}", port, seeds, journal) }
+        // The third goes as a crashed node does, without leaving.
+        val banks = ports.mapIndexed { i, port ->
+            Bank("b${i + 1}", port, seeds, journal, if (i == 2) Duration.ZERO else 30.seconds)
+        }
         try {
             banks.forEach { bank ->
                 bank.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe
