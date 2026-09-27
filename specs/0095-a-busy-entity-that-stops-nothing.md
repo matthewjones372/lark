@@ -118,10 +118,11 @@ Decided while building `spec-0095-region`:
 - **Keyed by entity, not shard.** The region keeps per entity id. Order holds
   per entity, which is all a sender is promised. When the region lets a shard
   go, it knows which kept messages to route again.
-- **What the test is.** On three nodes, a burst to a sharded entity stalls in
-  the entity manager, which #268 already fixed, before the region ever feels
-  it. The region's own hand-off is plain in a singleton, which the region
-  tells directly. So `BusySingletonTest` sends 5,000 to a busy singleton on
-  one node. It times out without this change.
+- **The tests.** `BusyEntityTest` is the done-when as written. On three
+  nodes, a burst of 5,000 from one node reaches a busy entity on another, in
+  order, and the region answers after it. It fails on `main`. But a burst to
+  a sharded entity stalls in the entity manager (#268) before the region
+  feels it. So `BusySingletonTest` checks the region's own hand-off: a
+  singleton, which the region tells directly. It fails without this change.
 - **The benchmark.** The 0092 sharding benchmark's burst goes back to 2,000 on
   its own branch, once this and #259 have both merged.
