@@ -329,13 +329,23 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     private var tags: Map<String, String> = metricTags.get()
     private val counters = ConcurrentHashMap<Pair<String, Map<String, String>>, Counter>()
     private val gauges = ConcurrentHashMap<Pair<String, Map<String, String>>, Gauge>()
-    private val deadCounters = DeadLetter.Why.entries.associateWith { why ->
-        lazy { counter("lark.actor.dead_letters", arrayOf("reason" to why.name.lowercase())) }
+
+    // Made again whenever the tags change, so a count taken before a node was named is not kept under no name.
+    @Volatile
+    private var tallies = Tallies()
+
+    val restarts: Counter get() = tallies.restarts
+
+    /** The guardian's own counters under the tags as they are now, each resolved on first use. */
+    private inner class Tallies {
+        val dead = DeadLetter.Why.entries.associateWith { why ->
+            lazy { counter("lark.actor.dead_letters", arrayOf("reason" to why.name.lowercase())) }
+        }
+        val restarts: Counter by lazy { counter("lark.actor.restarts", emptyArray()) }
     }
-    val restarts: Counter by lazy { counter("lark.actor.restarts", emptyArray()) }
 
     fun dead(letter: DeadLetter) {
-        deadCounters.getValue(letter.why).value.increment()
+        tallies.dead.getValue(letter.why).value.increment()
         deadLetters(letter)
     }
 
@@ -351,6 +361,7 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
 
     fun tag(more: Array<out Pair<String, String>>) {
         tags = tags + more
+        tallies = Tallies()
     }
 
     fun stand() {
