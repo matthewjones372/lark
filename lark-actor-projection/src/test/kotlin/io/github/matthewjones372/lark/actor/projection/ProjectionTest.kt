@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor.projection
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.InMemoryJournal
+import io.github.matthewjones372.lark.actor.InMemoryOffsets
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.stream.Exit
@@ -85,16 +86,5 @@ class ProjectionTest {
             running.stop()
             running.exit.settled() shouldBe Exit.Done(2L)
         }
-    }
-
-    @Test
-    fun `an offset store keeps each name's last offset, and none for a name it has not seen`() {
-        offsets.load("totals") shouldBe null
-
-        offsets.save("totals", 7)
-        offsets.save("other", 3)
-
-        offsets.load("totals") shouldBe 7L
-        offsets.load("other") shouldBe 3L
     }
 }

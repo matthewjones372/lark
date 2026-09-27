@@ -19,3 +19,10 @@ create table lark_snapshot (
     bytes  blob         not null,
     primary key (kind, id)
 );
+
+-- JdbcOffsets' table (spec 0075): the last offset each read model handled, by its name.
+create table lark_offset (
+    name          varchar(255) not null,
+    last_ordering bigint       not null,
+    primary key (name)
+);
