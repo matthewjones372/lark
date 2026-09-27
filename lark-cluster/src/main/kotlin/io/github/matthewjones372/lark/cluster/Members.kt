@@ -18,7 +18,14 @@ enum class Status {
 }
 
 /** One member as the agreed view has it. [upNumber] orders members by when they came up: lower is older. */
-data class Member(val node: Node, val uid: Long, val status: Status, val upNumber: Int)
+data class Member(
+    val node: Node,
+    val uid: Long,
+    val status: Status,
+    val upNumber: Int,
+    /** What the node was started to do (spec 0083): sharding and singletons may be placed on members by role. */
+    val roles: Set<String> = emptySet(),
+)
 
 /**
  * The membership as one node sees it: every member not yet removed, oldest first and joiners last, the nodes some

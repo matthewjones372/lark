@@ -62,9 +62,11 @@ internal object SwimCodec : MessageCodec<Swim> {
 private fun WireOut.incarnation(of: Incarnation) {
     string(of.node.toString())
     long(of.uid)
+    int(of.roles.size)
+    of.roles.sorted().forEach(::string)
 }
 
-private fun WireIn.incarnation() = Incarnation(Node.parse(string()), long())
+private fun WireIn.incarnation() = Incarnation(Node.parse(string()), long(), List(int()) { string() }.toSet())
 
 private fun <K, V> WireOut.map(map: Map<K, V>, write: (K, V) -> Unit) {
     int(map.size)

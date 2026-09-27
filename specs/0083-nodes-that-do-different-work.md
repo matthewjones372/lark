@@ -61,10 +61,11 @@ needs its own transport. Recommended: roles in one cluster.
 
 ## Stack
 
-- [ ] **`spec-0083-gossip`** — `roles` on `cluster(…)`, carried in the gossip
+- [x] **`spec-0083-gossip`** — `roles` on `cluster(…)`, carried in the gossip
       and shown as `Member.roles`. Done when: three nodes with different roles
       each see every member's roles, and a node that restarts with other roles
       shows the new ones.
+      ([#224](https://github.com/matthewjones372/lark/pull/224))
 - [ ] **`spec-0083-placement`** — `role` on `sharding` and `singleton`. Done
       when: of four nodes, two with the role, 500 entities spread over the two
       only and are reached from all four; a singleton runs on the older of the
@@ -92,3 +93,10 @@ needs its own transport. Recommended: roles in one cluster.
 Decided (2026-09-27): every open question goes as recommended. Roles live in
 one cluster; a node may hold several; sharding and singletons take one role;
 and the gossip's internal codec changes in place.
+
+Decided while building `spec-0083-gossip`: a node's roles travel in its
+incarnation, since they are fixed for its life and the incarnation is already
+written wherever a member is named. A node started again with other roles is
+a new incarnation, like any restart, so its roles need no merging. `Member.roles`
+defaults to none, so a `Member` written before this still compiles. A codec
+that drops the roles fails the test.

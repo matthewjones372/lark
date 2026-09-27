@@ -80,7 +80,7 @@ internal class Membership(
 
     fun view(): View {
         val members = gossip.members.filterValues { it.status != Status.Removed }
-            .map { (m, e) -> Member(m.node, m.uid, e.status, e.upNumber) }
+            .map { (m, e) -> Member(m.node, m.uid, e.status, e.upNumber, m.roles) }
             .sortedWith(compareBy({ it.status == Status.Joining }, { it.upNumber }, { it.node.toString() }))
         return View(members, gossip.unreachable().mapTo(mutableSetOf()) { it.node }, leader()?.node)
     }
