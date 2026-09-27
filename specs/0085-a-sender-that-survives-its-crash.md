@@ -59,10 +59,11 @@ the journal.
 
 ## Stack
 
-- [ ] **`spec-0085-redeliver`** — `Delivered.redeliver`, and the codec
+- [x] **`spec-0085-redeliver`** — `Delivered.redeliver`, and the codec
       helpers that write and read a command with its delivery blanked. Done
       when: a command stored and read back with a new delivery equals the
       original but for the delivery.
+      ([#233](https://github.com/matthewjones372/lark/pull/233))
 - [ ] **`spec-0085-durable`** — the durable producer in `lark-actor`: events,
       replay, resend with a rebuilt delivery, snapshots and pruning. Done
       when: on `testActors`, a producer stopped with 50 unconfirmed commands
@@ -99,3 +100,12 @@ Decided (2026-09-27): every open question goes as recommended. The outbox is
 the flock's journal; a command is rebuilt through `Delivered.redeliver`; the
 service starts a crashed producer again under its id; and `send` returns once
 the command is written.
+
+Decided while building `spec-0085-redeliver`: `Delivered.redeliver` has a
+default that throws, naming the command, so every command sent only by a
+producer in memory compiles unchanged. A blank delivery confirms to
+`Delivery.NoOne`. The helper is `MessageCodec.outbox()`, in
+`lark-actor-remote` beside `delivery`, and it answers an `EventCodec`, which
+is what a persistent actor's events need. It refuses a kept command that
+carries a reply or any ref but a blank delivery's, since nothing would answer
+either after a crash. Storing a command without blanking it fails the tests.
