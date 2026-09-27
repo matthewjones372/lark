@@ -44,12 +44,13 @@ fun account(id: String) = persistent<AccountCommand, AccountEvent, Account>(
 - A batch holds only the messages already in the mailbox. A lone command is never held back to wait for a
   second.
 - A command that answers `none()` or is dropped as a duplicate adds nothing to the append, but its `then` still
-  runs in order. One that answers `unhandled()` or `stop()` ends the batch there, and the commands after it wait
-  for the next activation.
+  runs in order. One that answers `unhandled()` goes to dead letters and the batch goes on, as the next message
+  would. One that answers `stop()` ends the batch there: the actor stops after the append, and the commands after
+  it are dead letters, as they would be one at a time.
 - A snapshot is taken if the batch's append crossed a multiple of `every`.
 - An append that conflicts raises `JournalConflict` for the whole batch, and no `then` of that batch runs.
-  Supervision recovers as today, and the mailbox is kept, so every command is decided again against the
-  recovered state.
+  Supervision recovers as today and the mailbox is kept; the batch's commands are lost as a failed step's message
+  is, so their asks time out and a reliable producer's deliveries are resent.
 
 The seam underneath is one addition to `Behaviour`: an optional
 `steps: (Raise<E>.(ctx, state, messages: List<M>) -> Next<S>)?`, with `drain` passing a run of plain messages to it
@@ -85,9 +86,9 @@ user until something else needs it.
 
 ## Open questions
 
-1. **Should `batch` default to 1 or to `throughput`?** Recommend 1: batching changes when a `then` runs relative
-   to the write of later commands, and that is a behaviour change a caller should opt into.
-2. **Should a raise from one command fail the whole batch?** Recommend yes, as a thrown exception does today.
-   The alternative is to write the commands before it and re-queue the rest, which is subtle for little gain.
-3. **Should `steps` be public API or internal to `persistent`?** Recommend internal first. A behaviour that
-   batches by hand is rare, and the seam is easier to widen later than to narrow.
+Decided as recommended:
+
+1. **`batch` defaults to 1.** Batching changes when a `then` runs relative to later commands' writes, so a caller
+   opts in.
+2. **A raise from one command fails the whole batch**, as a throw does today.
+3. **`steps` is internal**, with `persistent` its only user; it can be widened later.
