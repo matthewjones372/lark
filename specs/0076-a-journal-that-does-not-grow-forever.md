@@ -63,11 +63,12 @@ Recommended: one flag on `every`.
       when: after a deletion the journal answers only the events kept, still
       appends after the newest, and never deletes the newest.
       ([#195](https://github.com/matthewjones372/lark/pull/195))
-- [ ] **`spec-0076-retention`** — `prune = true` on `every`, and the refusal
+- [x] **`spec-0076-retention`** — `prune = true` on `every`, and the refusal
       to recover from half a history. Done when: an actor with 1,050 events
       and snapshots every 100 keeps only events 901 to 1,050 and restarts to
       the same state; a failed save deletes nothing; and one whose snapshot
       store has lost its snapshots fails its start rather than recovering.
+      ([#196](https://github.com/matthewjones372/lark/pull/196))
 - [ ] **`spec-0076-jdbc`** — `JdbcJournal`'s deletion. Done when: it passes
       the contract on H2.
 
@@ -98,3 +99,10 @@ last sequence number from its newest event, not from how many it holds, and
 reads by sequence number, since both stop matching once events are deleted.
 `PruneContract` holds a journal that is also a feed to its feed losing what
 was deleted.
+
+Decided while building `spec-0076-retention`: pruning deletes up to the
+sequence number the snapshot reached less `n`, and runs only once that
+snapshot is saved; a deletion that throws is logged like a failed save, and
+the next snapshot deletes again. A start checks that the first event it reads
+follows the snapshot, or is number 1, and throws naming the missing events if
+not; under `testActors` that throw comes from `spawn`, as any failed start's does.

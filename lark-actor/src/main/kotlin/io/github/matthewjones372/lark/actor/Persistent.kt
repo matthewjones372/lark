@@ -13,12 +13,15 @@ interface StateCodec<S> {
 }
 
 /** When a persistent actor saves its state: after each [every]th event, as bytes through [codec] (spec 0074). */
-class Snapshotting<S> internal constructor(val every: Long, val codec: StateCodec<S>)
+class Snapshotting<S> internal constructor(val every: Long, val codec: StateCodec<S>, val prune: Boolean)
 
-/** A snapshot after every [n]th event, the state written by [codec]. */
-fun <S> every(n: Int, codec: StateCodec<S>): Snapshotting<S> {
+/**
+ * A snapshot after every [n]th event, the state written by [codec]. With [prune], a journal that is a
+ * [JournalPruning] deletes, once each snapshot is saved, the events the one before it covers (spec 0076).
+ */
+fun <S> every(n: Int, codec: StateCodec<S>, prune: Boolean = false): Snapshotting<S> {
     require(n > 0) { "a snapshot every $n events is never" }
-    return Snapshotting(n.toLong(), codec)
+    return Snapshotting(n.toLong(), codec, prune)
 }
 
 /** What a command does: persist events, or not, and what runs once they are written and applied. */
@@ -82,7 +85,9 @@ fun <M : Any, Ev, S> persistent(
             } else {
                 val sequence = ctx.journal.append(id, remembered.sequence, effect.events.map(codec::encode)).bind()
                 Remembered(effect.events.fold(remembered.value, event), sequence).also { reached ->
-                    if (snapshots != null) ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots)
+                    if (snapshots !=
+                        null
+                    ) ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
                 }
             }
             effect.then?.invoke(after.value)
@@ -93,20 +98,50 @@ fun <M : Any, Ev, S> persistent(
                 ?.let { Remembered(snapshots.codec.decode(it.bytes), it.sequence) }
                 ?: Remembered(empty, 0)
             val stored = ctx.journal.read(id, from.sequence + 1)
+            val first = stored.firstOrNull()?.sequence ?: (from.sequence + 1)
+            check(first == from.sequence + 1) {
+                "$id cannot be recovered: events ${from.sequence + 1} to ${first - 1} were deleted, and no snapshot " +
+                    "covers them"
+            }
             val value = stored.fold(from.value) { state, kept -> event(state, codec.decode(kept.bytes)) }
             Next.Become(Remembered(value, stored.lastOrNull()?.sequence ?: from.sequence))
         },
     )
 }
 
-/** Saves [reached] if the persist from [before] crossed a multiple of [how]'s `every`; a failed save is logged. */
-private fun <S> SnapshotStore.snapshot(id: PersistenceId, before: Long, reached: Remembered<S>, how: Snapshotting<S>) {
+/**
+ * Saves [reached] if the persist from [before] crossed a multiple of [how]'s `every`, and then, when [how] prunes,
+ * deletes from [journal] the events the snapshot before it covers. A failed save or deletion is logged.
+ */
+@Suppress("LongParameterList")
+private fun <S> SnapshotStore.snapshot(
+    id: PersistenceId,
+    before: Long,
+    reached: Remembered<S>,
+    how: Snapshotting<S>,
+    journal: Journal,
+) {
     if (before / how.every == reached.sequence / how.every) return
-    try {
+    val saved = logged("the snapshot of $id at ${reached.sequence} was not saved; the next one will be") {
         save(id, reached.sequence, how.codec.encode(reached.value))
-    } catch (stopping: InterruptedException) {
-        throw stopping
-    } catch (failed: Exception) {
-        logError("the snapshot of $id at ${reached.sequence} was not saved; the next one will be", failed)
+    }
+    val pruning = journal as? JournalPruning
+    if (saved && how.prune && pruning != null) {
+        val upTo = reached.sequence - how.every
+        logged("the events of $id up to $upTo were not deleted; the next snapshot will try again") {
+            pruning.deleteTo(id, upTo)
+        }
     }
 }
+
+/** Whether [work] finished; what it threw is logged as [failed], except an interrupt, which still stops the step. */
+private inline fun logged(failed: String, work: () -> Unit): Boolean =
+    try {
+        work()
+        true
+    } catch (stopping: InterruptedException) {
+        throw stopping
+    } catch (thrown: Exception) {
+        logError(failed, thrown)
+        false
+    }
