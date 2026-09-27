@@ -80,6 +80,7 @@ the journal and `persistent` do not change.
       ([#258](https://github.com/matthewjones372/lark/pull/258))
 - [x] **`spec-0091-guide`** — a section in `docs/actors.md` (spec 0089) on
       changing an event, compiled with the rest.
+      ([#271](https://github.com/matthewjones372/lark/pull/271))
 
 ## Acceptance
 
