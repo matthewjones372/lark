@@ -1,12 +1,14 @@
 package io.github.matthewjones372.lark.cluster
 
 import arrow.core.right
+import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.delivered
+import io.github.matthewjones372.lark.actor.durableProducer
 import io.github.matthewjones372.lark.actor.events
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
@@ -17,6 +19,7 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.delivery
 import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.lark.actor.remote.outbox
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.metrics
 import io.kotest.matchers.doubles.shouldBeGreaterThan
@@ -34,11 +37,11 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** Pays [pence] into an account, sent reliably. */
-private data class PayInto(val pence: Int, override val delivery: Delivery) : Delivered {
+internal data class PayInto(val pence: Int, override val delivery: Delivery) : Delivered {
     override fun redeliver(delivery: Delivery) = copy(delivery = delivery)
 }
 
-private val payIntoCodec = object : MessageCodec<PayInto> {
+internal val payIntoCodec = object : MessageCodec<PayInto> {
     override fun write(message: PayInto, out: WireOut) {
         out.int(message.pence)
         out.delivery(message.delivery)
@@ -47,16 +50,16 @@ private val payIntoCodec = object : MessageCodec<PayInto> {
     override fun read(input: WireIn): PayInto = PayInto(input.int(), input.delivery())
 }
 
-private val paidPence = object : EventCodec<Int> {
+internal val paidPence = object : EventCodec<Int> {
     override fun encode(event: Int): ByteArray = event.toString().toByteArray()
 
     override fun decode(bytes: ByteArray): Int = String(bytes).toInt()
 }
 
-private fun accountOf(id: String) = PersistenceId("account", id)
+internal fun accountOf(id: String) = PersistenceId("account", id)
 
 /** An account remembered by what was paid into it, which confirms each payment and drops those it has had. */
-private fun account(id: String) = delivered(
+internal fun account(id: String) = delivered(
     persistent<PayInto, Int, Int>(
         id = accountOf(id),
         empty = 0,
@@ -67,12 +70,12 @@ private fun account(id: String) = delivered(
 )
 
 /** Probes calm enough that 200 entities writing to one database never make two live nodes miss each other. */
-private val calm =
+internal val calm =
     Gossiping(probeEvery = 500.milliseconds, ackWithin = 250.milliseconds, formAfter = 1_000.milliseconds)
 
 private fun openPort(): Int = ServerSocket(0).use { it.localPort }
 
-private fun accountsDatabase(): DataSource = JdbcDataSource().apply {
+internal fun accountsDatabase(): DataSource = JdbcDataSource().apply {
     setURL("jdbc:h2:mem:accounts-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
     val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/h2.sql")).readText()
     connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
@@ -82,7 +85,7 @@ private fun accountsDatabase(): DataSource = JdbcDataSource().apply {
  * A node with the accounts sharded on it and [journal] as its flock's, on a thread of its own, until [close]. With a
  * [ledger] role, accounts run only on members that hold it, and this one holds it if [ledger] is true.
  */
-private class Bank(
+internal class Bank(
     val name: String,
     port: Int,
     seeds: Discovery,
@@ -94,7 +97,7 @@ private class Bank(
     private val roles = if (ledger) setOfNotNull(role) else emptySet()
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
-    private val opened = AtomicReference<Pair<Cluster, Sharded<PayInto>>>()
+    private val opened = AtomicReference<Triple<Cluster, Sharded<PayInto>, Flock<*>>>()
     val measured = NodeMetrics()
     private val thread = Thread.ofPlatform().start {
         metrics.locally(measured) { open(port, seeds, journal, leaveWithin) }
@@ -107,7 +110,7 @@ private class Bank(
             val cluster = cluster(node(name, port), seeds, calm, downing, leaveWithin, roles)
             val accounts =
                 cluster.sharding("account", payIntoCodec, passivateAfter = 1.minutes, role = role, entity = ::account)
-            opened.set(cluster to accounts)
+            opened.set(Triple(cluster, accounts, this))
             ready.countDown()
             done.await()
         }
@@ -123,6 +126,12 @@ private class Bank(
         get() {
             ready.await()
             return opened.get().second
+        }
+
+    val flock: Flock<*>
+        get() {
+            ready.await()
+            return opened.get().third
         }
 
     override fun close() {
@@ -233,11 +242,14 @@ class ReliableTest {
                 accounts.forEach { id -> accepted.send(id) { PayInto(pence, it) } shouldBe Unit.right() }
             }
 
+            val kept = "account-checkout-${crashing.cluster.life}"
             crashing.close()
             // 400 kept and none confirmed: what the successor sends, it has only from the journal.
-            journal.read(PersistenceId("lark-producer", "account-checkout")).size shouldBe 400
+            journal.read(PersistenceId("lark-producer", kept)).size shouldBe 400
             banks += bank(3)
-            val sending = successor.accounts.reliable("checkout", resendAfter = 200.milliseconds, durable = true)
+            val sending = successor.flock.durableProducer(kept, payIntoCodec.outbox(), 200.milliseconds) {
+                successor.accounts.entity(it)
+            }
 
             sending.drain(1.minutes) shouldBe true
             accounts.forEach { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }

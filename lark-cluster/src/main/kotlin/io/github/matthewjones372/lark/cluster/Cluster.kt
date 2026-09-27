@@ -207,6 +207,9 @@ class Cluster internal constructor(
      */
     fun isSelf(member: Member): Boolean = member.node == self && member.uid == uid
 
+    /** This life as a name: what a durable producer's id carries, so each life of a node keeps its own (spec 0099). */
+    internal val life: String get() = "${self.name}-${uid.toULong().toString(radix = 36)}"
+
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)
 
