@@ -58,10 +58,11 @@ Recommended: one flag on `every`.
 
 ## Stack
 
-- [ ] **`spec-0076-prune`** — `JournalPruning`, the in-memory journal's
+- [x] **`spec-0076-prune`** — `JournalPruning`, the in-memory journal's
       deletion, and `PruneContract` in `lark-actor`'s test fixtures. Done
       when: after a deletion the journal answers only the events kept, still
       appends after the newest, and never deletes the newest.
+      ([#195](https://github.com/matthewjones372/lark/pull/195))
 - [ ] **`spec-0076-retention`** — `prune = true` on `every`, and the refusal
       to recover from half a history. Done when: an actor with 1,050 events
       and snapshots every 100 keeps only events 901 to 1,050 and restarts to
@@ -91,3 +92,9 @@ Decided (2026-09-27): every open question goes as recommended. Pruning keeps one
 snapshot interval of events behind the newest snapshot; a start that finds a
 pruned history with no usable snapshot fails; and pruning does not wait for
 read models here.
+
+Decided while building `spec-0076-prune`: `InMemoryJournal` now takes an id's
+last sequence number from its newest event, not from how many it holds, and
+reads by sequence number, since both stop matching once events are deleted.
+`PruneContract` holds a journal that is also a feed to its feed losing what
+was deleted.

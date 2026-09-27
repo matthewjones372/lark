@@ -40,10 +40,26 @@ interface Journal {
 fun <E> Journal.events(id: PersistenceId, codec: EventCodec<E>): List<E> = read(id).map { codec.decode(it.bytes) }
 
 /**
- * A journal in memory, for tests and for a service that can lose its events. It keeps copies of the bytes, and is a
- * [JournalFeed] whose offsets count appended events: appends take turns, so no offset is seen before a smaller one.
+ * A journal that can let go of an entity's early events once a snapshot covers them (spec 0076). An interface beside
+ * [Journal], so a journal that cannot delete need not say so.
  */
-class InMemoryJournal : Journal, JournalFeed {
+interface JournalPruning {
+    /**
+     * Deletes [id]'s events up to and including [sequence], but never its newest: the next append is checked against
+     * it. What is left reads as before, from the first event kept.
+     */
+    fun deleteTo(id: PersistenceId, sequence: Long)
+}
+
+/**
+ * A journal in memory, for tests and for a service that can lose its events. It keeps copies of the bytes, is a
+ * [JournalFeed] whose offsets count appended events (appends take turns, so no offset is seen before a smaller one),
+ * and prunes.
+ */
+class InMemoryJournal :
+    Journal,
+    JournalFeed,
+    JournalPruning {
     private val kept = ConcurrentHashMap<PersistenceId, List<StoredEvent>>()
     private val feed = ConcurrentSkipListMap<Long, FeedEvent>()
     private val appending = ReentrantLock()
@@ -51,7 +67,8 @@ class InMemoryJournal : Journal, JournalFeed {
     override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
         appending.withLock {
             val before = kept[id].orEmpty()
-            if (before.size.toLong() != expected) return JournalConflict(id, expected, before.size.toLong()).left()
+            val last = before.lastOrNull()?.sequence ?: 0
+            if (last != expected) return JournalConflict(id, expected, last).left()
             val stored = events.mapIndexed { i, bytes -> StoredEvent(expected + i + 1, bytes.copyOf()) }
             kept[id] = before + stored
             stored.forEach { event ->
@@ -62,7 +79,16 @@ class InMemoryJournal : Journal, JournalFeed {
         }
 
     override fun read(id: PersistenceId, from: Long): List<StoredEvent> =
-        kept[id].orEmpty().drop((from - 1).coerceAtLeast(0).toInt()).map { StoredEvent(it.sequence, it.bytes.copyOf()) }
+        kept[id].orEmpty().filter { it.sequence >= from }.map { StoredEvent(it.sequence, it.bytes.copyOf()) }
+
+    override fun deleteTo(id: PersistenceId, sequence: Long) {
+        appending.withLock {
+            val events = kept[id] ?: return
+            val upTo = minOf(sequence, events.last().sequence - 1)
+            kept[id] = events.filter { it.sequence > upTo }
+            feed.values.removeIf { it.id == id && it.sequence <= upTo }
+        }
+    }
 
     override fun after(kind: String, offset: Long, limit: Int): List<FeedEvent> =
         feed.tailMap(offset, false).values.asSequence()
