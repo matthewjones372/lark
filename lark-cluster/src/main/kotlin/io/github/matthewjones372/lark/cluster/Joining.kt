@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.actor.remote.Node
 import java.util.ServiceLoader
 import kotlin.time.Duration
 
@@ -88,10 +89,10 @@ class StaticJoins : Joins {
     override val name = "static"
 
     override fun joining(options: JoinOptions): Joining {
-        val seeds = options.strings("seeds")
+        val seeds = options.strings("seeds").map(Node::at)
         require(seeds.isNotEmpty()) { "static.seeds is empty: a node needs somewhere to join through" }
         return Joining(
-            Discovery.static(seeds.first(), *seeds.drop(1).toTypedArray()),
+            Discovery { seeds },
             Downing.keepMajority(options.stableAfter),
         )
     }

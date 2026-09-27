@@ -77,13 +77,13 @@ correct: the process those watches pointed at is gone.
 
 ## Stack
 
-- [ ] **`spec-0097-self`**: `Cluster.uid` and `Cluster.isSelf`; `ready()` and `stop()` by life; `lark-app-cluster`'s exit uses it.
+- [x] **`spec-0097-self`**: `Cluster.uid` and `Cluster.isSelf`; `ready()` and `stop()` by life; `lark-app-cluster`'s exit uses it.
       Done when: in a three-node test, a node stopped without leaving and started again on the same port comes `Up`,
       a subscriber on it never sees `isSelf` true for a `Downed` member, and `whenDowned = exit` does not exit.
-- [ ] **`spec-0097-watches`**: watches end per life. A later life seen at an address ends the earlier life's watches; its removal ends none.
+- [x] **`spec-0097-watches`**: watches end per life. A later life seen at an address ends the earlier life's watches; its removal ends none.
       Done when: a watch on an actor of the new life survives the earlier life's `Removed`, and a watch on the earlier life's actor
       ends as the new life joins.
-- [ ] **`spec-0097-guide`**: the cluster guide says what a restart at the same address is, and to compare with `isSelf`.
+- [x] **`spec-0097-guide`**: the cluster guide says what a restart at the same address is, and to compare with `isSelf`.
       Done when: the guide's membership example uses `isSelf`, and compiles in `GuideExampleTest`.
 
 ## Acceptance
@@ -97,6 +97,14 @@ bank-3 and it comes back `Up` once, not in a loop, without restarting the
 others.
 
 ## Open questions
+
+Each recommendation was taken. Settled while building:
+
+- **`stop()` still treats earlier lives at this address as this node** when it asks whether the node is the only
+  member left, so a node alone with its own downed predecessor stops at once, as it did.
+- **Both tests fail on the code they replace.** With the address check, `lark-app-cluster`'s restarted node exits
+  once. With watches ended by address, the earlier life's watch ends only at its removal, and the test's check that
+  it ended while that life was still in the view fails.
 
 1. **Should `Cluster` expose the whole `Member` for this life instead of `uid`?**
    Recommended: `uid` and `isSelf`. The view holds the `Member`, and its
