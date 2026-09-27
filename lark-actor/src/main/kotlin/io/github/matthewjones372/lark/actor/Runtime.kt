@@ -96,12 +96,17 @@ fun <E> Flock<E>.snapshots(store: SnapshotStore) {
 fun <E> Flock<E>.snapshots(): SnapshotStore? = guardian().snapshots
 
 /** This flock's guardian, standing from the first call. */
-private fun Flock<*>.guardian(): Guardian =
+private fun Flock<*>.guardian(): Guardian = checkNotNull(standing()) { "this flock has closed, and its actors with it" }
+
+/**
+ * This flock's guardian, standing from the first call, or null once the flock has closed. The closed check is made
+ * inside the map's own update, so a thread that races the close either finds the guardian or finds the flock closed.
+ */
+private fun Flock<*>.standing(): Guardian? =
     // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
     // inherit it. Its actors' restarts and timers all wait on it.
     guardians.computeIfAbsent(this) { flock ->
-        check(flock !in closed) { "this flock has closed, and its actors with it" }
-        Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
+        if (flock in closed) null else Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
     }
 
 /**
@@ -145,8 +150,8 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
  */
 fun <E> Flock<E>.deadLetter(letter: DeadLetter) {
     // After the flock has closed there is no handler left to hand it to.
-    if (this in closed) return logDebug("dead letter after its flock closed: $letter")
-    guardian().dead(letter)
+    val guardian = standing()
+    if (guardian == null) logDebug("dead letter after its flock closed: $letter") else guardian.dead(letter)
 }
 
 /**
@@ -156,11 +161,11 @@ fun <E> Flock<E>.deadLetter(letter: DeadLetter) {
  */
 fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter =
     // A closed flock measures nothing: a transport's thread may still count after it has gone.
-    if (this in closed) Counter { } else guardian().counter(name, tags)
+    standing()?.counter(name, tags) ?: Counter { }
 
 /** The gauge [name] of this flock, as [counter]. */
 fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge =
-    if (this in closed) Gauge { } else guardian().gauge(name, tags)
+    standing()?.gauge(name, tags) ?: Gauge { }
 
 /**
  * Adds [tags] to every metric of this flock from now on, such as the name of the node it runs: an instrument looked
@@ -246,7 +251,9 @@ private val stepping = ThreadLocal<Cell<*, *, *>>()
  * One guardian per flock: a single parked fork that the flock interrupts on close, which then stops its actors.
  * Keyed by the flock itself, since `Flock` has no hook of its own for close.
  */
-private val guardians = ConcurrentHashMap<Flock<*>, Guardian>()
+// Its value type is nullable only so that a lookup may decline to stand a guardian on a closed flock: a
+// ConcurrentHashMap never holds a null.
+private val guardians = ConcurrentHashMap<Flock<*>, Guardian?>()
 
 private val SCHEDULED: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
     AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "scheduledFlag")
@@ -340,12 +347,13 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
         } catch (closing: InterruptedException) {
             // The flock is closing, which is the only way out of here.
         }
-        guardians.remove(flock)
         wheel.close()
         cells.forEach { it.stop() }
         cells.forEach { it.ended.await() }
-        // Once every actor has ended: an actor stopping may still tell the flock of a dead letter.
+        // Marked closed before the guardian goes: a thread the flock did not fork, such as a transport's, that looks
+        // for it afterwards finds the flock closed, rather than no guardian and a flock it would stand a second one on.
         closed += flock
+        guardians.remove(flock)
     }
 }
 

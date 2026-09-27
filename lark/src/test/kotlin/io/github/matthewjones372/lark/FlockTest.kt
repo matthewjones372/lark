@@ -383,6 +383,27 @@ class FlockTest {
     }
 
     @Test
+    fun `a close hook that throws an Error still interrupts and joins every fork, and the Error is thrown after`() {
+        val ran = mutableListOf<String>()
+
+        shouldThrow<AssertionError> {
+            flock<Nothing, Int> {
+                async {
+                    try {
+                        CountDownLatch(1).await()
+                    } catch (stopping: InterruptedException) {
+                        ran += "fork interrupted"
+                    }
+                }
+                onClose { throw AssertionError("the hook broke") }
+                7
+            }
+        }
+
+        ran shouldBe listOf("fork interrupted")
+    }
+
+    @Test
     fun `a close hook that throws is logged, and the hooks after it and the close still run`() {
         val ran = mutableListOf<String>()
 

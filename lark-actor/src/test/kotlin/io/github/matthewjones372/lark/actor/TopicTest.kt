@@ -35,6 +35,8 @@ class TopicTest {
                 prices.unsubscribe(listeners[1])
                 (61..70).forEach(prices::publish)
                 awaitIdle()
+                // Read before the flock closes: at close the last subscriber stops too, and the topic may drop it.
+                captured.gauge("lark.topic.subscribers") shouldBe 1.0
             }
 
             heard.getValue("a").toList() shouldContainExactly (1..70).toList()
@@ -43,7 +45,6 @@ class TopicTest {
             letters.toList() shouldBe emptyList()
             captured.counter("lark.topic.published") shouldBe 70.0
             captured.counter("lark.topic.delivered") shouldBe (50.0 * 3 + 10 * 2 + 10)
-            captured.gauge("lark.topic.subscribers") shouldBe 1.0
         }
     }
 
