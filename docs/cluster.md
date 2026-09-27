@@ -622,7 +622,7 @@ import arrow.core.Either
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.delivered
 import io.github.matthewjones372.lark.actor.persistent
@@ -665,7 +665,7 @@ fun wallet(id: String) = delivered(
 )
 
 /** Pays into a wallet from this node; the payment arrives however the wallet moves meanwhile. */
-fun Cluster.payments(): (wallet: String, pence: Long) -> Either<Full, Unit> {
+fun Cluster.payments(): (wallet: String, pence: Long) -> Either<NotSent, Unit> {
     val wallets = sharding("wallet", PayCodec, passivateAfter = 5.minutes) { id -> wallet(id) }
     val checkout = wallets.reliable("checkout", resendAfter = 2.seconds, keep = 10_000)
     return { wallet, pence -> checkout.send(wallet) { delivery -> Pay(pence, delivery) } }
@@ -680,6 +680,32 @@ again under the same id, on any node, sends what is still unconfirmed. Its
 commands implement `Delivered.redeliver`, usually as
 `copy(delivery = delivery)`
 ([spec 0085](../specs/0085-a-sender-that-survives-its-crash.md)).
+
+A durable `send` can fail for a second reason: the journal throws, because the
+database is down or a connection was lost. It then answers `Unwritten` with
+what the journal threw, and nothing was kept. The producer restarts itself,
+100 ms after the throw and doubling to 5 s, and until its journal can be read
+again every `send` answers `Unwritten` at once rather than waiting out
+`within`. Neither answer is retried for the caller, so a service tells "slow
+down" from "unavailable" by matching on `NotSent`
+([spec 0098](../specs/0098-a-sender-whose-journal-goes-down.md)):
+
+<!-- cluster-reliable-answers -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
+import io.github.matthewjones372.lark.actor.Unwritten
+
+/** The HTTP status a checkout answers for a payment it sent, or did not. */
+fun status(sent: Either<NotSent, Unit>): Int = when (sent) {
+    is Either.Right -> 202
+    is Either.Left -> when (val why = sent.value) {
+        Full -> 429 // too many unconfirmed: slow down
+        is Unwritten -> 503 // the journal refused it: why.cause says why
+    }
+}
+```
 
 ## Stopping, watching and telling everyone
 
@@ -755,6 +781,7 @@ carries a `node` tag naming the node it was recorded on
 | `lark.delivery.unconfirmed{producer}` | gauge | Commands a producer keeps and no entity has confirmed |
 | `lark.delivery.resent{producer}` | counter | Commands sent again: a move, a crash, or a lost confirmation |
 | `lark.delivery.full{producer}` | counter | Sends that gave up waiting for room |
+| `lark.delivery.unwritten{producer}` | counter | Durable sends refused because the journal threw |
 | `lark.topic.published{topic}` | counter | Messages published on this node |
 | `lark.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
 | `lark.topic.subscribers{topic}` | gauge | Subscribers on this node |
