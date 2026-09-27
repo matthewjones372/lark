@@ -118,4 +118,21 @@ class MembershipTest {
         net.start(1, seeds(1, 2))
         net.until { net.view(2).up() == listOf(at(1), at(2)) } shouldBe true
     }
+
+    @Test
+    fun `an Up member that goes before its joiners hear them Up leaves no cluster without a leader`() {
+        val net = Net(downing = Downing.keepMajority(2.seconds))
+        net.start(1, seeds(1))
+        net.until { net.view(1).up() == listOf(at(1)) } shouldBe true
+        net.start(2, seeds(1))
+        net.start(3, seeds(1))
+
+        // Stopped in the step it moves them on, before any gossip saying so has left it.
+        net.until { net.view(1).up().size == 3 } shouldBe true
+        net.stop(1)
+        withClue("the joiners still see only the member that went Up") { net.view(2).up() shouldBe listOf(at(1)) }
+
+        net.until { listOf(2, 3).all { net.view(it).up().toSet() == setOf(at(2), at(3)) } } shouldBe true
+        net.view(2).members.first { it.node == at(1) }.status shouldBe Status.Down
+    }
 }
