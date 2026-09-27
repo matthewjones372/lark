@@ -97,3 +97,8 @@ database. Recommended: at-least-once, with idempotent handlers.
   read model on one conflicted append.
 - **`JdbcJournal`'s table changes.** 0072 is unreleased, so the DDL gains the
   column in place rather than through a migration. Recommended: yes.
+
+Decided (2026-09-27): every open question goes as recommended. Delivery is at
+least once, with handlers that are safe to repeat; a feed is by kind; the JDBC
+feed waits up to `gapTimeout` at a gap and then passes it, logging it; and
+`JdbcJournal`'s table gains `ordering` in place, since 0072 is unreleased.
