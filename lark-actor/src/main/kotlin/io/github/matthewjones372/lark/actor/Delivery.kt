@@ -45,28 +45,51 @@ data class Confirmed(val to: String, val sequence: Long)
 
 /**
  * [behaviour], confirming each [Delivered] command once its step has returned, whatever the step answered. A step
- * that fails confirms nothing, so the producer sends the command again. Duplicates reach the step: a persistent
+ * that fails confirms nothing, so the producer sends the command again, and one that stashes the command confirms it
+ * when it is handled once put back. Duplicates reach the step: a persistent
  * behaviour drops those it remembers, and any other must handle a command twice as once.
  */
 fun <M : Any, S, E> delivered(behaviour: Behaviour<M, S, E>): Behaviour<M, S, E> = Behaviour(
     initial = behaviour.initial,
     step = { ctx, state, message ->
-        behaviour.step(this, ctx, state, message).also { if (message is Delivered) message.delivery.confirm() }
+        if (message is Delivered) {
+            val stashing = Stashing(ctx)
+            behaviour.step(this, stashing, state, message).also {
+                if (!stashing.kept(message)) message.delivery.confirm()
+            }
+        } else {
+            behaviour.step(this, ctx, state, message)
+        }
     },
     signal = behaviour.signal,
     start = behaviour.start,
     // A run confirms what it ran, once it returns: never what it left unrun by stopping first.
     steps = behaviour.steps?.let { steps ->
         { ctx, state, messages ->
-            steps(this, ctx, state, messages).also { batched ->
+            val stashing = Stashing(ctx)
+            steps(this, stashing, state, messages).also { batched ->
                 messages.forEach { message ->
-                    if (message is Delivered && batched.unrun.none { it === message }) message.delivery.confirm()
+                    val handled = batched.unrun.none { it === message } && !stashing.kept(message)
+                    if (message is Delivered && handled) message.delivery.confirm()
                 }
             }
         }
     },
     batch = behaviour.batch,
 )
+
+/** [ctx], keeping note of what a step stashes: a command stashed is not handled yet, so nothing may say it was. */
+internal class Stashing<M : Any>(private val ctx: Ctx<M>) : Ctx<M> by ctx {
+    private val stashed = ArrayList<Any>(1)
+
+    override fun stash(message: M) {
+        ctx.stash(message)
+        stashed += message
+    }
+
+    /** Whether [message] itself, not an equal one, was stashed through this. */
+    fun kept(message: Any): Boolean = stashed.any { it === message }
+}
 
 private val MARK = "\u0000lark:delivered\u0000".toByteArray()
 

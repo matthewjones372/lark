@@ -30,6 +30,18 @@ private fun register() = delivered(
     },
 )
 
+/** A till that is shut until the first cash opens it, keeping each sale until then. */
+private fun shutTill() = delivered(
+    behaviour<TillCommand, Int?, String>(null) { ctx, total, command ->
+        when {
+            total != null && command is TillSale -> become(total + command.pence)
+            command is TillSale -> stay().also { ctx.stash(command) }
+            command is TillCash -> become((total ?: 0) + command.pence).also { ctx.unstashAll() }
+            else -> raise("stuck")
+        }
+    },
+)
+
 class DeliveredTest {
 
     private val confirmed = ConcurrentLinkedQueue<Confirmed>()
@@ -62,6 +74,22 @@ class DeliveredTest {
 
             till.failure shouldBe Failure.Raised("stuck")
             confirmed.toList() shouldContainExactly emptyList()
+        }
+    }
+
+    @Test
+    fun `a command stashed is confirmed once it is handled, not when it is kept`() {
+        testActors {
+            val confirms =
+                spawn("confirms", behaviour<Confirmed, Unit>(Unit) { _, _, c -> stay().also { confirmed += c } })
+            val till = spawn("till", shutTill())
+
+            till.send(TillSale(10, Delivery("checkout", "till", 1, confirms)))
+            confirmed.toList() shouldBe emptyList()
+
+            till.send(TillCash(5))
+            till.state shouldBe 15
+            confirmed.toList() shouldContainExactly listOf(Confirmed("till", 1))
         }
     }
 }
