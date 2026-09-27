@@ -88,7 +88,7 @@ resumer's own death. Recommended: the singleton.
         they are still delivered;
       - the journal shows no conflict;
       - the drained producers are gone from the list.
-- [ ] **`spec-0099-bank`** — lark-bank drops its hand-built adoption and uses
+- [x] **`spec-0099-bank`** — lark-bank drops its hand-built adoption and uses
       this. Done when: its `CrashTest` passes unchanged. This one waits for
       0094's stack to merge.
 
@@ -136,3 +136,8 @@ Decided while building `spec-0099-resume`:
 - **Registering waits.** `reliable(durable = true)` waits up to `within` for its registration to be confirmed. Otherwise a node that crashed straight after sending could leave commands nobody lists.
 - **Pruning.** A retired outbox keeps only its newest event, as `JournalPruning` requires. The registry takes no snapshots yet, since retiring keeps its list short.
 - **What the tests catch.** `ProducersTest` crashes a node, waits for the registry to resume its producer, and crashes the registry's node. It fails without resuming, without retiring, and when only a gone owner is resumed (the bank's rule), since that misses the resumer's own death. `ReliableTest`'s successor test now relies on the registry.
+
+Decided while building `spec-0099-bank`:
+- **One id.** Every node sends through `reliable("bank", durable = true)`. The cluster names each node's outbox by its life, so the bank no longer does.
+- **Adoption gone.** The oldest node no longer restarts a removed member's producers, and the flag that stopped a closing node adopting is gone with it. The registry resumes them, including after the resumer's own crash.
+- **The test.** `CrashTest` passes unchanged, 3 of 3. Without the bank's adoption, nothing else resumes a crashed node's transfers, so the test now rests on the registry.
