@@ -77,7 +77,7 @@ over.
 
 ## Stack
 
-- [ ] **`spec-0088-slices`** — `Slices`, `ShardedJournal` (append, read,
+- [x] **`spec-0088-slices`** — `Slices`, `ShardedJournal` (append, read,
       deleteTo) and `ShardedSnapshots`.
       Done when: on two in-memory journals, an id always lands in the same one,
       a conflict is still a conflict, and 10,000 ids split within 5% of even.
