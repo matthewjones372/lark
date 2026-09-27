@@ -64,10 +64,11 @@ letter.
       `testActors` and on threads all arrive in order, and the manager never
       stops.
       ([#268](https://github.com/matthewjones372/lark/pull/268))
-- [ ] **`spec-0095-region`** — the region keeps per shard. Done when: three
+- [x] **`spec-0095-region`** — the region keeps per shard. Done when: three
       nodes, a burst of 5,000 to one entity from another node, all applied in
       order and no region stopped. The 0092 sharding benchmark's burst goes
       back to 2,000.
+      ([#269](https://github.com/matthewjones372/lark/pull/269))
 - [ ] **`spec-0095-topic`** — a topic's actor keeps per subscriber. Done when:
       one stalled subscriber does not stop the topic, the others hear
       everything, and the stalled one's overflow is counted as `full`.
@@ -108,3 +109,19 @@ Decided while building `spec-0095-entities`:
 - **On `testActors`.** A test actor always has room, so the test for this
   entry runs on threads. The `testActors` half of the done-when holds
   trivially.
+
+Decided while building `spec-0095-region`:
+- **One seam.** The keeping is `HandOn` in `lark-actor`, behind an opt-in
+  `@PlumbingSeam`, as `lark-stream` and `lark-kafka` expose their seams.
+  `lark-cluster` cannot see `lark-actor`'s internals. The entity manager moved
+  onto it, so there is one mechanism.
+- **Keyed by entity, not shard.** The region keeps per entity id. Order holds
+  per entity, which is all a sender is promised. When the region lets a shard
+  go, it knows which kept messages to route again.
+- **What the test is.** On three nodes, a burst to a sharded entity stalls in
+  the entity manager, which #268 already fixed, before the region ever feels
+  it. The region's own hand-off is plain in a singleton, which the region
+  tells directly. So `BusySingletonTest` sends 5,000 to a busy singleton on
+  one node. It times out without this change.
+- **The benchmark.** The 0092 sharding benchmark's burst goes back to 2,000 on
+  its own branch, once this and #259 have both merged.
