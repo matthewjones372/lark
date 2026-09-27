@@ -31,6 +31,7 @@ class Producer<M : Any> internal constructor(
     private val within: Duration,
     private val full: Counter,
     private val durable: Boolean = false,
+    private val recovered: CountDownLatch? = null,
 ) {
     /**
      * Keeps the command [command] builds for entity [to] and returns, or waits up to `within` while the producer
@@ -59,6 +60,8 @@ class Producer<M : Any> internal constructor(
      * its commands to land. A `send` while it waits may make it wait longer.
      */
     fun drain(within: Duration): Boolean {
+        // A durable producer's recovered commands hold room only once its actor has claimed it.
+        if (recovered?.await(within.inWholeNanoseconds, TimeUnit.NANOSECONDS) == false) return false
         if (!room.tryAcquire(keep, within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return false
         room.release(keep)
         return true

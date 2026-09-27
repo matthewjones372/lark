@@ -70,10 +70,11 @@ the journal.
       and started again under the same id delivers all 50 once, and numbers
       the next command after them.
       ([#234](https://github.com/matthewjones372/lark/pull/234))
-- [ ] **`spec-0085-sharded`** — `reliable(…, durable = true)`. Done when:
+- [x] **`spec-0085-sharded`** — `reliable(…, durable = true)`. Done when:
       three nodes, the producer's node crashed mid-burst and its producer
       started on another, end with every accepted payment applied exactly
       once.
+      ([#235](https://github.com/matthewjones372/lark/pull/235))
 
 ## Acceptance
 
@@ -118,3 +119,10 @@ Decided while building `spec-0085-durable`:
 - **What `send` does.** It waits up to `within` for the write, and answers `Full` if the write takes longer. Such a command may still be written and sent, which the KDoc says.
 - **Pruning.** It keeps no more than the 1,000 events since the snapshot before the newest.
 - **What the tests catch.** A producer without the immediate send after a start fails them, and so does one whose id changes between lives.
+
+Decided while building `spec-0085-sharded`:
+- **Room for what is recovered.** This entry changed one thing the last one decided. A durable producer started again now claims room for what it recovered, as far as `keep` allows, so `drain` waits for those commands too. The claim is made on its first message, and `drain` waits for it, so it cannot answer "drained" before the actor has looked.
+- **What the test found.** Its first version drained in 14 ms, before that claim was made. Every payment had been confirmed before the crash, so it proved nothing.
+- **How the test works now.** Accounts run only on a `ledger` node, and none is up until the crash. The test asserts that all 400 payments are kept and none confirmed when the node dies, then starts a ledger and the successor, and finds each payment applied once.
+- **What it catches.** A successor that is not durable, or a drain that does not wait for the claim, fails it.
+- **The guide.** Its reliable-delivery section names `durable = true`.
