@@ -88,15 +88,11 @@ never changes is the rule every lark codec already follows.
 
 ## Open questions
 
-1. **Lark tags, or kotlinx's own polymorphism?** Its default writes the class's
-   serial name on the wire. `@ProtoOneOf` gives a true protobuf `oneof`, but
-   needs a wrapper class per case. Recommended: lark tags, for the reasons
-   above. The cost is that a reader in another language reads the tag from
-   lark's framing rather than from a `oneof`.
-2. **One module, or the journal codecs in a second?** `state` and `events`
-   serve the journal and need only `lark-actor`. Recommended: one module, since
-   `lark-actor-remote` is small and already depends on `lark-actor`.
-3. **Pin kotlinx's version, or take the service's?** The protobuf format and
-   its schema generator are still marked experimental. Recommended: declare it
-   as `api`, at the version this module is tested against, and say so in the
-   docs.
+Answered 2026-09-27, taking each recommendation:
+
+1. **Lark tags, or kotlinx's own polymorphism?** Lark tags. A class's name
+   never reaches the wire, and a domain class needs no wrapper class.
+2. **One module, or the journal codecs in a second?** One module.
+3. **Pin kotlinx's version, or take the service's?** It is declared as `api`
+   at the version this module is tested against, and the docs say its protobuf
+   support is experimental.
