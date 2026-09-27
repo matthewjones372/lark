@@ -74,3 +74,7 @@ are written. Recommended: embedded Postgres.
 - **Which Postgres version?** Recommended: the embedded binaries' default,
   currently 17, with the version pinned in the build so an upgrade is a
   one-line change someone chose.
+
+Decided (2026-09-27): every open question goes as recommended. Embedded
+Postgres rather than Testcontainers; the H2 runs stay; and the Postgres version
+is the embedded binaries' default, pinned in the build.
