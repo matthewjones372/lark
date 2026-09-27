@@ -92,3 +92,7 @@ Recommended: one producer per sender, one wrapper per entity.
   which is after the events are written; `then` is the entity's business.
 - **Push back by blocking `send`, or by failing at once when full?**
   Recommended: block up to `within`, then fail with `Full`, as an ask does.
+
+Decided (2026-09-27): every open question goes as recommended. A persistent
+entity keeps its deduplication state in its own state; an entity confirms
+after its step; and `send` blocks up to `within`, then fails with `Full`.
