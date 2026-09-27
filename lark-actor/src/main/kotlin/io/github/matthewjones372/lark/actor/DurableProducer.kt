@@ -36,7 +36,7 @@ fun <F, M : Any> Flock<F>.durableProducer(
     val meters = meters(id)
     val recovered = CountDownLatch(1)
     val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
-    return Producer<M>(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
+    return Producer(room, keep, within, meters.full, Encoding(id, codec, actor), recovered)
         .drainedOnClose(this, id, drainWithin)
 }
 
@@ -54,7 +54,28 @@ fun <M : Any> TestActors.durableProducer(
     val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
     val recovered = CountDownLatch(1)
     val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
-    return Producer(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
+    return Producer(room, keep, within, meters.full, Encoding(id, codec, actor), recovered)
+}
+
+/**
+ * A durable producer's commands encoded on the caller's thread, so a command its codec refuses, or one that cannot be
+ * rebuilt with a new delivery, throws to the caller and is never kept. The delivery it is built with is blank: the
+ * actor numbers it, and each send rebuilds it through [Delivered.redeliver].
+ */
+private class Encoding<M : Any>(
+    private val producer: String,
+    private val codec: EventCodec<M>,
+    private val actor: ActorRef<Any>,
+) : Keeping<M> {
+    override fun keep(to: String, command: (Delivery) -> M): CountDownLatch? {
+        val blank = Delivery(producer, to, 0, Delivery.NoOne)
+        val bytes = codec.encode(command(blank))
+        val kept = codec.decode(bytes)
+        require(kept is Delivered) { "a durable producer sends only Delivered commands, not $kept" }
+        kept.redeliver(blank)
+        val written = CountDownLatch(1)
+        return written.takeIf { actor.handed(KeepDurably(to, bytes, written)) }
+    }
 }
 
 /** What a durable producer writes: a command kept, as bytes, and a command confirmed. */
@@ -96,7 +117,7 @@ private fun <M : Any> outbox(
         snapshots = every(SNAPSHOT_EVERY, OutboxesCodec, prune = Prune.always),
         command = { ctx, outboxes, message ->
             when (message) {
-                is KeepDurably<*> -> steps.keep(this, ctx, outboxes, message)
+                is KeepDurably -> steps.keep(this, ctx, outboxes, message)
 
                 is Confirmed -> steps.confirmed(this, ctx, outboxes, message)
 
@@ -147,17 +168,15 @@ private class OutboxSteps<M : Any>(
         effects: Effects<OutboxEvent, Outboxes>,
         ctx: Ctx<Any>,
         outboxes: Outboxes,
-        message: KeepDurably<*>,
+        asked: KeepDurably,
     ): Effect<OutboxEvent, Outboxes> {
-        @Suppress("UNCHECKED_CAST")
-        val asked = message as KeepDurably<M>
         val sequence = outboxes[asked.to]?.next ?: 1
-        val bytes = codec.encode(asked.command(Delivery(producer, asked.to, sequence, Delivery.NoOne)))
         holding += asked.to to sequence
-        return effects.persist(OutboxEvent.Kept(asked.to, sequence, bytes)).then { after ->
-            if (after.getValue(asked.to).kept.size == 1) ctx.send(asked.to, sequence, bytes)
-            measure()
+        return effects.persist(OutboxEvent.Kept(asked.to, sequence, asked.bytes)).then { after ->
+            // Written is written: the caller hears so before the send, which cannot take it back.
             asked.written.countDown()
+            measure()
+            if (after.getValue(asked.to).kept.size == 1) ctx.send(asked.to, sequence, asked.bytes)
         }
     }
 
@@ -169,10 +188,21 @@ private class OutboxSteps<M : Any>(
     ): Effect<OutboxEvent, Outboxes> {
         if (outboxes[confirmed.to]?.kept?.firstOrNull()?.first != confirmed.sequence) return effects.none()
         return effects.persist(OutboxEvent.Done(confirmed.to, confirmed.sequence)).then { after ->
-            if (holding.remove(confirmed.to to confirmed.sequence)) room.release()
+            if (holding.remove(confirmed.to to confirmed.sequence)) handOnRoom(after)
             measure()
             ctx.sendFirst(after, confirmed.to)
         }
+    }
+
+    /**
+     * The room a confirmed command held, passed to a recovered command that holds none yet, or freed when none is
+     * left: passed, not freed and claimed, so a drain cannot take it in between and answer while one is unconfirmed.
+     */
+    private fun handOnRoom(outboxes: Outboxes) {
+        val waiting = outboxes.asSequence()
+            .flatMap { (to, stored) -> stored.kept.asSequence().map { (sequence, _) -> to to sequence } }
+            .firstOrNull { it !in holding }
+        if (waiting == null) room.release() else holding += waiting
     }
 
     fun resend(ctx: Ctx<Any>, outboxes: Outboxes) = outboxes.forEach { (to, stored) ->
@@ -188,8 +218,9 @@ private class OutboxSteps<M : Any>(
     private fun Ctx<Any>.send(to: String, sequence: Long, bytes: ByteArray) {
         val kept = codec.decode(bytes)
         check(kept is Delivered) { "a durable producer sends only Delivered commands, not $kept" }
+        // A copy that finds the entity's mailbox full is not lost: it is sent again on the next resend.
         @Suppress("UNCHECKED_CAST")
-        route(to).tell(kept.redeliver(Delivery(producer, to, sequence, self)) as M)
+        route(to).handed(kept.redeliver(Delivery(producer, to, sequence, self)) as M)
     }
 }
 
