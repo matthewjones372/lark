@@ -77,7 +77,7 @@ resumer's own death. Recommended: the singleton.
       the node's life. Done when: two lives of one node, restarted in place,
       keep separate outboxes in the journal, and each one's commands are
       delivered.
-- [ ] **`spec-0099-registry`** — the `lark-producers` singleton and each
+- [x] **`spec-0099-registry`** — the `lark-producers` singleton and each
       durable producer's registration. Done when: on three nodes, the list
       names each node's producer and its life.
 - [ ] **`spec-0099-resume`** — resume on `Removed` and on the singleton's
@@ -121,3 +121,9 @@ Decided while building `spec-0099-life`:
 - **The life's form.** It is the node's name, a dash, and `Cluster.uid` as an unsigned number in base 36, as lark-bank wrote it. Only `reliable(durable = true)` carries it; an in-memory producer already has an incarnation of its own.
 - **Between this entry and resume.** A crashed life's commands wait until something starts its producer by the full id. `ReliableTest`'s successor does that by hand for now.
 - **What the test catches.** Naming the producer without the life fails it: both lives share one outbox, and neither life-named id holds anything.
+
+Decided while building `spec-0099-registry`:
+- **Where it starts.** A node's first `sharding` starts the registry, when its flock has a journal. Every node shards, so every node takes part in the singleton. A flock without a journal starts none, since it runs no durable producer.
+- **How a producer registers.** Through an in-memory producer of the node's own (0079), so a registration lost while the singleton moves is sent again. The registry is `delivered` and persistent, and it ignores a producer it already lists.
+- **What it lists.** Each producer's full id, its kind, the life that made it, and the life that runs it. Until resume, the two lives are the same.
+- **What the test reads.** The node that runs the singleton keeps what it lists, and the test waits on that. The test fails when producers do not register.
