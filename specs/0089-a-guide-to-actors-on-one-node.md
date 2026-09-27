@@ -68,10 +68,11 @@ need gossip. Recommended: a page of its own.
       Done when: each marked fence compiles, and one broken on purpose fails
       the test.
       ([#254](https://github.com/matthewjones372/lark/pull/254))
-- [ ] **`spec-0089-more`** — sections 4–6, with the testing section's
+- [x] **`spec-0089-more`** — sections 4–6, with the testing section's
       examples run, and the README's and cluster guide's links. Done when:
       those fences compile, the testing examples pass as tests, and the links
       are checked by the same test.
+      ([#255](https://github.com/matthewjones372/lark/pull/255))
 
 ## Acceptance
 
@@ -106,3 +107,13 @@ Decided while building `spec-0089-actors`:
 - **What it caught.** The failure example was missing its `watch` import.
 - **Where the page stops.** It closes, for now, with a line pointing to the
   cluster guide. `spec-0089-more` replaces that line with sections 4–6.
+
+Decided while building `spec-0089-more`:
+- **How the tests are run.** The testing section's example is a plain JUnit
+  class. `ActorsGuideTest` compiles it, loads it, and invokes each `@Test`
+  method on a new instance. It expects three tests to pass. It also checks
+  that the example with one expectation changed to a false one fails when run.
+- **What the testing example covers.** Its till raises a declared failure
+  rather than throwing, so the example can show `delays` holding each back-off.
+- **The links.** The README's `lark-actor` row and the cluster guide's opening
+  now link the page, and the same test checks both links.
