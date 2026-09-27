@@ -796,7 +796,7 @@ private class Cell<M : Any, S, E>(
 
     private tailrec fun drain(left: Int) {
         if (left == 0 || stopped) return
-        val next = if (starting) started() else replayedOrPolled() ?: return
+        val next = if (starting) started() else replayedOrPolled(left) ?: return
         when (next) {
             Next.Stay, Next.Unhandled -> Unit
             is Next.Become -> state = next.state
@@ -810,13 +810,17 @@ private class Cell<M : Any, S, E>(
      * A message put back from the stash, which comes before the mailbox and took its room back when first polled, or
      * else the mailbox's next item; null when there is neither.
      */
-    private fun replayedOrPolled(): Next<S>? {
+    private fun replayedOrPolled(left: Int): Next<S>? {
         val replayed = stashed?.next()
-        return if (replayed != null) stepped(replayed).also { heard() } else poll()?.let(::handled)
+        return if (replayed != null) stepped(replayed).also { heard() } else poll()?.let { handled(it, left) }
     }
 
-    /** One item from the mailbox: a signal, a timer, a listing, the start's wake-up or a message. */
-    private fun handled(item: Any): Next<S> = when (item) {
+    /**
+     * One item from the mailbox: a signal, a timer, a listing, the start's wake-up or a message. A message to a
+     * behaviour with `steps` takes the plain messages behind it along, up to its batch and to what is [left] of this
+     * activation's turn (spec 0085).
+     */
+    private fun handled(item: Any, left: Int): Next<S> = when (item) {
         Started -> Next.Stay
 
         is Listed -> stepped(item.message).also { heard() }
@@ -830,10 +834,36 @@ private class Cell<M : Any, S, E>(
         is Timer -> if (armed?.get(item.key) === item) timed(item) else Next.Stay
 
         else -> {
-            releaseRoom(1)
-            stepped(item).also { heard() }
+            val steps = behaviour.steps
+            if (steps == null || behaviour.batch <= 1 || left <= 1) {
+                releaseRoom(1)
+                stepped(item).also { heard() }
+            } else {
+                ran(steps, item, minOf(behaviour.batch, left))
+            }
         }
     }
+
+    /** [first] and the plain messages waiting behind it, at most [most], as one run through [steps]. */
+    @Suppress("UNCHECKED_CAST")
+    private fun ran(steps: Raise<E>.(Ctx<M>, S, List<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
+        val run = ArrayList<Any>(most)
+        run += first
+        while (run.size < most && isPlain(peek())) run += checkNotNull(poll())
+        releaseRoom(run.size)
+        var batched: Batched<S>? = null
+        val next = supervised { steps(this, this@Cell, state, run as List<M>).also { batched = it }.next }
+        batched?.let { done ->
+            done.unhandled.forEach { dead(it, DeadLetter.Why.Unhandled) }
+            done.unrun.forEach { dead(it, DeadLetter.Why.Stopped) }
+        }
+        heard()
+        return next
+    }
+
+    /** Whether [item] is a message told to this actor, rather than a signal, a timer, a listing or the start. */
+    private fun isPlain(item: Any?): Boolean =
+        item != null && item !== Started && item !is Listed && item !is Signalled && item !is Timer
 
     @Suppress("UNCHECKED_CAST")
     private fun stepped(message: Any): Next<S> =

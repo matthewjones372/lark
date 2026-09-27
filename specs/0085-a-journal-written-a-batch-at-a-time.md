@@ -66,7 +66,7 @@ user until something else needs it.
 
 ## Stack
 
-- [ ] **`spec-0085-steps`** — `Behaviour.steps`, and `drain` handing it a run of plain messages up to the
+- [x] **`spec-0085-steps`** — `Behaviour.steps`, and `drain` handing it a run of plain messages up to the
       behaviour's batch size.
       Done when: a test behaviour with `steps` sees `[1, 2, 3]` for three messages told before it started, and a
       signal between them splits the run.

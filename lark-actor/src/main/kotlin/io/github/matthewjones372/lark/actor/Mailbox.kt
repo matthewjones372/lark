@@ -40,6 +40,9 @@ internal open class Mailbox {
     }
 
     fun isNotEmpty(): Boolean = head.next != null
+
+    /** The next message, left where it is: only the reader calls this, as only it calls [poll]. */
+    fun peek(): Any? = head.next?.message
 }
 
 private val TAIL: AtomicReferenceFieldUpdater<Mailbox, MailboxNode> =

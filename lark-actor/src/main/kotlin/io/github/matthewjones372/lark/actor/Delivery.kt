@@ -37,6 +37,17 @@ fun <M : Any, S, E> delivered(behaviour: Behaviour<M, S, E>): Behaviour<M, S, E>
     },
     signal = behaviour.signal,
     start = behaviour.start,
+    // A run confirms what it ran, once it returns: never what it left unrun by stopping first.
+    steps = behaviour.steps?.let { steps ->
+        { ctx, state, messages ->
+            steps(this, ctx, state, messages).also { batched ->
+                messages.forEach { message ->
+                    if (message is Delivered && batched.unrun.none { it === message }) message.delivery.confirm()
+                }
+            }
+        }
+    },
+    batch = behaviour.batch,
 )
 
 private val MARK = "\u0000lark:delivered\u0000".toByteArray()
