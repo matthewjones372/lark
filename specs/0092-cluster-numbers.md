@@ -62,7 +62,7 @@ side by side, and publish the result whichever way it goes.
       the benchmarks run with `-Pjmh`, and the README's table has their rows.
 - [x] **`spec-0092-persistence`** — persistent append and reliable and durable
       sends, both sides. Done when: the same.
-- [ ] **`spec-0092-topics`** — topic fan-out, and the README row for
+- [x] **`spec-0092-topics`** — topic fan-out, and the README row for
       `lark-cluster`. Done when: the same, and the headline is stated.
 
 ## Acceptance
@@ -101,3 +101,11 @@ Decided while building `spec-0092-persistence`:
 - **Entities sent to keep nothing.** They confirm each command once handled, through `delivered` and `ShardingConsumerController`, so the reliable rows measure the delivery, not a journal.
 - **Durable is compared, but to the entity.** Pekko's durable queue answers a send once it is stored, not once it is confirmed. The durable row ends when the entity has handled the command, the one point both sides share. lark sends an entity's next command only once the last is confirmed, and Pekko does not wait, which the README says.
 - **Pekko's producer.** The benchmark's thread takes one `RequestNext` per command, from an actor that queues them, so it never sends without demand.
+
+Decided while building `spec-0092-topics`:
+- **One publish is a row, in bursts of 100.** Each invocation publishes 100 times on the first node and waits until all 30 subscribers have heard every one: under every lark mailbox of 1,024, and under Pekko's outbound queue.
+- **A topic crosses once per node on both sides.** Pekko 1.2's `Topic` tells each topic instance its receptionist found, as lark's tells each `Up` member's topic, so the comparison needed no adjustment.
+- **Probed before measuring.** A trial publishes a probe until every subscriber has heard one, since Pekko's receptionist finds the other nodes' topics some time after they are up.
+- **The message.** lark publishes an `Int` through `Codecs.int`, and Pekko a class holding one `Int` through the benchmarks' serializer.
+- **The headline is pending.** The `lark-cluster` row in the README names the comparison and says its result waits on a run on the benchmark machine. It states the result once that run is recorded.
+- **One cluster table.** The benchmarks README holds every cluster row in one table, with one command for the whole of it.
