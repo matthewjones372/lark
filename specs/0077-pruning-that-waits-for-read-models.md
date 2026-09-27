@@ -60,9 +60,10 @@ to keep consistent across nodes. Recommended: named on the behaviour.
       pruning back to its offset, a read model with no offset holds it back
       entirely, and once it catches up the next snapshot deletes the rest.
       ([#200](https://github.com/matthewjones372/lark/pull/200))
-- [ ] **`spec-0077-follow`** — the two together. Done when: in
+- [x] **`spec-0077-follow`** — the two together. Done when: in
       `lark-actor-projection`, a projection following a kind that prunes
       after it handles every one of 1,050 events.
+      ([#201](https://github.com/matthewjones372/lark/pull/201))
 
 ## Acceptance
 
@@ -95,3 +96,8 @@ can write its own rule; `never`, `always` and `after` are on its companion.
 `after` reads its offsets when a snapshot is saved, inside the same logged
 block as the deletion, so an offset store that throws deletes nothing and
 fails no step. A name with no offset counts as offset 0.
+
+Decided while building `spec-0077-follow`: the test writes all 1,050 events
+before the projection starts, the case pruning without waiting gets wrong: with
+`Prune.always` the late projection finds 150 events, and with `Prune.after` it
+finds all of them, then lets the next snapshot delete what it has passed.
