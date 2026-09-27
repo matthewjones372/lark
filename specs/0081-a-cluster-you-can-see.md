@@ -120,3 +120,8 @@ richer.
   probe `view` itself.
 - **Mailbox depth.** Recommended: not now, as above; an actor that wants its
   own depth watched can publish it from its step.
+
+Decided (2026-09-27): every open question goes as recommended. Metrics are
+recorded through `metrics` by the actor that owns each number; a `node` tag is
+bound once per flock from its remote node's name; `ready()` requires every
+member it sees to be reachable; and mailbox depth waits.
