@@ -75,7 +75,7 @@ user until something else needs it.
       Done when: 1,000 commands told at once to a `batch = 64` actor on `JdbcJournal` make ≤ 20 appends; its state
       and journal equal the unbatched actor's; a conflicted batch is lost as a failed step's message is, and the
       actor recovers to what the journal holds.
-- [ ] **`spec-0085-numbers`** — the benchmark in `lark-actor-benchmarks` and its README row.
+- [x] **`spec-0085-numbers`** — the benchmark in `lark-actor-benchmarks` and its README row.
       Done when: one hot persistent actor on embedded Postgres is measured at batch 1 and 64.
 
 ## Acceptance
