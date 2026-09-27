@@ -57,9 +57,10 @@ are written. Recommended: embedded Postgres.
       when: every contract passes on Postgres, and the module's runtime
       classpath is unchanged.
       ([#203](https://github.com/matthewjones372/lark/pull/203))
-- [ ] **`spec-0078-gaps`** — the feed's gap tests on Postgres. Done when: an
+- [x] **`spec-0078-gaps`** — the feed's gap tests on Postgres. Done when: an
       append open on one connection holds the feed back on another until it
       commits, and a rolled-back one is passed after `gapTimeout`.
+      ([#204](https://github.com/matthewjones372/lark/pull/204))
 
 ## Acceptance
 
@@ -85,3 +86,9 @@ binaries' BOM pinned at 17.5.0 and the 42.7.7 driver, all test scope. It runs
 where this was built, as root and with no Docker. Every contract passed on
 Postgres unchanged, and a wrong duplicate-key SQL state fails the Postgres
 journal's two conflict tests, so they exercise Postgres's own errors.
+
+Decided while building `spec-0078-gaps`: the gap tests became an abstract
+`FeedGaps` with an H2 and a Postgres class. On Postgres an identity is taken
+from its sequence at insert and a row still open is invisible to other
+connections, so an open append leaves exactly the gap the feed waits on; the
+feed that never waits fails both hold-back tests there too.
