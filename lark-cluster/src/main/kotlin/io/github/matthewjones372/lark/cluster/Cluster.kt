@@ -57,7 +57,8 @@ private typealias Subscribers = Set<ActorRef<MemberEvent>>
 /**
  * [node] as a member of a cluster whose seeds [discovery] finds, until the flock closes, when it leaves first:
  * waiting up to [leaveWithin] to be out, before the flock stops its actors (spec 0080). A [leaveWithin] of zero
- * leaves nothing: the node goes as a crashed one does, and the others down it. The membership runs in an
+ * leaves nothing: the node goes as a crashed one does, and the others down it. [roles] say what this node was
+ * started to do, and every member sees them in its view (spec 0083). The membership runs in an
  * actor of its own, which the nodes of the cluster reach at the same path on each, and from now on it decides when
  * a watch on another node's actor ends. A partition is resolved by [downing]; a node downed stops that actor, and its
  * subscribers hear it downed and every other member removed: whether the process ends is theirs to decide.
@@ -68,11 +69,13 @@ fun <F> Flock<F>.cluster(
     gossiping: Gossiping = Gossiping(),
     downing: Downing = Downing.keepMajority(),
     leaveWithin: Duration = 30.seconds,
+    roles: Set<String> = emptySet(),
 ): Cluster {
+    require(roles.none(String::isBlank)) { "a role needs a name, was $roles" }
     val time = clock.get()
     val now = { time.now().let { it.epochSecond.seconds + it.nano.nanoseconds } }
     val membership = Membership(
-        Incarnation(node.self, Random.nextLong()),
+        Incarnation(node.self, Random.nextLong(), roles),
         discovery::seeds,
         gossiping,
         downing,
