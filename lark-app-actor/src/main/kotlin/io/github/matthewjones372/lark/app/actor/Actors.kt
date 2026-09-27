@@ -21,12 +21,16 @@ import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.logDebug
+import io.github.matthewjones372.lark.logger
+import io.github.matthewjones372.lark.metricTags
+import io.github.matthewjones372.lark.metrics
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.FutureTask
 import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * A flock held open for the application's life, for its actors to live in. It is opened on a thread of its own that
@@ -55,12 +59,17 @@ class Actors internal constructor(private val flock: Flock<Nothing>, private val
     /**
      * Runs [block] on the flock's own thread and answers what it returned, or throws what it threw: for what must be
      * started in the flock itself, such as a remote node or a cluster. What it starts closes with the flock, through
-     * its close hooks, so a cluster made here leaves before the application's actors stop (spec 0080).
+     * its close hooks, so a cluster made here leaves before the application's actors stop (spec 0080). Asked from the
+     * flock's own thread, as from inside another [within], it runs [block] there and then.
      */
     fun <A> within(block: Flock<Nothing>.() -> A): A {
-        check(!closed.get()) { "the actors' flock has closed" }
+        if (Thread.currentThread() === holder) return flock.block()
         val task = FutureTask { flock.block() }
-        tasks.put(task)
+        // Checked and queued under the lock close takes, so no task is queued behind Close and never run.
+        lock.withLock {
+            check(!closed) { "the actors' flock has closed" }
+            tasks.put(task)
+        }
         return try {
             task.get()
         } catch (failed: ExecutionException) {
@@ -71,12 +80,15 @@ class Actors internal constructor(private val flock: Flock<Nothing>, private val
     // The thread holding the flock open, set as soon as it has started.
     internal lateinit var holder: Thread
 
-    private val closed = AtomicBoolean(false)
+    private val lock = ReentrantLock()
+    private var closed = false
 
     /** Lets the flock close, and waits for it to have: every actor has stopped once this returns. */
     internal fun close() {
-        closed.set(true)
-        tasks.put(Close)
+        lock.withLock {
+            closed = true
+            tasks.put(Close)
+        }
         holder.join()
     }
 }
@@ -91,19 +103,31 @@ fun actors(onDeadLetter: (DeadLetter) -> Unit = { logDebug("dead letter: $it") }
     install({ open(onDeadLetter) }) { actors, _ -> actors.close() }
 }
 
-/** Opens a flock on a thread of its own, with the clock of the thread that asked, and hands it back once it stands. */
+/**
+ * Opens a flock on a thread of its own, with the clock, metrics, metric tags and logger of the thread that asked, and
+ * hands it back once it stands: a thread the flock did not fork inherits none of them.
+ */
 private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
     val waits = clock.get()
+    val measured = metrics.get()
+    val tags = metricTags.get()
+    val logs = logger.get()
     val opened = CompletableFuture<Actors>()
     val tasks = LinkedBlockingQueue<Runnable>()
     val holder = Thread.ofVirtual().name("lark-app-actors").start {
         clock.locally(waits) {
-            flock<Nothing, Unit> {
-                // The guardian stands up here, on the flock's own thread, before any spawn from elsewhere.
-                onDeadLetter(onDeadLetter)
-                opened.complete(Actors(this, tasks))
-                // The flock's thread runs what `within` hands it until the node is released.
-                generateSequence { tasks.take() }.takeWhile { it !== Close }.forEach(Runnable::run)
+            metrics.locally(measured) {
+                metricTags.locally(tags) {
+                    logger.locally(logs) {
+                        flock<Nothing, Unit> {
+                            // The guardian stands up here, on the flock's own thread, before any spawn from elsewhere.
+                            onDeadLetter(onDeadLetter)
+                            opened.complete(Actors(this, tasks))
+                            // The flock's thread runs what `within` hands it until the node is released.
+                            generateSequence { tasks.take() }.takeWhile { it !== Close }.forEach(Runnable::run)
+                        }
+                    }
+                }
             }
         }
     }

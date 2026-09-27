@@ -85,6 +85,22 @@ class ConsumeTest {
 
     @ParameterizedTest
     @ValueSource(strings = ["Forks", "Pekko"])
+    fun `mapParRecord passes on what it handled while the topic is quiet, and all of it is committed`(on: String) {
+        val topic = "in-parallel-$on"
+        kafka.send(topic, "1", "2", "3")
+
+        strings("handling-$on", topic)
+            .mapParRecord(4) { record -> record.value().toInt() * 10 }
+            .take(3)
+            .runCommitting()
+            .run(backend(on))
+            .settled() shouldBe Exit.Done(3L)
+
+        kafka.committed("handling-$on", topic) shouldBe 3L
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
     fun `a stop while the consumer waits on a quiet topic wakes it, and what was handled is committed`(on: String) {
         val topic = "quiet-$on"
         kafka.send(topic, "only")
