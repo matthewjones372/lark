@@ -154,3 +154,10 @@ Recommended: SSE, fed by topics.
 - **One JVM or three processes?** Recommended: one JVM with three nodes for
   `run`, as the tests do, and a `--node n2 --seed 8081` form for running them
   as separate processes.
+
+Decided (2026-09-27): every open question goes as recommended. The server is
+the JDK's `HttpServer` on virtual threads, with no library; JSON is
+hand-written for the example's few flat shapes; the consumer page follows its
+own transfers by asking, with no stream of its own yet; the two page tests use
+Playwright for Java against the Chromium the environment has; and `run` starts
+three nodes in one JVM, with a form for running them as separate processes.
