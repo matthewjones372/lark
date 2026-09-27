@@ -111,3 +111,8 @@ restarting outbox.
 3. **Should a replay that succeeds clear "down", or only an append that
    succeeds?** Recommended: a replay. It is the first proof the journal is
    reachable, and the next send's append settles the rest.
+
+Decided (2026-09-27): every open question goes as recommended. `send`
+answers `Either<NotSent, Unit>`, with `Full` and `Unwritten(cause)` as its
+cases; the backoff is 100 ms doubling to 5 s, not configurable yet; and a
+replay that succeeds clears "down".
