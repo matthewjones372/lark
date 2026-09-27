@@ -109,16 +109,29 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
      * Deletes [id]'s events up to [sequence], never its newest, and records the orderings the deleted rows spanned in
      * `lark_journal_pruned`, in the same transaction, so the feed reads past them rather than waiting on them as gaps.
      */
-    override fun deleteTo(id: PersistenceId, sequence: Long) {
+    override fun deleteTo(id: PersistenceId, sequence: Long, readTo: Long) {
         dataSource.connection.use { connection ->
             connection.autoCommit = false
             try {
-                connection.prune(id, minOf(sequence, connection.last(id) - 1))
+                connection.prune(id, minOf(sequence, connection.readTo(id, readTo), connection.last(id) - 1))
                 connection.commit()
             } catch (failed: SQLException) {
                 connection.rollback()
                 throw failed
             }
+        }
+    }
+
+    /** The last sequence number of [id] whose ordering is at most [ordering], or 0 when there is none. */
+    private fun Connection.readTo(id: PersistenceId, ordering: Long): Long = statement(
+        "select coalesce(max(seq_nr), 0) from lark_journal where kind = ? and id = ? and ordering <= ?",
+        id.kind,
+        id.id,
+        ordering,
+    ) { select ->
+        select.executeQuery().use { rows ->
+            rows.next()
+            rows.getLong(1)
         }
     }
 

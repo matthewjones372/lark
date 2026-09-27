@@ -67,4 +67,22 @@ abstract class PruneContract<J> where J : Journal, J : JournalPruning {
 
         feed.after("diary", 0, 10).map { it.sequence } shouldContainExactly listOf(3L, 4L)
     }
+
+    @Test
+    fun `a deletion bounded by a feed offset keeps every event after it`() {
+        val kim = PersistenceId("diary", "kim")
+        val journal = journal()
+        val feed = journal as? JournalFeed ?: return
+        for (n in 1..5) {
+            journal.append(sam, n - 1L, listOf("s$n".toByteArray()))
+            journal.append(kim, n - 1L, listOf("k$n".toByteArray()))
+        }
+        val samSecond = feed.after("diary", 0, 100).single { it.id == sam && it.sequence == 2L }.offset
+
+        journal.deleteTo(sam, 4, readTo = samSecond)
+        journal.deleteTo(kim, 4, readTo = 0)
+
+        journal.sequences() shouldContainExactly listOf(3L, 4L, 5L)
+        journal.sequences(kim) shouldContainExactly listOf(1L, 2L, 3L, 4L, 5L)
+    }
 }

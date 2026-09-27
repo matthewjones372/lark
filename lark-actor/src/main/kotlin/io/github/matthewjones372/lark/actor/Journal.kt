@@ -45,10 +45,11 @@ fun <E> Journal.events(id: PersistenceId, codec: EventCodec<E>): List<E> = read(
  */
 interface JournalPruning {
     /**
-     * Deletes [id]'s events up to and including [sequence], but never its newest: the next append is checked against
-     * it. What is left reads as before, from the first event kept.
+     * Deletes [id]'s events up to and including [sequence], and only those at or before [readTo] in the feed, but
+     * never its newest: the next append is checked against it. What is left reads as before, from the first event
+     * kept. An id's offsets grow with its sequence numbers, so what goes is always a prefix (spec 0077).
      */
-    fun deleteTo(id: PersistenceId, sequence: Long)
+    fun deleteTo(id: PersistenceId, sequence: Long, readTo: Long = Long.MAX_VALUE)
 }
 
 /**
@@ -81,10 +82,11 @@ class InMemoryJournal :
     override fun read(id: PersistenceId, from: Long): List<StoredEvent> =
         kept[id].orEmpty().filter { it.sequence >= from }.map { StoredEvent(it.sequence, it.bytes.copyOf()) }
 
-    override fun deleteTo(id: PersistenceId, sequence: Long) {
+    override fun deleteTo(id: PersistenceId, sequence: Long, readTo: Long) {
         appending.withLock {
             val events = kept[id] ?: return
-            val upTo = minOf(sequence, events.last().sequence - 1)
+            val read = feed.headMap(readTo, true).values.filter { it.id == id }.maxOfOrNull { it.sequence } ?: 0
+            val upTo = minOf(sequence, read, events.last().sequence - 1)
             kept[id] = events.filter { it.sequence > upTo }
             feed.values.removeIf { it.id == id && it.sequence <= upTo }
         }
