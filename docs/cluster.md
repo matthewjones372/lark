@@ -300,8 +300,8 @@ A singleton is one actor in the whole cluster, on the oldest `Up` member, and
 moves by the same handoff when that member goes.
 
 Every node calls `sharding` and `singleton` with the same arguments, including
-nodes that should never host them: give those a role the others lack, and
-place by it ([spec 0083](../specs/0083-nodes-that-do-different-work.md)).
+nodes that should never host them: give the nodes that should host them a role
+the others lack, and place by it ([spec 0083](../specs/0083-nodes-that-do-different-work.md)).
 
 <!-- cluster-entities -->
 ```kotlin
@@ -766,7 +766,8 @@ would cost what the actors are built to avoid.
 
 An event several nodes must hear, such as a price every node caches, is a
 topic ([spec 0082](../specs/0082-a-topic-every-node-hears.md)). A publish on
-any member reaches every subscriber on every member. Delivery is at most once
+any member reaches every subscriber on every `Up` member; a member still joining,
+or already leaving, misses what is published meanwhile. Delivery is at most once
 to each subscriber, and one member's publishes arrive in the order it made
 them. A subscriber that stops is dropped. Every node calls `topic` with the
 same name and codec.
