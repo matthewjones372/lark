@@ -56,7 +56,7 @@ purpose. Recommended: leader-proposed overrides in the gossip.
 
 ## Stack
 
-- [ ] **`spec-0090-load`** — per-shard load counted by each region and carried
+- [x] **`spec-0090-load`** — per-shard load counted by each region and carried
       in the gossip. Done when: three nodes each see the others' entity counts
       per kind, and the counts are right after entities start and passivate.
 - [ ] **`spec-0090-overrides`** — overrides in the gossip, and placement that
@@ -91,3 +91,11 @@ moves by overrides the leader writes into the gossip, not by a coordinator;
 load is messages handled where there are any and running entities otherwise;
 a new member takes shards by hash, as now; and the gossip carries load only
 for shards a member owns, of kinds that rebalance.
+
+Decided while building `spec-0090-load`:
+- **Where load lives.** Each member has one `Load` in the gossip, with a version only it raises, merged as a digest is. It holds, per kind that rebalances, the shards with any entities or messages, which are the shards it owns. A kind with nothing running is carried as an empty entry.
+- **The hash.** `Gossip.hash` leaves the load out, so a load that changes every interval never holds up the leader's convergence.
+- **The wire.** The codec writes the load after the digests, in place, as 0083 decided. A cluster where no kind rebalances writes one empty map more per gossip.
+- **Counting.** A region counts a message when it delivers it to a shard here, and a shard's entities through `entities`' `onRunning`. The cluster actor reads the counts on its tick once `every` has passed, and messages count from none again.
+- **Who sees it.** `Cluster.balance` is published with the view, holds only live members, and wakes `await` as a view does. It is internal, and so is `Rebalance` until the next entry makes it public.
+- **What the test catches.** Dropping the load from the merge or the codec fails it, and so does a count that does not fall when entities passivate.
