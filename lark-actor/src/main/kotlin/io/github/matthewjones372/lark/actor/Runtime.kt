@@ -19,6 +19,8 @@ import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.metricTags
 import io.github.matthewjones372.lark.metrics
 import java.time.Instant
+import java.util.Collections
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -66,6 +68,22 @@ internal fun <M : Any> ActorRef<M>.offer(message: M): Boolean {
     return cell.offer(message)
 }
 
+/**
+ * [message] told if this has room, or has stopped, where a tell is a dead letter: false only when it is an actor's
+ * full mailbox, and a tell from a step would throw (spec 0095). An entity's ref asks its manager.
+ */
+internal fun <M : Any> ActorRef<M>.tellIfRoom(message: M): Boolean = when (this) {
+    is Cell<*, *, *> -> {
+        @Suppress("UNCHECKED_CAST")
+        val cell = this as Cell<M, *, *>
+        cell.offer(message) || (cell.isStopped && true.also { cell.tell(message) })
+    }
+
+    is EntityRef<M> -> manager.tellIfRoom(Deliver(id, message))
+
+    else -> true.also { tell(message) }
+}
+
 /** The actors registered under [key] in this flock now. */
 fun <F, M : Any> Flock<F>.find(key: ServiceKey<M>): Set<ActorRef<M>> = guardian().receptionist.find(key)
 
@@ -94,19 +112,31 @@ fun <E> Flock<E>.snapshots(store: SnapshotStore) {
 fun <E> Flock<E>.snapshots(): SnapshotStore? = guardian().snapshots
 
 /** This flock's guardian, standing from the first call. */
-private fun Flock<*>.guardian(): Guardian =
+private fun Flock<*>.guardian(): Guardian = checkNotNull(standing()) { "this flock has closed, and its actors with it" }
+
+/**
+ * This flock's guardian, standing from the first call, or null once the flock has closed. The closed check is made
+ * inside the map's own update, so a thread that races the close either finds the guardian or finds the flock closed.
+ */
+private fun Flock<*>.standing(): Guardian? =
     // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
     // inherit it. Its actors' restarts and timers all wait on it.
     guardians.computeIfAbsent(this) { flock ->
-        Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
+        if (flock in closed) null else Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
     }
+
+/**
+ * Flocks whose actors have all stopped, held weakly: a dead letter told to one afterwards, from a thread it did not
+ * fork, must not stand a second guardian on it.
+ */
+private val closed: MutableSet<Flock<*>> = Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap()))
 
 /**
  * Waits until every message told to this flock's actors, and every message those caused, has been handled or
  * dropped. The runtime counts them, so this parks until the count reaches zero rather than polling.
  */
 fun <E> Flock<E>.awaitIdle() {
-    guardians[this]?.backlog?.awaitEmpty()
+    guardians[this]?.backlog?.awaitSettled()
 }
 
 /**
@@ -134,17 +164,24 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
  * Hands [letter] to this flock's dead-letter handler, as the runtime's own letters are: for a transport or a bridge
  * that found a message it could not deliver.
  */
-fun <E> Flock<E>.deadLetter(letter: DeadLetter) = guardian().dead(letter)
+fun <E> Flock<E>.deadLetter(letter: DeadLetter) {
+    // After the flock has closed there is no handler left to hand it to.
+    val guardian = standing()
+    if (guardian == null) logDebug("dead letter after its flock closed: $letter") else guardian.dead(letter)
+}
 
 /**
  * The counter [name] of this flock (spec 0081): with the tags bound where the flock's actors first stood, those
  * [tagMetrics] added since, and [tags]. Measured through the `metrics` bound there, since an actor's step runs on a
  * thread the flock did not fork and would not inherit them. Held once looked up, so a hot path may call this.
  */
-fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter = guardian().counter(name, tags)
+fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter =
+    // A closed flock measures nothing: a transport's thread may still count after it has gone.
+    standing()?.counter(name, tags) ?: Counter { }
 
 /** The gauge [name] of this flock, as [counter]. */
-fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge = guardian().gauge(name, tags)
+fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge =
+    standing()?.gauge(name, tags) ?: Gauge { }
 
 /**
  * Adds [tags] to every metric of this flock from now on, such as the name of the node it runs: an instrument looked
@@ -230,7 +267,9 @@ private val stepping = ThreadLocal<Cell<*, *, *>>()
  * One guardian per flock: a single parked fork that the flock interrupts on close, which then stops its actors.
  * Keyed by the flock itself, since `Flock` has no hook of its own for close.
  */
-private val guardians = ConcurrentHashMap<Flock<*>, Guardian>()
+// Its value type is nullable only so that a lookup may decline to stand a guardian on a closed flock: a
+// ConcurrentHashMap never holds a null.
+private val guardians = ConcurrentHashMap<Flock<*>, Guardian?>()
 
 private val SCHEDULED: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
     AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "scheduledFlag")
@@ -264,6 +303,25 @@ private class Backlog(private val runners: Runners?) {
             while (count.get() != 0L) empty.await()
         }
     }
+
+    // Messages lark's own plumbing keeps for a busy receiver (spec 0095): told, and not yet handled or dropped.
+    private val held = AtomicLong()
+    private val released = lock.newCondition()
+
+    fun held(delta: Int) {
+        if (held.addAndGet(delta.toLong()) == 0L) lock.withLock { released.signalAll() }
+    }
+
+    /** Idle, with nothing kept for a busy receiver: what [awaitIdle] promises. The wheel settles on [awaitEmpty]. */
+    fun awaitSettled() {
+        while (true) {
+            awaitEmpty()
+            if (held.get() == 0L) return
+            lock.withLock {
+                while (held.get() != 0L) released.await()
+            }
+        }
+    }
 }
 
 /** One flock's actors, the executor they run on and the clock they wait on. */
@@ -294,13 +352,23 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     private var tags: Map<String, String> = metricTags.get()
     private val counters = ConcurrentHashMap<Pair<String, Map<String, String>>, Counter>()
     private val gauges = ConcurrentHashMap<Pair<String, Map<String, String>>, Gauge>()
-    private val deadCounters = DeadLetter.Why.entries.associateWith { why ->
-        lazy { counter("lark.actor.dead_letters", arrayOf("reason" to why.name.lowercase())) }
+
+    // Made again whenever the tags change, so a count taken before a node was named is not kept under no name.
+    @Volatile
+    private var tallies = Tallies()
+
+    val restarts: Counter get() = tallies.restarts
+
+    /** The guardian's own counters under the tags as they are now, each resolved on first use. */
+    private inner class Tallies {
+        val dead = DeadLetter.Why.entries.associateWith { why ->
+            lazy { counter("lark.actor.dead_letters", arrayOf("reason" to why.name.lowercase())) }
+        }
+        val restarts: Counter by lazy { counter("lark.actor.restarts", emptyArray()) }
     }
-    val restarts: Counter by lazy { counter("lark.actor.restarts", emptyArray()) }
 
     fun dead(letter: DeadLetter) {
-        deadCounters.getValue(letter.why).value.increment()
+        tallies.dead.getValue(letter.why).value.increment()
         deadLetters(letter)
     }
 
@@ -316,6 +384,7 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
 
     fun tag(more: Array<out Pair<String, String>>) {
         tags = tags + more
+        tallies = Tallies()
     }
 
     fun stand() {
@@ -324,10 +393,13 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
         } catch (closing: InterruptedException) {
             // The flock is closing, which is the only way out of here.
         }
-        guardians.remove(flock)
         wheel.close()
         cells.forEach { it.stop() }
         cells.forEach { it.ended.await() }
+        // Marked closed before the guardian goes: a thread the flock did not fork, such as a transport's, that looks
+        // for it afterwards finds the flock closed, rather than no guardian and a flock it would stand a second one on.
+        closed += flock
+        guardians.remove(flock)
     }
 }
 
@@ -352,8 +424,12 @@ private class Cell<M : Any, S, E>(
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
     private val parent: Cell<*, *, *>?,
-) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation {
+) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation, DeadLetters {
     override val self: ActorRef<M> get() = this
+
+    override fun deadLetter(letter: DeadLetter) = guardian.dead(letter)
+
+    override fun kept(delta: Int) = backlog.held(delta)
 
     override val timers: Timers<M> get() = this
 
@@ -379,6 +455,8 @@ private class Cell<M : Any, S, E>(
     // Held from the moment a message finds the actor idle until its activation ends, so one step runs at a time.
     @Volatile
     private var stopped = false
+
+    val isStopped: Boolean get() = stopped
 
     @Volatile
     private var state: S = behaviour.initial

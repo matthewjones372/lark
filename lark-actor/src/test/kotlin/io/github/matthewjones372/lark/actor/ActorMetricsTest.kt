@@ -35,4 +35,19 @@ class ActorMetricsTest {
             captured.tags("lark.actor.restarts") shouldBe mapOf("node" to "shop-1")
         }
     }
+
+    @Test
+    fun `a dead letter counted before the flock is tagged is counted with the tags once it is`() {
+        capturingMetrics { captured ->
+            flock<Nothing, Unit> {
+                val quiet = spawn("quiet", behaviour<MeteredTrip, Unit>(Unit) { _, _, _ -> stay() })
+                stop(quiet).await()
+                quiet.tell(MeteredTrip)
+                tagMetrics("node" to "shop-1")
+                quiet.tell(MeteredTrip)
+            }
+
+            captured.tags("lark.actor.dead_letters") shouldBe mapOf("node" to "shop-1", "reason" to "stopped")
+        }
+    }
 }

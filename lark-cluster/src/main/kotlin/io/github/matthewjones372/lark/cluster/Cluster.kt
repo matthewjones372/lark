@@ -76,15 +76,16 @@ fun <F> Flock<F>.cluster(
     require(roles.none(String::isBlank)) { "a role needs a name, was $roles" }
     val time = clock.get()
     val now = { time.now().let { it.epochSecond.seconds + it.nano.nanoseconds } }
+    val uid = Random.nextLong()
     val membership = Membership(
-        Incarnation(node.self, Random.nextLong(), roles),
+        Incarnation(node.self, uid, roles),
         discovery::seeds,
         gossiping,
         downing,
         Random.Default,
         now(),
     )
-    val cluster = Cluster(node.self, node, this, leaveWithin)
+    val cluster = Cluster(node.self, node, this, leaveWithin, uid)
     val steps = Steps(node, membership, cluster, node.takeOverWatches(), now)
     val ref = spawn(
         CLUSTER,
@@ -168,24 +169,44 @@ private class Steps(
         downed.increment(events.count { it is MemberEvent.Downed }.toDouble())
     }
 
+    /**
+     * Watches end with the life they were made on (spec 0097). A later life seen at an address ends the watches held
+     * there, since nothing could have watched its actors before it was known; removing an earlier life then ends
+     * none, since by that time they may be on the later life's actors.
+     */
+    private fun endWatches(before: View, next: View, events: List<MemberEvent>) {
+        fun Member.lifeIn(view: View) = view.members.any { it.node == node && it.uid == uid }
+        fun Member.laterIn(view: View) = view.members.any { it.node == node && it.uid != uid && it.status.isLive }
+        val replaced = next.members.filter { member ->
+            member.node != node.self && !member.lifeIn(before) && before.members.any { it.node == member.node }
+        }
+        val removed = events.filterIsInstance<MemberEvent.Removed>().map { it.member }.filterNot { it.laterIn(next) }
+        (replaced + removed).map { it.node }.distinct().forEach(endWatches)
+    }
+
     private fun publish(subscribers: Subscribers) {
         val next = membership.view()
         // A downed node is out of the cluster: every other member is gone as far as it is concerned.
         val gone = if (membership.downed) next.members.filter { it.node != node.self } else emptyList()
         val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
-        events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
+        endWatches(cluster.view, next, events)
         subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
-        measure(next, events)
+        measure(next.measuredBy(node.self, membership.downed), events)
         cluster.publish(next, membership.balance())
     }
 }
 
-/** One node's membership of a cluster: the view it has now, and a way to leave. */
+/**
+ * One node's membership of a cluster: the view it has now, and a way to leave. A node that restarts at the same
+ * address is a new life of it, with a new [uid]: [isSelf] tells this life from an earlier one (spec 0097).
+ */
 class Cluster internal constructor(
     val self: Node,
     internal val remote: RemoteNode,
     internal val flock: Flock<*>,
     internal val leaveWithin: Duration = Duration.ZERO,
+    /** This life's, as its [Member] carries it: a restart at [self]'s address is a member with another. */
+    val uid: Long = 0,
 ) {
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
@@ -199,6 +220,12 @@ class Cluster internal constructor(
         private set
 
     internal lateinit var actor: ActorRef<Step>
+
+    /**
+     * Whether [member] is this life of this node, not an earlier one at the same address: an earlier life's `Downed`
+     * and `Removed` reach the life that replaced it, and are not about it.
+     */
+    fun isSelf(member: Member): Boolean = member.node == self && member.uid == uid
 
     /** The load of the kinds that rebalance, as of [view]: published with it, and waited on as it is. */
     @Volatile
@@ -215,21 +242,20 @@ class Cluster internal constructor(
      */
     fun ready(): Boolean {
         val now = view
-        return now.members.any { it.node == self && it.status == Status.Up } &&
+        return now.members.any { isSelf(it) && it.status == Status.Up } &&
             now.leader != null &&
             now.unreachable.isEmpty()
     }
 
     /**
      * Leaves, and waits up to [within] until this node is out of the cluster (spec 0080): removed by the others, or
-     * downed, or the only member left, with nobody to hand its shards to. While it is `Leaving` its shards move to
-     * their next owners. Whether it was out in time. The flock's close does this by itself, before its actors stop.
+     * downed, or with no other member `Up`, so nobody to hand its shards to or to remove it. While it is `Leaving` its
+     * shards move to their next owners. Whether it was out in time. The flock's close does this by itself, before its
+     * actors stop.
      */
     fun stop(within: Duration): Boolean {
         leave()
-        return await(within) { view ->
-            view.members.none { it.node == self && it.status.isLive } || view.members.all { it.node == self }
-        }
+        return await(within) { view -> view.outFor(self, uid) }
     }
 
     /**
@@ -270,3 +296,18 @@ class Cluster internal constructor(
         true
     }
 }
+
+/**
+ * Whether [self] is out of the cluster this view shows: no longer a live member, or with no other member `Up`. With
+ * none `Up` there is no leader to remove it, and a member `Down` or `Joining` would keep it waiting for nothing.
+ */
+internal fun View.outFor(self: Node, uid: Long? = null): Boolean =
+    members.none { it.node == self && (uid == null || it.uid == uid) && it.status.isLive } ||
+        members.none { it.node != self && it.status == Status.Up }
+
+/**
+ * This view as [self] measures it: all of it, or, once [self] has downed itself, [self] alone, since every other
+ * member is gone as far as it is concerned, and it has no leader and nothing it could reach.
+ */
+internal fun View.measuredBy(self: Node, downed: Boolean): View =
+    if (downed) View(members.filter { it.node == self }, emptySet(), null) else this

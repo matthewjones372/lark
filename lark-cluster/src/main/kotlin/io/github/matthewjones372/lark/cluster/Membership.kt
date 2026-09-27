@@ -219,10 +219,16 @@ internal class Membership(
 
     private fun others(): List<Incarnation> = (gossip.live() - self).toList()
 
-    /** The oldest reachable member that is `Up`: it alone moves members on, and only once every member agrees. */
+    /**
+     * The oldest reachable member that is `Up`: it alone moves members on, and only once every member agrees. With
+     * none `Up`, the lowest reachable `Joining` member leads: the only `Up` member can go before the gossip that
+     * moved its joiners on leaves it, and a cluster that waited for an `Up` leader then would wait for ever.
+     */
     private fun leader(): Incarnation? {
         val unreachable = gossip.unreachable()
-        return gossip.members.filter { (m, e) -> e.status == Status.Up && m !in unreachable }
+        val reachable = gossip.members.filterKeys { it !in unreachable }
+        val up = reachable.filterValues { it.status == Status.Up }
+        return up.ifEmpty { reachable.filterValues { it.status == Status.Joining } }
             .entries.minWithOrNull(compareBy({ it.value.upNumber }, { it.key.node.toString() }))?.key
     }
 
