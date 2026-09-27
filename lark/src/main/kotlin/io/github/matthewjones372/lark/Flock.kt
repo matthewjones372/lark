@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark
 import arrow.core.Either
 import arrow.core.raise.Raise
 import arrow.core.raise.either
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
@@ -22,6 +23,14 @@ interface Flock<E> : Raise<E> {
      * one nobody awaits never runs at all, so its raise is never the scope's `Left`.
      */
     fun <T> async(on: Executor = this.on, start: Start = Start.Eager, block: Flock<E>.() -> T): Deferred<T>
+
+    /**
+     * Runs [hook] on the closing thread when this scope starts to close, before any fork is interrupted, so the
+     * scope's forks are still running for it: to leave a cluster, or to wait for work in flight to land. Hooks run
+     * in reverse order of registration, as a `resourceScope` releases. A hook that throws is logged and the scope
+     * closes all the same; one interrupted waiting ends, the rest still run, and the interrupt is kept for after.
+     */
+    fun onClose(hook: () -> Unit)
 }
 
 /**
@@ -107,6 +116,13 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
     // Only the scope's own thread reaches this: a fork body is handed a nest of its own.
     private val forks = mutableListOf<Fork<E, *>>()
 
+    // Registered from any thread that holds the scope, such as an actor started in it.
+    private val hooks = CopyOnWriteArrayList<() -> Unit>()
+
+    override fun onClose(hook: () -> Unit) {
+        hooks += hook
+    }
+
     override fun <T> async(on: Executor, start: Start, block: Flock<E>.() -> T): Deferred<T> {
         val fork = Fork(this, on, block, start = start)
         forks += fork
@@ -118,11 +134,26 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
      * a fork whose turn on the executor has not come yet starts its body interrupted instead.
      */
     fun close() {
+        runHooks()
         forks.forEach { it.interrupt() }
         forks.forEach { it.join() }
     }
 
     fun unnoticedFailure(): Failure<E>? = forks.firstNotNullOfOrNull { it.unnoticedFailure() }
+
+    private fun runHooks() {
+        var interrupted = false
+        hooks.reversed().forEach { hook ->
+            try {
+                hook()
+            } catch (stop: InterruptedException) {
+                interrupted = true
+            } catch (thrown: Exception) {
+                logError("a close hook failed; the flock closes all the same", thrown)
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt()
+    }
 }
 
 /**

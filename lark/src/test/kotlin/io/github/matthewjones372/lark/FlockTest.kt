@@ -13,6 +13,7 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -338,5 +339,58 @@ class FlockTest {
 
         bound shouldBe 42.right()
         flock<Bad, Int> { async { broken.bind() }.await() } shouldBe Bad("bound").left()
+    }
+
+    @Test
+    fun `close hooks run last first, before any fork is interrupted, and can wait on a fork still running`() {
+        val ran = mutableListOf<String>()
+        val asks = SynchronousQueue<Int>()
+        val answers = SynchronousQueue<Int>()
+
+        val closed = flock<Nothing, String> {
+            async {
+                try {
+                    while (true) answers.put(asks.take() * 2)
+                } catch (stopping: InterruptedException) {
+                    ran += "fork interrupted"
+                }
+            }
+            onClose { ran += "first" }
+            onClose {
+                asks.put(21)
+                ran += "second, answered ${answers.take()}"
+            }
+            "done"
+        }
+
+        closed shouldBe "done".right()
+        ran shouldBe listOf("second, answered 42", "first", "fork interrupted")
+    }
+
+    @Test
+    fun `a close hook that throws is logged, and the hooks after it and the close still run`() {
+        val ran = mutableListOf<String>()
+
+        val closed = flock<Nothing, Int> {
+            onClose { ran += "earlier" }
+            onClose { error("the hook broke") }
+            7
+        }
+
+        closed shouldBe 7.right()
+        ran shouldBe listOf("earlier")
+    }
+
+    @Test
+    fun `an interrupted close hook ends, the rest run, and the closing thread is interrupted afterwards`() {
+        val ran = mutableListOf<String>()
+
+        flock<Nothing, Unit> {
+            onClose { ran += "earlier" }
+            onClose { throw InterruptedException("stop waiting") }
+        }
+
+        Thread.interrupted() shouldBe true
+        ran shouldBe listOf("earlier")
     }
 }

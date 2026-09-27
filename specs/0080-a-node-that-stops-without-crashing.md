@@ -66,10 +66,12 @@ service that wants to do it earlier.
 
 ## Stack
 
-- [ ] **`spec-0080-closing`** — `onClose` hooks on a flock, in `lark-actor`,
-      run in reverse order of registration before any actor stops. Done when:
-      a hook that tells an actor and waits for its answer gets it, and a hook
-      that throws is logged and the flock still closes.
+- [x] **`spec-0080-closing`** — `onClose` hooks on a flock, in `lark`'s
+      `Flock`, run in reverse order of registration before any fork is
+      interrupted or actor stopped. Done when: a hook that tells an actor and
+      waits for its answer gets it, and a hook that throws is logged and the
+      flock still closes.
+      ([#211](https://github.com/matthewjones372/lark/pull/211))
 - [ ] **`spec-0080-leave`** — `Cluster.stop(within)` and the close hook in
       `cluster(…)`. Done when: of three nodes, one whose flock closes is
       removed from the others' views within `stableAfter`, rather than after
@@ -106,3 +108,13 @@ leaves on its flock's close, with `stop()` for a service that wants to leave
 earlier; one deadline, `leaveWithin`, covers leaving and draining; a producer
 drains on close whether or not its flock is in a cluster; and close hooks are
 `onClose` on every flock, in `lark-actor`.
+
+
+Decided while building `spec-0080-closing`: the hooks live on `Flock` in
+`lark` itself, not in `lark-actor`. A flock interrupts every fork at once as
+it closes, and a remote node's transport runs in forks of the same flock as
+the actors, so a hook in `lark-actor`'s guardian would find the transport
+already interrupted and could never tell the cluster it is leaving. A hook
+runs on the closing thread before any interrupt, so every fork, actor and
+timer is still running for it. Running the hooks after the interrupt, or in
+registration order, fails the tests.
