@@ -94,3 +94,8 @@ the journal.
 - **Does `send` wait for the journal write?** Recommended: yes, so "sent" means
   "will arrive". The cost is one append on the caller's thread, the price of
   durability.
+
+Decided (2026-09-27): every open question goes as recommended. The outbox is
+the flock's journal; a command is rebuilt through `Delivered.redeliver`; the
+service starts a crashed producer again under its id; and `send` returns once
+the command is written.
