@@ -16,6 +16,12 @@ interface EventCodec<E> {
     fun encode(event: E): ByteArray
 
     fun decode(bytes: ByteArray): E
+
+    /**
+     * The events [bytes] are read as: one, unless the codec upgrades an old event to several, as a `versioned` one may
+     * (spec 0091). What replays or follows a journal reads through this.
+     */
+    fun decodeAll(bytes: ByteArray): List<E> = listOf(decode(bytes))
 }
 
 /** One event as the journal keeps it: its place, counting from 1, and its bytes. */
@@ -38,7 +44,7 @@ interface Journal {
 
 /** The events of [id], decoded by [codec], without the marks of deliveries (spec 0079). */
 fun <E> Journal.events(id: PersistenceId, codec: EventCodec<E>): List<E> =
-    read(id).filterNot { isDeliveryMark(it.bytes) }.map { codec.decode(it.bytes) }
+    read(id).filterNot { isDeliveryMark(it.bytes) }.flatMap { codec.decodeAll(it.bytes) }
 
 /**
  * A journal that can let go of an entity's early events once a snapshot covers them (spec 0076). An interface beside

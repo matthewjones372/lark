@@ -202,7 +202,13 @@ private fun <M : Any, Ev, S> recovered(
     check(first == from.sequence + 1) {
         "$id cannot be recovered: events ${from.sequence + 1} to ${first - 1} were deleted, and no snapshot covers them"
     }
-    return stored.fold(from) { state, kept -> state.replay(kept, codec, event) }
+    return stored.fold(from) { state, kept ->
+        try {
+            state.replay(kept, codec, event)
+        } catch (unread: UnreadableEvent) {
+            throw IllegalStateException("$id cannot be recovered: event ${kept.sequence} is ${unread.message}", unread)
+        }
+    }
 }
 
 /** One command of a batch once decided: what it answered, and the state it left, for its `then`. */
@@ -290,7 +296,8 @@ private fun <Ev, S> Remembered<S>.replay(kept: StoredEvent, codec: EventCodec<Ev
         val (producer, sequence) = unmark(kept.bytes)
         copy(delivered = delivered + (producer to sequence), sequence = kept.sequence)
     } else {
-        copy(value = event(value, codec.decode(kept.bytes)), sequence = kept.sequence)
+        // An event upgraded to several applies each, in order, under the sequence number it was written with.
+        copy(value = codec.decodeAll(kept.bytes).fold(value, event), sequence = kept.sequence)
     }
 
 /** These deliveries, with [delivery] the last handled from its producer. */
