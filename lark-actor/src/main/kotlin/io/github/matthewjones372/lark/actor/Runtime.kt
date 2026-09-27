@@ -6,12 +6,18 @@ import arrow.core.nonFatalOrThrow
 import arrow.core.raise.Raise
 import arrow.core.right
 import io.github.matthewjones372.lark.Clock
+import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Deferred
 import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.Gauge
+import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logDebug
+import io.github.matthewjones372.lark.metricTags
+import io.github.matthewjones372.lark.metrics
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -128,7 +134,23 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
  * Hands [letter] to this flock's dead-letter handler, as the runtime's own letters are: for a transport or a bridge
  * that found a message it could not deliver.
  */
-fun <E> Flock<E>.deadLetter(letter: DeadLetter) = guardian().deadLetters(letter)
+fun <E> Flock<E>.deadLetter(letter: DeadLetter) = guardian().dead(letter)
+
+/**
+ * The counter [name] of this flock (spec 0081): with the tags bound where the flock's actors first stood, those
+ * [tagMetrics] added since, and [tags]. Measured through the `metrics` bound there, since an actor's step runs on a
+ * thread the flock did not fork and would not inherit them. Held once looked up, so a hot path may call this.
+ */
+fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter = guardian().counter(name, tags)
+
+/** The gauge [name] of this flock, as [counter]. */
+fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge = guardian().gauge(name, tags)
+
+/**
+ * Adds [tags] to every metric of this flock from now on, such as the name of the node it runs: an instrument looked
+ * up before keeps the tags it had.
+ */
+fun Flock<*>.tagMetrics(vararg tags: Pair<String, String>) = guardian().tag(tags)
 
 /**
  * Stops [ref] from outside, as the flock's close would: at once when it is idle, after its running step otherwise.
@@ -263,6 +285,38 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
 
     @Volatile
     var deadLetters: (DeadLetter) -> Unit = { letter -> logDebug("dead letter: $letter") }
+
+    // The metrics and tags where the flock's actors first stood: an activation runs on a runner, which inherits
+    // neither. Instruments are held by name and tags, so counting a dead letter is a map hit and no allocation.
+    private val measured: Metrics = metrics.get()
+
+    @Volatile
+    private var tags: Map<String, String> = metricTags.get()
+    private val counters = ConcurrentHashMap<Pair<String, Map<String, String>>, Counter>()
+    private val gauges = ConcurrentHashMap<Pair<String, Map<String, String>>, Gauge>()
+    private val deadCounters = DeadLetter.Why.entries.associateWith { why ->
+        lazy { counter("lark.actor.dead_letters", arrayOf("reason" to why.name.lowercase())) }
+    }
+    val restarts: Counter by lazy { counter("lark.actor.restarts", emptyArray()) }
+
+    fun dead(letter: DeadLetter) {
+        deadCounters.getValue(letter.why).value.increment()
+        deadLetters(letter)
+    }
+
+    fun counter(name: String, extra: Array<out Pair<String, String>>): Counter {
+        val key = name to (tags + extra)
+        return counters.computeIfAbsent(key) { measured.counter(it.first, it.second) }
+    }
+
+    fun gauge(name: String, extra: Array<out Pair<String, String>>): Gauge {
+        val key = name to (tags + extra)
+        return gauges.computeIfAbsent(key) { measured.gauge(it.first, it.second) }
+    }
+
+    fun tag(more: Array<out Pair<String, String>>) {
+        tags = tags + more
+    }
 
     fun stand() {
         try {
@@ -598,7 +652,7 @@ private class Cell<M : Any, S, E>(
         roomWaiters?.forEach(LockSupport::unpark)
     }
 
-    private fun dead(message: Any, why: DeadLetter.Why) = guardian.deadLetters(DeadLetter(address, message, why))
+    private fun dead(message: Any, why: DeadLetter.Why) = guardian.dead(DeadLetter(address, message, why))
 
     /** A signal takes no room: the actor that sends one may be ending, and must not wait to. */
     fun signal(signal: Signal) {
@@ -795,6 +849,7 @@ private class Cell<M : Any, S, E>(
             is Schedule.Decision.Continue -> {
                 stopChildren()
                 letGo()
+                guardian.restarts.increment()
                 guardian.clock.sleep(decision.delay)
                 state = behaviour.initial
                 supervision = decision.step
