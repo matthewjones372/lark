@@ -12,6 +12,23 @@ This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.
 
 Results land in `build/jmh-result.json`. Compare numbers only against a baseline taken on the same machine.
 
+## A journal written a batch at a time, 2026-09-27
+
+After spec [0086](../specs/0086-a-journal-written-a-batch-at-a-time.md): one persistent actor on `JdbcJournal`,
+against a Postgres 17 started in the benchmark's JVM with its defaults (a commit waits for its WAL flush), taking
+1,000 payments told at once. It is the one account every payment goes to, which sharding cannot spread. JDK 21 on
+a 4 vCPU shared cloud container, one fork. There is no Pekko row, because this measures the journal, not the
+runtime. The raw results are in
+[`baseline/2026-09-27-jdk21-hot-persistent.json`](baseline/2026-09-27-jdk21-hot-persistent.json).
+
+| Row | Per | `batch = 1` | `batch = 64` |
+|---|---|---|---|
+| `HotPersistentBenchmark`: 1,000 payments to one persistent actor, until every `then` has run | burst | 4,878 ± 1,392 ms | **240 ± 35 ms** |
+
+With one append per command, the actor waits out a commit per payment: about 205 a second, however idle the
+machine is. With 64, the payments waiting while one append is in flight go in the next, so throughput is about
+4,170 a second, twenty times as many, on the same database.
+
 ## Across nodes, 2026-09-26
 
 After spec [0068](../specs/0068-an-actor-on-another-node.md): two nodes in one JVM on loopback, lark's over its own

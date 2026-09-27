@@ -144,19 +144,38 @@ fun unhandled(): Next<Nothing> = Next.Unhandled
  * An actor described: where it starts, and what one message does. Nothing runs until something runs it. A step
  * leaves with a declared failure by raising [E]; one that never does is `Behaviour<M, S, Nothing>`.
  */
-class Behaviour<M : Any, S, out E>(
+class Behaviour<M : Any, S, out E> internal constructor(
     val initial: S,
     val step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
     /** How it takes a [Signal]; with none, a signal changes nothing. */
-    val signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
+    val signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)?,
     /** What it does before its first message, and again after each restart: a step with no message. */
-    val start: (Raise<E>.(ctx: Ctx<M>, state: S) -> Next<S>)? = null,
-)
+    val start: (Raise<E>.(ctx: Ctx<M>, state: S) -> Next<S>)?,
+    /**
+     * A step over a run of the plain messages already waiting, up to [batch] of them (spec 0086). With none, or a
+     * batch of 1, each message has a [step] of its own. Signals, timers and replayed messages always do.
+     */
+    internal val steps: (Raise<E>.(ctx: Ctx<M>, state: S, messages: List<M>) -> Batched<S>)?,
+    internal val batch: Int,
+) {
+    constructor(
+        initial: S,
+        step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+        signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
+        start: (Raise<E>.(ctx: Ctx<M>, state: S) -> Next<S>)? = null,
+    ) : this(initial, step, signal, start, null, 1)
+}
+
+/**
+ * What a run of messages came to: the [next] of the whole run, the messages it left [unhandled], which go where an
+ * unhandled message goes, and those it never ran because it stopped first, which go where a stopped actor's do.
+ */
+internal class Batched<out S>(val next: Next<S>, val unhandled: List<Any>, val unrun: List<Any>)
 
 /** This behaviour, taking signals with [handler]. */
 fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
     handler: Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>,
-): Behaviour<M, S, E> = Behaviour(initial, step, handler, start)
+): Behaviour<M, S, E> = Behaviour(initial, step, handler, start, steps, batch)
 
 /**
  * This behaviour, running [handler] before its first message and again after each restart, since a restart loses
@@ -165,11 +184,18 @@ fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
  */
 fun <M : Any, S, E> Behaviour<M, S, E>.onStart(handler: (ctx: Ctx<M>) -> Unit): Behaviour<M, S, E> {
     val before = start
-    return Behaviour(initial, step, signal) { ctx, state ->
-        val next = before?.invoke(this, ctx, state) ?: Next.Stay
-        handler(ctx)
-        next
-    }
+    return Behaviour(
+        initial,
+        step,
+        signal,
+        { ctx, state ->
+            val next = before?.invoke(this, ctx, state) ?: Next.Stay
+            handler(ctx)
+            next
+        },
+        steps,
+        batch,
+    )
 }
 
 /**

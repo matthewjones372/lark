@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
+import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.logError
 
 /**
@@ -109,9 +110,25 @@ fun <M : Any, Ev, S> persistent(
     command: Effects<Ev, S>.(ctx: Ctx<M>, state: S, command: M) -> Effect<Ev, S>,
     event: (state: S, event: Ev) -> S,
     snapshots: Snapshotting<S>? = null,
+    /**
+     * How many of the commands already waiting are decided before one append writes all their events (spec 0086).
+     * With more than 1, each command is still decided against the state the one before it left, and each `then` runs
+     * after the append, in order; a conflict fails the whole batch.
+     */
+    batch: Int = 1,
 ): Behaviour<M, Remembered<S>, JournalConflict> {
+    require(batch > 0) { "a batch of $batch commands decides none" }
     val effects = Effects<Ev, S>()
-    return Behaviour(
+    val steps: (Raise<JournalConflict>.(Ctx<M>, Remembered<S>, List<M>) -> Batched<Remembered<S>>)? =
+        if (batch == 1) {
+            null
+        } else {
+            { ctx, remembered, messages ->
+                val deciding = Deciding(effects, command, event, codec, ctx, remembered)
+                decided(id, snapshots, deciding, ctx, remembered, messages)
+            }
+        }
+    return Behaviour<M, Remembered<S>, JournalConflict>(
         initial = Remembered(empty, 0),
         step = { ctx, remembered, message ->
             val delivery = (message as? Delivered)?.delivery
@@ -139,19 +156,107 @@ fun <M : Any, Ev, S> persistent(
                 effect.next ?: if (after === remembered) Next.Stay else Next.Become(after)
             }
         },
-        start = { ctx, _ ->
-            val from = snapshots?.let { ctx.snapshots?.latest(id) }
-                ?.let { decode(snapshots.codec, it.bytes, it.sequence) }
-                ?: Remembered(empty, 0)
-            val stored = ctx.journal.read(id, from.sequence + 1)
-            val first = stored.firstOrNull()?.sequence ?: (from.sequence + 1)
-            check(first == from.sequence + 1) {
-                "$id cannot be recovered: events ${from.sequence + 1} to ${first - 1} were deleted, and no snapshot " +
-                    "covers them"
-            }
-            Next.Become(stored.fold(from) { state, kept -> state.replay(kept, codec, event) })
-        },
+        start = { ctx, _ -> Next.Become(recovered(id, empty, codec, event, snapshots, ctx)) },
+        signal = null,
+        steps = steps,
+        batch = batch,
     )
+}
+
+/** The newest snapshot, if any, and every event after it folded in: where a start and a restart begin. */
+@Suppress("LongParameterList")
+private fun <M : Any, Ev, S> recovered(
+    id: PersistenceId,
+    empty: S,
+    codec: EventCodec<Ev>,
+    event: (state: S, event: Ev) -> S,
+    snapshots: Snapshotting<S>?,
+    ctx: Ctx<M>,
+): Remembered<S> {
+    val from = snapshots?.let { ctx.snapshots?.latest(id) }
+        ?.let { decode(snapshots.codec, it.bytes, it.sequence) }
+        ?: Remembered(empty, 0)
+    val stored = ctx.journal.read(id, from.sequence + 1)
+    val first = stored.firstOrNull()?.sequence ?: (from.sequence + 1)
+    check(first == from.sequence + 1) {
+        "$id cannot be recovered: events ${from.sequence + 1} to ${first - 1} were deleted, and no snapshot covers them"
+    }
+    return stored.fold(from) { state, kept -> state.replay(kept, codec, event) }
+}
+
+/** One command of a batch once decided: what it answered, and the state it left, for its `then`. */
+private class Decided<Ev, S>(val effect: Effect<Ev, S>, val after: S)
+
+/** A batch being decided: the state each command leaves for the next, and what the append will write. */
+private class Deciding<M : Any, Ev, S>(
+    private val effects: Effects<Ev, S>,
+    private val command: Effects<Ev, S>.(ctx: Ctx<M>, state: S, command: M) -> Effect<Ev, S>,
+    private val event: (state: S, event: Ev) -> S,
+    private val codec: EventCodec<Ev>,
+    private val ctx: Ctx<M>,
+    remembered: Remembered<S>,
+) {
+    var value: S = remembered.value
+    var delivered: Map<String, Long> = remembered.delivered
+    val written = ArrayList<ByteArray>()
+    val decided = ArrayList<Decided<Ev, S>>()
+    val unhandled = ArrayList<Any>()
+    var stopped = false
+
+    /** [message] decided against the state so far, unless its delivery was already handled. */
+    fun take(message: M) {
+        val delivery = (message as? Delivered)?.delivery
+        if (delivery == null || delivery.sequence > (delivered[delivery.producer] ?: 0)) decide(message, delivery)
+    }
+
+    private fun decide(message: M, delivery: Delivery?) {
+        val effect = effects.command(ctx, value, message)
+        if (effect.next === Next.Unhandled) {
+            unhandled += message
+        } else {
+            if (effect.events.isNotEmpty()) {
+                written += effect.events.map(codec::encode)
+                delivery?.let { written += mark(it) }
+                value = effect.events.fold(value, event)
+            }
+            delivered = delivered.after(delivery)
+            decided += Decided(effect, value)
+            stopped = effect.next === Next.Stop
+        }
+    }
+}
+
+/**
+ * A batch of [messages] decided in turn, each against the state the one before left, and every event and delivery
+ * mark among them written in one append; then each `then` runs, in order, with the state its own command left.
+ */
+@Suppress("LongParameterList")
+private fun <M : Any, Ev, S> Raise<JournalConflict>.decided(
+    id: PersistenceId,
+    snapshots: Snapshotting<S>?,
+    deciding: Deciding<M, Ev, S>,
+    ctx: Ctx<M>,
+    remembered: Remembered<S>,
+    messages: List<M>,
+): Batched<Remembered<S>> {
+    var taken = 0
+    while (taken < messages.size && !deciding.stopped) deciding.take(messages[taken++])
+    val sequence = if (deciding.written.isEmpty()) {
+        remembered.sequence
+    } else {
+        ctx.journal.append(id, remembered.sequence, deciding.written).bind()
+    }
+    val reached = Remembered(deciding.value, sequence, deciding.delivered)
+    if (snapshots != null && sequence != remembered.sequence) {
+        ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
+    }
+    deciding.decided.forEach { it.effect.then?.invoke(it.after) }
+    val next = when {
+        deciding.stopped -> Next.Stop
+        reached == remembered -> Next.Stay
+        else -> Next.Become(reached)
+    }
+    return Batched(next, deciding.unhandled, messages.drop(taken))
 }
 
 /** Whether [delivery] is one this state already handled: no later than the last from its producer. */

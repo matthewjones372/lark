@@ -12,6 +12,10 @@ val scalaBinary = "2.13"
 dependencies {
     implementation(project(":lark-actor"))
     implementation(project(":lark-actor-remote"))
+    // A hot persistent actor measured on a real Postgres (spec 0085), started in the benchmark's JVM.
+    implementation(project(":lark-actor-journal-jdbc"))
+    implementation("io.zonky.test:embedded-postgres:2.1.0")
+    implementation(platform("io.zonky.test.postgres:embedded-postgres-binaries-bom:17.5.0"))
     implementation("org.apache.pekko:pekko-actor-typed_$scalaBinary:$pekkoVersion")
     implementation("org.apache.pekko:pekko-remote_$scalaBinary:$pekkoVersion")
     implementation("org.openjdk.jmh:jmh-core:$jmhVersion")
