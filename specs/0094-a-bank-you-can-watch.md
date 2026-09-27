@@ -177,3 +177,8 @@ Decided while building `spec-0094-bank-cluster`:
 - **The crash bites.** One sender per node runs at once, and n3 goes halfway through its share. Without adoption, transfers never end, and the test fails. An account that debits a repeat again ends with 1,713 of the 20,000.
 - **Postgres is cheap.** `--jdbc URL` takes a Postgres or H2 URL, and creates the journal's tables if they are missing. The Postgres driver is one jar on the classpath, and embedded Postgres is used only in the tests. `--node n2 --jdbc URL` runs one node alone. The cluster ports are 25521 to 25523.
 - **Found in the library.** A node closing sometimes logs a `ConcurrentModificationException` from `Flock`'s close. Something touches the flock from another thread while it closes. The results are not affected.
+
+Decided while building `spec-0094-api`:
+- **Split in two.** `spec-0094-api` is the JSON and the account's statement; `spec-0094-api-server` is the server and its routes. The entry's done-when is proved, and the entry ticked, on the second.
+- **JSON by hand.** One writer takes maps, lists, strings, numbers and booleans. One reader takes a flat object and answers null for anything else. Values come back as text, and the route parses the numbers.
+- **The statement.** The balance ask answers whether the account is open, its balance, and its 50 latest movements, newest first. A movement is a transfer's id and a signed amount. A refusal moves nothing, so it is not a movement.
