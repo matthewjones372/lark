@@ -93,10 +93,11 @@ richer.
       frames count ten each way, and a peer that goes away reads 0 and counts
       what was dropped for it.
       ([#217](https://github.com/matthewjones372/lark/pull/217))
-- [ ] **`spec-0081-cluster`** — membership gauges, the downed counter, and
+- [x] **`spec-0081-cluster`** — membership gauges, the downed counter, and
       `Cluster.ready()`. Done when: three nodes read three `Up` with one
       leader among them, and after one crashes the others read one
       unreachable and `ready()` false until it is downed.
+      ([#218](https://github.com/matthewjones372/lark/pull/218))
 - [ ] **`spec-0081-sharding`** — shards, entities and buffered envelopes per
       kind, and the producer's unconfirmed, resent and full. Done when: 0079's
       test ends with the survivors' shards summing to 256 and every producer
@@ -146,3 +147,12 @@ its name. `node(…)` tags its flock with the node's name. `CapturedMetrics`
 keeps a counter by name alone, so the test measures through a `Metrics` of its
 own, keyed by name and tags, and waits on the connection gauge rather than
 polling it.
+
+Decided while building `spec-0081-cluster`: the cluster actor sets the gauges
+on each step that publishes a view, from the view it publishes, and counts
+each `Downed` event it tells its subscribers, so each surviving node counts a
+downing once. `members` has one gauge per status, set to zero where there are
+none, so a status that empties reads zero rather than its last count. The
+test crashes a node and finds `ready()` false while it is unreachable, then
+true again once it is downed and removed; `ready()` without the reachability
+check fails it.

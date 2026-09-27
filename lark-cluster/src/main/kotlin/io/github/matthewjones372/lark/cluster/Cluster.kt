@@ -8,6 +8,8 @@ import io.github.matthewjones372.lark.actor.Next
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.become
 import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.counter
+import io.github.matthewjones372.lark.actor.gauge
 import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.onStart
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
@@ -131,6 +133,21 @@ private class Steps(
         node.remote(Address(to.toString(), "/user/$CLUSTER", 0), StepCodec).tell(Step.Heard(message))
     }
 
+    // Held once, and set on each step that publishes, by the one actor that owns the view (spec 0081).
+    private val members =
+        Status.entries.associateWith { status -> cluster.flock.gauge("lark.cluster.members", "status" to status.name) }
+    private val unreachable = cluster.flock.gauge("lark.cluster.unreachable")
+    private val leader = cluster.flock.gauge("lark.cluster.leader")
+    private val downed = cluster.flock.counter("lark.cluster.downed")
+
+    private fun measure(view: View, events: List<MemberEvent>) {
+        val counts = view.members.groupingBy { it.status }.eachCount()
+        members.forEach { (status, gauge) -> gauge.set((counts[status] ?: 0).toDouble()) }
+        unreachable.set(view.unreachable.size.toDouble())
+        leader.set(if (view.leader == node.self) 1.0 else 0.0)
+        downed.increment(events.count { it is MemberEvent.Downed }.toDouble())
+    }
+
     private fun publish(subscribers: Subscribers) {
         val next = membership.view()
         // A downed node is out of the cluster: every other member is gone as far as it is concerned.
@@ -138,6 +155,7 @@ private class Steps(
         val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
         events.filterIsInstance<MemberEvent.Removed>().forEach { endWatches(it.member.node) }
         subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
+        measure(next, events)
         cluster.publish(next)
     }
 }
@@ -161,6 +179,18 @@ class Cluster internal constructor(
 
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)
+
+    /**
+     * Whether this node is fully in its cluster, for a readiness probe (spec 0081): `Up`, with a leader, and every
+     * member it sees reachable. While one is unreachable the cluster moves no one on, so the shards it owned answer
+     * nothing; a node that is `Joining`, `Leaving`, downed or waiting for a partition to be decided is not ready.
+     */
+    fun ready(): Boolean {
+        val now = view
+        return now.members.any { it.node == self && it.status == Status.Up } &&
+            now.leader != null &&
+            now.unreachable.isEmpty()
+    }
 
     /**
      * Leaves, and waits up to [within] until this node is out of the cluster (spec 0080): removed by the others, or
