@@ -85,3 +85,9 @@ purpose. Recommended: leader-proposed overrides in the gossip.
   uneven, rather than racing the join.
 - **The gossip grows per kind and shard.** Recommended: carry load only for
   shards a member owns, and only for kinds that rebalance.
+
+Decided (2026-09-27): every open question goes as recommended. Placement
+moves by overrides the leader writes into the gossip, not by a coordinator;
+load is messages handled where there are any and running entities otherwise;
+a new member takes shards by hash, as now; and the gossip carries load only
+for shards a member owns, of kinds that rebalance.
