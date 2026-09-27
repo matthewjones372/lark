@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.app.cluster
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.actor.actors
+import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.typesafe.configOf
 import io.github.matthewjones372.lark.app.use
@@ -22,6 +23,7 @@ import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
@@ -116,4 +118,37 @@ class ClusteredTest {
         gossiping = quick,
         whenDowned = WhenDowned.Stay,
     )
+
+    @Test
+    fun `a node restarted at its address is not ended by its earlier life's downing`() {
+        val ports = List(3) { freePort() }
+        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+        val done = CountDownLatch(1)
+
+        // Each goes as a crashed node does, so the others still hold n3's earlier life when it comes back.
+        fun crashing(name: String, port: Int, exit: () -> Unit = {}) = actors() +
+            single<ClusterSettings> {
+                ClusterSettings(name, "127.0.0.1", port, { Joining(seeds, Downing.keepMajority()) }, quick, 0.seconds)
+            } + clustered(exit)
+        val others = listOf("n1", "n2").zip(ports).map { (name, port) ->
+            Thread.ofPlatform().start {
+                testApp(crashing(name, port)) { _: Cluster -> done.await(2, TimeUnit.MINUTES) }
+            }
+        }
+        testApp(crashing("n3", ports[2])) { cluster: Cluster ->
+            while (cluster.view.members.count { it.status == Status.Up } < 3) Thread.sleep(50)
+        }
+
+        var exits = 0
+        testApp(crashing("n3", ports[2]) { exits++ }) { cluster: Cluster ->
+            // Up, and told of its earlier life's downing, which names this address.
+            fun earlierDowned() =
+                cluster.view.members.any { it.node == cluster.self && !cluster.isSelf(it) && it.status == Status.Down }
+            while (!earlierDowned()) Thread.sleep(50)
+            Thread.sleep(500)
+        }
+        done.countDown()
+        others.forEach(Thread::join)
+        exits shouldBe 0
+    }
 }

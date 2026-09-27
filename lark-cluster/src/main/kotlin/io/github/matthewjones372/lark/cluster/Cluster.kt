@@ -74,15 +74,16 @@ fun <F> Flock<F>.cluster(
     require(roles.none(String::isBlank)) { "a role needs a name, was $roles" }
     val time = clock.get()
     val now = { time.now().let { it.epochSecond.seconds + it.nano.nanoseconds } }
+    val uid = Random.nextLong()
     val membership = Membership(
-        Incarnation(node.self, Random.nextLong(), roles),
+        Incarnation(node.self, uid, roles),
         discovery::seeds,
         gossiping,
         downing,
         Random.Default,
         now(),
     )
-    val cluster = Cluster(node.self, node, this, leaveWithin)
+    val cluster = Cluster(node.self, node, this, leaveWithin, uid)
     val steps = Steps(node, membership, cluster, node.takeOverWatches(), now)
     val ref = spawn(
         CLUSTER,
@@ -163,12 +164,17 @@ private class Steps(
     }
 }
 
-/** One node's membership of a cluster: the view it has now, and a way to leave. */
+/**
+ * One node's membership of a cluster: the view it has now, and a way to leave. A node that restarts at the same
+ * address is a new life of it, with a new [uid]: [isSelf] tells this life from an earlier one (spec 0097).
+ */
 class Cluster internal constructor(
     val self: Node,
     internal val remote: RemoteNode,
     internal val flock: Flock<*>,
     internal val leaveWithin: Duration = Duration.ZERO,
+    /** This life's, as its [Member] carries it: a restart at [self]'s address is a member with another. */
+    val uid: Long = 0,
 ) {
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
@@ -180,6 +186,12 @@ class Cluster internal constructor(
 
     internal lateinit var actor: ActorRef<Step>
 
+    /**
+     * Whether [member] is this life of this node, not an earlier one at the same address: an earlier life's `Downed`
+     * and `Removed` reach the life that replaced it, and are not about it.
+     */
+    fun isSelf(member: Member): Boolean = member.node == self && member.uid == uid
+
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)
 
@@ -190,7 +202,7 @@ class Cluster internal constructor(
      */
     fun ready(): Boolean {
         val now = view
-        return now.members.any { it.node == self && it.status == Status.Up } &&
+        return now.members.any { isSelf(it) && it.status == Status.Up } &&
             now.leader != null &&
             now.unreachable.isEmpty()
     }
@@ -203,7 +215,7 @@ class Cluster internal constructor(
     fun stop(within: Duration): Boolean {
         leave()
         return await(within) { view ->
-            view.members.none { it.node == self && it.status.isLive } || view.members.all { it.node == self }
+            view.members.none { isSelf(it) && it.status.isLive } || view.members.all { it.node == self }
         }
     }
 
