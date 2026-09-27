@@ -12,6 +12,14 @@ internal data class Answer(val status: Int, val body: Map<String, Any>)
 
 private val ids = Regex("[A-Za-z0-9_-]{1,64}")
 
+private val pages = Regex("[a-z-]+\\.[a-z]+")
+
+private val types = mapOf(
+    "html" to "text/html; charset=utf-8",
+    "js" to "text/javascript; charset=utf-8",
+    "css" to "text/css; charset=utf-8",
+)
+
 private fun failed(status: Int, why: String) = Answer(status, mapOf("error" to why))
 
 private fun <A> Either<*, A>.or(status: Int, answer: (A) -> Answer): Answer = fold({ failed(status, "$it") }, answer)
@@ -24,6 +32,7 @@ internal class Api(private val node: BankNode, port: Int) : AutoCloseable {
     private val server: HttpServer = HttpServer.create(InetSocketAddress(port), 0).apply {
         executor = Executors.newVirtualThreadPerTaskExecutor()
         createContext("/api/") { exchange -> exchange.use { respond(it, answer(it)) } }
+        createContext("/") { exchange -> exchange.use(::page) }
         start()
     }
 
@@ -31,17 +40,25 @@ internal class Api(private val node: BankNode, port: Int) : AutoCloseable {
 
     private fun answer(exchange: HttpExchange): Answer {
         val path = exchange.requestURI.path.removePrefix("/api/").split("/")
-        val body = if (exchange.requestMethod ==
-            "POST"
-        ) Json.read(exchange.requestBody.readAllBytes().decodeToString()) else null
+        val posted = exchange.requestMethod == "POST"
+        val body = if (posted) Json.read(exchange.requestBody.readAllBytes().decodeToString()) else null
+        val got = exchange.requestMethod == "GET" && path.size == 2
         return when {
-            exchange.requestMethod == "POST" && body == null -> failed(400, "the body is not a flat JSON object")
-            exchange.requestMethod == "POST" && path == listOf("accounts") -> open(body.orEmpty())
-            exchange.requestMethod == "POST" && path == listOf("transfers") -> transfer(body.orEmpty())
-            exchange.requestMethod == "GET" && path.size == 2 && path[0] == "accounts" -> account(path[1])
-            exchange.requestMethod == "GET" && path.size == 2 && path[0] == "transfers" -> status(path[1])
+            posted && body == null -> failed(400, "the body is not a flat JSON object")
+            posted && path == listOf("accounts") -> open(body.orEmpty())
+            posted && path == listOf("transfers") -> transfer(body.orEmpty())
+            got && path[0] == "accounts" -> account(path[1])
+            got && path[0] == "transfers" -> status(path[1])
             else -> failed(404, "no route for ${exchange.requestMethod} ${exchange.requestURI.path}")
         }
+    }
+
+    /** A page or what it loads, from the jar's `web` resources; `/` is the consumer's page. */
+    private fun page(exchange: HttpExchange) {
+        val name = exchange.requestURI.path.removePrefix("/").ifEmpty { "index.html" }
+        val type = types[name.substringAfterLast('.')]?.takeIf { pages.matches(name) }
+        val bytes = type?.let { Api::class.java.getResource("/web/$name")?.readBytes() }
+        if (bytes == null) respond(exchange, failed(404, "no page $name")) else respond(exchange, 200, type, bytes)
     }
 
     private fun open(body: Map<String, String>): Answer {
@@ -72,10 +89,12 @@ internal class Api(private val node: BankNode, port: Int) : AutoCloseable {
         ) failed(404, "no transfer $id") else Answer(200, mapOf("id" to id, "status" to phase))
     }
 
-    private fun respond(exchange: HttpExchange, answer: Answer) {
-        val bytes = Json.write(answer.body).encodeToByteArray()
-        exchange.responseHeaders.add("Content-Type", "application/json")
-        exchange.sendResponseHeaders(answer.status, bytes.size.toLong())
+    private fun respond(exchange: HttpExchange, answer: Answer) =
+        respond(exchange, answer.status, "application/json", Json.write(answer.body).encodeToByteArray())
+
+    private fun respond(exchange: HttpExchange, status: Int, type: String, bytes: ByteArray) {
+        exchange.responseHeaders.add("Content-Type", type)
+        exchange.sendResponseHeaders(status, bytes.size.toLong())
         exchange.responseBody.write(bytes)
     }
 
