@@ -359,10 +359,12 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
         } catch (closing: InterruptedException) {
             // The flock is closing, which is the only way out of here.
         }
-        guardians.remove(flock)
         wheel.close()
         cells.forEach { it.stop() }
         cells.forEach { it.ended.await() }
+        // Only now: an actor stopping may still tell the flock of a dead letter, which must find this guardian rather
+        // than stand a second one on a flock already closing.
+        guardians.remove(flock)
     }
 }
 
