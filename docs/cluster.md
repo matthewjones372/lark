@@ -390,9 +390,9 @@ entity's failure for its supervision to decide.
 
 For a cluster the journal must be one every node reaches. `JdbcJournal` keeps
 events in one table over the `DataSource` you give it, and ships its tables in
-the jar as Liquibase changelogs in formatted SQL, `lark/journal/jdbc/postgres.sql`
-and `lark/journal/jdbc/h2.sql`, for your changelog to include (or
-`lark-app-liquibase`'s `migrate` to run); nothing creates tables at start
+the jar as a Liquibase changelog in formatted SQL, `lark/journal/jdbc/postgres.sql`,
+for your changelog to include (or `lark-app-liquibase`'s
+`migrate` to run); nothing creates tables at start
 ([spec 0072](../specs/0072-events-that-outlive-the-node.md),
 [spec 0078](../specs/0078-the-journal-on-postgres.md)).
 

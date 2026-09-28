@@ -16,12 +16,12 @@ class JdbcSliceTableTest {
     private val opened = AtomicInteger()
 
     // Each connection taken slowly, as from a busy pool, and counted.
-    private val source: DataSource = database().migrated("h2").let { h2 ->
-        object : DataSource by h2 {
+    private val source: DataSource = Postgres.fresh().let { postgres ->
+        object : DataSource by postgres {
             override fun getConnection(): Connection {
                 opened.incrementAndGet()
                 Thread.sleep(20)
-                return h2.connection
+                return postgres.connection
             }
         }
     }

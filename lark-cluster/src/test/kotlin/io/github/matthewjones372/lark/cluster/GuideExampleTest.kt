@@ -74,7 +74,7 @@ class GuideExampleTest {
     fun `the DDL the page tells a service to apply is where the journal's jar ships it`() {
         val named = Regex("""`(lark/journal/jdbc/[a-z0-9]+\.sql)`""").findAll(guide()).map { it.groupValues[1] }.toSet()
 
-        named shouldBe setOf("lark/journal/jdbc/postgres.sql", "lark/journal/jdbc/h2.sql")
+        named shouldBe setOf("lark/journal/jdbc/postgres.sql")
         named.forEach { path -> withClue(path) { JdbcJournal::class.java.getResource("/$path").shouldNotBeNull() } }
     }
 }

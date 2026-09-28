@@ -6,8 +6,7 @@ dependencies {
 
     // A sharded persistent entity keeps its state across a move only on a journal every node reaches (spec 0072).
     testImplementation(project(":lark-actor-journal-jdbc"))
-    testImplementation("com.h2database:h2:2.3.232")
-    testImplementation(project(":lark-app-liquibase"))
+    testImplementation(testFixtures(project(":lark-actor-journal-jdbc")))
     // The TLS test certificates (spec 0073).
     testImplementation(testFixtures(project(":lark-actor-remote")))
     // GuideExampleTest compiles the examples out of docs/cluster.md (spec 0084).

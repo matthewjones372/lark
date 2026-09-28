@@ -4,5 +4,5 @@ import io.github.matthewjones372.lark.actor.OffsetContract
 import io.github.matthewjones372.lark.actor.OffsetStore
 
 class JdbcOffsetsTest : OffsetContract() {
-    override fun store(): OffsetStore = JdbcOffsets(database().migrated("h2"))
+    override fun store(): OffsetStore = JdbcOffsets(Postgres.fresh())
 }

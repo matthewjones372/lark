@@ -7,7 +7,6 @@ import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.app.liquibase.migrate
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
 import org.openjdk.jmh.annotations.Fork
@@ -36,7 +35,7 @@ private val cents = object : EventCodec<Int> {
 }
 
 /**
- * One persistent actor taking [PAYMENTS] payments told at once, on a real Postgres in the benchmark's JVM: the
+ * One persistent actor taking [PAYMENTS] payments told at once, on a real Postgres in a container: the
  * single account every payment goes to, which sharding cannot spread. [batch] 1 is one append per payment, as
  * before spec 0086; 64 decides the payments waiting and writes them in one append.
  */
@@ -51,13 +50,13 @@ open class HotPersistentBenchmark {
     @Param("1", "64")
     var batch: Int = 1
 
-    private lateinit var postgres: EmbeddedPostgres
+    private lateinit var postgres: PostgresServer
     private lateinit var merchant: ActorRef<Pay>
 
     @Setup(Level.Trial)
     fun start(lark: Lark) {
-        postgres = EmbeddedPostgres.builder().start()
-        val data = postgres.postgresDatabase
+        postgres = PostgresServer()
+        val data = postgres.dataSource
         migrate(data, "lark/journal/jdbc/postgres.sql")
         lark.flock.journal(JdbcJournal(data))
         merchant = lark.actor(

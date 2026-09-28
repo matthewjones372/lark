@@ -418,7 +418,7 @@ val fromTheProcess: Module =
     single { sys: Sys -> DbConfig(sys.env("DB_URL") ?: refuse("DB_URL is not set")) }
 ```
 
-`FakeSys(mapOf("DB_URL" to "jdbc:h2:mem:"))` replaces it in a test, with no
+`FakeSys(mapOf("DB_URL" to "jdbc:postgresql://db/app"))` replaces it in a test, with no
 JVM-wide environment variable set anywhere.
 
 ## Something that has to be given back

@@ -31,7 +31,7 @@ data class SliceMove(
  * wrote, and bumps the table's version with the range on its target. Only the moving range pauses, and only from the
  * fence to the switch. The source keeps its rows until [cleanUp].
  *
- * On a database without transaction snapshots, H2, the wait for running appends is [settle].
+ * On a database without transaction snapshots the wait for running appends is [settle].
  */
 class SliceMover(
     private val databases: List<Pair<String, DataSource>>,

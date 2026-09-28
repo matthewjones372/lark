@@ -34,7 +34,6 @@ import org.apache.pekko.persistence.typed.delivery.EventSourcedProducerQueue
 import org.apache.pekko.persistence.typed.javadsl.CommandHandler
 import org.apache.pekko.persistence.typed.javadsl.EventHandler
 import org.apache.pekko.persistence.typed.javadsl.EventSourcedBehavior
-import org.h2.jdbcx.JdbcDataSource
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
 import org.openjdk.jmh.annotations.Fork
@@ -48,9 +47,7 @@ import org.openjdk.jmh.annotations.Setup
 import org.openjdk.jmh.annotations.State
 import org.openjdk.jmh.annotations.TearDown
 import org.openjdk.jmh.annotations.Warmup
-import java.sql.DriverManager
 import java.util.Optional
-import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -63,20 +60,13 @@ import org.apache.pekko.persistence.typed.PersistenceId as PekkoPersistenceId
 /** Pekko's own default pool for its journal; lark's Hikari pool on each node is given the same. */
 private const val POOL = 20
 
-/** One user for both sides: H2 refuses a login as anyone but the user that created the database. */
-private const val H2_USER = "sa"
-
 /** Counted down by the entity that handles a durable send: every node is in this JVM. */
 private val handled = AtomicReference(CountDownLatch(0))
 
-private fun h2(name: String) = "jdbc:h2:mem:$name-${UUID.randomUUID()};DB_CLOSE_DELAY=-1"
-
-/** Applies [resource]'s DDL, found beside [owner], to the database at [url]. */
-private fun migrate(url: String, owner: Class<*>, resource: String) {
+/** Applies [resource]'s DDL, found beside [owner], to [server]. */
+private fun applyDdl(server: PostgresServer, owner: Class<*>, resource: String) {
     val ddl = checkNotNull(owner.getResource(resource)) { "no $resource on the classpath" }.readText()
-    DriverManager.getConnection(url, H2_USER, "").use { connection ->
-        connection.createStatement().use { it.execute(ddl) }
-    }
+    server.dataSource.connection.use { connection -> connection.createStatement().use { it.execute(ddl) } }
 }
 
 private fun larkAccount(node: String, id: String) = persistent<Account, Long, Long>(
@@ -106,7 +96,7 @@ private fun larkWallet(node: String) = delivered(
 internal class LarkLedgerNode(val pool: HikariDataSource, val accounts: Sharded<Account>, val wallets: Sharded<Paying>)
 
 /**
- * Three lark nodes on one H2 in memory, each through its own pool: persistent accounts, and wallets that a producer
+ * Three lark nodes on one Postgres, each through its own pool: persistent accounts, and wallets that a producer
  * on the first node sends to reliably, in memory and durably. The entities measured are reached from the first node.
  */
 @State(Scope.Benchmark)
@@ -119,16 +109,18 @@ open class LarkLedger {
     internal lateinit var reliable: Producer<Paying>
     internal lateinit var durable: Producer<Paying>
     private lateinit var nodes: LarkTrio<LarkLedgerNode>
+    private lateinit var postgres: PostgresServer
 
     @Setup(Level.Trial)
     fun start() {
-        val url = h2("lark")
-        migrate(JdbcDataSource().apply { setURL(url); user = H2_USER }, "lark/journal/jdbc/h2.sql")
+        postgres = PostgresServer()
+        migrate(postgres.dataSource, "lark/journal/jdbc/postgres.sql")
         nodes = LarkTrio { cluster, name ->
             val pool = HikariDataSource(
                 HikariConfig().apply {
-                    jdbcUrl = url
-                    username = H2_USER
+                    jdbcUrl = postgres.url
+                    username = postgres.user
+                    password = postgres.password
                     maximumPoolSize = POOL
                 },
             )
@@ -157,6 +149,7 @@ open class LarkLedger {
     fun stop() {
         nodes.close()
         nodes.parts.forEach { it.pool.close() }
+        postgres.close()
     }
 }
 
@@ -229,17 +222,17 @@ internal class PekkoProducer(
         checkNotNull(demand.poll(ASK_WITHIN.toMillis(), TimeUnit.MILLISECONDS)) { "the producer asked for nothing" }
 }
 
-/** Pekko Persistence JDBC on the H2 at [url], through Slick's Hikari pool, which is [POOL] connections by default. */
-private fun journalOn(url: String) = """
+/** Pekko Persistence JDBC on [server], through Slick's Hikari pool, which is [POOL] connections by default. */
+private fun journalOn(server: PostgresServer) = """
     pekko.persistence.journal.plugin = "jdbc-journal"
     pekko.persistence.snapshot-store.plugin = "jdbc-snapshot-store"
     pekko-persistence-jdbc.shared-databases.slick {
-      profile = "slick.jdbc.H2Profile${'$'}"
+      profile = "slick.jdbc.PostgresProfile${'$'}"
       db {
-        url = "$url"
-        driver = "org.h2.Driver"
-        user = "$H2_USER"
-        password = ""
+        url = "${server.url}"
+        driver = "org.postgresql.Driver"
+        user = "${server.user}"
+        password = "${server.password}"
         numThreads = $POOL
         maxConnections = $POOL
         minConnections = $POOL
@@ -251,7 +244,7 @@ private fun journalOn(url: String) = """
 """.trimIndent()
 
 /**
- * Three Pekko nodes on one H2 in memory, each through its own Slick pool: persistent accounts, and wallets that a
+ * Three Pekko nodes on one Postgres, each through its own Slick pool: persistent accounts, and wallets that a
  * `ShardingProducerController` on the first node sends to, with and without a durable queue.
  */
 @State(Scope.Benchmark)
@@ -266,11 +259,12 @@ open class PekkoLedger {
     lateinit var system: ActorSystem<*>
     private lateinit var nodes: PekkoTrio
 
-    @Setup(Level.Trial)
+    private lateinit var nodes: PekkoTrio
+    private lateinit var postgres: PostgresServer
     fun start() {
-        val url = h2("pekko")
-        migrate(url, EventSourcedProducerQueue::class.java, "/schema/h2/h2-create-schema.sql")
-        nodes = PekkoTrio(STILL + journalOn(url))
+        postgres = PostgresServer()
+        applyDdl(postgres, EventSourcedProducerQueue::class.java, "/schema/postgres/postgres-create-schema.sql")
+        nodes = PekkoTrio(STILL + journalOn(postgres))
         system = nodes.systems.first()
         val accounts = EntityTypeKey.create(PekkoAccount::class.java, "account")
 
@@ -312,7 +306,10 @@ open class PekkoLedger {
     }
 
     @TearDown(Level.Trial)
-    fun stop() = nodes.close()
+    fun stop() {
+        nodes.close()
+        postgres.close()
+    }
 }
 
 /**
