@@ -6,10 +6,42 @@ create table lark_journal (
     bytes  bytea        not null,
     -- Where the event stands among every event appended (spec 0075): what a feed's offsets are.
     ordering bigint generated always as identity,
+    -- The id's slice (spec 0105), set on append; null only on rows older than the column, until fillSlices sets it.
+    slice  integer,
     primary key (kind, id, seq_nr)
 );
 create unique index lark_journal_ordering on lark_journal (ordering);
 create index lark_journal_kind_ordering on lark_journal (kind, ordering);
+create index lark_journal_slice on lark_journal (slice, kind, id, seq_nr);
+
+-- Slices this database refuses appends for (spec 0105): given to another database, or on their way to one.
+create table lark_journal_fenced (
+    slice integer not null,
+    primary key (slice)
+);
+
+-- Which database owns each range of slices, by version (spec 0105). Kept in the first database only.
+create table lark_journal_slices (
+    version    bigint       not null,
+    from_slice integer      not null,
+    to_slice   integer      not null,
+    owner      varchar(255) not null,
+    primary key (version, from_slice)
+);
+
+-- Each range moved (spec 0105), until its rows are cleaned from the source. Kept in the first database only.
+create table lark_journal_moves (
+    version     bigint       not null,
+    from_slice  integer      not null,
+    to_slice    integer      not null,
+    source      varchar(255) not null,
+    target      varchar(255) not null,
+    -- The source's highest ordering in the range when it switched: what its projections must pass before cleaning.
+    copied_to   bigint       not null,
+    switched_at bigint       not null,
+    cleaned     boolean      not null,
+    primary key (version)
+);
 
 -- The orderings each deletion (spec 0076) spanned, so the feed reads past rows deleted rather than waiting on them.
 create table lark_journal_pruned (

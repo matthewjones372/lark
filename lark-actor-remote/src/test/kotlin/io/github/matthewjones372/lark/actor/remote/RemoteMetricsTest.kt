@@ -108,12 +108,13 @@ class RemoteMetricsTest {
                 repeat(3) { echo.tell("lost $it") }
                 dropped.await(1, TimeUnit.MINUTES) shouldBe true
 
-                here.counter("lark.remote.frames", "node" to "here", "peer" to "$peer", "direction" to "out") shouldBe
-                    13.0
-                here.counter("lark.remote.dropped", "node" to "here", "peer" to "$peer") shouldBe 3.0
+                val out = arrayOf("node" to "here", "peer" to "$peer", "lane" to "data")
+                here.counter("lark.remote.frames", *out, "direction" to "out") shouldBe 13.0
+                here.counter("lark.remote.dropped", *out) shouldBe 3.0
             }
         }
         val from = Node("here", "127.0.0.1", herePort)
-        there.counter("lark.remote.frames", "node" to "there", "peer" to "$from", "direction" to "in") shouldBe 10.0
+        val into = arrayOf("node" to "there", "peer" to "$from", "direction" to "in", "lane" to "data")
+        there.counter("lark.remote.frames", *into) shouldBe 10.0
     }
 }

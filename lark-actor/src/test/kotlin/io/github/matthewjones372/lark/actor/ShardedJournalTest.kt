@@ -93,6 +93,52 @@ class ShardedJournalTest {
     }
 
     @Test
+    fun `the formula's ranges, as a slice map, own each slice where spec 0088's formula put it`() {
+        listOf(1, 2, 3, 4, 7).forEach { n ->
+            val names = (1..n).map { "db-$it" }
+            val map = SliceMap.even(names)
+            map.ranges.size shouldBe n
+            (0 until Slices.COUNT).forEach { slice -> map.owner(slice) shouldBe names[slice * n / Slices.COUNT] }
+        }
+    }
+
+    @Test
+    fun `a range moved takes the next version and merges with its neighbours, and a map missing a slice is refused`() {
+        val two = SliceMap.even(listOf("db-a", "db-b"))
+        val moved = two.moving(0..255, "db-c")
+        moved.version shouldBe 2
+        moved.ranges shouldContainExactly listOf(0..255 to "db-c", 256..511 to "db-a", 512..1023 to "db-b")
+        moved.moving(0..255, "db-a").ranges shouldContainExactly listOf(0..511 to "db-a", 512..1023 to "db-b")
+        shouldThrow<IllegalArgumentException> { SliceMap(1, listOf(0..1022 to "db-a")) }
+        shouldThrow<IllegalArgumentException> { SliceMap(1, listOf(0..1023 to "db-a", 5..5 to "db-b")) }
+    }
+
+    @Test
+    fun `an append refused for a slice given away goes to its new owner, or is unavailable while it moves`() {
+        val a = InMemoryJournal()
+        val b = InMemoryJournal()
+        val refusing = object : Journal by a {
+            override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>) =
+                throw SliceElsewhere(Slices.of(id))
+        }
+        val before = SliceMap.even(listOf("db-a", "db-b"))
+        var after = before
+        val table = object : SliceTable {
+            // A node that has not yet read the new version, until it is refused.
+            override fun current() = before
+
+            override fun refresh() = after
+        }
+        val journal = ShardedJournal(listOf("db-a" to refusing, "db-b" to b), table)
+        val id = (1..100).map { PersistenceId("account", "acc-$it") }.first { before.owner(Slices.of(it)) == "db-a" }
+
+        shouldThrow<JournalUnavailable> { journal.append(id, 0, listOf(byteArrayOf(1))) }
+        after = before.moving(0..1023, "db-b")
+        journal.append(id, 0, listOf(byteArrayOf(1))) shouldBe Either.Right(1L)
+        b.read(id).map { it.sequence } shouldContainExactly listOf(1L)
+    }
+
+    @Test
     fun `databases named twice, or none at all, are refused`() {
         shouldThrow<IllegalArgumentException> { ShardedJournal(emptyList()) }
         shouldThrow<IllegalArgumentException> {
