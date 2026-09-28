@@ -65,4 +65,19 @@ class PlacementTest {
         owners(members).toSet() shouldBe setOf(up(1).node)
         Placement.owner("order", 0, listOf(up(2, Status.Joining))).shouldBeNull()
     }
+
+    @Test
+    fun `an override moves only its shard, and only to an Up member in the life it names`() {
+        val members = listOf(up(1), up(2), up(3, Status.Leaving))
+        val hashed = owners(members)
+        val shard = hashed.indexOfFirst { it != up(2).node }
+        val to = { n: Int, uid: Long -> mapOf(shard to Incarnation(up(n).node, uid)) }
+        val moved = { overrides: Map<Int, Incarnation> ->
+            List(256) { Placement.owner("order", it, members, overrides[it]) }
+        }
+
+        moved(to(2, 2L)) shouldBe hashed.toMutableList().apply { set(shard, up(2).node) }
+        withClue("a member that is not Up") { moved(to(3, 3L)) shouldBe hashed }
+        withClue("another life at the same address") { moved(to(2, 7L)) shouldBe hashed }
+    }
 }

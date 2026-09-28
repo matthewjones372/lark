@@ -93,6 +93,26 @@ private fun WireOut.gossip(gossip: Gossip) {
         long(digest.version)
         long(digest.hash)
     }
+    map(gossip.loads) { member, load ->
+        incarnation(member)
+        long(load.version)
+        map(load.kinds) { kind, shards ->
+            string(kind)
+            map(shards) { shard, cost ->
+                int(shard)
+                int(cost.entities)
+                int(cost.messages)
+            }
+        }
+    }
+    map(gossip.moves) { kind, moves ->
+        string(kind)
+        long(moves.version)
+        map(moves.to) { shard, to ->
+            int(shard)
+            incarnation(to)
+        }
+    }
 }
 
 private fun WireIn.gossip() = Gossip(
@@ -100,4 +120,6 @@ private fun WireIn.gossip() = Gossip(
     members = map { incarnation() to Entry(Status.entries[int()], int()) },
     observed = map { Observation(incarnation(), incarnation()) to Seen(boolean(), long()) },
     digests = map { incarnation() to Digest(long(), long()) },
+    loads = map { incarnation() to Load(long(), map { string() to map { int() to ShardLoad(int(), int()) } }) },
+    moves = map { string() to Moves(long(), map { int() to incarnation() }) },
 )

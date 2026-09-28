@@ -45,9 +45,9 @@ import org.apache.pekko.actor.ActorRef as PekkoRef
 private const val BURST = 2_000
 
 /** Far past any round trip on loopback: an ask that takes this long is a benchmark that has broken. */
-private val ASK_WITHIN: Duration = Duration.ofSeconds(10)
+internal val ASK_WITHIN: Duration = Duration.ofSeconds(10)
 
-private fun freePort(): Int = ServerSocket(0).use { it.localPort }
+internal fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
 /** The count down a burst's receiver makes, one per message: both nodes are in this JVM. */
 private val counted = AtomicReference(CountDownLatch(0))

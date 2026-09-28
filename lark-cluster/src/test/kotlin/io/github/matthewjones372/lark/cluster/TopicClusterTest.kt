@@ -23,8 +23,8 @@ private val swift =
 
 private fun portFree(): Int = ServerSocket(0).use { it.localPort }
 
-/** A node with the topic "prices" on a thread of its own, and, if [listens], a subscriber whose hearing it keeps. */
-private class Exchange(val name: String, port: Int, seeds: Discovery, listens: Boolean) : AutoCloseable {
+/** A node with the topic "prices" on a thread of its own, and a subscriber whose hearing it keeps. */
+private class Exchange(val name: String, port: Int, seeds: Discovery) : AutoCloseable {
     val heard = LinkedBlockingQueue<Int>()
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
@@ -33,17 +33,7 @@ private class Exchange(val name: String, port: Int, seeds: Discovery, listens: B
         flock<Nothing, Unit> {
             val cluster = cluster(node(name, port), seeds, swift)
             val prices = cluster.topic("prices", Codecs.int)
-            if (listens) prices.subscribe(
-                spawn(
-                    "listener",
-                    behaviour<Int, Unit>(Unit) { _, _, n ->
-                        stay().also {
-                            heard +=
-                                n
-                        }
-                    },
-                ),
-            )
+            prices.subscribe(spawn("listener", behaviour<Int, Unit>(Unit) { _, _, n -> stay().also { heard += n } }))
             opened.set(cluster to prices)
             ready.countDown()
             done.await()
@@ -78,9 +68,9 @@ class TopicClusterTest {
         val ports = List(4) { portFree() }
         val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
         val nodes = mutableListOf(
-            Exchange("x1", ports[0], seeds, listens = true),
-            Exchange("x2", ports[1], seeds, listens = true),
-            Exchange("x3", ports[2], seeds, listens = false),
+            Exchange("x1", ports[0], seeds),
+            Exchange("x2", ports[1], seeds),
+            Exchange("x3", ports[2], seeds),
         )
         try {
             val up = { count: Int -> { view: View -> view.members.count { it.status == Status.Up } == count } }
@@ -89,20 +79,18 @@ class TopicClusterTest {
 
             (1..100).forEach(publisher.prices::publish)
 
-            nodes[0].next(100) shouldBe (1..100).toList()
-            nodes[1].next(100) shouldBe (1..100).toList()
+            // The publisher's own subscriber among them: it hears each publish once, not again from the others.
+            nodes.forEach { it.next(100) shouldBe (1..100).toList() }
 
-            val late = Exchange("x4", ports[3], seeds, listens = true).also { nodes += it }
+            nodes += Exchange("x4", ports[3], seeds)
             nodes.forEach { it.cluster.await(1.minutes, up(4)) shouldBe true }
             (101..110).forEach(publisher.prices::publish)
 
-            val listeners = listOf(nodes[0], nodes[1], late)
-            listeners.forEach { it.next(10) shouldBe (101..110).toList() }
+            nodes.forEach { it.next(10) shouldBe (101..110).toList() }
 
             // Each hears the next publish next: in order, anything heard twice would have come before it.
             publisher.prices.publish(111)
-            listeners.forEach { it.next(1) shouldBe listOf(111) }
-            publisher.heard.isEmpty() shouldBe true
+            nodes.forEach { it.next(1) shouldBe listOf(111) }
         } finally {
             nodes.forEach(Exchange::close)
         }

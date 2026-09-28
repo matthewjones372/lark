@@ -3,7 +3,10 @@ package io.github.matthewjones372.lark.actor
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 private data class Paid(val pence: Int)
 
@@ -26,6 +29,9 @@ private data class PayIn(val pence: Int, override val delivery: Delivery) :
     PurseCommand,
     Delivered
 
+/** Puts back the payments kept while the purse was held. */
+private data object Unhold : PurseCommand
+
 /** Persists nothing and says so, sent reliably. */
 private data class Peek(override val delivery: Delivery) :
     PurseCommand,
@@ -33,16 +39,27 @@ private data class Peek(override val delivery: Delivery) :
 
 private val purseId = PersistenceId("purse", "p-1")
 
-/** A purse paid into reliably, snapshotting every [every] entries when asked, and pruning what snapshots cover. */
-private fun purse(peeks: ConcurrentLinkedQueue<Long>, every: Int? = null) = delivered(
+/**
+ * A purse paid into reliably, snapshotting every [every] entries when asked, and pruning what snapshots cover. While
+ * [held], it stashes each payment until [Unhold].
+ */
+private fun purse(
+    peeks: ConcurrentLinkedQueue<Long>,
+    every: Int? = null,
+    held: AtomicBoolean = AtomicBoolean(),
+    batch: Int = 1,
+) = delivered(
     persistent<PurseCommand, Paid, Int>(
         id = purseId,
         empty = 0,
         codec = paidCodec,
-        command = { _, _, command ->
+        batch = batch,
+        command = { ctx, _, command ->
             when (command) {
+                is PayIn if held.get() -> none().also { ctx.stash(command) }
                 is PayIn -> persist(Paid(command.pence))
                 is Peek -> none().then { peeks += command.delivery.sequence }
+                Unhold -> none().also { ctx.unstashAll() }
             }
         },
         event = { pence, paid -> pence + paid.pence },
@@ -148,5 +165,25 @@ class PersistentDeliveryTest {
         decode(purseCodec, encode(purseCodec, remembered), 3) shouldBe remembered
         val delivered = remembered.copy(delivered = mapOf("checkout" to 7L, "refunds" to 2L))
         decode(purseCodec, encode(purseCodec, delivered), 3) shouldBe delivered
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = [1, 4])
+    fun `a command stashed is neither confirmed nor remembered until it is handled`(batch: Int) {
+        testActors {
+            val confirms = confirms()
+            val held = AtomicBoolean(true)
+            val purse = spawn("purse", purse(peeks, held = held, batch = batch))
+
+            purse.send(PayIn(10, Delivery("checkout", "p-1", 1, confirms)))
+            purse.state shouldBe Remembered(0, sequence = 0)
+            confirmed.toList() shouldBe emptyList()
+
+            held.set(false)
+            purse.send(Unhold)
+
+            purse.state shouldBe Remembered(10, sequence = 2, delivered = mapOf("checkout" to 1L))
+            confirmed.map { it.sequence } shouldContainExactly listOf(1L)
+        }
     }
 }
