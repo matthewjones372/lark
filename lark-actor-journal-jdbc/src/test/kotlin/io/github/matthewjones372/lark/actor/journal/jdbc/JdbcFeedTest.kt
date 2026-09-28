@@ -75,6 +75,24 @@ abstract class FeedGaps {
     }
 
     @Test
+    fun `gaps seen together are passed together, after one gapTimeout and not one each`() {
+        val moving = TestClock()
+        clock.locally(moving) {
+            val source = source()
+            val journal = JdbcJournal(source, gapTimeout = 10.seconds)
+            journal.put("o-0")
+            // Five appends that each took a place in the feed and rolled back, as a database stopping mid-write does.
+            (1..5).forEach { n ->
+                source.pending("gone-$n").use { open -> journal.put("o-$n").also { open.rollback() } }
+            }
+            journal.after("order", 0, 20).ids() shouldContainExactly listOf("o-0#1")
+
+            moving.adjust(10.seconds)
+            journal.after("order", 0, 20).ids() shouldContainExactly (0..5).map { "o-$it#1" }
+        }
+    }
+
+    @Test
     fun `a gap above everything read holds nothing back`() {
         val source = source()
         val journal = JdbcJournal(source)

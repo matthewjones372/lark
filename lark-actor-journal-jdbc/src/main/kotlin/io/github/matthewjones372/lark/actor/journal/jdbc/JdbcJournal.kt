@@ -186,7 +186,9 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
         }
         val seen = read.mapTo(HashSet()) { it.offset }
         val now = time.now()
-        return (offset + 1 until top).firstOrNull { ordering ->
+        // Every ordering is looked at, not only up to the first held back: each gap's wait starts when the feed
+        // first sees it, so gaps seen together pass together, not one gapTimeout after another.
+        return (offset + 1 until top).associateWith { ordering ->
             val of = present[ordering]
             when {
                 of != null -> (of == kind && ordering !in seen).also { gaps.remove(ordering) }
@@ -203,7 +205,7 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
                     holding
                 }
             }
-        }
+        }.entries.firstOrNull { (_, holds) -> holds }?.key
     }
 
     /**
