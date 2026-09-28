@@ -24,9 +24,12 @@ internal object Placement {
         return Math.floorMod(crc, shards.toLong()).toInt()
     }
 
-    fun owner(kind: String, shard: Int, members: Collection<Member>): Node? =
-        members.filter { it.status == Status.Up }
-            .maxWithOrNull(compareBy({ score(kind, shard, it.node) }, { it.node.toString() }))?.node
+    /** The shard's owner: the member [moved] names if it is `Up` in that life (spec 0090), or else by hash. */
+    fun owner(kind: String, shard: Int, members: Collection<Member>, moved: Incarnation? = null): Node? {
+        val up = members.filter { it.status == Status.Up }
+        if (moved != null && up.any { it.node == moved.node && it.uid == moved.uid }) return moved.node
+        return up.maxWithOrNull(compareBy({ score(kind, shard, it.node) }, { it.node.toString() }))?.node
+    }
 
     /** The oldest `Up` member, where a singleton runs: the lowest up-number, then the lowest address. */
     fun oldest(members: Collection<Member>): Node? = members.filter { it.status == Status.Up }

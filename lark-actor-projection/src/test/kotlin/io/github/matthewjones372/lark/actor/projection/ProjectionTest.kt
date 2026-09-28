@@ -122,4 +122,24 @@ class ProjectionTest {
         handled.toList() shouldContainExactly (1..3).map { "o-$it: placed $it" }
         offsets.load("totals") shouldBe journal.after("order", 0, 100)[4].offset
     }
+
+    @Test
+    fun `an event read as two is followed as two, and a run stopped between them reads it again from the first`() {
+        val split = object : EventCodec<String> {
+            override fun encode(event: String): ByteArray = event.toByteArray()
+
+            override fun decode(bytes: ByteArray): String = String(bytes)
+
+            override fun decodeAll(bytes: ByteArray): List<String> = String(bytes).split("+")
+        }
+        journal.append(PersistenceId("order", "o-1"), 0, listOf(split.encode("placed+paid")))
+        journal.append(PersistenceId("order", "o-2"), 0, listOf(split.encode("placed")))
+        fun follow() = Projection.follow(journal, kind = "order", codec = split, offsets = offsets, name = "totals")
+            .mapFollowed { event -> event.value.also { handled += "${event.id.id}: $it" } }
+
+        follow().take(1).runProjecting().run(Forks()).settled() shouldBe Exit.Done(1L)
+        follow().take(3).runProjecting().run(Forks()).settled() shouldBe Exit.Done(3L)
+
+        handled.toList() shouldContainExactly listOf("o-1: placed", "o-1: placed", "o-1: paid", "o-2: placed")
+    }
 }

@@ -40,7 +40,8 @@ object Projection {
 
     /**
      * Every event of [kind] from [feed], decoded by [codec], from the one after the offset [offsets] holds for [name]
-     * or from the first. Once it has caught up it asks the feed again every [every], on lark's clock, and it never
+     * or from the first, each as [EventCodec.decodeAll] reads it, so one upgraded to several is followed as several.
+     * Once it has caught up it asks the feed again every [every], on lark's clock, and it never
      * ends by itself: a run's `stop()` wakes it. Each event is handled at least once; end it with `runProjecting`. The
      * marks persistent entities write of reliable deliveries (spec 0079) are skipped.
      */
@@ -58,12 +59,21 @@ object Projection {
         val time = clock.get()
         val progress = Progress(name, offsets)
         return Stream.blocking(
-            open = { Cursor(feed, kind, offsets.load(name) ?: 0, every, batch, time) },
-            next = { cursor ->
-                val event = cursor.next()
-                Followed(event.id, event.sequence, codec.decode(event.bytes), event.offset, progress)
+            open = { Cursor(feed, kind, offsets.load(name) ?: 0, every, batch, time) to ArrayDeque<Followed<E>>() },
+            next = { (cursor, upgraded) ->
+                if (upgraded.isEmpty()) {
+                    val event = cursor.next()
+                    val values = codec.decodeAll(event.bytes)
+                    // An event upgraded to several (spec 0091) is read again from its first if a run stops among
+                    // them: each but the last carries the offset before the event's, and only the last carries its own.
+                    values.forEachIndexed { at, value ->
+                        val offset = if (at == values.lastIndex) event.offset else event.offset - 1
+                        upgraded += Followed(event.id, event.sequence, value, offset, progress)
+                    }
+                }
+                upgraded.removeFirst()
             },
-            wake = Cursor::wake,
+            wake = { (cursor, _) -> cursor.wake() },
             close = { },
         )
     }

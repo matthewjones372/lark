@@ -20,7 +20,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
-private val steady =
+private val unhurried =
     Gossiping(probeEvery = 500.milliseconds, ackWithin = 250.milliseconds, formAfter = 1_000.milliseconds)
 
 class BusySingletonTest {
@@ -35,7 +35,7 @@ class BusySingletonTest {
         flock<Nothing, Unit> {
             onDeadLetter(letters::add)
             val seeds = Discovery.static(Node("", "127.0.0.1", port))
-            val cluster = cluster(node("solo", port), seeds, steady, leaveWithin = Duration.ZERO)
+            val cluster = cluster(node("solo", port), seeds, unhurried, leaveWithin = Duration.ZERO)
             cluster.await(1.minutes) { v -> v.members.any { it.status == Status.Up } } shouldBe true
             // Its first message holds its step until the burst is all sent, so its mailbox fills behind it.
             val clock = cluster.singleton("clock", Codecs.int) {
