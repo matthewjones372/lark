@@ -108,6 +108,44 @@ class JdbcFeedGapTest : FeedGaps() {
 
 class PostgresFeedGapTest : FeedGaps() {
     override fun source(): DataSource = Postgres.fresh()
+
+    @Test
+    fun `an append whose writer is slow to commit is waited for past gapTimeout, and read once it commits`() {
+        val moving = TestClock()
+        clock.locally(moving) {
+            val source = source()
+            val journal = JdbcJournal(source, gapTimeout = 10.seconds)
+            journal.put("o-1")
+            source.pending("o-2").use { open ->
+                journal.put("o-3")
+                journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+
+                // A writer frozen mid-commit, as a paused JVM is: its transaction is still running, so the gap holds.
+                moving.adjust(30.seconds)
+                journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+
+                open.commit()
+                journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-2#1", "o-3#1")
+            }
+        }
+    }
+
+    @Test
+    fun `a rolled back append's gap is passed once its transaction has ended, well inside gapTimeout`() {
+        val moving = TestClock()
+        clock.locally(moving) {
+            val source = source()
+            val journal = JdbcJournal(source, gapTimeout = 10.seconds)
+            journal.put("o-1")
+            source.pending("o-2").use { open ->
+                journal.put("o-3")
+                journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+                open.rollback()
+            }
+            moving.adjust(2.seconds)
+            journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-3#1")
+        }
+    }
 }
 
 class JdbcPruneTest : PruneContract<JdbcJournal>() {
