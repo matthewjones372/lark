@@ -88,7 +88,6 @@ private fun <E> Raise<E>.surface(failure: Failure<E>): Nothing = when (failure) 
 }
 
 /** What a fork interrupted by a combinator answers with, as against a failure the caller's work ran into. */
-private fun Failure<*>.isInterrupt(): Boolean = this is Thrown && throwable is InterruptedException
 
 /**
  * An interrupt landing on the closing thread must not leave a fork running, so the join is retried
@@ -330,8 +329,12 @@ internal class Fork<E, T>(
     /** Whether this fork answered of its own accord, rather than being cut short by a combinator's interrupt. */
     fun answered(): Boolean = !cutShort
 
-    /** The failure this fork answered with of its own accord, rather than the interrupt a combinator sent it. */
-    fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort && it.isInterrupt() }
+    /**
+     * The failure this fork answered with of its own accord. One cut short by a combinator's interrupt had not answered
+     * when it was sent, so whatever it throws after is the interrupt's doing: a pool that wraps it in an exception of
+     * its own would otherwise be reported in place of the failure that ended its siblings.
+     */
+    fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort }
 
     /** The throwable this fork threw of its own accord: a throw ends an accumulating combinator's siblings. */
     fun ownThrow(): Thrown? = ownFailure() as? Thrown
