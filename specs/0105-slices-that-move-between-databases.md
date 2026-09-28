@@ -54,6 +54,13 @@ admin endpoint:
 - Each step is logged with its duration, as `lark.journal.move <range>: <step> took <duration>`. The mover runs
   outside any flock, so it has no meter registry of its own.
 
+**What the bank's run found.** Two costs showed at 400 transfers a second. The slice table, once its map was a
+second old, was read again by every append that asked, one after another on a monitor, which on JDK 21 also pins
+each waiting virtual thread's carrier: the pools ran dry and almost every request failed. Now one caller reads
+it, behind a lock, while every other goes on with the map it has. And an index on `(slice, kind, id, seq_nr)`, as
+wide as the primary key, doubled each append's index writes; the index is on `slice` alone, which a move, being
+rare, can afford to use.
+
 ## Why this shape
 
 The table keeps every existing journal working: its first rows are exactly the ranges the formula gives today. A
