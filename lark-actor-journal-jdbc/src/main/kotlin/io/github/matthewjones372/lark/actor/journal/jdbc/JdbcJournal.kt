@@ -85,10 +85,6 @@ class JdbcJournal(
     private val settling = ReentrantLock()
     private var settled: LongRange? = null
 
-    // Once no row is without its slice, none will be again: every append sets it.
-    @Volatile
-    private var sliced = false
-
     override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
         dataSource.connection.use { connection ->
             connection.autoCommit = false
@@ -128,13 +124,6 @@ class JdbcJournal(
 
     override fun after(kind: String, slices: IntRange, offset: Long, limit: Int): List<FeedEvent> =
         upToMark(kind, slices, offset, limit)
-
-    /** Whether no row is without its slice (spec 0105), so the ranges of slices together miss none. */
-    override fun sliced(): Boolean = sliced || dataSource.connection.use { connection ->
-        connection.statement("select 1 from lark_journal where slice is null fetch first 1 rows only") { select ->
-            select.executeQuery().use { rows -> !rows.next() }
-        }
-    }.also { sliced = it }
 
     /** Up to [limit] events of [kind], in [slices] if any, after [offset] and at or below the watermark. */
     private fun upToMark(kind: String, slices: IntRange?, offset: Long, limit: Int): List<FeedEvent> {
@@ -412,32 +401,6 @@ class JdbcJournal(
         statement("select 1 from lark_journal_fenced where slice = ?", slice) { select ->
             select.executeQuery().use { rows -> rows.next() }
         }
-
-    /**
-     * Sets `slice` on up to [batch] rows appended before spec 0105 gave the table the column, oldest first: how many
-     * it set. A journal is moved between databases only once none is left; run it until it answers 0.
-     */
-    @Suppress("MagicNumber") // column indices
-    fun fillSlices(batch: Int = 1_000): Int = dataSource.connection.use { connection ->
-        val rows = connection.statement(
-            "select kind, id, seq_nr from lark_journal where slice is null order by ordering fetch first ? rows only",
-            batch,
-        ) { select ->
-            select.executeQuery().use { rows ->
-                generateSequence {
-                    if (rows.next()) Triple(rows.getString(1), rows.getString(2), rows.getLong(3)) else null
-                }.toList()
-            }
-        }
-        connection.prepareStatement("update lark_journal set slice = ? where kind = ? and id = ? and seq_nr = ?")
-            .use { update ->
-                rows.forEach { (kind, id, sequence) ->
-                    update.row(Slices.of(PersistenceId(kind, id)), kind, id, sequence)
-                }
-                if (rows.isNotEmpty()) update.executeBatch()
-            }
-        rows.size
-    }
 
     private fun Connection.last(id: PersistenceId): Long = statement(
         "select coalesce(max(seq_nr), 0) from lark_journal where kind = ? and id = ?",

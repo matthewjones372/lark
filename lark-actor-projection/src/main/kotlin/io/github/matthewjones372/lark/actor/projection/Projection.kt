@@ -68,8 +68,7 @@ object Projection {
     /**
      * Partition [partition] of [partitions] of a read model (spec 0106): as [follow], but only the events of ids whose
      * slices are in [slices] of it, and with its own offset, saved under `name#partition`. Together the partitions
-     * follow every event of [kind] once, each id's in order. The feed must know every event's slice: one with rows
-     * from before spec 0105 filled in is refused until `JdbcJournal.fillSlices` has run.
+     * follow every event of [kind] once, each id's in order.
      */
     fun <E : Any> partitioned(
         feed: SlicedFeed,
@@ -83,7 +82,6 @@ object Projection {
         batch: Int = 256,
     ): Stream<Nothing, Followed<E>> {
         val slices = slices(partition, partitions)
-        check(feed.sliced()) { "the feed has events with no slice: fill them (JdbcJournal.fillSlices) first" }
         return following(codec, offsets, partitionName(name, partition), every, batch) { offset, limit ->
             feed.after(kind, slices, offset, limit)
         }

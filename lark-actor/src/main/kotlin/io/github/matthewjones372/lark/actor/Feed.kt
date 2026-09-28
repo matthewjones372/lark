@@ -22,9 +22,6 @@ interface JournalFeed {
 interface SlicedFeed : JournalFeed {
     /** Up to [limit] events of [kind] whose ids are in [slices] and whose offsets are greater than [offset]. */
     fun after(kind: String, slices: IntRange, offset: Long, limit: Int): List<FeedEvent>
-
-    /** Whether every event is known by its slice, so that the ranges of slices together miss none. */
-    fun sliced(): Boolean = true
 }
 
 /**
