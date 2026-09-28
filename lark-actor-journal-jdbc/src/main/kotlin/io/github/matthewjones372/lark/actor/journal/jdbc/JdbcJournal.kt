@@ -55,17 +55,30 @@ private val SETTLE = 1.seconds
  * was first seen has ended (spec 0100), so an append whose writer is slow to commit, however slow, is waited for,
  * and one rolled back is passed within a second; [longestAppend] bounds the wait for a writer that never ends. On a
  * database without transaction snapshots it is once the gap has been missing for [gapTimeout].
+ *
+ * With [groupCommit] (spec 0108), appends from many ids share a transaction and one commit, each under a savepoint of
+ * its own, so each still answers as it would have alone; without it, every append is a transaction of its own.
  */
 class JdbcJournal(
     private val dataSource: DataSource,
     private val gapTimeout: Duration = 10.seconds,
     private val longestAppend: Duration = 10.minutes,
+    groupCommit: GroupCommit? = null,
 ) :
     Journal,
     SlicedFeed,
     JournalPruning {
 
     private val time = clock.get()
+
+    private val committer = groupCommit?.let { settings ->
+        Committer(
+            dataSource,
+            settings,
+            group = { connection, appends -> connection.appendAll(appends) },
+            alone = { append -> alone(append.id, append.expected, append.events) },
+        )
+    }
 
     /** A missing `ordering`: when it was first found so, and on Postgres the snapshot's `xmax` then. */
     private class Gap(val seen: Instant, val xmax: Long?)
@@ -86,6 +99,12 @@ class JdbcJournal(
     private var settled: LongRange? = null
 
     override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
+        committer?.append(id, expected, events) ?: alone(id, expected, events)
+
+    /** How many appends wait for a group to commit them, for tests. */
+    internal fun queued(): Int = committer?.queued() ?: 0
+
+    private fun alone(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
         dataSource.connection.use { connection ->
             connection.autoCommit = false
             val appended = try {
@@ -361,6 +380,47 @@ class JdbcJournal(
      * Inserts [events] after [expected], the first only if the event it follows is there: whether they all went in.
      * A writer ahead of the journal inserts nothing, and one behind it collides on the key.
      */
+
+    /**
+     * A group's appends (spec 0108), in one statement batch: one round trip for them all. Each inserts every one of
+     * its events, or none: none when its expected sequence is not the last, answered as a conflict, or when its slice
+     * is fenced. A duplicate key, two writers racing for one id, throws for the whole group, which the committer then
+     * makes one append at a time.
+     */
+    private fun Connection.appendAll(appends: List<Append>): List<Result<Either<JournalConflict, Long>>> {
+        val written = appends.withIndex().filter { (_, append) -> append.events.isNotEmpty() }
+        val counts = if (written.isEmpty()) IntArray(0) else prepareStatement(
+            "insert into lark_journal (kind, id, seq_nr, bytes, slice) " +
+                "select ?, ?, ? + event.n, event.bytes, ? from unnest(?::bytea[]) with ordinality as event(bytes, n) " +
+                "where (? = 0 or exists (select 1 from lark_journal where kind = ? and id = ? and seq_nr = ?)) " +
+                "and not exists (select 1 from lark_journal_fenced where slice = ?)",
+        ).use { insert ->
+            written.forEach { (_, append) ->
+                val slice = Slices.of(append.id)
+                insert.row(
+                    append.id.kind, append.id.id, append.expected, slice,
+                    createArrayOf("bytea", append.events.toTypedArray()),
+                    append.expected, append.id.kind, append.id.id, append.expected, slice,
+                )
+            }
+            insert.executeBatch()
+        }
+        val inserted = written.map { it.index }.zip(counts.toList()).toMap()
+        return appends.mapIndexed { at, append ->
+            val count = inserted[at]
+            when {
+                append.events.isEmpty() && last(append.id) == append.expected -> Result.success(append.expected.right())
+
+                count != null && count == append.events.size ->
+                    Result.success((append.expected + append.events.size).right())
+
+                fenced(Slices.of(append.id)) -> Result.failure(SliceElsewhere(Slices.of(append.id)))
+
+                else -> Result.success(JournalConflict(append.id, append.expected, last(append.id)).left())
+            }
+        }
+    }
+
     private fun Connection.insert(id: PersistenceId, expected: Long, events: List<ByteArray>): Boolean {
         if (events.isEmpty()) return last(id) == expected
         val slice = Slices.of(id)

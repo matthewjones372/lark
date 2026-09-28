@@ -24,8 +24,8 @@ what it cannot share is the transaction around each append, the connection held 
 ## Shape
 
 **One committer per journal, taking whatever is waiting.** An append joins a queue and waits. The committer takes
-every append queued, up to `maxAppends`, runs them in one transaction on one connection, commits once, and answers
-each caller. There is no timer: a lone append goes at once, as today; under load, appends that arrive while a commit
+every append queued, up to `maxAppends`, writes them in one statement batch on one connection (one round trip for
+the whole group), commits once, and answers each caller. There is no timer: a lone append goes at once, as today; under load, appends that arrive while a commit
 is in flight form the next group. The group grows with the load, and a quiet journal pays nothing for it.
 
 ```kotlin
@@ -33,10 +33,12 @@ val journal = JdbcJournal(dataSource, groupCommit = GroupCommit(maxAppends = 64,
 journal.append(id, expected = 3, events)   // unchanged: returns once the group it joined has committed
 ```
 
-**Each append as it would have been alone.** Inside the group's transaction each append runs under a savepoint. A
-conflict (its expected sequence is not the last), a fenced slice, or a duplicate key rolls back to its savepoint and
-answers that append alone, while the rest of the group goes on. Two appends for one id in one group run in the order
-they queued, so the second sees the first's rows, as it would have after the first had committed.
+**Each append as it would have been alone.** Each append is one insert of all its events, taken only if its expected
+sequence is the last and its slice is not fenced: every event or none. An append that inserts none is answered alone,
+as a conflict or as `SliceElsewhere`, while the rest of the group commits. Only two writers racing for one id can
+collide on the key, which fails the batch: then the group is rolled back and each of its appends is made alone, as it
+would have been without group commit. Two appends for one id in one group run in the order they queued, so the
+second sees the first's rows.
 
 **A failed commit fails its whole group,** each caller getting the same exception an append of its own would have
 thrown, and the next group starting on a fresh connection. No append is answered as written unless its group
@@ -55,9 +57,9 @@ appends, and nothing waits on another database's commit.
 
 Grouping in the journal, not asking every service to batch, is what reaches the many-entities, one-command-each
 load that 0086 cannot. Taking whatever is queued instead of waiting on a timer costs a lone append nothing and needs
-no tuning: the group size follows the commit latency by itself. Savepoints keep each append's outcome its own, at
-the price of one `SAVEPOINT` and one `RELEASE` per append inside the transaction, which cost no round trip if they
-go in the same batch as the insert. The alternative, turning `commit_delay` up on the server, shares flushes that
+no tuning: the group size follows the commit latency by itself. An insert that takes every event or none keeps each
+append's outcome its own without a savepoint, so the whole group is one round trip; savepoints, a round trip each,
+were tried first and lost (below). The alternative, turning `commit_delay` up on the server, shares flushes that
 Postgres already shares and does nothing for the transactions and connections, which is where the time went.
 
 ## Depends on
@@ -66,12 +68,12 @@ Nothing new. The bank takes it by upgrading Lark and passing `groupCommit`.
 
 ## Stack
 
-- [ ] **`spec-0108-committer`** — the queue and committers in `JdbcJournal`, savepoints per append, and failure of
+- [x] **`spec-0108-committer`** — the queue and committers in `JdbcJournal`, savepoints per append, and failure of
       a whole group on a failed commit.
       Done when: the journal contracts pass with group commit on; a group holding a conflicting append commits the
       rest and answers the conflict alone; a commit failed by a stopped database fails every append in the group
       and none reads back afterwards.
-- [ ] **`spec-0108-measured`** — `SpreadPersistentBenchmark` with and without group commit, one and two databases,
+- [x] **`spec-0108-measured`** — `SpreadPersistentBenchmark` with and without group commit, one and two databases,
       and the bank's 400-a-second profile repeated on it.
       Done when: the numbers are in this spec, and group commit is the default only if it wins at every
       concurrency the benchmark runs.
@@ -83,13 +85,22 @@ Nothing new. The bank takes it by upgrading Lark and passing `groupCommit`.
 ./gradlew :lark-actor-benchmarks:jmh -Pjmh.includes=SpreadPersistent
 ```
 
-## Open questions
+## Settled
 
-1. **On by default, or asked for?** Recommended: asked for (`groupCommit = null` by default) until the benchmark has
-   shown it never loses, then on by default in a spec of its own.
-2. **`maxAppends`: 64?** Recommended: 64, the size past which one transaction's insert batch stops getting cheaper
-   per row on Postgres; to be settled by the benchmark.
-3. **Committers: two per journal?** Recommended: two, so one commit's flush overlaps the next group's inserts,
-   without taking more of a pool than a service expects a journal to hold.
-4. **Should `SliceMover`'s copy and a prune go through the committer too?** Recommended: no. They are rare and large,
-   and would hold up a group behind them; they keep their own transactions.
+1. **On by default, or asked for?** Asked for: `groupCommit = null` by default, until the benchmark has shown it
+   never loses; then on by default in a spec of its own.
+2. **`maxAppends`?** 64, to be revisited with the benchmark's numbers.
+3. **Committers?** Two per journal, so one commit's flush overlaps the next group's inserts.
+4. **Slice moves and prunes through the committer?** No: they are rare and large, and keep their own transactions.
+
+## Settled while building
+
+- **Savepoints lost.** The first committer ran each append under a savepoint: `SAVEPOINT`, the insert and `RELEASE`,
+  three round trips one after another on one connection, where appends alone had run them side by side on 32.
+  `SpreadPersistentBenchmark` (10,000 payments over 256 accounts, durable Postgres in a container, one 4-core host):
+  1,736 ms alone and 3,586 ms grouped on one database; 1,786 and 2,239 on two.
+- **One batch won.** Each append as one all-or-none insert, a group as one statement batch and one commit: 1,648 ms
+  alone and 409 ms grouped on one database, 1,784 and 311 on two: four to six times faster, and more so the more
+  databases. The bank's 400-a-second profile on it is recorded in bank spec 0016's successor, once the bank takes it.
+- **On by default** waits for its own spec, as settled: the benchmark has one shape of load, and a default should
+  have seen more.
