@@ -14,6 +14,8 @@ internal class PostgresServer : AutoCloseable {
     private val container = PostgreSQLContainer(
         DockerImageName.parse("public.ecr.aws/docker/library/postgres:17").asCompatibleSubstituteFor("postgres"),
     ).apply {
+        // A server thrown away after the run: no password, so no connection pays for SCRAM's key stretching.
+        withEnv("POSTGRES_HOST_AUTH_METHOD", "trust")
         withCommand("postgres", "-c", "fsync=on", "-c", "synchronous_commit=on", "-c", "max_connections=200")
         start()
     }
@@ -24,10 +26,10 @@ internal class PostgresServer : AutoCloseable {
 
     /** A connection each time, unpooled: for migrations, not for the measured path. */
     val dataSource: DataSource
-        get() = PGSimpleDataSource().apply {
-            setUrl(url)
-            user = this@PostgresServer.user
-            password = this@PostgresServer.password
+        get() = PGSimpleDataSource().also { source ->
+            source.setUrl(url)
+            source.user = user
+            source.password = password
         }
 
     override fun close() = container.stop()

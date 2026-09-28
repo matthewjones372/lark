@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import org.postgresql.ds.PGSimpleDataSource
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
@@ -16,6 +18,8 @@ object Postgres {
             DockerImageName.parse("public.ecr.aws/docker/library/postgres:17").asCompatibleSubstituteFor("postgres"),
         ).apply {
             // A test's pool and every node's connections share one server.
+            // A server thrown away after the run: no password, so no connection pays for SCRAM's key stretching.
+            withEnv("POSTGRES_HOST_AUTH_METHOD", "trust")
             withCommand("postgres", "-c", "max_connections=500")
             start()
         }
@@ -25,8 +29,18 @@ object Postgres {
     /** A fresh database with the journal's changelog applied. */
     fun fresh(): DataSource = empty().migrated()
 
-    /** A fresh database with nothing in it. */
-    fun empty(): DataSource = PGSimpleDataSource().apply { setUrl(emptyUrl()) }
+    /**
+     * A fresh database with nothing in it, through a pool as a service reaches one: Postgres starts a process for
+     * each connection, too slow to pay on every append. Idle connections close, so pools a test leaves cost nothing.
+     */
+    fun empty(): DataSource = HikariDataSource(
+        HikariConfig().apply {
+            jdbcUrl = emptyUrl()
+            maximumPoolSize = 16
+            minimumIdle = 0
+            idleTimeout = 10_000
+        },
+    )
 
     /** A fresh database with nothing in it, as a JDBC URL that carries its user and password. */
     fun emptyUrl(): String {

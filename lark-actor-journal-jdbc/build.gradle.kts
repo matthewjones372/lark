@@ -12,6 +12,7 @@ dependencies {
     testFixturesApi("org.postgresql:postgresql:42.7.7")
     testFixturesImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testFixturesImplementation("org.liquibase:liquibase-core:4.32.0")
+    testFixturesImplementation("com.zaxxer:HikariCP:7.1.0")
 
     testImplementation(testFixtures(project(":lark-actor")))
     testImplementation("org.liquibase:liquibase-core:4.32.0")

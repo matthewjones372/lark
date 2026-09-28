@@ -258,9 +258,9 @@ open class PekkoLedger {
     internal lateinit var durable: PekkoProducer
     lateinit var system: ActorSystem<*>
     private lateinit var nodes: PekkoTrio
-
-    private lateinit var nodes: PekkoTrio
     private lateinit var postgres: PostgresServer
+
+    @Setup(Level.Trial)
     fun start() {
         postgres = PostgresServer()
         applyDdl(postgres, EventSourcedProducerQueue::class.java, "/schema/postgres/postgres-create-schema.sql")
