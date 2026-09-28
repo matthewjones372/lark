@@ -72,9 +72,12 @@ class JdbcJournal(
     private val time = clock.get()
 
     private val committer = groupCommit?.let { settings ->
-        Committer(dataSource, settings) { connection, id, expected, events ->
-            connection.appendWithin(id, expected, events)
-        }
+        Committer(
+            dataSource,
+            settings,
+            group = { connection, appends -> connection.appendAll(appends) },
+            alone = { append -> alone(append.id, append.expected, append.events) },
+        )
     }
 
     /** A missing `ordering`: when it was first found so, and on Postgres the snapshot's `xmax` then. */
@@ -379,31 +382,42 @@ class JdbcJournal(
      */
 
     /**
-     * One append inside a transaction others share (spec 0108): under a savepoint, so a conflict, a fenced slice or an
-     * error rolls back this append alone and leaves the transaction to go on.
+     * A group's appends (spec 0108), in one statement batch: one round trip for them all. Each inserts every one of
+     * its events, or none: none when its expected sequence is not the last, answered as a conflict, or when its slice
+     * is fenced. A duplicate key, two writers racing for one id, throws for the whole group, which the committer then
+     * makes one append at a time.
      */
-    private fun Connection.appendWithin(
-        id: PersistenceId,
-        expected: Long,
-        events: List<ByteArray>,
-    ): Either<JournalConflict, Long> {
-        val savepoint = setSavepoint()
-        val appended = try {
-            insert(id, expected, events)
-        } catch (failed: SQLException) {
-            rollback(savepoint)
-            if (failed.sqlState != DUPLICATE_KEY) throw failed
-            false
-        } catch (elsewhere: SliceElsewhere) {
-            rollback(savepoint)
-            throw elsewhere
+    private fun Connection.appendAll(appends: List<Append>): List<Result<Either<JournalConflict, Long>>> {
+        val written = appends.withIndex().filter { (_, append) -> append.events.isNotEmpty() }
+        val counts = if (written.isEmpty()) IntArray(0) else prepareStatement(
+            "insert into lark_journal (kind, id, seq_nr, bytes, slice) " +
+                "select ?, ?, ? + event.n, event.bytes, ? from unnest(?::bytea[]) with ordinality as event(bytes, n) " +
+                "where (? = 0 or exists (select 1 from lark_journal where kind = ? and id = ? and seq_nr = ?)) " +
+                "and not exists (select 1 from lark_journal_fenced where slice = ?)",
+        ).use { insert ->
+            written.forEach { (_, append) ->
+                val slice = Slices.of(append.id)
+                insert.row(
+                    append.id.kind, append.id.id, append.expected, slice,
+                    createArrayOf("bytea", append.events.toTypedArray()),
+                    append.expected, append.id.kind, append.id.id, append.expected, slice,
+                )
+            }
+            insert.executeBatch()
         }
-        return if (appended) {
-            releaseSavepoint(savepoint)
-            (expected + events.size).right()
-        } else {
-            rollback(savepoint)
-            JournalConflict(id, expected, last(id)).left()
+        val inserted = written.map { it.index }.zip(counts.toList()).toMap()
+        return appends.mapIndexed { at, append ->
+            val count = inserted[at]
+            when {
+                append.events.isEmpty() && last(append.id) == append.expected -> Result.success(append.expected.right())
+
+                count != null && count == append.events.size ->
+                    Result.success((append.expected + append.events.size).right())
+
+                fenced(Slices.of(append.id)) -> Result.failure(SliceElsewhere(Slices.of(append.id)))
+
+                else -> Result.success(JournalConflict(append.id, append.expected, last(append.id)).left())
+            }
         }
     }
 

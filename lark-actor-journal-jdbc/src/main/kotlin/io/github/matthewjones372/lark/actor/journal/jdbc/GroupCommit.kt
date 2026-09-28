@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.actor.journal.jdbc
 import arrow.core.Either
 import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.PersistenceId
-import io.github.matthewjones372.lark.actor.SliceElsewhere
+import io.github.matthewjones372.lark.logDebug
 import java.sql.Connection
 import java.sql.SQLException
 import java.util.concurrent.CompletableFuture
@@ -23,17 +23,23 @@ data class GroupCommit(val maxAppends: Int = 64, val committers: Int = 2) {
     }
 }
 
+/** One append waiting for a group. */
+internal class Append(val id: PersistenceId, val expected: Long, val events: List<ByteArray>)
+
 /**
- * Takes whatever appends are queued, runs them in one transaction and commits once. There is no timer: a lone append
- * goes at once, and appends that arrive while a commit is in flight form the next group. A committer ends when it
- * finds nothing queued, so an idle journal holds no thread.
+ * Takes whatever appends are queued and commits them together: [group] writes them all on one connection in one
+ * round trip, and one commit follows. There is no timer: a lone append goes at once, and appends that arrive while a
+ * commit is in flight form the next group. A committer ends when it finds nothing queued, so an idle journal holds
+ * no thread. A group whose writing fails, as two writers racing for one id do, is rolled back and each of its appends
+ * is made [alone], as it would have been without group commit.
  */
 internal class Committer(
     private val dataSource: DataSource,
     private val settings: GroupCommit,
-    private val appendWithin: (Connection, PersistenceId, Long, List<ByteArray>) -> Either<JournalConflict, Long>,
+    private val group: (Connection, List<Append>) -> List<Result<Either<JournalConflict, Long>>>,
+    private val alone: (Append) -> Either<JournalConflict, Long>,
 ) {
-    private class Pending(val id: PersistenceId, val expected: Long, val events: List<ByteArray>) {
+    private class Pending(val append: Append) {
         val answer = CompletableFuture<Either<JournalConflict, Long>>()
     }
 
@@ -44,7 +50,7 @@ internal class Committer(
     fun queued(): Int = queue.size
 
     fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> {
-        val pending = Pending(id, expected, events)
+        val pending = Pending(Append(id, expected, events))
         queue.add(pending)
         if (claim()) Thread.ofVirtual().name("lark-journal-committer").start(::run)
         return try {
@@ -65,31 +71,32 @@ internal class Committer(
 
     private fun run() {
         while (true) {
-            val group = generateSequence { queue.poll() }.take(settings.maxAppends).toList()
-            if (group.isEmpty()) {
+            val taken = generateSequence { queue.poll() }.take(settings.maxAppends).toList()
+            if (taken.isEmpty()) {
                 running.decrementAndGet()
                 // An append queued between the empty poll and the decrement found every place taken: it is ours.
                 if (queue.isEmpty() || !claim()) return
             } else {
-                commit(group)
+                commit(taken)
             }
         }
     }
 
     @Suppress("TooGenericExceptionCaught") // Whatever failed is every waiting append's to throw, never lost here.
-    private fun commit(group: List<Pending>) {
+    private fun commit(taken: List<Pending>) {
         try {
             dataSource.connection.use { connection ->
                 connection.autoCommit = false
-                val results = group.map { pending ->
-                    // Each append's own failure, a fenced slice or an error, is rolled back to its savepoint alone.
-                    pending to try {
-                        Result.success(appendWithin(connection, pending.id, pending.expected, pending.events))
-                    } catch (refused: SQLException) {
-                        Result.failure(refused)
-                    } catch (elsewhere: SliceElsewhere) {
-                        Result.failure(elsewhere)
-                    }
+                val results = try {
+                    group(connection, taken.map { it.append })
+                } catch (raced: SQLException) {
+                    connection.rollback()
+                    logDebug("journal: a group of ${taken.size} failed as one (${raced.message}); making each alone")
+                    null
+                }
+                if (results == null) {
+                    taken.forEach { pending -> answerAlone(pending) }
+                    return
                 }
                 try {
                     connection.commit()
@@ -101,13 +108,22 @@ internal class Committer(
                     }
                     throw failed
                 }
-                results.forEach { (pending, result) ->
+                taken.zip(results).forEach { (pending, result) ->
                     result.fold({ pending.answer.complete(it) }, { pending.answer.completeExceptionally(it) })
                 }
             }
         } catch (failed: Throwable) {
             // No append is answered as written unless its group committed.
-            group.forEach { it.answer.completeExceptionally(failed) }
+            taken.forEach { it.answer.completeExceptionally(failed) }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // As above: the append's own failure is its caller's to throw.
+    private fun answerAlone(pending: Pending) {
+        try {
+            pending.answer.complete(alone(pending.append))
+        } catch (failed: Throwable) {
+            pending.answer.completeExceptionally(failed)
         }
     }
 }
