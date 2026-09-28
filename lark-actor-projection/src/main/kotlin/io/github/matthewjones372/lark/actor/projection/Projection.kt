@@ -1,12 +1,20 @@
 package io.github.matthewjones372.lark.actor.projection
 
 import io.github.matthewjones372.lark.Clock
+import io.github.matthewjones372.lark.actor.Behaviour
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.JournalFeed
 import io.github.matthewjones372.lark.actor.OffsetStore
 import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.Signal
+import io.github.matthewjones372.lark.actor.SlicedFeed
+import io.github.matthewjones372.lark.actor.Slices
+import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.isDeliveryMark
+import io.github.matthewjones372.lark.actor.onSignal
+import io.github.matthewjones372.lark.actor.onStart
+import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.stream.Failing
 import io.github.matthewjones372.lark.stream.Run
@@ -54,12 +62,73 @@ object Projection {
         name: String,
         every: Duration = 1.seconds,
         batch: Int = 256,
+    ): Stream<Nothing, Followed<E>> = following(codec, offsets, name, every, batch) { offset, limit ->
+        feed.after(kind, offset, limit)
+    }
+
+    /**
+     * Partition [partition] of [partitions] of a read model (spec 0106): as [follow], but only the events of ids whose
+     * slices are in [slices] of it, and with its own offset, saved under `name#partition`. Together the partitions
+     * follow every event of [kind] once, each id's in order. The feed must know every event's slice: one with rows
+     * from before spec 0105 filled in is refused until `JdbcJournal.fillSlices` has run.
+     */
+    @Suppress("LongParameterList")
+    fun <E : Any> partitioned(
+        feed: SlicedFeed,
+        kind: String,
+        codec: EventCodec<E>,
+        offsets: OffsetStore,
+        name: String,
+        partition: Int,
+        partitions: Int,
+        every: Duration = 1.seconds,
+        batch: Int = 256,
+    ): Stream<Nothing, Followed<E>> {
+        val slices = slices(partition, partitions)
+        check(feed.sliced()) { "the feed has events with no slice: fill them (JdbcJournal.fillSlices) first" }
+        return following(codec, offsets, partitionName(name, partition), every, batch) { offset, limit ->
+            feed.after(kind, slices, offset, limit)
+        }
+    }
+
+    /** The slices partition [partition] of [partitions] follows: an even share of them, in order. */
+    fun slices(partition: Int, partitions: Int): IntRange {
+        require(partitions in 1..Slices.COUNT) { "partitions must be in 1..${Slices.COUNT}, was $partitions" }
+        require(partition in 0 until partitions) { "partition must be in 0 until $partitions, was $partition" }
+        return partition * Slices.COUNT / partitions until (partition + 1) * Slices.COUNT / partitions
+    }
+
+    /** What partition [partition] of read model [name] saves its offset under. */
+    fun partitionName(name: String, partition: Int): String = "$name#$partition"
+
+    /**
+     * An actor that runs what [start] starts for as long as it lives, and closes it when it stops: how a partition
+     * runs where the cluster places it (spec 0106). It takes no messages.
+     */
+    fun worker(start: () -> AutoCloseable): Behaviour<Unit, Unit, Nothing> {
+        // Each call is one actor's: what it started, closed when it stops, and started afresh if it restarts.
+        var running: AutoCloseable? = null
+        return behaviour<Unit, Unit>(Unit) { _, _, _ -> stay() }
+            .onStart { running = start() }
+            .onSignal { _, _, signal ->
+                if (signal == Signal.Stopping) running?.close().also { running = null }
+                stay()
+            }
+    }
+
+    private fun <E : Any> following(
+        codec: EventCodec<E>,
+        offsets: OffsetStore,
+        name: String,
+        every: Duration,
+        batch: Int,
+        after: (offset: Long, limit: Int) -> List<FeedEvent>,
     ): Stream<Nothing, Followed<E>> {
         require(batch > 0) { "a batch of $batch reads nothing" }
         val time = clock.get()
         val progress = Progress(name, offsets)
         return Stream.blocking(
-            open = { Cursor(feed, kind, offsets.load(name) ?: 0, every, batch, time) to ArrayDeque<Followed<E>>() },
+            open = { Cursor(after, offsets.load(name) ?: 0, every, batch, time) to ArrayDeque<Followed<E>>() },
             next = { (cursor, upgraded) ->
                 if (upgraded.isEmpty()) {
                     val event = cursor.next()
@@ -81,8 +150,7 @@ object Projection {
 
 /** One run's place in the feed: what it has read and not yet handed on, and the thread that reads it. */
 private class Cursor(
-    private val feed: JournalFeed,
-    private val kind: String,
+    private val after: (offset: Long, limit: Int) -> List<FeedEvent>,
     private var last: Long,
     private val every: Duration,
     private val batch: Int,
@@ -97,7 +165,7 @@ private class Cursor(
     fun next(): FeedEvent {
         reader = Thread.currentThread()
         while (read.isEmpty()) {
-            val more = feed.after(kind, last, batch)
+            val more = after(last, batch)
             if (more.isEmpty()) {
                 time.sleep(every)
             } else {

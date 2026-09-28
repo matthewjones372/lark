@@ -6,10 +6,10 @@ import arrow.core.right
 import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalConflict
-import io.github.matthewjones372.lark.actor.JournalFeed
 import io.github.matthewjones372.lark.actor.JournalPruning
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.SliceElsewhere
+import io.github.matthewjones372.lark.actor.SlicedFeed
 import io.github.matthewjones372.lark.actor.Slices
 import io.github.matthewjones372.lark.actor.StoredEvent
 import io.github.matthewjones372.lark.clock
@@ -19,7 +19,9 @@ import java.sql.PreparedStatement
 import java.sql.SQLException
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
 import javax.sql.DataSource
+import kotlin.concurrent.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -60,7 +62,7 @@ class JdbcJournal(
     private val longestAppend: Duration = 10.minutes,
 ) :
     Journal,
-    JournalFeed,
+    SlicedFeed,
     JournalPruning {
 
     private val time = clock.get()
@@ -77,6 +79,15 @@ class JdbcJournal(
 
     /** The `ordering`s missing for longer than [gapTimeout], which the feed reads past. */
     private val passed = ConcurrentHashMap.newKeySet<Long>()
+
+    // The orderings the watermark has settled, and the lock one walk at a time holds (spec 0106): a lock, not a
+    // monitor, since a feed's reader may be a virtual thread.
+    private val settling = ReentrantLock()
+    private var settled: LongRange? = null
+
+    // Once no row is without its slice, none will be again: every append sets it.
+    @Volatile
+    private var sliced = false
 
     override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
         dataSource.connection.use { connection ->
@@ -113,25 +124,168 @@ class JdbcJournal(
         }
     }
 
-    override fun after(kind: String, offset: Long, limit: Int): List<FeedEvent> = dataSource.connection.use {
-            connection ->
-        val rows = connection.statement(
-            "select ordering, id, seq_nr, bytes from lark_journal where kind = ? and ordering > ? " +
-                "order by ordering fetch first ? rows only",
-            kind,
-            offset,
-            limit,
-        ) { select ->
-            select.executeQuery().use { rows ->
-                generateSequence {
-                    if (!rows.next()) return@generateSequence null
-                    val id = PersistenceId(kind, rows.getString(2))
-                    FeedEvent(rows.getLong(1), id, rows.getLong(3), rows.getBytes(4))
-                }.toList()
+    override fun after(kind: String, offset: Long, limit: Int): List<FeedEvent> = upToMark(kind, null, offset, limit)
+
+    override fun after(kind: String, slices: IntRange, offset: Long, limit: Int): List<FeedEvent> =
+        upToMark(kind, slices, offset, limit)
+
+    /** Whether no row is without its slice (spec 0105), so the ranges of slices together miss none. */
+    override fun sliced(): Boolean = sliced || dataSource.connection.use { connection ->
+        connection.statement("select 1 from lark_journal where slice is null fetch first 1 rows only") { select ->
+            select.executeQuery().use { rows -> !rows.next() }
+        }
+    }.also { sliced = it }
+
+    /** Up to [limit] events of [kind], in [slices] if any, after [offset] and at or below the watermark. */
+    private fun upToMark(kind: String, slices: IntRange?, offset: Long, limit: Int): List<FeedEvent> {
+        val mark = watermark(offset)
+        if (mark <= offset) return emptyList()
+        return dataSource.connection.use { connection ->
+            val columns = "select ordering, id, seq_nr, bytes from lark_journal where kind = ? "
+            val window = "and ordering > ? and ordering <= ? order by ordering fetch first ? rows only"
+            if (slices == null) {
+                connection.statement(columns + window, kind, offset, mark, limit) { it.events(kind) }
+            } else {
+                connection.statement(
+                    columns + "and slice between ? and ? " + window,
+                    kind,
+                    slices.first,
+                    slices.last,
+                    offset,
+                    mark,
+                    limit,
+                ) { it.events(kind) }
             }
         }
-        val held = rows.lastOrNull()?.let { connection.heldBack(kind, offset, rows) } ?: return@use rows
-        rows.takeWhile { it.offset < held }
+    }
+
+    @Suppress("MagicNumber") // column indices
+    private fun PreparedStatement.events(kind: String): List<FeedEvent> = executeQuery().use { rows ->
+        generateSequence {
+            if (!rows.next()) return@generateSequence null
+            FeedEvent(rows.getLong(1), PersistenceId(kind, rows.getString(2)), rows.getLong(3), rows.getBytes(4))
+        }.toList()
+    }
+
+    /**
+     * The watermark above [offset] (spec 0106): the highest `ordering` through which every row after [offset] is either
+     * committed or known never to be, so a feed reads up to it and never waits on a gap of its own. One walk over the
+     * orderings alone, of every kind, serves every feed on this journal: what it has settled is kept, and each call
+     * goes on from there, a few batches at most. An [offset] below what is kept is walked up to it first; one above it
+     * starts afresh, since what lies between was never walked.
+     */
+    fun watermark(offset: Long): Long = settling.withLock {
+        dataSource.connection.use { connection ->
+            val kept = settled
+            when {
+                // Nothing kept, or nothing kept reaches this offset: what is between is unknown, so start from here.
+                kept == null || offset > kept.last -> settled = offset..offset
+
+                offset < kept.first -> {
+                    val reached = connection.settle(offset, kept.first)
+                    if (reached < kept.first) return@use reached
+                    settled = offset..kept.last
+                }
+            }
+            val (from, to) = checkNotNull(settled).let { it.first to it.last }
+            connection.settle(to, Long.MAX_VALUE).also { mark -> settled = from..mark }
+        }
+    }
+
+    /**
+     * The highest ordering from [from] up to at most [bound] through which nothing can still appear: each ordering is
+     * present, or pruned, or a gap already passed, or one the gap rule of spec 0100 passes now. Every gap in a batch
+     * is looked at, not only the first that holds: each gap's wait starts when it is first seen, so gaps seen together
+     * pass together, not one gapTimeout after another.
+     */
+    private fun Connection.settle(from: Long, bound: Long): Long {
+        var at = from
+        repeat(WALK_BATCHES) {
+            val present = statement(
+                "select ordering from lark_journal where ordering > ? and ordering <= ? order by ordering " +
+                    "fetch first ? rows only",
+                at,
+                bound,
+                WALK_BATCH,
+            ) { select ->
+                select.executeQuery().use { rows ->
+                    generateSequence { if (rows.next()) rows.getLong(1) else null }.toList()
+                }
+            }
+            if (present.isEmpty()) return at
+            // Read after the rows: a deletion commits its rows' removal and its span together, so a row missing here
+            // was either never committed or is inside a span this reads.
+            val walk = Walk(at, pruned(at, present.last())) { horizon() }
+            present.forEach(walk::present)
+            if (walk.held || present.size < WALK_BATCH) return walk.through
+            at = walk.through
+        }
+        return at
+    }
+
+    /** One batch of the watermark's walk: how far it has settled, and whether a gap holds it there. */
+    private inner class Walk(from: Long, pruned: List<LongRange>, horizon: () -> Horizon?) {
+        var through = from
+            private set
+        var held = false
+            private set
+        private var previous = from
+        private val spans = ArrayDeque(pruned)
+        private val now by lazy { time.now() }
+        private val horizon by lazy(horizon)
+
+        fun present(ordering: Long) {
+            if (ordering > previous + 1) missing(previous + 1, ordering - 1).forEach(::gap)
+            if (gaps.isNotEmpty()) gaps.remove(ordering)
+            settled(ordering)
+            previous = ordering
+        }
+
+        private fun gap(ordering: Long) {
+            if (ordering in passed || !holds(ordering, now, horizon)) settled(ordering) else held = true
+        }
+
+        private fun settled(ordering: Long) {
+            if (!held) through = ordering
+        }
+
+        /** The orderings from [first] to [last] outside every pruned span; spans behind [first] are let go. */
+        private fun missing(first: Long, last: Long): List<Long> {
+            while (spans.isNotEmpty() && spans.first().last < first) spans.removeFirst()
+            val found = mutableListOf<Long>()
+            var at = first
+            for (span in spans) {
+                if (span.first > last || at > last) break
+                while (at < span.first) found += at++
+                at = maxOf(at, span.last + 1)
+            }
+            while (at <= last) found += at++
+            return found
+        }
+    }
+
+    /** Whether the gap at [ordering] is still to be waited on; one that is not is passed, with a warning. */
+    private fun holds(ordering: Long, now: Instant, horizon: Horizon?): Boolean {
+        val gap = gaps.computeIfAbsent(ordering) { Gap(now, horizon?.xmax) }
+        val waited = java.time.Duration.between(gap.seen, now)
+        val holding = holds(gap, waited.toKotlinDuration(), horizon)
+        if (!holding && passed.add(ordering)) {
+            gaps.remove(ordering)
+            logWarn("the feed passes ordering $ordering, missing for $waited: an append never committed")
+        }
+        return holding
+    }
+
+    /** The spans deleted rows left between [after] and [upTo]. */
+    private fun Connection.pruned(after: Long, upTo: Long): List<LongRange> = statement(
+        "select from_ordering, to_ordering from lark_journal_pruned where to_ordering > ? and from_ordering < ? " +
+            "order by from_ordering",
+        after,
+        upTo,
+    ) { select ->
+        select.executeQuery().use { rows ->
+            generateSequence { if (rows.next()) rows.getLong(1)..rows.getLong(2) else null }.toList()
+        }
     }
 
     /**
@@ -184,59 +338,6 @@ class JdbcJournal(
         statement("insert into lark_journal_pruned (from_ordering, to_ordering) values (?, ?)", from, to) {
             it.executeUpdate()
         }
-    }
-
-    /**
-     * The first `ordering` after [offset] and below the last of [read] that the feed cannot yet read past: one missing
-     * for less than [gapTimeout], or one of [kind] that committed after [read] was selected and is not in it. Null
-     * when there is none.
-     */
-    private fun Connection.heldBack(kind: String, offset: Long, read: List<FeedEvent>): Long? {
-        val top = read.last().offset
-        val present = statement(
-            "select ordering, kind from lark_journal where ordering > ? and ordering < ?",
-            offset,
-            top,
-        ) { select ->
-            select.executeQuery().use { rows ->
-                generateSequence { if (rows.next()) rows.getLong(1) to rows.getString(2) else null }.toMap()
-            }
-        }
-        // Read after the rows: a deletion commits its rows' removal and its span together, so a row missing here
-        // was either never committed or is inside a span this reads.
-        val pruned = statement(
-            "select from_ordering, to_ordering from lark_journal_pruned where to_ordering > ? and from_ordering < ?",
-            offset,
-            top,
-        ) { select ->
-            select.executeQuery().use { rows ->
-                generateSequence { if (rows.next()) rows.getLong(1)..rows.getLong(2) else null }.toList()
-            }
-        }
-        val seen = read.mapTo(HashSet()) { it.offset }
-        val now = time.now()
-        val horizon = horizon()
-        // Every ordering is looked at, not only up to the first held back: each gap's wait starts when the feed
-        // first sees it, so gaps seen together pass together, not one gapTimeout after another.
-        return (offset + 1 until top).associateWith { ordering ->
-            val of = present[ordering]
-            when {
-                of != null -> (of == kind && ordering !in seen).also { gaps.remove(ordering) }
-
-                ordering in passed || pruned.any { ordering in it } -> false
-
-                else -> {
-                    val gap = gaps.computeIfAbsent(ordering) { Gap(now, horizon?.xmax) }
-                    val waited = java.time.Duration.between(gap.seen, now)
-                    val holding = holds(gap, waited.toKotlinDuration(), horizon)
-                    if (!holding && passed.add(ordering)) {
-                        gaps.remove(ordering)
-                        logWarn("the feed passes ordering $ordering, missing for $waited: an append never committed")
-                    }
-                    holding
-                }
-            }
-        }.entries.firstOrNull { (_, holds) -> holds }?.key
     }
 
     /** Postgres's view of which transactions are running: every one below [xmin] has ended. */
@@ -349,6 +450,10 @@ class JdbcJournal(
         }
     }
 }
+
+/** How many orderings the watermark reads at a time, and how many times a call goes on before answering. */
+private const val WALK_BATCH = 10_000
+private const val WALK_BATCHES = 4
 
 /** [values] bound to the statement's parameters in order, and added as one row of its batch. */
 internal fun PreparedStatement.row(vararg values: Any) {

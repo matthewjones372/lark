@@ -132,19 +132,20 @@ class SliceMover(
         return block().also { logInfo("lark.journal.move $range: $step took ${started.elapsedNow()}") }
     }
 
-    /** Copies to [into] each of [slices]' events [source] has and it lacks, and each id's newest snapshot. */
+    /**
+     * Copies to [into] each of [slices]' events [source] has and it lacks, and each id's newest snapshot, on one
+     * connection to each for the whole pass.
+     */
     private fun copy(source: DataSource, into: DataSource, slices: IntRange) {
-        val tops = source.connection.use { it.tops(slices) }
-        val have = into.connection.use { it.tops(slices) }
-        val from = JdbcSnapshots(source)
-        val to = JdbcSnapshots(into)
-        tops.forEach { (id, top) ->
-            val had = have[id] ?: 0
-            if (top > had) {
-                val rows = source.connection.use { it.rows(id, had) }
-                into.connection.use { connection -> connection.transaction { insert(id, rows) } }
+        source.connection.use { from ->
+            into.connection.use { to ->
+                val have = to.tops(slices)
+                from.tops(slices).forEach { (id, top) ->
+                    val had = have[id] ?: 0
+                    if (top > had) to.transaction { insert(id, from.rows(id, had)) }
+                    from.snapshot(id)?.let { (sequence, bytes) -> to.saveSnapshot(id, sequence, bytes) }
+                }
             }
-            from.latest(id)?.let { to.save(id, it.sequence, it.bytes) }
         }
     }
 }
@@ -185,6 +186,35 @@ private fun Connection.insert(id: PersistenceId, rows: List<Pair<Long, ByteArray
         rows.forEach { (sequence, bytes) -> insert.row(id.kind, id.id, sequence, bytes, slice) }
         insert.executeBatch()
     }
+}
+
+/** [id]'s newest snapshot here, if any: its sequence number and bytes. */
+private fun Connection.snapshot(id: PersistenceId): Pair<Long, ByteArray>? =
+    statement("select seq_nr, bytes from lark_snapshot where kind = ? and id = ?", id.kind, id.id) { select ->
+        select.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) to rows.getBytes(2) else null }
+    }
+
+/** Keeps [id]'s snapshot at [sequence] here unless a newer one is kept, as `JdbcSnapshots.save` does. */
+private fun Connection.saveSnapshot(id: PersistenceId, sequence: Long, bytes: ByteArray) {
+    val replaced = statement(
+        "update lark_snapshot set seq_nr = ?, bytes = ? where kind = ? and id = ? and seq_nr < ?",
+        sequence,
+        bytes,
+        id.kind,
+        id.id,
+        sequence,
+    ) { it.executeUpdate() }
+    if (replaced > 0) return
+    statement(
+        "insert into lark_snapshot (kind, id, seq_nr, bytes) select ?, ?, ?, ? from (values (1)) " +
+            "where not exists (select 1 from lark_snapshot where kind = ? and id = ?)",
+        id.kind,
+        id.id,
+        sequence,
+        bytes,
+        id.kind,
+        id.id,
+    ) { it.executeUpdate() }
 }
 
 /** Which of [slices] this database already refuses. */

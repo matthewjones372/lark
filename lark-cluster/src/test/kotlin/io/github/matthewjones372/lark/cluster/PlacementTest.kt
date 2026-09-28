@@ -4,6 +4,7 @@ import io.github.matthewjones372.lark.actor.remote.Node
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeInRange
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -79,5 +80,21 @@ class PlacementTest {
         moved(to(2, 2L)) shouldBe hashed.toMutableList().apply { set(shard, up(2).node) }
         withClue("a member that is not Up") { moved(to(3, 3L)) shouldBe hashed }
         withClue("another life at the same address") { moved(to(2, 7L)) shouldBe hashed }
+    }
+
+    @Test
+    fun `workers spread as evenly as the members allow, and one member leaving moves few besides its own`() {
+        listOf(1 to 8, 3 to 8, 4 to 8, 5 to 16, 8 to 3).forEach { (members, count) ->
+            val placed = Placement.spread("totals", count, (1..members).map { up(it) })
+            val counts = placed.groupingBy { it }.eachCount().values
+            withClue("$count over $members: $placed") { (counts.max() - counts.min()) shouldBeLessThanOrEqual 1 }
+        }
+
+        val four = Placement.spread("totals", 16, (1..4).map { up(it) })
+        val three = Placement.spread("totals", 16, (1..3).map { up(it) })
+        val gone = four.count { it == up(4).node }
+        val moved = four.indices.count { four[it] != three[it] }
+        withClue("$four then $three") { moved shouldBeLessThanOrEqual gone + 3 }
+        Placement.spread("totals", 4, listOf(up(1, Status.Joining))) shouldBe List(4) { null }
     }
 }

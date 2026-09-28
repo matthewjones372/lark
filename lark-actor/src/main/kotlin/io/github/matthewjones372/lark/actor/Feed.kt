@@ -16,6 +16,18 @@ interface JournalFeed {
 }
 
 /**
+ * A feed that answers a range of slices on its own (spec 0106), so that a read model can be split into partitions,
+ * each following its own slices, in the one order the whole feed has.
+ */
+interface SlicedFeed : JournalFeed {
+    /** Up to [limit] events of [kind] whose ids are in [slices] and whose offsets are greater than [offset]. */
+    fun after(kind: String, slices: IntRange, offset: Long, limit: Int): List<FeedEvent>
+
+    /** Whether every event is known by its slice, so that the ranges of slices together miss none. */
+    fun sliced(): Boolean = true
+}
+
+/**
  * Where a read model's progress is kept (spec 0075): the offset of the last event it handled, by the read model's
  * name. A store that cannot write throws.
  */
