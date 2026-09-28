@@ -34,11 +34,11 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** Pays [pence] into an account, sent reliably. */
-private data class PayInto(val pence: Int, override val delivery: Delivery) : Delivered {
+internal data class PayInto(val pence: Int, override val delivery: Delivery) : Delivered {
     override fun redeliver(delivery: Delivery) = copy(delivery = delivery)
 }
 
-private val payIntoCodec = object : MessageCodec<PayInto> {
+internal val payIntoCodec = object : MessageCodec<PayInto> {
     override fun write(message: PayInto, out: WireOut) {
         out.int(message.pence)
         out.delivery(message.delivery)
@@ -47,16 +47,16 @@ private val payIntoCodec = object : MessageCodec<PayInto> {
     override fun read(input: WireIn): PayInto = PayInto(input.int(), input.delivery())
 }
 
-private val paidPence = object : EventCodec<Int> {
+internal val paidPence = object : EventCodec<Int> {
     override fun encode(event: Int): ByteArray = event.toString().toByteArray()
 
     override fun decode(bytes: ByteArray): Int = String(bytes).toInt()
 }
 
-private fun accountOf(id: String) = PersistenceId("account", id)
+internal fun accountOf(id: String) = PersistenceId("account", id)
 
 /** An account remembered by what was paid into it, which confirms each payment and drops those it has had. */
-private fun account(id: String) = delivered(
+internal fun account(id: String) = delivered(
     persistent<PayInto, Int, Int>(
         id = accountOf(id),
         empty = 0,
@@ -67,12 +67,12 @@ private fun account(id: String) = delivered(
 )
 
 /** Probes calm enough that 200 entities writing to one database never make two live nodes miss each other. */
-private val calm =
+internal val calm =
     Gossiping(probeEvery = 500.milliseconds, ackWithin = 250.milliseconds, formAfter = 1_000.milliseconds)
 
 private fun openPort(): Int = ServerSocket(0).use { it.localPort }
 
-private fun accountsDatabase(): DataSource = JdbcDataSource().apply {
+internal fun accountsDatabase(): DataSource = JdbcDataSource().apply {
     setURL("jdbc:h2:mem:accounts-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
     val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/h2.sql")).readText()
     connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
@@ -82,7 +82,7 @@ private fun accountsDatabase(): DataSource = JdbcDataSource().apply {
  * A node with the accounts sharded on it and [journal] as its flock's, on a thread of its own, until [close]. With a
  * [ledger] role, accounts run only on members that hold it, and this one holds it if [ledger] is true.
  */
-private class Bank(
+internal class Bank(
     val name: String,
     port: Int,
     seeds: Discovery,
@@ -90,6 +90,7 @@ private class Bank(
     leaveWithin: Duration,
     private val role: String? = null,
     ledger: Boolean = false,
+    private val downing: Downing = Downing.keepMajority(stableAfter = 3.seconds),
 ) : AutoCloseable {
     private val roles = if (ledger) setOfNotNull(role) else emptySet()
     private val done = CountDownLatch(1)
@@ -103,7 +104,6 @@ private class Bank(
     private fun open(port: Int, seeds: Discovery, journal: Journal, leaveWithin: Duration) {
         flock<Nothing, Unit> {
             journal(journal)
-            val downing = Downing.keepMajority(stableAfter = 3.seconds)
             val cluster = cluster(node(name, port), seeds, calm, downing, leaveWithin, roles)
             val accounts =
                 cluster.sharding("account", payIntoCodec, passivateAfter = 1.minutes, role = role, entity = ::account)
@@ -214,7 +214,7 @@ class ReliableTest {
     }
 
     @Test
-    fun `payments a durable producer accepted before its node crashed are each applied once, sent by its successor`() {
+    fun `payments a durable producer accepted before its node crashed are each applied once, sent by the registry`() {
         val journal = JdbcJournal(accountsDatabase())
         val ports = List(4) { openPort() }
         val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -226,20 +226,27 @@ class ReliableTest {
             banks.forEach { b ->
                 b.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe true
             }
-            val (crashing, successor) = banks
+            val (crashing) = banks
             val accepted = crashing.accounts.reliable("checkout", keep = 1_000, durable = true)
             val accounts = List(200) { "a-$it" }
             for (pence in 1..2) {
                 accounts.forEach { id -> accepted.send(id) { PayInto(pence, it) } shouldBe Unit.right() }
             }
 
+            val kept = "account-checkout-${crashing.cluster.life}"
             crashing.close()
-            // 400 kept and none confirmed: what the successor sends, it has only from the journal.
-            journal.read(PersistenceId("lark-producer", "account-checkout")).size shouldBe 400
+            // 400 kept and none confirmed: what the registry resumes, it has only from the journal.
+            journal.read(PersistenceId("lark-producer", kept)).size shouldBe 400
             banks += bank(3)
-            val sending = successor.accounts.reliable("checkout", resendAfter = 200.milliseconds, durable = true)
+            val survivors = banks.drop(1)
+            survivors.forEach { b ->
+                b.cluster.await(1.minutes) { view -> view.members.none { it.node.name == crashing.name } } shouldBe true
+            }
+            val oldest = checkNotNull(Placement.oldest(survivors.first().cluster.view.members))
+            val registry = checkNotNull(survivors.single { it.cluster.self == oldest }.cluster.producers)
 
-            sending.drain(1.minutes) shouldBe true
+            // Resumed on the registry's node, and retired once every payment it kept is confirmed.
+            registry.await(30.seconds) { listed -> listed != null && kept !in listed } shouldBe true
             accounts.forEach { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
         } finally {
             banks.forEach(Bank::close)

@@ -76,6 +76,30 @@ fun <M : Any> TestActors.durableProducer(
     return Producer(actor, room, keep, within, meters, durable = true, recovered = recovered, down = down)
 }
 
+/**
+ * The durable producer [id] started again as a child of this actor, to send only what an earlier run of it kept
+ * (spec 0099), and that child, which stopping stops it. It holds room for all it recovers, so its `drain` waits for
+ * every command; it takes no new ones. It restarts and answers [Unwritten] as [Flock.durableProducer] does.
+ */
+fun <M : Any> Ctx<*>.resumedProducer(
+    id: String,
+    codec: EventCodec<M>,
+    resendAfter: Duration,
+    route: (to: String) -> ActorRef<M>,
+): Pair<Producer<M>, ActorRef<*>> {
+    val room = room(Int.MAX_VALUE)
+    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { }, Counter { })
+    val recovered = CountDownLatch(1)
+    val down = AtomicReference<Throwable?>()
+    val actor = spawn(
+        "producer-$id",
+        outbox(id, codec, resendAfter, room, Int.MAX_VALUE, meters, recovered, down, route),
+        restart = backoff(),
+    )
+    val producer = Producer<M>(actor, room, Int.MAX_VALUE, Duration.ZERO, meters, true, recovered, down)
+    return producer to actor
+}
+
 /** A durable producer's restarts: short enough that a blip costs little, long enough not to hammer a dead journal. */
 private fun <E> backoff(): Schedule<Failure<E>, Duration> =
     Schedule.exponential<Failure<E>>(100.milliseconds).delayed { _, delay -> minOf(delay, 5.seconds) }

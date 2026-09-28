@@ -19,7 +19,9 @@ import java.sql.SQLException
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
@@ -65,8 +67,7 @@ private val nowhere = object : ActorRef<TopUp> {
 }
 
 /** A journal whose producers' appends throw for the first [failures], as a database that is down does. */
-private class Flaky(failures: Int) : Journal {
-    private val kept = InMemoryJournal()
+private class Flaky(failures: Int, private val kept: Journal = InMemoryJournal()) : Journal {
     private val left = AtomicInteger(failures)
 
     override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>) =
@@ -168,6 +169,47 @@ class DurableProducerTest {
             again.send("w-0") { TopUp(9, it) } shouldBe Unit.right()
             again.send("w-1") { TopUp(9, it) } shouldBe Unit.right()
             again.send("w-2") { TopUp(9, it) } shouldBe Full.left()
+        }
+    }
+
+    @Test
+    fun `a producer resumed under an actor sends what an earlier run kept, and then drains`() {
+        testActors {
+            val wallets = ids.associateWith { spawn(it, wallet(it)) }
+            val crashed = durableProducer("till", topUpCodec, keep = 10) { nowhere }
+            for (n in 0 until 10) crashed.send(ids[n % 5]) { TopUp(n.toLong(), it) }
+            val resumed = AtomicReference<Producer<TopUp>>()
+            val resumer = behaviour<Unit, Unit>(Unit) { _, _, _ -> stay() }.onStart { ctx ->
+                resumed.set(ctx.resumedProducer("till", topUpCodec, 2.seconds) { id -> wallets.getValue(id) }.first)
+            }
+
+            spawn("resumer", resumer)
+
+            resumed.get().drain(Duration.ZERO) shouldBe true
+            ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 10
+        }
+    }
+
+    @Test
+    fun `a resumed producer whose journal throws restarts after a backoff, and still drains`() {
+        val kept = InMemoryJournal()
+        testActors(journal = kept) {
+            val crashed = durableProducer("till", topUpCodec) { nowhere }
+            for (n in 0 until 5) crashed.send(ids[n]) { TopUp(n.toLong(), it) }
+        }
+        testActors(journal = Flaky(failures = 1, kept)) {
+            val wallets = ids.associateWith { spawn(it, wallet(it)) }
+            val resumed = AtomicReference<Pair<Producer<TopUp>, ActorRef<*>>>()
+            val resumer = behaviour<Unit, Unit>(Unit) { _, _, _ -> stay() }.onStart { ctx ->
+                resumed.set(ctx.resumedProducer("till", topUpCodec, 2.seconds) { id -> wallets.getValue(id) })
+            }
+
+            spawn("resumer", resumer)
+
+            val (producer, actor) = resumed.get()
+            (actor as TestActor<*, *, *>).delays shouldBe listOf(100.milliseconds)
+            producer.drain(Duration.ZERO) shouldBe true
+            ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 5
         }
     }
 

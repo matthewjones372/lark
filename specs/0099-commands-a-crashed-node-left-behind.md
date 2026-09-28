@@ -73,14 +73,14 @@ resumer's own death. Recommended: the singleton.
 
 ## Stack
 
-- [ ] **`spec-0099-life`** — durable producers from `reliable` are named by
+- [x] **`spec-0099-life`** — durable producers from `reliable` are named by
       the node's life. Done when: two lives of one node, restarted in place,
       keep separate outboxes in the journal, and each one's commands are
       delivered.
-- [ ] **`spec-0099-registry`** — the `lark-producers` singleton and each
+- [x] **`spec-0099-registry`** — the `lark-producers` singleton and each
       durable producer's registration. Done when: on three nodes, the list
       names each node's producer and its life.
-- [ ] **`spec-0099-resume`** — resume on `Removed` and on the singleton's
+- [x] **`spec-0099-resume`** — resume on `Removed` and on the singleton's
       start, and retire once drained. Done when, on three nodes, each with
       commands unconfirmed:
       - a crashed node's commands are delivered;
@@ -88,7 +88,7 @@ resumer's own death. Recommended: the singleton.
         they are still delivered;
       - the journal shows no conflict;
       - the drained producers are gone from the list.
-- [ ] **`spec-0099-bank`** — lark-bank drops its hand-built adoption and uses
+- [x] **`spec-0099-bank`** — lark-bank drops its hand-built adoption and uses
       this. Done when: its `CrashTest` passes unchanged. This one waits for
       0094's stack to merge.
 
@@ -116,3 +116,28 @@ Decided (2026-09-27): every open question goes as recommended. Resuming is on
 by default for `reliable(durable = true)`; a `lark-producers` singleton
 decides it; resumed producers run on the singleton's node; and the life in a
 producer's id is the node's name and `Cluster.uid`.
+
+Decided while building `spec-0099-life`:
+- **The life's form.** It is the node's name, a dash, and `Cluster.uid` as an unsigned number in base 36, as lark-bank wrote it. Only `reliable(durable = true)` carries it; an in-memory producer already has an incarnation of its own.
+- **Between this entry and resume.** A crashed life's commands wait until something starts its producer by the full id. `ReliableTest`'s successor does that by hand for now.
+- **What the test catches.** Naming the producer without the life fails it: both lives share one outbox, and neither life-named id holds anything.
+
+Decided while building `spec-0099-registry`:
+- **Where it starts.** A node's first `sharding` starts the registry, when its flock has a journal. Every node shards, so every node takes part in the singleton. A flock without a journal starts none, since it runs no durable producer.
+- **How a producer registers.** Through an in-memory producer of the node's own (0079), so a registration lost while the singleton moves is sent again. The registry is `delivered` and persistent, and it ignores a producer it already lists.
+- **What it lists.** Each producer's full id, its kind, the life that made it, and the life that runs it. Until resume, the two lives are the same.
+- **What the test reads.** The node that runs the singleton keeps what it lists, and the test waits on that. The test fails when producers do not register.
+
+Decided while building `spec-0099-resume`:
+- **When it looks.** The singleton checks every 500 ms, and at once when it starts. One check covers `Removed` and a start alike. A resumed producer has no event to say it has drained, so a timer was needed anyway.
+- **What it resumes.** A producer whose runner is not in the view, or whose runner is not its owner. The second covers producers a singleton on a live node was running when it handed over.
+- **Where a resumed producer runs.** As a child of the singleton, through `Ctx.resumedProducer` in `lark-actor`, so it stops with the singleton. It holds room for everything it recovers, so draining means empty. It takes no new sends.
+- **One change a step.** Each resume or retirement is its own append, followed at once by the next check. detekt refuses the spread that one append of them all would need.
+- **Registering waits.** `reliable(durable = true)` waits up to `within` for its registration to be confirmed. Otherwise a node that crashed straight after sending could leave commands nobody lists.
+- **Pruning.** A retired outbox keeps only its newest event, as `JournalPruning` requires. The registry takes no snapshots yet, since retiring keeps its list short.
+- **What the tests catch.** `ProducersTest` crashes a node, waits for the registry to resume its producer, and crashes the registry's node. It fails without resuming, without retiring, and when only a gone owner is resumed (the bank's rule), since that misses the resumer's own death. `ReliableTest`'s successor test now relies on the registry.
+
+Decided while building `spec-0099-bank`:
+- **One id.** Every node sends through `reliable("bank", durable = true)`. The cluster names each node's outbox by its life, so the bank no longer does.
+- **Adoption gone.** The oldest node no longer restarts a removed member's producers, and the flag that stopped a closing node adopting is gone with it. The registry resumes them, including after the resumer's own crash.
+- **The test.** `CrashTest` passes unchanged, 3 of 3. Without the bank's adoption, nothing else resumes a crashed node's transfers, so the test now rests on the registry.

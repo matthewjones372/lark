@@ -10,6 +10,7 @@ import io.github.matthewjones372.lark.actor.become
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.counter
 import io.github.matthewjones372.lark.actor.gauge
+import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.onStart
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
@@ -221,11 +222,25 @@ class Cluster internal constructor(
 
     internal lateinit var actor: ActorRef<Step>
 
+    /** The registry of durable producers, from this node's first sharding on (spec 0099); none without a journal. */
+    internal val producers: Producers? by lazy { if (keepsJournal()) Producers(this) else null }
+
+    // The flock's journal is set before its cluster's first sharding, or its durable producers could not start.
+    private fun keepsJournal(): Boolean = try {
+        flock.journal()
+        true
+    } catch (_: IllegalStateException) {
+        false
+    }
+
     /**
      * Whether [member] is this life of this node, not an earlier one at the same address: an earlier life's `Downed`
      * and `Removed` reach the life that replaced it, and are not about it.
      */
     fun isSelf(member: Member): Boolean = member.node == self && member.uid == uid
+
+    /** This life: what a durable producer's id carries, so each life of a node keeps its own (spec 0099). */
+    internal val life: Life get() = Life(self, uid)
 
     /** The load of the kinds that rebalance, as of [view]: published with it, and waited on as it is. */
     @Volatile

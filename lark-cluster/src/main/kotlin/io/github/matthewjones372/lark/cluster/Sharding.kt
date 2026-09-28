@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Behaviour
+import io.github.matthewjones372.lark.actor.Ctx
 import io.github.matthewjones372.lark.actor.Entities
 import io.github.matthewjones372.lark.actor.Producer
 import io.github.matthewjones372.lark.actor.Signal
@@ -19,6 +19,7 @@ import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.outbox
+import io.github.matthewjones372.lark.actor.resumedProducer
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import java.util.concurrent.locks.ReentrantLock
@@ -36,6 +37,9 @@ internal object Sharding {
 
     /** Times a message is passed between nodes that each think another owns it before it waits for the view. */
     const val MOST_HOPS = 3
+
+    /** How long a reliable producer waits for a confirmation before it sends a command again. */
+    val RESEND_AFTER = 2.seconds
 
     /** How long a message that ran out of hops waits before it is routed again. */
     val RETRY_AFTER = 100.milliseconds
@@ -119,12 +123,16 @@ private class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : Message
 class Sharded<M : Any> internal constructor(
     val kind: String,
     private val region: ActorRef<Region<M>>,
-    private val flock: Flock<*>,
-    private val leaveWithin: Duration,
+    private val cluster: Cluster,
     private val codec: MessageCodec<M>,
+    private val producers: Producers?,
 ) {
     /** The entity [id], wherever it runs now: a ref that stays good while it moves between nodes. */
     fun entity(id: String): ActorRef<M> = ShardedRef(region, id)
+
+    /** The durable producer [producer], a gone life's, started again under [ctx] to send what it kept (spec 0099). */
+    internal fun resume(ctx: Ctx<*>, producer: String) =
+        ctx.resumedProducer(producer, codec.outbox(), Sharding.RESEND_AFTER, ::entity)
 
     /**
      * A producer on this node that sends to these entities at least once (spec 0079): a command lost to a move or a
@@ -134,22 +142,28 @@ class Sharded<M : Any> internal constructor(
      * closes, the producer waits for its commands to be confirmed as long as the cluster waits to leave, and before it.
      *
      * A [durable] producer keeps its commands in the flock's journal rather than in memory (spec 0085), so one whose
-     * node crashes loses none: started again with the same [producerId], on any node, it sends what is unconfirmed.
-     * Its commands implement `Delivered.redeliver`, and `send` returns once each is written.
+     * node crashes loses none. It is kept under this node's life as well as [producerId] (spec 0099), so each life
+     * has an outbox of its own however often the node restarts. The cluster's `lark-producers` singleton lists it,
+     * waiting up to [within] for that, and once its life has left the cluster the singleton starts it again on its own
+     * node to send what it kept, and retires it when all is confirmed. Its commands implement `Delivered.redeliver`,
+     * and `send` returns once each is written.
      */
     @Suppress("LongParameterList")
     fun reliable(
         producerId: String,
-        resendAfter: Duration = 2.seconds,
+        resendAfter: Duration = Sharding.RESEND_AFTER,
         keep: Int = 1_000,
         within: Duration = 5.seconds,
         durable: Boolean = false,
     ): Producer<M> {
         val id = "$kind-$producerId"
+        val drainWithin = cluster.leaveWithin
         return if (durable) {
-            flock.durableProducer(id, codec.outbox(), resendAfter, keep, within, leaveWithin, ::entity)
+            val kept = "$id-${cluster.life}"
+            cluster.flock.durableProducer(kept, codec.outbox(), resendAfter, keep, within, drainWithin, ::entity)
+                .also { producers?.register(kept, kind, within) }
         } else {
-            flock.producer(id, resendAfter, keep, within, leaveWithin, ::entity)
+            cluster.flock.producer(id, resendAfter, keep, within, drainWithin, ::entity)
         }
     }
 }
@@ -204,7 +218,8 @@ fun <M : Any, S, E> Cluster.sharding(
             manager.entity(id)
         },
     )
-    return Sharded(kind, region(path, codec, shards, hosting, kind), flock, leaveWithin, codec)
+    val region = region(path, codec, shards, hosting, kind)
+    return Sharded(kind, region, this, codec, producers).also { producers?.kind(it) }
 }
 
 /** A region at [path] on this node, reachable from the others at the same path. */
