@@ -20,6 +20,7 @@ import io.github.matthewjones372.lark.cluster.Joins
 import io.github.matthewjones372.lark.cluster.MemberEvent
 import io.github.matthewjones372.lark.cluster.cluster
 import io.github.matthewjones372.lark.logError
+import io.github.matthewjones372.lark.logInfo
 import kotlin.system.exitProcess
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -78,6 +79,7 @@ internal fun clustered(exit: () -> Unit): Module =
                 settings.roles,
             )
         }
+        cluster.subscribe(spawn(actors, "lark-cluster-log", logged(cluster)))
         if (settings.whenDowned == WhenDowned.Exit) {
             cluster.subscribe(spawn(actors, "lark-cluster-downed", exitWhenDowned(cluster, exit)))
         }
@@ -88,6 +90,14 @@ internal fun clustered(exit: () -> Unit): Module =
 
 // Two minutes, a second apart: long enough for a node to join while another is being downed.
 private const val READY_ATTEMPTS = 120
+
+/** Every change to this node's view, logged: what an operator reads to know who left when, and which life. */
+private fun logged(cluster: Cluster) = behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
+    val member = event.member
+    val life = if (cluster.isSelf(member)) "this node" else "${member.node}#${member.uid}"
+    logInfo("cluster: ${event::class.simpleName} $life, ${member.status}; leader ${cluster.view.leader}")
+    stay()
+}
 
 // On a thread of its own: the exit runs the shutdown hooks, which close the flock this actor is stepping in.
 private fun exitWhenDowned(cluster: Cluster, exit: () -> Unit) = behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
