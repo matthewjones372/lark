@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.actor
 /** A seam for lark's own modules that hand messages on from a step to receivers that may be busy (spec 0095). */
 @RequiresOptIn("A seam for lark's own modules that hand messages on from a step to receivers that may be busy.")
 @Retention(AnnotationRetention.BINARY)
-@Target(AnnotationTarget.CLASS)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
 annotation class PlumbingSeam
 
 /**

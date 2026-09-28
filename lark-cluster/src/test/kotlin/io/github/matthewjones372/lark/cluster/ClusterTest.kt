@@ -136,6 +136,38 @@ class ClusterTest {
     }
 
     @Test
+    fun `a subscriber too busy to take its events hears every one later, in order, and the view moves on meanwhile`() {
+        val ports = List(3) { freePort() }
+        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+        val second = Running("n2", ports[1], seeds)
+        val third = Running("n3", ports[2], seeds)
+        try {
+            flock<Nothing, Unit> {
+                val heard = LinkedBlockingQueue<MemberEvent>()
+                val busy = CountDownLatch(1)
+                val cluster = cluster(node("n1", ports[0]), seeds, quick)
+                // One slot, and stuck on its first event: every event after the next finds its mailbox full.
+                val slow = behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
+                    busy.await()
+                    stay().also { heard.put(event) }
+                }
+                cluster.subscribe(spawn("slow", slow, capacity = 1))
+
+                withClue("the cluster's view, with its subscriber full") {
+                    cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                }
+                busy.countDown()
+                val ups = List(3) { generateSequence { heard.poll(1, TimeUnit.MINUTES) }.first() }
+                ups.map { it::class } shouldBe List(3) { MemberEvent.Up::class }
+                ups.map { it.member.node.name }.toSet() shouldBe setOf("n1", "n2", "n3")
+            }
+        } finally {
+            second.close()
+            third.close()
+        }
+    }
+
+    @Test
     fun `a node whose flock closes leaves, and the others remove it without downing it`() {
         val ports = List(3) { freePort() }
         val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -194,7 +226,7 @@ class ClusterTest {
         val second = Running("n2", ports[1], seeds, leaveWithin = Duration.ZERO)
         // Gone as a crashed node goes, without leaving, so the others still hold its life when it comes back.
         Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO).use { earlier ->
-            earlier.cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+            earlier.cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
         }
         try {
             flock<Nothing, Unit> {
@@ -233,7 +265,7 @@ class ClusterTest {
                 val node = node("n1", ports[0])
                 // The default 20 s before a downed life is removed: long enough to watch the later life's actor first.
                 val cluster = cluster(node, seeds, quick, leaveWithin = Duration.ZERO)
-                cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
                 val at = Address("n3@127.0.0.1:${ports[2]}", "/user/ward", 0)
                 val first = watch(node.remote(at, Codecs.string))
                 val earlierUid = cluster.view.members.first { it.node.name == "n3" }.uid
@@ -245,8 +277,8 @@ class ClusterTest {
                     withClue("the watch ended before the earlier life was removed") {
                         cluster.view.members.any { it.uid == earlierUid } shouldBe true
                     }
-                    later.cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
-                    cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                    later.cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                    cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
 
                     val ended = AtomicBoolean(false)
                     val second = watch(node.remote(at, Codecs.string))

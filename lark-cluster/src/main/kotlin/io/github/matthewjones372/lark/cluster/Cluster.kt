@@ -4,7 +4,9 @@ import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Ctx
+import io.github.matthewjones372.lark.actor.HandOn
 import io.github.matthewjones372.lark.actor.Next
+import io.github.matthewjones372.lark.actor.PlumbingSeam
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.become
 import io.github.matthewjones372.lark.actor.behaviour
@@ -92,9 +94,13 @@ fun <F> Flock<F>.cluster(
         CLUSTER,
         behaviour<Step, Subscribers>(emptySet()) { ctx, subscribers, step -> steps.step(ctx, subscribers, step) }
             .onStart { ctx -> ctx.timers.every(Step.Tick, gossiping.ackWithin / 2, Step.Tick) }
-            .onSignal { _, subscribers, signal ->
+            .onSignal { ctx, subscribers, signal ->
                 when (signal) {
-                    is Signal.Terminated -> become(subscribers.filterTo(mutableSetOf()) { it != signal.ref })
+                    is Signal.Terminated -> {
+                        steps.gone(ctx, signal.ref)
+                        become(subscribers.filterTo(mutableSetOf()) { it != signal.ref })
+                    }
+
                     Signal.Stopping -> stay()
                 }
             },
@@ -118,11 +124,19 @@ private class Steps(
     private val endWatches: (Node) -> Unit,
     private val now: () -> Duration,
 ) {
+    // What a subscriber too busy to take it is owed, in order: the cluster actor never waits on a subscriber, and a
+    // tell from its step to a full mailbox would throw and stop it (spec 0101).
+    @OptIn(PlumbingSeam::class)
+    private val owed = HandOn<ActorRef<MemberEvent>, MemberEvent>()
+
     fun step(ctx: Ctx<Step>, subscribers: Subscribers, step: Step): Next<Subscribers> {
+        // Downed, the actor only hands on what its subscribers are owed, the downing among it, and then stops.
+        if (membership.downed) return handedOn(ctx)
         when (step) {
             is Step.Heard -> send(membership.receive(step.message, now()))
 
             Step.Tick -> {
+                hand(ctx)
                 report()
                 rebalance()
                 send(membership.tick(now()))
@@ -134,12 +148,29 @@ private class Steps(
 
             is Step.Subscribe -> {
                 ctx.watch(step.to)
-                changes(View.None, cluster.view).forEach(step.to::tell)
+                changes(View.None, cluster.view).forEach { tell(ctx, step.to, it) }
                 return become(subscribers + step.to)
             }
         }
-        publish(subscribers)
-        return if (membership.downed) stop() else stay()
+        publish(ctx, subscribers)
+        return if (membership.downed) handedOn(ctx) else stay()
+    }
+
+    @OptIn(PlumbingSeam::class)
+    private fun tell(ctx: Ctx<Step>, subscriber: ActorRef<MemberEvent>, event: MemberEvent) {
+        owed.tell(ctx, subscriber, subscriber, event)
+    }
+
+    @OptIn(PlumbingSeam::class)
+    private fun hand(ctx: Ctx<Step>) = owed.drain(ctx)
+
+    private fun handedOn(ctx: Ctx<Step>): Next<Subscribers> = if (hand(ctx)) stay() else stop()
+
+    /** A subscriber that stopped is owed nothing more. */
+    @OptIn(PlumbingSeam::class)
+    fun gone(ctx: Ctx<Step>, subscriber: ActorRef<*>) {
+        @Suppress("UNCHECKED_CAST")
+        owed.take(ctx, subscriber as ActorRef<MemberEvent>)
     }
 
     private fun report() = cluster.meters.forEach { meter ->
@@ -185,13 +216,13 @@ private class Steps(
         (replaced + removed).map { it.node }.distinct().forEach(endWatches)
     }
 
-    private fun publish(subscribers: Subscribers) {
+    private fun publish(ctx: Ctx<Step>, subscribers: Subscribers) {
         val next = membership.view()
         // A downed node is out of the cluster: every other member is gone as far as it is concerned.
         val gone = if (membership.downed) next.members.filter { it.node != node.self } else emptyList()
         val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
         endWatches(cluster.view, next, events)
-        subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
+        subscribers.forEach { subscriber -> events.forEach { tell(ctx, subscriber, it) } }
         measure(next.measuredBy(node.self, membership.downed), events)
         cluster.publish(next, membership.balance())
     }

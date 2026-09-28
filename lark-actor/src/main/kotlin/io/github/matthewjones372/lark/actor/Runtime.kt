@@ -72,7 +72,8 @@ internal fun <M : Any> ActorRef<M>.offer(message: M): Boolean {
  * [message] told if this has room, or has stopped, where a tell is a dead letter: false only when it is an actor's
  * full mailbox, and a tell from a step would throw (spec 0095). An entity's ref asks its manager.
  */
-internal fun <M : Any> ActorRef<M>.tellIfRoom(message: M): Boolean = when (this) {
+@PlumbingSeam
+fun <M : Any> ActorRef<M>.tellIfRoom(message: M): Boolean = when (this) {
     is Cell<*, *, *> -> {
         @Suppress("UNCHECKED_CAST")
         val cell = this as Cell<M, *, *>
