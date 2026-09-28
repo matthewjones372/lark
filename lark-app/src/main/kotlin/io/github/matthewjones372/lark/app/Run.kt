@@ -88,7 +88,7 @@ internal fun leaving(run: (Shutdown) -> Either<StartupError, Unit>): ExitCode {
     }
 
     Runtime.getRuntime().addShutdownHook(hook)
-    val outcome = run(shutdown)
+    val outcome = uncaughtLogged { run(shutdown) }
     torndown.countDown()
     // Removing it during a shutdown it is already running in is the illegal state, and by then the
     // process is leaving anyway.
