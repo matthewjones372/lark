@@ -57,14 +57,22 @@ data class Node(val name: String, val host: String, val port: Int) {
 class Frame(val path: String, val incarnation: Long, val payload: ByteArray, val message: Any? = null)
 
 /** What a [Transport] tells the node it carries for. Each is called on one of the transport's own threads. */
+
+/**
+ * Which of a peer's two connections a frame crosses (spec 0104). The cluster's own traffic, membership, watches and
+ * their ends, goes on [Control], a short queue and a connection of its own, so it never waits behind, or is dropped
+ * with, the [Data] everything else sends.
+ */
+enum class Lane { Control, Data }
+
 interface Listener {
     fun received(from: Node, frame: Frame)
 
-    /** [peer] answered the handshake, and what is sent to it now crosses. */
-    fun connected(peer: Node) = Unit
+    /** [peer] answered the handshake on [lane]'s connection, and what is sent to it there now crosses. */
+    fun connected(peer: Node, lane: Lane) = Unit
 
-    /** The connection to [peer] went down: what was queued for it has been [dropped], and it is being retried. */
-    fun disconnected(peer: Node) = Unit
+    /** [lane]'s connection to [peer] went down: what was queued on it has been [dropped], and it is being retried. */
+    fun disconnected(peer: Node, lane: Lane) = Unit
 
     /** [frame] will not reach [peer]: its connection is down, or its queue was full. At most once, as promised. */
     fun dropped(peer: Node, frame: Frame) = Unit
@@ -77,17 +85,23 @@ private const val VERSION = 1
 private const val MAX_FRAME = 16 shl 20
 
 /**
- * Frames between this node and others: one connection to each peer it sends to, opened on first use, on JDK sockets
- * and virtual threads. Each direction has its own connection, so order holds per sender and receiver. What is sent
- * to a peer waits, up to [room] frames, while its connection opens; past that, and whenever an attempt to connect
- * fails or a connection drops, frames are dropped and reported. A dropped connection is retried with a backoff from
- * [retryFrom] doubling to [retryUpTo], on the clock the transport was made on. With [tls], every connection both
- * ways is TLS, and a peer that cannot complete its handshake is one that failed to connect.
+ * Frames between this node and others: a connection to each peer per [Lane] it sends on, opened on first use, on JDK
+ * sockets and virtual threads. Each direction has its own connections, so order holds per sender, receiver and lane.
+ * What is sent to a peer waits, up to [room] frames on the data lane and [controlRoom] on the control lane (spec
+ * 0104), while its connection opens; past that, and whenever an attempt to connect fails or a connection drops,
+ * frames are dropped and reported. A dropped connection is retried with a backoff from [retryFrom] doubling to
+ * [retryUpTo], on the clock the transport was made on. With [tls], every connection both ways is TLS, and a peer
+ * that cannot complete its handshake is one that failed to connect.
+ *
+ * A peer is reached by name, and the JDK remembers a name that did not resolve for 10 seconds. A peer named before
+ * its host exists, as a seed or a pod is, stays out of reach that long after it appears, unless the service sets
+ * `networkaddress.cache.negative.ttl` to 0 before its first lookup (spec 0104).
  */
 class Transport(
     val self: Node,
     private val listener: Listener,
     private val room: Int = 8192,
+    private val controlRoom: Int = 256,
     private val retryFrom: Duration = 100.milliseconds,
     private val retryUpTo: Duration = 5.seconds,
     private val tls: Tls? = null,
@@ -98,7 +112,7 @@ class Transport(
 
     private val time: Clock = clock.get()
     private val closed = AtomicBoolean(false)
-    private val outbound = ConcurrentHashMap<Node, Outbound>()
+    private val outbound = ConcurrentHashMap<Pair<Node, Lane>, Outbound>()
     private val inbound = ConcurrentHashMap.newKeySet<Socket>()
     private val server = tls?.listening() ?: ServerSocket()
     private var accepting: Thread? = null
@@ -110,9 +124,9 @@ class Transport(
         return server.localPort
     }
 
-    fun send(to: Node, frame: Frame) {
+    fun send(to: Node, frame: Frame, lane: Lane = Lane.Data) {
         if (closed.get()) return listener.dropped(to, frame)
-        outbound.computeIfAbsent(to, ::Outbound).offer(frame)
+        outbound.computeIfAbsent(to to lane) { (peer, on) -> Outbound(peer, on) }.offer(frame)
     }
 
     override fun close() {
@@ -153,10 +167,10 @@ class Transport(
         }
     }
 
-    /** One peer's queue and the virtual thread that connects to it and writes. */
-    private inner class Outbound(private val peer: Node) {
-        private val queue = ArrayBlockingQueue<Frame>(room)
-        private val writer = Thread.ofVirtual().name("lark-remote-out-$peer").start(::run)
+    /** One peer's queue on one lane, and the virtual thread that connects to it and writes. */
+    private inner class Outbound(private val peer: Node, private val lane: Lane) {
+        private val queue = ArrayBlockingQueue<Frame>(if (lane == Lane.Control) controlRoom else room)
+        private val writer = Thread.ofVirtual().name("lark-remote-out-$peer-${lane.name.lowercase()}").start(::run)
 
         @Volatile
         private var socket: Socket? = null
@@ -207,7 +221,7 @@ class Transport(
                 val stranger = peer.name.isNotEmpty() && answered.name != peer.name
                 if (stranger) throw IOException("$peer answered as $answered")
                 tls?.check(socket, answered)
-                listener.connected(peer)
+                listener.connected(peer, lane)
                 // The peer never writes after its hello: a read that returns is the connection ending.
                 val writer = Thread.currentThread()
                 val watch = Thread.ofVirtual().start {
@@ -225,7 +239,7 @@ class Transport(
                 } catch (_: InterruptedException) {
                     // The watch saw the connection end, or the transport is closing.
                 } finally {
-                    listener.disconnected(peer)
+                    listener.disconnected(peer, lane)
                     socket.close()
                     watch.join()
                     Thread.interrupted()

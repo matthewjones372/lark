@@ -38,8 +38,10 @@ import kotlin.time.Duration
  * Spawns [behaviour] in this flock, on the flock's executor. The actor cannot outlive the scope: closing it stops
  * the actor, after any step already running has returned. A failure asks [restart], which restarts the actor from
  * its initial state after its delay on this flock's clock, or stops it once done; with no schedule it stops. Its
- * stash keeps at most [stash] messages, and so do its children's.
+ * stash keeps at most [stash] messages, and so do its children's. An [urgent] actor is run before any other the
+ * flock's runners have waiting (spec 0104): for the few whose lateness the whole node pays for, such as the cluster's.
  */
+@Suppress("LongParameterList")
 fun <F, M : Any, S, E> Flock<F>.spawn(
     name: String,
     behaviour: Behaviour<M, S, E>,
@@ -47,6 +49,7 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
     throughput: Int = 64,
     restart: Schedule<Failure<E>, *>? = null,
     stash: Int = 1024,
+    urgent: Boolean = false,
 ): ActorRef<M> {
     require(capacity > 0) { "capacity must be positive, was $capacity" }
     require(stash >= 0) { "stash must not be negative, was $stash" }
@@ -54,6 +57,7 @@ fun <F, M : Any, S, E> Flock<F>.spawn(
     val guardian = guardian()
     val address = Address("local", "/user/$name", incarnations.incrementAndGet())
     return Cell(behaviour, address, capacity, throughput, stash, guardian, restart, parent = null)
+        .also { it.urgent = urgent }
         .also { guardian.cells += it }
         .also { it.begin() }
 }
@@ -674,6 +678,9 @@ private class Cell<M : Any, S, E>(
     // only by the thread running this actor's activation.
     var told = false
 
+    // Whether the runners take this actor's activations before any other (spec 0104). Set once, before it begins.
+    var urgent = false
+
     /**
      * A message told once the actor has stopped is a dead letter, and so is one still in the mailbox when it stops.
      * One told in the instant the actor stops may be neither handled nor reported.
@@ -777,7 +784,7 @@ private class Cell<M : Any, S, E>(
 
     /** Hands the activation to the flock's runners on virtual threads, and to the executor otherwise. */
     private fun schedule() {
-        if (guardian.on === VirtualThreads) guardian.runners.submit(this) else guardian.on.execute(::activate)
+        if (guardian.on === VirtualThreads) guardian.runners.submit(this, urgent) else guardian.on.execute(::activate)
     }
 
     /** Registers an ask, so that stopping answers it. False when the actor has already stopped. */

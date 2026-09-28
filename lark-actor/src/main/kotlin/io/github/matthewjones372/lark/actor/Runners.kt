@@ -43,6 +43,12 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
     }
 
     private val ready = ConcurrentLinkedQueue<Activation>()
+
+    // Activations taken before any in [ready]: the few actors every node's health depends on, such as the cluster's
+    // own, which must not wait behind thousands of busy entities for their turn (spec 0104).
+    private val urgent = ConcurrentLinkedQueue<Activation>()
+
+    private fun nothingQueued() = urgent.isEmpty() && ready.isEmpty()
     private val active = AtomicInteger()
     private val watching = AtomicBoolean()
     private val started = ConcurrentHashMap.newKeySet<Runner>()
@@ -60,14 +66,14 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
     fun awaitIdle() = lock.withLock {
         awaiting++
         try {
-            while (!ready.isEmpty() || started.any { it.busy }) quiet.await()
+            while (!nothingQueued() || started.any { it.busy }) quiet.await()
         } finally {
             awaiting--
         }
     }
 
-    fun submit(activation: Activation) {
-        ready.offer(activation)
+    fun submit(activation: Activation, first: Boolean = false) {
+        if (first) urgent.offer(activation) else ready.offer(activation)
         if (!grow(parallelism)) watch()
     }
 
@@ -88,7 +94,7 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
 
     private tailrec fun run(runner: Runner) {
         runner.busy = true
-        val next = ready.poll()
+        val next = urgent.poll() ?: ready.poll()
         if (next != null) {
             runOne(next)
             return run(runner)
@@ -99,7 +105,7 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
         started.remove(runner)
         active.decrementAndGet()
         // An actor queued after the last poll, by a wake that counted this runner as still running, is ours to take.
-        if (ready.isEmpty() || !rejoin()) return
+        if (nothingQueued() || !rejoin()) return
         started.add(runner)
         run(runner)
     }
@@ -108,7 +114,7 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
     private fun workArrives(): Boolean {
         val deadline = System.nanoTime() + SPIN_NANOS
         while (System.nanoTime() < deadline) {
-            if (!ready.isEmpty()) return true
+            if (!nothingQueued()) return true
             Thread.onSpinWait()
         }
         return false
@@ -136,10 +142,10 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
         var adding = 0
         while (true) {
             LockSupport.parkNanos(WATCH_NANOS)
-            if (ready.isEmpty()) {
+            if (nothingQueued()) {
                 watching.set(false)
                 // Work queued after the check, by a wake that saw the watcher still watching, is still ours.
-                if (ready.isEmpty() || !watching.compareAndSet(false, true)) return
+                if (nothingQueued() || !watching.compareAndSet(false, true)) return
             }
             val runnable = active.get() - started.count { it.blocked() }
             if (runnable < parallelism) {

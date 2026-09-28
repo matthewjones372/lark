@@ -30,9 +30,9 @@ private class Heard : Listener {
 
     override fun received(from: Node, frame: Frame) = received.put(from to frame.n)
 
-    override fun connected(peer: Node) = connected.put(peer)
+    override fun connected(peer: Node, lane: Lane) = connected.put(peer)
 
-    override fun disconnected(peer: Node) = disconnected.put(peer)
+    override fun disconnected(peer: Node, lane: Lane) = disconnected.put(peer)
 
     override fun dropped(peer: Node, frame: Frame) {
         dropped += frame.n

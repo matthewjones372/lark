@@ -15,6 +15,7 @@ import io.github.matthewjones372.lark.actor.gauge
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.onSignal
 import io.github.matthewjones372.lark.actor.onStart
+import io.github.matthewjones372.lark.actor.remote.Lane
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.RemoteNode
@@ -104,8 +105,11 @@ fun <F> Flock<F>.cluster(
                     Signal.Stopping -> stay()
                 }
             },
+        // Run ahead of the node's entities (spec 0104), so a probe is not acked late because thousands of them wait.
+        urgent = true,
     )
-    node.expose(ref, StepCodec)
+    // Membership on the control lane (spec 0104): a probe or its ack never waits behind, or is dropped with, the data.
+    node.expose(ref, StepCodec, Lane.Control)
     cluster.actor = ref
     if (leaveWithin.isPositive()) {
         onClose {

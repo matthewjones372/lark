@@ -9,6 +9,8 @@ import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.JournalFeed
 import io.github.matthewjones372.lark.actor.JournalPruning
 import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.actor.SliceElsewhere
+import io.github.matthewjones372.lark.actor.Slices
 import io.github.matthewjones372.lark.actor.StoredEvent
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.logWarn
@@ -40,6 +42,9 @@ private val SETTLE = 1.seconds
  * Of two writers for one id, the table's primary key decides: an append inserts its first event only if the one it
  * expects to follow is there, and two that both expect it collide on the key, so exactly one commits. A database
  * that cannot answer throws its [SQLException].
+ *
+ * Each row carries its id's slice (spec 0105), and an append for a slice listed in `lark_journal_fenced`, one this
+ * database has given to another, is refused in the append's own statement with [SliceElsewhere].
  *
  * It is a [JournalFeed] too (spec 0075), its offsets the table's `ordering`. An append takes its `ordering` when it
  * inserts and is seen when it commits, so a smaller one can commit after a larger one is read: the feed answers
@@ -82,6 +87,9 @@ class JdbcJournal(
                 connection.rollback()
                 if (failed.sqlState != DUPLICATE_KEY) throw failed
                 false
+            } catch (elsewhere: SliceElsewhere) {
+                connection.rollback()
+                throw elsewhere
             }
             if (appended) {
                 connection.commit()
@@ -265,29 +273,69 @@ class JdbcJournal(
      */
     private fun Connection.insert(id: PersistenceId, expected: Long, events: List<ByteArray>): Boolean {
         if (events.isEmpty()) return last(id) == expected
+        val slice = Slices.of(id)
         val first = statement(
-            "insert into lark_journal (kind, id, seq_nr, bytes) select ?, ?, ?, ? from (values (1)) " +
-                "where ? = 0 or exists (select 1 from lark_journal where kind = ? and id = ? and seq_nr = ?)",
+            "insert into lark_journal (kind, id, seq_nr, bytes, slice) select ?, ?, ?, ?, ? from (values (1)) " +
+                "where (? = 0 or exists (select 1 from lark_journal where kind = ? and id = ? and seq_nr = ?)) " +
+                "and not exists (select 1 from lark_journal_fenced where slice = ?)",
             id.kind,
             id.id,
             expected + 1,
             events.first(),
+            slice,
             expected,
             id.kind,
             id.id,
             expected,
+            slice,
         ) { it.executeUpdate() }
-        if (first == 0) return false
+        if (first == 0) {
+            if (fenced(slice)) throw SliceElsewhere(slice)
+            return false
+        }
         events.drop(1).forEachIndexed { i, bytes ->
             statement(
-                "insert into lark_journal (kind, id, seq_nr, bytes) values (?, ?, ?, ?)",
+                "insert into lark_journal (kind, id, seq_nr, bytes, slice) values (?, ?, ?, ?, ?)",
                 id.kind,
                 id.id,
                 expected + i + 2,
                 bytes,
+                slice,
             ) { it.executeUpdate() }
         }
         return true
+    }
+
+    /** Whether this database refuses [slice]'s appends, having given it to another (spec 0105). */
+    private fun Connection.fenced(slice: Int): Boolean =
+        statement("select 1 from lark_journal_fenced where slice = ?", slice) { select ->
+            select.executeQuery().use { rows -> rows.next() }
+        }
+
+    /**
+     * Sets `slice` on up to [batch] rows appended before spec 0105 gave the table the column, oldest first: how many
+     * it set. A journal is moved between databases only once none is left; run it until it answers 0.
+     */
+    @Suppress("MagicNumber") // column indices
+    fun fillSlices(batch: Int = 1_000): Int = dataSource.connection.use { connection ->
+        val rows = connection.statement(
+            "select kind, id, seq_nr from lark_journal where slice is null order by ordering fetch first ? rows only",
+            batch,
+        ) { select ->
+            select.executeQuery().use { rows ->
+                generateSequence {
+                    if (rows.next()) Triple(rows.getString(1), rows.getString(2), rows.getLong(3)) else null
+                }.toList()
+            }
+        }
+        connection.prepareStatement("update lark_journal set slice = ? where kind = ? and id = ? and seq_nr = ?")
+            .use { update ->
+                rows.forEach { (kind, id, sequence) ->
+                    update.row(Slices.of(PersistenceId(kind, id)), kind, id, sequence)
+                }
+                if (rows.isNotEmpty()) update.executeBatch()
+            }
+        rows.size
     }
 
     private fun Connection.last(id: PersistenceId): Long = statement(
@@ -300,6 +348,12 @@ class JdbcJournal(
             rows.getLong(1)
         }
     }
+}
+
+/** [values] bound to the statement's parameters in order, and added as one row of its batch. */
+internal fun PreparedStatement.row(vararg values: Any) {
+    values.forEachIndexed { i, value -> setObject(i + 1, value) }
+    addBatch()
 }
 
 /** [sql] with [values] bound to its parameters in order, handed to [use] and closed after. */

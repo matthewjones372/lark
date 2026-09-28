@@ -100,9 +100,11 @@ class RemoteNode internal constructor(
     /** One peer's instruments, looked up once: counting a frame is then a map hit and no allocation. */
     private inner class PeerMetrics(peer: Node) {
         private val name = peer.toString()
-        val sent = flock.counter("lark.remote.frames", "peer" to name, "direction" to "out")
-        val received = flock.counter("lark.remote.frames", "peer" to name, "direction" to "in")
-        val dropped = flock.counter("lark.remote.dropped", "peer" to name)
+        private fun byLane(metric: String, vararg tags: Pair<String, String>) =
+            Lane.entries.associateWith { flock.counter(metric, "peer" to name, *tags, "lane" to it.name.lowercase()) }
+        val sent = byLane("lark.remote.frames", "direction" to "out")
+        val received = byLane("lark.remote.frames", "direction" to "in")
+        val dropped = byLane("lark.remote.dropped")
         val connected = flock.gauge("lark.remote.connected", "peer" to name)
     }
 
@@ -110,11 +112,19 @@ class RemoteNode internal constructor(
 
     private fun measure(peer: Node): PeerMetrics = measured.computeIfAbsent(peer) { PeerMetrics(it) }
 
-    /** Hands [frame] to the transport for [peer], counting it. */
+    /** Hands [frame] to the transport for [peer], on its path's lane, counting it. */
     private fun send(peer: Node, frame: Frame) {
-        measure(peer).sent.increment()
-        transport.send(peer, frame)
+        val lane = laneOf(frame.path)
+        measure(peer).sent.getValue(lane).increment()
+        transport.send(peer, frame, lane)
     }
+
+    // The paths whose frames cross on the control lane (spec 0104): watches and their ends always, and whatever is
+    // exposed or reached as control. Every node exposes the cluster's own actor at the same path, so both sides agree.
+    private val control = ConcurrentHashMap.newKeySet<String>()
+
+    private fun laneOf(path: String): Lane =
+        if (path == WATCH || path == TERMINATED || path in control) Lane.Control else Lane.Data
 
     private val exposed = ConcurrentHashMap<String, Exposed<*>>()
     private val pending = ConcurrentHashMap<String, Pending<*>>()
@@ -127,8 +137,8 @@ class RemoteNode internal constructor(
     private val watching = ConcurrentHashMap<Address, CopyOnWriteArrayList<() -> Unit>>()
     private val watched = ConcurrentHashMap.newKeySet<Pair<Node, Address>>()
 
-    // The peers with a connection up now, and those whose unreachable timer is running.
-    private val up = ConcurrentHashMap.newKeySet<Node>()
+    // The peers with a connection up now, on either lane, and those whose unreachable timer is running.
+    private val up = ConcurrentHashMap.newKeySet<Pair<Node, Lane>>()
     private val timing = ConcurrentHashMap.newKeySet<Node>()
 
     @Volatile
@@ -137,7 +147,8 @@ class RemoteNode internal constructor(
     internal val transport = Transport(self, Inbound(), tls = tls)
 
     /** Lets other nodes tell [ref] messages written with [codec], at its path. */
-    fun <M : Any> expose(ref: ActorRef<M>, codec: MessageCodec<M>) {
+    fun <M : Any> expose(ref: ActorRef<M>, codec: MessageCodec<M>, lane: Lane = Lane.Data) {
+        if (lane == Lane.Control) control += ref.address.path
         exposed[ref.address.path] = Exposed(ref, codec)
     }
 
@@ -146,7 +157,10 @@ class RemoteNode internal constructor(
      * actor is at the path when a message arrives; any other is that one actor, and a message for an earlier one is
      * not delivered to its successor.
      */
-    fun <M : Any> remote(address: Address, codec: MessageCodec<M>): ActorRef<M> = refs.ref(address, codec)
+    fun <M : Any> remote(address: Address, codec: MessageCodec<M>, lane: Lane? = null): ActorRef<M> {
+        if (lane == Lane.Control) control += address.path
+        return refs.ref(address, codec)
+    }
 
     /**
      * Hands ending watches on other nodes' actors to a membership, which knows better than a timer when a node is
@@ -198,7 +212,7 @@ class RemoteNode internal constructor(
             } finally {
                 timing -= peer
             }
-            if (peer !in up) watching.keys.filter { it.node == peer.toString() }.forEach(::terminated)
+            if (up.none { it.first == peer }) watching.keys.filter { it.node == peer.toString() }.forEach(::terminated)
         }
     }
 
@@ -214,7 +228,7 @@ class RemoteNode internal constructor(
         // A frame this node cannot read ends only that frame: the connection, and the frames after it, go on.
         @Suppress("TooGenericExceptionCaught")
         override fun received(from: Node, frame: Frame) {
-            measure(from).received.increment()
+            measure(from).received.getValue(laneOf(frame.path)).increment()
             try {
                 when {
                     frame.path.startsWith(REPLIES) -> pending.remove(frame.path)?.answer(frame.payload, refs)
@@ -249,19 +263,19 @@ class RemoteNode internal constructor(
             }
         }
 
-        override fun connected(peer: Node) {
+        override fun connected(peer: Node, lane: Lane) {
             measure(peer).connected.set(1.0)
-            up += peer
+            up += peer to lane
         }
 
-        override fun disconnected(peer: Node) {
-            measure(peer).connected.set(0.0)
-            up -= peer
+        override fun disconnected(peer: Node, lane: Lane) {
+            up -= peer to lane
+            if (up.none { it.first == peer }) measure(peer).connected.set(0.0)
             maybeUnreachable(peer)
         }
 
         override fun dropped(peer: Node, frame: Frame) {
-            measure(peer).dropped.increment()
+            measure(peer).dropped.getValue(laneOf(frame.path)).increment()
             val recipient = Address(peer.toString(), frame.path, frame.incarnation)
             val message = frame.message ?: UnreadMessage(frame.payload)
             flock.deadLetter(DeadLetter(recipient, message, DeadLetter.Why.Unreachable))
