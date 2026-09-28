@@ -116,7 +116,7 @@ fun <M : Any> Ctx<*>.resumedProducer(
         outbox(id, codec, resendAfter, room, Int.MAX_VALUE, meters, recovered, down, route),
         restart = backoff(),
     )
-    val producer = Producer<M>(actor, room, Int.MAX_VALUE, Duration.ZERO, meters, true, recovered, down)
+    val producer = Producer(room, Int.MAX_VALUE, Duration.ZERO, meters, Encoding(id, codec, actor), recovered, down)
     return producer to actor
 }
 
