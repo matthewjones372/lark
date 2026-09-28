@@ -5,8 +5,11 @@ import io.github.matthewjones372.lark.actor.FeedContract
 import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.PruneContract
+import io.github.matthewjones372.lark.actor.Slices
 import io.github.matthewjones372.lark.clock
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 import javax.sql.DataSource
@@ -21,9 +24,10 @@ private fun List<FeedEvent>.ids() = map { "${it.id.id}#${it.sequence}" }
 /** An append that has taken its place in the feed and not yet committed, on a connection of its own. */
 private fun DataSource.pending(id: String): Connection = connection.apply {
     autoCommit = false
-    prepareStatement("insert into lark_journal (kind, id, seq_nr, bytes) values ('order', ?, 1, ?)").use {
+    prepareStatement("insert into lark_journal (kind, id, seq_nr, bytes, slice) values ('order', ?, 1, ?, ?)").use {
         it.setString(1, id)
         it.setBytes(2, "pending".toByteArray())
+        it.setInt(3, Slices.of(PersistenceId("order", id)))
         it.executeUpdate()
     }
 }
@@ -89,6 +93,27 @@ abstract class FeedGaps {
 
             moving.adjust(10.seconds)
             journal.after("order", 0, 20).ids() shouldContainExactly (0..5).map { "o-$it#1" }
+        }
+    }
+
+    @Test
+    fun `partitions by slice read every event once between them, and none reads past a gap in another's slices`() {
+        val source = source()
+        val journal = JdbcJournal(source)
+        (1..100).forEach { journal.put("o-$it") }
+        val open = source.pending("gap")
+        (101..200).forEach { journal.put("o-$it") }
+        val quarters = (0 until 4).map { k -> k * Slices.COUNT / 4 until (k + 1) * Slices.COUNT / 4 }
+
+        val before = quarters.flatMap { journal.after("order", it, 0, 1_000) }
+        before.ids() shouldContainExactlyInAnyOrder (1..100).map { "o-$it#1" }
+
+        open.use { it.commit() }
+        val all = quarters.map { journal.after("order", it, 0, 1_000) }
+        all.flatten().ids() shouldContainExactlyInAnyOrder (1..200).map { "o-$it#1" } + "gap#1"
+        all.forEachIndexed { k, events ->
+            events.all { Slices.of(it.id) in quarters[k] } shouldBe true
+            events.map { it.offset } shouldBe events.map { it.offset }.sorted()
         }
     }
 

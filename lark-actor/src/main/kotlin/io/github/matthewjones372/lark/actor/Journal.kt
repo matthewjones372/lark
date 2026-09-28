@@ -61,12 +61,12 @@ interface JournalPruning {
 
 /**
  * A journal in memory, for tests and for a service that can lose its events. It keeps copies of the bytes, is a
- * [JournalFeed] whose offsets count appended events (appends take turns, so no offset is seen before a smaller one),
+ * [SlicedFeed] whose offsets count appended events (appends take turns, so no offset is seen before a smaller one),
  * and prunes.
  */
 class InMemoryJournal :
     Journal,
-    JournalFeed,
+    SlicedFeed,
     JournalPruning {
     private val kept = ConcurrentHashMap<PersistenceId, List<StoredEvent>>()
     private val feed = ConcurrentSkipListMap<Long, FeedEvent>()
@@ -99,10 +99,15 @@ class InMemoryJournal :
         }
     }
 
-    override fun after(kind: String, offset: Long, limit: Int): List<FeedEvent> =
+    override fun after(kind: String, offset: Long, limit: Int): List<FeedEvent> = after(kind, ALL, offset, limit)
+
+    override fun after(kind: String, slices: IntRange, offset: Long, limit: Int): List<FeedEvent> =
         feed.tailMap(offset, false).values.asSequence()
-            .filter { it.id.kind == kind }
+            .filter { it.id.kind == kind && (slices == ALL || Slices.of(it.id) in slices) }
             .take(limit)
             .map { FeedEvent(it.offset, it.id, it.sequence, it.bytes.copyOf()) }
             .toList()
 }
+
+/** Every slice. */
+private val ALL = 0 until Slices.COUNT

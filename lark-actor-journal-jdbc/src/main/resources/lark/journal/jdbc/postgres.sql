@@ -13,6 +13,8 @@ create table lark_journal (
 create unique index lark_journal_ordering on lark_journal (ordering);
 create index lark_journal_kind_ordering on lark_journal (kind, ordering);
 create index lark_journal_slice on lark_journal (slice);
+-- A partition of a read model reads its own slices in the feed's order (spec 0106).
+create index lark_journal_kind_slice on lark_journal (kind, slice, ordering);
 
 -- Slices this database refuses appends for (spec 0105): given to another database, or on their way to one.
 create table lark_journal_fenced (
