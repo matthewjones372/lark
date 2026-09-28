@@ -19,11 +19,18 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import javax.sql.DataSource
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toKotlinDuration
 
 /** The SQL state every database gives a duplicate key: another writer took the sequence number first. */
 internal const val DUPLICATE_KEY = "23505"
+
+/**
+ * How long a gap is held on Postgres before its horizon is trusted: an append's transaction is given its id a moment
+ * after it takes its `ordering`.
+ */
+private val SETTLE = 1.seconds
 
 /**
  * A [Journal] in one `lark_journal` table, reached through [dataSource], so that every node that reaches the same
@@ -36,18 +43,32 @@ internal const val DUPLICATE_KEY = "23505"
  *
  * It is a [JournalFeed] too (spec 0075), its offsets the table's `ordering`. An append takes its `ordering` when it
  * inserts and is seen when it commits, so a smaller one can commit after a larger one is read: the feed answers
- * nothing past a missing `ordering` until it fills, or until it has been missing for [gapTimeout], after which it is
- * taken for an append that never committed and passed, with a warning.
+ * nothing past a missing `ordering` until it fills, or until it is known never to: then it is taken for an append
+ * that never committed and passed, with a warning. On Postgres that is once every transaction running when the gap
+ * was first seen has ended (spec 0100), so an append whose writer is slow to commit, however slow, is waited for,
+ * and one rolled back is passed within a second; [longestAppend] bounds the wait for a writer that never ends. On a
+ * database without transaction snapshots, H2, it is once the gap has been missing for [gapTimeout].
  */
-class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Duration = 10.seconds) :
+class JdbcJournal(
+    private val dataSource: DataSource,
+    private val gapTimeout: Duration = 10.seconds,
+    private val longestAppend: Duration = 10.minutes,
+) :
     Journal,
     JournalFeed,
     JournalPruning {
 
     private val time = clock.get()
 
-    /** Each `ordering` found missing, and when it was first found so. */
-    private val gaps = ConcurrentHashMap<Long, Instant>()
+    /** A missing `ordering`: when it was first found so, and on Postgres the snapshot's `xmax` then. */
+    private class Gap(val seen: Instant, val xmax: Long?)
+
+    /** Each `ordering` found missing. */
+    private val gaps = ConcurrentHashMap<Long, Gap>()
+
+    // Whether the database has transaction snapshots to read, asked once.
+    @Volatile
+    private var snapshots: Boolean? = null
 
     /** The `ordering`s missing for longer than [gapTimeout], which the feed reads past. */
     private val passed = ConcurrentHashMap.newKeySet<Long>()
@@ -186,6 +207,7 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
         }
         val seen = read.mapTo(HashSet()) { it.offset }
         val now = time.now()
+        val horizon = horizon()
         // Every ordering is looked at, not only up to the first held back: each gap's wait starts when the feed
         // first sees it, so gaps seen together pass together, not one gapTimeout after another.
         return (offset + 1 until top).associateWith { ordering ->
@@ -196,8 +218,9 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
                 ordering in passed || pruned.any { ordering in it } -> false
 
                 else -> {
-                    val waited = java.time.Duration.between(gaps.computeIfAbsent(ordering) { now }, now)
-                    val holding = waited.toKotlinDuration() < gapTimeout
+                    val gap = gaps.computeIfAbsent(ordering) { Gap(now, horizon?.xmax) }
+                    val waited = java.time.Duration.between(gap.seen, now)
+                    val holding = holds(gap, waited.toKotlinDuration(), horizon)
                     if (!holding && passed.add(ordering)) {
                         gaps.remove(ordering)
                         logWarn("the feed passes ordering $ordering, missing for $waited: an append never committed")
@@ -206,6 +229,34 @@ class JdbcJournal(private val dataSource: DataSource, private val gapTimeout: Du
                 }
             }
         }.entries.firstOrNull { (_, holds) -> holds }?.key
+    }
+
+    /** Postgres's view of which transactions are running: every one below [xmin] has ended. */
+    private class Horizon(val xmin: Long, val xmax: Long)
+
+    /**
+     * Whether a gap is still to be waited on. A gap's `ordering` was taken by a transaction running when the gap was
+     * first seen, or by one that had not yet been given its id (a moment, which [SETTLE] covers): once the oldest
+     * running transaction is newer than every one then, nothing can fill it.
+     */
+    private fun holds(gap: Gap, waited: Duration, horizon: Horizon?): Boolean = when {
+        horizon == null || gap.xmax == null -> waited < gapTimeout
+        waited < SETTLE -> true
+        else -> horizon.xmin < gap.xmax && waited < longestAppend
+    }
+
+    /** The running transactions' horizon, on a database that has one; null on any other. */
+    private fun Connection.horizon(): Horizon? {
+        if (snapshots == null) snapshots = metaData.databaseProductName == "PostgreSQL"
+        if (snapshots != true) return null
+        return statement(
+            "select pg_snapshot_xmin(s)::text, pg_snapshot_xmax(s)::text from (select pg_current_snapshot() as s) t",
+        ) { select ->
+            select.executeQuery().use { rows ->
+                rows.next()
+                Horizon(rows.getString(1).toULong().toLong(), rows.getString(2).toULong().toLong())
+            }
+        }
     }
 
     /**
