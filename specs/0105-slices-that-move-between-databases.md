@@ -26,9 +26,7 @@ ShardedSnapshots(snapshotStores, slices)
 // db-0: 0..511, db-1: 512..1023   — written once, as version 1, by the rule used before
 ```
 
-**Each row carries its slice.** `lark_journal.slice` is set on append. A journal created before this spec adds the
-column with the changelog's `lark:0105-slices` changeset, then runs `JdbcJournal.fillSlices()` until it answers 0; a move refuses to start
-while any row has none.
+**Each row carries its slice.** `lark_journal.slice` is set on append, and is never null.
 
 **Each database refuses the slices it has given away.** They are listed in its own `lark_journal_fenced`, and an
 append's insert checks the list in the same statement. A refused append throws `SliceElsewhere`; `ShardedJournal`

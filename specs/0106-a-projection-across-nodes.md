@@ -45,8 +45,6 @@ cluster.spread("statements", 8) { k ->                  // 8 workers, as even as
   as soon as it is placed, with no message sent, and moved by the singleton's handoff when that member leaves or is
   downed. Each worker goes to the member that scores highest for it among those still short of their share, so the
   workers are as even as they can be and a change of members moves few besides those it must.
-- A partitioned projection refuses to start while any row has no slice: `JdbcJournal.fillSlices` first.
-- The changelog's `lark:0106-kind-slice` changeset adds the index to a journal created before this spec.
 
 ## Why this shape
 
@@ -84,5 +82,5 @@ oldest node, and entities never passivated would need a message to start and aga
 2. **Should the watermark reader be a singleton per database?** No: one per journal, on each node, shared by every
    feed there. Any node's watermark is safe on its own, since it only ever passes what the gap rule passes; a
    singleton would add a hop and a way to fail, to save a query over orderings alone.
-3. **Filling `slice` on a large existing journal:** online, in batches by ordering (`JdbcJournal.fillSlices`, spec
-   0105), with the partitioned feed refusing to start until it is complete.
+3. **Filling `slice` on a large existing journal:** not needed: no journal predates the column (spec 0107), and every
+   row has one.

@@ -57,9 +57,6 @@ class SliceMover(
         require(sourceName != target) { "slices $slices are already on $target" }
         val source = database(sourceName)
         val into = database(target)
-        check(source.connection.use { !it.unsliced() }) {
-            "$sourceName has rows with no slice: run JdbcJournal.fillSlices until it answers 0"
-        }
         val range = "$slices $sourceName->$target"
         step(range, "copy") { repeat(2) { copy(source, into, slices) } }
         val fencedOnTarget = into.connection.use { it.fenced(slices) }
@@ -149,11 +146,6 @@ class SliceMover(
         }
     }
 }
-
-private fun Connection.unsliced(): Boolean =
-    statement("select 1 from lark_journal where slice is null fetch first 1 rows only") {
-        it.executeQuery().use { rows -> rows.next() }
-    }
 
 /** Each id in [slices] and its last sequence number here. */
 @Suppress("MagicNumber") // column indices

@@ -23,30 +23,25 @@ nothing asked for.
 
 ## Shape
 
-`postgres.sql` becomes a Liquibase changelog in formatted SQL, with a changeset per change; `h2.sql` goes.
+`postgres.sql` becomes a Liquibase changelog in formatted SQL, one changeset holding every table; `h2.sql` goes.
+No journal has been deployed, so nothing is carried over: no changeset per past spec, no `if not exists`, and no
+conversion of earlier columns. `lark_journal.slice` is `not null`, so `JdbcJournal.fillSlices` and the checks for
+rows without a slice go with it.
 
 ```sql
 --liquibase formatted sql
 
 --changeset lark:journal
-create table if not exists lark_journal (kind text not null, id text not null, ...);
-
---changeset lark:0105-slices
-alter table lark_journal add column if not exists slice integer;
-
---changeset lark:0106-kind-slice runInTransaction:false
-create index concurrently if not exists lark_journal_kind_slice on lark_journal (kind, slice, ordering);
-
---changeset lark:text
-alter table lark_journal alter column kind type text, alter column id type text;
+create table lark_journal (kind text not null, id text not null, ..., slice integer not null, ...);
+create index lark_journal_kind_slice on lark_journal (kind, slice, ordering);
+-- and the pruned, fenced, slices, moves, snapshot and offset tables
 ```
 
 A service includes it from its own changelog, `<include file="lark/journal/jdbc/postgres.sql"/>`, or runs it
 through `lark-app-liquibase`: as a graph node (`migrations(...)`, as before) or now (`migrate(source, changelog)`).
 
-Every changeset is written `if not exists`, so a database made from the plain DDL, before the changelog existed,
-takes the changelog up by running each changeset as a no-op. `lark:text` turns the old `varchar(255)` columns into
-`text`, which Postgres does in its catalogue alone.
+A later change to the tables is a new changeset after `lark:journal`, never an edit to it: Liquibase refuses a
+changelog whose applied changesets have changed.
 
 Every test that needs a database runs on Postgres in a container (Testcontainers), through one fixture,
 `lark-actor-journal-jdbc`'s `Postgres`: `fresh()` with the changelog applied, `empty()` without. The benchmarks
@@ -54,9 +49,8 @@ start theirs the same way. The sample bank keeps its journal in memory by defaul
 
 ## Why this shape
 
-Changesets that only add mean a new table or index is a new changeset, and no checksum of one that has run
-changes. Writing each `if not exists` is simpler than a precondition per changeset for adopting existing databases.
-Formatted SQL keeps the DDL readable as DDL, where XML or YAML changelogs would not. One database for the tests is
+One changeset is the whole schema as it stands, readable in one place; changes from here on add changesets, so
+no checksum of one that has run changes. Formatted SQL keeps the DDL readable as DDL, where XML or YAML changelogs would not. One database for the tests is
 the one services run; a container, not an embedded binary, is the same Postgres they deploy.
 
 ## Stack
@@ -64,9 +58,10 @@ the one services run; a container, not an embedded binary, is the same Postgres 
 - [x] **`liquibase-changelogs`** — the changelog, the 0105 and 0106 files folded into it, `text` for strings,
       `migrate` in `lark-app-liquibase`, and H2 gone: every test, benchmark and the sample bank on Postgres in a
       container, the changelog applied by Liquibase.
-      Done when: a fresh database takes four changesets, then none, with every string column `text`; and a journal
-      made by the DDL from before 0105, with `varchar`, takes the changelog up, keeps its events, fills their slices
-      and ends with `text`.
+      Done when: a fresh database takes the changelog once, then nothing, with every string column `text`.
+- [x] **`one-changeset`** — the changesets collapsed into `lark:journal`, `slice` not null, and `fillSlices` and the
+      unsliced checks gone.
+      Done when: `./gradlew build` passes with no journal code or test that expects a row without a slice.
 
 ## Acceptance
 
