@@ -103,6 +103,9 @@ internal class Placing<M : Any, H : Any>(
         is Region.Drain -> drain(ctx)
 
         is Region.AskAgain -> askAgain(ctx)
+
+        // Taken before this step, in the region's behaviour.
+        is Region.Look -> Unit
     }
 
     /** A shard's manager has stopped, and every entity of the shard with it. */

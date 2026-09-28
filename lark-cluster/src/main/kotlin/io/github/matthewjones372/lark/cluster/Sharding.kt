@@ -5,6 +5,7 @@ import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Behaviour
 import io.github.matthewjones372.lark.actor.Ctx
 import io.github.matthewjones372.lark.actor.Entities
+import io.github.matthewjones372.lark.actor.PlumbingSeam
 import io.github.matthewjones372.lark.actor.Producer
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.behaviour
@@ -22,6 +23,8 @@ import io.github.matthewjones372.lark.actor.remote.outbox
 import io.github.matthewjones372.lark.actor.resumedProducer
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.actor.tellIfRoom
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.time.Duration
@@ -79,6 +82,9 @@ internal sealed interface Region<M : Any> {
 
     /** A region's own timer, to ask again for the shards it won that a member has not yet released. */
     class AskAgain<M : Any> : Region<M>
+
+    /** A new view is waiting to be taken, told only if the region has room: it takes the view before any step. */
+    class Look<M : Any> : Region<M>
 }
 
 private const val ENVELOPE = 1
@@ -107,7 +113,7 @@ private class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : Message
             out.string(message.by.toString())
         }
 
-        is Region.Viewed, is Region.Retry, is Region.Drain, is Region.AskAgain ->
+        is Region.Viewed, is Region.Retry, is Region.Drain, is Region.AskAgain, is Region.Look ->
             error("$message never leaves its node")
     }
 
@@ -236,9 +242,17 @@ internal fun <M : Any, H : Any> Cluster.region(
         buffered = flock.gauge("lark.sharding.buffered", "kind" to kind),
     )
     val placing = Placing(this, shards, wire, path, hosting, meters)
+    // The newest view only, set by the cluster actor and taken by the region before its next step: the cluster actor
+    // never waits on, or fails at, a full region, and a region that was full routes by the newest view (spec 0101).
+    val latest = AtomicReference<Region.Viewed<M>?>()
     val region = flock.spawn(
         path.removePrefix("/user/"),
-        behaviour<Region<M>, Unit>(Unit) { ctx, _, step -> stay().also { placing.step(ctx, step) } }
+        behaviour<Region<M>, Unit>(Unit) { ctx, _, step ->
+            stay().also {
+                latest.getAndSet(null)?.let { viewed -> placing.step(ctx, viewed) }
+                if (step !is Region.Look) placing.step(ctx, step)
+            }
+        }
             .onSignal { ctx, _, signal ->
                 when (signal) {
                     is Signal.Terminated -> placing.ended(ctx, signal.ref)
@@ -248,7 +262,11 @@ internal fun <M : Any, H : Any> Cluster.region(
             },
     )
     remote.expose(region, wire)
-    onView { region.tell(Region.Viewed(it, balance.moved[kind].orEmpty())) }
+    onView { view ->
+        latest.set(Region.Viewed(view, balance.moved[kind].orEmpty()))
+        @OptIn(PlumbingSeam::class)
+        region.tellIfRoom(Region.Look())
+    }
     return region
 }
 
