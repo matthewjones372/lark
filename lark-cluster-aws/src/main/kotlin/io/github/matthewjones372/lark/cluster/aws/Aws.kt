@@ -77,7 +77,6 @@ object Aws {
      * item [lease] in the DynamoDB [table]. Both clients are the SDK's defaults, from the task's own role and region,
      * and closing the joining closes them (spec 0096).
      */
-    @Suppress("LongParameterList")
     fun ecs(
         cluster: String,
         service: String,
@@ -91,7 +90,6 @@ object Aws {
     }
 
     /** Joining through the Cloud Map [service] in [namespace], as [ecs] does through an ECS service. */
-    @Suppress("LongParameterList")
     fun cloudMap(
         namespace: String,
         service: String,
@@ -104,7 +102,6 @@ object Aws {
         cloudMap(it, namespace, service, port)
     }
 
-    @Suppress("LongParameterList")
     internal fun <C : SdkClient> joining(
         open: () -> C,
         openDynamo: () -> DynamoDbClient,

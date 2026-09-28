@@ -63,7 +63,6 @@ object Kubernetes {
         stableAfter: Duration = 20.seconds,
     ): Joining = joining({ KubernetesClientBuilder().build() }, selector, port, lease, namespace, holdFor, stableAfter)
 
-    @Suppress("LongParameterList")
     internal fun joining(
         open: () -> KubernetesClient,
         selector: Map<String, String>,

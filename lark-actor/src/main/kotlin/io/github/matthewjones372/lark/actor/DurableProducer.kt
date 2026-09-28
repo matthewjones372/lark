@@ -31,7 +31,6 @@ import kotlin.time.Duration.Companion.seconds
  * throws restarts its actor, 100 ms after the first throw and doubling to 5 s, and the restart replays what was
  * written; until a replay succeeds, `send` answers [Unwritten] at once (spec 0098).
  */
-@Suppress("LongParameterList")
 fun <F, M : Any> Flock<F>.durableProducer(
     id: String,
     codec: EventCodec<M>,
@@ -55,7 +54,6 @@ fun <F, M : Any> Flock<F>.durableProducer(
 }
 
 /** A durable producer among these test actors, as [Flock.durableProducer]; its resends wait on [TestActors.advance]. */
-@Suppress("LongParameterList")
 fun <M : Any> TestActors.durableProducer(
     id: String,
     codec: EventCodec<M>,
@@ -144,7 +142,6 @@ private const val SNAPSHOT_EVERY = 1_000
 private data object Recovered
 
 /** The durable producer's actor: [producing]'s protocol, with each command kept and confirmed in the journal first. */
-@Suppress("LongParameterList")
 private fun <M : Any> outbox(
     producer: String,
     codec: EventCodec<M>,
@@ -221,7 +218,6 @@ private inline fun <M : Any, S, E> Raise<E>.told(
     }.bind()
 
 /** What a durable producer does with each message; the journal has the rest. */
-@Suppress("LongParameterList")
 private class OutboxSteps<M : Any>(
     private val producer: String,
     private val codec: EventCodec<M>,

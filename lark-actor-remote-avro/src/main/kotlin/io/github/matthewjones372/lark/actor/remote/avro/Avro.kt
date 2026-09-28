@@ -36,7 +36,6 @@ object Avro {
      * An ask whose request is a record of [type]: [make] a message of [Q] from the request and the reply, which
      * crosses as a lark reply answered in [answers], beside the record.
      */
-    @Suppress("LongParameterList")
     fun <R : SpecificRecord, A : Any, Q : Any> asked(
         type: Class<R>,
         schemas: SchemaStore,
