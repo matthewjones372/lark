@@ -135,4 +135,23 @@ class MembershipTest {
         net.until { listOf(2, 3).all { net.view(it).up().toSet() == setOf(at(2), at(3)) } } shouldBe true
         net.view(2).members.first { it.node == at(1) }.status shouldBe Status.Down
     }
+
+    @Test
+    fun `the lowest seed restarted while its welcome is slow joins the cluster it hears, and forms no second one`() {
+        val net = Net().apply { fiveUp() }
+        // The earlier life is gone as the new one starts at its address.
+        net.start(1, seeds(1, 2, 3), uid = 11)
+        net.loseJoinsFrom(1)
+
+        // Well past formAfter, while the others still probe the earlier life at its address.
+        net.until(steps = 100) { false }
+        withClue("a restarted seed that heard the cluster does not form its own") {
+            net.view(1).members.none { it.uid == 11L && it.status == Status.Up } shouldBe true
+        }
+
+        net.hearJoinsFrom(1)
+        net.until { (1..5).all { v -> net.view(v).members.any { it.uid == 11L && it.status == Status.Up } } } shouldBe
+            true
+        (1..5).map { net.view(it).members.count { m -> m.status == Status.Up } }.distinct() shouldBe listOf(5)
+    }
 }
