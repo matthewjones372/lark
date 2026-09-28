@@ -30,7 +30,7 @@ val benchmarkRuntimeClasspath = the<SourceSetContainer>()["main"].runtimeClasspa
 // Named rather than inherited: a task registered by hand does not pick up the Kotlin toolchain, and
 // a number measured on whichever JDK ran the daemon is a number nobody can reproduce.
 val toolchains = extensions.getByType<JavaToolchainService>()
-val benchmarkJdk = JavaLanguageVersion.of(21)
+val benchmarkJdk = JavaLanguageVersion.of(25)
 val toolchainLauncher = toolchains.launcherFor { languageVersion.set(benchmarkJdk) }
 
 val generateBenchmarkStubs = tasks.register<JavaExec>("generateBenchmarkStubs") {

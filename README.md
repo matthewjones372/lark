@@ -360,10 +360,12 @@ fun maybe(id: Id): Either<Err, Quote?> = either {
 against a sleeper with the loser interrupted, so a block that does not answer in
 time ends at its next interruptible call rather than being abandoned.
 
-Virtual threads are why the floor is JDK 21. Before JDK 24 a blocking call
-inside a `synchronized` block — which some JDBC drivers still make — pins its
-carrier thread instead of parking it, so a service on 21 can still run out of
-carriers; JEP 491 removes that pinning in 24.
+The floor is JDK 25. Before JDK 24 a blocking call inside a `synchronized`
+block pins its carrier thread instead of parking it, so a service on 21 can run
+out of carriers, and did: lark-bank's load generator deadlocked on 21 with every
+carrier pinned inside Jackson's serializer cache. JEP 491 removes that pinning
+in 24, and 25 is the LTS that has it. The Gradle plugin and the compiler plugin
+still compile for 21, as they run inside whatever JDK the build tools are on.
 
 ## Status
 

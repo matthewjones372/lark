@@ -143,7 +143,6 @@ class Effects<Ev, S> internal constructor() {
  * the actor stops, and handled again after that, where it changes nothing the journal holds. One its step stashes is
  * not remembered until it is handled once put back.
  */
-@Suppress("LongParameterList")
 fun <M : Any, Ev, S> persistent(
     id: PersistenceId,
     empty: S,
@@ -208,7 +207,6 @@ fun <M : Any, Ev, S> persistent(
 }
 
 /** The newest snapshot, if any, and every event after it folded in: where a start and a restart begin. */
-@Suppress("LongParameterList")
 private fun <M : Any, Ev, S> recovered(
     id: PersistenceId,
     empty: S,
@@ -282,7 +280,6 @@ private class Deciding<M : Any, Ev, S>(
  * A batch of [messages] decided in turn, each against the state the one before left, and every event and delivery
  * mark among them written in one append; then each `then` runs, in order, with the state its own command left.
  */
-@Suppress("LongParameterList")
 private fun <M : Any, Ev, S> Raise<JournalConflict>.decided(
     id: PersistenceId,
     snapshots: Snapshotting<S>?,
@@ -333,7 +330,6 @@ private fun Map<String, Long>.after(delivery: Delivery?): Map<String, Long> =
  * Saves [reached] if the persist from [before] crossed a multiple of [how]'s `every`, and then, when [how] prunes,
  * deletes from [journal] the events the snapshot before it covers. A failed save or deletion is logged.
  */
-@Suppress("LongParameterList")
 private fun <S> SnapshotStore.snapshot(
     id: PersistenceId,
     before: Long,

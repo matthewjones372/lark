@@ -53,7 +53,6 @@ object Projection {
      * ends by itself: a run's `stop()` wakes it. Each event is handled at least once; end it with `runProjecting`. The
      * marks persistent entities write of reliable deliveries (spec 0079) are skipped.
      */
-    @Suppress("LongParameterList")
     fun <E : Any> follow(
         feed: JournalFeed,
         kind: String,
@@ -72,7 +71,6 @@ object Projection {
      * follow every event of [kind] once, each id's in order. The feed must know every event's slice: one with rows
      * from before spec 0105 filled in is refused until `JdbcJournal.fillSlices` has run.
      */
-    @Suppress("LongParameterList")
     fun <E : Any> partitioned(
         feed: SlicedFeed,
         kind: String,

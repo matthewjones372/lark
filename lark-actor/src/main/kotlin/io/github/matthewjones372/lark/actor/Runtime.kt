@@ -41,7 +41,6 @@ import kotlin.time.Duration
  * stash keeps at most [stash] messages, and so do its children's. An [urgent] actor is run before any other the
  * flock's runners have waiting (spec 0104): for the few whose lateness the whole node pays for, such as the cluster's.
  */
-@Suppress("LongParameterList")
 fun <F, M : Any, S, E> Flock<F>.spawn(
     name: String,
     behaviour: Behaviour<M, S, E>,

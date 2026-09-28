@@ -154,7 +154,6 @@ class Sharded<M : Any> internal constructor(
      * node to send what it kept, and retires it when all is confirmed. Its commands implement `Delivered.redeliver`,
      * and `send` returns once each is written.
      */
-    @Suppress("LongParameterList")
     fun reliable(
         producerId: String,
         resendAfter: Duration = Sharding.RESEND_AFTER,

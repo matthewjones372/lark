@@ -69,7 +69,6 @@ class ParityTest {
 
     private val sorted: (Any) -> Any = { (it as List<*>).map { n -> n as Int }.sorted() }
 
-    @Suppress("LongMethod")
     internal fun cases(): List<Case> = listOf(
         Case("Stream.of", done(listOf(1, 2, 3))) { Stream.of(1, 2, 3).all() },
         Case("Stream.single", done(listOf(7))) { Stream.single(7).all() },

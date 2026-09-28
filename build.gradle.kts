@@ -155,7 +155,10 @@ subprojects {
     version = scmVer
 
     extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
-        jvmToolchain(21)
+        // 25: the first LTS where a virtual thread blocked in `synchronized` no longer pins its carrier, which
+        // every library here runs on. What runs inside the build tools stays at 21, the JDK a Gradle daemon or a
+        // Kotlin daemon may still be on: the Gradle plugin and the compiler plugin it registers.
+        jvmToolchain(if (project.name in setOf("lark-app-gradle", "lark-app-compiler")) 21 else 25)
 
         compilerOptions {
             // A warning nobody reads is a defect nobody fixed; the build says so.

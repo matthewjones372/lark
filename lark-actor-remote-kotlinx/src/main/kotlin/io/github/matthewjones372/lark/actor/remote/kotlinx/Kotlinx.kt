@@ -58,7 +58,6 @@ object Kotlinx {
      * An ask whose request is a `@Serializable` class: [make] a message of [Q] from the request and the reply, which
      * crosses as a lark reply answered in [answers], beside the request's bytes.
      */
-    @Suppress("LongParameterList")
     fun <R : Any, A : Any, Q : Any> asked(
         request: KSerializer<R>,
         answers: MessageCodec<A>,

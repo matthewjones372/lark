@@ -29,13 +29,13 @@ jobs:
           fetch-depth: 0
 
       # 27 for lark-structured's toolchain, installed rather than left to Gradle, whose download of
-      # 27 is an Alpine build that does not run here; 21, listed last, is what Gradle runs on.
+      # 27 is an Alpine build that does not run here; 25, listed last, is what Gradle runs on.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: |
             27
-            21
+            25
 
       - uses: gradle/actions/setup-gradle@v4
 

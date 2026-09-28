@@ -145,7 +145,6 @@ private class Numbering<M : Any>(private val producer: String, private val actor
  * up to [drainWithin] for what it keeps to be confirmed before its actor stops, so a service that stops does not lose
  * what it has sent (spec 0080); a [drainWithin] of zero loses it, as a crash does.
  */
-@Suppress("LongParameterList")
 fun <F, M : Any> Flock<F>.producer(
     id: String,
     resendAfter: Duration = 2.seconds,

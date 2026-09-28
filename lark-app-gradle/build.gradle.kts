@@ -87,4 +87,7 @@ tasks.test {
     // download and a dependency graph to resolve, and the 60s this build gives every other test is
     // the wrong order of magnitude. It passed here and timed out on the first CI run there was.
     systemProperty("junit.jupiter.execution.timeout.default", "10m")
+    // The plugin compiles for 21, as it runs inside whatever JDK Gradle is on, but a project using lark-app
+    // compiles for 25, lark-app's floor: its TestKit builds run on 25, which their Kotlin then targets.
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(25)) })
 }
