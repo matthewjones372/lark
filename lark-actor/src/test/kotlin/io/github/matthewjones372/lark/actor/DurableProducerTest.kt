@@ -7,6 +7,7 @@ import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.logger
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.comparables.shouldBeLessThan
@@ -30,10 +31,15 @@ private data class TopUp(val pence: Long, override val delivery: Delivery) : Del
     override fun redeliver(delivery: Delivery) = copy(delivery = delivery)
 }
 
+/** Tops a wallet up, and cannot be sent again with a new delivery. */
+private data class OneOff(override val delivery: Delivery) : Delivered
+
 /** A top-up as a durable producer keeps it: the pence and whose it is, with nowhere to confirm to. */
 private val topUpCodec = object : EventCodec<TopUp> {
-    override fun encode(event: TopUp): ByteArray =
-        with(event.delivery) { "${event.pence}|$producer|$to|$sequence" }.toByteArray()
+    override fun encode(event: TopUp): ByteArray {
+        require(event.pence >= 0) { "a top-up of ${event.pence} is refused" }
+        return with(event.delivery) { "${event.pence}|$producer|$to|$sequence" }.toByteArray()
+    }
 
     override fun decode(bytes: ByteArray): TopUp {
         val (pence, producer, to, sequence) = String(bytes).split("|")
@@ -273,4 +279,53 @@ class DurableProducerTest {
             LogLevel.Info to "producer till writes to its journal again",
         )
     }
+
+    @Test
+    fun `a command the codec refuses, or that cannot be sent again, throws to its sender and holds no room`() {
+        testActors {
+            val wallets = ids.associateWith { spawn(it, wallet(it)) }
+            val producer =
+                durableProducer("till", topUpCodec, keep = 1, within = Duration.ZERO) { wallets.getValue(it) }
+            val oneOffs = object : EventCodec<OneOff> {
+                override fun encode(event: OneOff) = event.delivery.to.toByteArray()
+
+                override fun decode(bytes: ByteArray) = OneOff(Delivery("till", String(bytes), 0, Delivery.NoOne))
+            }
+
+            shouldThrow<IllegalArgumentException> { producer.send("w-0") { TopUp(-1, it) } }
+            shouldThrow<UnsupportedOperationException> {
+                durableProducer("once", oneOffs) { void<OneOff>() }.send("w-0", ::OneOff)
+            }
+            producer.send("w-0") { TopUp(3, it) } shouldBe Unit.right()
+
+            journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(3L)
+            journal.read(PersistenceId("lark-producer", "once")) shouldBe emptyList()
+            producer.drain(Duration.ZERO) shouldBe true
+        }
+    }
+
+    @Test
+    fun `a start that recovers more than it may keep drains only once every one is confirmed`() {
+        testActors {
+            val crashed = durableProducer("till", topUpCodec) { nowhere }
+            for (n in 1..5) crashed.send("w-0") { TopUp(n.toLong(), it) }
+            val arrived = ArrayDeque<TopUp>()
+            val wallet =
+                spawn("wallet", behaviour<TopUp, Unit>(Unit) { _, _, topUp -> stay().also { arrived += topUp } })
+
+            val again = durableProducer("till", topUpCodec, keep = 2) { wallet }
+            repeat(2) { arrived.removeFirst().delivery.confirm() }
+            again.drain(Duration.ZERO) shouldBe false
+
+            repeat(3) { arrived.removeFirst().delivery.confirm() }
+            again.drain(Duration.ZERO) shouldBe true
+        }
+    }
+}
+
+/** Tells nobody: an entity whose node has gone. */
+private fun <M : Any> void(): ActorRef<M> = object : ActorRef<M> {
+    override val address = Address("test", "/void", 0)
+
+    override fun tell(message: M) = Unit
 }
