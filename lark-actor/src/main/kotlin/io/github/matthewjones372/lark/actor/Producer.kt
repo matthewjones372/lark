@@ -13,6 +13,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -32,42 +34,42 @@ data class Unwritten(val cause: Throwable) : NotSent
  * arrive in the order they were sent, however many copies are lost.
  */
 class Producer<M : Any> internal constructor(
-    private val actor: ActorRef<Any>,
     private val room: Semaphore,
     private val keep: Int,
     private val within: Duration,
     private val meters: ProducerMeters,
-    private val durable: Boolean = false,
+    private val keeping: Keeping<M>,
     private val recovered: CountDownLatch? = null,
     private val down: AtomicReference<Throwable?>? = null,
 ) {
     /**
      * Keeps the command [command] builds for entity [to] and returns, or waits up to `within` while the producer
-     * keeps as many as it may, and then answers [Full]. [command] may be called again for each resend. A durable
-     * producer returns once the command is written to its journal, and answers [Full] too if that takes longer than
-     * `within`; such a command may still be written, and then sent (spec 0085). It answers [Unwritten] when its
-     * journal throws, and at once while it is down, until a restart reads the journal again (spec 0098).
+     * keeps as many as it may, and then answers [Full]. [command] runs once, on the caller's thread, so what it
+     * throws reaches the caller and nothing is kept. A durable producer encodes the command there too, and so throws
+     * for one its codec refuses; it returns once the command is written to its journal, and answers [Full] too if
+     * that takes longer than `within`, when such a command may still be written, and then sent (spec 0085). It
+     * answers [Unwritten] when its journal throws, and at once while it is down, until a restart reads the journal
+     * again (spec 0098).
      */
     fun send(to: String, command: (Delivery) -> M): Either<NotSent, Unit> {
         down?.get()?.let { cause -> return unwritten(cause) }
-        if (!room.tryAcquire(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) {
-            meters.full.increment()
-            return Full.left()
+        if (!room.tryAcquire(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return full()
+        var kept: Handed? = null
+        try {
+            kept = keeping.keep(to, command)
+        } finally {
+            // A command that failed to build, or found the producer's own mailbox full, holds no room.
+            if (kept == null) room.release()
         }
-        if (!durable) {
-            actor.tell(KeepCommand(to, command))
-            return Unit.right()
-        }
-        val asked = KeepDurably(to, command)
-        actor.tell(asked)
-        return when (val answer = asked.answer(within)) {
-            null -> {
-                meters.full.increment()
-                Full.left()
-            }
-
+        return when (val answer = kept?.answer(within)) {
+            null -> full()
             else -> answer.fold({ unwritten(it) }, { Unit.right() })
         }
+    }
+
+    private fun full(): Either<NotSent, Unit> {
+        meters.full.increment()
+        return Full.left()
     }
 
     private fun unwritten(cause: Throwable): Either<NotSent, Unit> {
@@ -89,6 +91,54 @@ class Producer<M : Any> internal constructor(
 }
 
 /**
+ * How a [Producer] hands a command to its actor, on the caller's thread: what `send` waits on, or null when the
+ * actor's mailbox is full.
+ */
+internal fun interface Keeping<M : Any> {
+    fun keep(to: String, command: (Delivery) -> M): Handed?
+}
+
+/** A command handed to a producer's actor, as `send` waits on it. */
+internal fun interface Handed {
+    /** Right once kept, the journal's throw once refused, or null when neither came within [within]. */
+    fun answer(within: Duration): Either<Throwable, Unit>?
+}
+
+/** Kept already: an in-memory producer's command is kept once its actor has it. */
+private val HANDED = Handed { Unit.right() }
+
+/**
+ * [message] told, or false when this is an actor's thread and the mailbox it reaches is full: a tell from an actor
+ * never waits for room, and throws instead.
+ */
+@Suppress("SwallowedException")
+internal fun <M : Any> ActorRef<M>.handed(message: M): Boolean = try {
+    tell(message)
+    true
+} catch (_: IllegalStateException) {
+    false
+}
+
+/**
+ * An in-memory producer's numbering, on the caller's thread: each command is built there, once, with its number, and
+ * handed to [actor] under one lock, so the actor has each entity's commands in the order they were numbered.
+ */
+private class Numbering<M : Any>(private val producer: String, private val actor: ActorRef<Any>) : Keeping<M> {
+    private val lock = ReentrantLock()
+    private val next = HashMap<String, Long>()
+
+    override fun keep(to: String, command: (Delivery) -> M): Handed? = lock.withLock {
+        val sequence = next[to] ?: 1
+
+        @Suppress("UNCHECKED_CAST")
+        val built = command(Delivery(producer, to, sequence, actor as ActorRef<Confirmed>))
+        if (!actor.handed(KeepCommand(to, Unconfirmed(sequence, built)))) return null
+        next[to] = sequence + 1
+        HANDED
+    }
+}
+
+/**
  * A producer in this flock that sends to the entity [route] names. Its deliveries carry [id] and an incarnation of
  * its own, so a producer started again under the same [id] is not taken for a duplicate of the one before. It keeps
  * at most [keep] unconfirmed commands, and a `send` waits up to [within] for room. When the flock closes, it waits
@@ -106,8 +156,9 @@ fun <F, M : Any> Flock<F>.producer(
 ): Producer<M> {
     val room = room(keep)
     val meters = meters(id)
-    val actor = spawn("producer-$id", producing(incarnation(id), resendAfter, room, keep, meters, route))
-    return Producer<M>(actor, room, keep, within, meters).drainedOnClose(this, id, drainWithin)
+    val producer = incarnation(id)
+    val actor = spawn("producer-$id", producing<M>(resendAfter, room, keep, meters, route))
+    return Producer(room, keep, within, meters, Numbering<M>(producer, actor)).drainedOnClose(this, id, drainWithin)
 }
 
 /** This flock's instruments for the producer [id]. */
@@ -139,8 +190,8 @@ fun <M : Any> TestActors.producer(
 ): Producer<M> {
     val room = room(keep)
     val meters = ProducerMeters(Gauge { }, Counter { }, Counter { }, Counter { })
-    val actor = spawn("producer-$id", producing(incarnation(id), resendAfter, room, keep, meters, route))
-    return Producer(actor, room, keep, within, meters)
+    val actor = spawn("producer-$id", producing<M>(resendAfter, room, keep, meters, route))
+    return Producer(room, keep, within, meters, Numbering<M>(incarnation(id), actor))
 }
 
 internal fun room(keep: Int): Semaphore {
@@ -150,11 +201,11 @@ internal fun room(keep: Int): Semaphore {
 
 private fun incarnation(id: String) = "$id/${UUID.randomUUID()}"
 
-/** A command to keep, from [Producer.send]. */
-private class KeepCommand<M : Any>(val to: String, val command: (Delivery) -> M)
+/** A command to keep, built and numbered by [Producer.send]. */
+private class KeepCommand<M : Any>(val to: String, val kept: Unconfirmed<M>)
 
-/** A command to keep in the journal, from a durable [Producer.send], which waits for its [answer]. */
-internal class KeepDurably<M : Any>(val to: String, val command: (Delivery) -> M) {
+/** A command to keep in the journal, encoded by a durable [Producer.send], which waits for its [answer]. */
+internal class KeepDurably(val to: String, val bytes: ByteArray) : Handed {
     private val answered = CountDownLatch(1)
     private val refused = AtomicReference<Throwable?>()
 
@@ -167,8 +218,7 @@ internal class KeepDurably<M : Any>(val to: String, val command: (Delivery) -> M
         answered.countDown()
     }
 
-    /** Right once written, the journal's throw once refused, or null when neither came within [within]. */
-    fun answer(within: Duration): Either<Throwable, Unit>? =
+    override fun answer(within: Duration): Either<Throwable, Unit>? =
         if (answered.await(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) refused.get()?.left() ?: Unit.right()
         else null
 }
@@ -176,42 +226,36 @@ internal class KeepDurably<M : Any>(val to: String, val command: (Delivery) -> M
 /** Time to send every entity's unconfirmed command again. */
 internal data object ResendUnconfirmed
 
-/**
- * One entity's commands: the number the next one takes, and those kept, the first of them in flight. It stays once
- * none are kept, so the numbering goes on.
- */
-private data class Outbox<M : Any>(val next: Long, val kept: List<Unconfirmed<M>>)
+/** One entity's commands kept, the first of them in flight. */
+private data class Outbox<M : Any>(val kept: List<Unconfirmed<M>>)
 
-private data class Unconfirmed<M : Any>(val sequence: Long, val command: (Delivery) -> M)
+private data class Unconfirmed<M : Any>(val sequence: Long, val command: M)
 
 /** A producer's instruments (spec 0081): what it keeps unconfirmed, what it sent again, each `Full` and `Unwritten`. */
 internal class ProducerMeters(val unconfirmed: Gauge, val resent: Counter, val full: Counter, val unwritten: Counter)
 
-/** The producer's actor: numbers and keeps commands, sends each entity its first, and frees room as they confirm. */
-@Suppress("LongParameterList")
+/** The producer's actor: keeps commands, sends each entity its first, and frees room as they confirm. */
 private fun <M : Any> producing(
-    producer: String,
     resendAfter: Duration,
     room: Semaphore,
     keep: Int,
     meters: ProducerMeters,
     route: (String) -> ActorRef<M>,
 ): Behaviour<Any, Map<String, Outbox<M>>, Nothing> {
-    fun Ctx<Any>.send(to: String, kept: Unconfirmed<M>) =
-        route(to).tell(kept.command(Delivery(producer, to, kept.sequence, self)))
+    // A copy that finds the entity's mailbox full is not lost: it is sent again on the next resend.
+    fun send(to: String, kept: Unconfirmed<M>) = route(to).handed(kept.command)
 
     // Room taken is what `send` has kept and no entity has confirmed yet.
     fun measure() = meters.unconfirmed.set((keep - room.availablePermits()).toDouble())
-    return behaviour<Any, Map<String, Outbox<M>>>(emptyMap()) { ctx, queues, message ->
+    return behaviour<Any, Map<String, Outbox<M>>>(emptyMap()) { _, queues, message ->
         when (message) {
             is KeepCommand<*> -> {
                 @Suppress("UNCHECKED_CAST")
                 val asked = message as KeepCommand<M>
-                val queue = queues[asked.to] ?: Outbox(1, emptyList())
-                val kept = Unconfirmed(queue.next, asked.command)
-                if (queue.kept.isEmpty()) ctx.send(asked.to, kept)
+                val queue = queues[asked.to] ?: Outbox(emptyList())
+                if (queue.kept.isEmpty()) send(asked.to, asked.kept)
                 measure()
-                become(queues + (asked.to to Outbox(queue.next + 1, queue.kept + kept)))
+                become(queues + (asked.to to Outbox(queue.kept + asked.kept)))
             }
 
             is Confirmed -> {
@@ -222,13 +266,13 @@ private fun <M : Any> producing(
                     room.release()
                     measure()
                     val rest = queue.kept.drop(1)
-                    rest.firstOrNull()?.let { ctx.send(message.to, it) }
-                    become(queues + (message.to to queue.copy(kept = rest)))
+                    rest.firstOrNull()?.let { send(message.to, it) }
+                    become(queues + (message.to to Outbox(rest)))
                 }
             }
 
             ResendUnconfirmed -> {
-                resendFirsts(queues, meters) { to, kept -> ctx.send(to, kept) }
+                resendFirsts(queues, meters) { to, kept -> send(to, kept) }
                 stay()
             }
 

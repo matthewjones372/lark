@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.flock
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -160,5 +161,20 @@ class ProducerTest {
         }
 
         (0 until 10).sumOf { journal.events(ledgerOf("l-$it"), creditedCodec).size } shouldBe 1_000
+    }
+
+    @Test
+    fun `a command that fails to build throws to its sender, keeps nothing, and the producer goes on`() {
+        testActors {
+            val ledger = spawn("ledger", ledger("l-1"))
+            val producer = producer("till", keep = 1, within = Duration.ZERO) { ledger }
+
+            shouldThrow<IllegalStateException> { producer.send("l-1") { error("no such till") } }
+            producer.send("l-1") { CreditLedger(5, it) } shouldBe Unit.right()
+
+            ledger.state.value shouldBe 5
+            ledger.state.delivered.values.single() shouldBe 1L
+            producer.drain(Duration.ZERO) shouldBe true
+        }
     }
 }
