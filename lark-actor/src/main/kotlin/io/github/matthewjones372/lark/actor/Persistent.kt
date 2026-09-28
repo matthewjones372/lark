@@ -121,7 +121,8 @@ class Effects<Ev, S> internal constructor() {
  * A [Delivered] command whose sequence number is no greater than the last this actor handled from its producer is
  * dropped without a step (spec 0079). One that persists events writes a mark of its delivery in the same append, so
  * the actor remembers it across restarts and moves, as a snapshot does; one that persists nothing is remembered until
- * the actor stops, and handled again after that, where it changes nothing the journal holds.
+ * the actor stops, and handled again after that, where it changes nothing the journal holds. One its step stashes is
+ * not remembered until it is handled once put back.
  */
 @Suppress("LongParameterList")
 fun <M : Any, Ev, S> persistent(
@@ -152,11 +153,14 @@ fun <M : Any, Ev, S> persistent(
     return Behaviour<M, Remembered<S>, JournalConflict>(
         initial = Remembered(empty, 0),
         step = { ctx, remembered, message ->
-            val delivery = (message as? Delivered)?.delivery
-            if (remembered.handled(delivery)) {
+            val offered = (message as? Delivered)?.delivery
+            if (remembered.handled(offered)) {
                 Next.Stay
             } else {
-                val effect = effects.command(ctx, remembered.value, message)
+                val stashing = Stashing(ctx)
+                val effect = effects.command(stashing, remembered.value, message)
+                // A command stashed is handled when it is put back: until then its delivery is not remembered.
+                val delivery = offered?.takeUnless { stashing.kept(message) }
                 val after = when {
                     effect.events.isNotEmpty() -> {
                         val written = effect.events.map(codec::encode) + listOfNotNull(delivery?.let(::mark))
@@ -202,7 +206,13 @@ private fun <M : Any, Ev, S> recovered(
     check(first == from.sequence + 1) {
         "$id cannot be recovered: events ${from.sequence + 1} to ${first - 1} were deleted, and no snapshot covers them"
     }
-    return stored.fold(from) { state, kept -> state.replay(kept, codec, event) }
+    return stored.fold(from) { state, kept ->
+        try {
+            state.replay(kept, codec, event)
+        } catch (unread: UnreadableEvent) {
+            throw IllegalStateException("$id cannot be recovered: event ${kept.sequence} is ${unread.message}", unread)
+        }
+    }
 }
 
 /** One command of a batch once decided: what it answered, and the state it left, for its `then`. */
@@ -214,9 +224,10 @@ private class Deciding<M : Any, Ev, S>(
     private val command: Effects<Ev, S>.(ctx: Ctx<M>, state: S, command: M) -> Effect<Ev, S>,
     private val event: (state: S, event: Ev) -> S,
     private val codec: EventCodec<Ev>,
-    private val ctx: Ctx<M>,
+    ctx: Ctx<M>,
     remembered: Remembered<S>,
 ) {
+    private val ctx = Stashing(ctx)
     var value: S = remembered.value
     var delivered: Map<String, Long> = remembered.delivered
     val written = ArrayList<ByteArray>()
@@ -230,8 +241,9 @@ private class Deciding<M : Any, Ev, S>(
         if (delivery == null || delivery.sequence > (delivered[delivery.producer] ?: 0)) decide(message, delivery)
     }
 
-    private fun decide(message: M, delivery: Delivery?) {
+    private fun decide(message: M, offered: Delivery?) {
         val effect = effects.command(ctx, value, message)
+        val delivery = offered?.takeUnless { ctx.kept(message) }
         if (effect.next === Next.Unhandled) {
             unhandled += message
         } else {
@@ -290,7 +302,8 @@ private fun <Ev, S> Remembered<S>.replay(kept: StoredEvent, codec: EventCodec<Ev
         val (producer, sequence) = unmark(kept.bytes)
         copy(delivered = delivered + (producer to sequence), sequence = kept.sequence)
     } else {
-        copy(value = event(value, codec.decode(kept.bytes)), sequence = kept.sequence)
+        // An event upgraded to several applies each, in order, under the sequence number it was written with.
+        copy(value = codec.decodeAll(kept.bytes).fold(value, event), sequence = kept.sequence)
     }
 
 /** These deliveries, with [delivery] the last handled from its producer. */

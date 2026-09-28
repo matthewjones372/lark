@@ -67,6 +67,34 @@ class TopicTest {
         forwarded.toList() shouldContainExactly listOf(1)
     }
 
+    /** A sharded entity, a singleton or a group: a ref that is not an actor here and cannot be watched. */
+    private class Elsewhere(val heard: ConcurrentLinkedQueue<Int>) : ActorRef<Int> {
+        override val address = Address("", "/elsewhere", 0)
+
+        override fun tell(message: Int) {
+            heard += message
+        }
+    }
+
+    @Test
+    fun `a subscriber that cannot be watched hears every publish until it unsubscribes, and the topic lives on`() {
+        val elsewhere = Elsewhere(ConcurrentLinkedQueue())
+
+        flock<Nothing, Unit> {
+            val prices = topic<Int>("prices")
+            prices.subscribe(elsewhere)
+            prices.subscribe(spawn("a", listener("a")))
+            (1..3).forEach(prices::publish)
+            awaitIdle()
+            prices.unsubscribe(elsewhere)
+            prices.publish(4)
+            awaitIdle()
+        }
+
+        elsewhere.heard.toList() shouldContainExactly listOf(1, 2, 3)
+        heard.getValue("a").toList() shouldContainExactly listOf(1, 2, 3, 4)
+    }
+
     @Test
     fun `a stalled subscriber stops nothing, the others hear everything, and what it cannot keep is counted full`() {
         val open = CountDownLatch(1)

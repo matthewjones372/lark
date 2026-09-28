@@ -4,7 +4,8 @@
 > [what this is](../README.md#what-this-is). Everything here works and is tested;
 > none of it is settled.
 
-`lark-actor` runs actors in one process. This page is what comes after: a
+`lark-actor` runs actors in one process, which the
+[actors guide](actors.md) covers. This page is what comes after: a
 second node, then a cluster of them, then entities spread across it. It is
 ordered the way a service meets these things, and each section says which spec
 argued for the design, for the reasoning this page leaves out.
@@ -284,12 +285,23 @@ that wins a shard waits until the one that had it has stopped it, so an entity
 never runs on two nodes at once. What arrives meanwhile is kept, up to a
 bound, and delivered once the shard settles.
 
+Shards spread evenly by count, not by work. A kind whose ids are skewed can
+ask its shards to follow the load with
+`rebalance = Rebalance.byLoad(every = 1.minutes, tolerance = 0.2, mostMoves = 4)`
+([spec 0090](../specs/0090-shards-that-follow-the-load.md)). Each member
+gossips what it runs, and every `every` the leader moves up to `mostMoves` of
+the busiest member's shards to the least-loaded members, while it is over the
+mean by more than `tolerance`. Load is messages handled where there are any,
+and running entities otherwise. A moved shard goes through the same handoff,
+stays put for three intervals, and goes back to its hash owner if the member
+it moved to leaves. A kind that does not ask stays where the hash puts it.
+
 A singleton is one actor in the whole cluster, on the oldest `Up` member, and
 moves by the same handoff when that member goes.
 
 Every node calls `sharding` and `singleton` with the same arguments, including
-nodes that should never host them: give those a role the others lack, and
-place by it ([spec 0083](../specs/0083-nodes-that-do-different-work.md)).
+nodes that should never host them: give the nodes that should host them a role
+the others lack, and place by it ([spec 0083](../specs/0083-nodes-that-do-different-work.md)).
 
 <!-- cluster-entities -->
 ```kotlin
@@ -610,7 +622,7 @@ import arrow.core.Either
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.delivered
 import io.github.matthewjones372.lark.actor.persistent
@@ -653,7 +665,7 @@ fun wallet(id: String) = delivered(
 )
 
 /** Pays into a wallet from this node; the payment arrives however the wallet moves meanwhile. */
-fun Cluster.payments(): (wallet: String, pence: Long) -> Either<Full, Unit> {
+fun Cluster.payments(): (wallet: String, pence: Long) -> Either<NotSent, Unit> {
     val wallets = sharding("wallet", PayCodec, passivateAfter = 5.minutes) { id -> wallet(id) }
     val checkout = wallets.reliable("checkout", resendAfter = 2.seconds, keep = 10_000)
     return { wallet, pence -> checkout.send(wallet) { delivery -> Pay(pence, delivery) } }
@@ -670,6 +682,32 @@ again under the same id sends what is still unconfirmed. Its commands implement
 keeps it under the node's life as well as the id, its name and `Cluster.uid`,
 so each restart of a node has an outbox of its own
 ([spec 0099](../specs/0099-commands-a-crashed-node-left-behind.md)).
+
+A durable `send` can fail for a second reason: the journal throws, because the
+database is down or a connection was lost. It then answers `Unwritten` with
+what the journal threw, and nothing was kept. The producer restarts itself,
+100 ms after the throw and doubling to 5 s, and until its journal can be read
+again every `send` answers `Unwritten` at once rather than waiting out
+`within`. Neither answer is retried for the caller, so a service tells "slow
+down" from "unavailable" by matching on `NotSent`
+([spec 0098](../specs/0098-a-sender-whose-journal-goes-down.md)):
+
+<!-- cluster-reliable-answers -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
+import io.github.matthewjones372.lark.actor.Unwritten
+
+/** The HTTP status a checkout answers for a payment it sent, or did not. */
+fun status(sent: Either<NotSent, Unit>): Int = when (sent) {
+    is Either.Right -> 202
+    is Either.Left -> when (val why = sent.value) {
+        Full -> 429 // too many unconfirmed: slow down
+        is Unwritten -> 503 // the journal refused it: why.cause says why
+    }
+}
+```
 
 ## Stopping, watching and telling everyone
 
@@ -745,6 +783,7 @@ carries a `node` tag naming the node it was recorded on
 | `lark.delivery.unconfirmed{producer}` | gauge | Commands a producer keeps and no entity has confirmed |
 | `lark.delivery.resent{producer}` | counter | Commands sent again: a move, a crash, or a lost confirmation |
 | `lark.delivery.full{producer}` | counter | Sends that gave up waiting for room |
+| `lark.delivery.unwritten{producer}` | counter | Durable sends refused because the journal threw |
 | `lark.topic.published{topic}` | counter | Messages published on this node |
 | `lark.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
 | `lark.topic.subscribers{topic}` | gauge | Subscribers on this node |
@@ -756,7 +795,8 @@ would cost what the actors are built to avoid.
 
 An event several nodes must hear, such as a price every node caches, is a
 topic ([spec 0082](../specs/0082-a-topic-every-node-hears.md)). A publish on
-any member reaches every subscriber on every member. Delivery is at most once
+any member reaches every subscriber on every `Up` member; a member still joining,
+or already leaving, misses what is published meanwhile. Delivery is at most once
 to each subscriber, and one member's publishes arrive in the order it made
 them. A subscriber that stops is dropped. Every node calls `topic` with the
 same name and codec.

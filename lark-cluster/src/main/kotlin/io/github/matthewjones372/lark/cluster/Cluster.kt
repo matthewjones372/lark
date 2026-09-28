@@ -41,12 +41,14 @@ internal sealed interface Step {
     data object Leave : Step
 
     data class Subscribe(val to: ActorRef<MemberEvent>) : Step
+
+    data class Move(val kind: String, val to: Map<Int, Node?>) : Step
 }
 
 private val StepCodec = object : MessageCodec<Step> {
     override fun write(message: Step, out: WireOut) = when (message) {
         is Step.Heard -> SwimCodec.write(message.message, out)
-        Step.Tick, Step.Leave, is Step.Subscribe -> error("$message never leaves its node")
+        Step.Tick, Step.Leave, is Step.Subscribe, is Step.Move -> error("$message never leaves its node")
     }
 
     override fun read(input: WireIn): Step = Step.Heard(SwimCodec.read(input))
@@ -119,9 +121,15 @@ private class Steps(
         when (step) {
             is Step.Heard -> send(membership.receive(step.message, now()))
 
-            Step.Tick -> send(membership.tick(now()))
+            Step.Tick -> {
+                report()
+                rebalance()
+                send(membership.tick(now()))
+            }
 
             Step.Leave -> membership.leave()
+
+            is Step.Move -> membership.move(step.kind, step.to)
 
             is Step.Subscribe -> {
                 ctx.watch(step.to)
@@ -132,6 +140,15 @@ private class Steps(
         publish(subscribers)
         return if (membership.downed) stop() else stay()
     }
+
+    private fun report() = cluster.meters.forEach { meter ->
+        meter.due(now())?.let { membership.report(meter.kind, it) }
+    }
+
+    private val balancer = Balancer()
+
+    private fun rebalance() = balancer.moves(now(), cluster.meters, cluster.view, node.self, cluster.balance)
+        .forEach { (kind, moves) -> if (moves.isNotEmpty()) membership.move(kind, moves) }
 
     private fun send(sends: List<Send>) = sends.forEach { (to, message) ->
         node.remote(Address(to.toString(), "/user/$CLUSTER", 0), StepCodec).tell(Step.Heard(message))
@@ -175,7 +192,7 @@ private class Steps(
         endWatches(cluster.view, next, events)
         subscribers.forEach { subscriber -> events.forEach(subscriber::tell) }
         measure(next.measuredBy(node.self, membership.downed), events)
-        cluster.publish(next)
+        cluster.publish(next, membership.balance())
     }
 }
 
@@ -195,6 +212,9 @@ class Cluster internal constructor(
     private val changed = lock.newCondition()
     private val viewers = CopyOnWriteArrayList<(View) -> Unit>()
 
+    /** What each kind that rebalances counts here, for the cluster actor to report (spec 0090). */
+    internal val meters = CopyOnWriteArrayList<LoadMeter>()
+
     @Volatile
     var view: View = View.None
         private set
@@ -209,6 +229,11 @@ class Cluster internal constructor(
 
     /** This life as a name: what a durable producer's id carries, so each life of a node keeps its own (spec 0099). */
     internal val life: String get() = "${self.name}-${uid.toULong().toString(radix = 36)}"
+
+    /** The load of the kinds that rebalance, as of [view]: published with it, and waited on as it is. */
+    @Volatile
+    internal var balance: Balance = Balance.None
+        private set
 
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)
@@ -242,16 +267,21 @@ class Cluster internal constructor(
      */
     fun subscribe(subscriber: ActorRef<MemberEvent>) = actor.tell(Step.Subscribe(subscriber))
 
-    internal fun publish(next: View) {
-        if (next == view) return
+    internal fun publish(next: View, loads: Balance = balance) {
+        if (next == view && loads == balance) return
+        val placed = next != view || loads.moved != balance.moved
+        balance = loads
         // The viewers first: a region is told the view before anyone waiting on it wakes, so what a waiter tells a
         // region after its wait is routed by that view or a later one, never an earlier.
-        viewers.forEach { it(next) }
+        if (placed) viewers.forEach { it(next) }
         lock.withLock {
             view = next
             changed.signalAll()
         }
     }
+
+    /** Moves [shard] of [kind] to [to], or back to its hash owner if null, if this node leads (spec 0090). */
+    internal fun move(kind: String, shard: Int, to: Node?) = actor.tell(Step.Move(kind, mapOf(shard to to)))
 
     /** Calls [viewer] with the view now, and with each new one after, on the cluster actor's step. */
     internal fun onView(viewer: (View) -> Unit) {
