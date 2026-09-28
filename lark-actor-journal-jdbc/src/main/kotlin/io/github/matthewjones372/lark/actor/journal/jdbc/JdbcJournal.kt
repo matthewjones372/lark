@@ -55,17 +55,27 @@ private val SETTLE = 1.seconds
  * was first seen has ended (spec 0100), so an append whose writer is slow to commit, however slow, is waited for,
  * and one rolled back is passed within a second; [longestAppend] bounds the wait for a writer that never ends. On a
  * database without transaction snapshots it is once the gap has been missing for [gapTimeout].
+ *
+ * With [groupCommit] (spec 0108), appends from many ids share a transaction and one commit, each under a savepoint of
+ * its own, so each still answers as it would have alone; without it, every append is a transaction of its own.
  */
 class JdbcJournal(
     private val dataSource: DataSource,
     private val gapTimeout: Duration = 10.seconds,
     private val longestAppend: Duration = 10.minutes,
+    groupCommit: GroupCommit? = null,
 ) :
     Journal,
     SlicedFeed,
     JournalPruning {
 
     private val time = clock.get()
+
+    private val committer = groupCommit?.let { settings ->
+        Committer(dataSource, settings) { connection, id, expected, events ->
+            connection.appendWithin(id, expected, events)
+        }
+    }
 
     /** A missing `ordering`: when it was first found so, and on Postgres the snapshot's `xmax` then. */
     private class Gap(val seen: Instant, val xmax: Long?)
@@ -86,6 +96,12 @@ class JdbcJournal(
     private var settled: LongRange? = null
 
     override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
+        committer?.append(id, expected, events) ?: alone(id, expected, events)
+
+    /** How many appends wait for a group to commit them, for tests. */
+    internal fun queued(): Int = committer?.queued() ?: 0
+
+    private fun alone(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
         dataSource.connection.use { connection ->
             connection.autoCommit = false
             val appended = try {
@@ -361,6 +377,36 @@ class JdbcJournal(
      * Inserts [events] after [expected], the first only if the event it follows is there: whether they all went in.
      * A writer ahead of the journal inserts nothing, and one behind it collides on the key.
      */
+
+    /**
+     * One append inside a transaction others share (spec 0108): under a savepoint, so a conflict, a fenced slice or an
+     * error rolls back this append alone and leaves the transaction to go on.
+     */
+    private fun Connection.appendWithin(
+        id: PersistenceId,
+        expected: Long,
+        events: List<ByteArray>,
+    ): Either<JournalConflict, Long> {
+        val savepoint = setSavepoint()
+        val appended = try {
+            insert(id, expected, events)
+        } catch (failed: SQLException) {
+            rollback(savepoint)
+            if (failed.sqlState != DUPLICATE_KEY) throw failed
+            false
+        } catch (elsewhere: SliceElsewhere) {
+            rollback(savepoint)
+            throw elsewhere
+        }
+        return if (appended) {
+            releaseSavepoint(savepoint)
+            (expected + events.size).right()
+        } else {
+            rollback(savepoint)
+            JournalConflict(id, expected, last(id)).left()
+        }
+    }
+
     private fun Connection.insert(id: PersistenceId, expected: Long, events: List<ByteArray>): Boolean {
         if (events.isEmpty()) return last(id) == expected
         val slice = Slices.of(id)

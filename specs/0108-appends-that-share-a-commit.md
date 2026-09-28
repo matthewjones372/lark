@@ -83,13 +83,10 @@ Nothing new. The bank takes it by upgrading Lark and passing `groupCommit`.
 ./gradlew :lark-actor-benchmarks:jmh -Pjmh.includes=SpreadPersistent
 ```
 
-## Open questions
+## Settled
 
-1. **On by default, or asked for?** Recommended: asked for (`groupCommit = null` by default) until the benchmark has
-   shown it never loses, then on by default in a spec of its own.
-2. **`maxAppends`: 64?** Recommended: 64, the size past which one transaction's insert batch stops getting cheaper
-   per row on Postgres; to be settled by the benchmark.
-3. **Committers: two per journal?** Recommended: two, so one commit's flush overlaps the next group's inserts,
-   without taking more of a pool than a service expects a journal to hold.
-4. **Should `SliceMover`'s copy and a prune go through the committer too?** Recommended: no. They are rare and large,
-   and would hold up a group behind them; they keep their own transactions.
+1. **On by default, or asked for?** Asked for: `groupCommit = null` by default, until the benchmark has shown it
+   never loses; then on by default in a spec of its own.
+2. **`maxAppends`?** 64, to be revisited with the benchmark's numbers.
+3. **Committers?** Two per journal, so one commit's flush overlaps the next group's inserts.
+4. **Slice moves and prunes through the committer?** No: they are rare and large, and keep their own transactions.

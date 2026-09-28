@@ -7,6 +7,7 @@ import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.ShardedJournal
 import io.github.matthewjones372.lark.actor.journal
+import io.github.matthewjones372.lark.actor.journal.jdbc.GroupCommit
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.app.liquibase.migrate
@@ -55,6 +56,10 @@ open class SpreadPersistentBenchmark {
     @Param("1", "2")
     var databases: Int = 1
 
+    /** Each database's appends alone, or sharing commits (spec 0108). */
+    @Param("false", "true")
+    var groupCommit: Boolean = false
+
     private lateinit var servers: List<PostgresServer>
     private lateinit var pools: List<HikariDataSource>
     private lateinit var accounts: List<ActorRef<Spread>>
@@ -73,11 +78,13 @@ open class SpreadPersistentBenchmark {
                 },
             )
         }
-        lark.flock.journal(ShardedJournal(pools.mapIndexed { i, pool -> "db-$i" to JdbcJournal(pool) }))
+        val grouped = if (groupCommit) GroupCommit() else null
+        val journals = pools.mapIndexed { i, pool -> "db-$i" to JdbcJournal(pool, groupCommit = grouped) }
+        lark.flock.journal(ShardedJournal(journals))
         val run = UUID.randomUUID()
         accounts = (1..ACCOUNTS).map { n ->
             lark.actor(
-                "account-$databases-$n",
+                "account-$databases-$groupCommit-$n",
                 persistent<Spread, Int, Int>(
                     id = PersistenceId("account", "$run-$n"),
                     empty = 0,
