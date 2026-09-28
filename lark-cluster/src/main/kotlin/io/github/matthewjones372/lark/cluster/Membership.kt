@@ -26,6 +26,10 @@ internal class Membership(
     private val relays = HashMap<Long, Relay>()
     private var joinAt = startedAt
 
+    // Whether this node, before it is a member, has been sent gossip of a cluster that formed: it then joins that one
+    // however long its welcome takes, and never forms a second beside it.
+    private var clusterSeen = false
+
     // The live members and the unreachable ones as they last changed, and when; and when each member was seen downed.
     private var shape: Pair<Set<Incarnation>, Set<Incarnation>>? = null
     private var shapeSince = startedAt
@@ -53,6 +57,7 @@ internal class Membership(
     }
 
     fun receive(message: Swim, now: Duration): List<Send> {
+        if (status == null) noteCluster(message)
         when (message) {
             is Swim.Ping -> heard[message.from] = now
             is Swim.Ack -> heard[message.from] = now
@@ -131,6 +136,21 @@ internal class Membership(
 
     private fun isSelf(node: Node) = node.host == self.node.host && node.port == self.node.port
 
+    /**
+     * A restarted node is still probed at its address by the cluster that knew its earlier life, and a welcome can be
+     * slow while that cluster is busy: gossip of a formed cluster is proof enough not to form another.
+     */
+    private fun noteCluster(message: Swim) {
+        val heardOf = when (message) {
+            is Swim.Ping -> message.gossip
+            is Swim.Ack -> message.gossip
+            is Swim.PingReq -> message.gossip
+            is Swim.Welcome -> message.gossip
+            is Swim.Join -> null
+        }
+        if (heardOf?.origin != null) clusterSeen = true
+    }
+
     private fun joinOrForm(now: Duration): List<Send> {
         if (now < joinAt) return emptyList()
         joinAt = now + settings.probeEvery
@@ -138,7 +158,8 @@ internal class Membership(
         val others = found.filterNot(::isSelf)
         val lowest = found.minWithOrNull(byAddress)
         val waited = others.isEmpty() || now - startedAt >= settings.formAfter
-        if (lowest != null && isSelf(lowest) && waited) {
+        val forms = waited && !clusterSeen
+        if (lowest != null && isSelf(lowest) && forms) {
             gossip = Gossip.None.copy(origin = self, members = mapOf(self to Entry(Status.Up, 1)))
             noteDigest()
             return emptyList()

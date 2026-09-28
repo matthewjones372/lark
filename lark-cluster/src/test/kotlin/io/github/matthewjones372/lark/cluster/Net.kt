@@ -22,6 +22,7 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
     private val cut = mutableSetOf<Set<Node>>()
     private val deaf = mutableSetOf<Set<Node>>()
     private val stopped = mutableSetOf<Node>()
+    private val unheard = mutableSetOf<Node>()
     var now: Duration = Duration.ZERO
         private set
 
@@ -42,6 +43,15 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
         deaf += setOf(at(a), at(b))
     }
 
+    /** The joins [n] sends go missing, as they do while the members it asks are too busy to welcome it. */
+    fun loseJoinsFrom(n: Int) {
+        unheard += at(n)
+    }
+
+    fun hearJoinsFrom(n: Int) {
+        unheard -= at(n)
+    }
+
     fun heal(a: Int, b: Int) {
         cut -= setOf(at(a), at(b))
     }
@@ -58,10 +68,7 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
             live().forEach { (node, m) -> m.tick(now).forEach { flying += node to it } }
             while (flying.isNotEmpty()) {
                 val (from, send) = flying.removeFirst()
-                val to = live().keys.firstOrNull { node ->
-                    reaches(send.to, node) && setOf(from, node) !in cut &&
-                        !(send.message is Swim.Ack && setOf(from, node) in deaf)
-                }
+                val to = live().keys.firstOrNull { node -> reaches(send.to, node) && carried(from, node, send.message) }
                 to?.let { there -> nodes.getValue(there).receive(send.message, now).forEach { flying += there to it } }
             }
             if (done()) return true
@@ -70,6 +77,11 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
     }
 
     private fun live() = nodes.filterKeys { it !in stopped }
+
+    /** Whether the network carries [message] from [from] to [to]: not across a cut, nor lost as this net loses it. */
+    private fun carried(from: Node, to: Node, message: Swim) = setOf(from, to) !in cut &&
+        !(message is Swim.Ack && setOf(from, to) in deaf) &&
+        !(message is Swim.Join && from in unheard)
 
     private fun reaches(address: Node, node: Node) =
         address.host == node.host && address.port == node.port && (address.name.isEmpty() || address.name == node.name)
