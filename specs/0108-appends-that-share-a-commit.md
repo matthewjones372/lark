@@ -101,6 +101,11 @@ Nothing new. The bank takes it by upgrading Lark and passing `groupCommit`.
   1,736 ms alone and 3,586 ms grouped on one database; 1,786 and 2,239 on two.
 - **One batch won.** Each append as one all-or-none insert, a group as one statement batch and one commit: 1,648 ms
   alone and 409 ms grouped on one database, 1,784 and 311 on two: four to six times faster, and more so the more
-  databases. The bank's 400-a-second profile on it is recorded in bank spec 0016's successor, once the bank takes it.
+  databases.
+- **The bank, 400 transfers a second for 90 s** (three nodes, two journal databases, Kafka and the load generator on
+  one 4-core host, `JOURNAL_GROUP_COMMIT=true`): 36,000 requested, 35,997 ok; p50 338 ms, p99 2.95 s; the ledger
+  conserved. Without it, the same run: 32,657 ok, p50 1.34 s, p99 4.29 s. A journal append went from 7.3 and 5.7 ms
+  to 0.58 and 0.40 ms, and Postgres's backends, which had mostly waited on `LWLock:WALWrite`, now mostly run: the
+  host's CPU is what is left.
 - **On by default** waits for its own spec, as settled: the benchmark has one shape of load, and a default should
   have seen more.
