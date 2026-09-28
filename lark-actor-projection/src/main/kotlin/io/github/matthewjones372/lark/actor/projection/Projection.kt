@@ -92,11 +92,7 @@ object Projection {
     }
 
     /** The slices partition [partition] of [partitions] follows: an even share of them, in order. */
-    fun slices(partition: Int, partitions: Int): IntRange {
-        require(partitions in 1..Slices.COUNT) { "partitions must be in 1..${Slices.COUNT}, was $partitions" }
-        require(partition in 0 until partitions) { "partition must be in 0 until $partitions, was $partition" }
-        return partition * Slices.COUNT / partitions until (partition + 1) * Slices.COUNT / partitions
-    }
+    fun slices(partition: Int, partitions: Int): IntRange = Slices.partition(partition, partitions)
 
     /** What partition [partition] of read model [name] saves its offset under. */
     fun partitionName(name: String, partition: Int): String = "$name#$partition"

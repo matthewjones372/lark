@@ -139,6 +139,32 @@ class ShardedJournalTest {
     }
 
     @Test
+    fun `every slice is in exactly the partition partitionOf names, for any count of partitions`() {
+        val ids = (1..5_000).map { PersistenceId("account", "acc-$it") }
+        listOf(1, 2, 3, 7, 8, 100, 1023, 1024).forEach { n ->
+            (0 until n).flatMap { Slices.partition(it, n) } shouldContainExactly (0 until Slices.COUNT).toList()
+            ids.forEach { id ->
+                withClue("$id of $n") {
+                    Slices.of(id) shouldBeInRange
+                        Slices.partition(Slices.partitionOf(id, n), n)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `pruning after partitioned read models waits on the partition that follows the id`() {
+        val journal = ShardedJournal(two())
+        val offsets = InMemoryOffsets()
+        val prune = Prune.after(offsets, journal, 4, "totals")
+        val id = PersistenceId("account", "acc-1")
+        val partition = Slices.partitionOf(id, 4)
+        (0 until 4).forEach { offsets.save(ShardedJournal.progress("totals", journal.database(id), it), 10L + it) }
+
+        prune.readTo(id) shouldBe 10L + partition
+    }
+
+    @Test
     fun `databases named twice, or none at all, are refused`() {
         shouldThrow<IllegalArgumentException> { ShardedJournal(emptyList()) }
         shouldThrow<IllegalArgumentException> {
