@@ -131,6 +131,23 @@ class BlockingTest {
         }
     }
 
+    @Test
+    fun `a mapPar body that is done is passed on while the source blocks for the next element`() {
+        val queue = Queue(1)
+
+        val exit = blocking(queue)
+            .mapPar(4) { n -> n * 10 }
+            .take(1)
+            .runCollect()
+            .run(Forks())
+            .settled()
+
+        exit shouldBe Exit.Done(listOf(10))
+        withClue("the source was let go of while it blocked, and closed once") {
+            queue.closed.get() shouldBe 1
+        }
+    }
+
     private companion object {
         const val GENEROUS_SECONDS = 30L
     }

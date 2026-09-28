@@ -69,15 +69,18 @@ the journal and `persistent` do not change.
 
 ## Stack
 
-- [ ] **`spec-0091-versioned`** — `versioned`, `Upgrade`, the prefix and the
+- [x] **`spec-0091-versioned`** — `versioned`, `Upgrade`, the prefix and the
       chain, in `lark-actor`. Done when: events written as versions 1 (with no
       prefix), 2 and 3 replay as version 3, one version-1 event replays as two,
       and a missing upgrade is refused when the codec is built.
-- [ ] **`spec-0091-state`** — `versionedState` for snapshots, and a test that
+      ([#257](https://github.com/matthewjones372/lark/pull/257))
+- [x] **`spec-0091-state`** — `versionedState` for snapshots, and a test that
       an entity recovers from an old snapshot and newer events. Done when:
       that recovery reaches the same state as a full replay.
-- [ ] **`spec-0091-guide`** — a section in `docs/actors.md` (spec 0089) on
+      ([#258](https://github.com/matthewjones372/lark/pull/258))
+- [x] **`spec-0091-guide`** — a section in `docs/actors.md` (spec 0089) on
       changing an event, compiled with the rest.
+      ([#271](https://github.com/matthewjones372/lark/pull/271))
 
 ## Acceptance
 
@@ -100,3 +103,40 @@ Decided (2026-09-27): every open question goes as recommended. Versioning is
 a wrapper codec, and the journal stays bytes; unmarked data is version 1; an
 upgrade may turn one event into several; and a projection sees the upgraded
 events.
+
+Decided while building `spec-0091-versioned`:
+- **What an upgrade returns.** An `Upgrade` turns the bytes of version n into
+  the bytes of one or more events of version n+1, not into decoded objects as
+  the sketch showed. That is what makes the chain real: version 4 adds one
+  upgrade, from 3, and the upgrades from 1 and 2 stay as they are.
+- **How several events are read.** `EventCodec` gains `decodeAll`, which
+  defaults to one `decode`, so every codec written before this is unchanged.
+  Replay, `Journal.events` and a projection read through it, and `decode`
+  refuses an event that upgrades to several.
+- **The mark.** It is `\0lark:v` and a four-byte version. Bytes without it are
+  version 1.
+- **A projection and a split event.** Each part but the last carries the offset
+  before the event's own. A run stopped between the parts reads the event again
+  from its first part, which is the at-least-once a projection already
+  promises.
+- **What a replay says.** One that meets a version the codec cannot read names
+  the entity, the event's sequence number and the version.
+
+Decided while building `spec-0091-state`:
+- **The upgrade's shape.** A `StateUpgrade` takes the bytes of one state
+  version to the bytes of the next, one state to one state. The chain is
+  walked by the same code as events, so the mark and the check when the codec
+  is built are the same.
+- **What the test proves.** It deletes the events the old snapshot covers. A
+  recovery that ignored the snapshot could not start, so the test shows the
+  old snapshot is read and upgraded, not just that the numbers agree.
+
+Decided while building `spec-0091-guide`:
+- **Where it sits.** "Changing an event" is section 6 of the actors guide,
+  between remembering and testing, and its example compiles with the rest
+  under the marker `actors-versioned`.
+- **What it shows.** It shows the case a field rename cannot express: an
+  old event read as a new one of a different class.
+- **Stacked on two stacks.** It needs both the guide (#254, #255) and the
+  codec (#257, #258), so its branch merges the guide into the codec's, and
+  its diff shows the guide too until those merge.

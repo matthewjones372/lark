@@ -19,9 +19,9 @@ fun <M : Any, S, E> Cluster.singleton(
 ): ActorRef<M> {
     val hosting = Hosting<M, M>(
         eager = true,
-        owner = { _, members -> Placement.oldest(members.holding(role)) },
+        owner = { _, members, _ -> Placement.oldest(members.holding(role)) },
         start = { ctx, _ -> ctx.spawn(name, behaviour()) },
-        deliver = { actor, _, message -> actor.tell(message) },
+        target = { actor, _ -> actor },
     )
     return ShardedRef(region(Sharding.path(name, prefix = "singleton"), codec, 1, hosting, "singleton-$name"), name)
 }

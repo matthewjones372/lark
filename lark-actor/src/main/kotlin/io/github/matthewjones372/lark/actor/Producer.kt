@@ -12,13 +12,20 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+/** Why a producer's `send` did not keep a command (spec 0098). */
+sealed interface NotSent
+
 /** A producer already keeps as many unconfirmed commands as it may, and none was confirmed in time (spec 0079). */
-data object Full
+data object Full : NotSent
+
+/** A durable producer's journal threw, so the command was not kept (spec 0098). */
+data class Unwritten(val cause: Throwable) : NotSent
 
 /**
  * Sends commands at least once (spec 0079). Each command to an entity is numbered and kept until the entity confirms
@@ -30,32 +37,44 @@ class Producer<M : Any> internal constructor(
     private val room: Semaphore,
     private val keep: Int,
     private val within: Duration,
-    private val full: Counter,
+    private val meters: ProducerMeters,
     private val keeping: Keeping<M>,
     private val recovered: CountDownLatch? = null,
+    private val down: AtomicReference<Throwable?>? = null,
 ) {
     /**
      * Keeps the command [command] builds for entity [to] and returns, or waits up to `within` while the producer
      * keeps as many as it may, and then answers [Full]. [command] runs once, on the caller's thread, so what it
      * throws reaches the caller and nothing is kept. A durable producer encodes the command there too, and so throws
      * for one its codec refuses; it returns once the command is written to its journal, and answers [Full] too if
-     * that takes longer than `within`, when such a command may still be written, and then sent (spec 0085).
+     * that takes longer than `within`, when such a command may still be written, and then sent (spec 0085). It
+     * answers [Unwritten] when its journal throws, and at once while it is down, until a restart reads the journal
+     * again (spec 0098).
      */
-    fun send(to: String, command: (Delivery) -> M): Either<Full, Unit> {
+    fun send(to: String, command: (Delivery) -> M): Either<NotSent, Unit> {
+        down?.get()?.let { cause -> return unwritten(cause) }
         if (!room.tryAcquire(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) return full()
-        var kept: CountDownLatch? = null
+        var kept: Handed? = null
         try {
             kept = keeping.keep(to, command)
         } finally {
             // A command that failed to build, or found the producer's own mailbox full, holds no room.
             if (kept == null) room.release()
         }
-        return if (kept?.await(within.inWholeNanoseconds, TimeUnit.NANOSECONDS) == true) Unit.right() else full()
+        return when (val answer = kept?.answer(within)) {
+            null -> full()
+            else -> answer.fold({ unwritten(it) }, { Unit.right() })
+        }
     }
 
-    private fun full(): Either<Full, Unit> {
-        full.increment()
+    private fun full(): Either<NotSent, Unit> {
+        meters.full.increment()
         return Full.left()
+    }
+
+    private fun unwritten(cause: Throwable): Either<NotSent, Unit> {
+        meters.unwritten.increment()
+        return Unwritten(cause).left()
     }
 
     /**
@@ -72,15 +91,21 @@ class Producer<M : Any> internal constructor(
 }
 
 /**
- * How a [Producer] hands a command to its actor, on the caller's thread: the latch it waits on, or null when the
+ * How a [Producer] hands a command to its actor, on the caller's thread: what `send` waits on, or null when the
  * actor's mailbox is full.
  */
 internal fun interface Keeping<M : Any> {
-    fun keep(to: String, command: (Delivery) -> M): CountDownLatch?
+    fun keep(to: String, command: (Delivery) -> M): Handed?
 }
 
-/** Already counted down: an in-memory producer's command is kept once its actor has it. */
-private val HANDED = CountDownLatch(0)
+/** A command handed to a producer's actor, as `send` waits on it. */
+internal fun interface Handed {
+    /** Right once kept, the journal's throw once refused, or null when neither came within [within]. */
+    fun answer(within: Duration): Either<Throwable, Unit>?
+}
+
+/** Kept already: an in-memory producer's command is kept once its actor has it. */
+private val HANDED = Handed { Unit.right() }
 
 /**
  * [message] told, or false when this is an actor's thread and the mailbox it reaches is full: a tell from an actor
@@ -102,7 +127,7 @@ private class Numbering<M : Any>(private val producer: String, private val actor
     private val lock = ReentrantLock()
     private val next = HashMap<String, Long>()
 
-    override fun keep(to: String, command: (Delivery) -> M): CountDownLatch? = lock.withLock {
+    override fun keep(to: String, command: (Delivery) -> M): Handed? = lock.withLock {
         val sequence = next[to] ?: 1
 
         @Suppress("UNCHECKED_CAST")
@@ -133,8 +158,7 @@ fun <F, M : Any> Flock<F>.producer(
     val meters = meters(id)
     val producer = incarnation(id)
     val actor = spawn("producer-$id", producing<M>(resendAfter, room, keep, meters, route))
-    return Producer(room, keep, within, meters.full, Numbering<M>(producer, actor))
-        .drainedOnClose(this, id, drainWithin)
+    return Producer(room, keep, within, meters, Numbering<M>(producer, actor)).drainedOnClose(this, id, drainWithin)
 }
 
 /** This flock's instruments for the producer [id]. */
@@ -142,6 +166,7 @@ internal fun Flock<*>.meters(id: String) = ProducerMeters(
     unconfirmed = gauge("lark.delivery.unconfirmed", "producer" to id),
     resent = counter("lark.delivery.resent", "producer" to id),
     full = counter("lark.delivery.full", "producer" to id),
+    unwritten = counter("lark.delivery.unwritten", "producer" to id),
 )
 
 /** This producer, waiting up to [drainWithin] for what it keeps when [flock] closes (spec 0080). */
@@ -164,9 +189,9 @@ fun <M : Any> TestActors.producer(
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
+    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { }, Counter { })
     val actor = spawn("producer-$id", producing<M>(resendAfter, room, keep, meters, route))
-    return Producer(room, keep, within, meters.full, Numbering<M>(incarnation(id), actor))
+    return Producer(room, keep, within, meters, Numbering<M>(incarnation(id), actor))
 }
 
 internal fun room(keep: Int): Semaphore {
@@ -179,8 +204,24 @@ private fun incarnation(id: String) = "$id/${UUID.randomUUID()}"
 /** A command to keep, built and numbered by [Producer.send]. */
 private class KeepCommand<M : Any>(val to: String, val kept: Unconfirmed<M>)
 
-/** A command to keep in the journal, encoded by a durable [Producer.send], which waits on [written]. */
-internal class KeepDurably(val to: String, val bytes: ByteArray, val written: CountDownLatch)
+/** A command to keep in the journal, encoded by a durable [Producer.send], which waits for its [answer]. */
+internal class KeepDurably(val to: String, val bytes: ByteArray) : Handed {
+    private val answered = CountDownLatch(1)
+    private val refused = AtomicReference<Throwable?>()
+
+    val isAnswered: Boolean get() = answered.count == 0L
+
+    fun written() = answered.countDown()
+
+    fun unwritten(cause: Throwable) {
+        refused.set(cause)
+        answered.countDown()
+    }
+
+    override fun answer(within: Duration): Either<Throwable, Unit>? =
+        if (answered.await(within.inWholeNanoseconds, TimeUnit.NANOSECONDS)) refused.get()?.left() ?: Unit.right()
+        else null
+}
 
 /** Time to send every entity's unconfirmed command again. */
 internal data object ResendUnconfirmed
@@ -190,8 +231,8 @@ private data class Outbox<M : Any>(val kept: List<Unconfirmed<M>>)
 
 private data class Unconfirmed<M : Any>(val sequence: Long, val command: M)
 
-/** A producer's instruments (spec 0081): what it keeps unconfirmed, what it sent again, and each `Full`. */
-internal class ProducerMeters(val unconfirmed: Gauge, val resent: Counter, val full: Counter)
+/** A producer's instruments (spec 0081): what it keeps unconfirmed, what it sent again, each `Full` and `Unwritten`. */
+internal class ProducerMeters(val unconfirmed: Gauge, val resent: Counter, val full: Counter, val unwritten: Counter)
 
 /** The producer's actor: keeps commands, sends each entity its first, and frees room as they confirm. */
 private fun <M : Any> producing(

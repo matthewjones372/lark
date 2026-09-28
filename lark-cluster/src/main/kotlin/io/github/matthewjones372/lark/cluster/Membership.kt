@@ -85,6 +85,48 @@ internal class Membership(
         return View(members, gossip.unreachable().mapTo(mutableSetOf()) { it.node }, leader()?.node)
     }
 
+    /** Writes what this member runs of [kind] now, for every member to see (spec 0090). */
+    fun report(kind: String, shards: Map<Int, ShardLoad>) {
+        val last = gossip.loads[self]
+        if (!active || last?.kinds?.get(kind) == shards) return
+        val load = Load((last?.version ?: 0) + 1, last?.kinds.orEmpty() + (kind to shards))
+        gossip = gossip.copy(loads = gossip.loads + (self to load))
+    }
+
+    fun balance(): Balance {
+        val live = gossip.live()
+        val loads = gossip.loads.filterKeys { it in live }.entries.associate { (m, load) -> m.node to load.kinds }
+        return Balance(loads, gossip.moves.mapValues { it.value.to })
+    }
+
+    /**
+     * Moves each shard of [kind] in [to] to the `Up` member at that node, or back to its hash owner if null (spec
+     * 0090). Only the leader writes moves, and a shard sent to a member that is not `Up` stays where it is.
+     */
+    fun move(kind: String, to: Map<Int, Node?>) {
+        if (leader() != self) return
+        val up = gossip.members.filterValues { it.status == Status.Up }.keys.associateBy { it.node }
+        val last = gossip.moves[kind]
+        val next = to.entries.fold(last?.to.orEmpty()) { moved, (shard, node) ->
+            if (node == null) moved - shard else up[node]?.let { moved + (shard to it) } ?: moved
+        }
+        if (next != last?.to.orEmpty()) write(kind, next)
+    }
+
+    private fun write(kind: String, moved: Map<Int, Incarnation>) {
+        val moves = Moves((gossip.moves[kind]?.version ?: 0) + 1, moved)
+        gossip = gossip.copy(moves = gossip.moves + (kind to moves))
+        noteDigest()
+    }
+
+    /** Drops the moves to members that are no longer `Up`, whose shards are back with their hash owners. */
+    private fun dropGone() {
+        val up = gossip.members.filterValues { it.status == Status.Up }.keys
+        gossip.moves.forEach { (kind, moves) ->
+            if (!up.containsAll(moves.to.values)) write(kind, moves.to.filterValues { it in up })
+        }
+    }
+
     private fun accepts(other: Gossip) = active && other.origin == gossip.origin
 
     private fun isSelf(node: Node) = node.host == self.node.host && node.port == self.node.port
@@ -177,10 +219,16 @@ internal class Membership(
 
     private fun others(): List<Incarnation> = (gossip.live() - self).toList()
 
-    /** The oldest reachable member that is `Up`: it alone moves members on, and only once every member agrees. */
+    /**
+     * The oldest reachable member that is `Up`: it alone moves members on, and only once every member agrees. With
+     * none `Up`, the lowest reachable `Joining` member leads: the only `Up` member can go before the gossip that
+     * moved its joiners on leaves it, and a cluster that waited for an `Up` leader then would wait for ever.
+     */
     private fun leader(): Incarnation? {
         val unreachable = gossip.unreachable()
-        return gossip.members.filter { (m, e) -> e.status == Status.Up && m !in unreachable }
+        val reachable = gossip.members.filterKeys { it !in unreachable }
+        val up = reachable.filterValues { it.status == Status.Up }
+        return up.ifEmpty { reachable.filterValues { it.status == Status.Joining } }
             .entries.minWithOrNull(compareBy({ it.value.upNumber }, { it.key.node.toString() }))?.key
     }
 
@@ -206,6 +254,7 @@ internal class Membership(
                 Status.Up, Status.Removed -> Unit
             }
         }
+        dropGone()
         return left.map { Send(it.node, Swim.Ping(self, it, ++seq, gossip)) }
     }
 

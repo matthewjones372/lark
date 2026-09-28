@@ -4,7 +4,8 @@
 > [what this is](../README.md#what-this-is). Everything here works and is tested;
 > none of it is settled.
 
-`lark-actor` runs actors in one process. This page is what comes after: a
+`lark-actor` runs actors in one process, which the
+[actors guide](actors.md) covers. This page is what comes after: a
 second node, then a cluster of them, then entities spread across it. It is
 ordered the way a service meets these things, and each section says which spec
 argued for the design, for the reasoning this page leaves out.
@@ -172,6 +173,12 @@ seed and nobody answers. Membership is agreed by gossip, with no coordinator
   of a partition stays: `keepMajority` by default, `staticQuorum` for a fixed
   size, or `lease` for two nodes or an even split, where a majority cannot
   decide. `stableAfter` is how long the partition must hold still first.
+- **Restarts.** A node that restarts at the same address is a new life of it,
+  with a new `cluster.uid`. The earlier life is downed as the new one joins,
+  then removed, and the new life hears both, under its own address.
+  `cluster.isSelf(member)` tells this life from an earlier one, so compare
+  with it, not with `cluster.self`. A watch ends with the life it was made on
+  ([spec 0097](../specs/0097-a-node-that-restarts-where-it-was.md)).
 - **Ready.** `cluster.ready()` is true while this node is `Up`, has a leader,
   and can reach every member it sees. It is the answer to `/ready`
   ([spec 0081](../specs/0081-a-cluster-you-can-see.md)).
@@ -201,7 +208,11 @@ fun Flock<Nothing>.joinShop(): Cluster {
     )
     val watcher = spawn(
         "membership-log",
-        behaviour<MemberEvent, Unit>(Unit) { _, _, event -> stay().also { logInfo("cluster: $event") } },
+        behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
+            // isSelf, not the address: a node restarted where it was hears its earlier life downed at its own.
+            if (event is MemberEvent.Downed && cluster.isSelf(event.member)) logInfo("cluster: this node was downed")
+            stay().also { logInfo("cluster: $event") }
+        },
     )
     cluster.subscribe(watcher)
     return cluster
@@ -212,6 +223,51 @@ fun Flock<Nothing>.joinShop(): Cluster {
 take. The defaults suit a busy node on a real network; tests that want a
 cluster in a second set them lower, and a node under heavy load with them set
 too low will see live members as unreachable.
+
+### Joined from config
+
+An application in `lark-app` need not assemble any of that. `lark-app-cluster`
+makes the cluster a node of the graph, joined as a HOCON section says
+([spec 0096](../specs/0096-a-cluster-joined-from-config.md)). `join` names the
+backend, and the section of that name holds what it needs. The backend is
+found on the classpath, so add `lark-cluster-kubernetes` or `lark-cluster-aws`
+to join through it. A name whose module is missing refuses the start, naming
+the module. The backend brings its own client and closes it once the node has
+left, and it chooses the downing that suits it: a lease on Kubernetes and AWS,
+and keep-majority for `static`, `dns` and `srv`.
+
+<!-- cluster-joined -->
+```hocon
+shop.cluster {
+  node {
+    name = "shop-1"
+    name = ${?POD_NAME}
+    host = "127.0.0.1"
+    host = ${?POD_IP}
+    port = 25520
+  }
+  # static, dns or srv from lark-cluster itself; kubernetes, ecs or cloudmap from their modules.
+  join = "static"
+  join = ${?CLUSTER_JOIN}
+  static.seeds = ["127.0.0.1:25520"]
+  # The pods labelled app=shop; the namespace is the pod's own.
+  kubernetes { selector { app = "shop" }, lease = "shop-split-brain" }
+  downing.stableAfter = 20s
+  gossip { probeEvery = 1s, ackWithin = 600ms, formAfter = 5s }
+  leaveWithin = 30s
+  # exit: a node the others downed ends its process, so its orchestrator starts a new one.
+  whenDowned = exit
+}
+```
+
+```kotlin
+val shop = loadedConfig() + actors() + cluster("shop.cluster") + single { cluster: Cluster -> Orders(cluster) }
+```
+
+The `Cluster` node is started once `cluster.ready()`, and the flock leaves the
+cluster before the application's actors stop. `cluster(ClusterSettings(...))`
+takes the same settings from code, for an application that reads its
+configuration its own way.
 
 ## Entities
 
@@ -229,12 +285,23 @@ that wins a shard waits until the one that had it has stopped it, so an entity
 never runs on two nodes at once. What arrives meanwhile is kept, up to a
 bound, and delivered once the shard settles.
 
+Shards spread evenly by count, not by work. A kind whose ids are skewed can
+ask its shards to follow the load with
+`rebalance = Rebalance.byLoad(every = 1.minutes, tolerance = 0.2, mostMoves = 4)`
+([spec 0090](../specs/0090-shards-that-follow-the-load.md)). Each member
+gossips what it runs, and every `every` the leader moves up to `mostMoves` of
+the busiest member's shards to the least-loaded members, while it is over the
+mean by more than `tolerance`. Load is messages handled where there are any,
+and running entities otherwise. A moved shard goes through the same handoff,
+stays put for three intervals, and goes back to its hash owner if the member
+it moved to leaves. A kind that does not ask stays where the hash puts it.
+
 A singleton is one actor in the whole cluster, on the oldest `Up` member, and
 moves by the same handoff when that member goes.
 
 Every node calls `sharding` and `singleton` with the same arguments, including
-nodes that should never host them: give those a role the others lack, and
-place by it ([spec 0083](../specs/0083-nodes-that-do-different-work.md)).
+nodes that should never host them: give the nodes that should host them a role
+the others lack, and place by it ([spec 0083](../specs/0083-nodes-that-do-different-work.md)).
 
 <!-- cluster-entities -->
 ```kotlin
@@ -472,6 +539,61 @@ fun ledger(database: DataSource, ledger: Ledger): Running<Nothing, Long> {
 }
 ```
 
+## A journal across databases
+
+One database takes every write from every node. When that is the limit, split
+the journal by entity across several
+([spec 0088](../specs/0088-a-journal-across-databases.md)):
+
+- **Each id lives in one database.** Its slice is murmur3 of `kind|id`, out
+  of 1,024 fixed forever, and each database owns a contiguous range of slices
+  in the order given. An append and its conflict check stay in one
+  transaction, so nothing spans two databases.
+- **Name them, and never reorder them.** The same names in the same order
+  route an id the same way every time. Give snapshots the same list, and an
+  id's snapshot sits beside its events.
+- **A read model is one projection per database.** Each database keeps its
+  own feed and order. `ShardedJournal.progress(name, database)` names each
+  one's offset, and `Prune.after(offsets, journal, names)` lets a database
+  prune once what reads it has caught up. Order within an id holds; there is
+  no order across databases.
+
+<!-- cluster-sharded -->
+```kotlin
+import io.github.matthewjones372.lark.actor.EventCodec
+import io.github.matthewjones372.lark.actor.ShardedJournal
+import io.github.matthewjones372.lark.actor.ShardedSnapshots
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcSnapshots
+import io.github.matthewjones372.lark.actor.projection.Projection
+import io.github.matthewjones372.lark.actor.projection.runProjecting
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.Running
+import io.github.matthewjones372.lark.stream.start
+import javax.sql.DataSource
+
+object Paid : EventCodec<Long> {
+    override fun encode(event: Long): ByteArray = event.toString().toByteArray()
+
+    override fun decode(bytes: ByteArray): Long = String(bytes).toLong()
+}
+
+/** The same names, in the same order, for events and for snapshots. */
+fun journal(a: DataSource, b: DataSource) = ShardedJournal(listOf("db-a" to JdbcJournal(a), "db-b" to JdbcJournal(b)))
+
+fun snapshots(a: DataSource, b: DataSource) =
+    ShardedSnapshots(listOf("db-a" to JdbcSnapshots(a), "db-b" to JdbcSnapshots(b)))
+
+/** The ledger as one projection per database, each saving its own offset. */
+fun ledgers(journal: ShardedJournal, offsets: JdbcOffsets): List<Running<Nothing, Long>> =
+    journal.feeds.map { (database, feed) ->
+        Projection.follow(feed, "account", Paid, offsets, ShardedJournal.progress("ledger", database))
+            .runProjecting()
+            .start(Forks())
+    }
+```
+
 ## Commands that must arrive
 
 A tell across nodes is at most once, and a message already in an entity's
@@ -500,7 +622,7 @@ import arrow.core.Either
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.delivered
 import io.github.matthewjones372.lark.actor.persistent
@@ -543,7 +665,7 @@ fun wallet(id: String) = delivered(
 )
 
 /** Pays into a wallet from this node; the payment arrives however the wallet moves meanwhile. */
-fun Cluster.payments(): (wallet: String, pence: Long) -> Either<Full, Unit> {
+fun Cluster.payments(): (wallet: String, pence: Long) -> Either<NotSent, Unit> {
     val wallets = sharding("wallet", PayCodec, passivateAfter = 5.minutes) { id -> wallet(id) }
     val checkout = wallets.reliable("checkout", resendAfter = 2.seconds, keep = 10_000)
     return { wallet, pence -> checkout.send(wallet) { delivery -> Pay(pence, delivery) } }
@@ -558,6 +680,32 @@ again under the same id, on any node, sends what is still unconfirmed. Its
 commands implement `Delivered.redeliver`, usually as
 `copy(delivery = delivery)`
 ([spec 0085](../specs/0085-a-sender-that-survives-its-crash.md)).
+
+A durable `send` can fail for a second reason: the journal throws, because the
+database is down or a connection was lost. It then answers `Unwritten` with
+what the journal threw, and nothing was kept. The producer restarts itself,
+100 ms after the throw and doubling to 5 s, and until its journal can be read
+again every `send` answers `Unwritten` at once rather than waiting out
+`within`. Neither answer is retried for the caller, so a service tells "slow
+down" from "unavailable" by matching on `NotSent`
+([spec 0098](../specs/0098-a-sender-whose-journal-goes-down.md)):
+
+<!-- cluster-reliable-answers -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.actor.Full
+import io.github.matthewjones372.lark.actor.NotSent
+import io.github.matthewjones372.lark.actor.Unwritten
+
+/** The HTTP status a checkout answers for a payment it sent, or did not. */
+fun status(sent: Either<NotSent, Unit>): Int = when (sent) {
+    is Either.Right -> 202
+    is Either.Left -> when (val why = sent.value) {
+        Full -> 429 // too many unconfirmed: slow down
+        is Unwritten -> 503 // the journal refused it: why.cause says why
+    }
+}
+```
 
 ## Stopping, watching and telling everyone
 
@@ -633,6 +781,7 @@ carries a `node` tag naming the node it was recorded on
 | `lark.delivery.unconfirmed{producer}` | gauge | Commands a producer keeps and no entity has confirmed |
 | `lark.delivery.resent{producer}` | counter | Commands sent again: a move, a crash, or a lost confirmation |
 | `lark.delivery.full{producer}` | counter | Sends that gave up waiting for room |
+| `lark.delivery.unwritten{producer}` | counter | Durable sends refused because the journal threw |
 | `lark.topic.published{topic}` | counter | Messages published on this node |
 | `lark.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
 | `lark.topic.subscribers{topic}` | gauge | Subscribers on this node |
@@ -644,7 +793,8 @@ would cost what the actors are built to avoid.
 
 An event several nodes must hear, such as a price every node caches, is a
 topic ([spec 0082](../specs/0082-a-topic-every-node-hears.md)). A publish on
-any member reaches every subscriber on every member. Delivery is at most once
+any member reaches every subscriber on every `Up` member; a member still joining,
+or already leaving, misses what is published meanwhile. Delivery is at most once
 to each subscriber, and one member's publishes arrive in the order it made
 them. A subscriber that stops is dropped. Every node calls `topic` with the
 same name and codec.

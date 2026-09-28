@@ -1,0 +1,34 @@
+syntax = "proto2";
+
+package lark.kotlinx;
+
+// serial name 'io.github.matthewjones372.lark.actor.remote.kotlinx.Till.Paid'
+message Paid {
+  required int64 amount = 1;
+  required string reference = 2;
+}
+
+// serial name 'io.github.matthewjones372.lark.actor.remote.kotlinx.Till.Refunded'
+message Refunded {
+  required int64 amount = 1;
+  required Reason reason = 2;
+}
+
+// serial name 'io.github.matthewjones372.lark.actor.remote.kotlinx.Till.Closed'
+message Closed {
+}
+
+// serial name 'io.github.matthewjones372.lark.actor.remote.kotlinx.Reason'
+enum Reason {
+  Faulty = 1;
+  Unwanted = 2;
+}
+
+// How lark writes this table (spec 0093): one of these, its field number the class's tag.
+message Till {
+  oneof value {
+    Paid paid = 1;
+    Refunded refunded = 2;
+    Closed closed = 3;
+  }
+}

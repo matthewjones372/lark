@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -181,6 +182,92 @@ class ClusterTest {
             started.elapsedNow() shouldBeLessThan 10.seconds
         } finally {
             nodes.forEach(Running::close)
+        }
+    }
+
+    @Test
+    fun `a node restarted at its address comes Up as a new life, and hears its earlier life downed as not itself`() {
+        val ports = List(3) { freePort() }
+        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+        // Every node goes without leaving: a leave would wait on a cluster that still holds a gone node.
+        val first = Running("n1", ports[0], seeds, leaveWithin = Duration.ZERO)
+        val second = Running("n2", ports[1], seeds, leaveWithin = Duration.ZERO)
+        // Gone as a crashed node goes, without leaving, so the others still hold its life when it comes back.
+        Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO).use { earlier ->
+            earlier.cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+        }
+        try {
+            flock<Nothing, Unit> {
+                val heard = LinkedBlockingQueue<MemberEvent>()
+                val cluster = cluster(node("n3", ports[2]), seeds, quick, leaveWithin = Duration.ZERO)
+                val listener = behaviour<MemberEvent, Unit>(Unit) { _, _, event -> stay().also { heard.put(event) } }
+                cluster.subscribe(spawn("listener", listener))
+
+                val downed = generateSequence { heard.poll(1, TimeUnit.MINUTES) }
+                    .filterIsInstance<MemberEvent.Downed>().first { it.member.node == cluster.self }
+                withClue("the earlier life's downing names this address, and is not this life's") {
+                    cluster.isSelf(downed.member) shouldBe false
+                }
+                fun upAsItself(view: View) = view.members.any { cluster.isSelf(it) && it.status == Status.Up }
+                cluster.await(1.minutes, ::upAsItself) shouldBe true
+                cluster.ready() shouldBe true
+                heard.filterIsInstance<MemberEvent.Downed>().none { cluster.isSelf(it.member) } shouldBe true
+            }
+        } finally {
+            first.close()
+            second.close()
+        }
+    }
+
+    @Test
+    fun `watches end with the life they were made on, not with a later life at the same address`() {
+        val ports = List(3) { freePort() }
+        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+        val second = Running("n2", ports[1], seeds, leaveWithin = Duration.ZERO)
+        fun ward(): Flock<Nothing>.(RemoteNode) -> Unit = { node ->
+            node.expose(spawn("ward", behaviour<String, Unit>(Unit) { _, _, _ -> stay() }), Codecs.string)
+        }
+        val earlier = Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, ward())
+        try {
+            flock<Nothing, Unit> {
+                val node = node("n1", ports[0])
+                // The default 20 s before a downed life is removed: long enough to watch the later life's actor first.
+                val cluster = cluster(node, seeds, quick, leaveWithin = Duration.ZERO)
+                cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                val at = Address("n3@127.0.0.1:${ports[2]}", "/user/ward", 0)
+                val first = watch(node.remote(at, Codecs.string))
+                val earlierUid = cluster.view.members.first { it.node.name == "n3" }.uid
+
+                earlier.close()
+                Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, ward()).use { later ->
+                    // The earlier life's watch ends as the later life joins, before the earlier one is removed.
+                    first.await()
+                    withClue("the watch ended before the earlier life was removed") {
+                        cluster.view.members.any { it.uid == earlierUid } shouldBe true
+                    }
+                    later.cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                    cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+
+                    val ended = AtomicBoolean(false)
+                    val second = watch(node.remote(at, Codecs.string))
+                    // Waits until the watch ends, or the test does: the flock interrupts it as it closes.
+                    async {
+                        try {
+                            second.await()
+                            ended.set(true)
+                        } catch (_: InterruptedException) {
+                            Unit
+                        }
+                    }
+                    cluster.await(1.minutes) { view -> view.members.none { it.uid == earlierUid } } shouldBe true
+                    Thread.sleep(1_000)
+                    withClue("the earlier life's removal ends no watch on the later life's actor") {
+                        ended.get() shouldBe false
+                    }
+                }
+            }
+        } finally {
+            second.close()
         }
     }
 }
