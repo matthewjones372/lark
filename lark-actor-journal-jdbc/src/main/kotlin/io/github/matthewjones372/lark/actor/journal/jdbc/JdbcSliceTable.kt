@@ -4,7 +4,9 @@ import io.github.matthewjones372.lark.actor.SliceMap
 import io.github.matthewjones372.lark.actor.SliceTable
 import java.sql.Connection
 import java.sql.SQLException
+import java.util.concurrent.locks.ReentrantLock
 import javax.sql.DataSource
+import kotlin.concurrent.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -21,16 +23,33 @@ class JdbcSliceTable(
 ) : SliceTable {
     private val time = TimeSource.Monotonic
 
+    // A lock rather than a monitor: an append waiting on it is a virtual thread, which a monitor pins to its carrier.
+    private val reading = ReentrantLock()
+
     @Volatile
     private var held: Pair<SliceMap, TimeSource.Monotonic.ValueTimeMark>? = null
 
+    /**
+     * The map held, read again when it is [refreshEvery] old by one caller only: every other goes on with the map it
+     * has meanwhile, so the appends of a busy node never queue for the table.
+     */
     override fun current(): SliceMap {
         val (map, read) = held ?: return refresh()
-        return if (read.elapsedNow() < refreshEvery) map else refresh()
+        if (read.elapsedNow() < refreshEvery || !reading.tryLock()) return map
+        return try {
+            held?.takeIf { it.second.elapsedNow() < refreshEvery }?.first ?: read()
+        } finally {
+            reading.unlock()
+        }
     }
 
-    @Synchronized
+    /** The map read now; callers that asked while another was reading it share that read. */
     override fun refresh(): SliceMap {
+        val asked = time.markNow()
+        return reading.withLock { held?.takeIf { it.second > asked }?.first ?: read() }
+    }
+
+    private fun read(): SliceMap {
         val map = primary.connection.use { connection ->
             val newest = connection.newest()
             val held = held?.first

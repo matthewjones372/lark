@@ -1,7 +1,7 @@
 -- Spec 0105 on a journal created before it: what postgres.sql now creates, added to its tables. Apply it with the
 -- service's own migrations, then run JdbcJournal.fillSlices until it answers 0 before moving any slice.
 alter table lark_journal add column slice integer;
-create index lark_journal_slice on lark_journal (slice, kind, id, seq_nr);
+create index lark_journal_slice on lark_journal (slice);
 
 create table lark_journal_fenced (
     slice integer not null,
