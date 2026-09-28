@@ -51,7 +51,7 @@ val benchmarkRuntimeClasspath = the<SourceSetContainer>()["main"].runtimeClasspa
 
 // Named rather than inherited, so the JDK measured is the one the README says.
 val toolchains = extensions.getByType<JavaToolchainService>()
-val benchmarkJdk = JavaLanguageVersion.of(21)
+val benchmarkJdk = JavaLanguageVersion.of(25)
 val toolchainLauncher = toolchains.launcherFor { languageVersion.set(benchmarkJdk) }
 
 val generateBenchmarkStubs = tasks.register<JavaExec>("generateBenchmarkStubs") {

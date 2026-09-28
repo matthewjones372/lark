@@ -37,10 +37,10 @@ internal class EmbeddedKotlin(private val workspace: File) {
                 destination = File(workspace, "out").absolutePath
                 noStdlib = true
                 noReflect = true
-                // The library on the classpath is built for 21; without this
+                // The library on the classpath is built for 25; without this
                 // the compiler defaults to 1.8 and every fixture fails for a
                 // reason that has nothing to do with what is being asserted.
-                jvmTarget = "21"
+                jvmTarget = "25"
             },
         )
 
