@@ -12,6 +12,7 @@ import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.app.liquibase.migrate
 import io.github.matthewjones372.lark.cluster.Sharded
 import io.github.matthewjones372.lark.cluster.sharding
 import org.apache.pekko.Done
@@ -33,6 +34,7 @@ import org.apache.pekko.persistence.typed.delivery.EventSourcedProducerQueue
 import org.apache.pekko.persistence.typed.javadsl.CommandHandler
 import org.apache.pekko.persistence.typed.javadsl.EventHandler
 import org.apache.pekko.persistence.typed.javadsl.EventSourcedBehavior
+import org.h2.jdbcx.JdbcDataSource
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
 import org.openjdk.jmh.annotations.Fork
@@ -121,7 +123,7 @@ open class LarkLedger {
     @Setup(Level.Trial)
     fun start() {
         val url = h2("lark")
-        migrate(url, JdbcJournal::class.java, "/lark/journal/jdbc/h2.sql")
+        migrate(JdbcDataSource().apply { setURL(url); user = H2_USER }, "lark/journal/jdbc/h2.sql")
         nodes = LarkTrio { cluster, name ->
             val pool = HikariDataSource(
                 HikariConfig().apply {

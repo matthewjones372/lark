@@ -8,8 +8,8 @@ import java.sql.SQLException
 import javax.sql.DataSource
 
 /**
- * A [SnapshotStore] in one `lark_snapshot` table, reached through [dataSource], one row per id (spec 0074). Its DDL
- * ships beside the journal's, in `lark/journal/jdbc/postgres.sql` and `lark/journal/jdbc/h2.sql`.
+ * A [SnapshotStore] in one `lark_snapshot` table, reached through [dataSource], one row per id (spec 0074). Its table
+ * is in the journal's changelog, `lark/journal/jdbc/postgres.sql` and `lark/journal/jdbc/h2.sql`.
  *
  * A save replaces the row only when it is newer, in one statement, so saves racing from two nodes leave the newest;
  * a first save for an id inserts, and one that loses that insert to another tries the replacement again.

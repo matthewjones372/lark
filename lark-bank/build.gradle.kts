@@ -8,6 +8,7 @@ plugins {
 dependencies {
     implementation(project(":lark-cluster"))
     implementation(project(":lark-actor-journal-jdbc"))
+    implementation(project(":lark-app-liquibase"))
     // The journal in memory by default, or on Postgres with `--jdbc`.
     implementation("com.h2database:h2:2.3.232")
     implementation("org.postgresql:postgresql:42.7.7")

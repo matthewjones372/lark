@@ -17,6 +17,7 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.delivery
 import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.lark.app.liquibase.migrate
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.metrics
 import io.kotest.matchers.doubles.shouldBeGreaterThan
@@ -74,8 +75,7 @@ private fun openPort(): Int = ServerSocket(0).use { it.localPort }
 
 internal fun accountsDatabase(): DataSource = JdbcDataSource().apply {
     setURL("jdbc:h2:mem:accounts-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
-    val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/h2.sql")).readText()
-    connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
+    migrate(this, "lark/journal/jdbc/h2.sql")
 }
 
 /**

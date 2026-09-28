@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":lark-actor-remote"))
     // A hot persistent actor measured on a real Postgres (spec 0085), started in the benchmark's JVM.
     implementation(project(":lark-actor-journal-jdbc"))
+    implementation(project(":lark-app-liquibase"))
     implementation("io.zonky.test:embedded-postgres:2.1.0")
     // A pool per database for the journal across databases (spec 0088), as a service would run one.
     implementation("com.zaxxer:HikariCP:7.1.0")

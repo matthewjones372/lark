@@ -16,11 +16,14 @@ internal object Postgres {
     }
     private val made = AtomicInteger()
 
-    fun fresh(): DataSource {
+    fun fresh(): DataSource = empty().migrated("postgres")
+
+    /** A fresh database with nothing in it. */
+    fun empty(): DataSource {
         val name = "lark_${made.incrementAndGet()}"
         server.postgresDatabase.connection.use { admin ->
             admin.createStatement().use { statement -> statement.execute("create database $name") }
         }
-        return server.getDatabase("postgres", name).migrated("postgres")
+        return server.getDatabase("postgres", name)
     }
 }

@@ -6,6 +6,8 @@ dependencies {
 
     testImplementation(testFixtures(project(":lark-actor")))
     testImplementation("com.h2database:h2:2.3.232")
+    // The changelogs are applied as a service applies them. Tests only: the module still needs nothing at runtime.
+    testImplementation("org.liquibase:liquibase-core:4.32.0")
     // A real Postgres for the contracts (spec 0078): a binary from Maven Central, run by the test JVM, no Docker.
     testImplementation("io.zonky.test:embedded-postgres:2.1.0")
     testImplementation(platform("io.zonky.test.postgres:embedded-postgres-binaries-bom:17.5.0"))

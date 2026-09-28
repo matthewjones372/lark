@@ -46,7 +46,7 @@ cluster.spread("statements", 8) { k ->                  // 8 workers, as even as
   downed. Each worker goes to the member that scores highest for it among those still short of their share, so the
   workers are as even as they can be and a change of members moves few besides those it must.
 - A partitioned projection refuses to start while any row has no slice: `JdbcJournal.fillSlices` first.
-- `postgres-0106.sql` adds the index to a journal created before this spec.
+- The changelog's `lark:0106-kind-slice` changeset adds the index to a journal created before this spec.
 
 ## Why this shape
 

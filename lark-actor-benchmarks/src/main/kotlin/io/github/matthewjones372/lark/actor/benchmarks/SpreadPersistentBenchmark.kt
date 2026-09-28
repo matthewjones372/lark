@@ -9,6 +9,7 @@ import io.github.matthewjones372.lark.actor.ShardedJournal
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.persistent
+import io.github.matthewjones372.lark.app.liquibase.migrate
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
@@ -69,11 +70,8 @@ open class SpreadPersistentBenchmark {
                 .setServerConfig("synchronous_commit", "on")
                 .start()
         }
-        val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/postgres.sql")).readText()
         pools = servers.map { server ->
-            server.postgresDatabase.connection.use { connection ->
-                connection.createStatement().use { it.execute(ddl) }
-            }
+            migrate(server.postgresDatabase, "lark/journal/jdbc/postgres.sql")
             HikariDataSource(
                 HikariConfig().apply {
                     jdbcUrl = server.getJdbcUrl("postgres", "postgres")

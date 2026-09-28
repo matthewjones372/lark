@@ -27,7 +27,7 @@ ShardedSnapshots(snapshotStores, slices)
 ```
 
 **Each row carries its slice.** `lark_journal.slice` is set on append. A journal created before this spec adds the
-column with `postgres-0105.sql`, then runs `JdbcJournal.fillSlices()` until it answers 0; a move refuses to start
+column with the changelog's `lark:0105-slices` changeset, then runs `JdbcJournal.fillSlices()` until it answers 0; a move refuses to start
 while any row has none.
 
 **Each database refuses the slices it has given away.** They are listed in its own `lark_journal_fenced`, and an

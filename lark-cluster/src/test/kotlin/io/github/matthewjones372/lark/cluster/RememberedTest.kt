@@ -21,6 +21,7 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.snapshots
+import io.github.matthewjones372.lark.app.liquibase.migrate
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -100,8 +101,7 @@ private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 /** One H2 database in memory for the whole JVM, with the table the journal's jar ships. */
 private fun sharedDatabase(): DataSource = JdbcDataSource().apply {
     setURL("jdbc:h2:mem:jars-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
-    val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/h2.sql")).readText()
-    connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
+    migrate(this, "lark/journal/jdbc/h2.sql")
 }
 
 /** A journal that remembers where each read of it began. */

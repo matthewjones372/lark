@@ -6,6 +6,7 @@ import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.persistent
+import io.github.matthewjones372.lark.app.liquibase.migrate
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
@@ -57,8 +58,7 @@ open class HotPersistentBenchmark {
     fun start(lark: Lark) {
         postgres = EmbeddedPostgres.builder().start()
         val data = postgres.postgresDatabase
-        val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/postgres.sql")).readText()
-        data.connection.use { connection -> connection.createStatement().use { it.execute(ddl) } }
+        migrate(data, "lark/journal/jdbc/postgres.sql")
         lark.flock.journal(JdbcJournal(data))
         merchant = lark.actor(
             "merchant-$batch",

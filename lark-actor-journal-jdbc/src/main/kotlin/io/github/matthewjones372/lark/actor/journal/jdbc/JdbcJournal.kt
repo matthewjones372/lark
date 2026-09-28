@@ -38,8 +38,9 @@ private val SETTLE = 1.seconds
 
 /**
  * A [Journal] in one `lark_journal` table, reached through [dataSource], so that every node that reaches the same
- * database reads the same events. The table's DDL ships in the jar, as `lark/journal/jdbc/postgres.sql` and
- * `lark/journal/jdbc/h2.sql`; the service applies it, and nothing here creates it.
+ * database reads the same events. The table ships in the jar as a Liquibase changelog in formatted SQL,
+ * `lark/journal/jdbc/postgres.sql` or `lark/journal/jdbc/h2.sql`; the service's changelog includes it, and nothing
+ * here creates it.
  *
  * Of two writers for one id, the table's primary key decides: an append inserts its first event only if the one it
  * expects to follow is there, and two that both expect it collide on the key, so exactly one commits. A database

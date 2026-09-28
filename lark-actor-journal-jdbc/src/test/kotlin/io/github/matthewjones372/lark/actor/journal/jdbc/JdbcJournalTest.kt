@@ -17,12 +17,6 @@ internal fun database(): DataSource = JdbcDataSource().apply {
     setURL("jdbc:h2:mem:journal-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
 }
 
-/** The DDL the jar ships for [database], as a service would apply it. */
-internal fun DataSource.migrated(database: String): DataSource = also {
-    val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/$database.sql")).readText()
-    connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
-}
-
 class JdbcJournalTest : JournalContract() {
     override fun journal(): Journal = JdbcJournal(database().migrated("h2"))
 
