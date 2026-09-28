@@ -22,11 +22,11 @@ class SourcesTest {
     fun `a document written where the test is`() {
         val app = configOf(
             """
-            database { url = "jdbc:h2:mem:", poolSize = 2, idle = 1s }
+            database { url = "jdbc:postgresql://db/app", poolSize = 2, idle = 1s }
             """.trimIndent(),
         ) + section
 
-        testApp(app) { wanted: Wanted -> wanted } shouldBe Wanted("jdbc:h2:mem:", 2, 1.seconds)
+        testApp(app) { wanted: Wanted -> wanted } shouldBe Wanted("jdbc:postgresql://db/app", 2, 1.seconds)
     }
 
     @Test

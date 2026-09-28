@@ -63,7 +63,10 @@ class SliceMoveTest {
                 }
             }
         }
-        Thread.sleep(1_000)
+        // Every id has events before the move, however long a round trip to the database takes.
+        val warm = System.nanoTime() + 30.seconds.inWholeNanoseconds
+        while (appended.size < ids.size && System.nanoTime() < warm) Thread.sleep(50)
+        appended.size shouldBe ids.size
         val move = SliceMover(databases).move(moving, "db-2")
         Thread.sleep(1_000)
         stop.set(true)

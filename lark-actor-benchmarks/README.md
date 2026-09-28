@@ -22,7 +22,7 @@ crosses as the string `ActorRefResolver` makes of it. Every row is taken from th
 that node owns and `remote` one another node owns, each found by asking entities where they run until one answers.
 Pekko's rebalancing and passivation are off, as lark's placement never moves an entity between members that stay up.
 
-The journal rows put both sides on H2 in memory, one database per side that all three nodes share, each node
+The journal rows put both sides on Postgres, one server per side in a container that all three nodes share, each node
 through its own pool of 20 connections: HikariCP under `JdbcJournal` for lark, and Slick's HikariCP pool under
 Persistence JDBC 1.3.0 for Pekko, at its default size. An event is the pence paid in, as decimal text, on both
 sides. The entities sent to reliably keep nothing: they confirm each command once handled, through `delivered` on

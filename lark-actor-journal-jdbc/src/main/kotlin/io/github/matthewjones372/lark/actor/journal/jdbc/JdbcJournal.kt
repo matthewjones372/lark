@@ -38,8 +38,8 @@ private val SETTLE = 1.seconds
 
 /**
  * A [Journal] in one `lark_journal` table, reached through [dataSource], so that every node that reaches the same
- * database reads the same events. The table's DDL ships in the jar, as `lark/journal/jdbc/postgres.sql` and
- * `lark/journal/jdbc/h2.sql`; the service applies it, and nothing here creates it.
+ * database reads the same events. The table ships in the jar as a Liquibase changelog in formatted SQL,
+ * `lark/journal/jdbc/postgres.sql`; the service's changelog includes it, and nothing here creates it.
  *
  * Of two writers for one id, the table's primary key decides: an append inserts its first event only if the one it
  * expects to follow is there, and two that both expect it collide on the key, so exactly one commits. A database
@@ -54,7 +54,7 @@ private val SETTLE = 1.seconds
  * that never committed and passed, with a warning. On Postgres that is once every transaction running when the gap
  * was first seen has ended (spec 0100), so an append whose writer is slow to commit, however slow, is waited for,
  * and one rolled back is passed within a second; [longestAppend] bounds the wait for a writer that never ends. On a
- * database without transaction snapshots, H2, it is once the gap has been missing for [gapTimeout].
+ * database without transaction snapshots it is once the gap has been missing for [gapTimeout].
  */
 class JdbcJournal(
     private val dataSource: DataSource,

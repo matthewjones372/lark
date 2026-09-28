@@ -6,7 +6,8 @@ dependencies {
     api(project(":lark-app"))
     api("org.liquibase:liquibase-core:$liquibaseVersion")
 
-    testImplementation("com.h2database:h2:2.3.232")
+    // A real Postgres, in a container.
+    testImplementation(testFixtures(project(":lark-actor-journal-jdbc")))
 }
 
 tasks.test {

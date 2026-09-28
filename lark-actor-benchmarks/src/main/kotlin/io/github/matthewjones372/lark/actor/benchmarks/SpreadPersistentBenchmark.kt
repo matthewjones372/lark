@@ -9,7 +9,7 @@ import io.github.matthewjones372.lark.actor.ShardedJournal
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.persistent
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres
+import io.github.matthewjones372.lark.app.liquibase.migrate
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
 import org.openjdk.jmh.annotations.Fork
@@ -41,7 +41,7 @@ private val spreadCents = object : EventCodec<Int> {
 
 /**
  * [SPREAD_PAYMENTS] payments over [ACCOUNTS] persistent actors, one event and one append each, on a journal across
- * [databases] Postgres servers in the benchmark's JVM (spec 0088). The writes are the many-ids kind sharding spreads;
+ * [databases] Postgres servers, each in a container (spec 0088). The writes are the many-ids kind sharding spreads;
  * the one-account kind is [HotPersistentBenchmark]'s.
  */
 @State(Scope.Benchmark)
@@ -55,28 +55,20 @@ open class SpreadPersistentBenchmark {
     @Param("1", "2")
     var databases: Int = 1
 
-    private lateinit var servers: List<EmbeddedPostgres>
+    private lateinit var servers: List<PostgresServer>
     private lateinit var pools: List<HikariDataSource>
     private lateinit var accounts: List<ActorRef<Spread>>
 
     @Setup(Level.Trial)
     fun start(lark: Lark) {
-        // Durable commits, as a service runs: the embedded default of neither makes one server CPU-bound, not
-        // commit-bound, and a second server on the same cores then has nothing of its own to add.
-        servers = (1..databases).map {
-            EmbeddedPostgres.builder()
-                .setServerConfig("fsync", "on")
-                .setServerConfig("synchronous_commit", "on")
-                .start()
-        }
-        val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/postgres.sql")).readText()
+        servers = (1..databases).map { PostgresServer() }
         pools = servers.map { server ->
-            server.postgresDatabase.connection.use { connection ->
-                connection.createStatement().use { it.execute(ddl) }
-            }
+            migrate(server.dataSource, "lark/journal/jdbc/postgres.sql")
             HikariDataSource(
                 HikariConfig().apply {
-                    jdbcUrl = server.getJdbcUrl("postgres", "postgres")
+                    jdbcUrl = server.url
+                    username = server.user
+                    password = server.password
                     maximumPoolSize = POOL
                 },
             )
@@ -100,7 +92,7 @@ open class SpreadPersistentBenchmark {
     @TearDown(Level.Trial)
     fun stop() {
         pools.forEach(HikariDataSource::close)
-        servers.forEach(EmbeddedPostgres::close)
+        servers.forEach(PostgresServer::close)
     }
 
     @Benchmark

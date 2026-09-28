@@ -15,12 +15,13 @@ val scalaBinary = "2.13"
 dependencies {
     implementation(project(":lark-actor"))
     implementation(project(":lark-actor-remote"))
-    // A hot persistent actor measured on a real Postgres (spec 0085), started in the benchmark's JVM.
+    // A hot persistent actor measured on a real Postgres (spec 0085), in a container.
     implementation(project(":lark-actor-journal-jdbc"))
-    implementation("io.zonky.test:embedded-postgres:2.1.0")
+    implementation(project(":lark-app-liquibase"))
+    implementation("org.testcontainers:testcontainers-postgresql:2.0.5")
+    implementation("org.postgresql:postgresql:42.7.7")
     // A pool per database for the journal across databases (spec 0088), as a service would run one.
     implementation("com.zaxxer:HikariCP:7.1.0")
-    implementation(platform("io.zonky.test.postgres:embedded-postgres-binaries-bom:17.5.0"))
     implementation("org.apache.pekko:pekko-actor-typed_$scalaBinary:$pekkoVersion")
     implementation("org.apache.pekko:pekko-remote_$scalaBinary:$pekkoVersion")
     // Three nodes of a cluster on each side (spec 0092): lark's sharding against Pekko Cluster Sharding.
@@ -28,12 +29,11 @@ dependencies {
     implementation("org.apache.pekko:pekko-cluster-sharding-typed_$scalaBinary:$pekkoVersion")
     // Distributed pub-sub: Pekko's Topic finds its instances on other nodes through the cluster's receptionist.
     implementation("org.apache.pekko:pekko-cluster-typed_$scalaBinary:$pekkoVersion")
-    // A persistent entity and a durable producer on each side, on one H2 in memory per side (spec 0092).
+    // A persistent entity and a durable producer on each side, on one Postgres per side (spec 0092).
     implementation("org.apache.pekko:pekko-persistence-typed_$scalaBinary:$pekkoVersion")
     implementation("org.apache.pekko:pekko-persistence-jdbc_$scalaBinary:$pekkoJdbcVersion")
     // pekko-persistence-jdbc is built against an older Pekko; every Pekko module must be the one version.
     implementation("org.apache.pekko:pekko-persistence-query_$scalaBinary:$pekkoVersion")
-    implementation("com.h2database:h2:2.3.232")
     implementation("org.openjdk.jmh:jmh-core:$jmhVersion")
 }
 

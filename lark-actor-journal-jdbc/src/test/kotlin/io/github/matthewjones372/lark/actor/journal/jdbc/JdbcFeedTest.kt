@@ -16,7 +16,7 @@ import javax.sql.DataSource
 import kotlin.time.Duration.Companion.seconds
 
 class JdbcFeedTest : FeedContract<JdbcJournal>() {
-    override fun journal() = JdbcJournal(database().migrated("h2"))
+    override fun journal() = JdbcJournal(Postgres.fresh())
 }
 
 private fun List<FeedEvent>.ids() = map { "${it.id.id}#${it.sequence}" }
@@ -127,10 +127,6 @@ abstract class FeedGaps {
     }
 }
 
-class JdbcFeedGapTest : FeedGaps() {
-    override fun source(): DataSource = database().migrated("h2")
-}
-
 class PostgresFeedGapTest : FeedGaps() {
     override fun source(): DataSource = Postgres.fresh()
 
@@ -174,5 +170,5 @@ class PostgresFeedGapTest : FeedGaps() {
 }
 
 class JdbcPruneTest : PruneContract<JdbcJournal>() {
-    override fun journal() = JdbcJournal(database().migrated("h2"))
+    override fun journal() = JdbcJournal(Postgres.fresh())
 }

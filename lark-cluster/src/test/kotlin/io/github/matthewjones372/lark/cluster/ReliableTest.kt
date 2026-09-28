@@ -10,6 +10,7 @@ import io.github.matthewjones372.lark.actor.delivered
 import io.github.matthewjones372.lark.actor.events
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.lark.actor.journal.jdbc.Postgres
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
 import io.github.matthewjones372.lark.actor.remote.Node
@@ -21,10 +22,8 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.metrics
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import org.h2.jdbcx.JdbcDataSource
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
-import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import javax.sql.DataSource
@@ -72,11 +71,7 @@ internal val calm =
 
 private fun openPort(): Int = ServerSocket(0).use { it.localPort }
 
-internal fun accountsDatabase(): DataSource = JdbcDataSource().apply {
-    setURL("jdbc:h2:mem:accounts-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
-    val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/h2.sql")).readText()
-    connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
-}
+internal fun accountsDatabase(): DataSource = Postgres.fresh()
 
 /**
  * A node with the accounts sharded on it and [journal] as its flock's, on a thread of its own, until [close]. With a

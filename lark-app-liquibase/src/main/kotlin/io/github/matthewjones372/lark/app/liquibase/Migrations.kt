@@ -31,15 +31,24 @@ fun migrations(
     changelog: String,
     contexts: Contexts = Contexts(),
     labels: LabelExpression = LabelExpression(),
-): Module = single { source: DataSource ->
-    source.connection.use { connection ->
-        val database = DatabaseFactory.getInstance()
-            .findCorrectDatabaseImplementation(JdbcConnection(connection))
-        Liquibase(changelog, ClassLoaderResourceAccessor(), database).use { liquibase ->
-            val unrun = liquibase.listUnrunChangeSets(contexts, labels).size
-            liquibase.update(contexts, labels)
-            logInfo("liquibase: $changelog, $unrun changeset(s) applied")
-            Migrated(unrun)
-        }
+): Module = single { source: DataSource -> Migrated(migrate(source, changelog, contexts, labels)) }
+
+/**
+ * Runs [changelog], a classpath resource, against [source] now, and answers how many changesets it applied. For a
+ * database outside a graph; [migrations] is this as a node.
+ */
+fun migrate(
+    source: DataSource,
+    changelog: String,
+    contexts: Contexts = Contexts(),
+    labels: LabelExpression = LabelExpression(),
+): Int = source.connection.use { connection ->
+    val database = DatabaseFactory.getInstance()
+        .findCorrectDatabaseImplementation(JdbcConnection(connection))
+    Liquibase(changelog, ClassLoaderResourceAccessor(), database).use { liquibase ->
+        val unrun = liquibase.listUnrunChangeSets(contexts, labels).size
+        liquibase.update(contexts, labels)
+        logInfo("liquibase: $changelog, $unrun changeset(s) applied")
+        unrun
     }
 }

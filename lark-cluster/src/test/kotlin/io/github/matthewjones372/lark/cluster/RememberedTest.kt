@@ -13,6 +13,7 @@ import io.github.matthewjones372.lark.actor.every
 import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcSnapshots
+import io.github.matthewjones372.lark.actor.journal.jdbc.Postgres
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.remote.Codecs
 import io.github.matthewjones372.lark.actor.remote.MessageCodec
@@ -25,10 +26,8 @@ import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import org.h2.jdbcx.JdbcDataSource
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
-import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -97,12 +96,8 @@ private val quick =
 
 private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
-/** One H2 database in memory for the whole JVM, with the table the journal's jar ships. */
-private fun sharedDatabase(): DataSource = JdbcDataSource().apply {
-    setURL("jdbc:h2:mem:jars-${UUID.randomUUID()};DB_CLOSE_DELAY=-1")
-    val ddl = checkNotNull(JdbcJournal::class.java.getResource("/lark/journal/jdbc/h2.sql")).readText()
-    connection.use { connection -> connection.createStatement().use { statement -> statement.execute(ddl) } }
-}
+/** A fresh Postgres, with the table the journal's jar ships. */
+private fun sharedDatabase(): DataSource = Postgres.fresh()
 
 /** A journal that remembers where each read of it began. */
 private class Reads(private val kept: Journal) : Journal by kept {
