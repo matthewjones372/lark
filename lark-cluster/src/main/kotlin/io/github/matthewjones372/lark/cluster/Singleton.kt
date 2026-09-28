@@ -19,7 +19,7 @@ fun <M : Any, S, E> Cluster.singleton(
 ): ActorRef<M> {
     val hosting = Hosting<M, M>(
         eager = true,
-        owner = { _, members -> Placement.oldest(members.holding(role)) },
+        owner = { _, members, _ -> Placement.oldest(members.holding(role)) },
         start = { ctx, _ -> ctx.spawn(name, behaviour()) },
         target = { actor, _ -> actor },
     )

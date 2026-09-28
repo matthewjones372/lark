@@ -1,9 +1,14 @@
 package io.github.matthewjones372.lark.actor
 
+import arrow.core.raise.Raise
+import arrow.core.raise.either
 import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Gauge
+import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.increment
+import io.github.matthewjones372.lark.logInfo
+import io.github.matthewjones372.lark.logWarn
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -11,7 +16,9 @@ import java.io.DataOutputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -20,7 +27,9 @@ import kotlin.time.Duration.Companion.seconds
  * and numbers on from where it stopped. Its deliveries carry [id] alone, so an entity's deduplication holds across
  * the restart. [codec] keeps each command with its delivery blanked, and a command is sent again through
  * [Delivered.redeliver]. Two producers running under one [id] at once conflict, as two writers for one entity do.
- * It snapshots every 1,000 events and prunes what a snapshot covers, where the flock's stores allow.
+ * It snapshots every 1,000 events and prunes what a snapshot covers, where the flock's stores allow. A journal that
+ * throws restarts its actor, 100 ms after the first throw and doubling to 5 s, and the restart replays what was
+ * written; until a replay succeeds, `send` answers [Unwritten] at once (spec 0098).
  */
 @Suppress("LongParameterList")
 fun <F, M : Any> Flock<F>.durableProducer(
@@ -35,8 +44,13 @@ fun <F, M : Any> Flock<F>.durableProducer(
     val room = room(keep)
     val meters = meters(id)
     val recovered = CountDownLatch(1)
-    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
-    return Producer<M>(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
+    val down = AtomicReference<Throwable?>()
+    val actor = spawn(
+        "producer-$id",
+        outbox(id, codec, resendAfter, room, keep, meters, recovered, down, route),
+        restart = backoff(),
+    )
+    return Producer<M>(actor, room, keep, within, meters, durable = true, recovered = recovered, down = down)
         .drainedOnClose(this, id, drainWithin)
 }
 
@@ -51,16 +65,21 @@ fun <M : Any> TestActors.durableProducer(
     route: (to: String) -> ActorRef<M>,
 ): Producer<M> {
     val room = room(keep)
-    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
+    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { }, Counter { })
     val recovered = CountDownLatch(1)
-    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, keep, meters, recovered, route))
-    return Producer(actor, room, keep, within, meters.full, durable = true, recovered = recovered)
+    val down = AtomicReference<Throwable?>()
+    val actor = spawn(
+        "producer-$id",
+        outbox(id, codec, resendAfter, room, keep, meters, recovered, down, route),
+        restart = backoff(),
+    )
+    return Producer(actor, room, keep, within, meters, durable = true, recovered = recovered, down = down)
 }
 
 /**
  * The durable producer [id] started again as a child of this actor, to send only what an earlier run of it kept
  * (spec 0099), and that child, which stopping stops it. It holds room for all it recovers, so its `drain` waits for
- * every command; it takes no new ones.
+ * every command; it takes no new ones. It restarts and answers [Unwritten] as [Flock.durableProducer] does.
  */
 fun <M : Any> Ctx<*>.resumedProducer(
     id: String,
@@ -69,11 +88,21 @@ fun <M : Any> Ctx<*>.resumedProducer(
     route: (to: String) -> ActorRef<M>,
 ): Pair<Producer<M>, ActorRef<*>> {
     val room = room(Int.MAX_VALUE)
-    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { })
+    val meters = ProducerMeters(Gauge { }, Counter { }, Counter { }, Counter { })
     val recovered = CountDownLatch(1)
-    val actor = spawn("producer-$id", outbox(id, codec, resendAfter, room, Int.MAX_VALUE, meters, recovered, route))
-    return Producer<M>(actor, room, Int.MAX_VALUE, Duration.ZERO, meters.full, durable = true, recovered) to actor
+    val down = AtomicReference<Throwable?>()
+    val actor = spawn(
+        "producer-$id",
+        outbox(id, codec, resendAfter, room, Int.MAX_VALUE, meters, recovered, down, route),
+        restart = backoff(),
+    )
+    val producer = Producer<M>(actor, room, Int.MAX_VALUE, Duration.ZERO, meters, true, recovered, down)
+    return producer to actor
 }
+
+/** A durable producer's restarts: short enough that a blip costs little, long enough not to hammer a dead journal. */
+private fun <E> backoff(): Schedule<Failure<E>, Duration> =
+    Schedule.exponential<Failure<E>>(100.milliseconds).delayed { _, delay -> minOf(delay, 5.seconds) }
 
 /** What a durable producer writes: a command kept, as bytes, and a command confirmed. */
 private sealed interface OutboxEvent {
@@ -104,9 +133,10 @@ private fun <M : Any> outbox(
     keep: Int,
     meters: ProducerMeters,
     recovered: CountDownLatch,
+    down: AtomicReference<Throwable?>,
     route: (String) -> ActorRef<M>,
 ): Behaviour<Any, Remembered<Outboxes>, JournalConflict> {
-    val steps = OutboxSteps(producer, codec, room, keep, meters, route)
+    val steps = OutboxSteps(producer, codec, room, keep, meters, down, route)
     return persistent<Any, OutboxEvent, Outboxes>(
         id = PersistenceId("lark-producer", producer),
         empty = emptyMap(),
@@ -130,12 +160,45 @@ private fun <M : Any> outbox(
             }
         },
         event = ::applied,
-    ).onStart { ctx ->
+    ).onThrow(steps::threw).onStart { ctx ->
+        steps.replayed()
         ctx.timers.every(ResendUnconfirmed, resendAfter, ResendUnconfirmed)
         // What the start recovered holds room, and goes out at once rather than a resendAfter later.
         ctx.timers.after(Recovered, Duration.ZERO, Recovered)
     }
 }
+
+/**
+ * This behaviour, telling [failed] of each throw from a step, with its message, or from a start, with none, on the
+ * throw's way to supervision. A raise is not a throw, and goes on untold.
+ */
+private fun <M : Any, S, E> Behaviour<M, S, E>.onThrow(failed: (M?, Exception) -> Unit): Behaviour<M, S, E> {
+    val step = step
+    val start = start
+    return Behaviour(
+        initial = initial,
+        step = { ctx, state, message -> told(failed, message) { step(ctx, state, message) } },
+        signal = signal,
+        start = start?.let { { ctx, state -> told(failed, null) { start(ctx, state) } } },
+        steps = steps,
+        batch = batch,
+    )
+}
+
+/** What [body] returns or raises; what it throws is told to [failed] and thrown on. */
+// A journal may throw anything, and whatever it threw goes on to supervision unchanged.
+@Suppress("TooGenericExceptionCaught")
+private inline fun <M : Any, S, E> Raise<E>.told(
+    failed: (M?, Exception) -> Unit,
+    message: M?,
+    body: Raise<E>.() -> Next<S>,
+): Next<S> =
+    try {
+        either<E, Next<S>> { body(this) }
+    } catch (thrown: Exception) {
+        failed(message, thrown)
+        throw thrown
+    }.bind()
 
 /** What a durable producer does with each message; the journal has the rest. */
 @Suppress("LongParameterList")
@@ -145,6 +208,7 @@ private class OutboxSteps<M : Any>(
     private val room: Semaphore,
     private val keep: Int,
     private val meters: ProducerMeters,
+    private val down: AtomicReference<Throwable?>,
     private val route: (String) -> ActorRef<M>,
 ) {
     // The commands that hold room: each kept here, and each recovered that there was room for, so room never
@@ -171,12 +235,33 @@ private class OutboxSteps<M : Any>(
         val asked = message as KeepDurably<M>
         val sequence = outboxes[asked.to]?.next ?: 1
         val bytes = codec.encode(asked.command(Delivery(producer, asked.to, sequence, Delivery.NoOne)))
-        holding += asked.to to sequence
         return effects.persist(OutboxEvent.Kept(asked.to, sequence, bytes)).then { after ->
+            // Written: from here a throw leaves its room held, for the restart's replay to find it.
+            holding += asked.to to sequence
+            asked.written()
             if (after.getValue(asked.to).kept.size == 1) ctx.send(asked.to, sequence, bytes)
             measure()
-            asked.written.countDown()
         }
+    }
+
+    /**
+     * The journal threw, on [message] or on a replay: the producer is down until a replay succeeds, and a command
+     * that was not written is answered [Unwritten] and gives its room back.
+     */
+    fun threw(message: Any?, cause: Exception) {
+        if (down.getAndSet(cause) == null) {
+            logWarn("producer $producer cannot write to its journal, and answers Unwritten until it can: $cause")
+        }
+        if (message is KeepDurably<*> && !message.isAnswered) {
+            room.release()
+            message.unwritten(cause)
+        }
+        measure()
+    }
+
+    /** A start read the journal, so it is back. */
+    fun replayed() {
+        if (down.getAndSet(null) != null) logInfo("producer $producer writes to its journal again")
     }
 
     fun confirmed(
