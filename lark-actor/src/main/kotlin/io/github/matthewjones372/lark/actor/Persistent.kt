@@ -63,6 +63,25 @@ fun interface Prune {
                 }
             }
         }
+
+        /**
+         * As [after], for read models split into [partitions] by slice (spec 0106): each id waits only on what the
+         * partition of [names] that follows it has read of its own database, by the offsets saved under
+         * [ShardedJournal.progress] with the partition.
+         */
+        fun after(offsets: OffsetStore, journal: ShardedJournal, partitions: Int, vararg names: String): Prune {
+            require(names.isNotEmpty()) { "pruning after no read model is Prune.always" }
+            val waited = names.toList()
+            return object : Prune {
+                override fun readTo(): Long? = null
+
+                override fun readTo(id: PersistenceId): Long {
+                    val database = journal.database(id)
+                    val partition = Slices.partitionOf(id, partitions)
+                    return waited.minOf { offsets.load(ShardedJournal.progress(it, database, partition)) ?: 0 }
+                }
+            }
+        }
     }
 }
 

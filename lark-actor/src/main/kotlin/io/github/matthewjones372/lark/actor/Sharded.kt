@@ -10,6 +10,20 @@ object Slices {
     const val COUNT: Int = 1024
 
     fun of(id: PersistenceId): Int = murmur3("${id.kind}|${id.id}".toByteArray(Charsets.UTF_8)) and (COUNT - 1)
+
+    /** The slices partition [partition] of [partitions] follows (spec 0106): an even share of them, in order. */
+    fun partition(partition: Int, partitions: Int): IntRange {
+        require(partitions in 1..COUNT) { "partitions must be in 1..$COUNT, was $partitions" }
+        require(partition in 0 until partitions) { "partition must be in 0 until $partitions, was $partition" }
+        return partition * COUNT / partitions until (partition + 1) * COUNT / partitions
+    }
+
+    /** Which of [partitions] partitions follows [id]'s slice. */
+    fun partitionOf(id: PersistenceId, partitions: Int): Int {
+        require(partitions in 1..COUNT) { "partitions must be in 1..$COUNT, was $partitions" }
+        // The partition whose share starts at or below the slice: the inverse of [partition]'s bounds.
+        return ((of(id) + 1) * partitions - 1) / COUNT
+    }
 }
 
 /**
@@ -164,6 +178,9 @@ class ShardedJournal(databases: List<Pair<String, Journal>>, slices: SliceTable?
     companion object {
         /** What a read model [name] saves its offset under for [database]'s feed. */
         fun progress(name: String, database: String): String = "$name@$database"
+
+        /** What partition [partition] of read model [name] saves its offset under for [database]'s feed (spec 0106). */
+        fun progress(name: String, database: String, partition: Int): String = "$name@$database#$partition"
     }
 }
 
