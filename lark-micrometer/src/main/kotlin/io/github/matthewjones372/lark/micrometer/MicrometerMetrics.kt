@@ -4,11 +4,14 @@ import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.Histogram
 import io.github.matthewjones372.lark.Metrics
+import io.github.matthewjones372.lark.Reading
+import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Tag
 import io.micrometer.core.instrument.Tags
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
+import io.micrometer.core.instrument.Counter as MicrometerCounter
 import io.micrometer.core.instrument.Gauge as MicrometerGauge
 import io.micrometer.core.instrument.Metrics as MicrometerRegistries
 
@@ -46,6 +49,32 @@ class MicrometerMetrics(private val registry: MeterRegistry = MicrometerRegistri
 
     override fun histogram(name: String, tags: Map<String, String>): Histogram =
         registry.summary(name, tagsOf(tags)).let { taken -> Histogram { value -> taken.record(value) } }
+
+    /**
+     * Every meter of [name] in the registry (spec 0109): a counter as a total, a gauge as its value, and a
+     * distribution summary as its count, sum and whatever histogram buckets a meter filter gave it. Meters lark does
+     * not write, timers among them, are left out.
+     */
+    override fun read(name: String): List<Reading> = registry.find(name).meters().mapNotNull { meter ->
+        val tags = meter.id.tags.associate { it.key to it.value }
+        when (meter) {
+            is MicrometerCounter -> Reading.Total(name, tags, meter.count())
+
+            is MicrometerGauge -> Reading.Value(name, tags, meter.value())
+
+            is DistributionSummary -> meter.takeSnapshot().let { taken ->
+                Reading.Distribution(
+                    name,
+                    tags,
+                    taken.count(),
+                    taken.total(),
+                    taken.histogramCounts().associate { it.bucket() to it.count() },
+                )
+            }
+
+            else -> null
+        }
+    }
 
     private fun tagsOf(tags: Map<String, String>): Tags =
         Tags.of(tags.map { (key, value) -> Tag.of(key, value) })
