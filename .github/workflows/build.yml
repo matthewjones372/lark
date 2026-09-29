@@ -19,7 +19,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # The home cluster's runner (lark-bank spec 0017), which starts Testcontainers' Postgres in its own
+    # Docker-in-Docker. Set the repository variable RUNNER=ubuntu-latest to build on GitHub's runners instead.
+    runs-on: ${{ vars.RUNNER || 'home-lark' }}
 
     strategy:
       fail-fast: false
