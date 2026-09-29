@@ -40,6 +40,36 @@ interface Metrics {
     fun gauge(name: String, tags: Map<String, String>): Gauge
 
     fun histogram(name: String, tags: Map<String, String>): Histogram
+
+    /**
+     * Every instrument named [name], one reading per set of its tags, as the backend holds it now (spec 0109); none
+     * where it keeps nothing. The backend is the store: lark keeps no copy to answer from.
+     */
+    fun read(name: String): List<Reading> = emptyList()
+}
+
+/** What one instrument holds now, under its name and one set of its tags (spec 0109). */
+sealed interface Reading {
+    val name: String
+    val tags: Map<String, String>
+
+    /** A counter's total. */
+    data class Total(override val name: String, override val tags: Map<String, String>, val total: Double) : Reading
+
+    /** A gauge's value. */
+    data class Value(override val name: String, override val tags: Map<String, String>, val value: Double) : Reading
+
+    /**
+     * A histogram: how many values, their sum, and how many were at or below each bound where the backend keeps
+     * buckets, else none. A quantile over an interval is the difference of two readings' buckets.
+     */
+    data class Distribution(
+        override val name: String,
+        override val tags: Map<String, String>,
+        val count: Long,
+        val sum: Double,
+        val buckets: Map<Double, Double>,
+    ) : Reading
 }
 
 /** Every instrument, doing nothing. A service with no adapter is not a service with a broken one. */
@@ -73,6 +103,9 @@ fun gauge(name: String, vararg tags: Pair<String, String>): Gauge =
 /** The histogram of this name. */
 fun histogram(name: String, vararg tags: Pair<String, String>): Histogram =
     metrics.get().histogram(name, tagsOf(tags))
+
+/** Every instrument of this name as the metrics in scope hold it now (spec 0109). */
+fun readings(name: String): List<Reading> = metrics.get().read(name)
 
 internal fun tagsOf(tags: Array<out Pair<String, String>>): Map<String, String> =
     metricTags.get() + tags
@@ -142,6 +175,17 @@ class CapturedMetrics internal constructor() : Metrics {
 
     /** The tags the last look-up of [name] carried, which is what a claim about scope reads. */
     fun tags(name: String): Map<String, String> = labels[name].orEmpty()
+
+    override fun read(name: String): List<Reading> {
+        val tags = tags(name)
+        return listOfNotNull(
+            counters[name]?.let { Reading.Total(name, tags, it.sum()) },
+            gauges[name]?.let { Reading.Value(name, tags, it) },
+            histograms[name]?.let { histogram(name) }?.let { taken ->
+                Reading.Distribution(name, tags, taken.size.toLong(), taken.sum(), emptyMap())
+            },
+        )
+    }
 }
 
 /** Binds metrics a test can read, rather than a backend nobody can assert on. */
