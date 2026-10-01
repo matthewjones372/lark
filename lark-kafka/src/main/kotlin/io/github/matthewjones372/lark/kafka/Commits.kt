@@ -28,9 +28,9 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     /** Set once this consumer starts to leave its group, which a transaction still to commit has to know. */
     private val leaving = AtomicBoolean(false)
 
-    /** After each poll: the group as it left it, for the records it returned. */
+    /** After each poll: the group as it left it, for the records it returned. A consumer with no group has none. */
     fun polled() {
-        group = consumer.groupMetadata()
+        if (committing) group = consumer.groupMetadata()
     }
 
     /** [record] with its position, and a handle that marks it handled here. */

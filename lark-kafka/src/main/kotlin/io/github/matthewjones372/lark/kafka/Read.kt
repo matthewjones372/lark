@@ -116,6 +116,7 @@ private class Assigned<K, V>(
             val limit = end ?: Long.MAX_VALUE
             polled = consumer.poll(pollTimeout.toJavaDuration()).records(partition).filter { it.offset() < limit }
                 .iterator()
+            commits.polled()
         }
         return commits.carrying(polled.next())
     }
