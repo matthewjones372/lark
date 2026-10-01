@@ -5,6 +5,7 @@ import io.github.embeddedkafka.EmbeddedKafka
 import io.github.embeddedkafka.EmbeddedKafkaConfig
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
+import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -82,6 +83,23 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
             }
             read.take(count)
         }
+
+    /** [topic] made with [partitions] partitions, before anything is sent to it. */
+    fun create(topic: String, partitions: Int) {
+        Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
+            admin.createTopics(listOf(NewTopic(topic, partitions, 1))).all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        }
+    }
+
+    /** [values] sent to [partition] of [topic], in order. */
+    fun sendTo(topic: String, partition: Int, vararg values: String) {
+        KafkaProducer(mapOf<String, Any>("bootstrap.servers" to bootstrap), StringSerializer(), StringSerializer())
+            .use { producer ->
+                values.forEach { value ->
+                    producer.send(ProducerRecord(topic, partition, null, value)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                }
+            }
+    }
 
     /**
      * Every record on [topic]'s only partition up to its end, as a reader at [isolation] sees it: with
