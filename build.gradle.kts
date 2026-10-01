@@ -75,6 +75,7 @@ val moduleDescriptions = mapOf(
     "lark-stream-forks" to "lark-stream on lark's own forks: a run is a pull loop on a virtual thread.",
     "lark-stream-actors" to "lark-stream on lark-actor: a run is an actor, pulling its loop a batch at a time.",
     "lark-stream-test" to "lark-stream for tests: every stage on the calling thread, on a clock the test owns.",
+    "lark-test" to "For tests of a lark service: eventually on lark's clock, and a test that reads as a story.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",

@@ -26,7 +26,9 @@ questions are what it found.
 
 ## Shape
 
-A new module, `lark-test`, depending on `lark` and `kotest-assertions-core`:
+A new module, `lark-test`, depending on `lark` and nothing else. A failed step
+is an `AssertionError`, so Kotest's matchers, or any others, work inside one
+without this module choosing them:
 
 ```kotlin
 @Test
@@ -112,10 +114,9 @@ under Shape.
 
 ## Open questions
 
-- **Kotest on a consumer's classpath.** `kotest-assertions-core` brings
-  `kotlinx-coroutines` with it when it runs. Should it be `api` (simplest) or
-  `compileOnly`, with the consumer bringing their own Kotest? Recommended:
-  `api`. It is a test dependency, and "no coroutines" is about lark's own code.
+- **Kotest on a consumer's classpath.** Decided while building: no Kotest at
+  all. The prototype needed neither Kotest nor coroutines, so `lark-test`
+  depends on `lark` alone, and its `NoOtherDependenciesTest` says so.
 - **Where the console output goes.** Gradle hides a test's stdout unless
   `showStandardStreams` is on. Also publish each step as a JUnit `ReportEntry`?
   Recommended: stdout only; the transcript in the failure covers CI.

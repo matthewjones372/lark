@@ -52,7 +52,7 @@ drives it. `adjust(5.seconds)` ends it without anything sleeping, the way
 
 ## Stack
 
-- [ ] **`spec-0114-up-to`** — `Schedule.upTo(duration)` and its tests.
+- [x] **`spec-0114-up-to`** — `Schedule.upTo(duration)` and its tests. (#320)
       Done when: on a `TestClock`, `spaced(1.seconds) zipLeft upTo(5.seconds)`
       retries a failing action and gives up once the clock has moved five
       seconds, rethrowing the last failure; on `fixedClock` it never gives up
