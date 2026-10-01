@@ -128,4 +128,31 @@ class StoryTest {
 
         failed.message!!.lines()[0] shouldBe "Story: a story takes its title from the test that tells it"
     }
+
+    @Test
+    fun `a failure points at the line of the assertion that failed`() {
+        val failed = shouldThrow<StoryFailed> {
+            story("pointing") {
+                Then("it fails") { "Bea" shouldBe "Ada" }
+            }
+        }
+
+        val line = failed.stackTrace.first()
+        line.fileName shouldBe "StoryTest.kt"
+        failed.message!!.lines().last().trim() shouldBe "at $line"
+    }
+
+    @Test
+    fun `a waiting step that gives up points at its last failure's line`() {
+        val failed = shouldThrow<StoryFailed> {
+            story("waiting") {
+                Then("it never gets there").eventually(within = 50.milliseconds, every = 5.milliseconds) {
+                    "Bea" shouldBe "Ada"
+                }
+            }
+        }
+
+        failed.stackTrace.first().fileName shouldBe "StoryTest.kt"
+        failed.message!!.lines().last().trim() shouldBe "at ${failed.stackTrace.first()}"
+    }
 }
