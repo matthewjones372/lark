@@ -35,6 +35,11 @@ import io.github.matthewjones372.lark.gauge
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.timed
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.guarded
+import io.github.matthewjones372.lark.policy
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.fixedClock
 import io.github.matthewjones372.lark.logAnnotated
@@ -816,6 +821,36 @@ microseconds, and every line is stamped with the same instant. `TestClock` is
 the other one — it moves only when a test moves it, and `adjustWhenBlocked`
 waits until every sleep is on a time still ahead before moving.
 
+## Guard a call to something unreliable
+
+<!-- cookbook -->
+```kotlin
+class Quotes(private val fetch: (String) -> Double) {
+    private val partner = policy("partner-api") {
+        deadline(2.seconds)
+        retry(Schedule.exponential<Throwable>(100.milliseconds).jittered() zipLeft Schedule.recurs(3))
+        attemptTimeout(500.milliseconds)
+    }
+
+    fun quote(id: String): Double = partner { fetch(id) }
+
+    fun quoted(id: String): Either<String, Double> = either {
+        guarded(partner, ifRejected = { "${it.guard} refused: ${it.message}" }) { fetch(id) }
+    }
+}
+```
+
+A policy is a value, checked when it is built: steps out of the order
+deadline → retry → attemptTimeout throw there, not on the first call. The
+`deadline` is one budget for the call, retries included. Retry stops before a
+delay the budget cannot cover, and each attempt is cut to the shorter of its own
+timeout and what is left.
+
+Every call counts once in `lark.policy.calls`, tagged with the `policy`, an
+`outcome` of `success`, `failure` or `rejected`, and `refused_by`: `deadline`,
+or the guard that refused, or `none`. A `raise` is the call's own answer, so it
+passes through every step and is not counted.
+
 ## Run migrations as a step
 
 `lark-app-liquibase` makes a changelog a node. Anything that reads the database
@@ -945,6 +980,7 @@ opened it is released.
 | a fake in a test | `.overriding(single<T> { … })`, never plain `plus` |
 | a smaller test | `.subgraph<Root>()` |
 | no waiting in a test | `clock.locally(fixedClock()) { … }` |
+| a call to something unreliable | `policy("…") { deadline(…); retry(…); attemptTimeout(…) }` |
 | a log line | `logInfo("…")` — no node takes a logger |
 | that log somewhere real | put `lark-slf4j` on the classpath; nothing else |
 | a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |

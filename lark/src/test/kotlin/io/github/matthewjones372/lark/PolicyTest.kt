@@ -165,4 +165,72 @@ class PolicyTest {
             guarded(partner, ifRejected = { Bad("${it.guard}: ${it.message}") }) { 42 }
         } shouldBe Bad("partner: partner has no token for 2s").left()
     }
+
+    @Test
+    fun `each call is counted once under its policy, by outcome`() {
+        val partner = policy("partner") { retry(Schedule.recurs(2)) }
+
+        capturingMetrics { measured ->
+            partner { 42 }
+            measured.counter("lark.policy.calls") shouldBe 1.0
+            measured.tags("lark.policy.calls") shouldBe
+                mapOf("policy" to "partner", "outcome" to "success", "refused_by" to "none")
+        }
+
+        capturingMetrics { measured ->
+            shouldThrow<Boom> { partner { throw Boom() } }
+            measured.counter("lark.policy.calls") shouldBe 1.0
+            measured.tags("lark.policy.calls")["outcome"] shouldBe "failure"
+        }
+    }
+
+    @Test
+    fun `a refusal is counted by the guard that refused`() {
+        val refusals = mapOf(
+            "breaker" to Rejected.CircuitOpen("partner", Instant.EPOCH),
+            "limiter" to Rejected.RateLimited("partner", 1.seconds),
+            "bulkhead" to Rejected.BulkheadFull("partner"),
+        )
+
+        refusals.forEach { (by, refusal) ->
+            val partner = policy("partner") {
+                guard(
+                    object : Guard {
+                        override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A = throw refusal
+                    },
+                )
+            }
+
+            capturingMetrics { measured ->
+                shouldThrow<Rejected> { partner { 42 } }
+                measured.tags("lark.policy.calls") shouldBe
+                    mapOf("policy" to "partner", "outcome" to "rejected", "refused_by" to by)
+            }
+        }
+    }
+
+    @Test
+    fun `a call the deadline ends is counted as refused by the deadline`() {
+        val time = JumpingClock(forksWait = false)
+        val partner = policy("partner") { deadline(1.seconds) }
+
+        capturingMetrics { measured ->
+            shouldThrow<TimeoutException> { clock.locally(time) { partner { Sleeper().body() } } }
+            measured.tags("lark.policy.calls")["refused_by"] shouldBe "deadline"
+        }
+    }
+
+    @Test
+    fun `an attempt timeout inside the deadline is a failure, not the deadline`() {
+        val time = JumpingClock(forksWait = false)
+        val partner = policy("partner") {
+            deadline(1.seconds)
+            attemptTimeout(100.milliseconds)
+        }
+
+        capturingMetrics { measured ->
+            shouldThrow<TimeoutException> { clock.locally(time) { partner { Sleeper().body() } } }
+            measured.tags("lark.policy.calls")["outcome"] shouldBe "failure"
+        }
+    }
 }
