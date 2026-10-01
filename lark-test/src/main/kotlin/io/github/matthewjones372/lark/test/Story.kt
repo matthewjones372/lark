@@ -26,7 +26,9 @@ fun story(title: String = callingTest(), block: Story.() -> Unit) {
         story.block()
     } catch (failure: Throwable) {
         println(story.told(title, Colour.wanted))
+        // Led by the failing step's own frame, so the first line a test runner links to is the assertion.
         throw StoryFailed(story.told(title, colour = false), failure)
+            .apply { stackTrace = failure.fromTheTest().toTypedArray().ifEmpty { stackTrace } }
     }
     println(story.told(title, Colour.wanted))
 }
@@ -107,6 +109,8 @@ class Story internal constructor() {
                 if (failed != null && failed.told) {
                     val indent = "  ".repeat(step.depth + 3)
                     failed.said().lines().forEach { append('\n').append(ink.red(indent + it)) }
+                    // A frame printed as a stack trace prints one, which an IDE's console turns into a link.
+                    failed.failure.fromTheTest().firstOrNull()?.let { append('\n').append(ink.dim("${indent}at $it")) }
                 }
             }
         }
@@ -157,3 +161,24 @@ private fun callingTest(): String =
             .map { it.methodName }
             .orElse("a story")
     }
+
+/**
+ * Where [this] was thrown in the test's own code: its frames from the first that is not the story's or
+ * `eventually`'s, lark's core, an assertion library's, Kotlin's, Arrow's or the JDK's. A [GaveUp] answers for
+ * its last failure.
+ */
+internal fun Throwable.fromTheTest(): List<StackTraceElement> {
+    val thrown = if (this is GaveUp) cause ?: this else this
+    return thrown.stackTrace.dropWhile { frame ->
+        frame.className.substringBefore('$') in ours ||
+            frame.className.substringBeforeLast('.') == LARK ||
+            libraries.any { frame.className.startsWith(it) }
+    }
+}
+
+private const val LARK = "io.github.matthewjones372.lark"
+
+// Not every class under lark's prefix: lark-test's own tests live there, and must point at themselves.
+private val ours = setOf("$LARK.test.StoryKt", "$LARK.test.Story", "$LARK.test.EventuallyKt")
+
+private val libraries = listOf("io.kotest.", "org.opentest4j.", "kotlin.", "java.", "jdk.", "sun.", "arrow.")
