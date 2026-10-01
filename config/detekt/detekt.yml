@@ -64,9 +64,11 @@ exceptions:
     # did until it is awaited, as a flock's does.
     # Persistent.kt is the eighth: a snapshot store may throw anything, and a save
     # that fails is logged rather than failing a step whose events are written.
-    # Policy.kt is the ninth: a breaker is told what its call threw, and NonFatal
+    # Story.kt is the ninth: a step marks whatever its block threw as its failure
+    # and rethrows it, so the transcript says which step broke.
+    # Policy.kt is the tenth: a breaker is told what its call threw, and NonFatal
     # and the breaker's own countsAsFailure decide whether it was a failure.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Policy.kt']
+    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Story.kt', '**/Policy.kt']
   SwallowedException:
     excludes: ['**/test/**']
 
