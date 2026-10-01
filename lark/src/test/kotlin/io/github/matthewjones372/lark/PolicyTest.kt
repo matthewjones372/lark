@@ -1,0 +1,168 @@
+package io.github.matthewjones372.lark
+
+import arrow.core.left
+import arrow.core.raise.Raise
+import arrow.core.raise.either
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import org.junit.jupiter.api.Test
+import java.time.Instant
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Time moves only when the thread that built it sleeps. A timeout's sleeper is a fork, so with [forksWait] it never
+ * wakes and a fast attempt always beats it; without, it wakes at once and a parked attempt always loses.
+ */
+private class JumpingClock(private val forksWait: Boolean) : Clock {
+    private val owner = Thread.currentThread()
+    private val at = AtomicReference(Instant.EPOCH)
+
+    override fun now(): Instant = at.get()
+
+    override fun sleep(duration: Duration) {
+        if (forksWait && Thread.currentThread() != owner) Thread.sleep(NEVER_FINISHES_MILLIS)
+        at.updateAndGet { it.plusNanos(duration.inWholeNanoseconds) }
+    }
+
+    fun elapsed(): Duration = at.get().toEpochMilli().milliseconds
+}
+
+private class Tracing(private val label: String, private val trace: MutableList<String>) : Guard {
+    override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A {
+        trace += label
+        return block()
+    }
+}
+
+class PolicyTest {
+
+    @Test
+    fun `a policy built in the wrong order throws naming the expected order`() {
+        val wrong = shouldThrow<IllegalArgumentException> {
+            policy("partner") {
+                attemptTimeout(1.seconds)
+                retry(Schedule.recurs(3))
+            }
+        }
+
+        wrong.message shouldContain "retry comes after attemptTimeout"
+        wrong.message shouldContain "deadline → retry → attemptTimeout"
+    }
+
+    @Test
+    fun `a repeated step and an attempt timeout past the deadline are refused`() {
+        shouldThrow<IllegalArgumentException> {
+            policy("partner") {
+                retry(Schedule.recurs(1))
+                retry(Schedule.recurs(1))
+            }
+        }.message shouldContain "retry appears twice"
+
+        shouldThrow<IllegalArgumentException> {
+            policy("partner") {
+                deadline(1.seconds)
+                attemptTimeout(2.seconds)
+            }
+        }.message shouldContain "longer than its deadline"
+    }
+
+    @Test
+    fun `a custom guard goes anywhere and wraps what follows it`() {
+        val trace = CopyOnWriteArrayList<String>()
+        val partner = policy("partner") {
+            guard(Tracing("outer", trace))
+            retry(Schedule.recurs(1))
+            guard(Tracing("inner", trace))
+        }
+
+        shouldThrow<Boom> { partner { throw Boom() } }
+
+        partner.steps.map { it::class.simpleName } shouldContainExactly listOf("Custom", "Retry", "Custom")
+        trace shouldContainExactly listOf("outer", "inner", "inner")
+    }
+
+    @Test
+    fun `retry stops before a delay that would overrun the deadline`() {
+        val time = JumpingClock(forksWait = true)
+        val attempts = AtomicInteger()
+        val partner = policy("partner") {
+            deadline(1.seconds)
+            retry(Schedule.spaced(400.milliseconds))
+        }
+
+        shouldThrow<Boom> {
+            clock.locally(time) {
+                partner {
+                    attempts.incrementAndGet()
+                    throw Boom()
+                }
+            }
+        }
+
+        attempts.get() shouldBe 3
+        time.elapsed() shouldBe 800.milliseconds
+    }
+
+    @Test
+    fun `each attempt is cut to the remaining budget`() {
+        val time = JumpingClock(forksWait = false)
+        val attempts = AtomicInteger()
+        val partner = policy("partner") {
+            deadline(1.seconds)
+            retry(Schedule.spaced(100.milliseconds))
+            attemptTimeout(300.milliseconds)
+        }
+
+        shouldThrow<TimeoutException> {
+            clock.locally(time) {
+                partner {
+                    attempts.incrementAndGet()
+                    Sleeper().body()
+                }
+            }
+        }
+
+        attempts.get() shouldBe 3
+        time.elapsed() shouldBe 1.seconds
+    }
+
+    @Test
+    fun `a raise passes through every step uncounted`() {
+        val attempts = AtomicInteger()
+        val partner = policy("partner") {
+            deadline(1.seconds)
+            retry(Schedule.recurs(3))
+            attemptTimeout(1.seconds)
+        }
+
+        either<Bad, Int> {
+            guarded(partner, ifRejected = { Bad("rejected") }) {
+                attempts.incrementAndGet()
+                raise(Bad("declared"))
+            }
+        } shouldBe Bad("declared").left()
+
+        attempts.get() shouldBe 1
+    }
+
+    @Test
+    fun `guarded turns a rejection into the declared error`() {
+        val refusing = object : Guard {
+            override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A =
+                throw Rejected.RateLimited("partner", 2.seconds)
+        }
+        val partner = policy("partner") { guard(refusing) }
+
+        either<Bad, Int> {
+            guarded(partner, ifRejected = { Bad("${it.guard}: ${it.message}") }) { 42 }
+        } shouldBe Bad("partner: partner has no token for 2s").left()
+    }
+}
