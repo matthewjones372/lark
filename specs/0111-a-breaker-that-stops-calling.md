@@ -71,10 +71,10 @@ gives the same effect, and the breaker counts the `TimeoutException` as a failur
 ./gradlew spotlessApply && ./gradlew build
 ```
 
-## Open questions
+## Settled
 
-1. **Consecutive failures or a failure rate over a window?** Pekko counts consecutive failures; resilience4j
-   uses a sliding window. Recommend consecutive failures now. A window can be a later constructor.
-2. **Should a `raise` ever count as a failure?** Recommend no, as spec 0110 says. A declared failure is an answer,
-   not an outage. A caller who disagrees throws instead.
-3. **Where does it live?** Recommend `lark` itself, next to `Retry.kt`. It needs only the JDK and `Clock`.
+1. **Consecutive failures or a failure rate over a window?** Consecutive failures, as in Pekko. A window can be a
+   later constructor.
+2. **Does a `raise` ever count as a failure?** No. A declared failure is an answer, not an outage. A caller who
+   disagrees throws instead.
+3. **Where does it live?** In `lark`, next to `Retry.kt`. It needs only the JDK and `Clock`.

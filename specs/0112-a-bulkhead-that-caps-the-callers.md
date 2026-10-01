@@ -66,9 +66,9 @@ sits inside the rate limiter, so a caller waiting for a token holds no permit.
 ./gradlew spotlessApply && ./gradlew build
 ```
 
-## Open questions
+## Settled
 
-1. **Should `maxWait` follow `clock.get()`?** `Semaphore.tryAcquire` waits on real time, so `TestClock` cannot move
-   it. Recommend: no. Tests use `ZERO`, or a short real wait released by a latch.
-2. **Fair or unfair by default?** Recommend fair, with no parameter until someone measures the difference.
-3. **Should `maxConcurrent` change at runtime?** Recommend no. A different limit is a different `Bulkhead`.
+1. **Does `maxWait` follow `clock.get()`?** No. `Semaphore.tryAcquire` waits on real time, so tests use `ZERO`, or
+   a short real wait released by a latch.
+2. **Fair or unfair?** Fair, with no parameter until someone measures the difference.
+3. **Can `maxConcurrent` change at runtime?** No. A different limit is a different `Bulkhead`.

@@ -84,11 +84,10 @@ Nothing. 0111–0113 each depend on this one. Each guard's PR adds its `Step` an
 ./gradlew spotlessApply && ./gradlew build
 ```
 
-## Open questions
+## Settled
 
-1. **Should a wait for a token or for half-open use up a retry attempt?** Recommend no. The call was never made,
-   and the deadline already bounds the wait.
-2. **Should a `Custom` step be allowed anywhere, or only innermost?** Recommend anywhere and unchecked. A guard Lark
-   cannot see into cannot be ordered by it.
-3. **Is a policy without `deadline` allowed?** Recommend yes. With no deadline the budget is unbounded, and each
-   guard's own `maxWait` is its only limit.
+1. **Does a wait for a token or for half-open use up a retry attempt?** No. The call was never made, and the
+   deadline already bounds the wait.
+2. **Where can a `Custom` step go?** Anywhere, unchecked. A guard Lark cannot see into cannot be ordered by it.
+3. **Is a policy without `deadline` allowed?** Yes. The budget is then unbounded, and each guard's own `maxWait` is
+   its only limit.
