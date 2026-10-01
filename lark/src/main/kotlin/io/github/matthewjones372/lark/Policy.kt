@@ -1,6 +1,9 @@
 package io.github.matthewjones372.lark
 
+import arrow.core.NonFatal
 import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.CircuitBreaker.Admission.Admitted
+import io.github.matthewjones372.lark.CircuitBreaker.Admission.Refused
 import io.github.matthewjones372.lark.Policy.Step
 import io.github.matthewjones372.lark.Schedule.Decision.Continue
 import io.github.matthewjones372.lark.Schedule.Decision.Done
@@ -35,6 +38,8 @@ class Policy internal constructor(val name: String, val steps: List<Step>) {
 
         data class Retry(val schedule: Schedule<Throwable, *>) : Step
 
+        data class Breaker(val breaker: CircuitBreaker) : Step
+
         data class AttemptTimeout(val each: Duration) : Step
 
         data class Custom(val guard: Guard) : Step
@@ -61,6 +66,10 @@ class PolicyBuilder internal constructor() {
         steps += Step.AttemptTimeout(each)
     }
 
+    fun guard(breaker: CircuitBreaker) {
+        steps += Step.Breaker(breaker)
+    }
+
     fun guard(guard: Guard) {
         steps += Step.Custom(guard)
     }
@@ -83,6 +92,7 @@ fun <E, A> Raise<E>.guarded(policy: Policy, ifRejected: (Rejected) -> E, block: 
 private enum class Kind(val label: String) {
     DEADLINE("deadline"),
     RETRY("retry"),
+    BREAKER("breaker"),
     ATTEMPT_TIMEOUT("attemptTimeout"),
 }
 
@@ -90,6 +100,7 @@ private val Step.kind: Kind?
     get() = when (this) {
         is Step.Deadline -> Kind.DEADLINE
         is Step.Retry -> Kind.RETRY
+        is Step.Breaker -> Kind.BREAKER
         is Step.AttemptTimeout -> Kind.ATTEMPT_TIMEOUT
         is Step.Custom -> null
     }
@@ -157,11 +168,44 @@ private fun <E, A> Raise<E>.from(policy: Policy, at: Int, budget: Budget, block:
 
         is Step.Retry -> step.schedule.within(budget).retry { next() }
 
+        is Step.Breaker -> through(step.breaker, budget, next)
+
         is Step.AttemptTimeout -> cut(minOf(step.each, budget.remaining()), budget, next)
 
         is Step.Custom -> with(step.guard) { guard(next) }
     }
 }
+
+private fun <E, A> Raise<E>.through(breaker: CircuitBreaker, budget: Budget, block: Raise<E>.() -> A): A {
+    val admitted = admitted(breaker, budget)
+    var result = CircuitBreaker.Result.UNCOUNTED
+    try {
+        return block().also { result = CircuitBreaker.Result.SUCCESS }
+    } catch (thrown: Throwable) {
+        // NonFatal is false for a raise and an interrupt as well as for what the JVM cannot recover from.
+        if (NonFatal(thrown) && breaker.countsAsFailure(thrown)) result = CircuitBreaker.Result.FAILURE
+        throw thrown
+    } finally {
+        breaker.record(admitted, result)
+    }
+}
+
+// A refusal is waited out only when the policy has a deadline the wait fits inside. Without one it is refused at
+// once, which is what a breaker is for.
+private tailrec fun admitted(breaker: CircuitBreaker, budget: Budget): Admitted =
+    when (val admission = breaker.admit()) {
+        is Admitted -> admission
+
+        is Refused -> {
+            val wait = java.time.Duration.between(clock.get().now(), admission.retryAt).toKotlinDuration()
+            val left = budget.remaining()
+            if (wait <= ZERO || left.isInfinite() || wait >= left) {
+                throw Rejected.CircuitOpen(breaker.name, admission.retryAt)
+            }
+            wait.sleepOff()
+            admitted(breaker, budget)
+        }
+    }
 
 // One fork for an attempt, and none at all when nothing bounds it. A timeout that leaves no budget is the
 // deadline's, whichever limit was the shorter.

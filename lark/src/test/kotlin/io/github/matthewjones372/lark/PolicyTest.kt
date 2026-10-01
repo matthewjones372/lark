@@ -21,7 +21,7 @@ import kotlin.time.Duration.Companion.seconds
  * Time moves only when the thread that built it sleeps. A timeout's sleeper is a fork, so with [forksWait] it never
  * wakes and a fast attempt always beats it; without, it wakes at once and a parked attempt always loses.
  */
-private class JumpingClock(private val forksWait: Boolean) : Clock {
+internal class JumpingClock(private val forksWait: Boolean) : Clock {
     private val owner = Thread.currentThread()
     private val at = AtomicReference(Instant.EPOCH)
 
@@ -54,7 +54,7 @@ class PolicyTest {
         }
 
         wrong.message shouldContain "retry comes after attemptTimeout"
-        wrong.message shouldContain "deadline → retry → attemptTimeout"
+        wrong.message shouldContain "deadline → retry → breaker → attemptTimeout"
     }
 
     @Test
