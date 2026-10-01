@@ -55,6 +55,7 @@ is where that claim is checked.
 | `lark-stream-forks` | runs a `Stream` as a pull loop on one virtual thread, for the operators that need no second one | nothing |
 | `lark-stream-actors` | runs a `Stream` on `lark-actor`: a run is an actor pulling a batch a step, and `mapPar`, `buffer` and the fan-ins are its child actors. Against Forks: `mapPar` 5.7× faster, a run started 2.1× faster, `buffer` and `merge` 1.5–2.4× faster; the plain chain a quarter slower ([numbers](lark-stream-benchmarks/README.md)) | nothing |
 | `lark-stream-test` | runs a `Stream` on a `TestClock` the test moves: an hour of `tick` is one `adjust`, and each `adjust` returns with what fell due | nothing |
+| `lark-test` | `story { Given / When / Then }`: steps that answer values, and a failure whose message is the story up to the step that broke, printed in colour under `FORCE_COLOR` or IntelliJ (spec [0116](specs/0116-a-story-in-colour.md)); and `eventually`, retried until it stops throwing and giving up on time by the inherited clock, so a test of a whole service waits inside `use` without `suspend` (spec [0115](specs/0115-a-test-that-reads-as-a-story.md)) | nothing |
 | `lark-kafka` | a Kafka topic as a `Stream` on any backend: each offset committed once its record's work is done, and a record that fails to decode as a value ([`docs/kafka.md`](docs/kafka.md)) | `kafka-clients` |
 | `lark-kafka-pekko` | the same through Pekko's own Kafka connector: prefetch, batched commits and a draining stop | `pekko-connectors-kafka` |
 | `lark-actor` | an actor as a `Behaviour`: a state and a step, spawned in a `flock` on virtual threads or run synchronously by `.test()` (spec [0059](specs/0059-an-actor-without-an-actor-system.md)); the [actors guide](docs/actors.md) shows it in use. Against Pekko: faster `tell` with half the allocation, 6× faster ping-pong, 5.7× faster on blocking steps, 23% faster waking 10,000 idle actors at once, and 56% of the heap per idle actor ([numbers](lark-actor-benchmarks/README.md)); and `persistent(batch = n)`, which writes the commands already waiting in one append: twenty times the payments a second into one hot account on Postgres (spec [0086](specs/0086-a-journal-written-a-batch-at-a-time.md)) | nothing |
@@ -342,6 +343,11 @@ val backoff = Schedule.exponential<Throwable>(100.milliseconds).jittered() and S
 
 fun fetch(id: Id): Row = backoff.retry { client.row(id) }        // rethrows the last failure
 
+// bounded by time on the inherited clock rather than by tries, so a slow try does not stretch it
+val patiently = Schedule.spaced<Throwable>(20.milliseconds) zipLeft Schedule.upTo(5.seconds)
+
+fun drained(): Unit = patiently.retry { check(outbox.unsent() == 0L) }
+
 // the same over a declared error: the last raise is the Left
 fun row(id: Id): Either<Err, Row> = Schedule.recurs<Err>(5).retryRaise { rows.find(id).bind() }
 
@@ -354,8 +360,8 @@ fun maybe(id: Id): Either<Err, Quote?> = either {
 }
 ```
 
-`recurs`, `spaced`, `exponential`, `linear`, `fibonacci`, `forever`, `identity`,
-`doWhile` and `doUntil` build one; `and`, `or`, `andThen`, `zipLeft`, `zipRight`,
+`recurs`, `spaced`, `upTo`, `exponential`, `linear`, `fibonacci`, `forever`,
+`identity`, `doWhile` and `doUntil` build one; `and`, `or`, `andThen`, `zipLeft`, `zipRight`,
 `map`, `collect`, `delayed` and `jittered` combine them. `timeout` is a `raceN`
 against a sleeper with the loser interrupted, so a block that does not answer in
 time ends at its next interruptible call rather than being abandoned.
