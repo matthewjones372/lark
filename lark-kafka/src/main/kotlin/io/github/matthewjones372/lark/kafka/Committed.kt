@@ -3,6 +3,7 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.logAnnotated
+import org.apache.kafka.clients.consumer.ConsumerGroupMetadata
 
 /** For a module that brings records of its own into lark-kafka, such as the Pekko connector; not for a pipeline. */
 @RequiresOptIn("A seam for a module that feeds lark-kafka records from a consumer of its own.")
@@ -28,6 +29,12 @@ interface Handle {
 
     /** The record is done with: [Kafka.consume]'s loop commits it before its next poll. */
     fun handled()
+
+    /**
+     * The consumer group as it was when the record was polled, for a transaction that commits its offset:
+     * null from a source that cannot hand it over, which a transactional run refuses.
+     */
+    fun group(): ConsumerGroupMetadata? = null
 }
 
 internal fun <B : Any> Committed<*>.carrying(value: B): Committed<B> = Committed(value, position, handle)
