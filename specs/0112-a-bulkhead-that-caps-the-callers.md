@@ -1,4 +1,4 @@
-# 0111 — A bulkhead that caps the callers
+# 0112 — A bulkhead that caps the callers
 
 ## Problem
 
@@ -12,29 +12,26 @@ has no metric and no declared error.
 
 - **A thread-pool bulkhead.** resilience4j's `ThreadPoolBulkhead` exists to cap platform threads. Here a thread is
   free, and the scarce thing is the dependency. A permit count is the whole bulkhead.
-- **Per-key limits** (per tenant, per account). A map of bulkheads is the caller's choice of key. That can be a
-  later spec if it shows up twice.
+- **Per-key limits** (per tenant, per account). A map of bulkheads is the caller's choice of key.
 - **Adaptive limits** (Netflix's `concurrency-limits`, Vegas, AIMD). The limit is a fixed number.
 - **Stream or actor operators.** `Stream.mapPar` already bounds its own concurrency.
 
 ## Shape
 
 ```kotlin
-val partner = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
+val bulkhead = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
 
-val quote = partner.limit { http.quote(id) }           // throws BulkheadFullException after maxWait
+val quote = bulkhead { http.quote(id) }                // throws Rejected.BulkheadFull after maxWait
+val quote = (breaker then bulkhead) { http.quote(id) }
 
-either<QuoteError, Quote> {
-    partner.limit(ifFull = { QuoteError.Busy }) { quote(id) }   // full is a raise, not a throw
-}
-
-partner.available // permits free now
+bulkhead.available // permits free now
 ```
 
-- A **fair** `java.util.concurrent.Semaphore` with `maxConcurrent` permits. Callers are admitted in the order they
-  arrived.
+- `Bulkhead` implements `Guard` (spec 0110).
+- It is a **fair** `java.util.concurrent.Semaphore` with `maxConcurrent` permits. Callers are admitted in the order
+  they arrived.
 - `maxWait` defaults to `ZERO`, which means admit or reject at once. A positive wait is `tryAcquire(maxWait)`, which
-  can be interrupted, so a `timeout` around `limit` ends it.
+  can be interrupted, so a `timingOut` outside the bulkhead ends it.
 - The permit is released in a `finally`. A throw, a `raise` or an interrupt in the block never leaks one.
 - Metrics: `lark.bulkhead.in_use` (gauge) and `lark.bulkhead.calls` (counter tagged `outcome=admitted|rejected`),
   both tagged with `name`.
@@ -44,23 +41,20 @@ partner.available // permits free now
 On virtual threads a semaphore is the bulkhead. Blocking in `tryAcquire` parks a virtual thread, which costs
 nothing, so a separate queue or executor adds nothing. Fairness costs a little throughput. In exchange the
 longest-waiting caller is never overtaken, which is what someone reading a p99 expects. The alternative,
-`Semaphore(n, false)`, is faster but lets a late caller jump the queue. A full bulkhead is something a caller
-should plan for, so inside `Raise` it becomes the caller's error through `ifFull`, as the breaker in spec 0110
-handles `ifOpen`. Outside `Raise` it throws.
+`Semaphore(n, false)`, is faster but lets a late caller jump the queue. Inside the recommended order the bulkhead
+sits inside the rate limiter, so a caller waiting for a token holds no permit.
 
 ## Depends on
 
-Nothing. It is independent of 0110 and composes with it:
-`breaker.protect { partner.limit { … } }`.
+0110, for `Guard` and `Rejected`. It is independent of 0111 and 0113.
 
 ## Stack
 
-- [ ] **`spec-0111-bulkhead`** — `Bulkhead`, the throwing `limit`, `BulkheadFullException` and `Raise<E>.limit`, in
-      `lark`.
+- [ ] **`spec-0112-bulkhead`** — `Bulkhead`, in `lark`.
       Done when: with `maxConcurrent = 2`, a third concurrent caller on a virtual thread is rejected at once when
       `maxWait = ZERO` and admitted when a permit frees within `maxWait`, and a block that throws, raises or is
       interrupted gives its permit back.
-- [ ] **`spec-0111-bulkhead-metrics`** — the gauge and counter, plus a cookbook section "Cap the calls to something
+- [ ] **`spec-0112-bulkhead-metrics`** — the gauge and counter, plus a cookbook section "Cap the calls to something
       slow".
       Done when: `capturingMetrics` reads back `in_use` and each outcome by name.
 
@@ -73,7 +67,6 @@ Nothing. It is independent of 0110 and composes with it:
 ## Open questions
 
 1. **Should `maxWait` follow `clock.get()`?** `Semaphore.tryAcquire` waits on real time, so `TestClock` cannot move
-   it. Recommend: no. Tests use `ZERO`, or a short real wait released by a latch. Putting a semaphore on the clock
-   is a lot of code for a wait measured in milliseconds.
+   it. Recommend: no. Tests use `ZERO`, or a short real wait released by a latch.
 2. **Fair or unfair by default?** Recommend fair, with no parameter until someone measures the difference.
 3. **Should `maxConcurrent` change at runtime?** Recommend no. A different limit is a different `Bulkhead`.
