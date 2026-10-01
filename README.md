@@ -342,6 +342,11 @@ val backoff = Schedule.exponential<Throwable>(100.milliseconds).jittered() and S
 
 fun fetch(id: Id): Row = backoff.retry { client.row(id) }        // rethrows the last failure
 
+// bounded by time on the inherited clock rather than by tries, so a slow try does not stretch it
+val patiently = Schedule.spaced<Throwable>(20.milliseconds) zipLeft Schedule.upTo(5.seconds)
+
+fun drained(): Unit = patiently.retry { check(outbox.unsent() == 0L) }
+
 // the same over a declared error: the last raise is the Left
 fun row(id: Id): Either<Err, Row> = Schedule.recurs<Err>(5).retryRaise { rows.find(id).bind() }
 
@@ -354,8 +359,8 @@ fun maybe(id: Id): Either<Err, Quote?> = either {
 }
 ```
 
-`recurs`, `spaced`, `exponential`, `linear`, `fibonacci`, `forever`, `identity`,
-`doWhile` and `doUntil` build one; `and`, `or`, `andThen`, `zipLeft`, `zipRight`,
+`recurs`, `spaced`, `upTo`, `exponential`, `linear`, `fibonacci`, `forever`,
+`identity`, `doWhile` and `doUntil` build one; `and`, `or`, `andThen`, `zipLeft`, `zipRight`,
 `map`, `collect`, `delayed` and `jittered` combine them. `timeout` is a `raceN`
 against a sleeper with the loser interrupted, so a block that does not answer in
 time ends at its next interruptible call rather than being abandoned.
