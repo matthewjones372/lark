@@ -5,6 +5,7 @@ import io.github.matthewjones372.lark.Policy.Step
 import io.github.matthewjones372.lark.Schedule.Decision.Continue
 import io.github.matthewjones372.lark.Schedule.Decision.Done
 import java.time.Instant
+import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeoutException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.ZERO
@@ -112,30 +113,69 @@ private class Budget(private val until: Instant?) {
         until?.let { java.time.Duration.between(clock.get().now(), it).toKotlinDuration() } ?: Duration.INFINITE
 }
 
-private fun <E, A> Raise<E>.runPolicy(policy: Policy, block: Raise<E>.() -> A): A =
-    from(policy, 0, Budget(null), block)
+// A raise is the call's own answer and passes through uncounted, as it passes through every step.
+private fun <E, A> Raise<E>.runPolicy(policy: Policy, block: Raise<E>.() -> A): A {
+    var outcome: Pair<String, String>? = "failure" to "none"
+    try {
+        return from(policy, 0, Budget(null), block).also { outcome = "success" to "none" }
+    } catch (rejected: Rejected) {
+        outcome = "rejected" to rejected.refusedBy
+        throw rejected
+    } catch (passed: DeadlinePassed) {
+        outcome = "rejected" to "deadline"
+        throw passed
+    } catch (raised: CancellationException) {
+        outcome = null
+        throw raised
+    } finally {
+        outcome?.let { (result, by) ->
+            counter("lark.policy.calls", "policy" to policy.name, "outcome" to result, "refused_by" to by).increment()
+        }
+    }
+}
+
+private val Rejected.refusedBy: String
+    get() = when (this) {
+        is Rejected.CircuitOpen -> "breaker"
+        is Rejected.RateLimited -> "limiter"
+        is Rejected.BulkheadFull -> "bulkhead"
+    }
+
+/** The policy's deadline ran out, as against a timeout of the call's own or one attempt's. */
+private class DeadlinePassed : TimeoutException("the policy's deadline has passed")
 
 private fun <E, A> Raise<E>.from(policy: Policy, at: Int, budget: Budget, block: Raise<E>.() -> A): A {
-    if (at == policy.steps.size) return if (policy.cutsBeforeTheCall) cut(budget.remaining(), block) else block()
+    if (at == policy.steps.size) {
+        return if (policy.cutsBeforeTheCall) cut(budget.remaining(), budget, block) else block()
+    }
+    val next: Raise<E>.() -> A = { from(policy, at + 1, budget, block) }
     return when (val step = policy.steps[at]) {
         is Step.Deadline -> {
             val until = clock.get().now().plusNanos(step.total.inWholeNanoseconds)
             from(policy, at + 1, Budget(until), block)
         }
 
-        is Step.Retry -> step.schedule.within(budget).retry { from(policy, at + 1, budget, block) }
+        is Step.Retry -> step.schedule.within(budget).retry { next() }
 
-        is Step.AttemptTimeout -> cut(minOf(step.each, budget.remaining())) { from(policy, at + 1, budget, block) }
+        is Step.AttemptTimeout -> cut(minOf(step.each, budget.remaining()), budget, next)
 
-        is Step.Custom -> with(step.guard) { guard { from(policy, at + 1, budget, block) } }
+        is Step.Custom -> with(step.guard) { guard(next) }
     }
 }
 
-// One fork for an attempt, and none at all when nothing bounds it.
-private fun <E, A> Raise<E>.cut(limit: Duration, block: Raise<E>.() -> A): A = when {
-    limit <= ZERO -> throw TimeoutException("the deadline has passed")
+// One fork for an attempt, and none at all when nothing bounds it. A timeout that leaves no budget is the
+// deadline's, whichever limit was the shorter.
+private fun <E, A> Raise<E>.cut(limit: Duration, budget: Budget, block: Raise<E>.() -> A): A = when {
+    limit <= ZERO -> throw DeadlinePassed()
+
     limit.isInfinite() -> block()
-    else -> timeout(limit, block)
+
+    else ->
+        try {
+            timeout(limit, block)
+        } catch (timedOut: TimeoutException) {
+            throw if (budget.remaining() <= ZERO) DeadlinePassed().apply { initCause(timedOut) } else timedOut
+        }
 }
 
 // Stops a schedule instead of letting it sleep into a deadline the next attempt could not meet.
