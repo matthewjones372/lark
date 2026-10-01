@@ -14,9 +14,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * The offsets handled since a consumer last committed, and the committing of them: the one commit path every loop
  * over a consumer shares, whether its partitions come from a group or are assigned. Only the polling thread calls
- * [commit] and [close]; a [Handle] may be marked from any thread.
+ * [commit] and [close]; a [Handle] may be marked from any thread. A consumer with no group is not [committing]:
+ * there is nowhere to commit to, and its handles are marked for nothing.
  */
-internal class Commits(private val consumer: KafkaConsumer<*, *>) {
+internal class Commits(private val consumer: KafkaConsumer<*, *>, private val committing: Boolean = true) {
 
     /** The next offset to commit per partition: written by whichever thread ends the stream, read by the poller. */
     private val handled = ConcurrentHashMap<TopicPartition, Long>()
@@ -27,9 +28,9 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>) {
     /** Set once this consumer starts to leave its group, which a transaction still to commit has to know. */
     private val leaving = AtomicBoolean(false)
 
-    /** After each poll: the group as it left it, for the records it returned. */
+    /** After each poll: the group as it left it, for the records it returned. A consumer with no group has none. */
     fun polled() {
-        group = consumer.groupMetadata()
+        if (committing) group = consumer.groupMetadata()
     }
 
     /** [record] with its position, and a handle that marks it handled here. */
@@ -42,7 +43,7 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>) {
     /** What was handled on partitions this consumer still owns, committed, and forgotten once it is. */
     fun commit(owned: Set<TopicPartition> = consumer.assignment()) {
         val due = handled.filterKeys { it in owned }
-        if (due.isEmpty()) return
+        if (due.isEmpty() || !committing) return
         consumer.commitSync(due.mapValues { (_, next) -> OffsetAndMetadata(next) })
         // Only if nothing newer was handled meanwhile; a later offset is committed next time.
         due.forEach { (partition, next) -> handled.remove(partition, next) }
