@@ -90,12 +90,12 @@ on stdout is the part CI actually benefits from.
 
 Depends on 0114's `spec-0114-up-to`.
 
-- [ ] **`spec-0115-eventually`** — the `lark-test` module, `eventually`, and its
+- [x] **`spec-0115-eventually`** (#321) — the `lark-test` module, `eventually`, and its
       `NoOtherDependenciesTest`.
       Done when: on a `TestClock`, a failing `eventually(5.seconds)` gives up
       once the clock has moved five seconds, and its message names the last
       failure, the tries and the elapsed time.
-- [ ] **`spec-0115-steps`** — `story`, the five steps, nesting, timings, the
+- [x] **`spec-0115-steps`** (#322) — `story`, the five steps, nesting, timings, the
       plain console lines, and the transcript in a failure's message.
       Done when: a story failing at its third step throws an `AssertionError`
       whose message lists steps one and two as passed and three as failed,
