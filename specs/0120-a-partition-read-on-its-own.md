@@ -60,6 +60,11 @@ rebalance-only behaviour into a mode where it cannot happen. Recommended: a sepa
 ./gradlew spotlessApply && ./gradlew :lark-kafka:check && ./gradlew build
 ```
 
+## Settled
+
+Taken as recommended (2026-10-01): `until` has no default, this ships in 0.9.0, and `Kafka.partitions` asks a
+short-lived consumer.
+
 ## Open questions
 
 1. **Should `Until.EndAtStart` be the replay default for lark-job, or should the caller always choose?** Recommend
