@@ -371,6 +371,9 @@ whole on every call ([spec 0110](specs/0110-guards-that-compose.md)). A
 `deadline` is one budget for the call, retries included. Retry stops before a
 delay the deadline could not cover, and each attempt is cut to what is left.
 Steps out of order throw `IllegalArgumentException` when the policy is built.
+A `CircuitBreaker` joins with `guard(breaker)`: after its `maxFailures` in a
+row it refuses every call until its `resetAfter` schedule's next delay has
+passed, then lets one trial through ([spec 0111](specs/0111-a-breaker-that-stops-calling.md)).
 
 ```kotlin
 import arrow.core.Either
