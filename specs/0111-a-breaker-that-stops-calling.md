@@ -12,7 +12,7 @@ A Lark service today writes its own failure counter in an `AtomicReference`, or 
 - **A breaker shared across nodes.** Each process has its own breaker, as in Pekko.
 - **A failure-rate window.** The breaker counts consecutive failures (see Open questions).
 - **Callbacks on transitions.** State is read and measured, not pushed to listeners.
-- **Its own call shape.** It is a `Guard` (spec 0110) and is called like every other guard.
+- **Its own call shape.** It is called through a `Policy` (spec 0110).
 
 ## Shape
 
@@ -23,13 +23,14 @@ val breaker = CircuitBreaker(
     resetAfter = Schedule.exponential<Unit>(1.seconds).jittered(0.8, 1.2) zipLeft Schedule.recurs(6),
 )
 
-val row = breaker { jdbc.query(id) }                   // throws Rejected.CircuitOpen while open
-val row = (breaker then timingOut(2.seconds)) { jdbc.query(id) }
+val db = policy("accounts-db") { guard(breaker); attemptTimeout(2.seconds) }
+val row = db { jdbc.query(id) }                        // throws Rejected.CircuitOpen while open
 
 breaker.state // Closed(failures = 2) | Open(until: Instant) | HalfOpen
 ```
 
-- `CircuitBreaker` implements `Guard`. When it is open it throws `Rejected.CircuitOpen(name, retryAt)`.
+- The runner calls `admit()`, which answers `retryAt` while the breaker is open, and `record(outcome)`. These are
+  `internal` to `lark`, and the open case surfaces as `Rejected.CircuitOpen(name, retryAt)`.
 - **Closed** counts consecutive failures. A success resets the count. At `maxFailures` the breaker opens.
 - **Open** rejects every call at once, without running it, until the next delay from `resetAfter` has passed.
 - **HalfOpen** lets exactly one trial call through, and rejects the rest. If the trial succeeds the breaker closes
@@ -46,19 +47,20 @@ breaker.state // Closed(failures = 2) | Open(until: Instant) | HalfOpen
 Making `resetAfter` a `Schedule` reuses what Lark already has for backoff and jitter. This gives Pekko's
 `withExponentialBackoff` and `withRandomFactor` without adding parameters. The breaker is a value held in a
 `single`, with one `AtomicReference<State>` and no thread of its own: an open breaker expires when the next call
-reads the clock, not on a timer. There is no `callTimeout` parameter. Putting `timingOut` inside the breaker gives
-the same effect from parts that already exist, and the breaker counts the `TimeoutException` as a failure.
+reads the clock, not on a timer. There is no `callTimeout` parameter. An `attemptTimeout` inside the breaker in the policy
+gives the same effect, and the breaker counts the `TimeoutException` as a failure.
 
 ## Depends on
 
-0110, for `Guard` and `Rejected`.
+0110, for `Policy` and `Rejected`.
 
 ## Stack
 
-- [ ] **`spec-0111-breaker`** — `CircuitBreaker`, `State` and `countsAsFailure`, in `lark`.
+- [ ] **`spec-0111-breaker`** — `CircuitBreaker`, `State` and `countsAsFailure`, its `Step`, and its runner row, in
+      `lark`.
       Done when: on a `TestClock`, the breaker goes closed → open → half-open → closed and half-open → open, with
-      exactly one trial let through under concurrent callers on virtual threads, and an inner `Rejected` is not
-      counted.
+      exactly one trial let through under concurrent callers on virtual threads, an inner `Rejected` is not
+      counted, and a policy waits for half-open only when `retryAt` falls within its deadline.
 - [ ] **`spec-0111-breaker-metrics`** — the gauge and counter, plus a cookbook section "Stop calling something
       that is down".
       Done when: `capturingMetrics` reads back each state and outcome by name.

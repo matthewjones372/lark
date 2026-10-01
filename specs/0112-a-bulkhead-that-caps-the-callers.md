@@ -21,17 +21,18 @@ has no metric and no declared error.
 ```kotlin
 val bulkhead = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
 
-val quote = bulkhead { http.quote(id) }                // throws Rejected.BulkheadFull after maxWait
-val quote = (breaker then bulkhead) { http.quote(id) }
+val partner = policy("partner-api") { guard(breaker); guard(bulkhead) }
+val quote = partner { http.quote(id) }                 // throws Rejected.BulkheadFull after maxWait
 
 bulkhead.available // permits free now
 ```
 
-- `Bulkhead` implements `Guard` (spec 0110).
+- The runner calls `acquire(maxWait)`, which is `internal` to `lark`. It answers a permit or null, and the policy
+  (spec 0110) caps `maxWait` at its remaining budget.
 - It is a **fair** `java.util.concurrent.Semaphore` with `maxConcurrent` permits. Callers are admitted in the order
   they arrived.
 - `maxWait` defaults to `ZERO`, which means admit or reject at once. A positive wait is `tryAcquire(maxWait)`, which
-  can be interrupted, so a `timingOut` outside the bulkhead ends it.
+  can be interrupted, so the policy's deadline ends it.
 - The permit is released in a `finally`. A throw, a `raise` or an interrupt in the block never leaks one.
 - Metrics: `lark.bulkhead.in_use` (gauge) and `lark.bulkhead.calls` (counter tagged `outcome=admitted|rejected`),
   both tagged with `name`.
@@ -41,19 +42,20 @@ bulkhead.available // permits free now
 On virtual threads a semaphore is the bulkhead. Blocking in `tryAcquire` parks a virtual thread, which costs
 nothing, so a separate queue or executor adds nothing. Fairness costs a little throughput. In exchange the
 longest-waiting caller is never overtaken, which is what someone reading a p99 expects. The alternative,
-`Semaphore(n, false)`, is faster but lets a late caller jump the queue. Inside the recommended order the bulkhead
+`Semaphore(n, false)`, is faster but lets a late caller jump the queue. In the order spec 0110 checks, the bulkhead
 sits inside the rate limiter, so a caller waiting for a token holds no permit.
 
 ## Depends on
 
-0110, for `Guard` and `Rejected`. It is independent of 0111 and 0113.
+0110, for `Policy` and `Rejected`. It is independent of 0111 and 0113.
 
 ## Stack
 
-- [ ] **`spec-0112-bulkhead`** — `Bulkhead`, in `lark`.
+- [ ] **`spec-0112-bulkhead`** — `Bulkhead`, its `Step`, and its runner row, in `lark`.
       Done when: with `maxConcurrent = 2`, a third concurrent caller on a virtual thread is rejected at once when
       `maxWait = ZERO` and admitted when a permit frees within `maxWait`, and a block that throws, raises or is
-      interrupted gives its permit back.
+      interrupted gives its permit back, and a refusal inside a policy refunds the limiter's
+      token where it has one.
 - [ ] **`spec-0112-bulkhead-metrics`** — the gauge and counter, plus a cookbook section "Cap the calls to something
       slow".
       Done when: `capturingMetrics` reads back `in_use` and each outcome by name.

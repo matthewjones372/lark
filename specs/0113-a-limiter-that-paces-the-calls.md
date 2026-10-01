@@ -19,13 +19,14 @@ virtual thread, has nothing to use and writes its own token bucket.
 ```kotlin
 val limiter = RateLimiter(name = "partner-api", rate = 50, per = 1.seconds, burst = 10, maxWait = 200.milliseconds)
 
-val quote = limiter { http.quote(id) }                 // waits up to maxWait, else throws Rejected.RateLimited
-val quote = (breaker then limiter then bulkhead) { http.quote(id) }
+val partner = policy("partner-api") { guard(breaker); guard(limiter); guard(bulkhead) }
+val quote = partner { http.quote(id) }                 // waits up to maxWait, else throws Rejected.RateLimited
 
 limiter.tryAcquire()        // a token now, or false; never waits
 ```
 
-- `RateLimiter` implements `Guard` (spec 0110). When it refuses it throws `Rejected.RateLimited(name, retryAfter)`.
+- The runner calls `reserve(maxWait)` and `refund(token)`, which are `internal` to `lark`. The policy (spec 0110)
+  caps `maxWait` at its remaining budget. A refusal surfaces as `Rejected.RateLimited(name, retryAfter)`.
 - A **token bucket**. It refills at `rate / per` and holds at most `burst` tokens. The state is one
   `AtomicReference<Bucket(tokens, at: Instant)>`, refilled lazily from `clock.get().now()` on each call. There is
   no timer thread.
@@ -44,18 +45,19 @@ call and a parked virtual thread, with no queue to manage. The alternative is re
 it is simpler, but it lets `2 × rate` through across a period boundary, and that is what gets a client banned.
 Rejecting at once when the wait would exceed `maxWait` keeps a caller from waiting out its whole budget only to time
 out anyway. Inside an open breaker no token is spent, because the breaker sits outside the limiter in the
-recommended order.
+order spec 0110 checks.
 
 ## Depends on
 
-0110, for `Guard` and `Rejected`. It is independent of 0111 and 0112.
+0110, for `Policy` and `Rejected`. It is independent of 0111 and 0112.
 
 ## Stack
 
-- [ ] **`spec-0113-ratelimiter`** — `RateLimiter` and `tryAcquire`, in `lark`.
+- [ ] **`spec-0113-ratelimiter`** — `RateLimiter`, `tryAcquire`, `refund`, its `Step`, and its runner row, in
+      `lark`.
       Done when: on a `TestClock`, `burst` calls pass at once, the next waits exactly `per / rate`, a wait past
       `maxWait` is rejected with the right `retryAfter` and leaves the bucket unchanged, and concurrent callers are
-      served in reservation order.
+      served in reservation order, and a policy rejects at once when `retryAfter` exceeds its remaining budget.
 - [ ] **`spec-0113-ratelimiter-metrics`** — the counter and histogram, plus a cookbook section "Stay under someone
       else's quota".
       Done when: `capturingMetrics` reads back each outcome and the waits by name.
@@ -70,7 +72,7 @@ recommended order.
 
 1. **Reserve-and-sleep or poll?** Recommend reserve. Polling wakes every waiter on every refill.
 2. **Is `burst` its own parameter or always equal to `rate`?** Recommend its own, defaulting to `rate`.
-3. **Should one call be able to take more than one token** (for weighted endpoints)? Recommend yes, as a
-   `limiter.costing(5)` guard, so the call shape stays `Guard`'s.
-4. **Should a 429 from the server feed back into the bucket?** Recommend no. That is `retrying` with a `Schedule`
-   that reads `Retry-After`.
+3. **Should one call be able to take more than one token** (for weighted endpoints)? Recommend yes, as
+   `guard(limiter, cost = 5)` in the policy.
+4. **Should a 429 from the server feed back into the bucket?** Recommend no. That is the policy's `retry` with a
+   `Schedule` that reads `Retry-After`.
