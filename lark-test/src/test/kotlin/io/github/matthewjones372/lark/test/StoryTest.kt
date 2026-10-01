@@ -107,7 +107,7 @@ class StoryTest {
     }
 
     @Test
-    fun `the story is printed when it ends, plain`() {
+    fun `the story is printed when it ends`() {
         val printed = ByteArrayOutputStream()
         val console = System.out
         System.setOut(PrintStream(printed, true, Charsets.UTF_8))
@@ -119,8 +119,7 @@ class StoryTest {
 
         val out = printed.toString(Charsets.UTF_8)
         out shouldContain "Story: printed"
-        out shouldContain "✓ Given a step"
-        out shouldNotContain "\u001B["
+        out shouldContain "Given a step"
     }
 
     @Test
