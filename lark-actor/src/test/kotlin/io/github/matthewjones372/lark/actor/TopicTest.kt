@@ -109,8 +109,23 @@ class TopicTest {
                 behaviour<Int, Unit>(Unit) { _, _, n -> stay().also { if (n == 0) open.await() else stalled += n } },
             )
             prices.subscribe(slow)
-            prices.subscribe(spawn("a", listener("a")))
-            (0..KEEP_AT_MOST + 2_000).forEach(prices::publish)
+            val caughtUp = CountDownLatch(KEEP_AT_MOST + 1)
+            prices.subscribe(
+                spawn(
+                    "a",
+                    behaviour<Int, Unit>(Unit) { _, _, n ->
+                        stay().also {
+                            heard.computeIfAbsent("a") { ConcurrentLinkedQueue() } += n
+                            caughtUp.countDown()
+                        }
+                    },
+                ),
+            )
+            // All of them are more than a's mailbox and what is kept for it together, and a busy machine may not run a
+            // until every publish is in; so a catches up halfway, or some of a's would be full too.
+            (0..KEEP_AT_MOST).forEach(prices::publish)
+            caughtUp.await(1, TimeUnit.MINUTES) shouldBe true
+            (KEEP_AT_MOST + 1..KEEP_AT_MOST + 2_000).forEach(prices::publish)
             // The topic still takes subscribers and publishes while one of them is stalled.
             val late = LinkedBlockingQueue<Int>()
             prices.subscribe(spawn("b", behaviour<Int, Unit>(Unit) { _, _, n -> stay().also { late += n } }))
