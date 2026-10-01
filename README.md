@@ -48,7 +48,7 @@ is where that claim is checked.
 
 | Module | What it adds | Beyond `lark` |
 |---|---|---|
-| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `LarkLocal`, `Clock`, the log | `arrow-core` |
+| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `policy`, `LarkLocal`, `Clock`, the log | `arrow-core` |
 | `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` |
 | `lark-stream` | `Stream<E, A>`, described: the failure is in the type, and no backend is named | nothing |
 | `lark-stream-pekko` | runs a `Stream` on Pekko Streams, and the operators that take Pekko's types | `pekko-stream` |
@@ -359,6 +359,35 @@ fun maybe(id: Id): Either<Err, Quote?> = either {
 `map`, `collect`, `delayed` and `jittered` combine them. `timeout` is a `raceN`
 against a sleeper with the loser interrupted, so a block that does not answer in
 time ends at its next interruptible call rather than being abandoned.
+
+A `policy` puts them in one chain that is checked when it is built and read
+whole on every call ([spec 0110](specs/0110-guards-that-compose.md)). A
+`deadline` is one budget for the call, retries included. Retry stops before a
+delay the deadline could not cover, and each attempt is cut to what is left.
+Steps out of order throw `IllegalArgumentException` when the policy is built.
+
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.guarded
+import io.github.matthewjones372.lark.policy
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+val partner = policy("partner-api") {
+    deadline(2.seconds)
+    retry(Schedule.exponential<Throwable>(100.milliseconds).jittered() zipLeft Schedule.recurs(3))
+    attemptTimeout(500.milliseconds)
+}
+
+fun quote(id: Id): Quote = partner { http.quote(id) }
+
+// a refusal by any guard in the chain, as a declared error
+fun quoted(id: Id): Either<Err, Quote> = either {
+    guarded(partner, ifRejected = { Err.Unavailable }) { http.quote(id) }
+}
+```
 
 The floor is JDK 25. Before JDK 24 a blocking call inside a `synchronized`
 block pins its carrier thread instead of parking it, so a service on 21 can run
