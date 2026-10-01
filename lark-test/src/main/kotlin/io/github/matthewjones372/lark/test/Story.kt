@@ -7,17 +7,28 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Runs [block] as a story named [title], by default the calling test's name, and prints its steps when it ends.
- * A step that throws ends it with a [StoryFailed] whose message is the story up to that step.
+ * A step that throws ends it with a [StoryFailed] whose message is the story up to that step, never coloured.
+ *
+ * The printed copy is coloured under `-Dlark.test.colour=always`, `FORCE_COLOR` or IntelliJ, and not under
+ * `never` or `NO_COLOR`. A Gradle test worker does not see the shell's environment, so a build hands them on:
+ * ```
+ * tasks.test {
+ *     listOf("FORCE_COLOR", "NO_COLOR").forEach { name ->
+ *         providers.environmentVariable(name).orNull?.let { environment(name, it) }
+ *     }
+ *     providers.gradleProperty("lark.test.colour").orNull?.let { systemProperty("lark.test.colour", it) }
+ * }
+ * ```
  */
 fun story(title: String = callingTest(), block: Story.() -> Unit) {
     val story = Story()
     try {
         story.block()
     } catch (failure: Throwable) {
-        println(story.told(title))
-        throw StoryFailed(story.told(title), failure)
+        println(story.told(title, Colour.wanted))
+        throw StoryFailed(story.told(title, colour = false), failure)
     }
-    println(story.told(title))
+    println(story.told(title, Colour.wanted))
 }
 
 /** A story that failed: the message is the transcript up to the failing step, and the cause what it threw. */
@@ -81,17 +92,21 @@ class Story internal constructor() {
         }
     }
 
-    internal fun told(title: String): String {
+    internal fun told(title: String, colour: Boolean): String {
+        val ink = Ink(colour)
         val heads = steps.map { "  ".repeat(it.depth + 1) + "${it.mark} ${it.keyword} ${it.text}" }
         val width = heads.maxOfOrNull { it.length } ?: 0
         return buildString {
-            append("Story: $title")
+            append(ink.bold("Story: $title"))
             steps.zip(heads).forEach { (step, head) ->
-                append('\n').append(head.padEnd(width + GAP)).append(step.timing())
+                val padded = head.padEnd(width + GAP)
                 val failed = step.outcome as? Outcome.Failed
+                append('\n')
+                append(if (failed != null) ink.red(ink.bold(padded)) else padded.replaceFirst("✓", ink.green("✓")))
+                append(ink.dim(step.timing()))
                 if (failed != null && failed.told) {
                     val indent = "  ".repeat(step.depth + 3)
-                    failed.said().lines().forEach { append('\n').append(indent).append(it) }
+                    failed.said().lines().forEach { append('\n').append(ink.red(indent + it)) }
                 }
             }
         }
