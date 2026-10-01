@@ -37,6 +37,7 @@ import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.timed
 import arrow.core.Either
 import arrow.core.raise.either
+import io.github.matthewjones372.lark.CircuitBreaker
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.guarded
 import io.github.matthewjones372.lark.policy
@@ -851,6 +852,38 @@ Every call counts once in `lark.policy.calls`, tagged with the `policy`, an
 or the guard that refused, or `none`. A `raise` is the call's own answer, so it
 passes through every step and is not counted.
 
+## Stop calling something that is down
+
+<!-- cookbook -->
+```kotlin
+class Accounts(private val query: (String) -> String) {
+    private val breaker = CircuitBreaker(
+        name = "accounts-db",
+        maxFailures = 5,
+        resetAfter = Schedule.exponential<Unit>(1.seconds).jittered(0.8, 1.2) zipLeft Schedule.recurs(6),
+    )
+
+    private val db = policy("accounts-db") {
+        guard(breaker)
+        attemptTimeout(2.seconds)
+    }
+
+    fun row(id: String): String = db { query(id) }
+}
+```
+
+After `maxFailures` failures in a row the breaker opens, and every call is
+refused with `Rejected.CircuitOpen` without being made. Once the next delay of
+`resetAfter` has passed, one trial goes through. If it answers, the breaker
+closes and the schedule starts again; if it fails, the breaker reopens on the
+schedule's next delay. A timeout inside the breaker counts as a failure, and a
+`raise` never does. With a `deadline` in the policy, a refused call waits for
+the trial when the deadline covers the wait.
+
+`lark.breaker.state` is a gauge per breaker `name`: 0 closed, 1 half-open,
+2 open. `lark.breaker.calls` counts its calls by `outcome`: `success`,
+`failure` or `rejected`.
+
 ## Run migrations as a step
 
 `lark-app-liquibase` makes a changelog a node. Anything that reads the database
@@ -981,6 +1014,7 @@ opened it is released.
 | a smaller test | `.subgraph<Root>()` |
 | no waiting in a test | `clock.locally(fixedClock()) { … }` |
 | a call to something unreliable | `policy("…") { deadline(…); retry(…); attemptTimeout(…) }` |
+| to stop calling something that is down | `guard(CircuitBreaker("…", maxFailures, resetAfter))` in a policy |
 | a log line | `logInfo("…")` — no node takes a logger |
 | that log somewhere real | put `lark-slf4j` on the classpath; nothing else |
 | a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |

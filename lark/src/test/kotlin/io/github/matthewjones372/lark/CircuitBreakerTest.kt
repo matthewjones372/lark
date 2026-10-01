@@ -155,4 +155,43 @@ class CircuitBreakerTest {
             shouldThrow<Rejected.CircuitOpen> { partner { 42 } }
         }
     }
+
+    @Test
+    fun `the state gauge reads closed, open and half-open under the breaker's name`() {
+        val time = TestClock(start)
+        val breaker = CircuitBreaker("partner", maxFailures = 2, resetAfter = Schedule.spaced(1.seconds))
+
+        capturingMetrics { measured ->
+            clock.locally(time) {
+                val partner = failingTwice(breaker)
+                measured.gauge("lark.breaker.state") shouldBe 2.0
+                measured.tags("lark.breaker.state") shouldBe mapOf("name" to "partner")
+
+                time.adjust(1.seconds)
+                partner { measured.gauge("lark.breaker.state") } shouldBe 1.0
+                measured.gauge("lark.breaker.state") shouldBe 0.0
+            }
+        }
+    }
+
+    @Test
+    fun `each call is counted by its outcome under the breaker's name`() {
+        val breaker = CircuitBreaker("partner", maxFailures = 1, resetAfter = Schedule.spaced(1.seconds))
+        val partner = policy("partner") { guard(breaker) }
+        val calls = listOf<Pair<String, () -> Unit>>(
+            "success" to { partner { 42 } shouldBe 42 },
+            "failure" to { shouldThrow<Boom> { partner { throw Boom() } } },
+            "rejected" to { shouldThrow<Rejected.CircuitOpen> { partner { 42 } } },
+        )
+
+        clock.locally(fixedClock()) {
+            calls.forEach { (outcome, call) ->
+                capturingMetrics { measured ->
+                    call()
+                    measured.counter("lark.breaker.calls") shouldBe 1.0
+                    measured.tags("lark.breaker.calls") shouldBe mapOf("name" to "partner", "outcome" to outcome)
+                }
+            }
+        }
+    }
 }

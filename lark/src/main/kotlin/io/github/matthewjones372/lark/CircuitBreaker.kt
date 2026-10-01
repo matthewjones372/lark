@@ -61,6 +61,7 @@ class CircuitBreaker(
                     if (now < state.until) {
                         return Refused(state.until)
                     } else if (held.compareAndSet(seen, seen.copy(state = State.HalfOpen))) {
+                        publish(State.HalfOpen)
                         return Admitted(trial = true)
                     }
             }
@@ -68,8 +69,28 @@ class CircuitBreaker(
     }
 
     internal fun record(admitted: Admitted, result: Result) {
-        held.updateAndGet { seen -> after(seen, admitted.trial, result) }
+        publish(held.updateAndGet { seen -> after(seen, admitted.trial, result) }.state)
+        when (result) {
+            Result.SUCCESS -> count("success")
+            Result.FAILURE -> count("failure")
+            Result.UNCOUNTED -> Unit
+        }
     }
+
+    internal fun refused(retryAt: Instant): Rejected.CircuitOpen {
+        count("rejected")
+        return Rejected.CircuitOpen(name, retryAt)
+    }
+
+    private fun count(outcome: String) = counter("lark.breaker.calls", "name" to name, "outcome" to outcome).increment()
+
+    private fun publish(state: State) = gauge("lark.breaker.state", "name" to name).set(
+        when (state) {
+            is State.Closed -> 0.0
+            is State.HalfOpen -> 1.0
+            is State.Open -> 2.0
+        },
+    )
 
     private fun after(seen: Held, trial: Boolean, result: Result): Held {
         val state = seen.state

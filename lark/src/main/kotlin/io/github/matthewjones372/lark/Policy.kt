@@ -200,7 +200,7 @@ private tailrec fun admitted(breaker: CircuitBreaker, budget: Budget): Admitted 
             val wait = java.time.Duration.between(clock.get().now(), admission.retryAt).toKotlinDuration()
             val left = budget.remaining()
             if (wait <= ZERO || left.isInfinite() || wait >= left) {
-                throw Rejected.CircuitOpen(breaker.name, admission.retryAt)
+                throw breaker.refused(admission.retryAt)
             }
             wait.sleepOff()
             admitted(breaker, budget)
