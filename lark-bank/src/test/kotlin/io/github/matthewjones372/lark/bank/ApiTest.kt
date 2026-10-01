@@ -1,6 +1,8 @@
 package io.github.matthewjones372.lark.bank
 
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -29,7 +31,7 @@ class ApiTest {
     private fun transfer(node: Int, from: String, to: String, amount: Long): String {
         val (status, body) = call(node, "POST", "/api/transfers", """{"from":"$from","to":"$to","amount":$amount}""")
         status shouldBe 202
-        val id = Json.read(body)?.get("id").orEmpty()
+        val id = json.parseToJsonElement(body).jsonObject.getValue("id").jsonPrimitive.content
         generateSequence { ended.poll(30, TimeUnit.SECONDS) }.first { it == id }
         return id
     }
@@ -58,7 +60,7 @@ class ApiTest {
     fun `what the API cannot take is refused with a reason`() {
         call(0, "POST", "/api/accounts", """{"id":"carol","amount":10}""").first shouldBe 200
         call(0, "POST", "/api/accounts", "not json") shouldBe
-            (400 to """{"error":"the body is not a flat JSON object"}""")
+            (400 to """{"error":"the body is not an account"}""")
         call(0, "POST", "/api/accounts", """{"id":"a|b","amount":1}""").first shouldBe 400
         call(0, "POST", "/api/accounts", """{"id":"dave","amount":"lots"}""").first shouldBe 400
         call(1, "POST", "/api/transfers", """{"from":"carol","to":"carol","amount":1}""").first shouldBe 400
