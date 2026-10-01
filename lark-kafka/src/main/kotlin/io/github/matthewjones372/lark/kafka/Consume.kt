@@ -82,6 +82,7 @@ private class Loop<K, V>(
         while (!polled.hasNext()) {
             commits.commit()
             polled = consumer.poll(pollTimeout.toJavaDuration()).iterator()
+            commits.polled()
         }
         return commits.carrying(polled.next())
     }

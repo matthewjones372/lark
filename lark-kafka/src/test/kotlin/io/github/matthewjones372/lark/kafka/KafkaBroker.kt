@@ -101,6 +101,31 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
             }
     }
 
+    /**
+     * Every record on [topic]'s only partition up to its end, as a reader at [isolation] sees it: with
+     * `read_committed` the end is the last committed transaction's, and an aborted one's records are skipped.
+     */
+    fun readAll(topic: String, isolation: String): List<ConsumerRecord<String?, String?>> =
+        KafkaConsumer(
+            mapOf<String, Any>(
+                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap,
+                ConsumerConfig.ISOLATION_LEVEL_CONFIG to isolation,
+            ),
+            StringDeserializer(),
+            StringDeserializer(),
+        ).use { consumer ->
+            val partition = TopicPartition(topic, 0)
+            consumer.assign(listOf(partition))
+            consumer.seekToBeginning(listOf(partition))
+            val end = consumer.endOffsets(listOf(partition)).getValue(partition)
+            val read = mutableListOf<ConsumerRecord<String?, String?>>()
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)
+            while (consumer.position(partition) < end && System.nanoTime() < until) {
+                read += consumer.poll(Duration.ofMillis(POLL_MILLIS))
+            }
+            read
+        }
+
     /** The offset the group has committed on the topic's only partition, or null for none. */
     fun committed(group: String, topic: String): Long? =
         Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
@@ -112,7 +137,10 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     @Suppress("UNCHECKED_CAST")
     private fun brokerProperties(): scala.collection.immutable.Map<String, String> =
         EmbeddedKafkaConfig.`apply$default$3`()
-            .updated("group.initial.rebalance.delay.ms", "0") as scala.collection.immutable.Map<String, String>
+            .updated("group.initial.rebalance.delay.ms", "0")
+            // One broker holds the transaction log, so a transaction can be committed at all.
+            .updated("transaction.state.log.replication.factor", "1")
+            .updated("transaction.state.log.min.isr", "1") as scala.collection.immutable.Map<String, String>
 
     private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 

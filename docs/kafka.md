@@ -8,8 +8,9 @@ or committing before the work, does not compile.
 Everything below is in `io.github.matthewjones372.lark.kafka`. Specs
 [0053](../specs/0053-a-record-that-commits-after-it-is-handled.md),
 [0054](../specs/0054-a-record-that-fails-to-decode.md),
-[0056](../specs/0056-kafka-on-any-backend.md) and
-[0087](../specs/0087-a-record-written-to-kafka.md) give the reasons.
+[0056](../specs/0056-kafka-on-any-backend.md),
+[0087](../specs/0087-a-record-written-to-kafka.md) and
+[0119](../specs/0119-a-record-written-exactly-once.md) give the reasons.
 
 ## Picking a backend
 
@@ -75,6 +76,7 @@ dependencies {
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
 | `absolve()` | the first `Left` ends the run `Failed` |
 | `publishTo(producer) { a -> record }`, `publishRecord(producer) { value -> record }` | each element sent, and passed on in order once the broker has it; see below |
+| `transacted(producer) { value -> records }`, `runTransactionally(...)` | each batch's outputs and offsets in one transaction; see *Exactly once* |
 | `runCommitting()` / `runCommitting(settings)` | the run, committing each offset once its record's element reaches the end; `runCollect`, `runFold` and `runWith` over `Committed` do not compile, and each source's records end on their own one |
 
 Every body runs with `kafka.topic`, `kafka.partition` and `kafka.offset` on
@@ -122,7 +124,44 @@ Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value 
   `.part` and `.cause`. It returns once the letter is acknowledged, so the bad
   record is never committed past a letter that was not written.
 
-There are no transactions: exactly-once is a later spec.
+## Exactly once, in a transaction
+
+`publishRecord` is at-least-once: a crash after an output is acknowledged
+but before its offset is committed writes it again. `transacted` commits
+the outputs and the offset in one Kafka transaction instead, so a reader
+with `isolation.level=read_committed` sees each record's outputs once.
+
+```kotlin
+import io.github.matthewjones372.lark.kafka.transacted
+import io.github.matthewjones372.lark.kafka.transactionalProducer
+
+val orders = Kafka.transactionalProducer(producerProperties, transactionalId = "checkout-1", StringSerializer(), orderSerializer)
+
+Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), value = carts)
+    .mapRecord { cart -> cart.value().checkout() }
+    .transacted(orders) { order -> listOf(Topic("orders").record(order.id, order)) }
+    .restartOnDefect(Schedule.exponential(100.milliseconds))
+    .runFold(0L, Long::plus)
+```
+
+- **One transaction per batch.** Records are batched by `groupedWithin`, up
+  to 500 or what arrives within 100 ms. Each batch is one transaction: every
+  output is sent, then the batch's offsets with the consumer's group
+  metadata, then the transaction commits. Transactions run one at a time,
+  so a transaction holds exactly the outputs of the offsets it commits.
+- **A failure aborts.** The transaction's outputs are never seen by a
+  `read_committed` reader, and its offsets are not committed. It is a
+  defect, so `restartOnDefect` after `transacted` reads again from the last
+  committed offsets. `runTransactionally` is `transacted` run to its count,
+  with no restart.
+- **The consumer commits nothing** for these records; the transaction does.
+  Only `Kafka.consume`'s records can be transacted: `Kafka.subscribe`'s carry
+  no group metadata, and are refused.
+- **The transactional id** is one per instance and stable across restarts,
+  so a restarted instance fences the one it replaces.
+- **A run's last transaction** commits after its consumer has left the
+  group, with the group id alone. If the group rebalances in that moment, a
+  new owner may read that last batch again. Spec 0119 says why.
 
 ## A registry that is down is not a bad record
 
