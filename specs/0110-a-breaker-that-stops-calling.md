@@ -82,9 +82,7 @@ Nothing.
 
 ## Open questions
 
-1. **Bulkhead and rate limiter too?** Recommend: yes, as spec 0111 (a `Bulkhead` from a fair `Semaphore`,
-   `tryAcquire` with a wait) and 0112 (a token-bucket `RateLimiter` on `clock.get()`), each one PR. They are
-   independent of this one.
+1. **Bulkhead and rate limiter too?** Drafted as specs 0111 and 0112. They are independent of this one.
 2. **Consecutive failures or a failure rate over a window?** Pekko counts consecutive failures; resilience4j
    uses a sliding window. Recommend consecutive failures now. A window can be a later `CircuitBreaker` constructor.
 3. **Should a raise count as a failure by default?** Recommend no. A declared failure is an answer, not an outage.
