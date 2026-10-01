@@ -1,0 +1,74 @@
+# 0112 — A bulkhead that caps the callers
+
+## Problem
+
+Virtual threads make a request cheap, so nothing upstream limits how many handlers call one dependency at once. A
+slow partner API with a pool of 20 connections gets 5,000 callers queued on it. Each waits out its own timeout while
+holding the memory of its request, and other dependencies on the same node starve. Pekko gets bounded concurrency
+from its dispatcher's size; resilience4j has a `Bulkhead`. A Lark service writes a `Semaphore` by hand, and so it
+has no metric and no declared error.
+
+## Not doing
+
+- **A thread-pool bulkhead.** resilience4j's `ThreadPoolBulkhead` exists to cap platform threads. Here a thread is
+  free, and the scarce thing is the dependency. A permit count is the whole bulkhead.
+- **Per-key limits** (per tenant, per account). A map of bulkheads is the caller's choice of key.
+- **Adaptive limits** (Netflix's `concurrency-limits`, Vegas, AIMD). The limit is a fixed number.
+- **Stream or actor operators.** `Stream.mapPar` already bounds its own concurrency.
+
+## Shape
+
+```kotlin
+val bulkhead = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
+
+val partner = policy("partner-api") { guard(breaker); guard(bulkhead) }
+val quote = partner { http.quote(id) }                 // throws Rejected.BulkheadFull after maxWait
+
+bulkhead.available // permits free now
+```
+
+- The runner calls `acquire(maxWait)`, which is `internal` to `lark`. It answers a permit or null, and the policy
+  (spec 0110) caps `maxWait` at its remaining budget.
+- It is a **fair** `java.util.concurrent.Semaphore` with `maxConcurrent` permits. Callers are admitted in the order
+  they arrived.
+- `maxWait` defaults to `ZERO`, which means admit or reject at once. A positive wait is `tryAcquire(maxWait)`, which
+  can be interrupted, so the policy's deadline ends it.
+- The permit is released in a `finally`. A throw, a `raise` or an interrupt in the block never leaks one.
+- Metrics: `lark.bulkhead.in_use` (gauge) and `lark.bulkhead.calls` (counter tagged `outcome=admitted|rejected`),
+  both tagged with `name`.
+
+## Why this shape
+
+On virtual threads a semaphore is the bulkhead. Blocking in `tryAcquire` parks a virtual thread, which costs
+nothing, so a separate queue or executor adds nothing. Fairness costs a little throughput. In exchange the
+longest-waiting caller is never overtaken, which is what someone reading a p99 expects. The alternative,
+`Semaphore(n, false)`, is faster but lets a late caller jump the queue. In the order spec 0110 checks, the bulkhead
+sits inside the rate limiter, so a caller waiting for a token holds no permit.
+
+## Depends on
+
+0110, for `Policy` and `Rejected`. It is independent of 0111 and 0113.
+
+## Stack
+
+- [ ] **`spec-0112-bulkhead`** — `Bulkhead`, its `Step`, and its runner row, in `lark`.
+      Done when: with `maxConcurrent = 2`, a third concurrent caller on a virtual thread is rejected at once when
+      `maxWait = ZERO` and admitted when a permit frees within `maxWait`, and a block that throws, raises or is
+      interrupted gives its permit back, and a refusal inside a policy refunds the limiter's
+      token where it has one.
+- [ ] **`spec-0112-bulkhead-metrics`** — the gauge and counter, plus a cookbook section "Cap the calls to something
+      slow".
+      Done when: `capturingMetrics` reads back `in_use` and each outcome by name.
+
+## Acceptance
+
+```bash
+./gradlew spotlessApply && ./gradlew build
+```
+
+## Settled
+
+1. **Does `maxWait` follow `clock.get()`?** No. `Semaphore.tryAcquire` waits on real time, so tests use `ZERO`, or
+   a short real wait released by a latch.
+2. **Fair or unfair?** Fair, with no parameter until someone measures the difference.
+3. **Can `maxConcurrent` change at runtime?** No. A different limit is a different `Bulkhead`.
