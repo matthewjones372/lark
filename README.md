@@ -519,7 +519,7 @@ graph, and no node taking a registry:
 ```kotlin
 counter("petshop.adoptions").increment()
 gauge("petshop.queue.depth").set(waiting.toDouble())
-timed("petshop.adopt") { shop.adopt(id, by) }
+timed("petshop.adopt.duration.seconds") { shop.adopt(id, by) }
 
 metricTagged("species" to "tortoise") { counter("petshop.adoptions").increment() }
 ```

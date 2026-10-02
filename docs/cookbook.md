@@ -749,7 +749,7 @@ by name, which every backend does with a map:
 <!-- cookbook -->
 ```kotlin
 class Adopting(private val pets: MutableList<String>) {
-    fun adopt(name: String): String = timed("petshop.adopt") {
+    fun adopt(name: String): String = timed("petshop.adopt.duration.seconds") {
         counter("petshop.adoptions").increment()
         gauge("petshop.queue.depth").set(pets.size.toDouble())
         name
@@ -757,9 +757,12 @@ class Adopting(private val pets: MutableList<String>) {
 }
 ```
 
-`timed` records how long the block took, in milliseconds, and answers what the
-block answered. It records in a `finally`, so a call that failed slowly is still
-counted — leaving it out makes the numbers say the opposite of what happened.
+`timed` records how long the block took, in seconds, and answers what the block
+answered. Seconds because that is what a backend assumes a duration is — name
+the metric for it and Prometheus, Grafana and every dashboard ever written agree
+about the axis without being told. It records in a `finally`, so a call that
+failed slowly is still counted; leaving it out makes the numbers say the
+opposite of what happened.
 
 ## Say which series a number belongs to
 
@@ -1021,7 +1024,7 @@ opened it is released.
 | which request a line belongs to | `logAnnotated("correlation_id" to id) { … }` |
 | what a test logged | `capturingLogs { logs -> … ; logs.all() }` |
 | to count something | `counter("…").increment()` — no node takes a registry |
-| how long something took | `timed("…") { … }`, which answers what the block did |
+| how long something took | `timed("….seconds") { … }`, which answers what the block did |
 | those numbers somewhere real | put `lark-micrometer` on the classpath; nothing else |
 | which series a number belongs to | `metricTagged("species" to "tortoise") { … }` |
 | what a test measured | `capturingMetrics { measured -> … }` |
