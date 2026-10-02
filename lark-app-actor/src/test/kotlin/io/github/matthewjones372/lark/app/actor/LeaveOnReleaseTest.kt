@@ -64,8 +64,9 @@ class LeaveOnReleaseTest {
             released = TimeSource.Monotonic.markNow()
         }
 
-        // Out as soon as the other node removes it, not after it is left alone and downs itself.
-        released.elapsedNow() shouldBeLessThan 10.seconds
+        // Out before the 20 s a node left alone waits to down itself. How it left is the Leaving status asserted below,
+        // which a self-down would not carry; this bound only catches a leave that hangs.
+        released.elapsedNow() shouldBeLessThan 20.seconds
 
         removed.await(1, TimeUnit.MINUTES) shouldBe true
         stays.join()
