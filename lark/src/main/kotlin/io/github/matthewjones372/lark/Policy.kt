@@ -40,6 +40,8 @@ class Policy internal constructor(val name: String, val steps: List<Step>) {
 
         data class Breaker(val breaker: CircuitBreaker) : Step
 
+        data class Bulkhead(val bulkhead: io.github.matthewjones372.lark.Bulkhead) : Step
+
         data class AttemptTimeout(val each: Duration) : Step
 
         data class Custom(val guard: Guard) : Step
@@ -70,6 +72,10 @@ class PolicyBuilder internal constructor() {
         steps += Step.Breaker(breaker)
     }
 
+    fun guard(bulkhead: Bulkhead) {
+        steps += Step.Bulkhead(bulkhead)
+    }
+
     fun guard(guard: Guard) {
         steps += Step.Custom(guard)
     }
@@ -93,6 +99,7 @@ private enum class Kind(val label: String) {
     DEADLINE("deadline"),
     RETRY("retry"),
     BREAKER("breaker"),
+    BULKHEAD("bulkhead"),
     ATTEMPT_TIMEOUT("attemptTimeout"),
 }
 
@@ -101,6 +108,7 @@ private val Step.kind: Kind?
         is Step.Deadline -> Kind.DEADLINE
         is Step.Retry -> Kind.RETRY
         is Step.Breaker -> Kind.BREAKER
+        is Step.Bulkhead -> Kind.BULKHEAD
         is Step.AttemptTimeout -> Kind.ATTEMPT_TIMEOUT
         is Step.Custom -> null
     }
@@ -170,6 +178,8 @@ private fun <E, A> Raise<E>.from(policy: Policy, at: Int, budget: Budget, block:
 
         is Step.Breaker -> through(step.breaker, budget, next)
 
+        is Step.Bulkhead -> inside(step.bulkhead, budget, next)
+
         is Step.AttemptTimeout -> cut(minOf(step.each, budget.remaining()), budget, next)
 
         is Step.Custom -> with(step.guard) { guard(next) }
@@ -206,6 +216,16 @@ private tailrec fun admitted(breaker: CircuitBreaker, budget: Budget): Admitted 
             admitted(breaker, budget)
         }
     }
+
+// The bulkhead's own wait, cut to what the deadline leaves. A refusal is a failed attempt to a retry outside it.
+private fun <E, A> Raise<E>.inside(bulkhead: Bulkhead, budget: Budget, block: Raise<E>.() -> A): A {
+    if (!bulkhead.acquire(minOf(bulkhead.maxWait, budget.remaining()))) throw Rejected.BulkheadFull(bulkhead.name)
+    try {
+        return block()
+    } finally {
+        bulkhead.release()
+    }
+}
 
 // One fork for an attempt, and none at all when nothing bounds it. A timeout that leaves no budget is the
 // deadline's, whichever limit was the shorter.

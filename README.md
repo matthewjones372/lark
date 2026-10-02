@@ -374,6 +374,9 @@ Steps out of order throw `IllegalArgumentException` when the policy is built.
 A `CircuitBreaker` joins with `guard(breaker)`: after its `maxFailures` in a
 row it refuses every call until its `resetAfter` schedule's next delay has
 passed, then lets one trial through ([spec 0111](specs/0111-a-breaker-that-stops-calling.md)).
+A `Bulkhead` joins with `guard(bulkhead)`: at most `maxConcurrent` callers are
+inside at once, and the rest wait up to `maxWait`, cut to the deadline, before
+being refused ([spec 0112](specs/0112-a-bulkhead-that-caps-the-callers.md)).
 
 ```kotlin
 import arrow.core.Either
