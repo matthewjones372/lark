@@ -232,9 +232,14 @@ class RemoteNode internal constructor(
             measure(from).received.getValue(laneOf(frame.path)).increment()
             try {
                 when {
-                    frame.path.startsWith(REPLIES) -> pending.remove(frame.path)?.answer(frame.payload, refs)
+                    // Answered inside what the answer carried: a reply that tells an actor passes the trace on to it.
+                    frame.path.startsWith(REPLIES) ->
+                        Carriers.within(frame.carried) { pending.remove(frame.path)?.answer(frame.payload, refs) }
+
                     frame.path == WATCH -> watchedFrom(from, targetOf(from, frame.payload))
+
                     frame.path == TERMINATED -> terminated(targetOf(from, frame.payload))
+
                     else -> deliver(frame)
                 }
             } catch (unreadable: Throwable) {
@@ -351,7 +356,10 @@ class RemoteNode internal constructor(
         override val address: Address,
         private val answers: MessageCodec<A>,
     ) : Reply<A> {
-        override fun invoke(answer: A) =
-            send(peer, Frame(address.path, address.incarnation, answers.encode(answer, refs), answer))
+        // An answer is part of the trace it is given in, as a tell is: an actor answering another continues it.
+        override fun invoke(answer: A) = send(
+            peer,
+            Frame(address.path, address.incarnation, answers.encode(answer, refs), answer, Carriers.capture()),
+        )
     }
 }

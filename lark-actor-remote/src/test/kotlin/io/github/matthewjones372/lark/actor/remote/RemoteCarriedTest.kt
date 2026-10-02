@@ -13,7 +13,9 @@ import io.github.matthewjones372.lark.logInfo
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.minutes
 
 /** Asks for the request id on a line the handler writes. */
@@ -58,6 +60,63 @@ class RemoteCarriedTest {
             }.getOrNull()
 
             heard shouldBe "r-9"
+        } finally {
+            done.countDown()
+            other.join()
+        }
+    }
+}
+
+/** Asks the other node to answer [to], a reply that tells an actor here rather than an ask's caller. */
+private data class AnswerTo(val to: Reply<String>)
+
+private val answerToCodec = object : MessageCodec<AnswerTo> {
+    override fun write(message: AnswerTo, out: WireOut) = out.reply(message.to, Codecs.string)
+
+    override fun read(input: WireIn) = AnswerTo(input.reply(Codecs.string))
+}
+
+private fun answeringTo() = behaviour<AnswerTo, Unit>(Unit) { _, _, message -> stay().also { message.to("answered") } }
+
+/** A reply that tells [heard] the annotations on a line written as it is answered, as a saga's leg reply does. */
+private class Telling(private val heard: CompletableFuture<String>) : Reply<String> {
+    override val address = Address("here", "/telling", 0)
+
+    override fun invoke(answer: String) {
+        heard.complete(
+            capturingLogs { logs ->
+                logInfo(answer)
+                logs.all().single().annotations["request_id"].orEmpty()
+            },
+        )
+    }
+}
+
+class RemoteReplyCarriedTest {
+
+    @Test
+    fun `an answer to a reply crosses back inside the trace it was given in`() {
+        val port = ServerSocket(0).use { it.localPort }
+        val ready = CountDownLatch(1)
+        val done = CountDownLatch(1)
+        val other = Thread.ofPlatform().start {
+            flock<Nothing, Unit> {
+                node("answering", port).expose(spawn("answer", answeringTo()), answerToCodec)
+                ready.countDown()
+                done.await()
+            }
+        }
+        ready.await()
+        try {
+            val heard = CompletableFuture<String>()
+            flock<Nothing, Unit> {
+                val asking = node("asking", ServerSocket(0).use { it.localPort })
+                val answer = asking.remote(Address("answering@127.0.0.1:$port", "/user/answer", 0), answerToCodec)
+                logAnnotated("request_id" to "r-10") { answer.tell(AnswerTo(Telling(heard))) }
+                heard.get(1, TimeUnit.MINUTES)
+            }
+
+            heard.get() shouldBe "r-10"
         } finally {
             done.countDown()
             other.join()
