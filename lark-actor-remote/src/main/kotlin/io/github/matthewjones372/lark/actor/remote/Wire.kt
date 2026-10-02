@@ -4,8 +4,10 @@ import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.clock
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.EOFException
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -52,9 +54,16 @@ data class Node(val name: String, val host: String, val port: Int) {
 /**
  * One message on the wire: the actor it is for, by path and incarnation, and its codec's bytes. On the sending side
  * it keeps the [message] it was written from, so that a frame that is dropped can be a dead letter with it in; that
- * is not written.
+ * is not written. What [carried] holds rides to a peer that speaks wire version 2 (spec 0122), and is left off for
+ * one that speaks only 1.
  */
-class Frame(val path: String, val incarnation: Long, val payload: ByteArray, val message: Any? = null)
+class Frame(
+    val path: String,
+    val incarnation: Long,
+    val payload: ByteArray,
+    val message: Any? = null,
+    val carried: Map<String, String> = emptyMap(),
+)
 
 /** What a [Transport] tells the node it carries for. Each is called on one of the transport's own threads. */
 
@@ -79,7 +88,9 @@ interface Listener {
 }
 
 private const val MAGIC = 0x4C41524B // "LARK"
-private const val VERSION = 1
+/** The newest wire version this node speaks: 2 carries [Frame.carried]. It reads and writes 1 for an older peer. */
+private const val VERSION = 2
+private const val FIRST_VERSION = 1
 
 /** A frame larger than this is a stream out of step, not a message: the connection is dropped. */
 private const val MAX_FRAME = 16 shl 20
@@ -155,10 +166,12 @@ class Transport(
             try {
                 val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
                 val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
-                val peer = input.hello()
+                val (peer, offered) = input.hello()
                 tls?.check(socket, peer)
-                output.hello(self, uid)
-                while (!closed.get()) listener.received(peer, input.frame())
+                // The newest both speak: a peer that offered 1 is an older lark, and is answered as one.
+                val spoken = minOf(offered, VERSION)
+                output.hello(self, uid, spoken)
+                while (!closed.get()) listener.received(peer, input.frame(spoken))
             } catch (_: IOException) {
                 // The peer went, or sent what is not a lark stream: either way this connection is over.
             } finally {
@@ -174,6 +187,13 @@ class Transport(
 
         @Volatile
         private var socket: Socket? = null
+
+        /**
+         * The version this side offers next. An older peer closes on an offer of 2 without answering, so the next
+         * attempt offers 1 straight away; once a connection on 1 has ended, the peer may have been upgraded, and 2 is
+         * offered again.
+         */
+        private var offering = VERSION
 
         fun offer(frame: Frame) {
             if (!queue.offer(frame)) listener.dropped(peer, frame)
@@ -191,12 +211,17 @@ class Transport(
             while (!closed.get()) {
                 val connected = try {
                     connectAndWrite()
+                } catch (_: Refused) {
+                    // An older peer: offered 1 at once, and nothing queued is dropped for it.
+                    offering = FIRST_VERSION
+                    continue
                 } catch (_: IOException) {
                     false
                 } catch (_: InterruptedException) {
                     false
                 }
                 if (closed.get()) return
+                if (connected) offering = VERSION
                 drop()
                 wait = if (connected) retryFrom else minOf(wait * 2, retryUpTo)
                 try {
@@ -216,8 +241,13 @@ class Transport(
                 val socket = tls?.over(plain, peer) ?: plain
                 val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
                 val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
-                output.hello(self, uid)
-                val answered = input.hello()
+                output.hello(self, uid, offering)
+                val (answered, spoken) = try {
+                    input.hello()
+                } catch (ended: EOFException) {
+                    if (offering > FIRST_VERSION) throw Refused(ended) else throw ended
+                }
+                if (spoken > offering) throw IOException("$peer answered wire version $spoken to an offer of $offering")
                 val stranger = peer.name.isNotEmpty() && answered.name != peer.name
                 if (stranger) throw IOException("$peer answered as $answered")
                 tls?.check(socket, answered)
@@ -233,7 +263,7 @@ class Transport(
                     if (!closed.get()) writer.interrupt()
                 }
                 try {
-                    write(output)
+                    write(output, spoken)
                 } catch (_: IOException) {
                     // The connection ended while writing; the watch may have seen it first.
                 } catch (_: InterruptedException) {
@@ -248,9 +278,9 @@ class Transport(
             return true
         }
 
-        private fun write(output: DataOutputStream) {
+        private fun write(output: DataOutputStream, version: Int) {
             while (true) {
-                output.frame(queue.take())
+                output.frame(queue.take(), version)
                 if (queue.isEmpty()) output.flush()
             }
         }
@@ -261,37 +291,91 @@ class Transport(
     }
 }
 
-private fun DataOutputStream.hello(self: Node, uid: Long) {
+/** A peer that closed on this node's offer without answering it: an older lark, which takes only version 1. */
+private class Refused(cause: EOFException) : IOException("the peer closed on the offer of wire version $VERSION", cause)
+
+private fun DataOutputStream.hello(self: Node, uid: Long, version: Int) {
     writeInt(MAGIC)
-    writeInt(VERSION)
+    writeInt(version)
     writeUTF(self.toString())
     writeLong(uid)
     flush()
 }
 
-private fun DataInputStream.hello(): Node {
+/** The peer, and the wire version it offered or answered with. */
+private fun DataInputStream.hello(): Pair<Node, Int> {
     if (readInt() != MAGIC) throw IOException("a connection that does not speak lark")
     val version = readInt()
-    if (version != VERSION) throw IOException("a peer on wire version $version, where this node speaks $VERSION")
+    if (version !in FIRST_VERSION..VERSION) {
+        throw IOException("a peer on wire version $version, where this node speaks $FIRST_VERSION to $VERSION")
+    }
     val node = Node.parse(readUTF())
     readLong()
-    return node
+    return node to version
 }
 
-private fun DataOutputStream.frame(frame: Frame) {
+/**
+ * A frame's size, its path, its incarnation and, from version 2, what it carried, then its payload: whatever of the
+ * size is left, so the payload is read the same way in either version.
+ */
+private fun DataOutputStream.frame(frame: Frame, version: Int) {
     val path = frame.path.toByteArray(Charsets.UTF_8)
-    writeInt(Int.SIZE_BYTES + path.size + Long.SIZE_BYTES + frame.payload.size)
+    val carried = if (version >= CARRYING) carried(frame.carried) else ByteArray(0)
+    writeInt(Int.SIZE_BYTES + path.size + Long.SIZE_BYTES + carried.size + frame.payload.size)
     writeInt(path.size)
     write(path)
     writeLong(frame.incarnation)
+    write(carried)
     write(frame.payload)
 }
 
-private fun DataInputStream.frame(): Frame {
+private fun DataInputStream.frame(version: Int): Frame {
     val size = readInt()
     if (size !in 0..MAX_FRAME) throw IOException("a frame of $size bytes")
     val path = ByteArray(readInt()).also(::readFully)
     val incarnation = readLong()
-    val payload = ByteArray(size - Int.SIZE_BYTES - path.size - Long.SIZE_BYTES).also(::readFully)
-    return Frame(String(path, Charsets.UTF_8), incarnation, payload)
+    var read = Int.SIZE_BYTES + path.size + Long.SIZE_BYTES
+    val carried = if (version >= CARRYING) {
+        val pairs = readUnsignedShort()
+        read += Short.SIZE_BYTES
+        buildMap {
+            repeat(pairs) {
+                val key = ByteArray(readUnsignedShort()).also(::readFully)
+                val value = ByteArray(readUnsignedShort()).also(::readFully)
+                read += 2 * Short.SIZE_BYTES + key.size + value.size
+                put(String(key, Charsets.UTF_8), String(value, Charsets.UTF_8))
+            }
+        }
+    } else {
+        emptyMap()
+    }
+    val payload = ByteArray(size - read).also(::readFully)
+    return Frame(String(path, Charsets.UTF_8), incarnation, payload, carried = carried)
 }
+
+/**
+ * [carried] as version 2 writes it: a count, then each key and value as a length and its UTF-8 bytes. A pair too long
+ * for its length is left off rather than written wrong: what is carried is a trace's ids, not a payload.
+ */
+private fun carried(carried: Map<String, String>): ByteArray {
+    val pairs = carried.map { (key, value) -> key.toByteArray(Charsets.UTF_8) to value.toByteArray(Charsets.UTF_8) }
+        .filter { (k, v) -> k.size <= MAX_CARRIED && v.size <= MAX_CARRIED }
+        .take(MAX_CARRIED)
+    val out = ByteArrayOutputStream()
+    DataOutputStream(out).use { data ->
+        data.writeShort(pairs.size)
+        pairs.forEach { (k, v) ->
+            data.writeShort(k.size)
+            data.write(k)
+            data.writeShort(v.size)
+            data.write(v)
+        }
+    }
+    return out.toByteArray()
+}
+
+/** The first wire version whose frames carry a map. */
+private const val CARRYING = 2
+
+/** The most a carried count, key or value can be: each is written as an unsigned short. */
+private const val MAX_CARRIED = 0xFFFF

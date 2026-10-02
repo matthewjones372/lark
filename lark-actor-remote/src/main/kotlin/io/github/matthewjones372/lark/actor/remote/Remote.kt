@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.actor.remote
 
 import arrow.core.nonFatalOrThrow
+import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
@@ -259,7 +260,8 @@ class RemoteNode internal constructor(
                 frame.incarnation != 0L && actor.ref.address.incarnation != frame.incarnation ->
                     flock.deadLetter(DeadLetter(recipient, actor.read(frame.payload, refs), DeadLetter.Why.NoSuchActor))
 
-                else -> actor.deliver(frame.payload, refs)
+                // Told inside what it carried, so the local tell carries it on to the handler (spec 0122).
+                else -> Carriers.within(frame.carried) { actor.deliver(frame.payload, refs) }
             }
         }
 
@@ -329,7 +331,7 @@ class RemoteNode internal constructor(
         private val codec: MessageCodec<M>,
     ) : ActorRef<M>, Watchable {
         override fun tell(message: M) =
-            send(peer, Frame(address.path, address.incarnation, codec.encode(message, refs), message))
+            send(peer, Frame(address.path, address.incarnation, codec.encode(message, refs), message, Carriers.capture()))
 
         override fun onTerminated(notify: () -> Unit) = watch(peer, address, notify)
 
