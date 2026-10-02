@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.Carriers
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.locks.ReentrantLock
@@ -80,17 +81,20 @@ class InMemoryJournal :
             val before = kept[id].orEmpty()
             val last = before.lastOrNull()?.sequence ?: 0
             if (last != expected) return JournalConflict(id, expected, last).left()
-            val stored = events.mapIndexed { i, bytes -> StoredEvent(expected + i + 1, bytes.copyOf()) }
+            // What the appending thread carries, kept with each event as the JDBC journal keeps it (spec 0123).
+            val carried = Carriers.capture()
+            val stored = events.mapIndexed { i, bytes -> StoredEvent(expected + i + 1, bytes.copyOf(), carried) }
             kept[id] = before + stored
             stored.forEach { event ->
                 val offset = (feed.lastEntry()?.key ?: 0) + 1
-                feed[offset] = FeedEvent(offset, id, event.sequence, event.bytes)
+                feed[offset] = FeedEvent(offset, id, event.sequence, event.bytes, event.metadata)
             }
             (expected + events.size).right()
         }
 
     override fun read(id: PersistenceId, from: Long): List<StoredEvent> =
-        kept[id].orEmpty().filter { it.sequence >= from }.map { StoredEvent(it.sequence, it.bytes.copyOf()) }
+        kept[id].orEmpty().filter { it.sequence >= from }
+            .map { StoredEvent(it.sequence, it.bytes.copyOf(), it.metadata) }
 
     override fun deleteTo(id: PersistenceId, sequence: Long, readTo: Long) {
         appending.withLock {
@@ -108,7 +112,7 @@ class InMemoryJournal :
         feed.tailMap(offset, false).values.asSequence()
             .filter { it.id.kind == kind && (slices == ALL || Slices.of(it.id) in slices) }
             .take(limit)
-            .map { FeedEvent(it.offset, it.id, it.sequence, it.bytes.copyOf()) }
+            .map { FeedEvent(it.offset, it.id, it.sequence, it.bytes.copyOf(), it.metadata) }
             .toList()
 }
 

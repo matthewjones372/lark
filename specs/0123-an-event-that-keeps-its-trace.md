@@ -43,8 +43,13 @@ library looks for them.
       journal captures at `append`, on the thread the command is handled on, so `Journal`'s signature is unchanged;
       `StoredEvent` and `FeedEvent` gain `metadata`, empty by default. The slice mover copies it. Null in the column
       when nothing was carried.
-- [ ] **`spec-0123-kafka`** — headers out and in, `within` a single record's handling. Done when: a record published
+- [x] **`spec-0123-kafka`** — headers out and in, `within` a single record's handling. Done when: a record published
       from an event written in a trace is handled, by a consumer, in that trace.
+      Done: `Followed` carries the event's `metadata`, so a publisher sends it on with `ProducerRecord.carrying`;
+      a consumer runs `ConsumerRecord.within { }` around one record's handling. `CarriedTest` (lark-kafka) round-trips
+      the headers and handles a record inside the annotations it carried; `ProjectionTest` follows an event with what
+      its append carried. The in-memory journal keeps it too. Lark's `publishTo` does not add the headers itself,
+      since the record is the caller's to build: the caller adds them, one call.
 
 ## Acceptance
 

@@ -14,6 +14,7 @@ import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.testActors
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.Stream
@@ -141,5 +142,18 @@ class ProjectionTest {
         follow().take(3).runProjecting().run(Forks()).settled() shouldBe Exit.Done(3L)
 
         handled.toList() shouldContainExactly listOf("o-1: placed", "o-1: placed", "o-1: paid", "o-2: placed")
+    }
+
+    @Test
+    fun `a followed event carries what its append carried, for a publisher to send on`() {
+        logAnnotated("request_id" to "r-4") { journal.place(1) }
+        journal.place(2)
+        val seen = ConcurrentLinkedQueue<Map<String, String>>()
+
+        Projection.follow(journal, kind = "order", codec = text, offsets = offsets, name = "carried")
+            .mapFollowed { event -> event.value.also { seen += event.metadata } }
+            .take(2).runProjecting().run(Forks()).settled() shouldBe Exit.Done(2L)
+
+        seen.toList() shouldBe listOf(mapOf("lark.annotation.request_id" to "r-4"), emptyMap())
     }
 }

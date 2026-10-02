@@ -28,7 +28,8 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * One event a projection follows: whose it is, its sequence number there, its [value], and its [offset] in the feed.
- * The offset is saved by `runProjecting` once the element reaches the end of the stream.
+ * The offset is saved by `runProjecting` once the element reaches the end of the stream. [metadata] is what the
+ * append that wrote it carried (spec 0123), for a publisher to send on: a trace's ids, and log annotations.
  */
 class Followed<out A : Any> internal constructor(
     val id: PersistenceId,
@@ -36,8 +37,9 @@ class Followed<out A : Any> internal constructor(
     val value: A,
     val offset: Long,
     internal val progress: Progress,
+    val metadata: Map<String, String> = emptyMap(),
 ) {
-    internal fun <B : Any> carrying(value: B) = Followed(id, sequence, value, offset, progress)
+    internal fun <B : Any> carrying(value: B) = Followed(id, sequence, value, offset, progress, metadata)
 }
 
 /** Which read model an element belongs to, and where its offset goes. */
@@ -129,7 +131,7 @@ object Projection {
                     // them: each but the last carries the offset before the event's, and only the last carries its own.
                     values.forEachIndexed { at, value ->
                         val offset = if (at == values.lastIndex) event.offset else event.offset - 1
-                        upgraded += Followed(event.id, event.sequence, value, offset, progress)
+                        upgraded += Followed(event.id, event.sequence, value, offset, progress, event.metadata)
                     }
                 }
                 upgraded.removeFirst()
