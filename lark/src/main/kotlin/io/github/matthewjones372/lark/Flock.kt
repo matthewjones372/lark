@@ -332,9 +332,10 @@ internal class Fork<E, T>(
     /**
      * The failure this fork answered with of its own accord. One cut short by a combinator's interrupt had not answered
      * when it was sent, so whatever it throws after is the interrupt's doing: a pool that wraps it in an exception of
-     * its own would otherwise be reported in place of the failure that ended its siblings.
+     * its own would otherwise be reported in place of the failure that ended its siblings. An interrupt arrives as a
+     * throw and never as a raise, so a raise is the fork's own however late it lands (spec 0121).
      */
-    fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort }
+    fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort && it is Thrown }
 
     /** The throwable this fork threw of its own accord: a throw ends an accumulating combinator's siblings. */
     fun ownThrow(): Thrown? = ownFailure() as? Thrown
