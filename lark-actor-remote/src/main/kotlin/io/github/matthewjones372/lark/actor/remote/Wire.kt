@@ -88,6 +88,7 @@ interface Listener {
 }
 
 private const val MAGIC = 0x4C41524B // "LARK"
+
 /** The newest wire version this node speaks: 2 carries [Frame.carried]. It reads and writes 1 for an older peer. */
 private const val VERSION = 2
 private const val FIRST_VERSION = 1
@@ -182,18 +183,17 @@ class Transport(
 
     /** One peer's queue on one lane, and the virtual thread that connects to it and writes. */
     private inner class Outbound(private val peer: Node, private val lane: Lane) {
+        /**
+         * The version this side offers next. An older peer closes on an offer of 2 without answering, so the next
+         * attempt offers 1 straight away; once a connection on 1 has ended, the peer may have been upgraded, and 2 is
+         * offered again. Declared before the writer, which reads it as soon as it starts.
+         */
+        private var offering = VERSION
         private val queue = ArrayBlockingQueue<Frame>(if (lane == Lane.Control) controlRoom else room)
         private val writer = Thread.ofVirtual().name("lark-remote-out-$peer-${lane.name.lowercase()}").start(::run)
 
         @Volatile
         private var socket: Socket? = null
-
-        /**
-         * The version this side offers next. An older peer closes on an offer of 2 without answering, so the next
-         * attempt offers 1 straight away; once a connection on 1 has ended, the peer may have been upgraded, and 2 is
-         * offered again.
-         */
-        private var offering = VERSION
 
         fun offer(frame: Frame) {
             if (!queue.offer(frame)) listener.dropped(peer, frame)
@@ -241,15 +241,7 @@ class Transport(
                 val socket = tls?.over(plain, peer) ?: plain
                 val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
                 val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
-                output.hello(self, uid, offering)
-                val (answered, spoken) = try {
-                    input.hello()
-                } catch (ended: EOFException) {
-                    if (offering > FIRST_VERSION) throw Refused(ended) else throw ended
-                }
-                if (spoken > offering) throw IOException("$peer answered wire version $spoken to an offer of $offering")
-                val stranger = peer.name.isNotEmpty() && answered.name != peer.name
-                if (stranger) throw IOException("$peer answered as $answered")
+                val (answered, spoken) = shake(output, input)
                 tls?.check(socket, answered)
                 listener.connected(peer, lane)
                 // The peer never writes after its hello: a read that returns is the connection ending.
@@ -276,6 +268,19 @@ class Transport(
                 }
             }
             return true
+        }
+
+        /** This side's hello, offering [offering], and the peer's answer: who it is, and the version both now speak. */
+        private fun shake(output: DataOutputStream, input: DataInputStream): Pair<Node, Int> {
+            output.hello(self, uid, offering)
+            val (answered, spoken) = try {
+                input.hello()
+            } catch (ended: EOFException) {
+                throw if (offering > FIRST_VERSION) Refused(ended) else ended
+            }
+            if (spoken > offering) throw IOException("$peer answered wire version $spoken to an offer of $offering")
+            if (peer.name.isNotEmpty() && answered.name != peer.name) throw IOException("$peer answered as $answered")
+            return answered to spoken
         }
 
         private fun write(output: DataOutputStream, version: Int) {

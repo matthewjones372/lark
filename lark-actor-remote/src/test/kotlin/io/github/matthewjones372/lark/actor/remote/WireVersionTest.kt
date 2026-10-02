@@ -36,26 +36,32 @@ private class OldNode : AutoCloseable {
     val refused = LinkedBlockingQueue<Int>()
     private val accepting = Thread.ofVirtual().start {
         while (!server.isClosed) {
-            val socket = runCatching { server.accept() }.getOrNull() ?: return@start
+            val socket = try {
+                server.accept()
+            } catch (_: java.net.SocketException) {
+                return@start
+            }
             Thread.ofVirtual().start { serve(socket) }
         }
     }
 
-    private fun serve(socket: Socket) = socket.use {
-        val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
-        val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
-        input.readInt() shouldBe MAGIC
-        val version = input.readInt()
-        if (version != 1) return refused.put(version)
-        input.readUTF()
-        input.readLong()
-        output.oldHello(node)
-        runCatching {
-            while (true) {
-                val size = input.readInt()
-                val path = ByteArray(input.readInt()).also(input::readFully)
-                input.readLong()
-                payloads.put(ByteArray(size - Int.SIZE_BYTES - path.size - Long.SIZE_BYTES).also(input::readFully).toList())
+    private fun serve(socket: Socket) {
+        socket.use {
+            val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
+            val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
+            input.readInt() shouldBe MAGIC
+            val version = input.readInt()
+            if (version != 1) {
+                refused.put(version)
+                return
+            }
+            input.readUTF()
+            input.readLong()
+            output.oldHello(node)
+            try {
+                while (true) payloads.put(input.oldFrame())
+            } catch (_: java.io.EOFException) {
+                // The new node closed its connection: nothing more to read.
             }
         }
     }
@@ -64,6 +70,14 @@ private class OldNode : AutoCloseable {
         server.close()
         accepting.join()
     }
+}
+
+/** A version-1 frame's payload: whatever of its size the path and incarnation leave. */
+private fun DataInputStream.oldFrame(): List<Byte> {
+    val size = readInt()
+    val path = ByteArray(readInt()).also(::readFully)
+    readLong()
+    return ByteArray(size - Int.SIZE_BYTES - path.size - Long.SIZE_BYTES).also(::readFully).toList()
 }
 
 private fun DataOutputStream.oldHello(self: Node) {
@@ -106,7 +120,8 @@ class WireVersionTest {
         val old = OldNode().closedAfter()
         val one = Transport(Node("one", "127.0.0.1", freePort()), Frames(), retryFrom = 10.milliseconds).closedAfter()
 
-        one.send(old.node, Frame("/user/clinic", 1, byteArrayOf(1, 2, 3), carried = mapOf("traceparent" to "00-x-y-01")))
+        val carried = mapOf("traceparent" to "00-x-y-01")
+        one.send(old.node, Frame("/user/clinic", 1, byteArrayOf(1, 2, 3), carried = carried))
 
         old.refused.poll(1, TimeUnit.MINUTES) shouldBe 2
         old.payloads.poll(1, TimeUnit.MINUTES) shouldBe listOf<Byte>(1, 2, 3)

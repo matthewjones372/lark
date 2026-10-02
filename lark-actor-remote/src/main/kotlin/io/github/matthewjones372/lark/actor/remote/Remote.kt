@@ -331,7 +331,10 @@ class RemoteNode internal constructor(
         private val codec: MessageCodec<M>,
     ) : ActorRef<M>, Watchable {
         override fun tell(message: M) =
-            send(peer, Frame(address.path, address.incarnation, codec.encode(message, refs), message, Carriers.capture()))
+            send(
+                peer,
+                Frame(address.path, address.incarnation, codec.encode(message, refs), message, Carriers.capture()),
+            )
 
         override fun onTerminated(notify: () -> Unit) = watch(peer, address, notify)
 

@@ -51,12 +51,19 @@ sharding coordinator's, a stream's — outside the trace.
 
 ## Stack
 
-- [ ] **`spec-0122-local`** — `Carrier`, its ServiceLoader, capture on `tell` and `ask`, `within` around handling;
+- [x] **`spec-0122-local`** — `Carrier`, its ServiceLoader, capture on `tell` and `ask`, `within` around handling;
       `lark-otel`'s and the annotations' carriers. Done when: a span open at an `ask` is the parent of a span the
       receiving actor opens, and its line carries the sender's annotation.
-- [ ] **`spec-0122-remote`** — the map in `Frame`, and the handshake offering versions 1 and 2. Done when: the same
+      Done: `ContextAcrossAMessageTest` (the span's parent, and none outside a span) and `CarriedTest` (an ask's
+      annotations, none when nothing is bound, and a stashed message replayed with its own sender's, not its
+      releaser's).
+- [x] **`spec-0122-remote`** — the map in `Frame`, and the handshake offering versions 1 and 2. Done when: the same
       holds for an actor on another node, and a node speaking only version 1 still exchanges messages with one that
       speaks both, without the map.
+      Done: `RemoteCarriedTest` asks across two flocks inside `logAnnotated`; `WireVersionTest` sends the map between
+      two new nodes, and talks to a version-1 node written out by hand as the wire stood, both ways. One connection
+      can stay on version 1 if a peer closes during the offer of 2 for some other reason; it offers 2 again once
+      that connection ends.
 
 ## Acceptance
 
