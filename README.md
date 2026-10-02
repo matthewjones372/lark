@@ -377,6 +377,10 @@ passed, then lets one trial through ([spec 0111](specs/0111-a-breaker-that-stops
 A `Bulkhead` joins with `guard(bulkhead)`: at most `maxConcurrent` callers are
 inside at once, and the rest wait up to `maxWait`, cut to the deadline, before
 being refused ([spec 0112](specs/0112-a-bulkhead-that-caps-the-callers.md)).
+A `RateLimiter` joins with `guard(limiter, cost)`: a token bucket refilled at
+`rate` every `per`, where a call without a token waits for its reserved one up to
+`maxWait`, cut to the deadline, and is refused with its `retryAfter` when the wait
+would be longer ([spec 0113](specs/0113-a-limiter-that-paces-the-calls.md)).
 
 ```kotlin
 import arrow.core.Either

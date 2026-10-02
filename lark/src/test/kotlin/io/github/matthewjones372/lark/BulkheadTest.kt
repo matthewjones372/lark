@@ -124,7 +124,7 @@ class BulkheadTest {
                 attemptTimeout(1.seconds)
                 guard(bulkhead)
             }
-        }.message shouldContain "deadline → retry → breaker → bulkhead → attemptTimeout"
+        }.message shouldContain "deadline → retry → breaker → limiter → bulkhead → attemptTimeout"
     }
 
     @Test

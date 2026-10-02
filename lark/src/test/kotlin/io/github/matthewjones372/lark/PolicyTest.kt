@@ -54,7 +54,7 @@ class PolicyTest {
         }
 
         wrong.message shouldContain "retry comes after attemptTimeout"
-        wrong.message shouldContain "deadline → retry → breaker → bulkhead → attemptTimeout"
+        wrong.message shouldContain "deadline → retry → breaker → limiter → bulkhead → attemptTimeout"
     }
 
     @Test

@@ -843,7 +843,7 @@ class Quotes(private val fetch: (String) -> Double) {
 ```
 
 A policy is a value, checked when it is built: steps out of the order
-deadline → retry → breaker → bulkhead → attemptTimeout throw there, not on the first call. The
+deadline → retry → breaker → limiter → bulkhead → attemptTimeout throw there, not on the first call. The
 `deadline` is one budget for the call, retries included. Retry stops before a
 delay the budget cannot cover, and each attempt is cut to the shorter of its own
 timeout and what is left.
