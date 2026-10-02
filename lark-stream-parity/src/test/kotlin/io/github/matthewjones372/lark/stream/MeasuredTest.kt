@@ -33,7 +33,8 @@ class MeasuredTest {
             system.getWhenTerminated().toCompletableFuture().join()
         }
 
-        private const val SLOW_MILLIS = 2L
+        // Well above a loaded runner's scheduling noise, or the stage is not the slow one it is named for.
+        private const val SLOW_MILLIS = 25L
         private const val SETTLE_SECONDS = 10L
     }
 
