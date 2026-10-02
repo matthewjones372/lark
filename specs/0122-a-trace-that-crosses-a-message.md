@@ -33,8 +33,9 @@ one for `logAnnotated`'s annotations, since that local is its own. Every registe
 classpath gives. With none on the classpath, or none capturing anything, a message is enqueued bare, exactly as today.
 
 Locally, `Cell.tell` (which `ask`, an entity's ref and a router all reach) wraps the message in a private `Carried`
-only when there is something to carry, and the receive loop unwraps it around `step`: a batched behaviour's step runs
-each message it takes within that message's own map, and the stash, dead letters and `isPlain` see through the wrap.
+only when there is something to carry, and the receive loop unwraps it around `step`. A batched behaviour's `steps`
+is one call over several messages, so it runs within the first one's map; the stash keeps what a message carried, so
+a replay is in its sender's trace, and dead letters and `isPlain` see through the wrap.
 
 Across nodes, the map rides `Frame`, Lark's own envelope in `lark-actor-remote`'s `Wire.kt`, not the message: the
 wire formats encode only the payload and never see it. The handshake becomes a negotiation: a node offers versions 1

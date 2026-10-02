@@ -5,6 +5,7 @@ import arrow.core.left
 import arrow.core.nonFatalOrThrow
 import arrow.core.raise.Raise
 import arrow.core.right
+import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Deferred
@@ -227,6 +228,18 @@ private fun CountDownLatch.awaitThroughInterrupts() {
 
 /** A signal on its way through a mailbox. */
 private class Signalled(val signal: Signal)
+
+/** A message told with something to carry to its handler (spec 0122); one told with nothing is enqueued bare. */
+private class Carried(val message: Any, val carried: Map<String, String>)
+
+/** [message] as it goes into a mailbox: wrapped only when a carrier has something to send with it. */
+private fun carrying(message: Any): Any {
+    val carried = Carriers.capture()
+    return if (carried.isEmpty()) message else Carried(message, carried)
+}
+
+/** The message a mailbox item holds, whether or not it carries anything. */
+private fun bare(item: Any): Any = if (item is Carried) item.message else item
 
 /** A listing from the receptionist on its way through a mailbox: nobody told it, so it takes no room. */
 private class Listed(val message: Any)
@@ -539,7 +552,8 @@ private class Cell<M : Any, S, E>(
     private var stashed: Stash? = null
 
     override fun stash(message: M) {
-        (stashed ?: Stash(stashCapacity, address.path).also { stashed = it }).keep(message)
+        // Kept with what it carried, which is bound while it is being handled, so its replay is in the same trace.
+        (stashed ?: Stash(stashCapacity, address.path).also { stashed = it }).keep(carrying(message))
     }
 
     override fun unstashAll() {
@@ -694,7 +708,7 @@ private class Cell<M : Any, S, E>(
             check(tryAcquireRoom()) { "the mailbox of ${address.path} is full" }
         }
         if (stopped) return dead(message, DeadLetter.Why.Stopped)
-        enqueue(message)
+        enqueue(carrying(message))
     }
 
     fun offer(message: M): Boolean {
@@ -702,7 +716,7 @@ private class Cell<M : Any, S, E>(
         stepping.get()?.told = true
         if (!tryAcquireRoom()) return false
         if (stopped) return false
-        enqueue(message)
+        enqueue(carrying(message))
         return true
     }
 
@@ -936,11 +950,15 @@ private class Cell<M : Any, S, E>(
     @Suppress("UNCHECKED_CAST")
     private fun ran(steps: Raise<E>.(Ctx<M>, S, List<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
         val run = ArrayList<Any>(most)
-        run += first
-        while (run.size < most && isPlain(peek())) run += checkNotNull(poll())
+        run += bare(first)
+        while (run.size < most && isPlain(peek())) run += bare(checkNotNull(poll()))
         releaseRoom(run.size)
         var batched: Batched<S>? = null
-        val next = supervised { steps(this, this@Cell, state, run as List<M>).also { batched = it }.next }
+        // One step for the run, so one context: the first message's (spec 0122).
+        val carried = (first as? Carried)?.carried.orEmpty()
+        val next = Carriers.within(carried) {
+            supervised { steps(this, this@Cell, state, run as List<M>).also { batched = it }.next }
+        }
         batched?.let { done ->
             done.unhandled.forEach { dead(it, DeadLetter.Why.Unhandled) }
             done.unrun.forEach { dead(it, DeadLetter.Why.Stopped) }
@@ -953,10 +971,13 @@ private class Cell<M : Any, S, E>(
     private fun isPlain(item: Any?): Boolean =
         item != null && item !== Started && item !is Listed && item !is Signalled && item !is Timer
 
+    /** One message through `step`, inside what it carried from its sender. */
     @Suppress("UNCHECKED_CAST")
-    private fun stepped(message: Any): Next<S> =
-        supervised { behaviour.step(this, this@Cell, state, message as M) }
-            .also { if (it === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled) }
+    private fun stepped(item: Any): Next<S> {
+        if (item is Carried) return Carriers.within(item.carried) { stepped(item.message) }
+        return supervised { behaviour.step(this, this@Cell, state, item as M) }
+            .also { if (it === Next.Unhandled) dead(item, DeadLetter.Why.Unhandled) }
+    }
 
     /**
      * Restarts from the initial state after the schedule's delay, keeping the mailbox, or stops once the schedule is
@@ -997,11 +1018,11 @@ private class Cell<M : Any, S, E>(
         val kept = stashed?.drain().orEmpty()
         letGo()
         stopping()
-        kept.forEach { dead(it, DeadLetter.Why.Stopped) }
+        kept.forEach { dead(bare(it), DeadLetter.Why.Stopped) }
         // Messages still waiting are dead letters; a signal, a timer or a listing is not one, since nobody told it.
         generateSequence { poll() }
             .filterNot { it is Signalled || it is Timer || it is Listed || it === Started }
-            .forEach { dead(it, DeadLetter.Why.Stopped) }
+            .forEach { dead(bare(it), DeadLetter.Why.Stopped) }
         // Wakes every sender parked on a full mailbox; each finds the actor stopped and drops its message.
         releaseRoom(Int.MAX_VALUE / 2)
         finishAsks()
