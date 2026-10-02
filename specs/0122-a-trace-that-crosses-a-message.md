@@ -64,6 +64,10 @@ sharding coordinator's, a stream's — outside the trace.
       two new nodes, and talks to a version-1 node written out by hand as the wire stood, both ways. One connection
       can stay on version 1 if a peer closes during the offer of 2 for some other reason; it offers 2 again once
       that connection ends.
+      Cost, `TellBenchmark` with nothing bound (the annotations' carrier registered, as it always is), one fork of
+      five three-second runs on a shared 4-core machine: one-to-one 165 ± 25 ns before, 177 ± 18 ns after;
+      many-to-one 325 ± 57 ns before, 350 ± 158 ns after. Within each run's error; no wrap is allocated when a
+      message carries nothing.
 
 ## Acceptance
 
