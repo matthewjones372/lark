@@ -126,4 +126,34 @@ class BulkheadTest {
             }
         }.message shouldContain "deadline → retry → breaker → bulkhead → attemptTimeout"
     }
+
+    @Test
+    fun `the in-use gauge reads the permits taken, under the bulkhead's name`() {
+        val bulkhead = Bulkhead("partner", maxConcurrent = 2)
+        val partner = policy("partner") { guard(bulkhead) }
+
+        capturingMetrics { measured ->
+            partner { measured.gauge("lark.bulkhead.in_use") } shouldBe 1.0
+            measured.gauge("lark.bulkhead.in_use") shouldBe 0.0
+            measured.tags("lark.bulkhead.in_use") shouldBe mapOf("name" to "partner")
+        }
+    }
+
+    @Test
+    fun `each call is counted as admitted or rejected under the bulkhead's name`() {
+        val bulkhead = Bulkhead("partner", maxConcurrent = 1)
+        val partner = policy("partner") { guard(bulkhead) }
+
+        capturingMetrics { measured ->
+            partner { 42 } shouldBe 42
+            measured.counter("lark.bulkhead.calls") shouldBe 1.0
+            measured.tags("lark.bulkhead.calls") shouldBe mapOf("name" to "partner", "outcome" to "admitted")
+        }
+
+        capturingMetrics { measured ->
+            partner { shouldThrow<Rejected.BulkheadFull> { partner { 42 } } }
+            measured.counter("lark.bulkhead.calls") shouldBe 2.0
+            measured.tags("lark.bulkhead.calls") shouldBe mapOf("name" to "partner", "outcome" to "rejected")
+        }
+    }
 }

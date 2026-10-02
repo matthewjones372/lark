@@ -37,6 +37,7 @@ import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.timed
 import arrow.core.Either
 import arrow.core.raise.either
+import io.github.matthewjones372.lark.Bulkhead
 import io.github.matthewjones372.lark.CircuitBreaker
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.guarded
@@ -884,6 +885,31 @@ the trial when the deadline covers the wait.
 2 open. `lark.breaker.calls` counts its calls by `outcome`: `success`,
 `failure` or `rejected`.
 
+## Cap the calls to something slow
+
+<!-- cookbook -->
+```kotlin
+class Partner(private val call: (String) -> String) {
+    private val bulkhead = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
+
+    private val partner = policy("partner-api") {
+        deadline(2.seconds)
+        guard(bulkhead)
+    }
+
+    fun quote(id: String): String = partner { call(id) }
+}
+```
+
+At most `maxConcurrent` callers are inside at once, let in in the order they
+arrived. The rest wait up to `maxWait`, cut to what the `deadline` leaves, and
+are refused with `Rejected.BulkheadFull` after. Virtual threads make a caller
+cheap, so the bulkhead is what keeps five thousand of them off a pool of twenty
+connections. The permit is given back however the call ends.
+
+`lark.bulkhead.in_use` is a gauge per bulkhead `name` of the permits taken, and
+`lark.bulkhead.calls` counts its calls by `outcome`: `admitted` or `rejected`.
+
 ## Run migrations as a step
 
 `lark-app-liquibase` makes a changelog a node. Anything that reads the database
@@ -1015,6 +1041,7 @@ opened it is released.
 | no waiting in a test | `clock.locally(fixedClock()) { … }` |
 | a call to something unreliable | `policy("…") { deadline(…); retry(…); attemptTimeout(…) }` |
 | to stop calling something that is down | `guard(CircuitBreaker("…", maxFailures, resetAfter))` in a policy |
+| to cap the calls to something slow | `guard(Bulkhead("…", maxConcurrent, maxWait))` in a policy |
 | a log line | `logInfo("…")` — no node takes a logger |
 | that log somewhere real | put `lark-slf4j` on the classpath; nothing else |
 | a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |
