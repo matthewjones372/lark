@@ -24,7 +24,7 @@ data class GroupCommit(val maxAppends: Int = 64, val committers: Int = 2) {
 }
 
 /** One append waiting for a group. */
-internal class Append(val id: PersistenceId, val expected: Long, val events: List<ByteArray>)
+internal class Append(val id: PersistenceId, val expected: Long, val events: List<ByteArray>, val metadata: String?)
 
 /**
  * Takes whatever appends are queued and commits them together: [group] writes them all on one connection in one
@@ -49,8 +49,8 @@ internal class Committer(
     /** How many appends wait for a committer, for tests. */
     fun queued(): Int = queue.size
 
-    fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> {
-        val pending = Pending(Append(id, expected, events))
+    fun append(append: Append): Either<JournalConflict, Long> {
+        val pending = Pending(append)
         queue.add(pending)
         if (claim()) Thread.ofVirtual().name("lark-journal-committer").start(::run)
         return try {

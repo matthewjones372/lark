@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor.journal.jdbc
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalConflict
@@ -17,6 +18,7 @@ import io.github.matthewjones372.lark.logWarn
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.SQLException
+import java.sql.Types
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
@@ -76,7 +78,7 @@ class JdbcJournal(
             dataSource,
             settings,
             group = { connection, appends -> connection.appendAll(appends) },
-            alone = { append -> alone(append.id, append.expected, append.events) },
+            alone = { append -> alone(append) },
         )
     }
 
@@ -98,17 +100,24 @@ class JdbcJournal(
     private val settling = ReentrantLock()
     private var settled: LongRange? = null
 
-    override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
-        committer?.append(id, expected, events) ?: alone(id, expected, events)
+    /**
+     * Appends [events] with what the appending thread carries (spec 0123): an entity's command handled inside a trace
+     * writes its events with that trace.
+     */
+    override fun append(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> {
+        val append = Append(id, expected, events, Metadata.write(Carriers.capture()))
+        return committer?.append(append) ?: alone(append)
+    }
 
     /** How many appends wait for a group to commit them, for tests. */
     internal fun queued(): Int = committer?.queued() ?: 0
 
-    private fun alone(id: PersistenceId, expected: Long, events: List<ByteArray>): Either<JournalConflict, Long> =
+    private fun alone(append: Append): Either<JournalConflict, Long> =
         dataSource.connection.use { connection ->
+            val (id, expected, events) = Triple(append.id, append.expected, append.events)
             connection.autoCommit = false
             val appended = try {
-                connection.insert(id, expected, events)
+                connection.insert(append)
             } catch (failed: SQLException) {
                 connection.rollback()
                 if (failed.sqlState != DUPLICATE_KEY) throw failed
@@ -126,15 +135,20 @@ class JdbcJournal(
             }
         }
 
+    @Suppress("MagicNumber") // column indices
     override fun read(id: PersistenceId, from: Long): List<StoredEvent> = dataSource.connection.use { connection ->
         connection.statement(
-            "select seq_nr, bytes from lark_journal where kind = ? and id = ? and seq_nr >= ? order by seq_nr",
+            "select seq_nr, bytes, metadata::text from lark_journal where kind = ? and id = ? and seq_nr >= ? " +
+                "order by seq_nr",
             id.kind,
             id.id,
             from,
         ) { select ->
             select.executeQuery().use { rows ->
-                generateSequence { if (rows.next()) StoredEvent(rows.getLong(1), rows.getBytes(2)) else null }.toList()
+                generateSequence {
+                    if (!rows.next()) return@generateSequence null
+                    StoredEvent(rows.getLong(1), rows.getBytes(2), Metadata.read(rows.getString(3)))
+                }.toList()
             }
         }
     }
@@ -149,7 +163,7 @@ class JdbcJournal(
         val mark = watermark(offset)
         if (mark <= offset) return emptyList()
         return dataSource.connection.use { connection ->
-            val columns = "select ordering, id, seq_nr, bytes from lark_journal where kind = ? "
+            val columns = "select ordering, id, seq_nr, bytes, metadata::text from lark_journal where kind = ? "
             val window = "and ordering > ? and ordering <= ? order by ordering fetch first ? rows only"
             if (slices == null) {
                 connection.statement(columns + window, kind, offset, mark, limit) { it.events(kind) }
@@ -171,7 +185,13 @@ class JdbcJournal(
     private fun PreparedStatement.events(kind: String): List<FeedEvent> = executeQuery().use { rows ->
         generateSequence {
             if (!rows.next()) return@generateSequence null
-            FeedEvent(rows.getLong(1), PersistenceId(kind, rows.getString(2)), rows.getLong(3), rows.getBytes(4))
+            FeedEvent(
+                rows.getLong(1),
+                PersistenceId(kind, rows.getString(2)),
+                rows.getLong(3),
+                rows.getBytes(4),
+                Metadata.read(rows.getString(5)),
+            )
         }.toList()
     }
 
@@ -390,15 +410,16 @@ class JdbcJournal(
     private fun Connection.appendAll(appends: List<Append>): List<Result<Either<JournalConflict, Long>>> {
         val written = appends.withIndex().filter { (_, append) -> append.events.isNotEmpty() }
         val counts = if (written.isEmpty()) IntArray(0) else prepareStatement(
-            "insert into lark_journal (kind, id, seq_nr, bytes, slice) " +
-                "select ?, ?, ? + event.n, event.bytes, ? from unnest(?::bytea[]) with ordinality as event(bytes, n) " +
+            "insert into lark_journal (kind, id, seq_nr, bytes, slice, metadata) " +
+                "select ?, ?, ? + event.n, event.bytes, ?, cast(? as jsonb) " +
+                "from unnest(?::bytea[]) with ordinality as event(bytes, n) " +
                 "where (? = 0 or exists (select 1 from lark_journal where kind = ? and id = ? and seq_nr = ?)) " +
                 "and not exists (select 1 from lark_journal_fenced where slice = ?)",
         ).use { insert ->
             written.forEach { (_, append) ->
                 val slice = Slices.of(append.id)
                 insert.row(
-                    append.id.kind, append.id.id, append.expected, slice,
+                    append.id.kind, append.id.id, append.expected, slice, append.metadata,
                     createArrayOf("bytea", append.events.toTypedArray()),
                     append.expected, append.id.kind, append.id.id, append.expected, slice,
                 )
@@ -421,11 +442,13 @@ class JdbcJournal(
         }
     }
 
-    private fun Connection.insert(id: PersistenceId, expected: Long, events: List<ByteArray>): Boolean {
+    private fun Connection.insert(append: Append): Boolean {
+        val (id, expected, events) = Triple(append.id, append.expected, append.events)
         if (events.isEmpty()) return last(id) == expected
         val slice = Slices.of(id)
         val first = statement(
-            "insert into lark_journal (kind, id, seq_nr, bytes, slice) select ?, ?, ?, ?, ? from (values (1)) " +
+            "insert into lark_journal (kind, id, seq_nr, bytes, slice, metadata) " +
+                "select ?, ?, ?, ?, ?, cast(? as jsonb) from (values (1)) " +
                 "where (? = 0 or exists (select 1 from lark_journal where kind = ? and id = ? and seq_nr = ?)) " +
                 "and not exists (select 1 from lark_journal_fenced where slice = ?)",
             id.kind,
@@ -433,6 +456,7 @@ class JdbcJournal(
             expected + 1,
             events.first(),
             slice,
+            append.metadata,
             expected,
             id.kind,
             id.id,
@@ -445,12 +469,14 @@ class JdbcJournal(
         }
         events.drop(1).forEachIndexed { i, bytes ->
             statement(
-                "insert into lark_journal (kind, id, seq_nr, bytes, slice) values (?, ?, ?, ?, ?)",
+                "insert into lark_journal (kind, id, seq_nr, bytes, slice, metadata) " +
+                    "values (?, ?, ?, ?, ?, cast(? as jsonb))",
                 id.kind,
                 id.id,
                 expected + i + 2,
                 bytes,
                 slice,
+                append.metadata,
             ) { it.executeUpdate() }
         }
         return true
@@ -479,14 +505,18 @@ private const val WALK_BATCH = 10_000
 private const val WALK_BATCHES = 4
 
 /** [values] bound to the statement's parameters in order, and added as one row of its batch. */
-internal fun PreparedStatement.row(vararg values: Any) {
-    values.forEachIndexed { i, value -> setObject(i + 1, value) }
+internal fun PreparedStatement.row(vararg values: Any?) {
+    values.forEachIndexed { i, value -> bind(i + 1, value) }
     addBatch()
 }
 
 /** [sql] with [values] bound to its parameters in order, handed to [use] and closed after. */
-internal fun <T> Connection.statement(sql: String, vararg values: Any, use: (PreparedStatement) -> T): T =
+internal fun <T> Connection.statement(sql: String, vararg values: Any?, use: (PreparedStatement) -> T): T =
     prepareStatement(sql).use { statement ->
-        values.forEachIndexed { i, value -> statement.setObject(i + 1, value) }
+        values.forEachIndexed { i, value -> statement.bind(i + 1, value) }
         use(statement)
     }
+
+/** A null is bound as text: the only nullable parameter is an append's metadata, cast to `jsonb` in the statement. */
+private fun PreparedStatement.bind(index: Int, value: Any?) =
+    if (value == null) setNull(index, Types.VARCHAR) else setObject(index, value)

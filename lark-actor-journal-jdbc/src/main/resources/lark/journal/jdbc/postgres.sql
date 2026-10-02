@@ -73,3 +73,8 @@ create table lark_offset (
     last_ordering bigint not null,
     primary key (name)
 );
+
+--changeset lark:journal-metadata
+-- What the append that wrote each event carried (spec 0123): a trace's ids and log annotations, an object of strings.
+-- Null where it carried nothing, as every event written before this did.
+alter table lark_journal add column metadata jsonb;

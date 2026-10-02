@@ -36,8 +36,13 @@ library looks for them.
 
 ## Stack
 
-- [ ] **`spec-0123-journal`** — the column, its changeset, writing at append, `metadata` on what is read back.
+- [x] **`spec-0123-journal`** — the column, its changeset, writing at append, `metadata` on what is read back.
       Done when: an event persisted inside a span reads back with its `traceparent`, and one outside with none.
+      Done: `JournalMetadataTest`, with `logAnnotated`'s carrier, the one `lark` registers itself: an append inside it
+      reads back, and is fed, with its annotations, alone and committed as a group; one outside, with none. The
+      journal captures at `append`, on the thread the command is handled on, so `Journal`'s signature is unchanged;
+      `StoredEvent` and `FeedEvent` gain `metadata`, empty by default. The slice mover copies it. Null in the column
+      when nothing was carried.
 - [ ] **`spec-0123-kafka`** — headers out and in, `within` a single record's handling. Done when: a record published
       from an event written in a trace is handled, by a consumer, in that trace.
 

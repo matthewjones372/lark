@@ -24,8 +24,11 @@ interface EventCodec<E> {
     fun decodeAll(bytes: ByteArray): List<E> = listOf(decode(bytes))
 }
 
-/** One event as the journal keeps it: its place, counting from 1, and its bytes. */
-class StoredEvent(val sequence: Long, val bytes: ByteArray)
+/**
+ * One event as the journal keeps it: its place, counting from 1, and its bytes; with [metadata], what the append that
+ * wrote it carried (spec 0123), where the journal keeps that.
+ */
+class StoredEvent(val sequence: Long, val bytes: ByteArray, val metadata: Map<String, String> = emptyMap())
 
 /** A writer expected [expected] to be the last sequence number of [id], and it was [actual]: another wrote first. */
 data class JournalConflict(val id: PersistenceId, val expected: Long, val actual: Long)

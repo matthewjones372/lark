@@ -2,8 +2,17 @@ package io.github.matthewjones372.lark.actor
 
 import java.util.concurrent.ConcurrentHashMap
 
-/** One event as a feed answers it: its place in the feed, whose it is, its sequence number there, and its bytes. */
-class FeedEvent(val offset: Long, val id: PersistenceId, val sequence: Long, val bytes: ByteArray)
+/**
+ * One event as a feed answers it: its place in the feed, whose it is, its sequence number there, and its bytes; with
+ * [metadata], what the append that wrote it carried (spec 0123), where the journal keeps that.
+ */
+class FeedEvent(
+    val offset: Long,
+    val id: PersistenceId,
+    val sequence: Long,
+    val bytes: ByteArray,
+    val metadata: Map<String, String> = emptyMap(),
+)
 
 /**
  * Every event of one kind, across its ids, in one order (spec 0075): what a read model follows. A journal that can

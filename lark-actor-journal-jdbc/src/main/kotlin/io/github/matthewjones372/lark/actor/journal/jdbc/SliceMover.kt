@@ -161,21 +161,29 @@ private fun Connection.tops(slices: IntRange): Map<PersistenceId, Long> = statem
     }
 }
 
-private fun Connection.rows(id: PersistenceId, after: Long): List<Pair<Long, ByteArray>> = statement(
-    "select seq_nr, bytes from lark_journal where kind = ? and id = ? and seq_nr > ? order by seq_nr",
+/** One event's row as it is copied: its sequence number, its bytes, and what its append carried, as `jsonb` text. */
+private class Row(val sequence: Long, val bytes: ByteArray, val metadata: String?)
+
+@Suppress("MagicNumber") // column indices
+private fun Connection.rows(id: PersistenceId, after: Long): List<Row> = statement(
+    "select seq_nr, bytes, metadata::text from lark_journal where kind = ? and id = ? and seq_nr > ? order by seq_nr",
     id.kind,
     id.id,
     after,
 ) { select ->
     select.executeQuery().use { rows ->
-        generateSequence { if (rows.next()) rows.getLong(1) to rows.getBytes(2) else null }.toList()
+        generateSequence {
+            if (rows.next()) Row(rows.getLong(1), rows.getBytes(2), rows.getString(3)) else null
+        }.toList()
     }
 }
 
-private fun Connection.insert(id: PersistenceId, rows: List<Pair<Long, ByteArray>>) {
+private fun Connection.insert(id: PersistenceId, rows: List<Row>) {
     val slice = Slices.of(id)
-    prepareStatement("insert into lark_journal (kind, id, seq_nr, bytes, slice) values (?, ?, ?, ?, ?)").use { insert ->
-        rows.forEach { (sequence, bytes) -> insert.row(id.kind, id.id, sequence, bytes, slice) }
+    val sql = "insert into lark_journal (kind, id, seq_nr, bytes, slice, metadata) " +
+        "values (?, ?, ?, ?, ?, cast(? as jsonb))"
+    prepareStatement(sql).use { insert ->
+        rows.forEach { row -> insert.row(id.kind, id.id, row.sequence, row.bytes, slice, row.metadata) }
         insert.executeBatch()
     }
 }

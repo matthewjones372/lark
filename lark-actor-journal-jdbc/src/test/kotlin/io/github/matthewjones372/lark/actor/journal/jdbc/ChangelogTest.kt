@@ -12,7 +12,8 @@ class ChangelogTest {
     @Test
     fun `a fresh database takes the changelog once, with every string column text`() {
         val source = Postgres.empty()
-        source.migrate() shouldBe 1
+        // The tables, then the metadata column (spec 0123).
+        source.migrate() shouldBe 2
         source.migrate() shouldBe 0
         JdbcJournal(source).append(PersistenceId("diary", "sam"), 0, listOf(byteArrayOf(1)))
         source.stringColumns() shouldContainOnly setOf("text")
