@@ -38,6 +38,7 @@ import io.github.matthewjones372.lark.timed
 import arrow.core.Either
 import arrow.core.raise.either
 import io.github.matthewjones372.lark.Bulkhead
+import io.github.matthewjones372.lark.RateLimiter
 import io.github.matthewjones372.lark.CircuitBreaker
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.guarded
@@ -910,6 +911,34 @@ connections. The permit is given back however the call ends.
 `lark.bulkhead.in_use` is a gauge per bulkhead `name` of the permits taken, and
 `lark.bulkhead.calls` counts its calls by `outcome`: `admitted` or `rejected`.
 
+## Stay under someone else's quota
+
+<!-- cookbook -->
+```kotlin
+class Search(private val call: (String) -> String) {
+    private val limiter = RateLimiter(name = "partner-api", rate = 50, per = 1.seconds, burst = 10, maxWait = 200.milliseconds)
+
+    private val partner = policy("partner-api") {
+        deadline(2.seconds)
+        guard(limiter, cost = 5)
+    }
+
+    fun search(query: String): String = partner { call(query) }
+}
+```
+
+A token bucket refilled at `rate` every `per`, holding at most `burst`. A call
+without a token reserves the next one and sleeps until it arrives, so callers are
+served in the order they came, and one that would wait past `maxWait`, cut to
+the `deadline`, is refused at once with `Rejected.RateLimited` and its
+`retryAfter`, taking nothing. `cost` weighs a call that the quota counts as
+several. A call the bulkhead behind the limiter refuses was never made, so its
+tokens go back.
+
+`lark.ratelimiter.calls` counts calls per limiter `name` by `outcome`:
+`immediate`, `waited` or `rejected`. `lark.ratelimiter.wait` records how long
+each admitted call waited, in milliseconds.
+
 ## Run migrations as a step
 
 `lark-app-liquibase` makes a changelog a node. Anything that reads the database
@@ -1042,6 +1071,7 @@ opened it is released.
 | a call to something unreliable | `policy("…") { deadline(…); retry(…); attemptTimeout(…) }` |
 | to stop calling something that is down | `guard(CircuitBreaker("…", maxFailures, resetAfter))` in a policy |
 | to cap the calls to something slow | `guard(Bulkhead("…", maxConcurrent, maxWait))` in a policy |
+| to stay under someone else's quota | `guard(RateLimiter("…", rate, per, burst, maxWait), cost)` in a policy |
 | a log line | `logInfo("…")` — no node takes a logger |
 | that log somewhere real | put `lark-slf4j` on the classpath; nothing else |
 | a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |

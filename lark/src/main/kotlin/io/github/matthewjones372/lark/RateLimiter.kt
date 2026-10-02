@@ -4,6 +4,7 @@ import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.ZERO
+import kotlin.time.DurationUnit
 import kotlin.time.toKotlinDuration
 
 /**
@@ -40,7 +41,20 @@ class RateLimiter(
     /** A token now, or false. It never waits. */
     fun tryAcquire(): Boolean = reserve(cost = 1, maxWait = ZERO) is Reservation.Granted
 
-    internal fun reserve(cost: Int, maxWait: Duration): Reservation {
+    internal fun reserve(cost: Int, maxWait: Duration): Reservation = taken(cost, maxWait).also { reservation ->
+        val outcome = when (reservation) {
+            is Reservation.Granted -> {
+                histogram("lark.ratelimiter.wait", "name" to name)
+                    .record(reservation.wait.toDouble(DurationUnit.MILLISECONDS))
+                if (reservation.wait > ZERO) "waited" else "immediate"
+            }
+
+            is Reservation.Refused -> "rejected"
+        }
+        counter("lark.ratelimiter.calls", "name" to name, "outcome" to outcome).increment()
+    }
+
+    private fun taken(cost: Int, maxWait: Duration): Reservation {
         while (true) {
             val seen = bucket.get()
             val now = clock.get().now()
