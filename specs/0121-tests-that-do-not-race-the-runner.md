@@ -67,13 +67,11 @@ for n in $(seq 1 50); do ./gradlew :lark-actor:test --tests '*TopicTest*' --reru
 ./gradlew spotlessApply && ./gradlew build
 ```
 
-## Open questions
+## Settled
 
-1. **Should the `Flock` fix be in this spec, or a spec of its own?** It changes behaviour users can see: which error
-   surfaces when two branches raise at nearly the same moment. Recommend this spec, since the only change is that
-   the documented start-order behaviour now holds.
-2. **Should a fork that catches `InterruptedException` and raises in response count as raising of its own accord?**
-   Recommend yes. A raise is always a deliberate value, and AGENTS.md already says to catch the exception you
-   expect by name.
-3. **For `LeaveOnReleaseTest`, keep a 20 s bound or drop the wall-clock bound entirely?** Recommend keeping 20 s. The
-   status assertion covers how the node left, and the bound still catches a leave that hangs.
+1. **Does the `Flock` fix belong in this spec?** Yes. Its only effect is that the documented start-order behaviour
+   now holds.
+2. **Does a fork that catches `InterruptedException` and raises in response count as raising of its own accord?**
+   Yes. A raise is always a deliberate value, and AGENTS.md already says to catch the exception you expect by name.
+3. **For `LeaveOnReleaseTest`, a 20 s bound or none?** A 20 s bound. The status assertion covers how the node left,
+   and the bound still catches a leave that hangs.
