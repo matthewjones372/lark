@@ -29,11 +29,17 @@ interface Carrier {
 ```
 
 `lark-otel` registers one that writes `traceparent` and `tracestate` with W3C's propagator; `lark` itself registers
-one for `logAnnotated`'s annotations. With neither on the classpath, nothing is captured and a message costs what it
-does today.
+one for `logAnnotated`'s annotations, since that local is its own. Every registered carrier is used, in the order the
+classpath gives. With none on the classpath, or none capturing anything, a message is enqueued bare, exactly as today.
 
-Across nodes, `lark-actor-remote` puts the map in the envelope, and each wire format (`-kotlinx`, `-protobuf`, `-avro`)
-gains an optional field for it, absent when empty, so a node without this reads one with it.
+Locally, `Cell.tell` (which `ask`, an entity's ref and a router all reach) wraps the message in a private `Carried`
+only when there is something to carry, and the receive loop unwraps it around `step`: a batched behaviour's step runs
+each message it takes within that message's own map, and the stash, dead letters and `isPlain` see through the wrap.
+
+Across nodes, the map rides `Frame`, Lark's own envelope in `lark-actor-remote`'s `Wire.kt`, not the message: the
+wire formats encode only the payload and never see it. The handshake becomes a negotiation: a node offers versions 1
+and 2, and frames to a peer that answered 2 carry the map after the payload's length; to a peer that answered 1, it
+is left off. A cluster mid-upgrade keeps working, and its traces have gaps only between old and new nodes.
 
 ## Why this shape
 
@@ -47,8 +53,9 @@ sharding coordinator's, a stream's — outside the trace.
 - [ ] **`spec-0122-local`** — `Carrier`, its ServiceLoader, capture on `tell` and `ask`, `within` around handling;
       `lark-otel`'s and the annotations' carriers. Done when: a span open at an `ask` is the parent of a span the
       receiving actor opens, and its line carries the sender's annotation.
-- [ ] **`spec-0122-remote`** — the envelope field in each wire format. Done when: the same holds for an actor on
-      another node, and a node built before this reads a message from one built after.
+- [ ] **`spec-0122-remote`** — the map in `Frame`, and the handshake offering versions 1 and 2. Done when: the same
+      holds for an actor on another node, and a node speaking only version 1 still exchanges messages with one that
+      speaks both, without the map.
 
 ## Acceptance
 
