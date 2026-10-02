@@ -137,4 +137,30 @@ class RateLimiterTest {
             }
         }.message shouldContain "deadline → retry → breaker → limiter → bulkhead → attemptTimeout"
     }
+
+    @Test
+    fun `each call is counted by how it was let through, and each wait is recorded, under the limiter's name`() {
+        val limiter = RateLimiter("partner", rate = 10, per = 1.seconds, burst = 1, maxWait = 1.seconds)
+
+        clock.locally(TestClock(start)) {
+            capturingMetrics { measured ->
+                limiter.tryAcquire() shouldBe true
+                measured.tags("lark.ratelimiter.calls") shouldBe mapOf("name" to "partner", "outcome" to "immediate")
+            }
+
+            capturingMetrics { measured ->
+                limiter.reserve(cost = 1, maxWait = 1.seconds).waits() shouldBe 100.milliseconds
+                measured.tags("lark.ratelimiter.calls") shouldBe mapOf("name" to "partner", "outcome" to "waited")
+                measured.histogram("lark.ratelimiter.wait") shouldContainExactly listOf(100.0)
+                measured.tags("lark.ratelimiter.wait") shouldBe mapOf("name" to "partner")
+            }
+
+            capturingMetrics { measured ->
+                limiter.tryAcquire() shouldBe false
+                measured.counter("lark.ratelimiter.calls") shouldBe 1.0
+                measured.tags("lark.ratelimiter.calls") shouldBe mapOf("name" to "partner", "outcome" to "rejected")
+                measured.histogram("lark.ratelimiter.wait") shouldContainExactly emptyList()
+            }
+        }
+    }
 }
