@@ -78,7 +78,7 @@ brings only itself and the dependency its name says, and the
 | `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |
 | `lark-slf4j` | lark's own log lines through the backend a service already has configured, with annotations in the MDC | `slf4j-api` |
 | `lark-micrometer` | counters, gauges and histograms into the `MeterRegistry` a service already has | `micrometer-core` |
-| `lark-app-gradle` | a Gradle plugin that checks and draws every graph in a project as it compiles | `gradleApi()` |
+| `lark-app-gradle` | a Gradle plugin that checks and draws every graph in a project as it compiles, and hands `lark-test`'s colour settings to every test task | `gradleApi()` |
 
 A commit after the latest tag builds the next patch version as a `-SNAPSHOT`
 (after `v0.5.0`, `0.5.1-SNAPSHOT`), which is what
