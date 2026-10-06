@@ -84,6 +84,10 @@ private class Offset(
      * refused. Once the consumer is leaving, the group alone: the member is gone, and a run's last transaction
      * commits after its source has ended.
      */
+    // The group-id constructor is deprecated since Kafka 4.2 in favour of the consumer's own groupMetadata(),
+    // which the broker refuses once the member has left, aborting every clean stop's last transaction (spec
+    // 0125). Kafka 5 makes ConsumerGroupMetadata an interface, which this can implement with the group alone.
+    @Suppress("DEPRECATION")
     override fun group(): ConsumerGroupMetadata? =
         polledIn?.let { member -> if (leaving.get()) ConsumerGroupMetadata(member.groupId()) else member }
 }
