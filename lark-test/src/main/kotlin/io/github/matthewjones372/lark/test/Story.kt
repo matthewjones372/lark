@@ -10,15 +10,8 @@ import kotlin.time.Duration.Companion.seconds
  * A step that throws ends it with a [StoryFailed] whose message is the story up to that step, never coloured.
  *
  * The printed copy is coloured under `-Dlark.test.colour=always`, `FORCE_COLOR` or IntelliJ, and not under
- * `never` or `NO_COLOR`. A Gradle test worker does not see the shell's environment, so a build hands them on:
- * ```
- * tasks.test {
- *     listOf("FORCE_COLOR", "NO_COLOR").forEach { name ->
- *         providers.environmentVariable(name).orNull?.let { environment(name, it) }
- *     }
- *     providers.gradleProperty("lark.test.colour").orNull?.let { systemProperty("lark.test.colour", it) }
- * }
- * ```
+ * `never` or `NO_COLOR`. A Gradle test worker does not see the shell's environment; the
+ * `io.github.matthewjones372.lark.wiring` plugin hands these on to every test task, `-Plark.test.colour` included.
  */
 fun story(title: String = callingTest(), block: Story.() -> Unit) {
     val story = Story()
