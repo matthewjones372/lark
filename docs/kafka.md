@@ -10,7 +10,7 @@ Everything below is in `io.github.matthewjones372.lark.kafka`. Specs
 [0054](../specs/0054-a-record-that-fails-to-decode.md),
 [0056](../specs/0056-kafka-on-any-backend.md),
 [0087](../specs/0087-a-record-written-to-kafka.md) and
-[0119](../specs/0119-a-record-written-exactly-once.md) give the reasons.
+[0124](../specs/0124-a-record-written-exactly-once.md) give the reasons.
 
 ## Picking a backend
 
@@ -51,9 +51,9 @@ that drains. Pekko runs it and nothing else does, and it ends on
 ```kotlin
 dependencies {
     // Any backend: lark-stream and kafka-clients come with it, and the backend is the service's own choice.
-    implementation("io.github.matthewjones372:lark-kafka:0.7.0")
+    implementation("io.github.matthewjones372:lark-kafka:0.9.0")
     // Or Pekko's connector: lark-kafka, lark-stream-pekko and pekko-connectors-kafka come with it.
-    implementation("io.github.matthewjones372:lark-kafka-pekko:0.7.0")
+    implementation("io.github.matthewjones372:lark-kafka-pekko:0.9.0")
 }
 ```
 
@@ -161,7 +161,7 @@ Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), va
   so a restarted instance fences the one it replaces.
 - **A run's last transaction** commits after its consumer has left the
   group, with the group id alone. If the group rebalances in that moment, a
-  new owner may read that last batch again. Spec 0119 says why.
+  new owner may read that last batch again. Spec 0124 says why.
 
 ## A registry that is down is not a bad record
 

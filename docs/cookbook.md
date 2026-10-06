@@ -10,8 +10,8 @@ recipe that stops being true stops the build.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app:0.1.0")
-    implementation("io.github.matthewjones372:lark-app-pekko:0.1.0")  // actors only
+    implementation("io.github.matthewjones372:lark-app:0.9.0")
+    implementation("io.github.matthewjones372:lark-app-pekko:0.9.0")  // actors only
 }
 ```
 
@@ -250,7 +250,7 @@ substitution, merging, lists, `getDuration` and `getMemorySize` all still work.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-typesafe:0.1.0")
+    implementation("io.github.matthewjones372:lark-app-typesafe:0.9.0")
 }
 ```
 
@@ -788,7 +788,7 @@ Prometheus, Datadog, StatsD, OTLP.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-micrometer:0.3.0")
+    implementation("io.github.matthewjones372:lark-micrometer:0.9.0")
 }
 ```
 
@@ -947,7 +947,7 @@ edge the graph enforces and `render()` draws:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-liquibase:0.1.0")
+    implementation("io.github.matthewjones372:lark-app-liquibase:0.9.0")
 }
 ```
 
@@ -978,7 +978,7 @@ classpath is the change.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-otel:0.1.0")
+    implementation("io.github.matthewjones372:lark-otel:0.9.0")
 }
 ```
 
