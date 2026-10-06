@@ -57,6 +57,11 @@ dependencies {
 }
 ```
 
+`lark-kafka` brings `kafka-clients` 4.3, the client Confluent 8.3's
+serializers are built on, which needs a broker at 2.1 or later. Pekko's
+connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
+2.0 milestone.
+
 | | `Kafka.consume` | `Kafka.subscribe` |
 |---|---|---|
 | Runs on | Forks, Pekko, TestStreams | Pekko |
