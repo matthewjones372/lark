@@ -57,7 +57,7 @@ without `lark-app` asks.
 
 ## Stack
 
-- [ ] **`spec-0118-colour-through-gradle`** — the wiring plugin configures every
+- [x] **`spec-0118-colour-through-gradle`** (#344) — the wiring plugin configures every
       `Test` task, and `story`'s KDoc points at it.
       Done when: a TestKit build applying the plugin, run with `FORCE_COLOR=1`,
       hands the worker `FORCE_COLOR=1`; with `-Plark.test.colour=always` the
