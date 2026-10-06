@@ -15,7 +15,7 @@ Every complete example below is compiled against the library by
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor:0.1.0")
+    implementation("io.github.matthewjones372:lark-actor:0.9.0")
 }
 ```
 

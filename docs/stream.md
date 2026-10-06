@@ -36,7 +36,7 @@ so.
 // build.gradle.kts
 dependencies {
     // lark-stream, Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
-    implementation("io.github.matthewjones372:lark-stream-pekko:0.5.0")
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.9.0")
 }
 ```
 

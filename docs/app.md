@@ -16,7 +16,7 @@ The module is `lark-app` and everything below is in
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app:0.1.0")
+    implementation("io.github.matthewjones372:lark-app:0.9.0")
 }
 ```
 
@@ -262,7 +262,7 @@ protocol.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-pekko:0.1.0")
+    implementation("io.github.matthewjones372:lark-app-pekko:0.9.0")
 }
 ```
 

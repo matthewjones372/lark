@@ -96,6 +96,8 @@ val moduleDescriptions = mapOf(
         "lark-actor-remote's messages in Avro: specific records, resolved across versions, and asks.",
     "lark-actor-remote-protobuf" to
         "lark-actor-remote's messages in Protobuf: generated messages, protocols of them, and asks.",
+    "lark-actor-remote-kotlinx" to
+        "lark-actor-remote's messages, events and snapshots from @Serializable data classes, in ProtoBuf by default.",
     "lark-cluster" to "lark-actor as a cluster: discovery, gossip membership and downing, with no coordinator.",
     "lark-cluster-aws" to
         "lark-cluster on AWS: seeds from Cloud Map or ECS, and a DynamoDB lease to break an even split.",
