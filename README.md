@@ -8,15 +8,26 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/status-experimental-orange)](#what-this-is)
 
-Lark is a version of `arrow-fx-coroutines` that runs on virtual threads instead
-of coroutines. To move a function over, remove the `suspend` and change the
-import; the body stays the same. The combinators take Arrow's own `Raise`, so
-code already inside `either { }` does not need any extra scope from lark.
+Lark is a set of Kotlin libraries for services that run on virtual threads
+instead of coroutines. Its core, `lark`, is a version of `arrow-fx-coroutines`.
+To move a function over, remove the `suspend` and change the import; the body
+stays the same. The combinators take Arrow's own `Raise`, so code already
+inside `either { }` does not need any extra scope from lark.
+
+The other modules build on that core. An application can be written as a
+dependency graph that is checked before anything starts. A stream carries its
+failure type and runs on Pekko Streams, on a virtual thread or on actors.
+Actors run on virtual threads, can keep their state in a journal that read
+models follow, and can be reached from other nodes. Nodes can form a cluster
+with gossip membership, sharded entities and singletons. There are also
+modules for Kafka, for logging, metrics and tracing, and for tests.
 
 Each branch runs on its own virtual thread and is allowed to block. A service
 that talks to JDBC, or to a client with no async API, can fork and join without
-the risk of starving a dispatcher. The only dependencies are `arrow-core` and
-the JDK: there are no coroutines and no second effect system.
+the risk of starving a dispatcher. The core depends only on `arrow-core` and
+the JDK: there are no coroutines and no second effect system. Every other
+module adds only the dependency its name says, such as Pekko, Kafka or
+OpenTelemetry.
 
 ## What this is
 
@@ -29,7 +40,9 @@ than a checkout. Being published does not mean any of it is finished.
 Nothing here has run in production. The API changes between versions and will
 keep changing; `lark-app`'s runner changed shape twice in the week it was
 written. Several modules exist because a question came up, and have no user
-beyond their own tests.
+beyond their own tests. The actor, cluster and Kafka modules are the newest.
+Apart from their tests, the only thing that uses them is `lark-bank`, an
+example application in this repository.
 
 Treat it as an experiment, a spike, or something to read. If you use it, pin
 the version and expect the next one to break things.
@@ -43,60 +56,111 @@ dependencies {
 }
 ```
 
-Every module is on Maven Central under the same group and version. Each one
-brings only itself and the dependency its name says, and the
-`NoOtherDependenciesTest` in each module checks that.
+Every published module is on Maven Central under the same group and version.
+Each one brings only itself, the lark modules it builds on, and the dependency
+named in the tables below, and the `NoOtherDependenciesTest` in each module
+checks that.
 
-| Module | What it adds | Beyond `lark` |
-|---|---|---|
-| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `policy`, `LarkLocal`, `Clock`, the log | `arrow-core` |
-| `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` |
-| `lark-stream` | `Stream<E, A>` as a description: the failure is in the type, and no backend is named | nothing |
-| `lark-stream-pekko` | runs a `Stream` on Pekko Streams, plus the operators that take Pekko's types | `pekko-stream` |
-| `lark-stream-forks` | runs a `Stream` as a pull loop on one virtual thread, for the operators that don't need a second one | nothing |
-| `lark-stream-actors` | runs a `Stream` on `lark-actor`: a run is an actor pulling one batch per step, and `mapPar`, `buffer` and the fan-ins are its child actors. Compared with Forks: `mapPar` 5.7× faster, starting a run 2.1× faster, `buffer` and `merge` 1.5 to 2.4× faster; the plain chain is about a quarter slower ([numbers](lark-stream-benchmarks/README.md)) | nothing |
-| `lark-stream-test` | runs a `Stream` on a `TestClock` that the test moves: an hour of `tick` is one `adjust`, and each `adjust` returns with whatever fell due | nothing |
-| `lark-test` | `story { Given / When / Then }`: steps that return values, and a failure message that shows the story up to the step that broke, in colour under `FORCE_COLOR` or IntelliJ (spec [0116](specs/0116-a-story-in-colour.md)); and `eventually`, which retries until the block stops throwing and gives up on time by the inherited clock, so a test of a whole service can wait inside `use` without `suspend` (spec [0115](specs/0115-a-test-that-reads-as-a-story.md)) | nothing |
-| `lark-kafka` | a Kafka topic as a `Stream` on any backend: each offset is committed once its record's work is done, and a record that fails to decode arrives as a value ([`docs/kafka.md`](docs/kafka.md)) | `kafka-clients` |
-| `lark-kafka-pekko` | the same through Pekko's own Kafka connector: prefetch, batched commits and a draining stop | `pekko-connectors-kafka` |
-| `lark-actor` | an actor as a `Behaviour`: a state and a step, spawned in a `flock` on virtual threads or run synchronously by `.test()` (spec [0059](specs/0059-an-actor-without-an-actor-system.md)); the [actors guide](docs/actors.md) shows it in use. Compared with Pekko: faster `tell` with half the allocation, 6× faster ping-pong, 5.7× faster on blocking steps, 23% faster waking 10,000 idle actors at once, and 56% of the heap per idle actor ([numbers](lark-actor-benchmarks/README.md)). Also `persistent(batch = n)`, which writes the commands already waiting in one append: twenty times the payments per second into one hot account on Postgres (spec [0086](specs/0086-a-journal-written-a-batch-at-a-time.md)) | nothing |
-| `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
-| `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
-| `lark-actor-remote` | `lark-actor` across nodes: codecs you own, one TCP connection per peer on JDK sockets and virtual threads, tell, ask and watch across nodes, and dead letters for what cannot be delivered (spec [0068](specs/0068-an-actor-on-another-node.md)); with `tls`, mutual TLS 1.3 where each node is identified by the name on its certificate (spec [0073](specs/0073-nodes-that-know-each-other.md)). Compared with Pekko's Artery over TCP: a remote ask 2.8× faster and a burst of tells 1.9× faster ([numbers](lark-actor-benchmarks/README.md)); the [cluster guide](docs/cluster.md) shows it in use | nothing |
-| `lark-actor-remote-protobuf` | `lark-actor-remote`'s messages in Protobuf: a codec for a generated message, `oneOf` for a protocol of several messages under fixed tags, and `asked` for an ask whose request is one (spec [0071](specs/0071-messages-in-protobuf-or-avro.md)) | `com.google.protobuf:protobuf-java` |
-| `lark-actor-remote-avro` | `lark-actor-remote`'s messages in Avro: a codec for a specific record in single-object encoding, read across its versions through a `SchemaStore`, and `asked` for an ask whose request is one (spec [0071](specs/0071-messages-in-protobuf-or-avro.md)) | `org.apache.avro:avro` |
-| `lark-actor-remote-kotlinx` | `lark-actor-remote`'s messages, and the journal's events and snapshots, from a service's own `@Serializable` data classes: `codec`, `oneOf` for several under fixed tags written as a protobuf `oneof`, `asked`, and `proto()` for the `.proto` the classes produce (spec [0093](specs/0093-messages-from-kotlin-data-classes.md)); kotlinx's protobuf support is experimental | `org.jetbrains.kotlinx:kotlinx-serialization-protobuf` |
-| `lark-actor-journal-jdbc` | `lark-actor`'s journal on JDBC: `JdbcJournal(dataSource)` over one table every node can reach, with its tables shipped as a Liquibase changelog for Postgres, and two writers for one id settled by the primary key (spec [0072](specs/0072-events-that-outlive-the-node.md)); `JdbcSnapshots`, the newest snapshot per id (spec [0074](specs/0074-a-recovery-that-does-not-replay-everything.md)); a `JournalFeed` with `JdbcOffsets` for read models (spec [0075](specs/0075-a-read-model-that-follows-the-journal.md)); and `ShardedJournal` and `ShardedSnapshots`, which split it across databases by id (spec [0088](specs/0088-a-journal-across-databases.md)). The [cluster guide](docs/cluster.md) shows it in use | nothing |
-| `lark-actor-projection` | `lark-actor`'s journal as a lark-stream `Stream`: `Projection.follow` reads every event of one kind from a `JournalFeed`, polling once caught up, and `runProjecting()` stores each event's offset once its work is done, so a read model resumes where it left off (spec [0075](specs/0075-a-read-model-that-follows-the-journal.md)); with `Prune.after`, snapshots delete only what the named read models have already read (spec [0077](specs/0077-pruning-that-waits-for-read-models.md)) | nothing |
-| `lark-cluster` | `lark-actor-remote` as a cluster with no coordinator: seeds from a list, DNS or SRV, membership agreed by SWIM gossip over the same transport, member events, and a partition resolved by majority, quorum or lease, with the losing side downing itself first (spec [0069](specs/0069-nodes-that-agree-who-is-up.md)); entities and singletons placed on whichever member owns them, and moved between members without ever running twice (spec [0070](specs/0070-an-entity-on-whichever-node-owns-it.md)). Benchmarks against Pekko Cluster, three nodes a side, cover sharded tell and ask, a persistent append, reliable and durable sends, and a topic's fan-out; the results are still waiting on a run on the machine the other numbers came from ([numbers](lark-actor-benchmarks/README.md)). The [cluster guide](docs/cluster.md) shows it in use | nothing |
-| `lark-cluster-kubernetes` | `lark-cluster` on Kubernetes: seeds from the pods API, and a `Lease` object to break an even split | `io.fabric8:kubernetes-client` |
-| `lark-cluster-aws` | `lark-cluster` on AWS: seeds from Cloud Map or ECS, and a DynamoDB item as the lease that breaks an even split | `software.amazon.awssdk` (`servicediscovery`, `ecs`, `dynamodb`) |
-| `lark-app-actor` | a `lark-actor` flock as a node that lives as long as the application, and an actor as a node keyed by the `ActorRef<M>` of its protocol (spec [0062](specs/0062-actors-that-find-each-other.md)) | nothing |
-| `lark-app-cluster` | a `lark-cluster` membership as a node, joined as a HOCON section describes: the backend is found by name on the classpath, its client is closed after the node leaves, and a node that the others downed ends its process (spec [0096](specs/0096-a-cluster-joined-from-config.md)) | `lark-app-typesafe` |
-| `lark-app-liquibase` | a changelog as a node, which reading the database depends on | `liquibase-core` |
-| `lark-app-typesafe` | a HOCON section as a node, every fault reported at once, and a setting that picks a module | `com.typesafe:config` |
-| `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |
-| `lark-slf4j` | lark's own log lines through the backend a service already has configured, with annotations in the MDC | `slf4j-api` |
-| `lark-micrometer` | counters, gauges and histograms into the `MeterRegistry` a service already has | `micrometer-core` |
-| `lark-app-gradle` | a Gradle plugin that checks and draws every graph in a project as it compiles, and hands `lark-test`'s colour settings to every test task | `gradleApi()` |
+## Modules
+
+**Core**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `policy`, `LarkLocal`, `Clock`, the log and metrics | `arrow-core` | yes |
+| `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` | yes |
+| `lark-structured` | `parZip`, `parMap`, `raceN` and `timeout` on the JDK's `StructuredTaskScope`; experimental, as that API is a preview | nothing | no |
+
+**Applications**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-app` | an application as a value: the graph, its faults, probes, health, testing ([guide](docs/app.md)) | nothing | yes |
+| `lark-app-typesafe` | a HOCON section as a node, every fault reported at once, and a setting that picks a module | `com.typesafe:config` | yes |
+| `lark-app-liquibase` | a changelog as a node, which reading the database depends on | `liquibase-core` | yes |
+| `lark-app-pekko` | a Pekko typed actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` | yes |
+| `lark-app-actor` | a `lark-actor` flock as a node, and an actor as a node keyed by the `ActorRef<M>` of its protocol | nothing | yes |
+| `lark-app-cluster` | a `lark-cluster` membership as a node, joined as a HOCON section describes | `com.typesafe:config`, through `lark-app-typesafe` | yes |
+| `lark-app-gradle` | a Gradle plugin that checks and draws every graph in a project as it compiles | `gradleApi()` | yes |
+| `lark-app-compiler` | a K2 compiler checker that shows the same faults in the editor, for the shapes it can follow | the Kotlin compiler, already present | yes |
+
+**Streams**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-stream` | `Stream<E, A>` as a description: the failure is in the type, and no backend is named ([guide](docs/stream.md)) | nothing | yes |
+| `lark-stream-pekko` | runs a `Stream` on Pekko Streams, plus the operators that take Pekko's types | `pekko-stream` | yes |
+| `lark-stream-forks` | runs a `Stream` as a pull loop on one virtual thread | nothing | yes |
+| `lark-stream-actors` | runs a `Stream` on `lark-actor`, as an actor per run | nothing | yes |
+| `lark-stream-parity` | tests only: one suite of pipelines run on every backend, which must give the same answers | nothing | no |
+| `lark-stream-benchmarks` | JMH benchmarks of the stream backends | JMH | no |
+
+**Actors**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-actor` | an actor as a `Behaviour` on virtual threads, with supervision, timers, persistence and a test harness ([guide](docs/actors.md)) | nothing | yes |
+| `lark-actor-journal-jdbc` | the journal, snapshots and read-model offsets on JDBC, with the tables as a Postgres changelog ([guide](docs/cluster.md)) | nothing | yes |
+| `lark-actor-projection` | the journal as a `Stream`, for read models that resume where they left off | nothing | yes |
+| `lark-actor-remote` | actors across nodes over TCP, with optional mutual TLS ([guide](docs/cluster.md)) | nothing | yes |
+| `lark-actor-remote-protobuf` | message codecs from Protobuf's generated classes | `protobuf-java` | yes |
+| `lark-actor-remote-avro` | message codecs from Avro's specific records | `avro` | yes |
+| `lark-actor-remote-kotlinx` | message and event codecs from `@Serializable` data classes | `kotlinx-serialization-protobuf` | yes |
+| `lark-actor-benchmarks` | JMH benchmarks against Pekko | JMH, Pekko | no |
+
+**Cluster**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-cluster` | membership by gossip, downing, sharded entities, singletons, topics and reliable delivery ([guide](docs/cluster.md)) | nothing | yes |
+| `lark-cluster-kubernetes` | seeds from the pods API, and a `Lease` object to break an even split | `io.fabric8:kubernetes-client-api` | yes |
+| `lark-cluster-aws` | seeds from Cloud Map or ECS, and a DynamoDB item as the lease | `software.amazon.awssdk` (`servicediscovery`, `ecs`, `dynamodb`) | yes |
+
+**Integrations**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-kafka` | a Kafka topic as a `Stream` on any backend, a producer, and transactions ([guide](docs/kafka.md)) | `kafka-clients` | yes |
+| `lark-kafka-pekko` | the same through Pekko's own Kafka connector | `pekko-connectors-kafka` | yes |
+
+**Observability**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-slf4j` | lark's log lines through SLF4J, with annotations in the MDC | `slf4j-api` | yes |
+| `lark-micrometer` | lark's metrics into the `MeterRegistry` a service already has | `micrometer-core` | yes |
+| `lark-otel` | OpenTelemetry's `Context` carried across forks, and spans | `opentelemetry-api` | yes |
+
+**Testing**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-test` | `story { Given / When / Then }` and `eventually` | nothing | yes |
+| `lark-stream-test` | runs a `Stream` on a `TestClock` that the test moves | nothing | yes |
+
+**Examples**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-bank` | three nodes of a small bank, with a page to send money and an admin page | Postgres driver, HikariCP | no |
 
 A commit after the latest tag builds the next patch version as a `-SNAPSHOT`
-(after `v0.5.0`, `0.5.1-SNAPSHOT`), which is what
+(after `v0.9.0`, `0.9.1-SNAPSHOT`), which is what
 `./gradlew publishToMavenLocal` installs.
 
-One module is built and tested but not published. `lark-structured` has
+Five modules are built and tested but not published. `lark-structured` has
 `parZip`, `parMap`, `raceN` and `timeout`, with the same names and shapes as
 lark's, and runs each call's branches in the JDK's `StructuredTaskScope`. They
 show up under their caller in a thread dump and inherit `ScopedValue` bindings.
 That API is a preview in JDK 27, and the module will be published when JDK 28
 makes it final ([0040](specs/0040-a-flock-the-jdk-can-see.md)).
+`lark-stream-parity` has no main code; it holds the suite that every stream
+backend must pass ([0052](specs/0052-every-backend-runs-every-operator.md)).
+The two benchmark modules are JMH suites with their numbers in their own
+READMEs, and `lark-bank` is an application to run, described
+[below](#a-worked-example-lark-bank).
 
-`lark-bank` is not published either, because it is an application to run.
-`./gradlew :lark-bank:run` starts three nodes in one JVM with accounts and
-transfers sharded across them. It serves a page for sending money at
-<http://localhost:8081>, and an admin page at `/admin` that streams the
-cluster's numbers and has a load button and a "crash n3" button
-([0094](specs/0094-a-bank-you-can-watch.md)).
+## The core
 
 Before, on `arrow-fx-coroutines`:
 
@@ -443,6 +507,19 @@ So are `LarkLocal`, the bound `Clock` and the log a fork carries
 [0019](specs/0019-what-a-service-reads-from-outside-itself.md),
 [0020](specs/0020-an-actor-is-a-node.md)).
 
+Every other module was built the same way, from a numbered spec in
+[`specs/`](specs/); there are 122 of them, and each section below links the
+ones it describes.
+
+The latest release is 0.9.0, tagged `v0.9.0`, and every published module is on
+Maven Central at that version. `main` has moved on since: a message now carries
+its sender's trace and log annotations
+([0122](specs/0122-a-trace-that-crosses-a-message.md)), journal events and
+Kafka records keep them ([0123](specs/0123-an-event-that-keeps-its-trace.md)),
+and `lark-app-gradle` passes `lark-test`'s colour settings to every test task
+([0118](specs/0118-a-colour-setting-that-reaches-the-test.md)). These will be
+in the next release.
+
 [`AGENTS.md`](AGENTS.md) describes how work on this repository is done.
 
 ## Related projects
@@ -684,6 +761,13 @@ dependencies {
 }
 ```
 
+On `lark-stream-actors`, a run is an actor pulling one batch per step, and
+`mapPar`, `buffer` and the fan-ins are its child actors. Compared with Forks:
+`mapPar` 5.7× faster, starting a run 2.1× faster, `buffer` and `merge` 1.5 to
+2.4× faster; the plain chain is about a quarter slower
+([numbers](lark-stream-benchmarks/README.md)). `lark-stream-parity` runs one
+suite of pipelines on every backend, so the four give the same answers.
+
 One description, with the backend chosen where it runs:
 
 <!-- backend-example -->
@@ -844,6 +928,384 @@ against raw Pekko and against lark-stream side by side, why a missing value is
 treated as a failure rather than an empty stream, the operator table, and how a
 declared failure is passed along. `lark-stream` used to be a separate library,
 dipper, before it moved into this repository.
+
+## Actors
+
+`lark-actor` is an actor as a value: a `behaviour` holds a state and a step
+that takes one message at a time
+([spec 0059](specs/0059-an-actor-without-an-actor-system.md)). Nothing runs
+until the behaviour is spawned in a `flock`, the same scope the core forks in,
+and an actor cannot outlive its flock. An actor has a virtual thread while it
+has work and none while it is idle, so a step may block on JDBC. `tell` sends
+and returns. `ask` waits up to a timeout and answers with an `Either`, so an
+actor that stopped or took too long is a value.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-actor:0.9.0")
+}
+```
+
+This is the first example from the [actors guide](docs/actors.md), whose
+examples `ActorsGuideTest` compiles:
+
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.actor.AskFailure
+import io.github.matthewjones372.lark.actor.Reply
+import io.github.matthewjones372.lark.actor.ask
+import io.github.matthewjones372.lark.actor.become
+import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.actor.stop
+import io.github.matthewjones372.lark.flock
+import kotlin.time.Duration.Companion.seconds
+
+sealed interface Till
+
+data class Ring(val pence: Int) : Till
+
+data class Total(val reply: Reply<Int>) : Till
+
+data object Close : Till
+
+fun till() = behaviour<Till, Int>(0) { _, total, message ->
+    when (message) {
+        is Ring -> become(total + message.pence)
+        is Total -> stay().also { message.reply(total) }
+        Close -> stop()
+    }
+}
+
+fun main() {
+    val total: Either<Nothing, Either<AskFailure, Int>> = flock {
+        val till = spawn("till", till())
+        till.tell(Ring(250))
+        till.tell(Ring(120))
+        till.ask(1.seconds) { Total(it) }
+    }
+    println(total) // Either.Right(Either.Right(370))
+}
+```
+
+A step that raises or throws is handled by the actor's `restart` schedule,
+which is the core's `Schedule`
+([spec 0060](specs/0060-an-actor-that-fails-and-is-watched.md)). Actors also
+have children, watches, timers, a registry to find each other by protocol, and
+routers. `behaviour.test()` and `testActors { }` run actors on the calling
+thread with a clock the test moves, so an actor test does not wait for
+anything.
+
+Compared with Pekko: faster `tell` with half the allocation, 6× faster
+ping-pong, 5.7× faster on blocking steps, 23% faster waking 10,000 idle actors
+at once, and 56% of the heap per idle actor
+([numbers](lark-actor-benchmarks/README.md)).
+
+### Persistence and read models
+
+A `persistent` actor is remembered by its events
+([spec 0063](specs/0063-an-actor-that-is-remembered.md)). A command answers
+`persist(events)` or `none()`, and `then { }` runs once the events are written,
+which is where a reply goes. On start, and after every restart, the actor
+replays its events. `InMemoryJournal` keeps them in the process.
+`snapshots = every(n, codec)` saves the state every `n` events, so a start
+replays only what came after
+([spec 0074](specs/0074-a-recovery-that-does-not-replay-everything.md)), and
+`versioned` reads events written in an older shape
+([spec 0091](specs/0091-events-that-change-shape.md)). With
+`persistent(batch = n)`, the commands already waiting are written in one
+append: twenty times the payments per second into one hot account on Postgres
+([spec 0086](specs/0086-a-journal-written-a-batch-at-a-time.md)).
+
+`lark-actor-journal-jdbc` puts the journal on JDBC: `JdbcJournal(dataSource)`
+over one table every node can reach, with its tables shipped as a Liquibase
+changelog for Postgres, and two writers for one id settled by the primary key
+([spec 0072](specs/0072-events-that-outlive-the-node.md)). It also has
+`JdbcSnapshots`, the newest snapshot per id, and `JdbcOffsets` for read models.
+`ShardedJournal` and `ShardedSnapshots` split it across databases by id
+([spec 0088](specs/0088-a-journal-across-databases.md)).
+
+`lark-actor-projection` reads the journal as a lark-stream `Stream`:
+`Projection.follow` reads every event of one kind from a `JournalFeed`, polling
+once caught up, and `runProjecting()` stores each event's offset once its work
+is done, so a read model resumes where it left off
+([spec 0075](specs/0075-a-read-model-that-follows-the-journal.md)). Delivery
+is at least once. With `Prune.after`, snapshots delete only the events the
+named read models have already read
+([spec 0077](specs/0077-pruning-that-waits-for-read-models.md)).
+
+### Remoting
+
+`lark-actor-remote` runs `lark-actor` across nodes: codecs you own, one TCP
+connection per peer on JDK sockets and virtual threads, tell, ask and watch
+across nodes, and dead letters for what cannot be delivered
+([spec 0068](specs/0068-an-actor-on-another-node.md)). A remote tell is at
+most once. With `tls`, connections use mutual TLS 1.3, and each node is
+identified by the name on its certificate
+([spec 0073](specs/0073-nodes-that-know-each-other.md)). Compared with Pekko's
+Artery over TCP: a remote ask 2.8× faster and a burst of tells 1.9× faster
+([numbers](lark-actor-benchmarks/README.md)).
+
+No serialisation library is chosen for you. A `MessageCodec` writes a message
+field by field, or one of three modules builds codecs from classes you already
+have ([spec 0071](specs/0071-messages-in-protobuf-or-avro.md),
+[spec 0093](specs/0093-messages-from-kotlin-data-classes.md)):
+
+- `lark-actor-remote-protobuf`: a codec for a generated message, `oneOf` for a
+  protocol of several messages under fixed tags, and `asked` for an ask whose
+  request is one.
+- `lark-actor-remote-avro`: a codec for a specific record in single-object
+  encoding, read across its versions through a `SchemaStore`, and `asked`.
+- `lark-actor-remote-kotlinx`: codecs for messages, events and snapshots from
+  a service's own `@Serializable` data classes, `oneOf` written as a protobuf
+  `oneof`, `asked`, and `proto()` for the `.proto` the classes produce.
+  kotlinx's protobuf support is itself experimental.
+
+`lark-app-actor` makes a flock a node of a `lark-app` graph that lives as long
+as the application, and an actor a node keyed by the `ActorRef<M>` of its
+protocol ([spec 0062](specs/0062-actors-that-find-each-other.md)).
+
+## Clusters
+
+`lark-cluster` turns `lark-actor-remote` nodes into a cluster with no
+coordinator ([spec 0069](specs/0069-nodes-that-agree-who-is-up.md)). Seeds
+come from a list, DNS or SRV records. Membership is agreed by SWIM gossip over
+the same transport, and actors can subscribe to member events. A partition is
+resolved by majority, quorum or lease, and the losing side downs itself first.
+
+On top of membership:
+
+- **Entities.** `sharding` spreads a kind's ids over 256 shards and each shard
+  over the members, by a hash every node computes the same way. An entity
+  moves between members without ever running on two at once
+  ([spec 0070](specs/0070-an-entity-on-whichever-node-owns-it.md)), and shards
+  can follow the load ([spec 0090](specs/0090-shards-that-follow-the-load.md)).
+- **Singletons.** One actor in the whole cluster, on the oldest member.
+- **Reliable delivery.** `reliable(id)` resends a command until the entity
+  confirms it, so a payment is not lost when its entity moves
+  ([spec 0079](specs/0079-a-message-that-arrives-when-its-entity-moves.md));
+  with `durable = true` it survives the sender's crash as well
+  ([spec 0085](specs/0085-a-sender-that-survives-its-crash.md)).
+- **Topics.** A publish on any member reaches every subscriber on every member
+  ([spec 0082](specs/0082-a-topic-every-node-hears.md)).
+- **Roles**, so that some nodes host a kind and others do not
+  ([spec 0083](specs/0083-nodes-that-do-different-work.md)).
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-cluster:0.9.0")
+}
+```
+
+Baskets sharded across the cluster, with `basket()` a behaviour and
+`BasketCodec` its `MessageCodec`, both written out in the
+[cluster guide](docs/cluster.md#entities), whose examples `GuideExampleTest`
+compiles:
+
+```kotlin
+import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.actor.ask
+import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.lark.cluster.Discovery
+import io.github.matthewjones372.lark.cluster.Sharded
+import io.github.matthewjones372.lark.cluster.cluster
+import io.github.matthewjones372.lark.cluster.sharding
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+/** On every node: the seeds are every address the headless service's name resolves to. */
+fun Flock<Nothing>.baskets(): Sharded<Basket> {
+    val node = node("shop-1", 25520, host = "0.0.0.0")
+    val cluster = cluster(node, Discovery.dns("shop.default.svc.cluster.local", port = 25520))
+    return cluster.sharding("basket", BasketCodec, passivateAfter = 10.minutes) { basket() }
+}
+
+/** From any node: the messages reach whichever member owns customer-42. */
+fun addAndRead(baskets: Sharded<Basket>) =
+    baskets.entity("customer-42").run {
+        tell(Put("sku-1"))
+        ask(5.seconds) { Contents(it) }
+    }
+```
+
+`lark-cluster-kubernetes` finds seeds through the pods API and uses a `Lease`
+object to break an even split. `lark-cluster-aws` finds them through Cloud Map
+or ECS and uses a DynamoDB item as the lease. `lark-app-cluster` makes the
+membership a node of a `lark-app` graph, joined as a HOCON section describes:
+the backend is found by name on the classpath, its client is closed after the
+node leaves, and a node that the others downed ends its process
+([spec 0096](specs/0096-a-cluster-joined-from-config.md)).
+
+Benchmarks against Pekko Cluster, three nodes a side, cover sharded tell and
+ask, a persistent append, reliable and durable sends, and a topic's fan-out.
+The results are still waiting on a run on the machine the other numbers came
+from ([numbers](lark-actor-benchmarks/README.md)). The
+[cluster guide](docs/cluster.md) goes through all of this in the order a
+service meets it.
+
+## Kafka
+
+`lark-kafka` reads a Kafka topic as a `Stream` on any backend. Each element
+carries its record's offset, and the only way to run the stream is
+`runCommitting`, which commits each offset once its record's work is done
+([spec 0053](specs/0053-a-record-that-commits-after-it-is-handled.md)). A
+record that fails to decode arrives as a value to divert or end the run with
+([spec 0054](specs/0054-a-record-that-fails-to-decode.md)).
+
+```kotlin
+dependencies {
+    // any backend; kafka-clients comes with it
+    implementation("io.github.matthewjones372:lark-kafka:0.9.0")
+    // or Pekko's own Kafka connector, on Pekko Streams only
+    // implementation("io.github.matthewjones372:lark-kafka-pekko:0.9.0")
+}
+```
+
+```kotlin
+import io.github.matthewjones372.lark.kafka.Kafka
+import io.github.matthewjones372.lark.kafka.Topic
+import io.github.matthewjones372.lark.kafka.consume
+import io.github.matthewjones372.lark.kafka.mapRecord
+import io.github.matthewjones372.lark.kafka.runCommitting
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.start
+import org.apache.kafka.common.serialization.StringDeserializer
+
+// `consumerProperties` and `shop` belong to the service
+val placing = Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), value = StringDeserializer())
+    .mapRecord { record -> shop.place(record.value()) }
+    .runCommitting()
+
+val running = placing.start(Forks())    // one virtual thread polls, handles and commits
+```
+
+The same description runs on `PekkoStreams(system)` or `TestStreams`. The
+module also writes to Kafka: `publishRecord` sends each element and commits
+the offset only once the broker has the output, `deadLetters` sends an
+unreadable record to a topic of its own
+([spec 0087](specs/0087-a-record-written-to-kafka.md)), and `transacted`
+commits the outputs and the offsets in one Kafka transaction
+([spec 0124](specs/0124-a-record-written-exactly-once.md)). `Kafka.read`
+reads one partition on its own, assigned rather than subscribed, so no
+rebalance can take it away
+([spec 0120](specs/0120-a-partition-read-on-its-own.md)).
+
+`lark-kafka-pekko` does the same through Pekko's own Kafka connector, with
+prefetch, batched commits and a draining stop. [`docs/kafka.md`](docs/kafka.md)
+compares the two and lists the operators.
+
+## Observability
+
+The log and the metrics are part of the core, and
+[What a fork inherits](#what-a-fork-inherits) shows how they cross forks.
+`lark-slf4j` and `lark-micrometer` send them to the backend a service already
+has, and register themselves through a `ServiceLoader`, so adding the
+dependency is the whole setup.
+
+Lark's own modules record through the same `Metrics`, under names starting
+`lark.`: for example `lark.cluster.members`, `lark.sharding.entities`,
+`lark.stream.elements`, `lark.breaker.state` and `lark.actor.restarts`. A
+service can read any of them back with `readings(name)`, from whichever
+backend is bound ([spec 0109](specs/0109-metrics-a-service-can-read-back.md)).
+
+`lark-otel` keeps OpenTelemetry's `Context` in a `LarkLocal`, so a span opened
+before a `parMap` is the parent of what each branch opens
+([spec 0021](specs/0021-a-trace-that-crosses-a-fork.md)). The registration is
+process-wide, which is why it is a module you opt into. `tracedSpan` also puts
+the trace and span ids on every log line written inside it.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-otel:0.9.0")
+}
+```
+
+```kotlin
+import io.github.matthewjones372.lark.otel.span
+import io.github.matthewjones372.lark.parMap
+import io.opentelemetry.api.trace.Tracer
+
+// `Order`, `Price` and `price` belong to the service
+fun pricing(tracer: Tracer, orders: List<Order>): List<Price> =
+    tracer.span("price-all") {
+        parMap(orders) { order -> tracer.span("price") { price(order) } }
+    }
+```
+
+On `main`, after 0.9.0, the same context also travels with a message: a `tell`
+or `ask` carries the sender's trace and log annotations to the actor that
+handles it, on the same node or another
+([spec 0122](specs/0122-a-trace-that-crosses-a-message.md)). Events written to
+the JDBC journal, and records written to Kafka, keep them as well
+([spec 0123](specs/0123-an-event-that-keeps-its-trace.md)).
+
+## Testing
+
+`lark-test` is for tests of a whole service. `story { }` writes a test as
+`Given`, `When`, `Then`, `And` and `But` steps that return values. When a step
+fails, the message shows the story up to that step and what it threw, in
+colour under `FORCE_COLOR` or IntelliJ
+([spec 0115](specs/0115-a-test-that-reads-as-a-story.md),
+[spec 0116](specs/0116-a-story-in-colour.md)). `eventually` retries a block
+until it stops throwing, and gives up on time by the inherited clock, so a test
+can wait inside `use` without `suspend`. A step can wait the same way.
+
+```kotlin
+dependencies {
+    testImplementation("io.github.matthewjones372:lark-test:0.9.0")
+}
+```
+
+```kotlin
+import io.github.matthewjones372.lark.test.story
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Test
+import kotlin.time.Duration.Companion.seconds
+
+class AdoptionTest {
+
+    // `PetShop` belongs to the service
+    @Test
+    fun `an adopted pet is listed as taken`() = story {
+        val shop = Given("a shop with three pets") { PetShop(listOf("Nibbles", "Barnaby", "Mrs Peel")) }
+        val taken = When("Ada adopts the first") { shop.adoptFirst("Ada") }
+        Then("Ada has Nibbles") { taken shouldBe "Nibbles" }
+        And("the listing says so").eventually(within = 5.seconds) { shop.status("Nibbles") shouldBe "taken" }
+    }
+}
+```
+
+The other test support sits with what it tests. `lark-stream-test` runs a
+stream on a `TestClock` ([Streams](#streams)), `behaviour.test()` and
+`testActors { }` step actors on the calling thread ([Actors](#actors)), and
+`capturingLogs { }` and `capturingMetrics { }` in the core turn logging and
+measuring into values a test can assert on.
+
+## A worked example: lark-bank
+
+`lark-bank` is a small bank that uses the actor, persistence, remoting and
+cluster modules together ([spec 0094](specs/0094-a-bank-you-can-watch.md)).
+Accounts and transfers are persistent sharded entities. A transfer is a saga
+that debits one account and credits another through durable reliable sends,
+so a node that dies in the middle delays a transfer without losing or doubling
+money. Each node also publishes its numbers to a cluster topic, which the
+admin page reads.
+
+```bash
+./gradlew :lark-bank:run
+```
+
+That starts three nodes in one JVM, with the journal in memory. Each serves a
+page for sending money, at <http://localhost:8081> to `8083`, and an admin page
+at `/admin` that streams the cluster's numbers and has a load button and a
+"crash n3" button. `--args="--jdbc URL"` keeps the journal in a Postgres
+database instead, and `--node n2` with `--jdbc` runs one node in a process of
+its own. The server is the JDK's own `HttpServer`, and the pages are plain
+HTML and JavaScript, tested in a headless Chromium through Playwright.
+
+It is not published, and it is not a real bank: there is no authentication,
+and an account is picked by its id.
 
 ## Licence
 
