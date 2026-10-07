@@ -79,7 +79,7 @@ catch in Lark, once.
 
 ## Stack
 
-- [ ] **`spec-0126-probe-throws`**: one `answered` used by `readiness()` and
+- [x] **`spec-0126-probe-throws`** ([#349](https://github.com/matthewjones372/lark/pull/349)): one `answered` used by `readiness()` and
       by the start; `StartupError.Unready.cause`; `docs/app.md`'s probe
       section says a throw counts as failing.
       Done when:
