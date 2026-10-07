@@ -19,9 +19,10 @@ permissions:
 
 jobs:
   build:
-    # The home cluster's runner (lark-bank spec 0017), which starts Testcontainers' Postgres in its own
-    # Docker-in-Docker. Set the repository variable RUNNER=ubuntu-latest to build on GitHub's runners instead.
-    runs-on: ${{ vars.RUNNER || 'home-lark' }}
+    # A pull request always builds on GitHub's runners: this repository is public, so a pull request can
+    # come from anyone and must never run on the home cluster. A push to main uses the repository variable
+    # RUNNER if it is set (for example home-lark, lark-bank spec 0017), and GitHub's runners otherwise.
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || vars.RUNNER || 'ubuntu-latest' }}
 
     strategy:
       fail-fast: false
