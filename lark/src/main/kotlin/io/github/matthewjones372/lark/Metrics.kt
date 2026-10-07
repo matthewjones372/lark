@@ -4,8 +4,9 @@ import java.util.ServiceLoader
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.DoubleAdder
 
-// What a duration is recorded in. Milliseconds, because that is the unit a dashboard is read in.
-private const val NANOS_PER_MILLI = 1_000_000.0
+// What a duration is recorded in. Seconds, because every backend this reaches treats that as the
+// unit of a duration: Prometheus names a series `_seconds`, and a dashboard told nothing assumes it.
+private const val NANOS_PER_SECOND = 1_000_000_000.0
 
 /** A number that only goes up. */
 fun interface Counter {
@@ -125,7 +126,11 @@ fun <A> metricTagged(vararg pairs: Pair<String, String>, block: () -> A): A =
     metricTags.locally(metricTags.get() + pairs, block)
 
 /**
- * Runs [block] and records how long it took, in milliseconds, under [name].
+ * Runs [block] and records how long it took, in seconds, under [name].
+ *
+ * Seconds rather than milliseconds because that is what a backend assumes a duration is: name the
+ * metric for it — `petshop.adopt.duration.seconds` — and Prometheus, Grafana and every dashboard
+ * that has ever been written agree about the axis without being told.
  *
  * The duration is recorded whether the block returns or throws: a call that fails slowly is the one
  * worth seeing, and leaving it out makes the numbers say the opposite.
@@ -135,7 +140,7 @@ fun <A> timed(name: String, vararg tags: Pair<String, String>, block: () -> A): 
     try {
         return block()
     } finally {
-        histogram(name, *tags).record((System.nanoTime() - startedAt) / NANOS_PER_MILLI)
+        histogram(name, *tags).record((System.nanoTime() - startedAt) / NANOS_PER_SECOND)
     }
 }
 
