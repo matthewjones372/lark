@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app
 
 import io.github.matthewjones372.lark.parMap
-import io.github.matthewjones372.lark.timeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KType
@@ -55,6 +54,6 @@ class HealthRegistry internal constructor(private val probes: List<Probe>) {
 
     private fun answers(probe: Probe): Boolean {
         val value = started[probe.key] ?: return false
-        return timeoutOrNull(probe.timeout) { probe.ask(value) } == true
+        return probe.answered(value) == Answer.Yes
     }
 }
