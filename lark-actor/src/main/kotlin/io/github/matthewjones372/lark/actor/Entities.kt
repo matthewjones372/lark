@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.Schedule
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -62,7 +63,9 @@ private class EntityBook<M : Any, S, E>(
 ) {
     private val running = HashMap<String, ActorRef<M>>()
     private val ids = HashMap<ActorRef<*>, String>()
-    private val stopping = HashMap<String, MutableList<M>>()
+
+    // Each kept with what it carried, so it is handled in its sender's trace once the entity starts again (spec 0122).
+    private val stopping = HashMap<String, MutableList<Pair<M, Map<String, String>>>>()
 
     // What an entity's full mailbox could not take yet, in order: everything after it waits behind it (spec 0095).
     @OptIn(PlumbingSeam::class)
@@ -72,7 +75,7 @@ private class EntityBook<M : Any, S, E>(
     fun deliver(ctx: Ctx<Entities<M>>, id: String, message: M) {
         val held = stopping[id]
         if (held != null) {
-            held += message
+            held += message to Carriers.capture()
             return
         }
         // The idle timer is armed before the entity has the message, so an entity that is busy with it can already
@@ -108,8 +111,10 @@ private class EntityBook<M : Any, S, E>(
         }
         // What was kept for an entity that stopped by itself goes to the next one, before anything newer.
         @OptIn(PlumbingSeam::class)
-        val waited = handOn.take(ctx, id)
-        (waited + stopping.remove(id).orEmpty()).forEach { deliver(ctx, id, it) }
+        handOn.take(ctx, id) { deliver(ctx, id, it) }
+        stopping.remove(id).orEmpty().forEach { (message, carried) ->
+            Carriers.within(carried) { deliver(ctx, id, message) }
+        }
     }
 
     private fun start(ctx: Ctx<Entities<M>>, id: String): ActorRef<M> {

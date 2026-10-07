@@ -174,7 +174,7 @@ private class Steps(
     @OptIn(PlumbingSeam::class)
     fun gone(ctx: Ctx<Step>, subscriber: ActorRef<*>) {
         @Suppress("UNCHECKED_CAST")
-        owed.take(ctx, subscriber as ActorRef<MemberEvent>)
+        owed.forget(ctx, subscriber as ActorRef<MemberEvent>)
     }
 
     private fun report() = cluster.meters.forEach { meter ->

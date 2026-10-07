@@ -57,6 +57,9 @@ sharding coordinator's, a stream's — outside the trace.
       Done: `ContextAcrossAMessageTest` (the span's parent, and none outside a span) and `CarriedTest` (an ask's
       annotations, none when nothing is bound, and a stashed message replayed with its own sender's, not its
       releaser's).
+      What a manager keeps for a busy or stopping entity, and what a region keeps for a shard with no owner yet, is
+      kept with what it carried and handed on inside it (`CarriedTest`, `KeptCarriedTest`): found by lark-bank,
+      whose transfers sent while a node joined lost their trace at the region that kept them.
 - [x] **`spec-0122-remote`** — the map in `Frame`, and the handshake offering versions 1 and 2. Done when: the same
       holds for an actor on another node, and a node speaking only version 1 still exchanges messages with one that
       speaks both, without the map.
