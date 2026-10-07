@@ -524,11 +524,19 @@ in the next release.
 
 ## Related projects
 
-- [Kestrel](https://github.com/matthewjones372/kestrel): load simulations on
-  virtual threads.
-- [Dipper](https://github.com/matthewjones372/dipper): a stream with a typed
-  failure, over Pekko Streams. It is now the `lark-stream` module here, brought
-  in with its history.
+- [Proofload](https://github.com/matthewjones372/proofload): load testing on
+  virtual threads. It was called Kestrel.
+- [Pelican](https://github.com/matthewjones372/pelican): HTTP endpoints as
+  values, served on Pekko HTTP.
+- [kimney](https://github.com/matthewjones372/kimney): compile-time mapping
+  between Kotlin types.
+- [petshop](https://github.com/matthewjones372/petshop): a small service that
+  uses Lark with Pelican and Proofload, and says where each one helped.
+- [tweet-street](https://github.com/matthewjones372/tweet-street): a bank in
+  four services, the largest thing built on Lark so far.
+- Dipper, a stream with a typed failure over Pekko Streams, is now the
+  `lark-stream` module here, brought in with its history. Its repository no
+  longer exists.
 
 ## What a fork inherits
 
@@ -1306,6 +1314,11 @@ HTML and JavaScript, tested in a headless Chromium through Playwright.
 
 It is not published, and it is not a real bank: there is no authentication,
 and an account is picked by its id.
+
+[tweet-street](https://github.com/matthewjones372/tweet-street) grows the same
+idea into four services: the bank on a three-node cluster with its journal in
+Postgres and its events on Kafka, sign-in, transfer screening, two-person
+approvals and access control, with load and chaos runs against it.
 
 ## Licence
 
