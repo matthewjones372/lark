@@ -219,6 +219,11 @@ anything. Each probe is asked inside its own timeout, so a probe that hangs is
 not a start that hangs, and the wait between attempts goes through the clock the
 thread inherited — under `fixedClock`, ten attempts take microseconds.
 
+A probe that throws has failed, the same as one that answers `false`: it is
+asked again while it has attempts left, and a start that gives up says what the
+last attempt threw. So a probe can borrow a connection without a `try` around
+it. A pool with no connection to give throws, and that is the answer.
+
 The same probes answer afterwards:
 
 ```kotlin
@@ -231,7 +236,9 @@ single { health: HealthRegistry -> routes { get("/ready") { health.readiness() }
 route takes it as a dependency rather than being handed the graph. Every probe
 is asked at once and each inside its own timeout; `critical = false` degrades
 rather than downs, and a node reading `liveness()` on the way up is told the
-graph is still coming up.
+graph is still coming up. A probe that throws is listed among the failing, and is never
+an exception out of `readiness()`, so a route answering `/ready` does not fail
+at the moment it is asked most.
 
 ## Testing
 
