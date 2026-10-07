@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
@@ -25,6 +26,9 @@ internal class Hosting<M : Any, H : Any>(
 
 /** What a region gauges (spec 0081): the shards it may run now, and what it keeps for a shard with no owner yet. */
 internal class RegionMeters(val shards: Gauge, val buffered: Gauge)
+
+/** An envelope kept for a shard with no owner yet, with what its handling carried (spec 0122). */
+private class Kept<M : Any>(val envelope: Region.Envelope<M>, val carried: Map<String, String>)
 
 /** The key of a region's retry timer: one at a time, however many messages ran out of hops. */
 private object RetryKey
@@ -66,7 +70,7 @@ internal class Placing<M : Any, H : Any>(
     private val awaiting = HashMap<Int, MutableSet<Node>>()
     private val owed = HashMap<Int, MutableSet<Node>>()
 
-    private val kept = ArrayDeque<Region.Envelope<M>>()
+    private val kept = ArrayDeque<Kept<M>>()
     private var asking = false
 
     // What a busy host could not take yet, per entity id and in order (spec 0095).
@@ -208,7 +212,7 @@ internal class Placing<M : Any, H : Any>(
         // What was kept for the shard's entities goes wherever the shard is now, in order, with the next retry.
         @OptIn(PlumbingSeam::class)
         handOn.keys.filter { Placement.shardOf(it, shards) == shard }.forEach { id ->
-            handOn.take(ctx, id).forEach { keep(Region.Envelope(id, 0, it)) }
+            handOn.take(ctx, id) { keep(Region.Envelope(id, 0, it)) }
         }
         ready -= shard
         hosted.remove(shard)?.let { manager ->
@@ -240,11 +244,11 @@ internal class Placing<M : Any, H : Any>(
     private fun retry(ctx: Ctx<Region<M>>) {
         val waiting = kept.toList()
         kept.clear()
-        waiting.forEach { route(ctx, it.copy(hops = 0)) }
+        waiting.forEach { Carriers.within(it.carried) { route(ctx, it.envelope.copy(hops = 0)) } }
     }
 
     private fun keep(envelope: Region.Envelope<M>) {
-        if (kept.size < Sharding.KEEP_AT_MOST) return kept.addLast(envelope)
+        if (kept.size < Sharding.KEEP_AT_MOST) return kept.addLast(Kept(envelope, Carriers.capture()))
         val recipient = Address(self.toString(), "$path/${envelope.id}", 0)
         cluster.flock.deadLetter(DeadLetter(recipient, envelope.message, DeadLetter.Why.Unreachable))
     }

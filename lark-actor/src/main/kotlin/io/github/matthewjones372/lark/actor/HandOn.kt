@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.Carriers
+
 /** A seam for lark's own modules that hand messages on from a step to receivers that may be busy (spec 0095). */
 @RequiresOptIn("A seam for lark's own modules that hand messages on from a step to receivers that may be busy.")
 @Retention(AnnotationRetention.BINARY)
@@ -11,11 +13,11 @@ annotation class PlumbingSeam
  * stopped, where a tell is a dead letter. Otherwise it is kept, in order, under its key, and everything after it for
  * that key waits behind it. Past [KEEP_AT_MOST] kept under one key, a message is a dead letter for being
  * [DeadLetter.Why.Full]. The step calls [drain] on a timer of its own while anything is kept, and `awaitIdle` counts
- * what is kept as not yet handled.
+ * what is kept as not yet handled. Each is kept with what its handling carried, and handed on inside it (spec 0122).
  */
 @PlumbingSeam
 class HandOn<K : Any, M : Any> {
-    private class Kept<M : Any>(val to: ActorRef<M>, val message: M)
+    private class Kept<M : Any>(val to: ActorRef<M>, val message: M, val carried: Map<String, String>)
 
     private val waiting = LinkedHashMap<K, ArrayDeque<Kept<M>>>()
 
@@ -36,7 +38,7 @@ class HandOn<K : Any, M : Any> {
             }
 
             else -> {
-                (kept ?: ArrayDeque<Kept<M>>().also { waiting[key] = it }) += Kept(to, message)
+                (kept ?: ArrayDeque<Kept<M>>().also { waiting[key] = it }) += Kept(to, message, Carriers.capture())
                 ctx.kept(1)
                 true
             }
@@ -47,7 +49,9 @@ class HandOn<K : Any, M : Any> {
     fun drain(ctx: Ctx<*>): Boolean {
         var handed = 0
         waiting.values.removeIf { kept ->
-            while (kept.isNotEmpty() && kept.first().let { it.to.tellIfRoom(it.message) }) {
+            while (kept.isNotEmpty() &&
+                kept.first().let { Carriers.within(it.carried) { it.to.tellIfRoom(it.message) } }
+            ) {
                 kept.removeFirst()
                 handed++
             }
@@ -57,12 +61,15 @@ class HandOn<K : Any, M : Any> {
         return waiting.isNotEmpty()
     }
 
-    /** Takes what is kept under [key], in order, to be handed on some other way: its receiver has gone. */
-    fun take(ctx: Ctx<*>, key: K): List<M> {
-        val kept = waiting.remove(key) ?: return emptyList()
+    /** Takes what is kept under [key], in order, each to [each] inside what it carried: its receiver has gone. */
+    fun take(ctx: Ctx<*>, key: K, each: (M) -> Unit) {
+        val kept = waiting.remove(key) ?: return
         ctx.kept(-kept.size)
-        return kept.map { it.message }
+        kept.forEach { Carriers.within(it.carried) { each(it.message) } }
     }
+
+    /** Drops what is kept under [key]: its receiver is owed nothing more. */
+    fun forget(ctx: Ctx<*>, key: K) = take(ctx, key) {}
 
     /** Every kept message, a dead letter for [why]: the step's own actor is stopping. */
     fun drop(ctx: Ctx<*>, why: DeadLetter.Why) {

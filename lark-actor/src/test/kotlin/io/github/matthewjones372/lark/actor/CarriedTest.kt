@@ -6,8 +6,11 @@ import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
 import io.kotest.matchers.maps.shouldContain
 import io.kotest.matchers.maps.shouldNotContainKey
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.minutes
 
@@ -83,5 +86,25 @@ class CarriedTest {
         }
 
         answered.get() shouldContain ("request_id" to "r-2")
+    }
+
+    @Test
+    fun `a burst kept for a busy entity is handled with what each message carried, not with the drain's`() {
+        val heard = ConcurrentHashMap<Int, String>()
+        val open = CountDownLatch(1)
+        flock<Nothing, Unit> {
+            // The first message holds the entity's step until the burst is sent, so its manager keeps most of it.
+            val held = behaviour<Int, Unit>(Unit) { _, _, n ->
+                stay().also { if (n == 0) open.await() else heard[n] = annotationsHere()["request_id"].orEmpty() }
+            }
+            val rex = spawn("kennel", entities(passivateAfter = 10.minutes) { _ -> held }).entity("rex")
+            rex.tell(0)
+            (1..5_000).forEach { n -> logAnnotated("request_id" to "r-$n") { rex.tell(n) } }
+            open.countDown()
+            awaitIdle()
+        }
+
+        heard.size shouldBe 5_000
+        heard.filter { (n, id) -> id != "r-$n" } shouldBe emptyMap()
     }
 }

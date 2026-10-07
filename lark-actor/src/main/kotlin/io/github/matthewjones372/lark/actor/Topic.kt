@@ -105,7 +105,7 @@ private class TopicSteps<M : Any>(
 
     /** [subscriber] gone, and what was kept for it with it. */
     fun unsubscribed(ctx: Ctx<TopicMessage<M>>, heard: Set<ActorRef<M>>, subscriber: ActorRef<M>): Set<ActorRef<M>> {
-        handOn.take(ctx, subscriber)
+        handOn.forget(ctx, subscriber)
         return counted(heard - subscriber)
     }
 
