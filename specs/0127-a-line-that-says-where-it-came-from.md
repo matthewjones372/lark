@@ -49,8 +49,9 @@ class Registry {
   internal`.
 - `origin` is the **top-level** class: follow `enclosingClass` until there is
   none, so a companion, a nested class, an anonymous `object` and a local class
-  all report the class that contains them. The answer is cached in a
-  `ClassValue`, so the reflection runs once per class.
+  all report the class that contains them. The name is cached once per class in
+  a `ClassValue`, so each line costs one lookup and one map read, with no
+  reflection.
 - A top-level function reports its file class, for example `RegistryKt`.
 - Code that builds a `LogLine` directly (`Restarting`, `Forks`, `Timed`,
   `Remote`, `Backend`) passes its own top-level class as `origin`.
@@ -95,12 +96,15 @@ callers until they recompile.
 
 ## Open questions
 
-1. **Should a top-level function report `RegistryKt`, or the file name without
+1. **Should the `ClassValue` hold the SLF4J logger too?** It would save
+   `getLogger`'s own cache lookup, but `lark` cannot name an SLF4J type.
+   Recommend not doing it unless a profile shows it matters.
+2. **Should a top-level function report `RegistryKt`, or the file name without
    the `Kt`?** Recommend `RegistryKt`, the class as the JVM names it, so it
    matches what a stack trace prints.
-2. **What about Java callers?** Java does not inline Kotlin functions, so a call
+3. **What about Java callers?** Java does not inline Kotlin functions, so a call
    from Java reports `LoggerKt`. Recommend accepting that: lark's API is
    Kotlin-first.
-3. **What about a call inside someone's own inline helper?** It reports the
+4. **What about a call inside someone's own inline helper?** It reports the
    class where the helper is used, not where it is defined. Recommend accepting
    that, because it is usually the class people want.
