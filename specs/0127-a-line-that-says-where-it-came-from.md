@@ -14,10 +14,10 @@ for it, and neither one reaches the backend's logger name.
 
 ## Not doing
 
-- **No named-logger API.** `logInfo` stays a top-level function with no logger
-  argument, and the 41 call sites stay as they are.
-- **No method or line number.** Only the class name. A backend that wants `%L`
-  works it out itself (see Open questions 3).
+- **No change at the call site.** `logInfo` stays a top-level function with no
+  logger argument, and the 41 call sites stay as they are.
+- **No named-logger API.** There will be no `larkLogger<Registry>()`.
+- **No method or line number.** Only the class.
 - **No level check before the line is built.** Spec 0032 Q1 still applies.
 
 ## Shape
@@ -32,47 +32,60 @@ data class LogLine(
     val origin: String? = null,   // "com.acme.pets.Registry"
 )
 
+inline fun logInfo(message: String) =
+    logAt(LogLevel.Info, message, null, MethodHandles.lookup().lookupClass())
+
 class Registry {
-    fun register(id: String) = logInfo("registering $id")
+    companion object { fun start() = logInfo("up") }       // origin …Registry
+    fun register(ids: List<String>) =
+        ids.forEach { logInfo("registering $it") }           // origin …Registry
 }
 // StderrLogger: 2026-10-11T… INFO com.acme.pets.Registry registering 42
 // Slf4jLogger:  logged through LoggerFactory.getLogger("com.acme.pets.Registry")
 ```
 
-- `log()` in `Logger.kt` fills `origin` with a `StackWalker`: the first frame
-  whose class is not `LoggerKt`. That class keeps everything before its first
-  `$`, so a lambda or a companion reports its enclosing class.
+- The four `log*` functions become `inline`, so `lookupClass()` is evaluated at
+  the call site and returns the calling class. `logAt` is `@PublishedApi
+  internal`.
+- `origin` is the **top-level** class: follow `enclosingClass` until there is
+  none, so a companion, a nested class, an anonymous `object` and a local class
+  all report the class that contains them. The answer is cached in a
+  `ClassValue`, so the reflection runs once per class.
+- A top-level function reports its file class, for example `RegistryKt`.
 - Code that builds a `LogLine` directly (`Restarting`, `Forks`, `Timed`,
-  `Remote`, `Backend`) passes its own class as `origin`.
-- `Slf4jLogger` writes to `getLogger(line.origin ?: name)`. SLF4J caches loggers
-  by name, so this adds no map of our own.
-- `capturingLogs` keeps the field, so a test can assert on `origin`.
+  `Remote`, `Backend`) passes its own top-level class as `origin`.
+- `Slf4jLogger(name: String? = null)` writes to `getLogger(line.origin)`. An
+  explicit `name` keeps the single logger it writes to today. SLF4J caches
+  loggers by name, so this adds no map of our own.
 
 ## Why this shape
 
-The walk is automatic: every existing call site starts reporting its class and
-none of them changes. It runs once per line, and it is lazy, so it stops at
-the first frame outside `LoggerKt`, which is about two frames down. The
-alternative is a logger value per class, `val log = larkLogger<Registry>()`. It
-costs nothing at runtime, but it adds a second way to write a line and leaves
-`logInfo` with no origin. I recommend the walk. Another option was to fix only
-`Slf4jLogger`, using `LocationAwareLogger` with `LoggerKt` as the FQCN. That
-corrects `%C` but still leaves `%logger` reading `lark`, and it does nothing for
-stderr or for a captured line.
+Inlining captures the caller without changing any call site and without walking
+the stack. Each line costs one `Lookup`, which the JIT can usually remove, plus
+a `ClassValue` read. A `StackWalker` would give the same answer at a measurable
+cost on every line, including lines whose level is off. A logger value per class
+costs nothing at runtime, but it adds a second way to write a line, which is
+what keeping today's call sites rules out. The price of inlining is that
+`logAt` becomes part of the binary API: changing its signature later breaks
+callers until they recompile.
 
 ## Stack
 
-- [ ] **`spec-0127-origin`** — `LogLine.origin`, filled by `log()` through a
-      `StackWalker`. `StderrLogger` prints it.
-      Done when: `logInfo` called from a class, from a lambda inside it, and
-      from a top-level function each capture the expected `origin`.
+- [ ] **`spec-0127-origin`** — `LogLine.origin`, the inline `log*` functions,
+      and the top-level resolution through `ClassValue`. `StderrLogger` prints
+      `origin`.
+      Done when: a call from a class, from a lambda inside it, from its
+      companion, from a nested class, from an anonymous `object`, and from a top-level
+      function each capture the expected `origin`.
 - [ ] **`spec-0127-library-origins`** — the five direct `LogLine(...)` sites
       pass their own class.
       Done when: each site's existing test asserts its `origin`.
 - [ ] **`spec-0127-slf4j-by-origin`** — `Slf4jLogger` names its SLF4J logger by
-      `origin`. README and cookbook say so.
-      Done when: a line from `Registry` reaches the logger named
-      `…Registry`, and a line with no origin reaches `name`.
+      `origin` unless it was given a name. README and cookbook say so, including
+      the change for anyone who configured `<logger name="lark">`.
+      Done when: a line from `Registry` reaches the logger named `…Registry`, a
+      `Slf4jLogger("app")` still writes to `app`, and a line with no origin
+      reaches `lark`.
 
 ## Acceptance
 
@@ -82,18 +95,12 @@ stderr or for a captured line.
 
 ## Open questions
 
-1. **Does an explicit `Slf4jLogger("app")` still win?** As written, `origin`
-   wins and `name` is only the fallback. A service that configured
-   `<logger name="lark">` loses that config. Option: `name: String? = null`,
-   where null means name by origin and an explicit name pins the old behaviour.
-   Recommend that option.
-2. **Should a top-level function report `RegistryKt` or the file name
-   without the `Kt`?** Recommend `RegistryKt`, the class as the JVM names it,
-   unchanged, so it matches what a stack trace prints.
-3. **Should the adapter also fix `%C`/`%L`?** It can, by logging through
-   `LocationAwareLogger` with `LoggerKt` as the boundary class. That is about
-   ten lines, and it only helps backends that already compute caller data.
-   Recommend leaving it out unless someone asks for it.
-4. **Is the walk fast enough?** Recommend a JMH line in
-   `lark-actor-benchmarks` before entry 1 merges, rather than guessing. If the
-   walk costs too much, fall back to the per-class logger value.
+1. **Should a top-level function report `RegistryKt`, or the file name without
+   the `Kt`?** Recommend `RegistryKt`, the class as the JVM names it, so it
+   matches what a stack trace prints.
+2. **What about Java callers?** Java does not inline Kotlin functions, so a call
+   from Java reports `LoggerKt`. Recommend accepting that: lark's API is
+   Kotlin-first.
+3. **What about a call inside someone's own inline helper?** It reports the
+   class where the helper is used, not where it is defined. Recommend accepting
+   that, because it is usually the class people want.
