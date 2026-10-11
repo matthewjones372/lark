@@ -16,8 +16,8 @@ private class Kennel {
 
     fun eachDog() = listOf("rex").forEach { logInfo("walking $it") }
 
-    fun throughAnObject() = object : Runnable {
-        override fun run() = logInfo("anonymous")
+    fun throughAnObject() = object {
+        fun run() = logInfo("anonymous")
     }.run()
 
     class Gate {
