@@ -11,6 +11,26 @@ import java.io.PrintStream
 import java.time.Instant
 import java.util.Collections
 
+private class Kennel {
+    fun open() = logInfo("open")
+
+    fun eachDog() = listOf("rex").forEach { logInfo("walking $it") }
+
+    fun throughAnObject() = object : Runnable {
+        override fun run() = logInfo("anonymous")
+    }.run()
+
+    class Gate {
+        fun shut() = logInfo("nested")
+    }
+
+    companion object {
+        fun build() = logInfo("companion")
+    }
+}
+
+private fun kennelOpens() = logInfo("top level")
+
 class LoggerTest {
 
     private class Recorded : Logger {
@@ -56,6 +76,46 @@ class LoggerTest {
         clock.locally(fixedClock(at)) { logger.locally(recorded) { logInfo("stamped") } }
 
         recorded.lines.single().at shouldBe at
+    }
+
+    @Test
+    fun `a line names the top-level class it was written from`() {
+        val recorded = Recorded()
+
+        logger.locally(recorded) {
+            Kennel().open()
+            Kennel().eachDog()
+            Kennel().throughAnObject()
+            Kennel.Gate().shut()
+            Kennel.build()
+        }
+
+        recorded.lines.map { it.origin }.toSet() shouldBe setOf(Kennel::class.java.name)
+        recorded.lines shouldHaveSize 5
+    }
+
+    @Test
+    fun `a line from a top-level function names its file class`() {
+        val recorded = Recorded()
+
+        logger.locally(recorded) { kennelOpens() }
+
+        recorded.lines.single().origin shouldBe "io.github.matthewjones372.lark.LoggerTestKt"
+    }
+
+    @Test
+    fun `stderr prints where a line came from`() {
+        val captured = ByteArrayOutputStream()
+        val was = System.err
+
+        try {
+            System.setErr(PrintStream(captured, true))
+            Kennel().open()
+        } finally {
+            System.setErr(was)
+        }
+
+        captured.toString() shouldContain "INFO ${Kennel::class.java.name} open"
     }
 
     @Test
