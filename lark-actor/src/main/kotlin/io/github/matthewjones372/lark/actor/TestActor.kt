@@ -9,9 +9,11 @@ import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.ScheduleStep
 import io.github.matthewjones372.lark.fixedClock
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.random.Random
 import kotlin.time.Duration
 
 /** Runs this behaviour on the calling thread, for a test: no system, no threads, nothing to wait for. */
@@ -22,16 +24,19 @@ fun <M : Any, S, E> Behaviour<M, S, E>.test(
 ): TestActor<M, S, E> = TestActors().spawn(name, this, restart, stash)
 
 /**
- * Several actors stepped by the test itself, each message delivered in the order it was told. A restart waits on
- * [clock], which by default does not wait: each delay is recorded in [TestActor.delays] instead. Events go to
- * [journal] and snapshots to [snapshots], both in memory by default, which the test can read.
+ * Several actors stepped by the test itself, each message delivered in the order it was told unless [order] says
+ * otherwise. A restart waits on [clock], which by default does not wait: each delay is recorded in [TestActor.delays]
+ * instead. Events go to [journal] and snapshots to [snapshots], both in memory by default, which the test can read.
+ * [faults] draw from the order's seed, so they need an [Ordering.Seeded].
  */
 fun <A> testActors(
     clock: Clock = fixedClock(),
     journal: Journal = InMemoryJournal(),
     snapshots: SnapshotStore = InMemorySnapshots(),
+    order: Ordering = Ordering.Told,
+    faults: Faults = Faults(),
     block: TestActors.() -> A,
-): A = TestActors(clock, journal, snapshots).block()
+): A = TestActors(clock, journal, snapshots, order, faults).block()
 
 /**
  * The actors of one test. A tell from the test returns once that message, and every message it caused, has been
@@ -43,14 +48,40 @@ class TestActors internal constructor(
     val journal: Journal = InMemoryJournal(),
     /** Where this test's actors keep their snapshots, for the test to read. */
     val snapshots: SnapshotStore = InMemorySnapshots(),
+    order: Ordering = Ordering.Told,
+    private val faults: Faults = Faults(),
 ) {
-
-    private class Delivery(val to: TestActor<*, *, *>, val item: Any) {
-        fun deliver() = to.receive(item)
+    init {
+        require(!faults.any || order is Ordering.Seeded) {
+            "faults draw from the order's seed: give an Ordering.seeded"
+        }
     }
+
+    private class Delivery(val from: Address?, val to: TestActor<*, *, *>, val item: Any)
 
     private val queue = AtomicReference<List<Delivery>>(emptyList())
     private val draining = AtomicBoolean(false)
+
+    private val picks = when (order) {
+        Ordering.Told -> null
+        is Ordering.Seeded -> Random(order.seed)
+    }
+
+    // The actor whose step is running, which is who a tell made now is from.
+    private val stepping = AtomicReference<TestActor<*, *, *>?>()
+
+    private val steps = AtomicLong()
+
+    // The step past which settle gives up, and the bound it was given, while it runs.
+    private val bound = AtomicReference<Pair<Long, Int>?>()
+
+    private val traced = ConcurrentLinkedQueue<TraceEntry>()
+
+    // An actor that crashed in its own step, which goes down once that step is over.
+    private val crashing = AtomicReference<TestActor<*, *, *>?>()
+
+    /** Every message delivered so far, in order. */
+    val trace: List<TraceEntry> get() = traced.toList()
     private val incarnations = AtomicLong()
 
     // The test's own time, which moves only by [advance], and the timers still to fall due in it, soonest first.
@@ -85,9 +116,38 @@ class TestActors internal constructor(
         generateSequence { timers.get().firstOrNull()?.takeIf { it.at <= until } }.forEach { timer ->
             timers.updateAndGet { it - timer }
             time.set(timer.at)
-            post(timer.to, timer)
+            when (val key = timer.key) {
+                is InFlight -> enqueue(Delivery(key.from, timer.to, timer.message))
+                else -> post(timer.to, timer)
+            }
         }
         time.set(until)
+    }
+
+    /**
+     * Runs every message and timer to idle, moving the test's time on to each timer as it falls due. Fails after
+     * [maxSteps] deliveries, so that a livelock, or a periodic timer nothing cancels, fails rather than hangs.
+     */
+    fun settle(maxSteps: Int = 100_000) {
+        check(!draining.get()) { "settle is for the test, not for a step" }
+        bound.set(steps.get() + maxSteps to maxSteps)
+        try {
+            generateSequence { timers.get().firstOrNull() }.forEach { advance(it.at - time.get()) }
+        } finally {
+            bound.set(null)
+        }
+    }
+
+    /**
+     * Crashes [actor] as its node's death would: the messages waiting for it, its timers, stash and children are lost,
+     * with no `Stopping`, and its next message starts it again from the journal and snapshots.
+     */
+    fun crash(actor: ActorRef<*>) {
+        val crashed = requireNotNull(actor as? TestActor<*, *, *>) { "$actor is not a test actor, so it cannot crash" }
+        check(!crashed.stopped) { "${actor.address.path} has stopped, so it cannot crash" }
+        traced.add(TraceEntry.Crashed(actor.address))
+        queue.updateAndGet { queued -> queued.filterNot { it.to === crashed } }
+        if (stepping.get() === crashed) crashing.set(crashed) else crashed.crash()
     }
 
     /** A timer [delay] from now, waiting for [advance] when that is later, and on the queue now otherwise. */
@@ -131,7 +191,45 @@ class TestActors internal constructor(
     fun awaitIdle() = Unit
 
     internal fun post(to: TestActor<*, *, *>, item: Any) {
-        queue.updateAndGet { it + Delivery(to, item) }
+        val from = stepping.get()?.address
+        val random = picks?.takeIf { faults.any }
+        val message = item !is TestTimer && item !is TestSignalled && item !== TestStarted
+        if (from != null && random != null && message) {
+            faulted(Delivery(from, to, item), from, random)
+        } else {
+            enqueue(Delivery(from, to, item))
+        }
+    }
+
+    private fun faulted(delivery: Delivery, from: Address, random: Random) {
+        val to = delivery.to
+        val roll = random.nextDouble()
+        when {
+            roll < faults.drop -> traced.add(TraceEntry.Dropped(from, to.address, delivery.item))
+
+            roll < faults.drop + faults.duplicate -> {
+                traced.add(TraceEntry.Duplicated(from, to.address, delivery.item))
+                enqueue(delivery)
+                enqueue(Delivery(from, to, delivery.item))
+            }
+
+            roll < faults.drop + faults.duplicate + faults.delay -> {
+                val by = faults.maxDelay * (1.0 - random.nextDouble())
+                traced.add(TraceEntry.Delayed(from, to.address, delivery.item, by))
+                start(TestTimer(time.get() + by, incarnations.incrementAndGet(), to, InFlight(from), delivery.item))
+            }
+
+            roll < faults.drop + faults.duplicate + faults.delay + faults.crash -> {
+                if (!to.stopped) crash(to)
+                traced.add(TraceEntry.Dropped(from, to.address, delivery.item))
+            }
+
+            else -> enqueue(delivery)
+        }
+    }
+
+    private fun enqueue(delivery: Delivery) {
+        queue.updateAndGet { it + delivery }
         if (draining.compareAndSet(false, true)) {
             try {
                 drain()
@@ -142,10 +240,34 @@ class TestActors internal constructor(
     }
 
     private tailrec fun drain() {
-        val next = queue.get().firstOrNull() ?: return
-        queue.updateAndGet { it.drop(1) }
-        next.deliver()
+        val queued = queue.get()
+        if (queued.isEmpty()) return
+        val next = picks?.let { random ->
+            val heads = queued.distinctBy { it.from to it.to }
+            heads[random.nextInt(heads.size)]
+        } ?: queued.first()
+        queue.updateAndGet { it - next }
+        val step = steps.incrementAndGet()
+        bound.get()?.let { (last, max) -> check(step <= last) { "settle ran $max steps without going idle" } }
+        traced(next)
+        stepping.set(next.to)
+        try {
+            next.to.receive(next.item)
+        } finally {
+            stepping.set(null)
+        }
+        crashing.getAndSet(null)?.crash()
         drain()
+    }
+
+    private fun traced(delivery: Delivery) {
+        val message = when (val item = delivery.item) {
+            TestStarted -> return
+            is TestTimer -> item.message
+            is TestSignalled -> item.signal
+            else -> item
+        }
+        traced.add(TraceEntry.Delivered(delivery.from, delivery.to.address, message))
     }
 }
 
@@ -325,6 +447,7 @@ class TestActor<M : Any, S, E> internal constructor(
             return
         }
         try {
+            if (down.getAndSet(false)) started()
             @Suppress("UNCHECKED_CAST")
             when (item) {
                 is TestSignalled -> signalled(item.signal)
@@ -450,6 +573,17 @@ class TestActor<M : Any, S, E> internal constructor(
         if (stopped) ended()
     }
 
+    // Crashed, so that its next message starts it again first.
+    private val down = AtomicBoolean(false)
+
+    internal fun crash() {
+        stopChildren()
+        letGo()
+        starting.set(false)
+        run.updateAndGet { it.copy(state = behaviour.initial) }
+        down.set(true)
+    }
+
     /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */
     private fun letGo() {
         scope.receptionist.forget(this)
@@ -559,6 +693,9 @@ internal class TestTimer(
     val message: Any,
     val every: Duration? = null,
 )
+
+/** The key of a message held back by [Faults.delay], which keeps who told it. */
+private class InFlight(val from: Address)
 
 /** A signal on its way through the test's queue. */
 private class TestSignalled(val signal: Signal)

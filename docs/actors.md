@@ -545,6 +545,22 @@ after it with nothing to wait for.
   delivers every timer that falls due on the way, in order.
 - **The journal is the test's.** `testActors` gives its actors an in-memory
   journal the test can read, and `restart()` replays it.
+- **Other orders, replayed by seed.** `testActors(order = Ordering.seeded(42))`
+  runs queued messages in an order picked from the seed, keeping each sender's
+  messages to one receiver in order, so a race shows up under some seed and
+  that seed replays it. `trace` lists every delivery for a failing test, and
+  `settle()` runs messages and timers to idle, failing after 100,000 steps
+  rather than hanging ([spec 0128](../specs/0128-a-test-runtime-that-can-be-unkind.md)).
+- **Lost, doubled and late messages.** `faults = Faults(drop = 0.1,
+  duplicate = 0.1, delay = 0.1, maxDelay = 2.seconds)` does each to a tell
+  between actors by probability from the same seed, and records it in `trace`.
+  A late message arrives when the test's time reaches it. The test's own tells
+  and timers are never touched.
+- **Crashes.** `crash(actor)` stops an actor as its node's death would: the
+  messages waiting for it, its timers, stash and children are lost, with no
+  `Stopping`, and its next message starts it again from the journal and
+  snapshots. `Faults(crash = 0.05)` does the same on the way to it, losing that
+  message too.
 
 The tests below are run by the build, as well as compiled, so each passes.
 
