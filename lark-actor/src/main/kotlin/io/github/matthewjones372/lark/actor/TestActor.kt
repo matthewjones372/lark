@@ -27,14 +27,16 @@ fun <M : Any, S, E> Behaviour<M, S, E>.test(
  * Several actors stepped by the test itself, each message delivered in the order it was told unless [order] says
  * otherwise. A restart waits on [clock], which by default does not wait: each delay is recorded in [TestActor.delays]
  * instead. Events go to [journal] and snapshots to [snapshots], both in memory by default, which the test can read.
+ * [faults] draw from the order's seed, so they need an [Ordering.Seeded].
  */
 fun <A> testActors(
     clock: Clock = fixedClock(),
     journal: Journal = InMemoryJournal(),
     snapshots: SnapshotStore = InMemorySnapshots(),
     order: Ordering = Ordering.Told,
+    faults: Faults = Faults(),
     block: TestActors.() -> A,
-): A = TestActors(clock, journal, snapshots, order).block()
+): A = TestActors(clock, journal, snapshots, order, faults).block()
 
 /**
  * The actors of one test. A tell from the test returns once that message, and every message it caused, has been
@@ -47,7 +49,13 @@ class TestActors internal constructor(
     /** Where this test's actors keep their snapshots, for the test to read. */
     val snapshots: SnapshotStore = InMemorySnapshots(),
     order: Ordering = Ordering.Told,
+    private val faults: Faults = Faults(),
 ) {
+    init {
+        require(!faults.any || order is Ordering.Seeded) {
+            "faults draw from the order's seed: give an Ordering.seeded"
+        }
+    }
 
     private class Delivery(val from: Address?, val to: TestActor<*, *, *>, val item: Any)
 
@@ -105,7 +113,10 @@ class TestActors internal constructor(
         generateSequence { timers.get().firstOrNull()?.takeIf { it.at <= until } }.forEach { timer ->
             timers.updateAndGet { it - timer }
             time.set(timer.at)
-            post(timer.to, timer)
+            when (val key = timer.key) {
+                is InFlight -> enqueue(Delivery(key.from, timer.to, timer.message))
+                else -> post(timer.to, timer)
+            }
         }
         time.set(until)
     }
@@ -165,7 +176,40 @@ class TestActors internal constructor(
     fun awaitIdle() = Unit
 
     internal fun post(to: TestActor<*, *, *>, item: Any) {
-        queue.updateAndGet { it + Delivery(stepping.get()?.address, to, item) }
+        val from = stepping.get()?.address
+        val random = picks?.takeIf { faults.any }
+        val message = item !is TestTimer && item !is TestSignalled && item !== TestStarted
+        if (from != null && random != null && message) {
+            faulted(Delivery(from, to, item), from, random)
+        } else {
+            enqueue(Delivery(from, to, item))
+        }
+    }
+
+    private fun faulted(delivery: Delivery, from: Address, random: Random) {
+        val to = delivery.to
+        val roll = random.nextDouble()
+        when {
+            roll < faults.drop -> traced.add(TraceEntry.Dropped(from, to.address, delivery.item))
+
+            roll < faults.drop + faults.duplicate -> {
+                traced.add(TraceEntry.Duplicated(from, to.address, delivery.item))
+                enqueue(delivery)
+                enqueue(Delivery(from, to, delivery.item))
+            }
+
+            roll < faults.drop + faults.duplicate + faults.delay -> {
+                val by = faults.maxDelay * (1.0 - random.nextDouble())
+                traced.add(TraceEntry.Delayed(from, to.address, delivery.item, by))
+                start(TestTimer(time.get() + by, incarnations.incrementAndGet(), to, InFlight(from), delivery.item))
+            }
+
+            else -> enqueue(delivery)
+        }
+    }
+
+    private fun enqueue(delivery: Delivery) {
+        queue.updateAndGet { it + delivery }
         if (draining.compareAndSet(false, true)) {
             try {
                 drain()
@@ -616,6 +660,9 @@ internal class TestTimer(
     val message: Any,
     val every: Duration? = null,
 )
+
+/** The key of a message held back by [Faults.delay], which keeps who told it. */
+private class InFlight(val from: Address)
 
 /** A signal on its way through the test's queue. */
 private class TestSignalled(val signal: Signal)

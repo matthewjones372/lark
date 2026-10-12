@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
+import kotlin.time.Duration
+
 /** Which queued message a test runtime delivers next. */
 sealed interface Ordering {
     /** First in, first out: each message in the order it was told. */
@@ -20,4 +22,13 @@ sealed interface Ordering {
 sealed interface TraceEntry {
     /** [message] reached [to]; [from] is the actor whose step told it, or null for the test itself. */
     data class Delivered(val from: Address?, val to: Address, val message: Any) : TraceEntry
+
+    /** [message], told by [from] to [to], was lost. */
+    data class Dropped(val from: Address, val to: Address, val message: Any) : TraceEntry
+
+    /** [message], told by [from] to [to], is to arrive twice. */
+    data class Duplicated(val from: Address, val to: Address, val message: Any) : TraceEntry
+
+    /** [message], told by [from] to [to], is to arrive [by] later in the test's time. */
+    data class Delayed(val from: Address, val to: Address, val message: Any, val by: Duration) : TraceEntry
 }
