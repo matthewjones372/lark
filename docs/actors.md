@@ -545,6 +545,12 @@ after it with nothing to wait for.
   delivers every timer that falls due on the way, in order.
 - **The journal is the test's.** `testActors` gives its actors an in-memory
   journal the test can read, and `restart()` replays it.
+- **Other orders, replayed by seed.** `testActors(order = Ordering.seeded(42))`
+  runs queued messages in an order picked from the seed, keeping each sender's
+  messages to one receiver in order, so a race shows up under some seed and
+  that seed replays it. `trace` lists every delivery for a failing test, and
+  `settle()` runs messages and timers to idle, failing after 100,000 steps
+  rather than hanging ([spec 0128](../specs/0128-a-test-runtime-that-can-be-unkind.md)).
 
 The tests below are run by the build, as well as compiled, so each passes.
 

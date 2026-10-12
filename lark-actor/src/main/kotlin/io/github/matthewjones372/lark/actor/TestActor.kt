@@ -9,9 +9,11 @@ import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.ScheduleStep
 import io.github.matthewjones372.lark.fixedClock
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.random.Random
 import kotlin.time.Duration
 
 /** Runs this behaviour on the calling thread, for a test: no system, no threads, nothing to wait for. */
@@ -22,16 +24,17 @@ fun <M : Any, S, E> Behaviour<M, S, E>.test(
 ): TestActor<M, S, E> = TestActors().spawn(name, this, restart, stash)
 
 /**
- * Several actors stepped by the test itself, each message delivered in the order it was told. A restart waits on
- * [clock], which by default does not wait: each delay is recorded in [TestActor.delays] instead. Events go to
- * [journal] and snapshots to [snapshots], both in memory by default, which the test can read.
+ * Several actors stepped by the test itself, each message delivered in the order it was told unless [order] says
+ * otherwise. A restart waits on [clock], which by default does not wait: each delay is recorded in [TestActor.delays]
+ * instead. Events go to [journal] and snapshots to [snapshots], both in memory by default, which the test can read.
  */
 fun <A> testActors(
     clock: Clock = fixedClock(),
     journal: Journal = InMemoryJournal(),
     snapshots: SnapshotStore = InMemorySnapshots(),
+    order: Ordering = Ordering.Told,
     block: TestActors.() -> A,
-): A = TestActors(clock, journal, snapshots).block()
+): A = TestActors(clock, journal, snapshots, order).block()
 
 /**
  * The actors of one test. A tell from the test returns once that message, and every message it caused, has been
@@ -43,14 +46,31 @@ class TestActors internal constructor(
     val journal: Journal = InMemoryJournal(),
     /** Where this test's actors keep their snapshots, for the test to read. */
     val snapshots: SnapshotStore = InMemorySnapshots(),
+    order: Ordering = Ordering.Told,
 ) {
 
-    private class Delivery(val to: TestActor<*, *, *>, val item: Any) {
-        fun deliver() = to.receive(item)
-    }
+    private class Delivery(val from: Address?, val to: TestActor<*, *, *>, val item: Any)
 
     private val queue = AtomicReference<List<Delivery>>(emptyList())
     private val draining = AtomicBoolean(false)
+
+    private val picks = when (order) {
+        Ordering.Told -> null
+        is Ordering.Seeded -> Random(order.seed)
+    }
+
+    // The actor whose step is running, which is who a tell made now is from.
+    private val stepping = AtomicReference<TestActor<*, *, *>?>()
+
+    private val steps = AtomicLong()
+
+    // The step past which settle gives up, and the bound it was given, while it runs.
+    private val bound = AtomicReference<Pair<Long, Int>?>()
+
+    private val traced = ConcurrentLinkedQueue<TraceEntry>()
+
+    /** Every message delivered so far, in order. */
+    val trace: List<TraceEntry> get() = traced.toList()
     private val incarnations = AtomicLong()
 
     // The test's own time, which moves only by [advance], and the timers still to fall due in it, soonest first.
@@ -88,6 +108,20 @@ class TestActors internal constructor(
             post(timer.to, timer)
         }
         time.set(until)
+    }
+
+    /**
+     * Runs every message and timer to idle, moving the test's time on to each timer as it falls due. Fails after
+     * [maxSteps] deliveries, so that a livelock, or a periodic timer nothing cancels, fails rather than hangs.
+     */
+    fun settle(maxSteps: Int = 100_000) {
+        check(!draining.get()) { "settle is for the test, not for a step" }
+        bound.set(steps.get() + maxSteps to maxSteps)
+        try {
+            generateSequence { timers.get().firstOrNull() }.forEach { advance(it.at - time.get()) }
+        } finally {
+            bound.set(null)
+        }
     }
 
     /** A timer [delay] from now, waiting for [advance] when that is later, and on the queue now otherwise. */
@@ -131,7 +165,7 @@ class TestActors internal constructor(
     fun awaitIdle() = Unit
 
     internal fun post(to: TestActor<*, *, *>, item: Any) {
-        queue.updateAndGet { it + Delivery(to, item) }
+        queue.updateAndGet { it + Delivery(stepping.get()?.address, to, item) }
         if (draining.compareAndSet(false, true)) {
             try {
                 drain()
@@ -142,10 +176,33 @@ class TestActors internal constructor(
     }
 
     private tailrec fun drain() {
-        val next = queue.get().firstOrNull() ?: return
-        queue.updateAndGet { it.drop(1) }
-        next.deliver()
+        val queued = queue.get()
+        if (queued.isEmpty()) return
+        val next = picks?.let { random ->
+            val heads = queued.distinctBy { it.from to it.to }
+            heads[random.nextInt(heads.size)]
+        } ?: queued.first()
+        queue.updateAndGet { it - next }
+        val step = steps.incrementAndGet()
+        bound.get()?.let { (last, max) -> check(step <= last) { "settle ran $max steps without going idle" } }
+        traced(next)
+        stepping.set(next.to)
+        try {
+            next.to.receive(next.item)
+        } finally {
+            stepping.set(null)
+        }
         drain()
+    }
+
+    private fun traced(delivery: Delivery) {
+        val message = when (val item = delivery.item) {
+            TestStarted -> return
+            is TestTimer -> item.message
+            is TestSignalled -> item.signal
+            else -> item
+        }
+        traced.add(TraceEntry.Delivered(delivery.from, delivery.to.address, message))
     }
 }
 
