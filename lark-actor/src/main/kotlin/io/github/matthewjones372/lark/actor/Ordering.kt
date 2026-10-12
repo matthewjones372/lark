@@ -31,4 +31,7 @@ sealed interface TraceEntry {
 
     /** [message], told by [from] to [to], is to arrive [by] later in the test's time. */
     data class Delayed(val from: Address, val to: Address, val message: Any, val by: Duration) : TraceEntry
+
+    /** [actor] crashed: its mailbox and timers are gone, and its next message recovers it from the journal. */
+    data class Crashed(val actor: Address) : TraceEntry
 }

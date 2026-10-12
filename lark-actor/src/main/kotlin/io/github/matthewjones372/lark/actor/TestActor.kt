@@ -77,6 +77,9 @@ class TestActors internal constructor(
 
     private val traced = ConcurrentLinkedQueue<TraceEntry>()
 
+    // An actor that crashed in its own step, which goes down once that step is over.
+    private val crashing = AtomicReference<TestActor<*, *, *>?>()
+
     /** Every message delivered so far, in order. */
     val trace: List<TraceEntry> get() = traced.toList()
     private val incarnations = AtomicLong()
@@ -133,6 +136,18 @@ class TestActors internal constructor(
         } finally {
             bound.set(null)
         }
+    }
+
+    /**
+     * Crashes [actor] as its node's death would: the messages waiting for it, its timers, stash and children are lost,
+     * with no `Stopping`, and its next message starts it again from the journal and snapshots.
+     */
+    fun crash(actor: ActorRef<*>) {
+        val crashed = requireNotNull(actor as? TestActor<*, *, *>) { "$actor is not a test actor, so it cannot crash" }
+        check(!crashed.stopped) { "${actor.address.path} has stopped, so it cannot crash" }
+        traced.add(TraceEntry.Crashed(actor.address))
+        queue.updateAndGet { queued -> queued.filterNot { it.to === crashed } }
+        if (stepping.get() === crashed) crashing.set(crashed) else crashed.crash()
     }
 
     /** A timer [delay] from now, waiting for [advance] when that is later, and on the queue now otherwise. */
@@ -204,6 +219,11 @@ class TestActors internal constructor(
                 start(TestTimer(time.get() + by, incarnations.incrementAndGet(), to, InFlight(from), delivery.item))
             }
 
+            roll < faults.drop + faults.duplicate + faults.delay + faults.crash -> {
+                if (!to.stopped) crash(to)
+                traced.add(TraceEntry.Dropped(from, to.address, delivery.item))
+            }
+
             else -> enqueue(delivery)
         }
     }
@@ -236,6 +256,7 @@ class TestActors internal constructor(
         } finally {
             stepping.set(null)
         }
+        crashing.getAndSet(null)?.crash()
         drain()
     }
 
@@ -426,6 +447,7 @@ class TestActor<M : Any, S, E> internal constructor(
             return
         }
         try {
+            if (down.getAndSet(false)) started()
             @Suppress("UNCHECKED_CAST")
             when (item) {
                 is TestSignalled -> signalled(item.signal)
@@ -549,6 +571,17 @@ class TestActor<M : Any, S, E> internal constructor(
         run.updateAndGet { it.copy(state = behaviour.initial) }
         started()
         if (stopped) ended()
+    }
+
+    // Crashed, so that its next message starts it again first.
+    private val down = AtomicBoolean(false)
+
+    internal fun crash() {
+        stopChildren()
+        letGo()
+        starting.set(false)
+        run.updateAndGet { it.copy(state = behaviour.initial) }
+        down.set(true)
     }
 
     /** Cancels every timer and drops the stash: nothing of either outlives a restart or a stop. */

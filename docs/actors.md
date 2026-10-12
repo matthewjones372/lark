@@ -556,6 +556,11 @@ after it with nothing to wait for.
   between actors by probability from the same seed, and records it in `trace`.
   A late message arrives when the test's time reaches it. The test's own tells
   and timers are never touched.
+- **Crashes.** `crash(actor)` stops an actor as its node's death would: the
+  messages waiting for it, its timers, stash and children are lost, with no
+  `Stopping`, and its next message starts it again from the journal and
+  snapshots. `Faults(crash = 0.05)` does the same on the way to it, losing that
+  message too.
 
 The tests below are run by the build, as well as compiled, so each passes.
 
