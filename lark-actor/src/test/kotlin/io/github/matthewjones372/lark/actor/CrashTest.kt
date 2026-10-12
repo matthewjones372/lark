@@ -5,13 +5,15 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 
 private sealed interface Drawer
 
-/** Puts [pence] in, and then the [then] more it was told to, as a second message to itself. */
+/** Puts [pence] in, and then the [then] more it was told to, as a second message to itself, after [lodged]. */
 private data class Lodge(val pence: Int, val then: Int = 0) : Drawer
 
 private data class Balance(val reply: Reply<Int>) : Drawer
@@ -22,13 +24,19 @@ private val coins = object : EventCodec<Int> {
     override fun decode(bytes: ByteArray): Int = String(bytes).toInt()
 }
 
-private fun drawer() = persistent<Drawer, Int, Int>(
+private fun drawer(lodged: () -> Unit = {}) = persistent<Drawer, Int, Int>(
     id = PersistenceId("till", "1"),
     empty = 0,
     codec = coins,
     command = { ctx, _, command ->
         when (command) {
-            is Lodge -> persist(command.pence).then { if (command.then > 0) ctx.self.tell(Lodge(command.then)) }
+            is Lodge -> persist(command.pence).then {
+                if (command.then > 0) {
+                    ctx.self.tell(Lodge(command.then))
+                    lodged()
+                }
+            }
+
             is Balance -> none().then { command.reply(it) }
         }
     },
@@ -43,12 +51,13 @@ private fun courier(to: ActorRef<Drawer>): Behaviour<Int, Unit, Nothing> = behav
 class CrashTest {
     @Test
     fun `an actor crashed between two persists recovers the first and nothing more`() {
-        testActors(order = Ordering.seeded(1), faults = Faults(crash = 1.0)) {
-            val till = spawn("till", drawer())
+        testActors {
+            val crashing = AtomicReference<ActorRef<Drawer>>()
+            val till = spawn("till", drawer { crash(crashing.get()) }).also(crashing::set)
             till.tell(Lodge(10, then = 5))
             withClue(trace) { till.ask { Balance(it) } shouldBe 10.right() }
             trace shouldContain TraceEntry.Crashed(till.address)
-            trace shouldContain TraceEntry.Dropped(till.address, till.address, Lodge(5))
+            trace.filterIsInstance<TraceEntry.Delivered>().map { it.message } shouldNotContain Lodge(5)
         }
     }
 

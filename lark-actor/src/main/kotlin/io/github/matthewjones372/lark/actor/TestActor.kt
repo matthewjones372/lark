@@ -191,13 +191,27 @@ class TestActors internal constructor(
     fun awaitIdle() = Unit
 
     internal fun post(to: TestActor<*, *, *>, item: Any) {
-        val from = stepping.get()?.address
+        // A tell to itself never leaves the actor's node, so no fault reaches it.
+        val between = stepping.get()?.takeIf { it !== to }?.address
         val random = picks?.takeIf { faults.any }
         val message = item !is TestTimer && item !is TestSignalled && item !== TestStarted
-        if (from != null && random != null && message) {
-            faulted(Delivery(from, to, item), from, random)
+        if (between != null && random != null && message) {
+            faulted(Delivery(between, to, item), between, random)
         } else {
-            enqueue(Delivery(from, to, item))
+            enqueue(Delivery(stepping.get()?.address, to, item))
+        }
+    }
+
+    // The latest a message on each sender's way to each receiver is held back to: what follows it waits behind it.
+    private val held = AtomicReference<Map<Pair<Address, TestActor<*, *, *>>, Duration>>(emptyMap())
+
+    /** [delivery] now, or behind a message held back on the same way, so one sender's messages keep their order. */
+    private fun deliver(delivery: Delivery, from: Address) {
+        val until = held.get()[from to delivery.to]?.takeIf { it >= time.get() }
+        if (until == null) {
+            enqueue(delivery)
+        } else {
+            start(TestTimer(until, incarnations.incrementAndGet(), delivery.to, InFlight(from), delivery.item))
         }
     }
 
@@ -209,14 +223,16 @@ class TestActors internal constructor(
 
             roll < faults.drop + faults.duplicate -> {
                 traced.add(TraceEntry.Duplicated(from, to.address, delivery.item))
-                enqueue(delivery)
-                enqueue(Delivery(from, to, delivery.item))
+                deliver(delivery, from)
+                deliver(Delivery(from, to, delivery.item), from)
             }
 
             roll < faults.drop + faults.duplicate + faults.delay -> {
                 val by = faults.maxDelay * (1.0 - random.nextDouble())
                 traced.add(TraceEntry.Delayed(from, to.address, delivery.item, by))
-                start(TestTimer(time.get() + by, incarnations.incrementAndGet(), to, InFlight(from), delivery.item))
+                val at = maxOf(time.get() + by, held.get()[from to to] ?: Duration.ZERO)
+                held.updateAndGet { it + ((from to to) to at) }
+                start(TestTimer(at, incarnations.incrementAndGet(), to, InFlight(from), delivery.item))
             }
 
             roll < faults.drop + faults.duplicate + faults.delay + faults.crash -> {
@@ -224,7 +240,7 @@ class TestActors internal constructor(
                 traced.add(TraceEntry.Dropped(from, to.address, delivery.item))
             }
 
-            else -> enqueue(delivery)
+            else -> deliver(delivery, from)
         }
     }
 

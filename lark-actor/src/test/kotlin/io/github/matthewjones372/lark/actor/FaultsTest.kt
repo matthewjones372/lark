@@ -95,6 +95,39 @@ class FaultsTest {
     }
 
     @Test
+    fun `an actor's tells to itself are never lost, as they never leave its node`() {
+        testActors(order = Ordering.seeded(1), faults = Faults(drop = 1.0)) {
+            val counter = spawn(
+                "counter",
+                behaviour<Int, Int>(0) { ctx, seen, left ->
+                    if (left > 0) ctx.self.tell(left - 1)
+                    become(seen + 1)
+                },
+            )
+            counter.tell(5)
+            counter.state shouldBe 6
+        }
+    }
+
+    @Test
+    fun `a delayed message holds back what its sender tells the same receiver after it, as one connection would`() {
+        (1L..50L).forEach { seed ->
+            testActors(order = Ordering.seeded(seed), faults = Faults(delay = 0.5, maxDelay = 2.seconds)) {
+                val log = spawn("log", heard())
+                spawn(
+                    "burst",
+                    behaviour<String, Unit>(Unit) { _, _, _ ->
+                        listOf("1", "2", "3").forEach(log::tell)
+                        stay()
+                    },
+                ).tell("go")
+                settle()
+                withClue("seed $seed: $trace") { log.state shouldContainExactly listOf("1", "2", "3") }
+            }
+        }
+    }
+
+    @Test
     fun `a tell from the test itself is never lost`() {
         testActors(order = Ordering.seeded(1), faults = Faults(drop = 1.0)) {
             val log = spawn("log", heard())

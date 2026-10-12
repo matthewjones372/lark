@@ -6,7 +6,8 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * What a test runtime does to a message one actor tells another, each by probability from the order's seed: lose it,
  * deliver it twice, deliver it up to [maxDelay] later in the test's time, or [crash] the actor it was for, which loses
- * it too. A tell from the test itself is never touched, and nor are timers.
+ * it too. A delayed message holds back what its sender tells the same receiver after it, as one connection would. A
+ * tell from the test, or from an actor to itself, is never touched, and nor are timers.
  */
 data class Faults(
     val drop: Double = 0.0,
