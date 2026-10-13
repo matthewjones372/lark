@@ -54,7 +54,7 @@ Three ways to close the window, recommended first:
 
 ## Stack
 
-- [ ] **`spec-0129-ready`**: the `ready` flag in member gossip, the leader's rule, `Ready`, `admit()`.
+- [ ] **`spec-0129-ready`**: the gossip's `admitted` set, the leader's rule, `Ready`, `admit()`.
       Done when: a member made with `Ready.WhenTold` stays `Joining` in every view until `admit()`, then is `Up`,
       the one that forms the cluster included; a member made with `Ready.AtOnce` is `Up` as today.
 - [ ] **`spec-0129-app`**: `Wiring.onStarted` and `Asked.WhenStarted` in lark-app; its cluster `Ready.WhenTold`,
