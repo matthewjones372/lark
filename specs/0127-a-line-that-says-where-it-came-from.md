@@ -81,7 +81,7 @@ callers until they recompile.
 - [ ] **`spec-0127-library-origins`** — the five direct `LogLine(...)` sites
       pass their own class.
       Done when: each site's existing test asserts its `origin`.
-- [ ] **`spec-0127-slf4j-by-origin`** — `Slf4jLogger` names its SLF4J logger by
+- [x] **`spec-0127-slf4j-by-origin`** — `Slf4jLogger` names its SLF4J logger by
       `origin` unless it was given a name. README and cookbook say so, including
       the change for anyone who configured `<logger name="lark">`.
       Done when: a line from `Registry` reaches the logger named `…Registry`, a

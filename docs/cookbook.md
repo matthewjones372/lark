@@ -683,9 +683,9 @@ registered:
 <!-- cookbook -->
 ```kotlin
 class Slf4jLogger : Logger {
-    private val log = LoggerFactory.getLogger("app")
-
     override fun log(line: LogLine) {
+        // origin is the class that wrote the line, so a backend can set a level per package
+        val log = LoggerFactory.getLogger(line.origin ?: "app")
         val annotated = line.annotations.entries.joinToString(" ") { (key, value) -> "$key=$value" }
         val message = if (annotated.isEmpty()) line.message else "${line.message} $annotated"
         when (line.level) {
