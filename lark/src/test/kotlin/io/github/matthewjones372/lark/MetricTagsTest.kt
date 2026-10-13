@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark
 
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
@@ -69,8 +70,11 @@ class MetricTagsTest {
 
         answered shouldBe "Nibbles"
         took.size shouldBe 1
-        withClue("milliseconds, and the block slept for five of them") {
-            took.single() shouldBeGreaterThanOrEqual 5.0
+        withClue("seconds, which is the unit a backend assumes; the block slept for five ms of them") {
+            took.single() shouldBeGreaterThanOrEqual 0.005
+        }
+        withClue("a sleep of five milliseconds recorded as five would be a thousand-fold lie") {
+            took.single() shouldBeLessThan 1.0
         }
     }
 }

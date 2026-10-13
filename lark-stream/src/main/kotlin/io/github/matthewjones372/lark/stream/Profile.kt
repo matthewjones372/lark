@@ -82,9 +82,9 @@ class Profiler(private val also: Metrics = NoMetrics) : Metrics {
             steps.associateWith { step ->
                 StageProfile(
                     elements = of(ELEMENTS, step)?.sum?.sum()?.toLong() ?: 0,
-                    busyMillis = of(BUSY, step)?.mean(),
-                    waitingMillis = of(WAITING, step)?.mean(),
-                    busySampledMillis = of(BUSY, step)?.sum?.sum() ?: 0.0,
+                    busyMillis = of(BUSY, step)?.mean()?.times(MILLIS_PER_SECOND),
+                    waitingMillis = of(WAITING, step)?.mean()?.times(MILLIS_PER_SECOND),
+                    busySampledMillis = (of(BUSY, step)?.sum?.sum() ?: 0.0) * MILLIS_PER_SECOND,
                 )
             },
         )
@@ -94,5 +94,8 @@ class Profiler(private val also: Metrics = NoMetrics) : Metrics {
         const val ELEMENTS = "lark.stream.elements"
         const val BUSY = "lark.stream.busy"
         const val WAITING = "lark.stream.waiting"
+
+        // A stage records its times in seconds; a profile reads them in milliseconds.
+        const val MILLIS_PER_SECOND = 1_000.0
     }
 }
