@@ -1,11 +1,13 @@
 package io.github.matthewjones372.lark.app
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.seconds
 
 private class Hub
@@ -45,5 +47,28 @@ class StartedTest {
 
         error.shouldBeInstanceOf<StartupError.Unready>().name shouldBe "hub"
         built.toList() shouldContainExactly listOf("spoke")
+    }
+
+    @Test
+    fun `a started hook that throws fails the start as its node's refusal, and one that refuses keeps its reason`() {
+        val thrown = single<Hub> { onStarted { error("no broker") }; Hub() }.use { _: Hub -> }.leftOrNull()
+
+        val refused = thrown.shouldBeInstanceOf<StartupError.Refused>()
+        refused.key shouldBe typeOf<Hub>()
+        refused.reason shouldBe "its onStarted threw IllegalStateException: no broker"
+
+        val declined = single<Hub> { onStarted { refuse("not today") }; Hub() }.use { _: Hub -> }.leftOrNull()
+
+        declined shouldBe StartupError.Refused(typeOf<Hub>(), "not today")
+    }
+
+    @Test
+    fun `a started hook asked for once the graph has started throws, rather than never running`() {
+        var wiring: Wiring? = null
+        val module = single<Hub> { wiring = this; Hub() }
+
+        module.use { _: Hub ->
+            shouldThrow<IllegalStateException> { wiring.shouldNotBeNull().onStarted { } }
+        }.getOrNull().shouldNotBeNull()
     }
 }
