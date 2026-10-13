@@ -5,6 +5,7 @@ import com.typesafe.config.ConfigException
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.app.Asked
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.actor.Actors
 import io.github.matthewjones372.lark.app.actor.spawn
@@ -18,6 +19,7 @@ import io.github.matthewjones372.lark.cluster.JoinOptions
 import io.github.matthewjones372.lark.cluster.Joining
 import io.github.matthewjones372.lark.cluster.Joins
 import io.github.matthewjones372.lark.cluster.MemberEvent
+import io.github.matthewjones372.lark.cluster.Ready
 import io.github.matthewjones372.lark.cluster.cluster
 import io.github.matthewjones372.lark.logError
 import io.github.matthewjones372.lark.logInfo
@@ -60,6 +62,8 @@ fun cluster(settings: ClusterSettings): Module = single<ClusterSettings> { setti
 /**
  * Joins in the actors' flock, and is ready once this node is fully in. The joining closes after the cluster has
  * left: flock close hooks run last registered first, and the joining's is registered before the cluster's leave.
+ * The node stays `Joining` until every node of the graph is built, so no shard is placed on it before its regions
+ * are open (spec 0129), and only then is it asked whether it is in.
  */
 internal fun clustered(exit: () -> Unit): Module =
     single { actors: Actors, settings: ClusterSettings ->
@@ -77,14 +81,22 @@ internal fun clustered(exit: () -> Unit): Module =
                 joining.downing,
                 settings.leaveWithin,
                 settings.roles,
+                Ready.WhenTold,
             )
         }
+        onStarted(cluster::admit)
         cluster.subscribe(spawn(actors, "lark-cluster-log", logged(cluster)))
         if (settings.whenDowned == WhenDowned.Exit) {
             cluster.subscribe(spawn(actors, "lark-cluster-downed", exitWhenDowned(cluster, exit)))
         }
         cluster
-    }.probe("cluster", timeout = 2.seconds, attempts = READY_ATTEMPTS, interval = 1.seconds) { cluster: Cluster ->
+    }.probe(
+        "cluster",
+        timeout = 2.seconds,
+        attempts = READY_ATTEMPTS,
+        interval = 1.seconds,
+        asked = Asked.WhenStarted,
+    ) { cluster: Cluster ->
         cluster.ready()
     }
 

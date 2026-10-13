@@ -66,7 +66,8 @@ internal data class Gossip(
 
     /**
      * A hash of [members] and [moves] that is the same on every JVM, as an enum's own hash is not. It leaves out the
-     * load, which changes too often to agree on, and adds nothing for a kind with no moves.
+     * load, which changes too often to agree on, and adds nothing for a kind with no moves. It leaves out [admitted]
+     * too: only the leader reads it, the whole gossip rides every probe, and a member it lets in changes [members].
      */
     fun hash(): Long = CRC32().apply {
         val moved = moves.flatMap { (kind, m) -> m.to.map { (shard, to) -> "$kind/$shard>${to.node}#${to.uid};" } }

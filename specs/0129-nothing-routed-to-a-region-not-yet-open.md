@@ -33,7 +33,11 @@ cluster.admit()                                                              // 
 - The leader moves a `Joining` member to `Up` only once it is in the gossip's `admitted`: the lives that have said
   they are ready, a set that only grows, as a life is never unready again. The codec writes it in place, as spec 0083
   decided for every change to the gossip: nodes of different Lark versions are not promised to join.
-- lark-app passes `Ready.WhenTold` and calls `admit()` once the graph is wired, before its own readiness probe.
+- lark-app passes `Ready.WhenTold` and admits once every node is built. A probe is asked as soon as its node is
+  built, so the cluster's (`Up`) would wait for an `admit()` that comes only after the regions that need the
+  cluster. lark-app gains two things for it: `Wiring.onStarted { }`, run once every node is built, in the graph's
+  order, and a probe that is `asked = Asked.WhenStarted`, after those. The cluster admits in `onStarted`, and its
+  probe, still `ready()`, is asked when started, so `/ready` keeps meaning `Up`.
 - Placement already counts only `Up` members for shards, spread workers and singletons (`Placement.owner`, `spread`,
   `oldest`), so a `Joining` member is given nothing until it is admitted.
 
@@ -50,10 +54,11 @@ Three ways to close the window, recommended first:
 
 ## Stack
 
-- [ ] **`spec-0129-ready`**: the `ready` flag in member gossip, the leader's rule, `Ready`, `admit()`.
+- [ ] **`spec-0129-ready`**: the gossip's `admitted` set, the leader's rule, `Ready`, `admit()`.
       Done when: a member made with `Ready.WhenTold` stays `Joining` in every view until `admit()`, then is `Up`,
       the one that forms the cluster included; a member made with `Ready.AtOnce` is `Up` as today.
-- [ ] **`spec-0129-app`**: lark-app makes its cluster `Ready.WhenTold` and admits it once the graph is wired.
+- [ ] **`spec-0129-app`**: `Wiring.onStarted` and `Asked.WhenStarted` in lark-app; its cluster `Ready.WhenTold`,
+      admitted in `onStarted`, with its probe asked when started.
       Done when: a test with a sharded kind, telling an entity on a node the moment a third joins, has no
       `NoSuchActor` dead letter for that kind's region.
 

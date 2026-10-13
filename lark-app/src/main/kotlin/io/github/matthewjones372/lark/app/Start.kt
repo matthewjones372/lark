@@ -44,6 +44,9 @@ interface Wiring : ResourceScope {
 
     /** Ends the start, naming this node and [reason]. */
     fun refuse(reason: String): Nothing
+
+    /** Runs [started] once every node is built, in the graph's order, before any `WhenStarted` probe (spec 0129). */
+    fun onStarted(started: () -> Unit)
 }
 
 /** Starts the graph, hands [block] the node it asks for, and gives everything back on the way out. */
@@ -65,7 +68,13 @@ internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError
         // One release on lark's scope, installed before anything is acquired: it decides the ExitCase,
         // and the order below is this graph's rather than whichever fork happened to finish first.
         onRelease { exit -> releases.release(order, exit) }
-        val built = build(this@use, plan, releases, health)
+        val starts = Starts()
+        val built = build(this@use, plan, releases, starts, health)
+        starts.run(order)
+        probes.filter { it.asked == Asked.WhenStarted }.forEach { probe ->
+            val answer = answers(probe, built.getValue(probe.key))
+            if (answer is Answer.No) raise(StartupError.Unready(probe.key, probe.name, answer.cause))
+        }
         health.running()
         block(built.getValue(root))
     }
@@ -75,13 +84,14 @@ private fun Raise<StartupError>.build(
     module: Module,
     plan: Plan,
     releases: Releases,
+    starts: Starts,
     health: HealthRegistry,
 ): Map<KType, Any> =
     plan.layers.fold(mapOf<KType, Any>(typeOf<HealthRegistry>() to health)) { built, layer ->
         built + parMap(layer) { key ->
             val node = module.nodes.getValue(key)
-            val value = node.build(NodeWiring(key, releases, this), node.dependencies.map(built::getValue))
-            module.probes.filter { it.key == key }.forEach { probe ->
+            val value = node.build(NodeWiring(key, releases, starts, this), node.dependencies.map(built::getValue))
+            module.probes.filter { it.key == key && it.asked == Asked.WhenBuilt }.forEach { probe ->
                 val answer = answers(probe, value)
                 if (answer is Answer.No) raise(StartupError.Unready(key, probe.name, answer.cause))
             }
@@ -107,10 +117,13 @@ private fun answers(probe: Probe, value: Any): Answer {
 private class NodeWiring(
     private val key: KType,
     private val releases: Releases,
+    private val starts: Starts,
     private val raise: Raise<StartupError>,
 ) : Wiring {
 
     override fun onRelease(release: (ExitCase) -> Unit) = releases.add(key, release)
+
+    override fun onStarted(started: () -> Unit) = starts.add(key, started)
 
     override fun refuse(reason: String): Nothing = raise.raise(StartupError.Refused(key, reason))
 }
@@ -137,6 +150,19 @@ private class Releases {
             throw first
         }
     }
+}
+
+/** What each node asked to run once the graph is built, kept by node so they run in the graph's order. */
+private class Starts {
+
+    private val lock = ReentrantLock()
+    private val byKey = mutableMapOf<KType, MutableList<() -> Unit>>()
+
+    fun add(key: KType, started: () -> Unit) {
+        lock.withLock { byKey.getOrPut(key) { mutableListOf() }.add(started) }
+    }
+
+    fun run(order: List<KType>) = lock.withLock { order.flatMap { byKey[it].orEmpty() } }.forEach { it() }
 }
 
 /** What a release threw, if anything. Every release runs whatever one before it threw, so none is let off. */

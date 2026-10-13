@@ -5,6 +5,14 @@ import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 import kotlin.time.Duration
 
+/** When a probe is first asked on the way up: once its node is built, or once every node is (spec 0129). */
+enum class Asked {
+    WhenBuilt,
+
+    /** After every node is built and every `onStarted` has run, for an answer that waits on the rest of the graph. */
+    WhenStarted,
+}
+
 /** A question a node answers about itself, and the name the answer is reported under. */
 class Probe internal constructor(
     val name: String,
@@ -13,6 +21,7 @@ class Probe internal constructor(
     val critical: Boolean,
     val attempts: Int,
     val interval: Duration,
+    val asked: Asked,
     internal val ask: (Any) -> Boolean,
 )
 
@@ -26,8 +35,9 @@ inline fun <reified A : Any> Module.probe(
     critical: Boolean = true,
     attempts: Int = 1,
     interval: Duration = Duration.ZERO,
+    asked: Asked = Asked.WhenBuilt,
     noinline ask: (A) -> Boolean,
-): Module = probed(name, typeOf<A>(), timeout, critical, attempts, interval) { ask(it as A) }
+): Module = probed(name, typeOf<A>(), timeout, critical, attempts, interval, asked) { ask(it as A) }
 
 /** What asking a probe came to: yes, or no with whatever it threw instead of answering. */
 internal sealed interface Answer {
@@ -59,5 +69,6 @@ internal fun Module.probed(
     critical: Boolean,
     attempts: Int,
     interval: Duration,
+    asked: Asked,
     ask: (Any) -> Boolean,
-): Module = Module.of(nodes, probes + Probe(name, key, timeout, critical, attempts, interval, ask), shadows)
+): Module = Module.of(nodes, probes + Probe(name, key, timeout, critical, attempts, interval, asked, ask), shadows)
