@@ -35,6 +35,9 @@ class MeasuredTest {
 
         // Well above a loaded runner's scheduling noise, or the stage is not the slow one it is named for.
         private const val SLOW_MILLIS = 25L
+
+        // What a stage records a duration in: seconds, as `timed` does.
+        private const val SLOW_SECONDS = SLOW_MILLIS / 1_000.0
         private const val SETTLE_SECONDS = 10L
     }
 
@@ -92,7 +95,7 @@ class MeasuredTest {
                 exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.size shouldBe 10
                 withClue("the map that sleeps is step 2, and it is where the time went") {
                     recorded.busiest() shouldBe "2:map"
-                    recorded.mean("busy", "2:map") shouldBeGreaterThan SLOW_MILLIS * 0.9
+                    recorded.mean("busy", "2:map") shouldBeGreaterThan SLOW_SECONDS * 0.9
                 }
                 withClue("a stage with no body of its own to time reports no busy, not an empty series") {
                     recorded.stages("busy") shouldBe setOf("1:map", "2:map", "3:filter")
@@ -133,7 +136,7 @@ class MeasuredTest {
                 val upstream = listOf("0:Stream.from", "2:map").map { recorded.mean("waiting", it) }
                 val atAndAfter = listOf("3:mapConcat", "4:drop").map { recorded.mean("waiting", it) }
                 withClue("waiting upstream $upstream, at and after the slow stage $atAndAfter") {
-                    upstream.min() shouldBeGreaterThan SLOW_MILLIS * 0.9
+                    upstream.min() shouldBeGreaterThan SLOW_SECONDS * 0.9
                     upstream.min() shouldBeGreaterThan atAndAfter.max() * 10
                 }
             }

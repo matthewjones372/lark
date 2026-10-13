@@ -760,11 +760,16 @@ class Adopting(private val pets: MutableList<String>) {
 ```
 
 `timed` records how long the block took, in seconds, and answers what the block
-answered. Seconds because that is what a backend assumes a duration is — name
-the metric for it and Prometheus, Grafana and every dashboard ever written agree
-about the axis without being told. It records in a `finally`, so a call that
-failed slowly is still counted; leaving it out makes the numbers say the
-opposite of what happened.
+answered. Seconds because that is what a backend assumes a duration is: name
+the metric for it and Prometheus, Grafana and every dashboard agree about the
+axis without being told. It records in a `finally`, so a call that failed slowly
+is still counted; leaving it out makes the numbers say the opposite of what
+happened.
+
+Up to 0.9.2, `timed`, `lark.ratelimiter.wait`, `lark.stream.busy` and
+`lark.stream.waiting` recorded milliseconds. A dashboard or alert carried over
+from then reads a thousand times too high until its unit, and the metric's name
+if it says `ms`, changes with it.
 
 ## Say which series a number belongs to
 
@@ -940,7 +945,7 @@ tokens go back.
 
 `lark.ratelimiter.calls` counts calls per limiter `name` by `outcome`:
 `immediate`, `waited` or `rejected`. `lark.ratelimiter.wait` records how long
-each admitted call waited, in milliseconds.
+each admitted call waited, in seconds, as `timed` does.
 
 ## Run migrations as a step
 

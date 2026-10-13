@@ -151,7 +151,7 @@ class RateLimiterTest {
             capturingMetrics { measured ->
                 limiter.reserve(cost = 1, maxWait = 1.seconds).waits() shouldBe 100.milliseconds
                 measured.tags("lark.ratelimiter.calls") shouldBe mapOf("name" to "partner", "outcome" to "waited")
-                measured.histogram("lark.ratelimiter.wait") shouldContainExactly listOf(100.0)
+                measured.histogram("lark.ratelimiter.wait") shouldContainExactly listOf(0.1)
                 measured.tags("lark.ratelimiter.wait") shouldBe mapOf("name" to "partner")
             }
 

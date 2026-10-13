@@ -129,8 +129,8 @@ fun <A> metricTagged(vararg pairs: Pair<String, String>, block: () -> A): A =
  * Runs [block] and records how long it took, in seconds, under [name].
  *
  * Seconds rather than milliseconds because that is what a backend assumes a duration is: name the
- * metric for it — `petshop.adopt.duration.seconds` — and Prometheus, Grafana and every dashboard
- * that has ever been written agree about the axis without being told.
+ * metric for it, as in `petshop.adopt.duration.seconds`, and Prometheus, Grafana and every dashboard
+ * agree about the axis without being told. Up to 0.9.2 it recorded milliseconds.
  *
  * The duration is recorded whether the block returns or throws: a call that fails slowly is the one
  * worth seeing, and leaving it out makes the numbers say the opposite.

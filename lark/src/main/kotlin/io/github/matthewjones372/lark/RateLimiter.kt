@@ -45,7 +45,7 @@ class RateLimiter(
         val outcome = when (reservation) {
             is Reservation.Granted -> {
                 histogram("lark.ratelimiter.wait", "name" to name)
-                    .record(reservation.wait.toDouble(DurationUnit.MILLISECONDS))
+                    .record(reservation.wait.toDouble(DurationUnit.SECONDS))
                 if (reservation.wait > ZERO) "waited" else "immediate"
             }
 

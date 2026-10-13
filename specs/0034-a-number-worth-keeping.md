@@ -105,6 +105,6 @@ fork takes underneath it, which a `ThreadLocal` cannot do.
 3. ~~**What does `timed` record?**~~ Answered by building a dashboard on it:
    seconds. Milliseconds shipped first, and every panel then had to be told its
    unit by hand while Prometheus named the series as though it were seconds
-   anyway. A `Timer` is still not needed — the unit was the whole of it.
+   anyway. A `Timer` is still not needed: the unit was the whole of it.
 4. **Should an unbounded tag be refused?** It cannot be known from one call.
    Recommend documenting the rule and not policing it.

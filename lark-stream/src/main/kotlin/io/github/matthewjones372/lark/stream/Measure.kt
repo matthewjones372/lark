@@ -6,8 +6,8 @@ import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.increment
 import java.util.concurrent.atomic.AtomicLong
 
-// A duration is recorded in milliseconds, the unit lark's own timers use and a dashboard is read in.
-private const val NANOS_PER_MILLI = 1_000_000.0
+// A duration is recorded in seconds, as lark's `timed` records it and a backend assumes a duration is.
+private const val NANOS_PER_SECOND = 1_000_000_000.0
 
 /** What a stage of a pipeline sampled one element in 64 of, by default: a clock read costs about what fusing saves. */
 private const val SAMPLE_EVERY = 64
@@ -83,7 +83,7 @@ class Probe internal constructor(
         /** Downstream asked for the next element: a wait that was started ends here. */
         fun asked() {
             val started = since.getAndSet(NOT_WAITING)
-            if (started != NOT_WAITING) waiting.value.record((System.nanoTime() - started) / NANOS_PER_MILLI)
+            if (started != NOT_WAITING) waiting.value.record((System.nanoTime() - started) / NANOS_PER_SECOND)
         }
     }
 }
@@ -111,7 +111,7 @@ private class Instruments(by: Measured, node: Node, step: Int) {
         try {
             return body()
         } finally {
-            busy.record((System.nanoTime() - started) / NANOS_PER_MILLI)
+            busy.record((System.nanoTime() - started) / NANOS_PER_SECOND)
         }
     }
 
