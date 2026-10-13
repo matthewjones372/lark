@@ -51,9 +51,9 @@ that drains. Pekko runs it and nothing else does, and it ends on
 ```kotlin
 dependencies {
     // Any backend: lark-stream and kafka-clients come with it, and the backend is the service's own choice.
-    implementation("io.github.matthewjones372:lark-kafka:0.9.0")
+    implementation("io.github.matthewjones372:lark-kafka:0.9.2")
     // Or Pekko's connector: lark-kafka, lark-stream-pekko and pekko-connectors-kafka come with it.
-    implementation("io.github.matthewjones372:lark-kafka-pekko:0.9.0")
+    implementation("io.github.matthewjones372:lark-kafka-pekko:0.9.2")
 }
 ```
 

@@ -18,8 +18,8 @@ business.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor-remote:0.9.0") // two nodes
-    implementation("io.github.matthewjones372:lark-cluster:0.9.0")      // everything else here
+    implementation("io.github.matthewjones372:lark-actor-remote:0.9.2") // two nodes
+    implementation("io.github.matthewjones372:lark-cluster:0.9.2")      // everything else here
 }
 ```
 
