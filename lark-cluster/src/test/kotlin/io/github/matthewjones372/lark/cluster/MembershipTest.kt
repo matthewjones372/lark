@@ -75,6 +75,31 @@ class MembershipTest {
     }
 
     @Test
+    fun `a joiner that waits to be told is Joining in every view until it is ready, and Up in every view after`() {
+        val net = Net().apply { fiveUp() }
+
+        val waiting = net.start(6, seeds(1), ready = false)
+
+        net.until { (1..6).all { at(6) in net.view(it).members.map(Member::node) } } shouldBe true
+        net.until(steps = 50) { (1..6).any { at(6) in net.view(it).up() } } shouldBe false
+        (1..6).forEach { net.view(it).members.first { m -> m.node == at(6) }.status shouldBe Status.Joining }
+        waiting.markReady()
+        net.until { (1..6).all { at(6) in net.view(it).up() } } shouldBe true
+    }
+
+    @Test
+    fun `a node that forms the cluster waiting is not Up until it is ready, and leads its joiners meanwhile`() {
+        val net = Net()
+        val first = net.start(1, seeds(1, 2), ready = false)
+        net.start(2, seeds(1, 2))
+
+        net.until { at(2) in net.view(2).up() } shouldBe true
+        net.view(2).members.first { it.node == at(1) }.status shouldBe Status.Joining
+        first.markReady()
+        net.until { (1..2).all { net.view(it).up().toSet() == setOf(at(1), at(2)) } } shouldBe true
+    }
+
+    @Test
     fun `a node that restarts joins as a new member, and its earlier life is downed and removed`() {
         val net = Net(downing = Downing.keepMajority(2.seconds)).apply { fiveUp() }
 

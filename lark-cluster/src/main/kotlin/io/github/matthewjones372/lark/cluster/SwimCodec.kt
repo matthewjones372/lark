@@ -113,6 +113,8 @@ private fun WireOut.gossip(gossip: Gossip) {
             incarnation(to)
         }
     }
+    int(gossip.admitted.size)
+    gossip.admitted.forEach { incarnation(it) }
 }
 
 private fun WireIn.gossip() = Gossip(
@@ -122,4 +124,5 @@ private fun WireIn.gossip() = Gossip(
     digests = map { incarnation() to Digest(long(), long()) },
     loads = map { incarnation() to Load(long(), map { string() to map { int() to ShardLoad(int(), int()) } }) },
     moves = map { string() to Moves(long(), map { int() to incarnation() }) },
+    admitted = List(int()) { incarnation() }.toSet(),
 )
