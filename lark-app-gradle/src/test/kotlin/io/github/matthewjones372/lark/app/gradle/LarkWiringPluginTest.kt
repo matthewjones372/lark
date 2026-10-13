@@ -107,6 +107,57 @@ class LarkWiringPluginTest {
         result.output shouldContain "Pump needs DataSource"
     }
 
+    /** Prints what the plugin gave the test task: the colour settings, and whether each is one of its inputs. */
+    private val showsTestSettings = """
+        tasks.register("testSettings") {
+            val test = tasks.test.get()
+            doLast {
+                listOf("FORCE_COLOR", "NO_COLOR").forEach { name ->
+                    println("env ${'$'}name=" + test.environment[name] + " input=" + test.inputs.properties[name])
+                }
+                println("property lark.test.colour=" + test.systemProperties["lark.test.colour"])
+            }
+        }
+    """.trimIndent()
+
+    /** This JVM's environment, with [extra] on top: TestKit replaces the environment whole. */
+    private fun environment(vararg extra: Pair<String, String>): Map<String, String> =
+        System.getenv().filterKeys { it != "FORCE_COLOR" && it != "NO_COLOR" } + extra
+
+    @Test
+    fun `FORCE_COLOR and NO_COLOR in Gradle's environment reach every test task, as inputs`(@TempDir dir: File) {
+        project(dir, showsTestSettings, SOUND)
+
+        val out = runner(dir, "testSettings")
+            .withEnvironment(environment("FORCE_COLOR" to "1", "NO_COLOR" to "1"))
+            .build().output
+
+        out shouldContain "env FORCE_COLOR=1 input=1"
+        out shouldContain "env NO_COLOR=1 input=1"
+    }
+
+    @Test
+    fun `-Plark test colour reaches the test worker as a system property`(@TempDir dir: File) {
+        project(dir, showsTestSettings, SOUND)
+
+        val out = runner(dir, "testSettings", "-Plark.test.colour=always")
+            .withEnvironment(environment())
+            .build().output
+
+        out shouldContain "property lark.test.colour=always"
+    }
+
+    @Test
+    fun `with none of them set, the test task is as it was`(@TempDir dir: File) {
+        project(dir, showsTestSettings, SOUND)
+
+        val out = runner(dir, "testSettings").withEnvironment(environment()).build().output
+
+        out shouldContain "env FORCE_COLOR=null input=null"
+        out shouldContain "env NO_COLOR=null input=null"
+        out shouldContain "property lark.test.colour=null"
+    }
+
     @Test
     fun `a sound graph passes check and leaves a diagram behind`(@TempDir dir: File) {
         project(dir, "", SOUND)

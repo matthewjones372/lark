@@ -235,4 +235,25 @@ class RaiseParTest {
 
         raised shouldBe Bad("forked").left()
     }
+
+    @Test
+    fun `a raise is what surfaces, not what a sibling threw once the raise cut it short`() {
+        val started = either<Bad, List<Int>> {
+            parMap(listOf(0, 1)) { n ->
+                if (n == 1) {
+                    Thread.sleep(50)
+                    raise(Bad("refused"))
+                }
+                // A pool that turns the interrupt into an exception of its own, as a JDBC pool starting up does.
+                try {
+                    Thread.sleep(60_000)
+                    n
+                } catch (interrupted: InterruptedException) {
+                    throw IllegalStateException("pool closed by interrupt", interrupted)
+                }
+            }
+        }
+
+        started shouldBe Bad("refused").left()
+    }
 }

@@ -17,12 +17,14 @@ import org.slf4j.MDC
  * pair that is carried across a fork, which an MDC cannot do by itself, and appending it to the text
  * would leave `%X{pet_id}`, a JSON encoder and every field search with nothing to read.
  *
- * [name] is the SLF4J logger to write to, because a backend is configured by name and a service
- * wants a level it can set for its own lines without setting it for its libraries'.
+ * Each line goes to the logger named after the class that wrote it, its [LogLine.origin], so a
+ * backend can set a level per package. A [name] sends every line to that one logger instead, and a
+ * line with no origin goes to `lark`.
  */
-class Slf4jLogger(name: String = "lark") : Logger {
+class Slf4jLogger(name: String? = null) : Logger {
 
-    private val log = LoggerFactory.getLogger(name)
+    // SLF4J caches loggers by name, so looking one up per line adds no cache of ours.
+    private val named = name?.let(LoggerFactory::getLogger)
 
     override fun log(line: LogLine) {
         // Put back rather than cleared. The thread is one a pool may hand to something else next, so
@@ -30,13 +32,13 @@ class Slf4jLogger(name: String = "lark") : Logger {
         val before = MDC.getCopyOfContextMap()
         line.annotations.forEach { (key, value) -> MDC.put(key, value) }
         try {
-            say(line)
+            say(line, named ?: LoggerFactory.getLogger(line.origin ?: "lark"))
         } finally {
             if (before == null) MDC.clear() else MDC.setContextMap(before)
         }
     }
 
-    private fun say(line: LogLine) = when (line.level) {
+    private fun say(line: LogLine, log: org.slf4j.Logger) = when (line.level) {
         LogLevel.Debug -> log.debug(line.message, line.cause)
         LogLevel.Info -> log.info(line.message, line.cause)
         LogLevel.Warn -> log.warn(line.message, line.cause)

@@ -43,9 +43,14 @@ internal fun appScope(shutdown: Shutdown): AppScope = object : AppScope {
 /** What went wrong, in the words the reader needs to fix it. */
 fun StartupError.describe(): String = when (this) {
     is StartupError.Unwireable -> errors.report(provided)
+
     is StartupError.Refused -> "lark-app: ${labelOf(key)} refused to start: $reason"
+
     is StartupError.NoSuchNode -> "lark-app: nothing in the graph builds ${labelOf(key)}"
-    is StartupError.Unready -> "lark-app: ${labelOf(key)} started and its $name probe did not answer"
+
+    is StartupError.Unready ->
+        "lark-app: ${labelOf(key)} started and its $name probe did not answer" +
+            cause?.let { ": it threw ${it::class.simpleName}: ${it.message}" }.orEmpty()
 }
 
 /** What the process should leave with. */
@@ -88,11 +93,15 @@ internal fun leaving(run: (Shutdown) -> Either<StartupError, Unit>): ExitCode {
     }
 
     Runtime.getRuntime().addShutdownHook(hook)
-    val outcome = run(shutdown)
+    val outcome = uncaughtLogged { run(shutdown) }
     torndown.countDown()
     // Removing it during a shutdown it is already running in is the illegal state, and by then the
     // process is leaving anyway.
-    runCatching { Runtime.getRuntime().removeShutdownHook(hook) }
+    try {
+        Runtime.getRuntime().removeShutdownHook(hook)
+    } catch (_: IllegalStateException) {
+        // The hook is running.
+    }
 
     outcome.leftOrNull()?.let { System.err.println(it.describe()) }
     return outcome.exitCode()

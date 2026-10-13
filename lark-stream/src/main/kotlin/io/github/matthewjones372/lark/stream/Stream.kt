@@ -1,23 +1,20 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.raise.Raise
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import kotlin.time.Duration
-import kotlin.time.toJavaDuration
 
 /**
  * A stream of `A` that can end with a declared failure of `E`, described and
  * not yet running.
  */
-class Stream<out E, out A : Any> internal constructor(
-    // Pekko's Source is a Java generic, so Kotlin reads its element as
-    // invariant. Every operator below only reads from it, so widening A here
-    // is safe in a place the compiler has no way to see that.
-    internal val source: Source<@UnsafeVariance A, NotUsed>,
-) {
+class Stream<out E, out A : Any> @StreamSpi constructor(@property:StreamSpi val node: Node) {
+
+    /** What a backend compiled [node] to, kept, so a stream described once and run per request compiles once. */
+    @property:StreamSpi
+    val compiled = CompileCache()
+
     companion object
 }
 
@@ -27,7 +24,8 @@ class Stream<out E, out A : Any> internal constructor(
  * No stack trace: the error is the value being carried, and filling one in
  * would charge every declared failure for a diagnostic nobody reads.
  */
-internal class DeclaredFailure(val error: Any?) : RuntimeException(null, null, false, false)
+@StreamSpi
+class DeclaredFailure(val error: Any?) : RuntimeException(null, null, false, false)
 
 /**
  * The error a [DeclaredFailure] carries, read back as the stream's own `E`.
@@ -37,14 +35,15 @@ internal class DeclaredFailure(val error: Any?) : RuntimeException(null, null, f
  * came back out of it.
  */
 @Suppress("UNCHECKED_CAST")
-internal fun <E> DeclaredFailure.declared(): E = error as E
+@StreamSpi
+fun <E> DeclaredFailure.declared(): E = error as E
 
 /**
  * The scope `mapOrFail` runs in: a `Raise<E>`, so `bind`, `ensure` and lark's
  * own combinators are in reach of an element body, and `fail` returns Nothing,
  * so it sits after an Elvis.
  */
-class Failing<in E> internal constructor() : Raise<E> {
+class Failing<in E> @StreamSpi constructor() : Raise<E> {
 
     /** The failure travels as it always has: the wrapper only `run` unwraps. */
     override fun raise(r: E): Nothing = throw DeclaredFailure(r)
@@ -53,27 +52,17 @@ class Failing<in E> internal constructor() : Raise<E> {
     fun fail(error: E): Nothing = raise(error)
 }
 
-/**
- * The way in from Pekko, whatever the source materialises.
- *
- * The materialised value is dropped rather than declared, because a `Stream` has none to give: a
- * caller who needs the `Cancellable` a ticker hands back keeps the `Source` and passes a view of it
- * here. One signature rather than two: a second over `Source<A, NotUsed>` would erase to this one.
- */
-fun <A : Any> Stream.Companion.from(source: Source<A, *>): Stream<Nothing, A> =
-    Stream(source.mapMaterializedValue { NotUsed.getInstance() })
-
-fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Source.from(elements))
+fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Node.Elements(elements))
 
 /** The one element named, and `A : Any` is where a nullable is refused so the `?:` is written at the lookup. */
-fun <A : Any> Stream.Companion.single(element: A): Stream<Nothing, A> = Stream(Source.single(element))
+fun <A : Any> Stream.Companion.single(element: A): Stream<Nothing, A> = Stream(Node.Single(element))
 
 /** The elements named, in order; with none of them it is [empty]. */
-fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stream(Source.from(elements.asList()))
+fun <A : Any> Stream.Companion.of(vararg elements: A): Stream<Nothing, A> = Stream(Node.Elements(elements.asList()))
 
 /** [element] every [every], the first one [after] the run starts, and no `Cancellable` to unwrap. */
 fun <A : Any> Stream.Companion.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A> =
-    from(Source.tick(after.toJavaDuration(), every.toJavaDuration(), element))
+    Stream(Node.Tick(every, element, after))
 
 /**
  * The stage's value as the one element; a completion with `null` is a defect naming this builder.
@@ -82,17 +71,17 @@ fun <A : Any> Stream.Companion.tick(every: Duration, element: A, after: Duration
  * source with nothing in it — the empty stream this builder exists so that nobody gets by accident.
  */
 fun <A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>): Stream<Nothing, A> =
-    Stream(stage.asSource { NullPointerException(NULL_COMPLETION) })
+    Stream(Node.FromStage(stage) { NullPointerException(NULL_COMPLETION) })
 
 /** As above, with the absence named: a completion with `null` is the declared failure [ifNull]. */
 fun <E, A : Any> Stream.Companion.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A> =
-    Stream(stage.asSource { DeclaredFailure(ifNull) })
+    Stream(Node.FromStage(stage) { DeclaredFailure(ifNull) })
 
-fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Source.failed(DeclaredFailure(error)))
+fun <E> Stream.Companion.fail(error: E): Stream<E, Nothing> = Stream(Node.Fail(error))
 
-fun Stream.Companion.empty(): Stream<Nothing, Nothing> = Stream(Source.empty())
+fun Stream.Companion.empty(): Stream<Nothing, Nothing> = Stream(Node.Empty)
 
-fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = via(Pipe.map(f))
+fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = Stream(Node.Map(node, f.erased(), buildSite()))
 
 /**
  * `f` may answer with `fail(e)`, which ends the stream with the `E` it names.
@@ -108,26 +97,17 @@ fun <E, A : Any, B : Any> Stream<E, A>.map(f: (A) -> B): Stream<E, B> = via(Pipe
 // down there. Kotlin callers never see it.
 @JvmName("mapOrFailDeclaring")
 fun <F, A : Any, B : Any> Stream<Nothing, A>.mapOrFail(f: Failing<F>.(A) -> B): Stream<F, B> =
-    via(Pipe.mapOrFail(f))
+    Stream(Node.MapOrFail(node, f.erased(), buildSite()))
 
 /** As above, for a stream whose failure type is already named. */
-fun <E, A : Any, B : Any> Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B> = via(Pipe.mapOrFail(f))
+fun <E, A : Any, B : Any> Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B> =
+    Stream(Node.MapOrFail(node, f.erased(), buildSite()))
 
-fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> = via(Pipe.filter(predicate))
-
-/** The way out to Pekko, open only once nothing is left that a sink would not understand. */
-fun <A : Any> Stream<Nothing, A>.toSource(): Source<A, NotUsed> = source
+fun <E, A : Any> Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A> =
+    Stream(Node.Filter(node, predicate.erased(), buildSite()))
 
 /** A defect that does not say where it came from is the disappearance again, so the builder is in the message. */
 private const val NULL_COMPLETION = "Stream.fromStage: the stage completed with null"
-
-/**
- * Pekko's own builder, on a stage that cannot complete with `null` — the one call to it this library
- * makes, and the reason the ban on it in `config/detekt/detekt.yml` is a ban with an exception.
- */
-@Suppress("ForbiddenMethodCall")
-private fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Source<A, NotUsed> =
-    Source.completionStage(checked(onNull))
 
 /**
  * The stage a source can be built on: one that fails where the given one completes with `null`.
@@ -137,7 +117,8 @@ private fun <A : Any> CompletionStage<A>.asSource(onNull: () -> Throwable): Sour
  * the stage: what completes it runs this, so no Pekko thread is spent on a value that has not arrived.
  */
 @Suppress("UNCHECKED_CAST")
-internal fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): CompletionStage<A> {
+@StreamSpi
+fun <A : Any> CompletionStage<A>.checked(onNull: () -> Throwable): CompletionStage<A> {
     val checked = CompletableFuture<A>()
     (this as CompletionStage<A?>).whenComplete { value, thrown ->
         when {

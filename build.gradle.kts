@@ -1,5 +1,7 @@
 plugins {
     kotlin("jvm") version "2.4.10" apply false
+    // @Serializable classes: lark-actor-remote-kotlinx's tests, and the services that use it (spec 0093).
+    kotlin("plugin.serialization") version "2.4.10" apply false
     id("com.diffplug.spotless") version "8.10.0"
     id("dev.detekt") version "2.0.0-alpha.6" apply false
     id("org.jetbrains.kotlinx.kover") version "0.9.9"
@@ -68,7 +70,12 @@ spotless {
 val moduleDescriptions = mapOf(
     "lark" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
     "lark-pekko" to "lark on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
-    "lark-stream" to "A stream that names its failure: Stream<E, A> over Pekko Streams, formerly dipper.",
+    "lark-stream" to "A stream that names its failure: Stream<E, A> described once, run on the backend you pick.",
+    "lark-stream-pekko" to "lark-stream on Pekko Streams: the backend, and the operators that take Pekko's types.",
+    "lark-stream-forks" to "lark-stream on lark's own forks: a run is a pull loop on a virtual thread.",
+    "lark-stream-actors" to "lark-stream on lark-actor: a run is an actor, pulling its loop a batch at a time.",
+    "lark-stream-test" to "lark-stream for tests: every stage on the calling thread, on a clock the test owns.",
+    "lark-test" to "For tests of a lark service: eventually on lark's clock, and a test that reads as a story.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
@@ -76,6 +83,28 @@ val moduleDescriptions = mapOf(
     "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
     "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn as it compiles.",
     "lark-app-compiler" to "lark-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
+    "lark-structured" to "lark over the JDK's StructuredTaskScope: a flock the thread dump can see.",
+    "lark-kafka" to "Kafka as a lark Stream on any backend: a record is committed only after the work on it is done.",
+    "lark-kafka-pekko" to "lark-kafka through Pekko's own Kafka connector: prefetch, batched commits, a draining stop.",
+    "lark-actor" to "An actor as a value and a step, on virtual threads: no actor system, and tests that never wait.",
+    "lark-actor-journal-jdbc" to
+        "lark-actor's journal and snapshots on JDBC: events every node reaches, two writers settled by the key.",
+    "lark-actor-projection" to
+        "lark-actor's journal as a lark Stream: a read model follows one kind, and resumes where it left off.",
+    "lark-actor-remote" to "lark-actor across nodes: codecs you own, and one TCP connection per pair of nodes.",
+    "lark-actor-remote-avro" to
+        "lark-actor-remote's messages in Avro: specific records, resolved across versions, and asks.",
+    "lark-actor-remote-protobuf" to
+        "lark-actor-remote's messages in Protobuf: generated messages, protocols of them, and asks.",
+    "lark-actor-remote-kotlinx" to
+        "lark-actor-remote's messages, events and snapshots from @Serializable data classes, in ProtoBuf by default.",
+    "lark-cluster" to "lark-actor as a cluster: discovery, gossip membership and downing, with no coordinator.",
+    "lark-cluster-aws" to
+        "lark-cluster on AWS: seeds from Cloud Map or ECS, and a DynamoDB lease to break an even split.",
+    "lark-cluster-kubernetes" to
+        "lark-cluster on Kubernetes: seeds from the pods API, and a Lease to break an even split.",
+    "lark-app-actor" to "lark-app on lark-actor: a flock is a node, and an actor is a node keyed by its protocol.",
+    "lark-app-cluster" to "lark-app on lark-cluster: a cluster is a node, joined as a HOCON section says.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
@@ -85,6 +114,14 @@ val gradlePluginModules = setOf("lark-app-gradle")
 // The same argument for the compiler plugin: it runs inside the Kotlin compiler, so the only honest
 // test of it is a compilation, and those live in lark-app-gradle where the build that runs them is.
 val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
+
+// Measured, not tested: a benchmark has no assertions for a coverage floor to count.
+val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks")
+
+// Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
+// JDK 28 (JEP 543), and a release must not promise an API the JDK has not. lark-bank is an application
+// to run, not a library to depend on (spec 0094).
+val unpublished = setOf("lark-structured", "lark-stream-parity", "lark-bank") + benchmarkModules
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
@@ -101,7 +138,7 @@ kover {
 }
 
 dependencies {
-    subprojects.filterNot { it.name in testedByRunningABuild }.forEach { kover(project(it.path)) }
+    subprojects.filterNot { it.name in testedByRunningABuild + benchmarkModules }.forEach { kover(project(it.path)) }
 }
 
 // A floor nobody runs is not a floor: `./gradlew build` checks it.
@@ -121,7 +158,10 @@ subprojects {
     version = scmVer
 
     extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
-        jvmToolchain(21)
+        // 25: the first LTS where a virtual thread blocked in `synchronized` no longer pins its carrier, which
+        // every library here runs on. What runs inside the build tools stays at 21, the JDK a Gradle daemon or a
+        // Kotlin daemon may still be on: the Gradle plugin and the compiler plugin it registers.
+        jvmToolchain(if (project.name in setOf("lark-app-gradle", "lark-app-compiler")) 21 else 25)
 
         compilerOptions {
             // A warning nobody reads is a defect nobody fixed; the build says so.
@@ -153,7 +193,7 @@ subprojects {
         systemProperty("junit.jupiter.execution.timeout.default", "60s")
     }
 
-    if (name !in testedByRunningABuild) {
+    if (name !in testedByRunningABuild + benchmarkModules) {
         apply(plugin = "org.jetbrains.kotlinx.kover")
     }
 
@@ -179,6 +219,8 @@ subprojects {
             ktlint(ktlintVersion).editorConfigOverride(ktlintOverrides)
         }
     }
+
+    if (name in unpublished) return@subprojects
 
     apply(plugin = "com.vanniktech.maven.publish")
     apply(plugin = "org.jetbrains.dokka")

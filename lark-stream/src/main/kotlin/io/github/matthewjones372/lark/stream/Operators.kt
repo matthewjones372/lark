@@ -1,8 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
-import org.apache.pekko.stream.javadsl.Sink
-import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletionStage
 
 /**
@@ -23,20 +21,16 @@ fun <E, A : Any, S : Any> Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregat
 fun <E, A : Any, B : Any> Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B> = via(Pipe.mapConcat(f))
 
 /** Pekko's own order: [first]'s elements before this stream's, and a failure in either ends the run. */
-fun <E, A : Any> Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A> = Stream(source.prepend(first.source))
+fun <E, A : Any> Stream<E, A>.prepend(first: Stream<E, A>): Stream<E, A> = Stream(Node.Prepend(node, first.node))
 
 /** The mirror of [prepend], in Pekko's order too: [next]'s elements after this stream's. */
-fun <E, A : Any> Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A> = Stream(source.concat(next.source))
+fun <E, A : Any> Stream<E, A>.concat(next: Stream<E, A>): Stream<E, A> = Stream(Node.Concat(node, next.node))
 
 /** The declared failure becomes the last element, as a `Left`, leaving none for the type to carry. */
 fun <E, A : Any> Stream<E, A>.either(): Stream<Nothing, Either<E, A>> = replacing(Pipe.either<E, A>())
 
 /** A `Left` fails the stream with what it holds; a `Right` carries on as the element. */
 fun <E, L : E, R : Any> Stream<E, Either<L, R>>.absolve(): Stream<E, R> = via(Pipe.absolve<E, L, R>())
-
-/** Every `Left` reaches [to] and every `Right` carries on: `divertTo` with no predicate to write. */
-fun <E, L : Any, R : Any> Stream<E, Either<L, R>>.divertLefts(to: Sink<L, *>): Stream<E, R> =
-    via(Pipe.divertLefts(to))
 
 /** Handles a declared failure only: a defect is nothing anyone declared, and still dies. */
 fun <E, E2, A : Any> Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A> = replacing(Pipe.catchAll(f))
@@ -54,6 +48,4 @@ fun <E, A : Any> Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A> = replac
  * cannot see, so it has no way to know whether that source emitted.
  */
 fun <E : E2, E2, A : Any> Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A> =
-    // The alternative is deferred because a plain `Source.failed` fails at materialisation, which would
-    // fail every stream through here rather than the empty ones.
-    Stream(source.orElse(Source.lazySource { Source.failed<A>(DeclaredFailure(error)) }))
+    Stream(Node.OrFailIfEmpty(node, error))

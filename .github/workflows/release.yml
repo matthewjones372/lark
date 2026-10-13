@@ -4,7 +4,9 @@ name: release
 
 on:
   push:
-    tags: ["v*"]
+    # A pre-release tag is not a release: a candidate is a snapshot, which
+    # snapshot.yml publishes, rather than a version on Central for good.
+    tags: ["v*", "!v*-*"]
   workflow_dispatch:
 
 permissions:
@@ -28,10 +30,14 @@ jobs:
           # axion reads the tag to decide the version, and a shallow clone has none.
           fetch-depth: 0
 
+      # 27 for lark-structured's toolchain, installed rather than left to Gradle, whose download of
+      # 27 is an Alpine build that does not run here; 25, listed last, is what Gradle runs on.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: |
+            27
+            25
 
       - uses: gradle/actions/setup-gradle@v4
 
@@ -43,6 +49,17 @@ jobs:
       # multi-line value is one GITHUB_OUTPUT refuses rather than truncates.
       - id: version
         run: echo "value=$(./gradlew -q currentVersion | awk 'NF { last = $NF } END { print last }')" >> "$GITHUB_OUTPUT"
+
+      # The tag filter keeps a candidate out on a push; a dispatch has no filter,
+      # and one from a branch or a candidate tag would publish a version that is
+      # not a release.
+      - name: Refuse anything but a release
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          case "$version" in
+            "") echo "could not read the version"; exit 1 ;;
+            *-*) echo "$version is not a release; snapshot.yml publishes candidates"; exit 1 ;;
+          esac
 
       # A tag can be re-run, and Central refuses a version it already has — with a
       # message about the upload rather than about the re-run. Saying so here is

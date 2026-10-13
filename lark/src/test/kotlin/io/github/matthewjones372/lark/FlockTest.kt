@@ -4,6 +4,7 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.raise.ensure
 import arrow.core.right
+import io.github.matthewjones372.lark.Start.Lazy
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -12,7 +13,9 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class FlockTest {
 
@@ -92,6 +95,138 @@ class FlockTest {
         withClue("a scope that returns with a thread still running is a leak") {
             sleeper.isAlive() shouldBe false
         }
+    }
+
+    @Test
+    fun `a cancelled fork is interrupted and dead before cancel returns`() {
+        val sleeper = Sleeper()
+        val interruptedAtCancel = AtomicBoolean(false)
+        val aliveAtCancel = AtomicBoolean(true)
+
+        val result = flock<Bad, String> {
+            val fork = async { sleeper.body() }
+            sleeper.awaitStart()
+            fork.cancel()
+            interruptedAtCancel.set(sleeper.wasInterrupted())
+            aliveAtCancel.set(sleeper.isAlive())
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+        interruptedAtCancel.get() shouldBe true
+        withClue("cancel returns only once the fork it stopped has ended") {
+            aliveAtCancel.get() shouldBe false
+        }
+    }
+
+    @Test
+    fun `a fork cancelled and never awaited does not fail the block`() {
+        val started = CountDownLatch(1)
+
+        val result = flock<Bad, String> {
+            val fork = async {
+                started.countDown()
+                // Nothing catches it, so the interrupt is what this fork ends with.
+                Thread.sleep(NEVER_FINISHES_MILLIS)
+                "slept"
+            }
+            started.await()
+            fork.cancel()
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+    }
+
+    @Test
+    fun `a fork cancelled after it raised does not fail the block`() {
+        val result = flock<Bad, String> {
+            val fork = async<Int> { raise(Bad("forked")) }
+            fork.cancel()
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+    }
+
+    @Test
+    fun `a sibling of a cancelled fork runs to completion`() {
+        val sleeper = Sleeper()
+
+        val result = flock<Bad, Int> {
+            val stopped = async { sleeper.body() }
+            val sibling = async { 42 }
+            sleeper.awaitStart()
+            stopped.cancel()
+            sibling.await()
+        }
+
+        result shouldBe 42.right()
+        sleeper.wasInterrupted() shouldBe true
+    }
+
+    @Test
+    fun `a lazy fork nobody awaits never runs, and the scope still returns`() {
+        val ran = AtomicBoolean(false)
+
+        val result = flock<Bad, String> {
+            async(start = Lazy) { ran.set(true) }
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+        withClue("a scope that closes must not wait on a fork that never ran") {
+            ran.get() shouldBe false
+        }
+    }
+
+    @Test
+    fun `a lazy fork runs when it is awaited`() {
+        val result = flock<Bad, Int> { async(start = Lazy) { 42 }.await() }
+
+        result shouldBe 42.right()
+    }
+
+    @Test
+    fun `a lazy fork nobody awaits cannot fail the block, where the eager form would`() {
+        val lazily = flock<Bad, String> {
+            async<Int>(start = Lazy) { raise(Bad("never asked for")) }
+            "returned"
+        }
+        val eagerly = flock<Bad, String> {
+            async<Int> { raise(Bad("forked")) }
+            "returned"
+        }
+
+        lazily shouldBe "returned".right()
+        eagerly shouldBe Bad("forked").left()
+    }
+
+    @Test
+    fun `a lazy fork awaited twice runs once`() {
+        val runs = AtomicInteger(0)
+
+        val result = flock<Bad, Int> {
+            val counted = async(start = Lazy) { runs.incrementAndGet() }
+            counted.await() + counted.await()
+        }
+
+        result shouldBe 2.right()
+        runs.get() shouldBe 1
+    }
+
+    @Test
+    fun `a lazy fork cancelled before it was awaited never runs`() {
+        val ran = AtomicBoolean(false)
+
+        val result = flock<Bad, String> {
+            val fork = async(start = Lazy) { ran.set(true) }
+            fork.cancel()
+            "returned"
+        }
+
+        result shouldBe "returned".right()
+        ran.get() shouldBe false
     }
 
     @Test
@@ -204,5 +339,94 @@ class FlockTest {
 
         bound shouldBe 42.right()
         flock<Bad, Int> { async { broken.bind() }.await() } shouldBe Bad("bound").left()
+    }
+
+    @Test
+    fun `close hooks run last first, before any fork is interrupted, and can wait on a fork still running`() {
+        val ran = mutableListOf<String>()
+        val asks = SynchronousQueue<Int>()
+        val answers = SynchronousQueue<Int>()
+
+        val closed = flock<Nothing, String> {
+            async {
+                try {
+                    while (true) answers.put(asks.take() * 2)
+                } catch (stopping: InterruptedException) {
+                    ran += "fork interrupted"
+                }
+            }
+            onClose { ran += "first" }
+            onClose {
+                asks.put(21)
+                ran += "second, answered ${answers.take()}"
+            }
+            "done"
+        }
+
+        closed shouldBe "done".right()
+        ran shouldBe listOf("second, answered 42", "first", "fork interrupted")
+    }
+
+    @Test
+    fun `a close hook registered while the flock closes runs too, after the one that registered it`() {
+        val ran = mutableListOf<String>()
+
+        flock<Nothing, Unit> {
+            onClose { ran += "first" }
+            onClose {
+                ran += "second"
+                onClose { ran += "registered while closing" }
+            }
+        }
+
+        ran shouldBe listOf("second", "registered while closing", "first")
+    }
+
+    @Test
+    fun `a close hook that throws an Error still interrupts and joins every fork, and the Error is thrown after`() {
+        val ran = mutableListOf<String>()
+
+        shouldThrow<AssertionError> {
+            flock<Nothing, Int> {
+                async {
+                    try {
+                        CountDownLatch(1).await()
+                    } catch (stopping: InterruptedException) {
+                        ran += "fork interrupted"
+                    }
+                }
+                onClose { throw AssertionError("the hook broke") }
+                7
+            }
+        }
+
+        ran shouldBe listOf("fork interrupted")
+    }
+
+    @Test
+    fun `a close hook that throws is logged, and the hooks after it and the close still run`() {
+        val ran = mutableListOf<String>()
+
+        val closed = flock<Nothing, Int> {
+            onClose { ran += "earlier" }
+            onClose { error("the hook broke") }
+            7
+        }
+
+        closed shouldBe 7.right()
+        ran shouldBe listOf("earlier")
+    }
+
+    @Test
+    fun `an interrupted close hook ends, the rest run, and the closing thread is interrupted afterwards`() {
+        val ran = mutableListOf<String>()
+
+        flock<Nothing, Unit> {
+            onClose { ran += "earlier" }
+            onClose { throw InterruptedException("stop waiting") }
+        }
+
+        Thread.interrupted() shouldBe true
+        ran shouldBe listOf("earlier")
     }
 }

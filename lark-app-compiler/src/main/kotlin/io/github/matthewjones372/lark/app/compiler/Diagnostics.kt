@@ -70,8 +70,17 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
 private val psiElement: KClass<*> = sequenceOf(
     "org.jetbrains.kotlin.com.intellij.psi.PsiElement",
     "com.intellij.psi.PsiElement",
-).firstNotNullOfOrNull { name -> runCatching { Class.forName(name).kotlin }.getOrNull() }
+).firstNotNullOfOrNull(::classNamed)
     ?: error("neither the relocated nor the plain PsiElement is on the classpath")
+
+private fun classNamed(name: String): KClass<*>? =
+    try {
+        Class.forName(name).kotlin
+    } catch (_: ClassNotFoundException) {
+        null
+    } catch (_: LinkageError) {
+        null
+    }
 
 private object Renderers : BaseDiagnosticRendererFactory() {
 

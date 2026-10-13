@@ -1,0 +1,17 @@
+# Layered over config/detekt/detekt.yml for this module alone. An actor test that has to wait on time is missing
+# a completion signal: .test() runs to idle before a send returns, and a flock has awaitIdle(). So neither the
+# tests nor the runtime may sleep, poll or retry an assertion until it passes.
+style:
+  ForbiddenMethodCall:
+    active: true
+    excludes: []
+    methods:
+      - reason: 'A sleep is a guess at when something finished; ask, or awaitIdle().'
+        value: 'java.lang.Thread.sleep'
+  ForbiddenImport:
+    active: true
+    forbiddenImports:
+      - reason: 'eventually retries an assertion until it passes; awaitIdle() says when it can be checked once.'
+        value: 'io.kotest.assertions.nondeterministic.*'
+      - reason: 'Awaitility polls; awaitIdle() is woken by the runtime.'
+        value: 'org.awaitility.*'

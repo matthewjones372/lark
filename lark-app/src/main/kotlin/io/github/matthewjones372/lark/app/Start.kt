@@ -9,7 +9,6 @@ import io.github.matthewjones372.lark.ResourceScope
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.resourceScope
-import io.github.matthewjones372.lark.timeoutOrNull
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.reflect.KType
@@ -28,8 +27,11 @@ sealed class StartupError {
     /** Nothing in the graph builds [key], and it was asked for. */
     data class NoSuchNode(val key: KType) : StartupError()
 
-    /** [key] was built, and the probe named [name] did not answer inside its timeout. */
-    data class Unready(val key: KType, val name: String) : StartupError()
+    /**
+     * [key] was built, and the probe named [name] did not answer yes inside its timeout. [cause] is what its last
+     * attempt threw instead of answering, if it threw.
+     */
+    data class Unready(val key: KType, val name: String, val cause: Exception? = null) : StartupError()
 }
 
 /**
@@ -80,20 +82,26 @@ private fun Raise<StartupError>.build(
             val node = module.nodes.getValue(key)
             val value = node.build(NodeWiring(key, releases, this), node.dependencies.map(built::getValue))
             module.probes.filter { it.key == key }.forEach { probe ->
-                if (!answers(probe, value)) raise(StartupError.Unready(key, probe.name))
+                val answer = answers(probe, value)
+                if (answer is Answer.No) raise(StartupError.Unready(key, probe.name, answer.cause))
             }
             health.started(key, value)
             key to value
         }
     }
 
-/** Asked again up to [Probe.attempts] times, waiting out [Probe.interval] on the inherited clock. */
-private fun Raise<StartupError>.answers(probe: Probe, value: Any): Boolean {
+/**
+ * Asked again up to [Probe.attempts] times, waiting out [Probe.interval] on the inherited clock. A throw is asked
+ * again like a no, since a pool whose database is still coming up throws rather than answering.
+ */
+private fun answers(probe: Probe, value: Any): Answer {
+    var last: Answer = Answer.No(null)
     repeat(probe.attempts) { attempt ->
-        if (timeoutOrNull(probe.timeout) { probe.ask(value) } == true) return true
+        last = probe.answered(value)
+        if (last == Answer.Yes) return last
         if (attempt < probe.attempts - 1) clock.get().sleep(probe.interval)
     }
-    return false
+    return last
 }
 
 private class NodeWiring(
@@ -123,10 +131,20 @@ private class Releases {
     /** Reverse topological, so a node is given back only after everything that needed it. */
     fun release(order: List<KType>, exit: ExitCase) {
         val installed = lock.withLock { order.reversed().flatMap { byKey[it].orEmpty().reversed() } }
-        val failures = installed.mapNotNull { runCatching { it(exit) }.exceptionOrNull() }
+        val failures = installed.mapNotNull { release -> thrownBy(release, exit) }
         failures.firstOrNull()?.let { first ->
             failures.drop(1).forEach(first::addSuppressed)
             throw first
         }
     }
 }
+
+/** What a release threw, if anything. Every release runs whatever one before it threw, so none is let off. */
+@Suppress("TooGenericExceptionCaught")
+private fun thrownBy(release: (ExitCase) -> Unit, exit: ExitCase): Throwable? =
+    try {
+        release(exit)
+        null
+    } catch (thrown: Throwable) {
+        thrown
+    }

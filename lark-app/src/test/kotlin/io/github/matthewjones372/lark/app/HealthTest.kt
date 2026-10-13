@@ -59,6 +59,42 @@ class HealthTest {
     }
 
     @Test
+    fun `a critical probe that throws makes readiness Down, rather than throwing out of it`() {
+        val throwing = AtomicBoolean(false)
+        val module = single<Ledger> { Ledger() }
+            .probe("ledger", timeout = 5.seconds) { _: Ledger ->
+                check(!throwing.get()) { "connection is not available" }
+                true
+            } +
+            single { health: HealthRegistry -> Endpoint(health) }
+
+        val readiness = testApp(module) { route: Endpoint ->
+            throwing.set(true)
+            route.health.readiness()
+        }
+
+        readiness.shouldBeInstanceOf<Health.Down>().failing shouldBe listOf("ledger")
+    }
+
+    @Test
+    fun `a probe that is not critical and throws makes readiness Degraded`() {
+        val throwing = AtomicBoolean(false)
+        val module = single<Lookup> { Lookup() }
+            .probe("lookup", timeout = 5.seconds, critical = false) { _: Lookup ->
+                check(!throwing.get()) { "lookup is unreachable" }
+                true
+            } +
+            single { health: HealthRegistry -> Endpoint(health) }
+
+        val readiness = testApp(module) { route: Endpoint ->
+            throwing.set(true)
+            route.health.readiness()
+        }
+
+        readiness.shouldBeInstanceOf<Health.Degraded>().failing shouldBe listOf("lookup")
+    }
+
+    @Test
     fun `a wedged probe answers inside its timeout rather than hanging`() {
         val forever = CountDownLatch(1)
         val wedge = AtomicBoolean(false)

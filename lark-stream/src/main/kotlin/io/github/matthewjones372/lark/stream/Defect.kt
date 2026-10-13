@@ -9,11 +9,13 @@ import java.util.concurrent.CompletionException
  * It rides along as a suppressed exception rather than as a wrapper, so that `Died` still carries
  * the class the caller's own code threw and the three facts print in the stack trace beside it.
  */
-internal class Defect(operator: String, element: Any, at: String) :
+@StreamSpi
+class Defect(operator: String, element: Any, at: String) :
     RuntimeException(facts(operator, element, at), null, false, false)
 
 /** The sentence a defect is named by, in a log line and in a message the library raises alike. */
-internal fun facts(operator: String, element: Any, at: String): String = "$operator died on $element, built at $at"
+@StreamSpi
+fun facts(operator: String, element: Any, at: String): String = "$operator died on $element, built at $at"
 
 /**
  * The caller's [f], with the three facts attached to whatever it throws: the one wiring every
@@ -22,15 +24,18 @@ internal fun facts(operator: String, element: Any, at: String): String = "$opera
  * [at] is read while the pipeline is described and the element is asked for its `toString` only
  * once something has already gone wrong, so a running stream pays for neither.
  */
-internal fun <A : Any, B> guarded(operator: String, at: String, f: (A) -> B): (A) -> B =
+@StreamSpi
+fun <A : Any, B> guarded(operator: String, at: String, f: (A) -> B): (A) -> B =
     { a -> guard(operator, at, a, f) }
 
 /** As above for a body handed the declared failure rather than an element, which may be anything. */
-internal fun <E, E2> guardedError(operator: String, at: String, f: (E) -> E2): (E) -> E2 =
+@StreamSpi
+fun <E, E2> guardedError(operator: String, at: String, f: (E) -> E2): (E) -> E2 =
     { e -> guard(operator, at, e ?: "no error") { f(e) } }
 
 /** As above for a body of two, where the element a defect names is the one being folded in. */
-internal fun <S, A : Any, B> guarded(operator: String, at: String, f: (S, A) -> B): (S, A) -> B =
+@StreamSpi
+fun <S, A : Any, B> guarded(operator: String, at: String, f: (S, A) -> B): (S, A) -> B =
     { s, a -> guard(operator, at, s, a, f) }
 
 // The catch is as wide as the lambda, because a defect is everything the caller did not declare;
@@ -54,30 +59,41 @@ private fun <S, A : Any, B> guard(operator: String, at: String, s: S, a: A, f: (
     }
 
 /** The wrapper a declared failure travels in goes by untouched; everything else picks up the facts. */
-internal fun Throwable.describedBy(operator: String, element: Any, at: String): Throwable {
+@StreamSpi
+fun Throwable.describedBy(operator: String, element: Any, at: String): Throwable {
     if (this !is DeclaredFailure) addSuppressed(Defect(operator, element, at))
     return this
 }
 
 /** What actually failed a stage: a CompletableFuture reports it wrapped in a CompletionException. */
-internal fun Throwable.unwrapped(): Throwable = if (this is CompletionException) cause ?: this else this
+@StreamSpi
+fun Throwable.unwrapped(): Throwable = if (this is CompletionException) cause ?: this else this
 
 private val walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
 
-private val ownCode: String? = codeOf(Stream::class.java)
+/** Where a class file came from, read once per class: a build site is taken on every run, and a URL's text costs. */
+private val codeSources = object : ClassValue<String?>() {
+    override fun computeValue(type: Class<*>): String? = type.protectionDomain?.codeSource?.location?.toString()
+}
 
-private fun codeOf(type: Class<*>): String? = type.protectionDomain?.codeSource?.location?.toString()
+private fun codeOf(type: Class<*>): String? = codeSources.get(type)
+
+private val ownCode: String? = codeOf(Stream::class.java)
 
 /**
  * The caller's line that built an operator, as `File.kt:12`.
  *
  * A frame is the library's own by where its class file came from rather than by its package,
  * because this library's own tests sit in its package and have to read as callers like anyone else.
+ * A backend module passes a class of its own in [alsoLibrary], so its frames are skipped too.
  */
-internal fun buildSite(): String =
-    walker.walk { frames ->
-        frames.filter { frame -> codeOf(frame.declaringClass) != ownCode }
+@StreamSpi
+fun buildSite(vararg alsoLibrary: Class<*>): String {
+    val library = setOf(ownCode) + alsoLibrary.map(::codeOf)
+    return walker.walk { frames ->
+        frames.filter { frame -> codeOf(frame.declaringClass) !in library }
             .findFirst()
             .map { frame -> "${frame.fileName}:${frame.lineNumber}" }
             .orElse("a line nobody could name")
     }
+}

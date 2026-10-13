@@ -47,6 +47,18 @@ class ProbeTest {
     }
 
     @Test
+    fun `a probe that always throws fails the start as unready, with the throw as its cause`() {
+        val module = single<Broker> { Broker() }
+            .probe("broker", timeout = 5.seconds) { _: Broker -> error("connection refused") }
+
+        val error = module.use { _: Broker -> }.leftOrNull().shouldNotBeNull()
+
+        val unready = error.shouldBeInstanceOf<StartupError.Unready>()
+        unready.name shouldBe "broker"
+        unready.cause.shouldBeInstanceOf<IllegalStateException>().message shouldBe "connection refused"
+    }
+
+    @Test
     fun `a probe that hangs fails inside its timeout`() {
         val forever = CountDownLatch(1)
         val module = single<Wedged> { Wedged() }
@@ -122,6 +134,20 @@ class ProbeRetryTest {
         val module = single<Broker> { Broker() }
             .probe("broker", timeout = 5.seconds, attempts = 4, interval = 1.seconds) { _: Broker ->
                 asked.incrementAndGet() >= 3
+            }
+
+        clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
+
+        asked.get() shouldBe 3
+    }
+
+    @Test
+    fun `a probe that throws is asked again, like one that answered no`() {
+        val asked = AtomicInteger()
+        val module = single<Broker> { Broker() }
+            .probe("broker", timeout = 5.seconds, attempts = 3, interval = 1.seconds) { _: Broker ->
+                check(asked.incrementAndGet() >= 3) { "the broker is still starting" }
+                true
             }
 
         clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }

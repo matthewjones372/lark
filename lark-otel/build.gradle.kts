@@ -11,6 +11,8 @@ dependencies {
     // and leave this module's storage untested. The exporter it would have
     // supplied is a dozen lines below.
     testImplementation("io.opentelemetry:opentelemetry-sdk:$otelVersion")
+    // Actors to send to, for the trace carried across a message (spec 0122).
+    testImplementation(project(":lark-actor"))
 }
 
 tasks.test {

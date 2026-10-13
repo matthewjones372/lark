@@ -10,8 +10,8 @@ recipe that stops being true stops the build.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app:0.1.0")
-    implementation("io.github.matthewjones372:lark-app-pekko:0.1.0")  // actors only
+    implementation("io.github.matthewjones372:lark-app:0.9.2")
+    implementation("io.github.matthewjones372:lark-app-pekko:0.9.2")  // actors only
 }
 ```
 
@@ -35,6 +35,14 @@ import io.github.matthewjones372.lark.gauge
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.timed
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.Bulkhead
+import io.github.matthewjones372.lark.RateLimiter
+import io.github.matthewjones372.lark.CircuitBreaker
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.guarded
+import io.github.matthewjones372.lark.policy
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.fixedClock
 import io.github.matthewjones372.lark.logAnnotated
@@ -242,7 +250,7 @@ substitution, merging, lists, `getDuration` and `getMemorySize` all still work.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-typesafe:0.1.0")
+    implementation("io.github.matthewjones372:lark-app-typesafe:0.9.2")
 }
 ```
 
@@ -418,7 +426,7 @@ val fromTheProcess: Module =
     single { sys: Sys -> DbConfig(sys.env("DB_URL") ?: refuse("DB_URL is not set")) }
 ```
 
-`FakeSys(mapOf("DB_URL" to "jdbc:h2:mem:"))` replaces it in a test, with no
+`FakeSys(mapOf("DB_URL" to "jdbc:postgresql://db/app"))` replaces it in a test, with no
 JVM-wide environment variable set anywhere.
 
 ## Something that has to be given back
@@ -675,9 +683,9 @@ registered:
 <!-- cookbook -->
 ```kotlin
 class Slf4jLogger : Logger {
-    private val log = LoggerFactory.getLogger("app")
-
     override fun log(line: LogLine) {
+        // origin is the class that wrote the line, so a backend can set a level per package
+        val log = LoggerFactory.getLogger(line.origin ?: "app")
         val annotated = line.annotations.entries.joinToString(" ") { (key, value) -> "$key=$value" }
         val message = if (annotated.isEmpty()) line.message else "${line.message} $annotated"
         when (line.level) {
@@ -783,7 +791,7 @@ Prometheus, Datadog, StatsD, OTLP.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-micrometer:0.3.0")
+    implementation("io.github.matthewjones372:lark-micrometer:0.9.2")
 }
 ```
 
@@ -819,6 +827,121 @@ microseconds, and every line is stamped with the same instant. `TestClock` is
 the other one — it moves only when a test moves it, and `adjustWhenBlocked`
 waits until every sleep is on a time still ahead before moving.
 
+## Guard a call to something unreliable
+
+<!-- cookbook -->
+```kotlin
+class Quotes(private val fetch: (String) -> Double) {
+    private val partner = policy("partner-api") {
+        deadline(2.seconds)
+        retry(Schedule.exponential<Throwable>(100.milliseconds).jittered() zipLeft Schedule.recurs(3))
+        attemptTimeout(500.milliseconds)
+    }
+
+    fun quote(id: String): Double = partner { fetch(id) }
+
+    fun quoted(id: String): Either<String, Double> = either {
+        guarded(partner, ifRejected = { "${it.guard} refused: ${it.message}" }) { fetch(id) }
+    }
+}
+```
+
+A policy is a value, checked when it is built: steps out of the order
+deadline → retry → breaker → limiter → bulkhead → attemptTimeout throw there, not on the first call. The
+`deadline` is one budget for the call, retries included. Retry stops before a
+delay the budget cannot cover, and each attempt is cut to the shorter of its own
+timeout and what is left.
+
+Every call counts once in `lark.policy.calls`, tagged with the `policy`, an
+`outcome` of `success`, `failure` or `rejected`, and `refused_by`: `deadline`,
+or the guard that refused, or `none`. A `raise` is the call's own answer, so it
+passes through every step and is not counted.
+
+## Stop calling something that is down
+
+<!-- cookbook -->
+```kotlin
+class Accounts(private val query: (String) -> String) {
+    private val breaker = CircuitBreaker(
+        name = "accounts-db",
+        maxFailures = 5,
+        resetAfter = Schedule.exponential<Unit>(1.seconds).jittered(0.8, 1.2) zipLeft Schedule.recurs(6),
+    )
+
+    private val db = policy("accounts-db") {
+        guard(breaker)
+        attemptTimeout(2.seconds)
+    }
+
+    fun row(id: String): String = db { query(id) }
+}
+```
+
+After `maxFailures` failures in a row the breaker opens, and every call is
+refused with `Rejected.CircuitOpen` without being made. Once the next delay of
+`resetAfter` has passed, one trial goes through. If it answers, the breaker
+closes and the schedule starts again; if it fails, the breaker reopens on the
+schedule's next delay. A timeout inside the breaker counts as a failure, and a
+`raise` never does. With a `deadline` in the policy, a refused call waits for
+the trial when the deadline covers the wait.
+
+`lark.breaker.state` is a gauge per breaker `name`: 0 closed, 1 half-open,
+2 open. `lark.breaker.calls` counts its calls by `outcome`: `success`,
+`failure` or `rejected`.
+
+## Cap the calls to something slow
+
+<!-- cookbook -->
+```kotlin
+class Partner(private val call: (String) -> String) {
+    private val bulkhead = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
+
+    private val partner = policy("partner-api") {
+        deadline(2.seconds)
+        guard(bulkhead)
+    }
+
+    fun quote(id: String): String = partner { call(id) }
+}
+```
+
+At most `maxConcurrent` callers are inside at once, let in in the order they
+arrived. The rest wait up to `maxWait`, cut to what the `deadline` leaves, and
+are refused with `Rejected.BulkheadFull` after. Virtual threads make a caller
+cheap, so the bulkhead is what keeps five thousand of them off a pool of twenty
+connections. The permit is given back however the call ends.
+
+`lark.bulkhead.in_use` is a gauge per bulkhead `name` of the permits taken, and
+`lark.bulkhead.calls` counts its calls by `outcome`: `admitted` or `rejected`.
+
+## Stay under someone else's quota
+
+<!-- cookbook -->
+```kotlin
+class Search(private val call: (String) -> String) {
+    private val limiter = RateLimiter(name = "partner-api", rate = 50, per = 1.seconds, burst = 10, maxWait = 200.milliseconds)
+
+    private val partner = policy("partner-api") {
+        deadline(2.seconds)
+        guard(limiter, cost = 5)
+    }
+
+    fun search(query: String): String = partner { call(query) }
+}
+```
+
+A token bucket refilled at `rate` every `per`, holding at most `burst`. A call
+without a token reserves the next one and sleeps until it arrives, so callers are
+served in the order they came, and one that would wait past `maxWait`, cut to
+the `deadline`, is refused at once with `Rejected.RateLimited` and its
+`retryAfter`, taking nothing. `cost` weighs a call that the quota counts as
+several. A call the bulkhead behind the limiter refuses was never made, so its
+tokens go back.
+
+`lark.ratelimiter.calls` counts calls per limiter `name` by `outcome`:
+`immediate`, `waited` or `rejected`. `lark.ratelimiter.wait` records how long
+each admitted call waited, in milliseconds.
+
 ## Run migrations as a step
 
 `lark-app-liquibase` makes a changelog a node. Anything that reads the database
@@ -827,7 +950,7 @@ edge the graph enforces and `render()` draws:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-liquibase:0.1.0")
+    implementation("io.github.matthewjones372:lark-app-liquibase:0.9.2")
 }
 ```
 
@@ -858,7 +981,7 @@ classpath is the change.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-otel:0.1.0")
+    implementation("io.github.matthewjones372:lark-otel:0.9.2")
 }
 ```
 
@@ -948,6 +1071,10 @@ opened it is released.
 | a fake in a test | `.overriding(single<T> { … })`, never plain `plus` |
 | a smaller test | `.subgraph<Root>()` |
 | no waiting in a test | `clock.locally(fixedClock()) { … }` |
+| a call to something unreliable | `policy("…") { deadline(…); retry(…); attemptTimeout(…) }` |
+| to stop calling something that is down | `guard(CircuitBreaker("…", maxFailures, resetAfter))` in a policy |
+| to cap the calls to something slow | `guard(Bulkhead("…", maxConcurrent, maxWait))` in a policy |
+| to stay under someone else's quota | `guard(RateLimiter("…", rate, per, burst, maxWait), cost)` in a policy |
 | a log line | `logInfo("…")` — no node takes a logger |
 | that log somewhere real | put `lark-slf4j` on the classpath; nothing else |
 | a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |

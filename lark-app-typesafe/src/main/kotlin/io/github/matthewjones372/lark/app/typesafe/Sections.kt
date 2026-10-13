@@ -86,8 +86,9 @@ class Reading internal constructor(val config: Config) {
  */
 fun <A> Config.reading(block: Reading.() -> A): Either<NonEmptyList<ConfigFault>, A> {
     val reading = Reading(this)
-    val value = runCatching { reading.block() }
-    return reading.faults.toNonEmptyListOrNull()?.left() ?: value.getOrThrow().right()
+    val value = reading.readOrFaulted(block)
+    return reading.faults.toNonEmptyListOrNull()?.left()
+        ?: checkNotNull(value) { "a read that threw recorded no fault, and was rethrown" }.value.right()
 }
 
 /**
@@ -138,6 +139,22 @@ internal class Section(val value: Any?, val faults: List<ConfigFault>)
 @PublishedApi
 internal fun <A> Config.sectionOf(path: String, read: Reading.() -> A): Section {
     val reading = Reading(this)
-    val value = runCatching { reading.section(path, read) }
-    return Section(value.getOrNull(), reading.faults.toList())
+    val value = reading.readOrFaulted { section(path, read) }
+    return Section(value?.value, reading.faults.toList())
 }
+
+/** A value read, boxed so that a read answering `null` is told apart from one that threw. */
+private class Read<A>(val value: A)
+
+/**
+ * [block]'s value, or null where it threw after a fault was recorded: the throw came from a discarded value,
+ * and the faults are the answer. A throw with no fault recorded is a bug of the caller's, and is rethrown.
+ */
+@Suppress("TooGenericExceptionCaught")
+private fun <A> Reading.readOrFaulted(block: Reading.() -> A): Read<A>? =
+    try {
+        Read(block())
+    } catch (thrown: Throwable) {
+        if (faults.isEmpty()) throw thrown
+        null
+    }

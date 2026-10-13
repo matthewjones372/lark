@@ -5,6 +5,7 @@ import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.tasks.JavaExec
 import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.testing.Test
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.process.CommandLineArgumentProvider
 import java.io.File
@@ -23,6 +24,8 @@ class LarkWiringPlugin : Plugin<Project> {
         wiring.verbose.convention(false)
         wiring.diagrams.convention(project.layout.buildDirectory.dir("reports/lark"))
 
+        colourReachesTests(project)
+
         // Registered against the Kotlin plugin rather than at apply time, so the order the two are
         // written in a build script does not decide whether there is a task.
         project.plugins.withId("org.jetbrains.kotlin.jvm") {
@@ -30,6 +33,25 @@ class LarkWiringPlugin : Plugin<Project> {
             // The checker in the compiler, which is what puts a fault in the editor. The task below
             // stays the gate: it runs the graph, and sees the parts no static reader can.
             project.plugins.apply(LarkCheckerPlugin::class.java)
+        }
+    }
+
+    /**
+     * lark-test's stories read FORCE_COLOR, NO_COLOR and lark.test.colour, and a test worker inherits none of them
+     * from the shell Gradle was started in (spec 0118). Each is handed on where it is set, as an input, so a change
+     * to one runs the tests again rather than serving them from the cache.
+     */
+    private fun colourReachesTests(project: Project) {
+        project.tasks.withType(Test::class.java).configureEach { test ->
+            COLOUR_VARIABLES.forEach { name ->
+                project.providers.environmentVariable(name).orNull?.let { value ->
+                    test.environment(name, value)
+                    test.inputs.property(name, value)
+                }
+            }
+            project.providers.gradleProperty(COLOUR_PROPERTY).orNull?.let { value ->
+                test.systemProperty(COLOUR_PROPERTY, value)
+            }
         }
     }
 
@@ -79,5 +101,7 @@ class LarkWiringPlugin : Plugin<Project> {
     private companion object {
         const val TASK = "larkWiring"
         const val CHECKER = "io.github.matthewjones372.lark.app.CheckKt"
+        const val COLOUR_PROPERTY = "lark.test.colour"
+        val COLOUR_VARIABLES = listOf("FORCE_COLOR", "NO_COLOR")
     }
 }

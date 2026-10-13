@@ -5,6 +5,7 @@ import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import io.github.matthewjones372.lark.LogLevel
+import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.logError
@@ -20,18 +21,19 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
+import java.time.Instant
 
 /**
  * What a line looks like once it reaches a backend, asserted against logback rather than a fake.
  *
- * The appender is attached to the name the adapter logs under, because a service configures a
- * backend by name and a test that bypassed the name would not notice the adapter dropping it.
+ * The appender is attached to the name the adapter logs under, this class's own, because a service
+ * configures a backend by name and a test that bypassed the name would not notice the adapter dropping it.
  */
 class Slf4jLoggerTest {
 
     private val appender = ListAppender<ILoggingEvent>()
 
-    private val backend = (LoggerFactory.getILoggerFactory() as LoggerContext).getLogger("lark")
+    private val backend = backendNamed(Slf4jLoggerTest::class.java.name)
 
     @BeforeEach
     fun attach() {
@@ -46,6 +48,20 @@ class Slf4jLoggerTest {
     }
 
     private fun <A> logging(block: () -> A): A = logger.locally(Slf4jLogger(), block)
+
+    private fun backendNamed(name: String) = (LoggerFactory.getILoggerFactory() as LoggerContext).getLogger(name)
+
+    private fun <A> capturing(name: String, block: () -> A): List<ILoggingEvent> {
+        val named = backendNamed(name)
+        val its = ListAppender<ILoggingEvent>().also { it.start() }
+        named.addAppender(its)
+        try {
+            block()
+        } finally {
+            named.detachAppender(its)
+        }
+        return its.list
+    }
 
     @Test
     fun `each level reaches the call the backend names it by`() {
@@ -83,15 +99,29 @@ class Slf4jLoggerTest {
     }
 
     @Test
+    fun `a line reaches the logger named after the class that wrote it`() {
+        val lines = capturing(Registry::class.java.name) { logging { Registry().register("tortoise-1") } }
+
+        withClue("a backend configured by package reads this name, not `lark`") {
+            lines.map { it.loggerName to it.message } shouldBe listOf(
+                Registry::class.java.name to "registering tortoise-1",
+            )
+        }
+    }
+
+    @Test
     fun `the name a service configures is the name it was given`() {
-        val named = (LoggerFactory.getILoggerFactory() as LoggerContext).getLogger("petshop")
-        val its = ListAppender<ILoggingEvent>().also { it.start() }
-        named.addAppender(its)
+        val lines = capturing("app") { logger.locally(Slf4jLogger("app")) { logInfo("named") } }
 
-        logger.locally(Slf4jLogger("petshop")) { logInfo("named") }
+        lines.map { it.loggerName to it.message } shouldBe listOf("app" to "named")
+        appender.list.shouldBe(emptyList())
+    }
 
-        its.list.single().message shouldBe "named"
-        named.detachAppender(its)
+    @Test
+    fun `a line with no origin reaches lark`() {
+        val lines = capturing("lark") { Slf4jLogger().log(LogLine(LogLevel.Info, "unplaced", Instant.EPOCH)) }
+
+        lines.map { it.message } shouldBe listOf("unplaced")
     }
 
     @Test
@@ -143,4 +173,8 @@ class Slf4jLoggerTest {
             LogLevel.entries.size shouldBe 4
         }
     }
+}
+
+private class Registry {
+    fun register(id: String) = logInfo("registering $id")
 }

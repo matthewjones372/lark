@@ -1,14 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import org.apache.pekko.stream.javadsl.Flow
-import java.util.Optional
-import org.apache.pekko.japi.Pair as PekkoPair
-
 /** [zero] first, then what [f] carried after each element: a running total, one element at a time. */
-fun <A : Any, S : Any> Pipe.Companion.scan(zero: S, f: (S, A) -> S): Pipe<Nothing, A, S> {
-    val carry = guarded("scan", buildSite(), f)
-    return Pipe(Flow.create<A>().scan(zero) { carried, a -> carry(carried, a) })
-}
+fun <A : Any, S : Any> Pipe.Companion.scan(zero: S, f: (S, A) -> S): Pipe<Nothing, A, S> =
+    Pipe(Node.Scan(Node.Hole, zero, f.erased(), buildSite()))
 
 fun <E, In, Out : Any, S : Any> Pipe<E, In, Out>.scan(zero: S, f: (S, Out) -> S): Pipe<E, In, S> =
     via(Pipe.scan(zero, f))
@@ -23,16 +17,8 @@ fun <A : Any, S, B : Any> Pipe.Companion.statefulMap(
     create: () -> S,
     f: (S, A) -> Pair<S, B>,
     onComplete: (S) -> B? = { null },
-): Pipe<Nothing, A, B> {
-    val step = guarded("statefulMap", buildSite(), f)
-    return Pipe(
-        Flow.create<A>().statefulMap(
-            { create() },
-            { carried, a -> step(carried, a).let { (next, out) -> PekkoPair.create(next, out) } },
-            { carried -> Optional.ofNullable(onComplete(carried)) },
-        ),
-    )
-}
+): Pipe<Nothing, A, B> =
+    Pipe(Node.StatefulMap(Node.Hole, create, f.erased(), onComplete.erased(), buildSite()))
 
 fun <E, In, Out : Any, S, B : Any> Pipe<E, In, Out>.statefulMap(
     create: () -> S,

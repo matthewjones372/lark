@@ -1,0 +1,7 @@
+Stream.from
+map          RenderPipelines.kt:15
+map          RenderPipelines.kt:16
+filter       RenderPipelines.kt:17
+map          RenderPipelines.kt:18
+mapOrFail    RenderPipelines.kt:19
+runFold      RenderPipelines.kt:20

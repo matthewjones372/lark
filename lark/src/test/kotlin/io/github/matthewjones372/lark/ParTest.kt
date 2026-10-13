@@ -11,6 +11,7 @@ import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.LockSupport
 
 class ParTest {
 
@@ -121,6 +122,31 @@ class ParTest {
     }
 
     @Test
+    fun `a branch that raises after the combinator has cancelled it still surfaces, if it started first`() {
+        val firstStarted = CountDownLatch(1)
+
+        val result = flock<Bad, Int> {
+            parZip(
+                {
+                    firstStarted.countDown()
+                    // Parked until the second branch's raise has cancelled this one: a park answers an interrupt
+                    // without throwing, so the raise below lands after the cancel, every time.
+                    while (!Thread.currentThread().isInterrupted) LockSupport.parkNanos(PARK_NANOS)
+                    raise(Bad("first"))
+                },
+                {
+                    firstStarted.await()
+                    raise(Bad("second"))
+                },
+            ) { _, _ -> 0 }
+        }
+
+        withClue("an interrupt arrives as a throw, never as a raise, so this raise was the branch's own") {
+            result shouldBe Bad("first").left()
+        }
+    }
+
+    @Test
     fun `parMap answers in input order, having run the elements in parallel`() {
         val allRunning = CountDownLatch(4)
 
@@ -192,3 +218,5 @@ class ParTest {
         result shouldBe Bad("branch").left()
     }
 }
+
+private const val PARK_NANOS = 1_000_000L

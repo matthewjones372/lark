@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark
 
+import java.lang.invoke.MethodHandles
 import java.time.Instant
 import java.util.ServiceLoader
 
@@ -12,6 +13,8 @@ data class LogLine(
     val at: Instant,
     val cause: Throwable? = null,
     val annotations: Map<String, String> = emptyMap(),
+    /** The top-level class the line was written from. */
+    val origin: String? = null,
 )
 
 fun interface Logger {
@@ -23,7 +26,8 @@ object StderrLogger : Logger {
 
     override fun log(line: LogLine) {
         val annotated = line.annotations.entries.joinToString("") { (key, value) -> " $key=$value" }
-        System.err.println("${line.at} ${line.level.name.uppercase()} ${line.message}$annotated")
+        val origin = line.origin?.let { "$it " }.orEmpty()
+        System.err.println("${line.at} ${line.level.name.uppercase()} $origin${line.message}$annotated")
         line.cause?.printStackTrace(System.err)
     }
 }
@@ -49,15 +53,29 @@ private val discovered: Logger by lazy {
     }
 }
 
-fun logDebug(message: String) = log(LogLevel.Debug, message, null)
+// Inline so that `lookupClass()` runs in the caller, which names it without walking the stack. That is
+// the whole reason for the inlining, so NOTHING_TO_INLINE's performance argument does not apply.
+@Suppress("NOTHING_TO_INLINE")
+inline fun logDebug(message: String) = logAt(LogLevel.Debug, message, null, MethodHandles.lookup().lookupClass())
 
-fun logInfo(message: String) = log(LogLevel.Info, message, null)
+@Suppress("NOTHING_TO_INLINE")
+inline fun logInfo(message: String) = logAt(LogLevel.Info, message, null, MethodHandles.lookup().lookupClass())
 
-fun logWarn(message: String) = log(LogLevel.Warn, message, null)
+@Suppress("NOTHING_TO_INLINE")
+inline fun logWarn(message: String) = logAt(LogLevel.Warn, message, null, MethodHandles.lookup().lookupClass())
 
-fun logError(message: String, cause: Throwable? = null) = log(LogLevel.Error, message, cause)
+@Suppress("NOTHING_TO_INLINE")
+inline fun logError(message: String, cause: Throwable? = null) =
+    logAt(LogLevel.Error, message, cause, MethodHandles.lookup().lookupClass())
 
-private fun log(level: LogLevel, message: String, cause: Throwable?) {
+/** A companion, a nested class, a lambda or an anonymous object reports the class that holds it. */
+private val topLevel = object : ClassValue<String>() {
+    override fun computeValue(type: Class<*>): String = generateSequence(type) { it.enclosingClass }.last().name
+}
+
+@PublishedApi
+internal fun logAt(level: LogLevel, message: String, cause: Throwable?, caller: Class<*>) {
     val at = clock.get().now()
-    logger.get().log(LogLine(level, message, at, cause, annotations.get() + spans.get().elapsedAt(at)))
+    val line = LogLine(level, message, at, cause, annotations.get() + spans.get().elapsedAt(at), topLevel.get(caller))
+    logger.get().log(line)
 }

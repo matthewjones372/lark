@@ -3,19 +3,34 @@ package io.github.matthewjones372.lark
 import arrow.core.Either
 import arrow.core.raise.Raise
 import arrow.core.raise.either
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/** Whether `async` forks where it is written, or waits until something asks for the value. */
+enum class Start { Eager, Lazy }
+
 /** A `Raise` scope that owns every thread forked in it: no fork outlives the block that opened it. */
 interface Flock<E> : Raise<E> {
     /** The executor this scope's forks run on when a call does not name another. */
     val on: Executor
 
-    /** Forks [block] onto [on] under a nested scope of its own. */
-    fun <T> async(on: Executor = this.on, block: Flock<E>.() -> T): Deferred<T>
+    /**
+     * Forks [block] onto [on] under a nested scope of its own. A [Start.Lazy] fork waits for `await`, and
+     * one nobody awaits never runs at all, so its raise is never the scope's `Left`.
+     */
+    fun <T> async(on: Executor = this.on, start: Start = Start.Eager, block: Flock<E>.() -> T): Deferred<T>
+
+    /**
+     * Runs [hook] on the closing thread when this scope starts to close, before any fork is interrupted, so the
+     * scope's forks are still running for it: to leave a cluster, or to wait for work in flight to land. Hooks run
+     * in reverse order of registration, as a `resourceScope` releases. A hook that throws is logged and the scope
+     * closes all the same; one interrupted waiting ends, the rest still run, and the interrupt is kept for after.
+     */
+    fun onClose(hook: () -> Unit)
 }
 
 /**
@@ -73,7 +88,6 @@ private fun <E> Raise<E>.surface(failure: Failure<E>): Nothing = when (failure) 
 }
 
 /** What a fork interrupted by a combinator answers with, as against a failure the caller's work ran into. */
-private fun Failure<*>.isInterrupt(): Boolean = this is Thrown && throwable is InterruptedException
 
 /**
  * An interrupt landing on the closing thread must not leave a fork running, so the join is retried
@@ -101,8 +115,15 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
     // Only the scope's own thread reaches this: a fork body is handed a nest of its own.
     private val forks = mutableListOf<Fork<E, *>>()
 
-    override fun <T> async(on: Executor, block: Flock<E>.() -> T): Deferred<T> {
-        val fork = Fork(this, on, block)
+    // Registered from any thread that holds the scope, such as an actor started in it.
+    private val hooks = CopyOnWriteArrayList<() -> Unit>()
+
+    override fun onClose(hook: () -> Unit) {
+        hooks += hook
+    }
+
+    override fun <T> async(on: Executor, start: Start, block: Flock<E>.() -> T): Deferred<T> {
+        val fork = Fork(this, on, block, start = start)
         forks += fork
         return fork
     }
@@ -112,11 +133,31 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
      * a fork whose turn on the executor has not come yet starts its body interrupted instead.
      */
     fun close() {
-        forks.forEach { it.interrupt() }
-        forks.forEach { it.join() }
+        // A hook that throws an Error still leaves no fork running: it is thrown once every one has ended.
+        try {
+            runHooks()
+        } finally {
+            forks.forEach { it.interrupt() }
+            forks.forEach { it.join() }
+        }
     }
 
     fun unnoticedFailure(): Failure<E>? = forks.firstNotNullOfOrNull { it.unnoticedFailure() }
+
+    private fun runHooks() {
+        var interrupted = false
+        // Last registered first, and one registered while closing runs too: it is the last now.
+        generateSequence { hooks.removeLastOrNull() }.forEach { hook ->
+            try {
+                hook()
+            } catch (stop: InterruptedException) {
+                interrupted = true
+            } catch (thrown: Exception) {
+                logError("a close hook failed; the flock closes all the same", thrown)
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt()
+    }
 }
 
 /**
@@ -169,9 +210,10 @@ internal class Flight<E>(private val owner: Raise<E>, private val on: Executor) 
 
 internal class Fork<E, T>(
     private val owner: Raise<E>,
-    on: Executor,
-    block: Flock<E>.() -> T,
-    ended: () -> Unit = {},
+    private val on: Executor,
+    private val block: Flock<E>.() -> T,
+    private val ended: () -> Unit = {},
+    start: Start = Start.Eager,
 ) : Deferred<T> {
 
     @Volatile
@@ -202,7 +244,17 @@ internal class Fork<E, T>(
     // Read on the opening thread rather than inside the task, which runs on a thread that bound none of it.
     private val inherited = Bindings.snapshot()
 
+    // Whether the body has reached the executor. A lazy fork nobody asked for never does, and then there is
+    // no thread to interrupt and no latch anything will ever count down.
+    @Volatile
+    private var started = false
+
     init {
+        if (start == Start.Eager) submit()
+    }
+
+    private fun submit() {
+        started = true
         on.execute {
             Bindings.under(inherited) {
                 cancelling.withLock {
@@ -227,6 +279,7 @@ internal class Fork<E, T>(
     }
 
     override fun await(): T {
+        startOnce()
         join()
         noticed = true
         return when (val settled = settled()) {
@@ -235,15 +288,34 @@ internal class Fork<E, T>(
         }
     }
 
+    private fun startOnce() {
+        if (cancelling.withLock { !started && !cancelled }) submit()
+    }
+
+    override fun cancel() {
+        interrupt()
+        join()
+        noticed = true
+    }
+
     fun interrupt() {
-        cutShort = outcome == null
         cancelling.withLock {
+            // Close interrupts a fork `cancel` already stopped, and by then it has answered: reading
+            // `outcome` a second time would call it a fork that failed of its own accord.
+            if (!cancelled) cutShort = outcome == null
             cancelled = true
+            // Nothing is running to notice an interrupt and nothing will end the fork, so it answers here
+            // as though it had been stopped at its first interruptible call.
+            if (!started && outcome == null) {
+                outcome = Thrown(InterruptedException("cancelled before it was started"))
+                finished.countDown()
+            }
             borrowed?.interrupt()
         }
     }
 
     fun join() {
+        if (!started) return
         finished.awaitFully()
         ownThread?.joinFully()
     }
@@ -257,8 +329,13 @@ internal class Fork<E, T>(
     /** Whether this fork answered of its own accord, rather than being cut short by a combinator's interrupt. */
     fun answered(): Boolean = !cutShort
 
-    /** The failure this fork answered with of its own accord, rather than the interrupt a combinator sent it. */
-    fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort && it.isInterrupt() }
+    /**
+     * The failure this fork answered with of its own accord. One cut short by a combinator's interrupt had not answered
+     * when it was sent, so whatever it throws after is the interrupt's doing: a pool that wraps it in an exception of
+     * its own would otherwise be reported in place of the failure that ended its siblings. An interrupt arrives as a
+     * throw and never as a raise, so a raise is the fork's own however late it lands (spec 0121).
+     */
+    fun ownFailure(): Failure<E>? = (settled() as? Failure<E>)?.takeUnless { cutShort && it is Thrown }
 
     /** The throwable this fork threw of its own accord: a throw ends an accumulating combinator's siblings. */
     fun ownThrow(): Thrown? = ownFailure() as? Thrown
@@ -270,8 +347,8 @@ internal class Fork<E, T>(
         null -> null
     }
 
-    /** The failure of a fork whose outcome nobody asked for; the scope answers with it at close. */
-    fun unnoticedFailure(): Failure<E>? = settled().takeUnless { noticed } as? Failure<E>
+    /** The failure of a fork whose outcome nobody asked for; one that never ran has none to answer with. */
+    fun unnoticedFailure(): Failure<E>? = if (!started) null else settled().takeUnless { noticed } as? Failure<E>
 
     private fun settled(): Outcome<E, T> = checkNotNull(outcome) { "a joined fork always has an outcome" }
 }

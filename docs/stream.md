@@ -6,11 +6,14 @@ type can never be null, and running it answers an `Exit` that is `Done`,
 `Failed(e)` or `Died(cause)` — never a dropped element and never a failed
 future nobody read.
 
-Every operator delegates to Pekko. `toSource()` and `Stream.from(source)` are
-the way in and out, so nothing Pekko can do is out of reach.
+A stream is a description: the operators build it, and a backend runs it.
+`lark-stream-pekko` is the backend for Pekko Streams, and every operator
+compiles to the Pekko stage it names. `toSource()` and `Stream.from(source)`
+are the way in and out, so nothing Pekko can do is out of reach.
 
-The module is `lark-stream` and everything below is in
-`io.github.matthewjones372.lark.stream`. It was its own library, dipper, until
+A service depends on `lark-stream-pekko`, and `lark-stream`, the description
+with no backend in it, comes with it. Everything below is in
+`io.github.matthewjones372.lark.stream`, whichever of the two it ships in. It was its own library, dipper, until
 lark's [spec 0005](../specs/0005-dipper-comes-home.md) brought it here.
 
 ## The problem
@@ -32,13 +35,13 @@ so.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    // Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
-    implementation("io.github.matthewjones372:lark-stream:0.1.0")
+    // lark-stream, Pekko Streams, lark, lark-pekko and arrow-core arrive with it; nothing else does.
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.9.2")
 }
 ```
 
-An untagged commit publishes `0.1.0`, which is what
-`./gradlew publishToMavenLocal` installs.
+A commit after the latest tag builds the next patch version as a `-SNAPSHOT`,
+which is what `./gradlew publishToMavenLocal` installs.
 
 Rows in, receipts to one sink, declines to another, and every import it takes:
 
@@ -218,6 +221,10 @@ what changes is what the type says, and what it will not let you write.
 | `Stream.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A>` | `element` every `every`, the first one `after` the run starts; `kotlin.time.Duration`, as lark's own `timeout` takes |
 | `Stream.fromStage(stage: CompletionStage<A>): Stream<Nothing, A>` | the stage's value as one element; a `null` completion is `Died(NullPointerException)`, never `Done` with nothing |
 | `Stream.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A>` | the same, with the absence named: a `null` completion is `Failed(ifNull)` |
+| `Stream.blocking(open, next, wake, close): Stream<Nothing, A>` | a resource opened per run and read by blocking, on any backend: `next` answering `null` ends it, `stop()` calls `wake` to reach a `next` that is blocked, and `close` runs once however the run ended. Pekko reads it on its blocking-IO dispatcher |
+| `Hub<A>(capacity).subscribe(): Stream<Nothing, A>` | everything a `Hub` is sent while a run of it lasts, on any backend; the first run ever also gets what was published before it. See [one publisher, many readers](#one-publisher-many-readers) |
+| `Stream<Nothing, A>.publishTo(hub: Hub<A>): Stream<HubRefused, A>` | each element published to the hub as it passes; a refusal, `Full` or `Closed`, ends the stream with it |
+| `Stream.hooked(source: (RunHooks) -> Source<A, *>): Stream<Nothing, A>` | opt-in (`@SourceSeam`), for a module adding a source of its own: each run hands the source hooks, so it can drain on `stop()` and clean up once the run has ended. `lark-kafka` is built on it |
 | `Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A>` | a stream that emitted nothing fails with `error`, for `E : E2`; one that emitted is untouched |
 | **Element by element** | |
 | `Stream<E, A>.map(f: (A) -> B): Stream<E, B>` | `B` is bound to `Any`, so a nullable body does not compile |
@@ -226,6 +233,7 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | a body that answers a stage: up to `parallelism` at once, in the input's order; a `null` completion dies |
 | `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Raise<E>`; `B : Any`, so no completion drops an element |
 | `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
+| `Stream<E, A>.mapParOrFail(parallelism: Int, f: Raise<F>.(A) -> B): Stream<F, B>` | `mapPar` with the failure read out of the body, on a stream that has not named one; `mapOrFail`'s suffix, and `on` as above |
 | `Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B>` | each element's own elements, in its order; one that answers with none emits none |
 | `Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S>` | a backlog collapsed while downstream is busy: `seed` starts the aggregate and `aggregate` folds each later element in |
 | `Stream<E, A>.filterNot(predicate: (A) -> Boolean): Stream<E, A>` | `filter`'s mirror, Pekko's own name |
@@ -257,11 +265,13 @@ what changes is what the type says, and what it will not let you write.
 | `Stream<E, A>.catchAll(f: (E) -> Stream<E2, A>): Stream<E2, A>` | the declared failure handled, and a defect still dying |
 | `Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A>` | `other` on a failure, not on an empty stream |
 | `Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A>` | the declared failure said in another vocabulary, without saying recovery |
+| `Stream<E, A>.restartOnDefect(schedule: Schedule<Throwable, *>): Stream<E, A>` | on a defect, the same description run again after the schedule's delay, with a warn line each time; a declared failure passes through, and a schedule that is done lets the defect through as `Died` |
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
 | `Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M>` | a run described, to the sink named; the sink's materialised value is the run's. `M : Any`, and a sink that materialises `null` anyway is `Died`, never `Done(null)` |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | the one call that materialises, on the system it names |
+| `Run<E, R>.start(system: ClassicActorSystemProvider): Running<E, R>` | the same run, with a handle: `exit` is what `run` answers, `stop()` ends it now as `Done` with what the sink has, and `close()` stops and waits, so `Running::close` is a graph node's release. A source that drains, such as a Kafka consumer, is stopped by draining, so what it already sent still reaches the sink |
 | `Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Raise`: `Done` is the value, `Failed` raises, `Died` throws |
 | **Pipes** | |
 | `Pipe.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out>` | the way in from Pekko's `Flow` |
@@ -286,7 +296,7 @@ so `raise`, `bind` and `parZip` are all in reach of it:
 import arrow.core.Either
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapPar
+import io.github.matthewjones372.lark.stream.mapParOrFail
 
 data class Row(val id: Int, val customer: String?)
 
@@ -303,8 +313,14 @@ val directory = Directory()
 val rows = listOf(Row(1, "ada"), Row(2, "grace"))
 
 val customers: Stream<NoCustomer, Customer> =
-    Stream.from(rows).mapPar(4) { row -> directory.lookup(row.id).bind() }   // a virtual thread per element in flight
+    Stream.from(rows).mapParOrFail(4) { row -> directory.lookup(row.id).bind() }   // a virtual thread per element in flight
 ```
+
+`mapPar` keeps the failure type the stream already has, `Nothing` included, so
+a body that cannot fail needs nothing spelled out. On a stream that has not
+named a failure yet, `mapParOrFail` reads one out of the body, as `mapOrFail`
+does. The two cannot share a name, because Kotlin fixes the type before it
+reads the body.
 
 Blocking a virtual thread parks it and leaves the carrier to the next one, so
 four in flight are four threads and not four platform threads — with one
@@ -314,6 +330,31 @@ in 24. A raise is the stream's declared failure, anything thrown is
 `Died(cause)`, and a body still running when the stream is torn down is
 interrupted where it blocked, because Pekko never cancels the stage its
 `mapAsync` is waiting on.
+
+## One publisher, many readers
+
+A `Hub` hands one publisher's elements to every reader in the same process, on
+any backend, where Pekko's `BroadcastHub` needs Pekko:
+
+```kotlin
+val hub = Hub<ShopEvent>(capacity = 256)
+
+hub.publish(event)                        // Either<HubRefused, ShopEvent>: never waits
+hub.subscribe().runFold(Tally()) { t, e -> t + e }.start(Forks())
+hub.close()                               // every subscription ends Done, after what it was sent
+```
+
+- Each subscriber has a queue of its own, `capacity` deep. `publish` gives an
+  element to every subscriber or, when one of them is full, to none, and
+  answers `Full`: an at-least-once publisher keeps the element and offers it
+  again, and a slow reader never silently misses one.
+- A subscriber is a run of `subscribe()`, from when it starts until it ends
+  however it ends, so one that has stopped no longer holds the hub back.
+- What is published before anyone subscribes is held, up to `capacity`, for the
+  first subscriber. After that, an element published while nobody subscribes
+  goes nowhere.
+- On `TestStreams` a waiting subscription gives up its turn, so a test
+  publishes, and the run reads it, without moving the clock.
 
 ## Missing is a failure, not an empty stream
 
@@ -430,16 +471,40 @@ lark's name for it and a `bind()` on a `Left` ends the stream with what the
 awaited — an element body can write too, and the failure it names is the one
 the stream already declares.
 
+## Time a test owns
+
+`tick`, `groupedWithin` and `restartOnDefect` wait on time. On `TestStreams`,
+from `lark-stream-test`, they wait on a `TestClock` and on nothing else, so a
+test moves time rather than sleeping through it:
+
+```kotlin
+val clock = TestClock()
+val running = Stream.tick(1.minutes, "t").runCollect().start(TestStreams(clock))
+
+clock.adjust(1.hours)
+running.emitted().size shouldBe 60
+```
+
+One stage runs at a time, in the same order every time. `start` returns once
+the run is over or waiting on a later time, and each `adjust` stops at every
+instant the run waits for on the way, so what falls due runs in time order
+before `adjust` returns. A stage body that reads lark's `clock` reads the
+test's. A body that blocks on anything else blocks the test with it.
+
 ## What is in the box
 
-`lark-stream` puts the Kotlin standard library, `lark`, `lark-pekko` — whose
-`await` is how `awaitExit` waits, so an interrupt cancels the run rather than
-abandoning it — `pekko-stream` with the Scala runtime, Typesafe Config, the
-Reactive Streams interfaces and the `ssl-config-core` it brings, and
-`arrow-core` on a consumer's classpath, and nothing else — no HTTP library, no JSON library, no coroutines, no second
-functional stack. `NoOtherDependenciesTest` asserts exactly that list against
-the module's real runtime classpath, so a dependency added here is a build
-failure rather than a judgement call.
+`lark-stream` puts the Kotlin standard library, `lark` and `arrow-core` on a
+consumer's classpath, and nothing else: a description names no backend.
+
+`lark-stream-pekko` adds `lark-pekko` — whose `await` is how `awaitExit`
+waits, so an interrupt cancels the run rather than abandoning it — and
+`pekko-stream` with the Scala runtime, Typesafe Config, the Reactive Streams
+interfaces and the `ssl-config-core` it brings, and nothing else — no HTTP
+library, no JSON library, no coroutines, no second functional stack.
+
+Each module's `NoOtherDependenciesTest` asserts its list against the module's
+real runtime classpath, so a dependency added to either is a build failure
+rather than a judgement call.
 
 ## Working on it
 

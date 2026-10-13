@@ -4,64 +4,163 @@
 [![Build](https://github.com/matthewjones372/lark/actions/workflows/build.yml/badge.svg)](https://github.com/matthewjones372/lark/actions/workflows/build.yml)
 [![Coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25%20enforced-brightgreen)](AGENTS.md#verifying)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![JDK](https://img.shields.io/badge/jdk-21%2B-brightgreen)](https://openjdk.org/projects/jdk/21/)
+[![JDK](https://img.shields.io/badge/jdk-25%2B-brightgreen)](https://openjdk.org/projects/jdk/25/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/status-experimental-orange)](#what-this-is)
 
-`arrow-fx-coroutines` on virtual threads. Drop the `suspend`, swap the import,
-and the body stays exactly as it was — the combinators take Arrow's own
-`Raise`, so code already inside `either { }` needs no scope of lark's around it.
+Lark is a set of Kotlin libraries for services that run on virtual threads
+instead of coroutines. Its core, `lark`, is a version of `arrow-fx-coroutines`.
+To move a function over, remove the `suspend` and change the import; the body
+stays the same. The combinators take Arrow's own `Raise`, so code already
+inside `either { }` does not need any extra scope from lark.
 
-Each branch runs on a virtual thread of its own and is free to block, so a
-service whose ports are JDBC or a client with no async surface gets the fork and
-the join without a dispatcher to starve. It is `arrow-core` plus the JDK, and
-nothing else — no coroutines, no second effect system.
+The other modules build on that core. An application can be written as a
+dependency graph that is checked before anything starts. A stream carries its
+failure type and runs on Pekko Streams, on a virtual thread or on actors.
+Actors run on virtual threads, can keep their state in a journal that read
+models follow, and can be reached from other nodes. Nodes can form a cluster
+with gossip membership, sharded entities and singletons. There are also
+modules for Kafka, for logging, metrics and tracing, and for tests.
+
+Each branch runs on its own virtual thread and is allowed to block. A service
+that talks to JDBC, or to a client with no async API, can fork and join without
+the risk of starving a dispatcher. The core depends only on `arrow-core` and
+the JDK: there are no coroutines and no second effect system. Every other
+module adds only the dependency its name says, such as Pekko, Kafka or
+OpenTelemetry.
 
 ## What this is
 
-A scratchpad. Lark is where ideas about what a Kotlin service looks like
-without coroutines get tried: a fork that inherits, an application that is a
-value, a stream that names its failure. It is on Maven Central so that trying
-one takes a dependency line rather than a checkout — not because any of it is
-finished.
+A scratchpad. Lark is a place to try out ideas about what a Kotlin service looks
+like without coroutines, such as a fork that inherits context, an application
+defined as a value, and a stream whose failure type is part of its type. It is
+on Maven Central so that trying one of these takes a dependency line rather
+than a checkout. Being published does not mean any of it is finished.
 
-Nothing here has run in production. The API moves between versions and will
-keep moving; `lark-app`'s runner changed shape twice in the week it was written.
-Several modules exist because a question came up, and have no consumer beyond
-their own tests.
+Nothing here has run in production. The API changes between versions and will
+keep changing; `lark-app`'s runner changed shape twice in the week it was
+written. Several modules exist because a question came up, and have no user
+beyond their own tests. The actor, cluster and Kafka modules are the newest.
+Apart from their tests, the only thing that uses them is `lark-bank`, an
+example application in this repository.
 
-Take it for an experiment, a spike, or a read. Pin the version if you do, and
-expect the next one to break you.
+Treat it as an experiment, a spike, or something to read. If you use it, pin
+the version and expect the next one to break things.
 
 ## Use it
 
 ```kotlin
 dependencies {
     // arrow-core comes with it; nothing else does
-    implementation("io.github.matthewjones372:lark:0.1.0")
+    implementation("io.github.matthewjones372:lark:0.9.2")
 }
 ```
 
-Every module is on Maven Central under the same group and version. Each one
-brings itself and what its own name says, and `NoOtherDependenciesTest` in each
-is where that claim is checked.
+Every published module is on Maven Central under the same group and version.
+Each one brings only itself, the lark modules it builds on, and the dependency
+named in the tables below, and the `NoOtherDependenciesTest` in each module
+checks that.
 
-| Module | What it adds | Beyond `lark` |
-|---|---|---|
-| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `LarkLocal`, `Clock`, the log | `arrow-core` |
-| `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` |
-| `lark-stream` | `Stream<E, A>` over Pekko Streams: the failure is in the type | `pekko-stream` |
-| `lark-app` | an application as a value: the graph, its faults, probes, health, testing | nothing |
-| `lark-app-pekko` | an actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` |
-| `lark-app-liquibase` | a changelog as a node, and reading the database depends on it | `liquibase-core` |
-| `lark-app-typesafe` | a HOCON section as a node, every fault at once, and a setting that picks a module | `com.typesafe:config` |
-| `lark-otel` | a `Context` that crosses a fork, so a trace survives a `parMap` | `opentelemetry-api` |
-| `lark-slf4j` | lark's own lines through the backend a service already configured, annotations in the MDC | `slf4j-api` |
-| `lark-micrometer` | counters, gauges and histograms into the `MeterRegistry` a service already has | `micrometer-core` |
-| `lark-app-gradle` | a Gradle plugin: every graph in a project checked and drawn as it compiles | `gradleApi()` |
+## Modules
 
-An untagged commit builds `0.1.0-SNAPSHOT`, which is what
+**Core**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `policy`, `LarkLocal`, `Clock`, the log and metrics | `arrow-core` | yes |
+| `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` | yes |
+| `lark-structured` | `parZip`, `parMap`, `raceN` and `timeout` on the JDK's `StructuredTaskScope`; experimental, as that API is a preview | nothing | no |
+
+**Applications**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-app` | an application as a value: the graph, its faults, probes, health, testing ([guide](docs/app.md)) | nothing | yes |
+| `lark-app-typesafe` | a HOCON section as a node, every fault reported at once, and a setting that picks a module | `com.typesafe:config` | yes |
+| `lark-app-liquibase` | a changelog as a node, which reading the database depends on | `liquibase-core` | yes |
+| `lark-app-pekko` | a Pekko typed actor as a node, keyed by the `ActorRef<T>` of its protocol | `pekko-actor-typed` | yes |
+| `lark-app-actor` | a `lark-actor` flock as a node, and an actor as a node keyed by the `ActorRef<M>` of its protocol | nothing | yes |
+| `lark-app-cluster` | a `lark-cluster` membership as a node, joined as a HOCON section describes | `com.typesafe:config`, through `lark-app-typesafe` | yes |
+| `lark-app-gradle` | a Gradle plugin that checks and draws every graph in a project as it compiles | `gradleApi()` | yes |
+| `lark-app-compiler` | a K2 compiler checker that shows the same faults in the editor, for the shapes it can follow | the Kotlin compiler, already present | yes |
+
+**Streams**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-stream` | `Stream<E, A>` as a description: the failure is in the type, and no backend is named ([guide](docs/stream.md)) | nothing | yes |
+| `lark-stream-pekko` | runs a `Stream` on Pekko Streams, plus the operators that take Pekko's types | `pekko-stream` | yes |
+| `lark-stream-forks` | runs a `Stream` as a pull loop on one virtual thread | nothing | yes |
+| `lark-stream-actors` | runs a `Stream` on `lark-actor`, as an actor per run | nothing | yes |
+| `lark-stream-parity` | tests only: one suite of pipelines run on every backend, which must give the same answers | nothing | no |
+| `lark-stream-benchmarks` | JMH benchmarks of the stream backends | JMH | no |
+
+**Actors**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-actor` | an actor as a `Behaviour` on virtual threads, with supervision, timers, persistence and a test harness ([guide](docs/actors.md)) | nothing | yes |
+| `lark-actor-journal-jdbc` | the journal, snapshots and read-model offsets on JDBC, with the tables as a Postgres changelog ([guide](docs/cluster.md)) | nothing | yes |
+| `lark-actor-projection` | the journal as a `Stream`, for read models that resume where they left off | nothing | yes |
+| `lark-actor-remote` | actors across nodes over TCP, with optional mutual TLS ([guide](docs/cluster.md)) | nothing | yes |
+| `lark-actor-remote-protobuf` | message codecs from Protobuf's generated classes | `protobuf-java` | yes |
+| `lark-actor-remote-avro` | message codecs from Avro's specific records | `avro` | yes |
+| `lark-actor-remote-kotlinx` | message and event codecs from `@Serializable` data classes | `kotlinx-serialization-protobuf` | yes |
+| `lark-actor-benchmarks` | JMH benchmarks against Pekko | JMH, Pekko | no |
+
+**Cluster**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-cluster` | membership by gossip, downing, sharded entities, singletons, topics and reliable delivery ([guide](docs/cluster.md)) | nothing | yes |
+| `lark-cluster-kubernetes` | seeds from the pods API, and a `Lease` object to break an even split | `io.fabric8:kubernetes-client-api` | yes |
+| `lark-cluster-aws` | seeds from Cloud Map or ECS, and a DynamoDB item as the lease | `software.amazon.awssdk` (`servicediscovery`, `ecs`, `dynamodb`) | yes |
+
+**Integrations**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-kafka` | a Kafka topic as a `Stream` on any backend, a producer, and transactions ([guide](docs/kafka.md)) | `kafka-clients` | yes |
+| `lark-kafka-pekko` | the same through Pekko's own Kafka connector | `pekko-connectors-kafka` | yes |
+
+**Observability**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-slf4j` | lark's log lines through SLF4J, with annotations in the MDC | `slf4j-api` | yes |
+| `lark-micrometer` | lark's metrics into the `MeterRegistry` a service already has | `micrometer-core` | yes |
+| `lark-otel` | OpenTelemetry's `Context` carried across forks, and spans | `opentelemetry-api` | yes |
+
+**Testing**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-test` | `story { Given / When / Then }` and `eventually` | nothing | yes |
+| `lark-stream-test` | runs a `Stream` on a `TestClock` that the test moves | nothing | yes |
+
+**Examples**
+
+| Module | What it is for | Adds | Published |
+|---|---|---|---|
+| `lark-bank` | three nodes of a small bank, with a page to send money and an admin page | Postgres driver, HikariCP | no |
+
+A commit after the latest tag builds the next patch version as a `-SNAPSHOT`
+(after `v0.9.2`, `0.9.3-SNAPSHOT`), which is what
 `./gradlew publishToMavenLocal` installs.
+
+Five modules are built and tested but not published. `lark-structured` has
+`parZip`, `parMap`, `raceN` and `timeout`, with the same names and shapes as
+lark's, and runs each call's branches in the JDK's `StructuredTaskScope`. They
+show up under their caller in a thread dump and inherit `ScopedValue` bindings.
+That API is a preview in JDK 27, and the module will be published when JDK 28
+makes it final ([0040](specs/0040-a-flock-the-jdk-can-see.md)).
+`lark-stream-parity` has no main code; it holds the suite that every stream
+backend must pass ([0052](specs/0052-every-backend-runs-every-operator.md)).
+The two benchmark modules are JMH suites with their numbers in their own
+READMEs, and `lark-bank` is an application to run, described
+[below](#a-worked-example-lark-bank).
+
+## The core
 
 Before, on `arrow-fx-coroutines`:
 
@@ -71,8 +170,8 @@ suspend fun dashboard(id: Id): Either<Err, Dashboard> = either {
 }
 ```
 
-After, on lark — `Err`, `Dashboard`, `users` and `orders` are the service's own,
-and these are every import the function needs:
+After, on lark. `Err`, `Dashboard`, `users` and `orders` belong to the service,
+and these are all the imports the function needs:
 
 ```kotlin
 import arrow.core.Either
@@ -84,8 +183,8 @@ fun dashboard(id: Id): Either<Err, Dashboard> = either {
 }
 ```
 
-`parZip` takes two branches through nine, as `arrow-fx-coroutines` does. Beside
-it, one line each:
+`parZip` takes from two to nine branches, as in `arrow-fx-coroutines`. The
+other combinators, one line each:
 
 ```kotlin
 import io.github.matthewjones372.lark.flock
@@ -100,40 +199,64 @@ fun quote(id: Id): Either<Err, Either<Quote, Quote>> = either { raceN({ fast.quo
 
 // async and await, for a fork the combinators do not shape
 fun user(id: Id): Either<Err, User> = either { flock { async { users.find(id).bind() }.await() } }
+
+// and cancel, for a fork that stopped being worth waiting for
+fun dashboard(id: Id): Either<Err, Dashboard> = either {
+    flock {
+        val report = async { reports.build(id) }
+        if (budget.check(id).bind().hasCredit) render(report.await()) else { report.cancel(); Empty }
+    }
+}
 ```
 
-`flock { }` is the scope `async` forks in and the one thing
-`arrow-fx-coroutines` has no name for here; a `Deferred` nobody awaits is still
-joined when the scope closes, and its raise is still the block's `Left`. Outside
-any `Raise`, `parZip`, `parMap` and `raceN` take plain `() -> A` branches and
-answer with the combined value.
+`flock { }` is the scope that `async` forks in. It is the one piece here that
+`arrow-fx-coroutines` has no equivalent name for. A `Deferred` that nobody
+awaits is still joined when the scope closes, and if it raised, that raise is
+still the block's `Left`. Outside any `Raise`, `parZip`, `parMap` and `raceN`
+take plain `() -> A` branches and return the combined value.
 
 The first branch to raise or throw interrupts its siblings; `raceN` interrupts
 the losers. Interrupt is the only cancellation the JDK has, so a cancelled
-branch ends at its next interruptible blocking call, and a combinator returns
+branch stops at its next interruptible blocking call, and a combinator returns
 only once every fork it opened has ended.
 
-Every forking combinator also takes the executor to fork on, ahead of its
-branches — `parZip(on = pool, { … }, { … }) { … }`, `flock(on = pool) { }`,
-`timeout(on = pool, 2.seconds) { }` — and a call that names none gets a new
+A fork can also wait until it is needed. `async(start = Lazy) { }` does not
+reach the executor until something awaits it, so work that a later branch
+decides it doesn't want is never done. A lazy fork that nobody awaits never
+runs at all, which means its raise can never become the block's `Left` the way
+an eager fork's would. The flag is set per call rather than per scope on
+purpose: a scope where nothing started until it was awaited would turn a
+fan-out into sequential code, and preventing that is what `flock` is for.
+
+`cancel()` does the same kind of stop, but aimed by hand at one fork rather than
+by a combinator at a branch. It interrupts the fork and returns once that fork
+has ended, so nothing it owns is still running afterwards. A cancelled fork's
+outcome counts as handled, so the scope does not answer with it, even if the
+fork raised before the interrupt arrived. If a body swallowed the interrupt and
+returned anyway, it still has its value, and `await()` after `cancel()` returns
+it.
+
+Every forking combinator also takes the executor to fork on, before its
+branches: `parZip(on = pool, { … }, { … }) { … }`, `flock(on = pool) { }`,
+`timeout(on = pool, 2.seconds) { }`. A call that doesn't name one gets a new
 virtual thread per fork, as above. A fork clears the interrupt flag as its body
-leaves, so a cancelled branch never hands the flag to whatever the executor runs
-next.
+exits, so a cancelled branch never passes the flag on to whatever the executor
+runs next.
 
 ## Pekko
 
 A Pekko application already has one place that names, sizes and instruments its
-threads — the dispatcher config — and `lark-pekko` makes a dispatcher there the
+threads (the dispatcher config), and `lark-pekko` makes a dispatcher there the
 executor lark forks on:
 
 ```kotlin
 dependencies {
     // lark and pekko-actor come with it; nothing else does
-    implementation("io.github.matthewjones372:lark-pekko:0.1.0")
+    implementation("io.github.matthewjones372:lark-pekko:0.9.2")
 }
 ```
 
-The dispatcher is configured beside Pekko's own, and named by the part after
+The dispatcher is configured alongside Pekko's own, and named by the part after
 `pekko.actor.`:
 
 ```hocon
@@ -155,17 +278,17 @@ fun dashboard(system: ActorSystem, id: Id): Either<Err, Dashboard> = either {
 }
 ```
 
-`larkDispatcher` refuses a dispatcher whose executor is `fork-join-executor` or
-`thread-pool-executor`, naming `pekko.actor.<id>.executor` in the message: a
-lark fork blocks, and blocking the pool Pekko sizes for its actors is the
+`larkDispatcher` rejects a dispatcher whose executor is `fork-join-executor` or
+`thread-pool-executor`, and names `pekko.actor.<id>.executor` in the error. A
+lark fork blocks, and blocking the pool Pekko sizes for its actors causes the
 starvation Pekko's own documentation warns about. `virtual-thread-executor` is
-accepted, and so is a `type = PinnedDispatcher`, whose thread is handed to
-nothing else. Both the classic `ActorSystem` and the typed one are
-`ClassicActorSystemProvider`, so either takes the extension.
+accepted, and so is `type = PinnedDispatcher`, whose thread is not shared with
+anything else. Both the classic `ActorSystem` and the typed one are a
+`ClassicActorSystemProvider`, so either can use the extension.
 
-A body forking there gets a `CompletionStage` back from everything Pekko has —
-an HTTP request, an `ask`, a stream run into a sink — and `await()` is how a
-fork waits for one:
+Code forking on that dispatcher gets a `CompletionStage` back from most of
+Pekko's APIs (an HTTP request, an `ask`, a stream run into a sink), and
+`await()` is how a fork waits for one:
 
 ```kotlin
 import io.github.matthewjones372.lark.pekko.await
@@ -181,24 +304,25 @@ fun quote(system: ActorSystem, id: Id): Quote {
 }
 ```
 
-What parks is the fork that called it, and on a virtual thread that costs a
-carrier nothing. A stage that failed rethrows the cause it was completed with
-rather than the `CompletionException` or `ExecutionException` around it, so a
-body catches what it declared. An interrupt — a closing scope, a `raceN` loser,
-a `timeout` — cancels the stage with `cancel(true)` and rethrows the
-`InterruptedException`, so a value that arrives afterwards is dropped rather
-than answered to nobody. Pekko's Scala futures take `await()` too.
+The fork that called `await()` is the thing that parks, and on a virtual thread
+that doesn't tie up a carrier. A stage that failed rethrows the original cause
+rather than the `CompletionException` or `ExecutionException` wrapped around
+it, so the body can catch the exception it declared. An interrupt (from a
+closing scope, a `raceN` loser or a `timeout`) cancels the stage with
+`cancel(true)` and rethrows the `InterruptedException`, so a value that arrives
+later is dropped instead of being delivered to nobody. Pekko's Scala futures
+support `await()` too.
 
-What `await()` does not change is what a stage holds: a stream run into
-`Sink.seq` still buffers every element before completing, so awaiting one is
-waiting for the whole collection, not reading a stream.
+`await()` does not change what a stage holds. A stream run into `Sink.seq`
+still buffers every element before it completes, so awaiting it means waiting
+for the whole collection, not reading a stream.
 
-## Every error, not the first one
+## Collecting every error
 
 `parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion and
-answer with all of the raises rather than the first: a form asking whether each
-field is valid wants every complaint at once, not the earliest one. The scope
-declares a `NonEmptyList` of the branches' error, and these are every import:
+return all of the raises instead of only the first. This suits something like
+form validation, where you want every problem at once. The scope declares a
+`NonEmptyList` of the branches' error type, and these are all the imports:
 
 ```kotlin
 import arrow.core.Either
@@ -216,18 +340,19 @@ fun accept(rows: List<Row>): Either<NonEmptyList<Err>, List<Entry>> = either {
 }
 ```
 
-Both take a `combine: (Err, Err) -> Err` as their first argument instead, for a
-scope that declares one error and knows how to fold two into it. The errors
-answer in branch order, and in the iterable's order, whichever branch raised
-first. A throw is not accumulated: it ends the other branches as `parZip`'s
-does, and the same instance is rethrown.
+Both also have a form that takes `combine: (Err, Err) -> Err` as the first
+argument, for a scope that declares a single error type and knows how to merge
+two errors into one. Errors are returned in branch order (or the iterable's
+order), regardless of which branch raised first. A thrown exception is not
+accumulated: it stops the other branches the same way `parZip` does, and the
+same exception instance is rethrown.
 
-## Things that have to be given back
+## Resources
 
-`resourceScope { }` runs a block with resources acquired in it, and releases
-them in reverse acquisition order on the way out — by return, raise, throw or
-interrupt. `install` names the pair, and the release is told which of those
-happened:
+`resourceScope { }` runs a block with resources acquired inside it, and releases
+them in reverse order of acquisition when the block exits, whether by return,
+raise, throw or interrupt. `install` takes the acquire and release pair, and the
+release is told which of those happened:
 
 ```kotlin
 import arrow.core.Either
@@ -258,17 +383,18 @@ fun rows(id: Id): List<Row> = connection use { it.rows(id) }
 
 `ExitCase.Cancelled` carries the `InterruptedException`, because interrupt is
 the only cancellation the JDK has. A raise gets `ExitCase.Completed`: it is not
-an interrupt, and the `either` it leaves through answers its caller with a
-value, so nothing about the scope failed. A release that throws when nothing
-else had is the failure the caller sees, and one that throws after a failure is
-suppressed onto it; either way the releases after it still run.
+an interrupt, and the `either` it exits through returns a value to its caller,
+so from the scope's point of view nothing failed. If a release throws when
+nothing else has failed, that exception is what the caller sees; if it throws
+after another failure, it is added as suppressed. Either way, the remaining
+releases still run.
 
-## Trying again, and giving up
+## Retries, timeouts and policies
 
 A `Schedule<Input, Output>` is a value that answers each input with a decision:
-carry on after a delay, or stop. `retry` feeds it what the action threw and
-`repeat` feeds it what the action returned; the delays are waited out on the
-calling virtual thread, so an interrupt ends the schedule where it is.
+continue after a delay, or stop. `retry` feeds it what the action threw, and
+`repeat` feeds it what the action returned. The delays are spent on the calling
+virtual thread, so an interrupt ends the schedule where it is.
 
 ```kotlin
 import arrow.core.Either
@@ -285,6 +411,11 @@ val backoff = Schedule.exponential<Throwable>(100.milliseconds).jittered() and S
 
 fun fetch(id: Id): Row = backoff.retry { client.row(id) }        // rethrows the last failure
 
+// bounded by time on the inherited clock rather than by tries, so a slow try does not stretch it
+val patiently = Schedule.spaced<Throwable>(20.milliseconds) zipLeft Schedule.upTo(5.seconds)
+
+fun drained(): Unit = patiently.retry { check(outbox.unsent() == 0L) }
+
 // the same over a declared error: the last raise is the Left
 fun row(id: Id): Either<Err, Row> = Schedule.recurs<Err>(5).retryRaise { rows.find(id).bind() }
 
@@ -297,28 +428,75 @@ fun maybe(id: Id): Either<Err, Quote?> = either {
 }
 ```
 
-`recurs`, `spaced`, `exponential`, `linear`, `fibonacci`, `forever`, `identity`,
-`doWhile` and `doUntil` build one; `and`, `or`, `andThen`, `zipLeft`, `zipRight`,
-`map`, `collect`, `delayed` and `jittered` combine them. `timeout` is a `raceN`
-against a sleeper with the loser interrupted, so a block that does not answer in
-time ends at its next interruptible call rather than being abandoned.
+`recurs`, `spaced`, `upTo`, `exponential`, `linear`, `fibonacci`, `forever`,
+`identity`, `doWhile` and `doUntil` build a schedule; `and`, `or`, `andThen`,
+`zipLeft`, `zipRight`, `map`, `collect`, `delayed` and `jittered` combine them.
+`timeout` is a `raceN` against a sleeper with the loser interrupted, so a block
+that doesn't finish in time stops at its next interruptible call instead of
+being left running.
 
-Virtual threads are why the floor is JDK 21. Before JDK 24 a blocking call
-inside a `synchronized` block — which some JDBC drivers still make — pins its
-carrier thread instead of parking it, so a service on 21 can still run out of
-carriers; JEP 491 removes that pinning in 24.
+A `policy` puts these into one chain, which is checked when it is built and
+applied as a whole on every call ([spec 0110](specs/0110-guards-that-compose.md)).
+A `deadline` is one time budget for the call, retries included. Retrying stops
+before a delay the deadline couldn't cover, and each attempt is limited to the
+time that is left. Steps in the wrong order throw `IllegalArgumentException`
+when the policy is built.
+
+A `CircuitBreaker` is added with `guard(breaker)`. After `maxFailures` failures
+in a row it rejects every call until the next delay of its `resetAfter`
+schedule has passed, then lets one trial call through
+([spec 0111](specs/0111-a-breaker-that-stops-calling.md)). A `Bulkhead` is
+added with `guard(bulkhead)`: at most `maxConcurrent` callers are inside at
+once, and the rest wait up to `maxWait` (limited by the deadline) before being
+rejected ([spec 0112](specs/0112-a-bulkhead-that-caps-the-callers.md)). A
+`RateLimiter` is added with `guard(limiter, cost)`. It is a token bucket refilled
+at `rate` every `per`; a call without a token waits for its reserved token up
+to `maxWait` (limited by the deadline), and is rejected with its `retryAfter`
+if the wait would be longer
+([spec 0113](specs/0113-a-limiter-that-paces-the-calls.md)).
+
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.guarded
+import io.github.matthewjones372.lark.policy
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+val partner = policy("partner-api") {
+    deadline(2.seconds)
+    retry(Schedule.exponential<Throwable>(100.milliseconds).jittered() zipLeft Schedule.recurs(3))
+    attemptTimeout(500.milliseconds)
+}
+
+fun quote(id: Id): Quote = partner { http.quote(id) }
+
+// a refusal by any guard in the chain, as a declared error
+fun quoted(id: Id): Either<Err, Quote> = either {
+    guarded(partner, ifRejected = { Err.Unavailable }) { http.quote(id) }
+}
+```
+
+The minimum JDK is 25. Before JDK 24, a blocking call inside a `synchronized`
+block pins its carrier thread instead of parking it, so a service on JDK 21 can
+run out of carriers. This did happen: lark-bank's load generator deadlocked on
+21 with every carrier pinned inside Jackson's serializer cache. JEP 491 removed
+that pinning in 24, and 25 is the LTS release that includes it. The Gradle
+plugin and the compiler plugin still compile for 21, because they run inside
+whatever JDK the build tools use.
 
 ## Status
 
-Experimental, in the sense [above](#what-this-is): everything below works and is
-tested, and none of it is settled.
+Experimental, as described [above](#what-this-is): everything below works and
+is tested, and none of it is settled.
 
 `flock { }`, `async`/`await`, `parZip`, `parMap`, `raceN`,
 `parZipOrAccumulate`/`parMapOrAccumulate`, `resourceScope`, `Schedule` and
-`timeout` are here — all of
+`timeout` are implemented. That covers everything from
 [`specs/0001-a-handler-that-raises.md`](specs/0001-a-handler-that-raises.md) and
 [`specs/0002-a-handler-that-forks.md`](specs/0002-a-handler-that-forks.md) that
-stayed, and all of
+was kept, and all of
 [`specs/0003-a-drop-in-for-arrow-fx.md`](specs/0003-a-drop-in-for-arrow-fx.md).
 
 So are `LarkLocal`, the bound `Clock` and the log a fork carries
@@ -329,23 +507,53 @@ So are `LarkLocal`, the bound `Clock` and the log a fork carries
 [0019](specs/0019-what-a-service-reads-from-outside-itself.md),
 [0020](specs/0020-an-actor-is-a-node.md)).
 
-[`AGENTS.md`](AGENTS.md) says how work here proceeds.
+Every other module was built the same way, from a numbered spec in
+[`specs/`](specs/); there are 127 of them, and each section below links the
+ones it describes.
 
-## Family
+The latest release is 0.9.2, tagged `v0.9.2`, and every published module is on
+Maven Central at that version. It sends each line `lark-slf4j` writes to the
+logger named after the class that wrote it
+([0127](specs/0127-a-line-that-says-where-it-came-from.md)). 0.9.1, the one
+before it, added these: a message carries its sender's
+trace and log annotations
+([0122](specs/0122-a-trace-that-crosses-a-message.md)), journal events and
+Kafka records keep them ([0123](specs/0123-an-event-that-keeps-its-trace.md)),
+a log line records the class it was written from and the stderr logger prints
+it ([0127](specs/0127-a-line-that-says-where-it-came-from.md)), `testActors`
+can lose, repeat, delay and reorder messages and crash an actor
+([0128](specs/0128-a-test-runtime-that-can-be-unkind.md)), `lark-kafka` is on
+the Kafka 4.3 client ([0125](specs/0125-kafka-4-3.md)), a health probe that
+throws counts as failed ([0126](specs/0126-a-probe-that-throws.md)), and
+`lark-app-gradle` passes `lark-test`'s colour settings to every test task
+([0118](specs/0118-a-colour-setting-that-reaches-the-test.md)).
 
-- [Kestrel](https://github.com/matthewjones372/kestrel) — load simulations on
-  virtual threads.
-- [Dipper](https://github.com/matthewjones372/dipper) — a stream that names its
-  failure, over Pekko Streams. It is the `lark-stream` module here now, brought
-  in with its history.
+[`AGENTS.md`](AGENTS.md) describes how work on this repository is done.
+
+## Related projects
+
+- [Proofload](https://github.com/matthewjones372/proofload): load testing on
+  virtual threads. It was called Kestrel.
+- [Pelican](https://github.com/matthewjones372/pelican): HTTP endpoints as
+  values, served on Pekko HTTP.
+- [kimney](https://github.com/matthewjones372/kimney): compile-time mapping
+  between Kotlin types.
+- [petshop](https://github.com/matthewjones372/petshop): a small service that
+  uses Lark with Pelican and Proofload, and says where each one helped.
+- [tweet-street](https://github.com/matthewjones372/tweet-street): a bank in
+  four services, the largest thing built on Lark so far.
+- Dipper, a stream with a typed failure over Pekko Streams, is now the
+  `lark-stream` module here, brought in with its history. Its repository no
+  longer exists.
 
 ## What a fork inherits
 
-A fork inherits nothing: `Thread.ofVirtual().start(command)` hands the body a
-thread with no memory of the one that opened it. A `LarkLocal` is what crosses
-it — read on the opening thread, rebound inside the task, so a value bound
-outside a `parMap` is readable in every branch, on a Pekko dispatcher as much as
-on a virtual thread of lark's own.
+By default a fork inherits nothing: `Thread.ofVirtual().start(command)` gives
+the body a thread with no knowledge of the one that started it. A `LarkLocal`
+is what carries values across. It is read on the opening thread and rebound
+inside the task, so a value bound outside a `parMap` can be read in every
+branch, whether that runs on a Pekko dispatcher or on one of lark's own virtual
+threads.
 
 ```kotlin
 import io.github.matthewjones372.lark.larkLocal
@@ -356,8 +564,9 @@ val requestId = larkLocal { "none" }
 requestId.locally("abc-123") { parMap(rows) { row -> requestId.get() } }   // every branch reads it
 ```
 
-The clock is lark's own first user of it. `Schedule` waits through whichever
-`Clock` the thread inherited, so a test of a backoff does not wait one:
+The clock is the first thing in lark that uses it. `Schedule` waits on whichever
+`Clock` the thread inherited, so a test of a backoff doesn't have to actually
+wait:
 
 ```kotlin
 import io.github.matthewjones372.lark.Schedule
@@ -371,13 +580,13 @@ val backoff = Schedule.exponential<Throwable>(1.seconds) and Schedule.recurs(5)
 clock.locally(fixedClock()) { backoff.retry { flaky.row(id) } }            // microseconds, not minutes
 ```
 
-`TestClock` is the other one: a broken wall clock that moves when a test moves
-it. `adjustWhenBlocked` waits until every sleep is on a time still ahead before
-moving, because nothing here knows a fork has reached its `sleep` the way a
-fiber runtime does.
+`TestClock` is the other test clock: it only moves when the test moves it.
+`adjustWhenBlocked` waits until every sleep is waiting on a time still in the
+future before moving, because nothing here can tell that a fork has reached its
+`sleep` the way a fiber runtime can.
 
-The log rides the same binding, which is why a correlation id survives a fork
-where an MDC does not:
+The log uses the same binding, which is why a correlation id survives a fork
+when an MDC value does not:
 
 ```kotlin
 import io.github.matthewjones372.lark.logAnnotated
@@ -389,32 +598,39 @@ logAnnotated("correlation_id" to request.id) {
 }
 ```
 
-`capturingLogs { }` binds a logger a test can read, so a claim about logging is
-a claim about values.
+`capturingLogs { }` binds a logger that a test can read, so assertions about
+logging are assertions about values.
 
-Where those lines end up is a dependency rather than a call. Nothing is bound,
-so they go to stderr — enough to watch a service start and no more. Put
-`lark-slf4j` on the classpath and they go wherever the rest of the service
+Where those lines go is decided by a dependency rather than a call. If nothing
+is bound, they go to stderr, which is enough to watch a service start. Add
+`lark-slf4j` to the classpath and they go wherever the rest of the service
 already logs:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-slf4j:0.2.1")
+    implementation("io.github.matthewjones372:lark-slf4j:0.9.2")
 }
 ```
 
-It registers itself through a `ServiceLoader`, so there is no line in `main` to
-remember. The annotations arrive as MDC entries rather than as text on the end
-of the message, which is what carries the claim above through to the backend: a
-correlation id survives the fork *and* reaches `%X{correlation_id}`, a JSON
-encoder and a field search. Appending it to the message would survive the fork
-and be unreadable to every one of them.
+It registers itself through a `ServiceLoader`, so there is nothing to add to
+`main`. The annotations arrive as MDC entries rather than as text appended to
+the message, so a correlation id survives the fork and also reaches
+`%X{correlation_id}`, a JSON encoder and a field search. Appending it to the
+message would survive the fork but none of those could read it.
 
-`logger.locally(MyLogger()) { … }` still wins, for a test, a backend of your
-own, or one block that should go somewhere else.
+Each line goes to the SLF4J logger named after the top-level class that wrote
+it, so `%logger` names that class and a backend can set a level for one package
+([0127](specs/0127-a-line-that-says-where-it-came-from.md)). A line with no
+class, such as one built by hand, goes to `lark`. Before 0.9.2, every line went
+to `lark`, so a `<logger name="lark">` in a backend's configuration now only
+reaches those; set it for your own packages instead, or bind
+`Slf4jLogger("lark")` to keep the single logger.
 
-A number is the same bargain. Nothing to declare, nothing to thread through the
-graph, and no node taking a registry:
+`logger.locally(MyLogger()) { … }` still takes priority, for a test, your own
+backend, or a single block whose output should go somewhere else.
+
+Metrics work the same way. There is nothing to declare, nothing to pass through
+the graph, and no node that takes a registry:
 
 ```kotlin
 counter("petshop.adoptions").increment()
@@ -424,22 +640,22 @@ timed("petshop.adopt.duration.seconds") { shop.adopt(id, by) }
 metricTagged("species" to "tortoise") { counter("petshop.adoptions").increment() }
 ```
 
-`metricTagged` rides the same binding as the log's, so a tag is on every
-measurement a fork takes underneath it. It is deliberately not the annotations
-`logAnnotated` binds: those are written to be unique, and a tag whose values are
-unbounded is one time series per request. Put `lark-micrometer` on the classpath
-and the numbers reach whatever registry the service already has; bind nothing
-and they are recorded nowhere, which costs nothing and throws nothing.
-`capturingMetrics { }` is the test's way in.
+`metricTagged` uses the same binding as the log, so a tag applies to every
+measurement a fork takes inside it. It is deliberately separate from the
+annotations `logAnnotated` binds: those are meant to be unique, and a tag with
+unbounded values creates one time series per request. Add `lark-micrometer` to
+the classpath and the numbers go to whatever registry the service already has.
+If nothing is bound they are not recorded anywhere, which costs nothing and
+throws nothing. `capturingMetrics { }` is how a test reads them.
 
 ## Applications
 
-`lark-app` is a dependency graph as a value. A recipe names what it builds and
-takes what it needs as parameters, so the graph is data before anything runs:
-`findings` says what is wrong before a recipe is called, `subgraph` gives a
-test four nodes instead of forty, `overriding` refuses a fake under a key
-nothing asked for, and starting one runs a topological layer at a time on lark's
-forks with releases in reverse topological order.
+`lark-app` represents a dependency graph as a value. A recipe names what it
+builds and takes what it needs as parameters, so the graph is data before
+anything runs. `findings` reports what is wrong before any recipe is called,
+`subgraph` gives a test four nodes instead of forty, `overriding` rejects a fake
+under a key that nothing asked for, and starting the graph runs one topological
+layer at a time on lark's forks, with releases in reverse topological order.
 
 ```kotlin
 import io.github.matthewjones372.lark.app.AppScope
@@ -456,18 +672,18 @@ object App : LarkApp<HttpServer>() {
 fun main(): Unit = exitProcess(runApp(App).code)
 ```
 
-The graph is a value, so it can also be drawn — `render()` answers mermaid, and
-`larkWiring` writes one per application:
+Because the graph is a value, it can also be drawn. `render()` returns Mermaid,
+and `larkWiring` writes one diagram per application:
 
 ![A wiring graph: Tuning above Database and Memo, Database above Accounts and
 Postings, and Opening, Reporting and Memo all above Frontage.](docs/wiring.png)
 
-`Database` and `Memo` have no edge between them, so they start at the same time;
-every path into `Frontage` is something that must be ready before the door
-opens. Neither is visible in the code that built it.
+`Database` and `Memo` have no edge between them, so they start at the same time.
+Every path into `Frontage` is something that must be ready before the service
+accepts requests. Neither fact is visible in the code that built the graph.
 
-A graph that declares the node it starts from is one a build can read without
-running `main`, which is what `lark-app-gradle` does as the project compiles:
+If a graph declares the node it starts from, a build can read it without
+running `main`. That is what `lark-app-gradle` does as the project compiles:
 
 ```
 lark-app wiring
@@ -478,13 +694,14 @@ lark-app wiring
 ❯ warning: nothing reaches KafkaProducer    Kafka.kt:9
 ```
 
-A node remembers where it was written, so a fault names the recipe to edit. A
-missing key and a cycle are errors; a key provided twice and a node no root
-reaches are warnings. Applying the plugin is the whole of the per-project cost,
-and it draws each graph into `build/reports/lark` beside the report.
+A node records where it was defined, so a fault names the recipe to edit. A
+missing key and a cycle are errors; a key provided twice and a node that no root
+reaches are warnings. Applying the plugin is the only setup per project, and it
+draws each graph into `build/reports/lark` next to the report.
 
-A configuration answers the same question. A hierarchy of HOCON files resolves
-to one document, and `lark-app-typesafe` says which file won and what it beat:
+Configuration gets the same treatment. A hierarchy of HOCON files resolves to
+one document, and `lark-app-typesafe` shows which file each value came from and
+what it overrode:
 
 ```kotlin
 import io.github.matthewjones372.lark.app.typesafe.layeredConfig
@@ -504,67 +721,174 @@ petshop.port           9090          application.conf:2
                        overrides 8080 at reference.conf:2
 ```
 
-Values are redacted by default — a name match is the floor, `Secrets.and(path)`
-is the exact answer, and `secret(path)` reads one as a value that prints as the
-mask through `toString`, so a log line cannot leak it either.
+Values are redacted by default. Matching on the name is the baseline,
+`Secrets.and(path)` marks an exact path, and `secret(path)` reads a value that
+prints as the mask through `toString`, so a log line cannot leak it either.
 
-A probe is what makes "started" mean "ready" rather than "constructed", and the
-same probes answer `/ready` afterwards through a `HealthRegistry` a route takes
-as a dependency. `lark-app-pekko` makes an actor a node, keyed by the
-`ActorRef<T>` of its protocol.
+A probe is what makes "started" mean "ready" rather than just "constructed".
+The same probes answer `/ready` afterwards, through a `HealthRegistry` that a
+route takes as a dependency. `lark-app-pekko` makes an actor a node, keyed by
+the `ActorRef<T>` of its protocol.
 
-There are no annotations, no processor and no effect type. A module is an
-expression, so there is nothing for KSP to read: KSP models declarations, and
-`val app = single { } + single { }` is neither. The check runs the expression
-instead, which is why it sees an actor node and a module assembled in a
-conditional.
+There are no annotations, no annotation processor and no effect type. A module
+is an expression, so there is nothing for KSP to read: KSP models declarations,
+and `val app = single { } + single { }` is not one. The check runs the
+expression instead, which is why it can see an actor node and a module
+assembled inside a conditional.
 
 Running the expression means waiting for a build, so `lark-app-compiler` reads
-the same graph out of the compiler's own syntax tree and says the same sentence
-where you are typing it:
+the same graph from the compiler's syntax tree and reports the same message in
+the editor:
 
 ![IntelliJ underlining `singleOf(::ActorPetShop)` in red, with the tooltip
 "lark-app: PetShop needs ActorRef<Shop>, and nothing builds it".](docs/editor-error.png)
 
-It is a K2 checker with no backend half, which is what lets the IDE run it. It
-follows what it knows — the factories above, `+`, `boundTo`, names in the same
-compilation unit, the branches of a `when` — and abandons the whole application
-the moment it meets a shape it does not, because a red line under working code
-costs more than a fault found a moment later. `larkWiring` stays the gate: it
-runs the graph, so it sees what no reader of source can.
+It is a K2 checker with no backend part, which is what allows the IDE to run
+it. It follows the shapes it knows (the factories above, `+`, `boundTo`, names
+in the same compilation unit, the branches of a `when`) and gives up on the
+whole application as soon as it meets one it doesn't, because a false error on
+working code is worse than a fault reported a moment later. `larkWiring`
+remains the real check: it runs the graph, so it sees things no source reader
+can.
 
-Two things to know before turning it on. IntelliJ runs no third-party compiler
-plugin in the editor until
-`kotlin.k2.only.bundled.compiler.plugins.enabled` is unchecked in the registry;
-and a module that arrives from another Gradle module has no source here to read,
-so a graph assembled across modules is one the editor stays quiet about.
-[`docs/app.md`](docs/app.md) is the whole of it.
+Two things to know before turning it on. IntelliJ doesn't run third-party
+compiler plugins in the editor until
+`kotlin.k2.only.bundled.compiler.plugins.enabled` is unchecked in the registry.
+And a module that comes from another Gradle module has no source here to read,
+so the editor says nothing about a graph assembled across modules.
+[`docs/app.md`](docs/app.md) has the full details.
 
 ## Streams
 
-`lark-stream` is `Stream<E, A>` over Pekko Streams: the failure a pipeline
-can end with is in the type, an element can never be null, and running one
-answers an `Exit` that is `Done`, `Failed(e)` or `Died(cause)` rather than a
-stage nobody read. A `Died` is reported at error through the actor system's own
-logger too, naming the operator, the element and the caller's line that built
-it, so a pipeline run for its effect still says what happened. Every operator
-delegates to Pekko, and `toSource()` and `Stream.from(source)` are the way out
-and in, so nothing Pekko can do is out of reach.
+`lark-stream` provides `Stream<E, A>`. The failure a pipeline can end with is
+part of the type, an element can never be null, and running a stream returns an
+`Exit` that is `Done`, `Failed(e)` or `Died(cause)`, rather than a stage nobody
+reads. A `Died` is also logged at error level, naming the operator, the element
+and the caller's line that built it, so a pipeline run only for its effects
+still reports what happened.
 
-It was a library of its own, dipper, until this repository took it in; the
-code is the same under `io.github.matthewjones372.lark.stream`, and it depends
-on `lark` and `lark-pekko`, so a handler and the stream it runs share one
-vocabulary: an element body is a `Raise`, `mapPar` gives it a virtual thread,
-and `awaitExit` folds the run's `Exit` back into the handler that started it.
+A stream is a description and does not name a backend. The backend is a value
+passed in where the run starts. Each backend is in its own module, which brings
+`lark-stream` with it:
 
 ```kotlin
 dependencies {
-    // Pekko Streams, lark, lark-pekko and arrow-core come with it; nothing else does
-    implementation("io.github.matthewjones372:lark-stream:0.1.0")
+    // Pekko Streams: lark-stream, Pekko, lark-pekko and arrow-core come with it
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.9.2")
+    // or a pull loop on one virtual thread, with nothing under it but lark-stream
+    // implementation("io.github.matthewjones372:lark-stream-forks:0.9.2")
+    // or runs as actors of a lark-actor flock: Actors(flock)
+    // implementation("io.github.matthewjones372:lark-stream-actors:0.9.2")
+
+    // time a test owns: tick, groupedWithin and restartOnDefect on a TestClock
+    testImplementation("io.github.matthewjones372:lark-stream-test:0.9.2")
 }
 ```
 
-Rows in, receipts to one sink, declines to another, and every import it takes:
+On `lark-stream-actors`, a run is an actor pulling one batch per step, and
+`mapPar`, `buffer` and the fan-ins are its child actors. Compared with Forks:
+`mapPar` 5.7× faster, starting a run 2.1× faster, `buffer` and `merge` 1.5 to
+2.4× faster; the plain chain is about a quarter slower
+([numbers](lark-stream-benchmarks/README.md)). `lark-stream-parity` runs one
+suite of pipelines on every backend, so the four give the same answers.
+
+One description, with the backend chosen where it runs:
+
+<!-- backend-example -->
+```kotlin
+import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.stream.Exit
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.PekkoStreams
+import io.github.matthewjones372.lark.stream.Run
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.TestStreams
+import io.github.matthewjones372.lark.stream.filter
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapOrFail
+import io.github.matthewjones372.lark.stream.run
+import io.github.matthewjones372.lark.stream.runFold
+import org.apache.pekko.actor.ActorSystem
+import java.util.concurrent.CompletionStage
+
+data class Order(val id: Int, val pence: Long?)
+
+data class Unpriced(val id: Int)
+
+val orders = listOf(Order(1, 1200), Order(2, 800), Order(3, 4500))
+
+// What happens to an order, and the failure it can end with. No backend is named here.
+val takings: Run<Unpriced, Long> =
+    Stream.from(orders)
+        .mapOrFail { order -> order.pence ?: raise(Unpriced(order.id)) }
+        .filter { pence -> pence >= 1000 }
+        .runFold(0L) { total, pence -> total + pence }
+
+val system: ActorSystem = ActorSystem.create("shop")
+
+val onPekko: CompletionStage<Exit<Unpriced, Long>> = takings.run(PekkoStreams(system))
+val onForks: CompletionStage<Exit<Unpriced, Long>> = takings.run(Forks())
+val inATest: CompletionStage<Exit<Unpriced, Long>> = takings.run(TestStreams(TestClock()))
+```
+
+Each returns the same `Exit`. A backend rejects a run it cannot complete before
+anything starts, naming the operator and the line that built it. `Forks` runs
+nothing that needs a second thread or a clock, and no backend runs another
+backend's `Source`.
+
+On `TestStreams`, `tick`, `groupedWithin`, `restartOnDefect`'s delays and
+`mapPar` wait only on the test's `TestClock`, and each `adjust` returns once
+everything due by then has run, in time order. An hour of one-a-minute ticks is
+a single call:
+
+```kotlin
+val clock = TestClock()
+val running = Stream.tick(1.minutes, "t").runCollect().start(TestStreams(clock))
+
+clock.adjust(1.hours)
+running.emitted().size shouldBe 60
+```
+
+### Optimisation, rendering and profiling
+
+Before a run starts, adjacent element-at-a-time stages (`map`, `filter`,
+`mapOrFail` and similar) are fused into one, a `take` of a `take` becomes one
+`take`, and a `catchAll` over a stream that cannot fail is removed. A defect
+still names the operator and the line it came from. A five-stage chain on Pekko
+went from 150 ns to 91 ns per element.
+
+`render()` draws the description as text or Mermaid, with each stage and the
+line that built it, and `render(optimised = true)` draws what actually runs:
+
+```
+Stream.from
+fused[map, map, filter, map, mapOrFail]  Pipelines.kt:15
+runFold                                  Pipelines.kt:20
+```
+
+`measured(Measured("ingest", metrics))` reports each stage's element count, the
+time spent in its body and the time it waited for demand, through lark's
+`Metrics`. A `Profiler` keeps those numbers, and
+`render(profile = profiler.profile())` shows where the time went:
+
+```
+map          Pipelines.kt:15  3% · 1.0 µs busy · 3.0 µs waiting · 100000 out
+map          Pipelines.kt:16  67% · 20.0 µs busy · 3.0 µs waiting · 100000 out
+filter       Pipelines.kt:17  3% · 1.0 µs busy · 3.0 µs waiting · 50000 out
+```
+
+### On Pekko Streams
+
+`lark-stream-pekko` also has the operators that take Pekko's own types:
+`Stream.from(source)` and `toSource()` to convert in and out, `divertLefts` and
+`runWith` to a `Sink`, and `run(system)`, which is short for
+`run(PekkoStreams(system))`. Handlers and streams use the same building blocks:
+an element body is a `Raise`, `mapPar` runs it on a virtual thread, and
+`awaitExit` turns the run's `Exit` back into a result in the handler that
+started it.
+
+Rows in, receipts to one sink, declines to another, with all the imports it
+needs:
 
 <!-- readme-example -->
 ```kotlin
@@ -623,147 +947,394 @@ val settled: Either<IngestError, Done> = either {
 }
 ```
 
-### Before and after
+[`docs/stream.md`](docs/stream.md) covers the rest: the same ingest written
+against raw Pekko and against lark-stream side by side, why a missing value is
+treated as a failure rather than an empty stream, the operator table, and how a
+declared failure is passed along. `lark-stream` used to be a separate library,
+dipper, before it moved into this repository.
 
-The same ingest twice, from the fixtures and the imports the two need between
-them:
+## Actors
 
-<!-- example-fixtures -->
+`lark-actor` is an actor as a value: a `behaviour` holds a state and a step
+that takes one message at a time
+([spec 0059](specs/0059-an-actor-without-an-actor-system.md)). Nothing runs
+until the behaviour is spawned in a `flock`, the same scope the core forks in,
+and an actor cannot outlive its flock. An actor has a virtual thread while it
+has work and none while it is idle, so a step may block on JDBC. `tell` sends
+and returns. `ask` waits up to a timeout and answers with an `Either`, so an
+actor that stopped or took too long is a value.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-actor:0.9.2")
+}
+```
+
+This is the first example from the [actors guide](docs/actors.md), whose
+examples `ActorsGuideTest` compiles:
+
 ```kotlin
 import arrow.core.Either
-import arrow.core.raise.either
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.divertLefts
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapAsync
-import io.github.matthewjones372.lark.stream.mapOrFail
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Sink
-import org.apache.pekko.stream.javadsl.Source
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionStage
+import io.github.matthewjones372.lark.actor.AskFailure
+import io.github.matthewjones372.lark.actor.Reply
+import io.github.matthewjones372.lark.actor.ask
+import io.github.matthewjones372.lark.actor.become
+import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.actor.stop
+import io.github.matthewjones372.lark.flock
+import kotlin.time.Duration.Companion.seconds
 
-data class Row(val id: Int, val customer: String?)
+sealed interface Till
 
-data class Customer(val id: Int, val name: String)
+data class Ring(val pence: Int) : Till
 
-data class Receipt(val id: Int)
+data class Total(val reply: Reply<Int>) : Till
 
-sealed interface IngestError
+data object Close : Till
 
-data class NoCustomer(val id: Int) : IngestError
-
-data class Declined(val id: Int) : IngestError
-
-class Ledger {
-    fun settle(customer: Customer): CompletionStage<Either<Declined, Receipt>> =
-        CompletableFuture.completedFuture(Either.Right(Receipt(customer.id)))
+fun till() = behaviour<Till, Int>(0) { _, total, message ->
+    when (message) {
+        is Ring -> become(total + message.pence)
+        is Total -> stay().also { message.reply(total) }
+        Close -> stop()
+    }
 }
 
-val ledger = Ledger()
-val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
-val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
+fun main() {
+    val total: Either<Nothing, Either<AskFailure, Int>> = flock {
+        val till = spawn("till", till())
+        till.tell(Ring(250))
+        till.tell(Ring(120))
+        till.ask(1.seconds) { Total(it) }
+    }
+    println(total) // Either.Right(Either.Right(370))
+}
 ```
 
-Before — raw Pekko `Source`:
+A step that raises or throws is handled by the actor's `restart` schedule,
+which is the core's `Schedule`
+([spec 0060](specs/0060-an-actor-that-fails-and-is-watched.md)). Actors also
+have children, watches, timers, a registry to find each other by protocol, and
+routers. `behaviour.test()` and `testActors { }` run actors on the calling
+thread with a clock the test moves, so an actor test does not wait for
+anything.
 
-<!-- before-example -->
+Compared with Pekko: faster `tell` with half the allocation, 6× faster
+ping-pong, 5.7× faster on blocking steps, 23% faster waking 10,000 idle actors
+at once, and 56% of the heap per idle actor
+([numbers](lark-actor-benchmarks/README.md)).
+
+### Persistence and read models
+
+A `persistent` actor is remembered by its events
+([spec 0063](specs/0063-an-actor-that-is-remembered.md)). A command answers
+`persist(events)` or `none()`, and `then { }` runs once the events are written,
+which is where a reply goes. On start, and after every restart, the actor
+replays its events. `InMemoryJournal` keeps them in the process.
+`snapshots = every(n, codec)` saves the state every `n` events, so a start
+replays only what came after
+([spec 0074](specs/0074-a-recovery-that-does-not-replay-everything.md)), and
+`versioned` reads events written in an older shape
+([spec 0091](specs/0091-events-that-change-shape.md)). With
+`persistent(batch = n)`, the commands already waiting are written in one
+append: twenty times the payments per second into one hot account on Postgres
+([spec 0086](specs/0086-a-journal-written-a-batch-at-a-time.md)).
+
+`lark-actor-journal-jdbc` puts the journal on JDBC: `JdbcJournal(dataSource)`
+over one table every node can reach, with its tables shipped as a Liquibase
+changelog for Postgres, and two writers for one id settled by the primary key
+([spec 0072](specs/0072-events-that-outlive-the-node.md)). It also has
+`JdbcSnapshots`, the newest snapshot per id, and `JdbcOffsets` for read models.
+`ShardedJournal` and `ShardedSnapshots` split it across databases by id
+([spec 0088](specs/0088-a-journal-across-databases.md)).
+
+`lark-actor-projection` reads the journal as a lark-stream `Stream`:
+`Projection.follow` reads every event of one kind from a `JournalFeed`, polling
+once caught up, and `runProjecting()` stores each event's offset once its work
+is done, so a read model resumes where it left off
+([spec 0075](specs/0075-a-read-model-that-follows-the-journal.md)). Delivery
+is at least once. With `Prune.after`, snapshots delete only the events the
+named read models have already read
+([spec 0077](specs/0077-pruning-that-waits-for-read-models.md)).
+
+### Remoting
+
+`lark-actor-remote` runs `lark-actor` across nodes: codecs you own, one TCP
+connection per peer on JDK sockets and virtual threads, tell, ask and watch
+across nodes, and dead letters for what cannot be delivered
+([spec 0068](specs/0068-an-actor-on-another-node.md)). A remote tell is at
+most once. With `tls`, connections use mutual TLS 1.3, and each node is
+identified by the name on its certificate
+([spec 0073](specs/0073-nodes-that-know-each-other.md)). Compared with Pekko's
+Artery over TCP: a remote ask 2.8× faster and a burst of tells 1.9× faster
+([numbers](lark-actor-benchmarks/README.md)).
+
+No serialisation library is chosen for you. A `MessageCodec` writes a message
+field by field, or one of three modules builds codecs from classes you already
+have ([spec 0071](specs/0071-messages-in-protobuf-or-avro.md),
+[spec 0093](specs/0093-messages-from-kotlin-data-classes.md)):
+
+- `lark-actor-remote-protobuf`: a codec for a generated message, `oneOf` for a
+  protocol of several messages under fixed tags, and `asked` for an ask whose
+  request is one.
+- `lark-actor-remote-avro`: a codec for a specific record in single-object
+  encoding, read across its versions through a `SchemaStore`, and `asked`.
+- `lark-actor-remote-kotlinx`: codecs for messages, events and snapshots from
+  a service's own `@Serializable` data classes, `oneOf` written as a protobuf
+  `oneof`, `asked`, and `proto()` for the `.proto` the classes produce.
+  kotlinx's protobuf support is itself experimental.
+
+`lark-app-actor` makes a flock a node of a `lark-app` graph that lives as long
+as the application, and an actor a node keyed by the `ActorRef<M>` of its
+protocol ([spec 0062](specs/0062-actors-that-find-each-other.md)).
+
+## Clusters
+
+`lark-cluster` turns `lark-actor-remote` nodes into a cluster with no
+coordinator ([spec 0069](specs/0069-nodes-that-agree-who-is-up.md)). Seeds
+come from a list, DNS or SRV records. Membership is agreed by SWIM gossip over
+the same transport, and actors can subscribe to member events. A partition is
+resolved by majority, quorum or lease, and the losing side downs itself first.
+
+On top of membership:
+
+- **Entities.** `sharding` spreads a kind's ids over 256 shards and each shard
+  over the members, by a hash every node computes the same way. An entity
+  moves between members without ever running on two at once
+  ([spec 0070](specs/0070-an-entity-on-whichever-node-owns-it.md)), and shards
+  can follow the load ([spec 0090](specs/0090-shards-that-follow-the-load.md)).
+- **Singletons.** One actor in the whole cluster, on the oldest member.
+- **Reliable delivery.** `reliable(id)` resends a command until the entity
+  confirms it, so a payment is not lost when its entity moves
+  ([spec 0079](specs/0079-a-message-that-arrives-when-its-entity-moves.md));
+  with `durable = true` it survives the sender's crash as well
+  ([spec 0085](specs/0085-a-sender-that-survives-its-crash.md)).
+- **Topics.** A publish on any member reaches every subscriber on every member
+  ([spec 0082](specs/0082-a-topic-every-node-hears.md)).
+- **Roles**, so that some nodes host a kind and others do not
+  ([spec 0083](specs/0083-nodes-that-do-different-work.md)).
+
 ```kotlin
-val receipts: Source<Either<IngestError, Receipt>, NotUsed> =
-    Source.from(rows)
-        .map { row ->                                        // Source<Either<IngestError, Customer>, NotUsed>
-            either<IngestError, Customer> { Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
-        }
-        .mapAsync(4) { customer ->
-            customer.fold(
-                { e -> CompletableFuture.completedFuture<Either<IngestError, Receipt>>(Either.Left(e)) },
-                { c -> ledger.settle(c).thenApply { it.mapLeft { d -> d as IngestError } } },
-            )                                                // the Left carried past a stage that never wanted it,
-        }                                                    // and Declined widened to IngestError by hand
-        .divertTo(
-            declinedSink.contramap<Either<IngestError, Receipt>> { (it as Either.Left).value as Declined },
-            { it is Either.Left && it.value is Declined },    // a cast for the sink, a predicate on the subtype
-        )                                                    // and a NoCustomer Left is still in the stream
+dependencies {
+    implementation("io.github.matthewjones372:lark-cluster:0.9.2")
+}
 ```
 
-After — ours:
+Baskets sharded across the cluster, with `basket()` a behaviour and
+`BasketCodec` its `MessageCodec`, both written out in the
+[cluster guide](docs/cluster.md#entities), whose examples `GuideExampleTest`
+compiles:
 
-<!-- after-example -->
 ```kotlin
-val receipts: Stream<IngestError, Receipt> =
-    Stream.from(rows)
-        .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }   // a nullable body does not compile
-        .mapAsync(4) { customer -> ledger.settle(customer) }                                // the same mapAsync, E already on the stream
-        .divertLefts(to = declinedSink)                                                     // no predicate, no cast
+import io.github.matthewjones372.lark.Flock
+import io.github.matthewjones372.lark.actor.ask
+import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.lark.cluster.Discovery
+import io.github.matthewjones372.lark.cluster.Sharded
+import io.github.matthewjones372.lark.cluster.cluster
+import io.github.matthewjones372.lark.cluster.sharding
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+/** On every node: the seeds are every address the headless service's name resolves to. */
+fun Flock<Nothing>.baskets(): Sharded<Basket> {
+    val node = node("shop-1", 25520, host = "0.0.0.0")
+    val cluster = cluster(node, Discovery.dns("shop.default.svc.cluster.local", port = 25520))
+    return cluster.sharding("basket", BasketCodec, passivateAfter = 10.minutes) { basket() }
+}
+
+/** From any node: the messages reach whichever member owns customer-42. */
+fun addAndRead(baskets: Sharded<Basket>) =
+    baskets.entity("customer-42").run {
+        tell(Put("sku-1"))
+        ask(5.seconds) { Contents(it) }
+    }
 ```
 
-Raw Pekko carries the failure in the element, so every stage after the first
-unwraps and re-wraps one: the `mapAsync` that only wanted a customer carries a
-`Left` past itself, and `Declined` is widened to `IngestError` by hand. A
-diverted element and a failed pipeline are then the same thing in one channel,
-told apart by a predicate on the error's subtype — so the `NoCustomer` that
-should have ended the run keeps flowing to the consumer instead, and the
-element type at the end is still `Either<IngestError, Receipt>`, which the
-consumer folds too.
+`lark-cluster-kubernetes` finds seeds through the pods API and uses a `Lease`
+object to break an even split. `lark-cluster-aws` finds them through Cloud Map
+or ECS and uses a DynamoDB item as the lease. `lark-app-cluster` makes the
+membership a node of a `lark-app` graph, joined as a HOCON section describes:
+the backend is found by name on the classpath, its client is closed after the
+node leaves, and a node that the others downed ends its process
+([spec 0096](specs/0096-a-cluster-joined-from-config.md)).
 
-The second says it in the types instead. The failure is on the stream rather
-than in the element, so `mapAsync` sees a `Customer` and hands on the ledger's
-own `Either`, `divertLefts` splits on that rather than on a predicate, and what
-is left at the end is a `Receipt`. Pekko runs the same three stages either way:
-what changes is what the type says, and what it will not let you write.
+Benchmarks against Pekko Cluster, three nodes a side, cover sharded tell and
+ask, a persistent append, reliable and durable sends, and a topic's fan-out.
+The results are still waiting on a run on the machine the other numbers came
+from ([numbers](lark-actor-benchmarks/README.md)). The
+[cluster guide](docs/cluster.md) goes through all of this in the order a
+service meets it.
 
-### Missing is a failure, not an empty stream
+## Kafka
 
-A stage that completed with `null`, an empty `Optional`, a lookup that found
-nothing: every builder that reads absence as emptiness makes a source with no
-elements out of a miss, and the run answers `Done` having processed nothing.
-`single` and `of` refuse the nullable where the value is, `fromStage` checks
-the completion the type argument lied about, and `orFailIfEmpty` is the word a
-caller says over a source lark did not build:
+`lark-kafka` reads a Kafka topic as a `Stream` on any backend. Each element
+carries its record's offset, and the only way to run the stream is
+`runCommitting`, which commits each offset once its record's work is done
+([spec 0053](specs/0053-a-record-that-commits-after-it-is-handled.md)). A
+record that fails to decode arrives as a value to divert or end the run with
+([spec 0054](specs/0054-a-record-that-fails-to-decode.md)).
 
-<!-- missing-example -->
 ```kotlin
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.fail
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.fromStage
-import io.github.matthewjones372.lark.stream.orFailIfEmpty
-import io.github.matthewjones372.lark.stream.single
-import org.apache.pekko.NotUsed
-import org.apache.pekko.stream.javadsl.Source
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionStage
-
-data class Customer(val id: Int, val name: String)
-
-data class Missing(val id: Int)
-
-// A directory that answers with a customer or with nothing at all, which is the shape of every lookup.
-fun lookup(id: Int): Customer? = if (id == 1) Customer(1, "ada") else null
-
-val id = 1
-val stage: CompletionStage<Customer> = CompletableFuture.completedFuture(Customer(id, "ada"))
-val rows: Source<Customer, NotUsed> = Source.empty()                    // a source lark did not build
-
-val one: Stream<Missing, Customer> =
-    lookup(id)?.let { Stream.single(it) } ?: Stream.fail(Missing(id))   // absence is a failure with a name
-
-val everything: Stream<Missing, Customer> =
-    Stream.from(rows).orFailIfEmpty(Missing(id))                        // zero elements → Failed(Missing(id))
-
-val answered: Stream<Nothing, Customer> = Stream.fromStage(stage)       // a null completion → Died(NullPointerException)
-
-val declared: Stream<Missing, Customer> =
-    Stream.fromStage(stage, ifNull = Missing(id))                       // a null completion → Failed(Missing(id))
+dependencies {
+    // any backend; kafka-clients comes with it
+    implementation("io.github.matthewjones372:lark-kafka:0.9.2")
+    // or Pekko's own Kafka connector, on Pekko Streams only
+    // implementation("io.github.matthewjones372:lark-kafka-pekko:0.9.2")
+}
 ```
 
-The document carries the rest, with the detekt snippet for the builders that
-read absence as emptiness — the code a library cannot reach is the code that
-never enters it.
+```kotlin
+import io.github.matthewjones372.lark.kafka.Kafka
+import io.github.matthewjones372.lark.kafka.Topic
+import io.github.matthewjones372.lark.kafka.consume
+import io.github.matthewjones372.lark.kafka.mapRecord
+import io.github.matthewjones372.lark.kafka.runCommitting
+import io.github.matthewjones372.lark.stream.Forks
+import io.github.matthewjones372.lark.stream.start
+import org.apache.kafka.common.serialization.StringDeserializer
 
-[`docs/stream.md`](docs/stream.md) is the operator table — every builder,
-combinator and way out with what it answers — and how a declared failure
-travels.
+// `consumerProperties` and `shop` belong to the service
+val placing = Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), value = StringDeserializer())
+    .mapRecord { record -> shop.place(record.value()) }
+    .runCommitting()
+
+val running = placing.start(Forks())    // one virtual thread polls, handles and commits
+```
+
+The same description runs on `PekkoStreams(system)` or `TestStreams`. The
+module also writes to Kafka: `publishRecord` sends each element and commits
+the offset only once the broker has the output, `deadLetters` sends an
+unreadable record to a topic of its own
+([spec 0087](specs/0087-a-record-written-to-kafka.md)), and `transacted`
+commits the outputs and the offsets in one Kafka transaction
+([spec 0124](specs/0124-a-record-written-exactly-once.md)). `Kafka.read`
+reads one partition on its own, assigned rather than subscribed, so no
+rebalance can take it away
+([spec 0120](specs/0120-a-partition-read-on-its-own.md)).
+
+`lark-kafka-pekko` does the same through Pekko's own Kafka connector, with
+prefetch, batched commits and a draining stop. [`docs/kafka.md`](docs/kafka.md)
+compares the two and lists the operators.
+
+## Observability
+
+The log and the metrics are part of the core, and
+[What a fork inherits](#what-a-fork-inherits) shows how they cross forks.
+`lark-slf4j` and `lark-micrometer` send them to the backend a service already
+has, and register themselves through a `ServiceLoader`, so adding the
+dependency is the whole setup.
+
+Lark's own modules record through the same `Metrics`, under names starting
+`lark.`: for example `lark.cluster.members`, `lark.sharding.entities`,
+`lark.stream.elements`, `lark.breaker.state` and `lark.actor.restarts`. A
+service can read any of them back with `readings(name)`, from whichever
+backend is bound ([spec 0109](specs/0109-metrics-a-service-can-read-back.md)).
+
+`lark-otel` keeps OpenTelemetry's `Context` in a `LarkLocal`, so a span opened
+before a `parMap` is the parent of what each branch opens
+([spec 0021](specs/0021-a-trace-that-crosses-a-fork.md)). The registration is
+process-wide, which is why it is a module you opt into. `tracedSpan` also puts
+the trace and span ids on every log line written inside it.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-otel:0.9.2")
+}
+```
+
+```kotlin
+import io.github.matthewjones372.lark.otel.span
+import io.github.matthewjones372.lark.parMap
+import io.opentelemetry.api.trace.Tracer
+
+// `Order`, `Price` and `price` belong to the service
+fun pricing(tracer: Tracer, orders: List<Order>): List<Price> =
+    tracer.span("price-all") {
+        parMap(orders) { order -> tracer.span("price") { price(order) } }
+    }
+```
+
+Since 0.9.1, the same context also travels with a message: a `tell`
+or `ask` carries the sender's trace and log annotations to the actor that
+handles it, on the same node or another
+([spec 0122](specs/0122-a-trace-that-crosses-a-message.md)). Events written to
+the JDBC journal, and records written to Kafka, keep them as well
+([spec 0123](specs/0123-an-event-that-keeps-its-trace.md)).
+
+## Testing
+
+`lark-test` is for tests of a whole service. `story { }` writes a test as
+`Given`, `When`, `Then`, `And` and `But` steps that return values. When a step
+fails, the message shows the story up to that step and what it threw, in
+colour under `FORCE_COLOR` or IntelliJ
+([spec 0115](specs/0115-a-test-that-reads-as-a-story.md),
+[spec 0116](specs/0116-a-story-in-colour.md)). `eventually` retries a block
+until it stops throwing, and gives up on time by the inherited clock, so a test
+can wait inside `use` without `suspend`. A step can wait the same way.
+
+```kotlin
+dependencies {
+    testImplementation("io.github.matthewjones372:lark-test:0.9.2")
+}
+```
+
+```kotlin
+import io.github.matthewjones372.lark.test.story
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Test
+import kotlin.time.Duration.Companion.seconds
+
+class AdoptionTest {
+
+    // `PetShop` belongs to the service
+    @Test
+    fun `an adopted pet is listed as taken`() = story {
+        val shop = Given("a shop with three pets") { PetShop(listOf("Nibbles", "Barnaby", "Mrs Peel")) }
+        val taken = When("Ada adopts the first") { shop.adoptFirst("Ada") }
+        Then("Ada has Nibbles") { taken shouldBe "Nibbles" }
+        And("the listing says so").eventually(within = 5.seconds) { shop.status("Nibbles") shouldBe "taken" }
+    }
+}
+```
+
+The other test support sits with what it tests. `lark-stream-test` runs a
+stream on a `TestClock` ([Streams](#streams)), `behaviour.test()` and
+`testActors { }` step actors on the calling thread ([Actors](#actors)), and
+`capturingLogs { }` and `capturingMetrics { }` in the core turn logging and
+measuring into values a test can assert on.
+
+## A worked example: lark-bank
+
+`lark-bank` is a small bank that uses the actor, persistence, remoting and
+cluster modules together ([spec 0094](specs/0094-a-bank-you-can-watch.md)).
+Accounts and transfers are persistent sharded entities. A transfer is a saga
+that debits one account and credits another through durable reliable sends,
+so a node that dies in the middle delays a transfer without losing or doubling
+money. Each node also publishes its numbers to a cluster topic, which the
+admin page reads.
+
+```bash
+./gradlew :lark-bank:run
+```
+
+That starts three nodes in one JVM, with the journal in memory. Each serves a
+page for sending money, at <http://localhost:8081> to `8083`, and an admin page
+at `/admin` that streams the cluster's numbers and has a load button and a
+"crash n3" button. `--args="--jdbc URL"` keeps the journal in a Postgres
+database instead, and `--node n2` with `--jdbc` runs one node in a process of
+its own. The server is the JDK's own `HttpServer`, and the pages are plain
+HTML and JavaScript, tested in a headless Chromium through Playwright.
+
+It is not published, and it is not a real bank: there is no authentication,
+and an account is picked by its id.
+
+[tweet-street](https://github.com/matthewjones372/tweet-street) grows the same
+idea into four services: the bank on a three-node cluster with its journal in
+Postgres and its events on Kafka, sign-in, transfer screening, two-person
+approvals and access control, with load and chaos runs against it.
 
 ## Licence
 

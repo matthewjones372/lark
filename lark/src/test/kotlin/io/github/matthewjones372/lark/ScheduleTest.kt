@@ -262,4 +262,74 @@ class ScheduleTest {
             interrupted.get() shouldBe true
         }
     }
+
+    @Test
+    fun `upTo gives up once the clock has moved its duration, rethrowing the last failure`() {
+        val moving = TestClock()
+        val boom = Boom()
+        val attempts = AtomicInteger(0)
+
+        val thrown = clock.locally(moving) {
+            flock<Nothing, Boom> {
+                val retrying = async {
+                    try {
+                        (Schedule.spaced<Throwable>(1.seconds) zipLeft Schedule.upTo(5.seconds)).retry {
+                            attempts.incrementAndGet()
+                            throw boom
+                        }
+                    } catch (last: Boom) {
+                        last
+                    }
+                }
+                repeat(5) { moving.adjustWhenBlocked(1.seconds) }
+                retrying.await()
+            }
+        }
+
+        thrown.getOrNull() shouldBeSameInstanceAs boom
+        withClue("a try at each second from 0 to 5: the one at 5 finds five seconds gone and stops") {
+            attempts.get() shouldBe 6
+        }
+    }
+
+    @Test
+    fun `upTo answers the time elapsed and adds no delay of its own`() {
+        val moving = TestClock()
+
+        clock.locally(moving) {
+            val first = Schedule.upTo<Unit>(5.seconds)(Unit)
+                .shouldBeInstanceOf<Schedule.Decision.Continue<Unit, Duration>>()
+            first.output shouldBe Duration.ZERO
+            first.delay shouldBe Duration.ZERO
+
+            moving.adjust(3.seconds)
+            val second = first.step(Unit).shouldBeInstanceOf<Schedule.Decision.Continue<Unit, Duration>>()
+            second.output shouldBe 3.seconds
+
+            moving.adjust(2.seconds)
+            second.step(Unit) shouldBe Schedule.Decision.Done(5.seconds)
+        }
+    }
+
+    @Test
+    fun `upTo counts from its first step, not from when it was built`() {
+        val moving = TestClock()
+
+        clock.locally(moving) {
+            val upTo = Schedule.upTo<Unit>(5.seconds)
+            moving.adjust(10.seconds)
+
+            upTo(Unit).output shouldBe Duration.ZERO
+        }
+    }
+
+    @Test
+    fun `on a clock that does not move, upTo never ends by itself`() {
+        clock.locally(fixedClock()) {
+            withClue("recurs is the bound on a fixed clock") {
+                val decisions = Schedule.upTo<Unit>(1.seconds).decisionsFor(Unit, 100)
+                decisions.all { it is Schedule.Decision.Continue } shouldBe true
+            }
+        }
+    }
 }

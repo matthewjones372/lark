@@ -78,8 +78,10 @@ class ClockTest {
 
         val elapsed = measureTime {
             clock.locally(fixedClock()) {
-                parMap(listOf(1, 2)) { runCatching { schedule.retry { failing(attempts) } }.isFailure }
-            } shouldContainExactly listOf(true, true)
+                parMap(listOf(1, 2)) {
+                    shouldThrow<IllegalStateException> { schedule.retry { failing(attempts) } }.message
+                }
+            } shouldContainExactly List(2) { "the action nobody expects to succeed" }
         }
 
         elapsed shouldBeLessThan 1.seconds

@@ -10,6 +10,7 @@ import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.ZERO
 import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.toKotlinDuration
 
 /** One step of a schedule: what it decides about an input, and how it carries on from there. */
 typealias ScheduleStep<Input, Output> = (Input) -> Schedule.Decision<Input, Output>
@@ -163,6 +164,22 @@ fun interface Schedule<in Input, out Output> {
             fun loop(count: Long): Decision<Input, Long> = Continue(count, duration) { loop(count + 1) }
 
             return Schedule { loop(0L) }
+        }
+
+        /**
+         * Continues with no delay of its own until [duration] has passed on the inherited clock, answering the
+         * time elapsed. It counts from its first step, which in a retry is the first failure, not the first try.
+         */
+        fun <Input> upTo(duration: Duration): Schedule<Input, Duration> = Schedule {
+            val time = clock.get()
+            val start = time.now()
+
+            fun loop(): Decision<Input, Duration> {
+                val elapsed = java.time.Duration.between(start, time.now()).toKotlinDuration()
+                return if (elapsed < duration) Continue(elapsed, ZERO) { loop() } else Done(elapsed)
+            }
+
+            loop()
         }
 
         /** Waits [base] and then [factor] as long again each time. */

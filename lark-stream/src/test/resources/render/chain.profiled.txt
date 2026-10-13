@@ -1,0 +1,7 @@
+Stream.from                         4.0 µs waiting · 100000 out
+map          RenderPipelines.kt:15  3% · 1.0 µs busy · 3.0 µs waiting · 100000 out
+map          RenderPipelines.kt:16  67% · 20.0 µs busy · 3.0 µs waiting · 100000 out
+filter       RenderPipelines.kt:17  3% · 1.0 µs busy · 3.0 µs waiting · 50000 out
+map          RenderPipelines.kt:18  7% · 4.0 µs busy · 50000 out
+mapOrFail    RenderPipelines.kt:19  20% · 12.0 µs busy · 50000 out
+runFold      RenderPipelines.kt:20

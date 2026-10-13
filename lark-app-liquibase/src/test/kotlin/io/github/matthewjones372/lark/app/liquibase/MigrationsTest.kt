@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.app.liquibase
 
+import io.github.matthewjones372.lark.actor.journal.jdbc.Postgres
 import io.github.matthewjones372.lark.app.render
 import io.github.matthewjones372.lark.app.report
 import io.github.matthewjones372.lark.app.single
@@ -9,20 +10,18 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
-import org.h2.jdbcx.JdbcDataSource
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
-private const val CHANGELOG = "db/changelog.xml"
+private const val CHANGELOG = "db/changelog.sql"
 
 /** A count nobody could have taken before the changelog created the table. */
 private class Orders(val rows: Int)
 
 class MigrationsTest {
 
-    private fun database(name: String): DataSource =
-        JdbcDataSource().apply { setURL("jdbc:h2:mem:$name;DB_CLOSE_DELAY=-1") }
+    private fun database(): DataSource = Postgres.empty()
 
     private fun counting(source: DataSource): Int =
         source.connection.use { connection ->
@@ -36,7 +35,7 @@ class MigrationsTest {
 
     @Test
     fun `a changelog runs, and what it created is there to read`() {
-        val source = database("applied")
+        val source = database()
         val app = single<DataSource> { source } +
             migrations(CHANGELOG) +
             single { db: DataSource, _: Migrated -> Orders(counting(db)) }
@@ -46,7 +45,7 @@ class MigrationsTest {
 
     @Test
     fun `running it again applies nothing`() {
-        val source = database("twice")
+        val source = database()
         val applied = AtomicInteger(-1)
         val app = single<DataSource> { source } +
             migrations(CHANGELOG) +
@@ -64,7 +63,7 @@ class MigrationsTest {
 
     @Test
     fun `the graph draws the reader after the migration`() {
-        val app = single<DataSource> { database("drawn") } +
+        val app = single<DataSource> { database() } +
             migrations(CHANGELOG) +
             single { _: Migrated -> Orders(0) }
 

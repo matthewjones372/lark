@@ -1,0 +1,95 @@
+# 0086 — A journal written a batch at a time
+
+## Problem
+
+`persistent` appends once per command: a step decides, `ctx.journal.append` writes that command's events and
+returns, and only then does the next message get a step. Each append is a round trip and a commit, so a single
+persistent actor handles at most one command per journal round trip. On a local Postgres that is about
+1–2 ms, or 500–1,000 commands a second, however idle the machine is.
+
+lark-bank hits this on its `hot` scenario: every payment goes to one merchant account, and the account is one
+actor, so it has one writer by design. Sharding cannot help, because it is one id. The alternatives today are to
+split the account into sub-accounts in application code, or to give up the single writer. Both abandon what
+`persistent` is for.
+
+A cell already drains up to `throughput` (64) messages per activation. The messages are waiting; they are just
+written one at a time.
+
+## Not doing
+
+- **No async journal.** `append` stays blocking, on the step's virtual thread.
+- **No change to `persistent` without the option.** A persistent actor that does not ask for batches behaves
+  exactly as it does today.
+- **No cross-actor batching.** Batching appends from many actors into one statement is the journal's business,
+  and `JdbcJournal` can grow it later on its own.
+- **No reordering.** Commands are decided in mailbox order, each against the state the one before it left.
+
+## Shape
+
+```kotlin
+fun account(id: String) = persistent<AccountCommand, AccountEvent, Account>(
+    id = PersistenceId("account", id),
+    empty = Account.Unopened,
+    codec = AccountEvents,
+    command = { _, state, command -> /* unchanged */ },
+    event = Account::evolve,
+    batch = 64,                    // decide up to 64 waiting commands, then one append for all of them
+)
+```
+
+- With `batch = n`, the cell hands the behaviour up to `n` waiting messages at once. Each command is decided in
+  turn against the state the previous one left, which is applied in memory. Their events, and any delivery marks
+  (spec 0079), go in **one** `append`. After it returns, each command's `then` runs in order, with the state as
+  that command left it.
+- A batch holds only the messages already in the mailbox. A lone command is never held back to wait for a
+  second.
+- A command that answers `none()` or is dropped as a duplicate adds nothing to the append, but its `then` still
+  runs in order. One that answers `unhandled()` goes to dead letters and the batch goes on, as the next message
+  would. One that answers `stop()` ends the batch there: the actor stops after the append, and the commands after
+  it are dead letters, as they would be one at a time.
+- A snapshot is taken if the batch's append crossed a multiple of `every`.
+- An append that conflicts raises `JournalConflict` for the whole batch, and no `then` of that batch runs.
+  Supervision recovers as today and the mailbox is kept; the batch's commands are lost as a failed step's message
+  is, so their asks time out and a reliable producer's deliveries are resent.
+
+The seam underneath is one addition to `Behaviour`: an optional
+`steps: (Raise<E>.(ctx, state, messages: List<M>) -> Next<S>)?`, with `drain` passing a run of plain messages to it
+when it is set. Signals, timers and stashed replays still go one at a time.
+
+## Why this shape
+
+Batching in the behaviour needs the runtime to show it the queue, which is why `Behaviour` grows a plural step.
+The runtime already polls in batches, so the change is small. The alternative is a journal that coalesces
+concurrent appends — group commit inside `JdbcJournal`. That does nothing here: one actor never has two appends
+in flight, so there is nothing to coalesce. The recommendation is the plural step, with `persistent` as its only
+user until something else needs it.
+
+## Stack
+
+- [x] **`spec-0086-steps`** — `Behaviour.steps`, and `drain` handing it a run of plain messages up to the
+      behaviour's batch size.
+      Done when: a test behaviour with `steps` sees `[1, 2, 3]` for three messages told before it started, and a
+      signal between them splits the run.
+- [x] **`spec-0086-persistent`** — `persistent(batch = n)`: decide in turn, one append, `then` in order,
+      snapshots and delivery marks across the batch.
+      Done when: 1,000 commands told at once to a `batch = 64` actor on `JdbcJournal` make ≤ 20 appends; its state
+      and journal equal the unbatched actor's; a conflicted batch is lost as a failed step's message is, and the
+      actor recovers to what the journal holds.
+- [x] **`spec-0086-numbers`** — the benchmark in `lark-actor-benchmarks` and its README row.
+      Done when: one hot persistent actor on embedded Postgres is measured at batch 1 and 64.
+
+## Acceptance
+
+```bash
+./gradlew build
+./gradlew :lark-actor-journal-jdbc:test --tests '*Batch*'
+```
+
+## Open questions
+
+Decided as recommended:
+
+1. **`batch` defaults to 1.** Batching changes when a `then` runs relative to later commands' writes, so a caller
+   opts in.
+2. **A raise from one command fails the whole batch**, as a throw does today.
+3. **`steps` is internal**, with `persistent` its only user; it can be widened later.

@@ -19,28 +19,34 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # A pull request always builds on GitHub's runners: this repository is public, so a pull request can
+    # come from anyone and must never run on the home cluster. A push to main uses the repository variable
+    # RUNNER if it is set (for example home-lark, lark-bank spec 0017), and GitHub's runners otherwise.
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || vars.RUNNER || 'ubuntu-latest' }}
 
     strategy:
       fail-fast: false
       matrix:
-        # 21 is the toolchain the module compiles against and the floor for
-        # virtual threads, so it is what the published bytecode has to keep
-        # working on; 25 is what the repo is developed and run on, and the
-        # first LTS where `synchronized` no longer pins a carrier.
+        # 25 is the toolchain and the floor: the first LTS where `synchronized` no longer pins a virtual
+        # thread's carrier, which a JDK 21 deadlock under load made a requirement. The Gradle plugin and
+        # the compiler plugin still compile for 21, as they run inside the build tools.
         include:
-          - java: "21"
-            gradleArgs: ""
           - java: "25"
             gradleArgs: ""
 
     steps:
       - uses: actions/checkout@v7
 
+      # 27 as well as the matrix JDK: lark-structured compiles against 27's StructuredTaskScope, and
+      # Gradle finds an installed JDK before it downloads one. Its own download picks foojay's
+      # Alpine build of 27, which does not run on this glibc runner. The last version listed is the
+      # one JAVA_HOME points at, so Gradle itself still runs on the matrix JDK.
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: ${{ matrix.java }}
+          java-version: |
+            27
+            ${{ matrix.java }}
 
       - uses: gradle/actions/setup-gradle@v6
 

@@ -8,6 +8,7 @@ import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 class TestClockTest {
 
@@ -86,5 +87,30 @@ class TestClockTest {
         clock.locally(moving) { clock.get().sleep(kotlin.time.Duration.ZERO) }
 
         moving.sleepers() shouldBe 0
+    }
+
+    @Test
+    fun `a move stops at every instant a waiter asks for, in order, and lets it settle there`() {
+        val moving = TestClock()
+        val settledAt = mutableListOf<Instant>()
+        val wakes = ArrayDeque(listOf(10, 25, 40).map { Instant.EPOCH.plusSeconds(it.toLong()) })
+        val waiter = object : TestClock.Waiter {
+            override fun wakesAt(): Instant? = wakes.firstOrNull()
+
+            override fun settle() {
+                settledAt += moving.now()
+                if (wakes.firstOrNull()?.let { it <= moving.now() } == true) wakes.removeFirst()
+            }
+        }
+
+        val registered = moving.register(waiter)
+        moving.adjust(30.seconds)
+
+        settledAt shouldBe listOf(10, 25, 30).map { Instant.EPOCH.plusSeconds(it.toLong()) }
+        moving.now() shouldBe Instant.EPOCH.plusSeconds(30)
+
+        registered.close()
+        moving.adjust(30.seconds)
+        withClue("a waiter let go of is not stopped for") { settledAt.size shouldBe 3 }
     }
 }
