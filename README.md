@@ -610,6 +610,14 @@ the message, so a correlation id survives the fork and also reaches
 `%X{correlation_id}`, a JSON encoder and a field search. Appending it to the
 message would survive the fork but none of those could read it.
 
+Each line goes to the SLF4J logger named after the top-level class that wrote
+it, so `%logger` names that class and a backend can set a level for one package
+([0127](specs/0127-a-line-that-says-where-it-came-from.md)). A line with no
+class, such as one built by hand, goes to `lark`. Before this, every line went
+to `lark`, so a `<logger name="lark">` in a backend's configuration now only
+reaches those; set it for your own packages instead, or bind
+`Slf4jLogger("lark")` to keep the single logger.
+
 `logger.locally(MyLogger()) { … }` still takes priority, for a test, your own
 backend, or a single block whose output should go somewhere else.
 
