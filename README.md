@@ -52,7 +52,7 @@ the version and expect the next one to break things.
 ```kotlin
 dependencies {
     // arrow-core comes with it; nothing else does
-    implementation("io.github.matthewjones372:lark:0.9.1")
+    implementation("io.github.matthewjones372:lark:0.9.2")
 }
 ```
 
@@ -145,7 +145,7 @@ checks that.
 | `lark-bank` | three nodes of a small bank, with a page to send money and an admin page | Postgres driver, HikariCP | no |
 
 A commit after the latest tag builds the next patch version as a `-SNAPSHOT`
-(after `v0.9.1`, `0.9.2-SNAPSHOT`), which is what
+(after `v0.9.2`, `0.9.3-SNAPSHOT`), which is what
 `./gradlew publishToMavenLocal` installs.
 
 Five modules are built and tested but not published. `lark-structured` has
@@ -252,7 +252,7 @@ executor lark forks on:
 ```kotlin
 dependencies {
     // lark and pekko-actor come with it; nothing else does
-    implementation("io.github.matthewjones372:lark-pekko:0.9.1")
+    implementation("io.github.matthewjones372:lark-pekko:0.9.2")
 }
 ```
 
@@ -508,11 +508,14 @@ So are `LarkLocal`, the bound `Clock` and the log a fork carries
 [0020](specs/0020-an-actor-is-a-node.md)).
 
 Every other module was built the same way, from a numbered spec in
-[`specs/`](specs/); there are 126 of them, and each section below links the
+[`specs/`](specs/); there are 127 of them, and each section below links the
 ones it describes.
 
-The latest release is 0.9.1, tagged `v0.9.1`, and every published module is on
-Maven Central at that version. It added these: a message carries its sender's
+The latest release is 0.9.2, tagged `v0.9.2`, and every published module is on
+Maven Central at that version. It sends each line `lark-slf4j` writes to the
+logger named after the class that wrote it
+([0127](specs/0127-a-line-that-says-where-it-came-from.md)). 0.9.1, the one
+before it, added these: a message carries its sender's
 trace and log annotations
 ([0122](specs/0122-a-trace-that-crosses-a-message.md)), journal events and
 Kafka records keep them ([0123](specs/0123-an-event-that-keeps-its-trace.md)),
@@ -605,7 +608,7 @@ already logs:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-slf4j:0.9.1")
+    implementation("io.github.matthewjones372:lark-slf4j:0.9.2")
 }
 ```
 
@@ -618,7 +621,7 @@ message would survive the fork but none of those could read it.
 Each line goes to the SLF4J logger named after the top-level class that wrote
 it, so `%logger` names that class and a backend can set a level for one package
 ([0127](specs/0127-a-line-that-says-where-it-came-from.md)). A line with no
-class, such as one built by hand, goes to `lark`. Before this, every line went
+class, such as one built by hand, goes to `lark`. Before 0.9.2, every line went
 to `lark`, so a `<logger name="lark">` in a backend's configuration now only
 reaches those; set it for your own packages instead, or bind
 `Slf4jLogger("lark")` to keep the single logger.
@@ -771,14 +774,14 @@ passed in where the run starts. Each backend is in its own module, which brings
 ```kotlin
 dependencies {
     // Pekko Streams: lark-stream, Pekko, lark-pekko and arrow-core come with it
-    implementation("io.github.matthewjones372:lark-stream-pekko:0.9.1")
+    implementation("io.github.matthewjones372:lark-stream-pekko:0.9.2")
     // or a pull loop on one virtual thread, with nothing under it but lark-stream
-    // implementation("io.github.matthewjones372:lark-stream-forks:0.9.1")
+    // implementation("io.github.matthewjones372:lark-stream-forks:0.9.2")
     // or runs as actors of a lark-actor flock: Actors(flock)
-    // implementation("io.github.matthewjones372:lark-stream-actors:0.9.1")
+    // implementation("io.github.matthewjones372:lark-stream-actors:0.9.2")
 
     // time a test owns: tick, groupedWithin and restartOnDefect on a TestClock
-    testImplementation("io.github.matthewjones372:lark-stream-test:0.9.1")
+    testImplementation("io.github.matthewjones372:lark-stream-test:0.9.2")
 }
 ```
 
@@ -963,7 +966,7 @@ actor that stopped or took too long is a value.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor:0.9.1")
+    implementation("io.github.matthewjones372:lark-actor:0.9.2")
 }
 ```
 
@@ -1115,7 +1118,7 @@ On top of membership:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-cluster:0.9.1")
+    implementation("io.github.matthewjones372:lark-cluster:0.9.2")
 }
 ```
 
@@ -1177,9 +1180,9 @@ record that fails to decode arrives as a value to divert or end the run with
 ```kotlin
 dependencies {
     // any backend; kafka-clients comes with it
-    implementation("io.github.matthewjones372:lark-kafka:0.9.1")
+    implementation("io.github.matthewjones372:lark-kafka:0.9.2")
     // or Pekko's own Kafka connector, on Pekko Streams only
-    // implementation("io.github.matthewjones372:lark-kafka-pekko:0.9.1")
+    // implementation("io.github.matthewjones372:lark-kafka-pekko:0.9.2")
 }
 ```
 
@@ -1238,7 +1241,7 @@ the trace and span ids on every log line written inside it.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-otel:0.9.1")
+    implementation("io.github.matthewjones372:lark-otel:0.9.2")
 }
 ```
 
@@ -1274,7 +1277,7 @@ can wait inside `use` without `suspend`. A step can wait the same way.
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:lark-test:0.9.1")
+    testImplementation("io.github.matthewjones372:lark-test:0.9.2")
 }
 ```
 
