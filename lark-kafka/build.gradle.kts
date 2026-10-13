@@ -16,9 +16,13 @@ dependencies {
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary:$pekkoVersion")
     // A broker in the test JVM, so the suite needs no Docker. Its kafka-clients matches the one above.
     testImplementation("io.github.embeddedkafka:embedded-kafka_$scalaBinary:4.3.1")
+    // Runs a test that times out from inside a test, to see what its report says.
+    testImplementation("org.junit.platform:junit-platform-testkit")
 }
 
 tasks.test {
+    // ThreadsOnTimeout, from the test resources' service file: every thread's stack when a test times out.
+    systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
     jvmArgumentProviders.add(
