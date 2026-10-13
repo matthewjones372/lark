@@ -220,3 +220,7 @@ Decided while building `spec-0094-admin`:
 - **A downed member is not reachable.** When a crashed member is downed, the library says it is `Reachable` just before it says it is `Downed`, because a downed member leaves the unreachable set. The bank does not pass that `Reachable` on, so the page never shows the dead node as up.
 - **What the test catches.** A load that never ticks fails it, since the tile stays at 0. So does a page that ignores member events, since n3's row never turns unreachable.
 - **Past the soft cap.** About 400 lines, most of them the page's HTML, CSS and script.
+
+Decided after shipping ([#313](https://github.com/matthewjones372/lark/pull/313)):
+- **JSON through a library.** The hand-written writer and reader are gone. The bodies are `@Serializable` classes, read and written by `kotlinx-serialization-json`, and so are the stats and events on `/admin/stream`. What goes over the wire is unchanged. The library is a dependency of `lark-bank` alone, so the published modules still take no JSON library.
+- **A body the route cannot read.** A body that is not JSON, or not the shape its route takes, is a 400 naming what was expected, as in `the body is not an account`. A field of the wrong type, as in `"amount":"lots"`, is refused by the decoder, not by the route.
