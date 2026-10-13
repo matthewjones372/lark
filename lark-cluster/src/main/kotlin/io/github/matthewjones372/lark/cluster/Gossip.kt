@@ -41,6 +41,8 @@ internal data class Gossip(
     val digests: Map<Incarnation, Digest>,
     val loads: Map<Incarnation, Load> = emptyMap(),
     val moves: Map<String, Moves> = emptyMap(),
+    /** The lives that have said they are ready to be `Up` (spec 0129): a life is never unready again. */
+    val admitted: Set<Incarnation> = emptySet(),
 ) {
     fun merge(other: Gossip): Gossip = copy(
         members = union(members, other.members) { a, b ->
@@ -50,6 +52,7 @@ internal data class Gossip(
         digests = union(digests, other.digests) { a, b -> if (b.version > a.version) b else a },
         loads = union(loads, other.loads) { a, b -> if (b.version > a.version) b else a },
         moves = union(moves, other.moves, Moves::latest),
+        admitted = admitted + other.admitted,
     )
 
     /** The live members that a live member other than themselves last observed as unreachable. */

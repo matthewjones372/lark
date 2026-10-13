@@ -47,12 +47,14 @@ internal sealed interface Step {
     data class Subscribe(val to: ActorRef<MemberEvent>) : Step
 
     data class Move(val kind: String, val to: Map<Int, Node?>) : Step
+
+    data object Admit : Step
 }
 
 private val StepCodec = object : MessageCodec<Step> {
     override fun write(message: Step, out: WireOut) = when (message) {
         is Step.Heard -> SwimCodec.write(message.message, out)
-        Step.Tick, Step.Leave, is Step.Subscribe, is Step.Move -> error("$message never leaves its node")
+        Step.Tick, Step.Leave, is Step.Subscribe, is Step.Move, Step.Admit -> error("$message never leaves its node")
     }
 
     override fun read(input: WireIn): Step = Step.Heard(SwimCodec.read(input))
@@ -60,11 +62,21 @@ private val StepCodec = object : MessageCodec<Step> {
 
 private typealias Subscribers = Set<ActorRef<MemberEvent>>
 
+/** When a node that joins may be moved on to `Up`, and so be given shards, workers and singletons (spec 0129). */
+enum class Ready {
+    /** As soon as every member has heard it join. */
+    AtOnce,
+
+    /** Only once [Cluster.admit] says it is ready: it stays `Joining` until then. */
+    WhenTold,
+}
+
 /**
  * [node] as a member of a cluster whose seeds [discovery] finds, until the flock closes, when it leaves first:
  * waiting up to [leaveWithin] to be out, before the flock stops its actors (spec 0080). A [leaveWithin] of zero
  * leaves nothing: the node goes as a crashed one does, and the others down it. [roles] say what this node was
- * started to do, and every member sees them in its view (spec 0083). The membership runs in an
+ * started to do, and every member sees them in its view (spec 0083). With [ready] `WhenTold` it stays `Joining` until
+ * [Cluster.admit], so nothing is placed on it before what it hosts is open (spec 0129). The membership runs in an
  * actor of its own, which the nodes of the cluster reach at the same path on each, and from now on it decides when
  * a watch on another node's actor ends. A partition is resolved by [downing]; a node downed stops that actor, and its
  * subscribers hear it downed and every other member removed: whether the process ends is theirs to decide.
@@ -76,6 +88,7 @@ fun <F> Flock<F>.cluster(
     downing: Downing = Downing.keepMajority(),
     leaveWithin: Duration = 30.seconds,
     roles: Set<String> = emptySet(),
+    ready: Ready = Ready.AtOnce,
 ): Cluster {
     require(roles.none(String::isBlank)) { "a role needs a name, was $roles" }
     val time = clock.get()
@@ -88,6 +101,7 @@ fun <F> Flock<F>.cluster(
         downing,
         Random.Default,
         now(),
+        ready = ready == Ready.AtOnce,
     )
     val cluster = Cluster(node.self, node, this, leaveWithin, uid)
     val steps = Steps(node, membership, cluster, node.takeOverWatches(), now)
@@ -147,6 +161,8 @@ private class Steps(
             }
 
             Step.Leave -> membership.leave()
+
+            Step.Admit -> membership.markReady()
 
             is Step.Move -> membership.move(step.kind, step.to)
 
@@ -281,6 +297,9 @@ class Cluster internal constructor(
     @Volatile
     internal var balance: Balance = Balance.None
         private set
+
+    /** Says this node is ready to be `Up`, when it joined with `Ready.WhenTold`; with `AtOnce` it changes nothing. */
+    fun admit() = actor.tell(Step.Admit)
 
     /** Asks to leave: the oldest member removes this one once every member has seen it go. */
     fun leave() = actor.tell(Step.Leave)

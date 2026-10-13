@@ -40,6 +40,7 @@ private class Running(
     port: Int,
     seeds: Discovery,
     leaveWithin: Duration = 30.seconds,
+    admitted: Ready = Ready.AtOnce,
     setup: Flock<Nothing>.(RemoteNode) -> Unit = {},
 ) : AutoCloseable {
     private val done = CountDownLatch(1)
@@ -49,7 +50,7 @@ private class Running(
         flock<Nothing, Unit> {
             val node = node(name, port)
             setup(node)
-            joined.set(cluster(node, seeds, quick, leaveWithin = leaveWithin))
+            joined.set(cluster(node, seeds, quick, leaveWithin = leaveWithin, ready = admitted))
             ready.countDown()
             done.await()
         }
@@ -168,6 +169,26 @@ class ClusterTest {
     }
 
     @Test
+    fun `a node joined to wait is Joining and not ready until it is admitted, and Up and ready after`() {
+        val ports = List(2) { freePort() }.sorted()
+        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+        val nodes = listOf(Running("n1", ports[0], seeds), Running("n2", ports[1], seeds, admitted = Ready.WhenTold))
+        try {
+            val (up, waiting) = nodes
+            up.cluster.await(1.minutes) { view -> view.members.any { it.node.name == "n2" } } shouldBe true
+            up.cluster.await(2.seconds) { "n2" in it.upNames() } shouldBe false
+            waiting.cluster.ready() shouldBe false
+
+            waiting.cluster.admit()
+
+            nodes.forEach { node -> node.cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2") } shouldBe true }
+            waiting.cluster.ready() shouldBe true
+        } finally {
+            nodes.forEach(Running::close)
+        }
+    }
+
+    @Test
     fun `a node whose flock closes leaves, and the others remove it without downing it`() {
         val ports = List(3) { freePort() }
         val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -259,7 +280,7 @@ class ClusterTest {
         fun ward(): Flock<Nothing>.(RemoteNode) -> Unit = { node ->
             node.expose(spawn("ward", behaviour<String, Unit>(Unit) { _, _, _ -> stay() }), Codecs.string)
         }
-        val earlier = Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, ward())
+        val earlier = Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, setup = ward())
         try {
             flock<Nothing, Unit> {
                 val node = node("n1", ports[0])
@@ -271,7 +292,7 @@ class ClusterTest {
                 val earlierUid = cluster.view.members.first { it.node.name == "n3" }.uid
 
                 earlier.close()
-                Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, ward()).use { later ->
+                Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, setup = ward()).use { later ->
                     // The earlier life's watch ends as the later life joins, before the earlier one is removed.
                     first.await()
                     withClue("the watch ended before the earlier life was removed") {

@@ -26,9 +26,11 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
     var now: Duration = Duration.ZERO
         private set
 
-    fun start(n: Int, seeds: List<Node>, uid: Long = n.toLong()): Membership =
-        Membership(Incarnation(at(n), uid), { seeds }, settings, downing, Random(seed * 31 + n + uid.toInt()), now)
+    fun start(n: Int, seeds: List<Node>, uid: Long = n.toLong(), ready: Boolean = true): Membership {
+        val random = Random(seed * 31 + n + uid.toInt())
+        return Membership(Incarnation(at(n), uid), { seeds }, settings, downing, random, now, ready)
             .also { nodes[at(n)] = it }
+    }
 
     fun stop(n: Int) {
         stopped += at(n)

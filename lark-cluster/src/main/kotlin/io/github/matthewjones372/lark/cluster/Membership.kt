@@ -18,6 +18,8 @@ internal class Membership(
     private val downing: Downing,
     private val random: Random,
     private val startedAt: Duration,
+    // Whether this life may be moved on to `Up`: from the start, or once it is told it is ready (spec 0129).
+    private var ready: Boolean = true,
 ) {
     private var gossip = Gossip.None
     private var seq = 0L
@@ -73,6 +75,12 @@ internal class Membership(
         is Swim.Ping -> if (accepts(message.gossip) && message.to == self) pinged(message) else emptyList()
         is Swim.Ack -> if (accepts(message.gossip)) acked(message) else emptyList()
         is Swim.PingReq -> if (accepts(message.gossip)) asked(message, now) else emptyList()
+    }
+
+    /** Says this life is ready to be `Up`, for every member to see: the leader moves it on only then (spec 0129). */
+    fun markReady() {
+        ready = true
+        if (status != null) gossip = gossip.copy(admitted = gossip.admitted + self)
     }
 
     /** Asks to leave: the leader removes this member once every member has seen it leaving. */
@@ -160,7 +168,9 @@ internal class Membership(
         val waited = others.isEmpty() || now - startedAt >= settings.formAfter
         val forms = waited && !clusterSeen
         if (lowest != null && isSelf(lowest) && forms) {
-            gossip = Gossip.None.copy(origin = self, members = mapOf(self to Entry(Status.Up, 1)))
+            // One that waits forms the cluster `Joining`, and leads it from there until it is ready.
+            val entry = if (ready) Entry(Status.Up, 1) else Entry(Status.Joining, 0)
+            gossip = Gossip.None.copy(origin = self, members = mapOf(self to entry), admitted = admittedSelf())
             noteDigest()
             return emptyList()
         }
@@ -178,7 +188,7 @@ internal class Membership(
 
     private fun welcomed(welcome: Swim.Welcome): List<Send> {
         if (status == null && welcome.to == self) {
-            gossip = welcome.gossip
+            gossip = welcome.gossip.copy(admitted = welcome.gossip.admitted + admittedSelf())
             noteDigest()
         }
         return emptyList()
@@ -269,7 +279,7 @@ internal class Membership(
         val left = mutableListOf<Incarnation>()
         gossip.members.entries.sortedBy { it.key.node.toString() }.forEach { (m, e) ->
             when (e.status) {
-                Status.Joining -> change(m, Status.Up, ++upNumber)
+                Status.Joining -> if (m in gossip.admitted) change(m, Status.Up, ++upNumber)
                 Status.Leaving -> change(m, Status.Removed).also { left += m }
                 Status.Down -> if (now - downedAt.getValue(m) >= downing.stableAfter) change(m, Status.Removed)
                 Status.Up, Status.Removed -> Unit
@@ -323,6 +333,8 @@ internal class Membership(
             is Downing.ByLease -> downing.lease.acquire(side.minWith(lowest).node.toString())
         }
     }
+
+    private fun admittedSelf(): Set<Incarnation> = if (ready) setOf(self) else emptySet()
 
     private fun change(member: Incarnation, to: Status, upNumber: Int = gossip.members[member]?.upNumber ?: 0) {
         gossip = gossip.copy(members = gossip.members + (member to Entry(to, upNumber)))
