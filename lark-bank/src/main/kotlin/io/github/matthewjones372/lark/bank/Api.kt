@@ -83,7 +83,7 @@ internal class Api(
 
     private fun open(body: OpenBody): Answer {
         val id = body.id.takeIf(ids::matches) ?: return failed(400, "an account id is 1 to 64 letters, digits, - or _")
-        val pence = body.amount.takeIf { it >= 0 } ?: return failed(400, "amount is a whole number")
+        val pence = body.amount.whole()?.takeIf { it >= 0 } ?: return failed(400, "amount is a whole number")
         return node.open(id, pence).or(503) { answer(200, BalanceBody(id, it)) }
     }
 
@@ -96,15 +96,16 @@ internal class Api(
     private fun transfer(body: TransferBody): Answer {
         val from = body.from.takeIf(ids::matches) ?: return failed(400, "from names no account")
         val to = body.to.takeIf { ids.matches(it) && it != from } ?: return failed(400, "to names no other account")
-        val pence = body.amount.takeIf { it > 0 } ?: return failed(400, "amount is more than 0")
+        val pence = body.amount.whole()?.takeIf { it > 0 } ?: return failed(400, "amount is more than 0")
         if (node.statement(to).getOrNull()?.open != true) return failed(404, "no account $to")
         val id = "t-${UUID.randomUUID()}"
         return node.transfer(id, from, to, pence).or(503) { answer(202, AcceptedBody(id)) }
     }
 
     private fun load(body: LoadBody): Answer {
-        node.load(body.on)
-        return answer(202, LoadedBody(body.on))
+        val on = body.on.flag() ?: return failed(400, "on is true or false")
+        node.load(on)
+        return answer(202, LoadedBody(on))
     }
 
     private fun crash(body: CrashBody): Answer = if (crash(body.node)) {

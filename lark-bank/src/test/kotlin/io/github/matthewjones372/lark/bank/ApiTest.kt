@@ -63,6 +63,10 @@ class ApiTest {
             (400 to """{"error":"the body is not an account"}""")
         call(0, "POST", "/api/accounts", """{"id":"a|b","amount":1}""").first shouldBe 400
         call(0, "POST", "/api/accounts", """{"id":"dave","amount":"lots"}""").first shouldBe 400
+        call(0, "POST", "/api/accounts", """{"id":"dave","amount":1.5}""") shouldBe
+            (400 to """{"error":"amount is a whole number"}""")
+        call(0, "POST", "/api/load", """{"on":"yes"}""") shouldBe (400 to """{"error":"on is true or false"}""")
+        call(0, "POST", "/api/crash", "{}") shouldBe (404 to """{"error":"no node  in this process"}""")
         call(1, "POST", "/api/transfers", """{"from":"carol","to":"carol","amount":1}""").first shouldBe 400
         call(1, "POST", "/api/transfers", """{"from":"carol","to":"nobody","amount":1}""").first shouldBe 404
         call(1, "POST", "/api/transfers", """{"from":"carol","to":"alice","amount":0}""").first shouldBe 400
