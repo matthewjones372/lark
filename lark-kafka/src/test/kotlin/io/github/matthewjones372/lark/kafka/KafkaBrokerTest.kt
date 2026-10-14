@@ -1,10 +1,13 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
+import org.apache.kafka.common.utils.Exit
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 
@@ -42,5 +45,12 @@ class KafkaBrokerTest {
             kafka.readAll("still-ending", "read_committed").map { it.value() } shouldBe listOf("committed")
             committing.join()
         }
+    }
+
+    @Test
+    fun `a broker that asks the JVM to exit fails the test that is running instead`() {
+        // What a fatal fault in the broker does, through ProcessTerminatingFaultHandler.
+        shouldThrow<IllegalStateException> { Exit.exit(1) }.message shouldContain "asked the JVM to exit with 1"
+        shouldThrow<IllegalStateException> { Exit.halt(1) }.message shouldContain "asked the JVM to halt with 1"
     }
 }

@@ -17,6 +17,7 @@ import org.apache.kafka.common.IsolationLevel
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
+import org.apache.kafka.common.utils.Exit
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeAllCallback
 import org.junit.jupiter.api.extension.ExtensionContext
@@ -33,6 +34,10 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     val bootstrap: String get() = "localhost:${kafka.config().kafkaPort()}"
 
     override fun beforeAll(context: ExtensionContext) {
+        // A fatal fault in the broker exits the JVM through Kafka's Exit, which ends the whole test run with no
+        // report; thrown instead, it fails the test that is running, and slf4j-simple has logged the fault.
+        Exit.setExitProcedure { code, _ -> error("the broker asked the JVM to exit with $code") }
+        Exit.setHaltProcedure { code, _ -> error("the broker asked the JVM to halt with $code") }
         kafka = start(attempt = 1)
     }
 
@@ -58,7 +63,14 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     private fun bindFailed(t: Throwable): Boolean =
         generateSequence(t) { it.cause }.any { it is BindException }
 
-    override fun afterAll(context: ExtensionContext) = kafka.stop(true)
+    override fun afterAll(context: ExtensionContext) {
+        try {
+            kafka.stop(true)
+        } finally {
+            Exit.resetExitProcedure()
+            Exit.resetHaltProcedure()
+        }
+    }
 
     fun send(topic: String, vararg values: String) {
         KafkaProducer(mapOf<String, Any>("bootstrap.servers" to bootstrap), StringSerializer(), StringSerializer())

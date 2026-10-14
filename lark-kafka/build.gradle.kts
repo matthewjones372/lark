@@ -18,11 +18,14 @@ dependencies {
     testImplementation("io.github.embeddedkafka:embedded-kafka_$scalaBinary:4.3.1")
     // Runs a test that times out from inside a test, to see what its report says.
     testImplementation("org.junit.platform:junit-platform-testkit")
+    // The broker's own log, errors only: a fatal fault is logged here before KafkaBroker turns its exit into a throw.
+    testRuntimeOnly("org.slf4j:slf4j-simple:2.0.17")
 }
 
 tasks.test {
     // ThreadsOnTimeout, from the test resources' service file: every thread's stack when a test times out.
     systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+    systemProperty("org.slf4j.simpleLogger.defaultLogLevel", "error")
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
     jvmArgumentProviders.add(
