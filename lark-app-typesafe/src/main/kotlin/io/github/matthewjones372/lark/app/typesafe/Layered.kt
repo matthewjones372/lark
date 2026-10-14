@@ -50,11 +50,18 @@ fun layeredConfigOf(vararg layers: Pair<String, Config>): Layered =
  */
 fun Layered.origins(secrets: Secrets = Secrets.default): Origins {
     val merged = config
-    val resolved = layers.map { Layer(it.name, it.config.resolveWith(merged, LENIENT)) }
+    val resolved = layers.map { Layer(it.name, it.config.resolvedWithin(merged)) }
     return Origins(
         merged.origins(secrets).map { origin -> origin.copy(overrides = resolved.beaten(origin, secrets)) },
     )
 }
+
+/**
+ * Grafted into the merge and resolved there, not `resolveWith(merged)`: Typesafe Config throws
+ * `BugOrBroken` resolving a delayed merge, `a = "x"` then `a = ${?ENV}`, against any document but its own.
+ */
+private fun Config.resolvedWithin(merged: Config): Config =
+    merged.withValue(GRAFT, root()).resolve(LENIENT).getConfig(GRAFT)
 
 /** The first layer under the winner that also held the path, which is the value the merge dropped. */
 private fun List<Layer>.beaten(origin: Origin, secrets: Secrets): Overridden? =
@@ -67,5 +74,7 @@ private fun List<Layer>.beaten(origin: Origin, secrets: Secrets): Overridden? =
             // old one has published a secret that is probably still in use somewhere.
             Overridden(if (secrets.redacts(origin.path)) MASK else value.rendered(), value.origin().where())
         }
+
+private const val GRAFT = "lark-layered-origins"
 
 private val LENIENT: ConfigResolveOptions = ConfigResolveOptions.defaults().setAllowUnresolved(true)
