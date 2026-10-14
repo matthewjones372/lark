@@ -518,6 +518,121 @@ fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = eith
 - `await()` does not change what a stage holds. A stream run into `Sink.seq`
   still collects every element before it completes.
 
+## Futures and coroutines
+
+A fork waits for a future with `await()`, and hands lark to a caller that
+wants one with `larkFuture { }`. Both are in `lark`.
+
+### Wait for a future
+
+<!-- core-await -->
+```kotlin
+import io.github.matthewjones372.lark.await
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+
+class Rates(private val http: HttpClient) {
+    fun rate(currency: String): String {
+        val request = HttpRequest.newBuilder(URI.create("https://rates.example/$currency")).build()
+        return http.sendAsync(request, HttpResponse.BodyHandlers.ofString()).await().body()
+    }
+}
+```
+
+`await()` takes any `CompletionStage` or `Future`, such as the JDK's
+`HttpClient`, an AWS SDK v2 async client or Kafka's `send`, and parks the
+virtual thread until it completes. A failure is thrown as the cause itself,
+not the `ExecutionException` around it, so catch the exception you declared.
+A fork cancelled while it waits cancels the future too.
+
+### Hand back a future
+
+<!-- core-lark-future -->
+```kotlin
+import io.github.matthewjones372.lark.larkFuture
+import io.github.matthewjones372.lark.parMap
+import java.util.concurrent.CompletableFuture
+
+class Profiles(private val find: (Long) -> String?) {
+    fun profilesAsync(ids: List<Long>): CompletableFuture<List<String?>> =
+        larkFuture { parMap(ids) { id -> find(id) } }
+}
+```
+
+For a caller that wants a future: Spring's `@Async`, Vert.x, a Java API. The
+block runs on a virtual thread of its own and reads what the caller had bound,
+as a fork does. The future's `cancel` interrupts it, so `parMap`, `parZip` and
+`raceN` inside stop their branches. `supplyAsync` would ignore the cancel.
+
+A single fork's `await()` ignores interrupts on purpose, so a block that waits
+on one `async` runs on until that fork ends. Reach for the combinators.
+
+### Call a coroutine library
+
+Some libraries have only a `suspend` API: Ktor's client, the AWS SDK for
+Kotlin. From lark code, `runBlocking` is the right call, and nothing more is
+needed:
+
+```kotlin
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+}
+```
+
+<!-- core-run-blocking -->
+```kotlin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+
+// Stands in for a library whose API is suspend only.
+class ChipRegistry {
+    suspend fun lookup(id: String): String {
+        delay(10)
+        return "chip-$id"
+    }
+}
+
+class Chips(private val registry: ChipRegistry) {
+    fun chip(id: String): String = runBlocking { registry.lookup(id) }
+}
+```
+
+`runBlocking` parks one virtual thread, which is cheap. The block resumes on
+that thread, so code in it keeps the log annotations and span the fork had. A
+lark cancel interrupts the thread, which cancels the coroutine. Log lines the
+library writes on threads of its own go without lark's annotations.
+
+Don't `raise` inside the block. There, Arrow's raise is a
+`CancellationException`, and the coroutine takes it as a cancellation. Get the
+value out first, then raise.
+
+### Be called from coroutines
+
+<!-- core-from-coroutines -->
+```kotlin
+import io.github.matthewjones372.lark.larkFuture
+import io.github.matthewjones372.lark.parZip
+import kotlinx.coroutines.future.await
+
+class Dashboard(private val users: (Long) -> String, private val orders: (Long) -> List<String>) {
+    suspend fun load(id: Long): Pair<String, List<String>> =
+        larkFuture { parZip({ users(id) }, { orders(id) }) { user, bought -> user to bought } }.await()
+}
+```
+
+A Ktor route or any other `suspend` caller hands lark its work with
+`larkFuture`, and waits with kotlinx's `await`, which suspends rather than
+blocks. Calling lark straight from a coroutine would block a
+`Dispatchers.Default` thread, of which there is one per core. When the
+coroutine is cancelled, by a client that hung up for instance, kotlinx cancels
+the future and lark stops the branches.
+
+Import kotlinx's `await` and not lark's in a file like this. With both
+imported, lark's is the closer match for a `CompletableFuture` and wins, and it
+blocks.
+
 ## Requirements and limitations
 
 - **JDK 25 or newer.** Before JDK 24, a virtual thread blocked inside a
@@ -528,7 +643,8 @@ fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = eith
   inside the build tools.
 - **No `suspend`.** No published module uses coroutines or depends on
   `kotlinx-coroutines`. Calling Lark from coroutine code works as any blocking
-  call does, on a dispatcher that tolerates blocking.
+  call does, on a dispatcher that tolerates blocking, or through `larkFuture`
+  (see [Futures and coroutines](#futures-and-coroutines)).
 - **Cancellation is cooperative.** It relies on interruption, so code that
   swallows `InterruptedException` or never blocks cannot be stopped early.
 - **`lark-structured`** is an unpublished variant of `parZip` (two and three
