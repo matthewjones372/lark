@@ -148,8 +148,8 @@ What the rows say:
 ## The gate
 
 ```bash
-lark-stream-benchmarks/gate.sh origin/main                  # every row, the base against this checkout
-lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
+bench/lark-stream-benchmarks/gate.sh origin/main                  # every row, the base against this checkout
+bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
 ```
 
 `gate.sh` runs the benchmarks on the ref in a worktree and then on this checkout, on the same machine

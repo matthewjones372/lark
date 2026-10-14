@@ -6,15 +6,23 @@ plugins {
 }
 
 rootProject.name = "lark"
-include("lark")
+
+// Each module lives in its family's folder but keeps a flat project path, so `:lark-stream:test`,
+// `project(":lark-stream")` and the published coordinates do not depend on where the folder is.
+fun module(group: String, name: String) {
+    include(name)
+    project(":$name").projectDir = file("$group/$name")
+}
+
+module("core", "lark")
 include("lark-pekko")
-include("lark-stream")
-include("lark-stream-pekko")
-include("lark-stream-forks")
-include("lark-stream-test")
-include("lark-test")
-include("lark-stream-actors")
-include("lark-stream-parity")
+module("stream", "lark-stream")
+module("stream", "lark-stream-pekko")
+module("stream", "lark-stream-forks")
+module("stream", "lark-stream-test")
+module("core", "lark-test")
+module("stream", "lark-stream-actors")
+module("stream", "lark-stream-parity")
 include("lark-app")
 include("lark-app-pekko")
 include("lark-otel")
@@ -24,8 +32,8 @@ include("lark-app-liquibase")
 include("lark-app-typesafe")
 include("lark-app-gradle")
 include("lark-app-compiler")
-include("lark-structured")
-include("lark-stream-benchmarks")
+module("core", "lark-structured")
+module("bench", "lark-stream-benchmarks")
 include("lark-kafka")
 include("lark-kafka-pekko")
 include("lark-actor")
@@ -40,5 +48,5 @@ include("lark-actor-projection")
 include("lark-cluster")
 include("lark-cluster-kubernetes")
 include("lark-cluster-aws")
-include("lark-actor-benchmarks")
+module("bench", "lark-actor-benchmarks")
 include("lark-bank")
