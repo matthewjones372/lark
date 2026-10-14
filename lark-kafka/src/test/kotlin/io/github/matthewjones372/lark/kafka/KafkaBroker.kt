@@ -5,6 +5,8 @@ import io.github.embeddedkafka.EmbeddedKafka
 import io.github.embeddedkafka.EmbeddedKafkaConfig
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
+import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsOptions
+import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsSpec
 import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.admin.OffsetSpec
@@ -161,12 +163,27 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
         }
     }
 
-    /** The offset the group has committed on the topic's only partition, or null for none. */
-    fun committed(group: String, topic: String): Long? =
-        Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
-            admin.listConsumerGroupOffsets(group).partitionsToOffsetAndMetadata()
-                .get(TIMEOUT_SECONDS, TimeUnit.SECONDS)[TopicPartition(topic, 0)]?.offset()
+    /**
+     * The offset the group has committed on the topic's only partition, or null for none, once no transaction is
+     * still committing one: a transaction's offsets are pending until its marker lands, and read before then, the
+     * group's last offset is the one before. Asked for by partition, a pending one comes back missing, not null.
+     */
+    fun committed(group: String, topic: String): Long? {
+        val partition = TopicPartition(topic, 0)
+        val asked = mapOf(group to ListConsumerGroupOffsetsSpec().topicPartitions(listOf(partition)))
+        return Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)
+            generateSequence {
+                admin.listConsumerGroupOffsets(asked, ListConsumerGroupOffsetsOptions().requireStable(true))
+                    .partitionsToOffsetAndMetadata(group).get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            }.first { offsets ->
+                check(partition in offsets || System.nanoTime() < until) {
+                    "$group's offset on $partition was still being committed after ${TIMEOUT_SECONDS}s"
+                }
+                (partition in offsets).also { stable -> if (!stable) Thread.sleep(SETTLE_MILLIS) }
+            }[partition]?.offset()
         }
+    }
 
     // Scala's `updated` widens its value type, which Kotlin reads as a Map of Any; the entry added is a String.
     @Suppress("UNCHECKED_CAST")
