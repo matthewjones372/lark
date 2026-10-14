@@ -58,6 +58,10 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
     val LARK_SCHEDULER_BY_HAND: KtDiagnosticFactory1<String> =
         factory("LARK_SCHEDULER_BY_HAND", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
 
+    /** A secret read as a `String`, which prints itself, where `secret(path)` reads one that does not. Main only. */
+    val LARK_SECRET_AS_STRING: KtDiagnosticFactory1<String> =
+        factory("LARK_SECRET_AS_STRING", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private fun factory(
@@ -114,6 +118,11 @@ private object Renderers : BaseDiagnosticRendererFactory() {
         map.put(
             LarkDiagnostics.LARK_SCHEDULER_BY_HAND,
             "lark: {0} schedules work by hand; run it as Stream.tick(every) started on the graph''s StreamBackend",
+            CommonRenderers.STRING,
+        )
+        map.put(
+            LarkDiagnostics.LARK_SECRET_AS_STRING,
+            "lark: string(\"{0}\") reads a secret as a String that prints itself; read it with secret(\"{0}\")",
             CommonRenderers.STRING,
         )
     }
