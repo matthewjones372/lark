@@ -82,7 +82,10 @@ class DefectTest {
         withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream-pekko/build.gradle.kts") {
             root.shouldNotBeNull()
         }
-        return File(root!!, "lark-stream-pekko/src/test/kotlin/io/github/matthewjones372/lark/stream/DefectTest.kt")
+        return File(
+            root!!,
+            "stream/lark-stream-pekko/src/test/kotlin/io/github/matthewjones372/lark/stream/DefectTest.kt",
+        )
     }
 
     /** Where a marked call sits, read out of this file rather than written down as a number that moves. */

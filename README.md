@@ -796,7 +796,7 @@ On `lark-stream-actors`, a run is an actor pulling one batch per step, and
 `mapPar`, `buffer` and the fan-ins are its child actors. Compared with Forks:
 `mapPar` 5.7× faster, starting a run 2.1× faster, `buffer` and `merge` 1.5 to
 2.4× faster; the plain chain is about a quarter slower
-([numbers](lark-stream-benchmarks/README.md)). `lark-stream-parity` runs one
+([numbers](bench/lark-stream-benchmarks/README.md)). `lark-stream-parity` runs one
 suite of pipelines on every backend, so the four give the same answers.
 
 One description, with the backend chosen where it runs:
@@ -1031,7 +1031,7 @@ anything.
 Compared with Pekko: faster `tell` with half the allocation, 6× faster
 ping-pong, 5.7× faster on blocking steps, 23% faster waking 10,000 idle actors
 at once, and 56% of the heap per idle actor
-([numbers](lark-actor-benchmarks/README.md)).
+([numbers](bench/lark-actor-benchmarks/README.md)).
 
 ### Persistence and read models
 
@@ -1076,7 +1076,7 @@ most once. With `tls`, connections use mutual TLS 1.3, and each node is
 identified by the name on its certificate
 ([spec 0073](specs/0073-nodes-that-know-each-other.md)). Compared with Pekko's
 Artery over TCP: a remote ask 2.8× faster and a burst of tells 1.9× faster
-([numbers](lark-actor-benchmarks/README.md)).
+([numbers](bench/lark-actor-benchmarks/README.md)).
 
 No serialisation library is chosen for you. A `MessageCodec` writes a message
 field by field, or one of three modules builds codecs from classes you already
@@ -1171,7 +1171,7 @@ node leaves, and a node that the others downed ends its process
 Benchmarks against Pekko Cluster, three nodes a side, cover sharded tell and
 ask, a persistent append, reliable and durable sends, and a topic's fan-out.
 The results are still waiting on a run on the machine the other numbers came
-from ([numbers](lark-actor-benchmarks/README.md)). The
+from ([numbers](bench/lark-actor-benchmarks/README.md)). The
 [cluster guide](docs/cluster.md) goes through all of this in the order a
 service meets it.
 

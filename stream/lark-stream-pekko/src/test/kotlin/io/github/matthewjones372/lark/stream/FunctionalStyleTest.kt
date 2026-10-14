@@ -22,7 +22,7 @@ import java.io.File
 class FunctionalStyleTest {
 
     private val builders = mapOf(
-        "lark-stream-pekko/src/main/kotlin/io/github/matthewjones372/lark/stream/MapParStage.kt" to
+        "stream/lark-stream-pekko/src/main/kotlin/io/github/matthewjones372/lark/stream/MapParStage.kt" to
             "the bodies one run has in flight, at most mapAsync's parallelism of them, each removed as " +
             "it ends: a stage Pekko is waiting on cannot be interrupted through anything Pekko holds",
     )
