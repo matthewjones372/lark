@@ -10,6 +10,8 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.WakeupException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * The offsets handled since a consumer last committed, and the committing of them: the one commit path every loop
@@ -26,7 +28,7 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     private var group: ConsumerGroupMetadata? = null
 
     /** Set once this consumer starts to leave its group, which a transaction still to commit has to know. */
-    private val leaving = AtomicBoolean(false)
+    private val leaving = Leaving()
 
     /** After each poll: the group as it left it, for the records it returned. A consumer with no group has none. */
     fun polled() {
@@ -53,7 +55,8 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
 
     /** What was handled committed, then the consumer closed, however the commit went. */
     fun close() {
-        leaving.set(true)
+        // Waits for a transaction already sending this member's offsets: the member must still be there for it.
+        leaving.start()
         // A take that ends a Forks run interrupts the fork reading the source, and that fork closes it: the
         // client would refuse both the commit and the close, and the last records handled be read again.
         val interrupted = Thread.interrupted()
@@ -80,7 +83,7 @@ private class Offset(
     private val partition: TopicPartition,
     private val offset: Long,
     private val polledIn: ConsumerGroupMetadata?,
-    private val leaving: AtomicBoolean,
+    private val leaving: Leaving,
 ) : Handle {
     override fun handled() {
         handled.merge(partition, offset + 1, ::maxOf)
@@ -95,6 +98,20 @@ private class Offset(
     // which the broker refuses once the member has left, aborting every clean stop's last transaction (spec
     // 0125). Kafka 5 makes ConsumerGroupMetadata an interface, which this can implement with the group alone.
     @Suppress("DEPRECATION")
-    override fun group(): ConsumerGroupMetadata? =
-        polledIn?.let { member -> if (leaving.get()) ConsumerGroupMetadata(member.groupId()) else member }
+    override fun <T> withGroup(send: (ConsumerGroupMetadata?) -> T): T = leaving.holding { left ->
+        send(polledIn?.let { member -> if (left) ConsumerGroupMetadata(member.groupId()) else member })
+    }
+}
+
+/**
+ * Whether a consumer has started to leave its group, under the lock a transaction holds while it sends offsets as
+ * that member: the leave waits for the send, and a send after the leave goes with the group alone (spec 0131).
+ */
+private class Leaving {
+    private val lock = ReentrantLock()
+    private val left = AtomicBoolean(false)
+
+    fun start() = lock.withLock { left.set(true) }
+
+    fun <T> holding(body: (Boolean) -> T): T = lock.withLock { body(left.get()) }
 }

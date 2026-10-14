@@ -31,10 +31,11 @@ interface Handle {
     fun handled()
 
     /**
-     * The consumer group as it was when the record was polled, for a transaction that commits its offset:
-     * null from a source that cannot hand it over, which a transactional run refuses.
+     * [send] given the consumer group as it is for this record, for a transaction that commits its offset: null
+     * from a source that cannot hand it over, which a transactional run refuses. [send] runs where the group cannot
+     * change under it, so the offsets it sends reach the broker with the group they were sent with.
      */
-    fun group(): ConsumerGroupMetadata? = null
+    fun <T> withGroup(send: (ConsumerGroupMetadata?) -> T): T = send(null)
 }
 
 internal fun <B : Any> Committed<*>.carrying(value: B): Committed<B> = Committed(value, position, handle)
