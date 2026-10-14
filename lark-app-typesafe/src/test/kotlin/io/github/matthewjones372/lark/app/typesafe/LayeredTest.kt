@@ -72,6 +72,80 @@ class LayeredTest {
         )
 
         layers.config.getString("petshop.db.url") shouldBe "jdbc:shop"
+        layers.origins().single { it.path == "petshop.db.url" }.value shouldBe "jdbc:shop"
+    }
+
+    /** The HOCON override pair, `a = "x"` then `a = ${'$'}{?ENV}`, which Typesafe holds as a delayed merge. */
+    private fun overridden(env: String) = layeredConfigOf(
+        "application.conf" to ConfigFactory.parseString(
+            """
+            petshop.bus = "in-process"
+            petshop.bus = ${'$'}{?$env}
+            """.trimIndent(),
+        ),
+        "reference.conf" to ConfigFactory.parseString("""petshop.bus = "kafka" """),
+    )
+
+    @Test
+    fun `a default an unset environment variable would override keeps the default and names what it beat`() {
+        val bus = overridden("LARK_LAYERED_TEST_UNSET").origins().single { it.path == "petshop.bus" }
+
+        bus.value shouldBe "in-process"
+        bus.overrides.shouldNotBeNull().value shouldBe "kafka"
+    }
+
+    @Test
+    fun `a default a set environment variable overrides takes the variable and names what it beat`() {
+        val path = System.getenv("PATH").shouldNotBeNull()
+
+        val bus = overridden("PATH").origins().single { it.path == "petshop.bus" }
+
+        bus.value shouldBe path
+        bus.overrides.shouldNotBeNull().value shouldBe "kafka"
+    }
+
+    @Test
+    fun `an override pair in a lower layer is what the winner beat`() {
+        val layers = layeredConfigOf(
+            "system properties" to ConfigFactory.parseString("""petshop.bus = "local" """),
+            "application.conf" to overridden("LARK_LAYERED_TEST_UNSET").layers.first().config,
+        )
+
+        val bus = layers.origins().single { it.path == "petshop.bus" }
+
+        bus.value shouldBe "local"
+        bus.overrides.shouldNotBeNull().value shouldBe "in-process"
+    }
+
+    @Test
+    fun `an override pair whose substitution another layer supplies takes that layer's value`() {
+        val layers = layeredConfigOf(
+            "application.conf" to ConfigFactory.parseString(
+                """
+                petshop.bus = "in-process"
+                petshop.bus = ${'$'}{petshop.chosen}
+                """.trimIndent(),
+            ),
+            "reference.conf" to ConfigFactory.parseString("""petshop { bus = "kafka", chosen = "nats" }"""),
+        )
+
+        val bus = layers.origins().single { it.path == "petshop.bus" }
+
+        bus.value shouldBe "nats"
+        bus.overrides.shouldNotBeNull().value shouldBe "kafka"
+    }
+
+    @Test
+    fun `an optional substitution left unset supplies nothing to beat`() {
+        val layers = layeredConfigOf(
+            "application.conf" to ConfigFactory.parseString("petshop.bus = ${'$'}{?LARK_LAYERED_TEST_UNSET}"),
+            "reference.conf" to ConfigFactory.parseString("""petshop.bus = "kafka" """),
+        )
+
+        val bus = layers.origins().single { it.path == "petshop.bus" }
+
+        bus.value shouldBe "kafka"
+        bus.overrides.shouldBeNull()
     }
 }
 
