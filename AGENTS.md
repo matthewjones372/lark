@@ -163,6 +163,11 @@ that grows an import grows a line in its block.
 
 ## Layout
 
+Modules are grouped by family into `core/`, `stream/`, `actor/`, `cluster/`, `app/`,
+`integrations/`, `bench/` and `examples/` (spec 0139). A module keeps its flat Gradle path,
+`:lark-stream` rather than `:stream:lark-stream`; `settings.gradle.kts` says which folder it is in.
+A new module goes in its family's folder and gets a `module(...)` line there.
+
 Three modules. `lark` depends on `arrow-core` and on the JDK, and on nothing
 else: no HTTP library, no JSON library, no coroutines, and virtual threads come
 from `java.lang.Thread`. `lark-pekko` adds `pekko-actor` and only that: it

@@ -73,6 +73,9 @@ Claude Code, the lark plugin loads the same advice whenever the code uses lark:
 
 ## Modules
 
+Each module sits in its family's folder: `core/`, `stream/`, `actor/`, `cluster/`, `app/`,
+`integrations/`, with the benchmarks in `bench/` and an example service in `examples/`.
+
 **Core**
 
 | Module | What it is for | Adds | Published |
