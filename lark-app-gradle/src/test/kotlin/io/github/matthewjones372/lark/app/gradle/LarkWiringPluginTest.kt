@@ -216,6 +216,16 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `a graph with a choice is read, the choice a node providing its key`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", CHOSEN)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("read rather than left to larkWiring") { result.output shouldNotContain "was not read here" }
+        result.output shouldContain "provides [Kind, Pump], and is short of []"
+    }
+
+    @Test
     fun `a sound graph compiles without a word`(@TempDir dir: File) {
         project(dir, "", SOUND)
 
@@ -669,5 +679,23 @@ class Server { fun block() = Unit }
 object Under : LarkApp<Server>() {
     override val module: Module = single<Server> { Server() }
     override fun AppScope.run(root: Server) { awaitShutdown() }
+}
+"""
+
+/** A setting that picks the module providing the root, made inside the graph (spec 0136). */
+private const val CHOSEN = """
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.choice
+import io.github.matthewjones372.lark.app.single
+
+class Pump
+enum class Kind { Small, Large }
+
+object Under : LarkApp<Pump>() {
+    override val module: Module =
+        single<Kind> { Kind.Small } + choice<Kind, Pump> { _ -> single<Pump> { Pump() } }
+    override fun AppScope.run(root: Pump) = Unit
 }
 """
