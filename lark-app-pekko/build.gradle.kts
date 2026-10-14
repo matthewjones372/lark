@@ -10,6 +10,8 @@ dependencies {
     // The Kotlin compiler in the test JVM, so the cookbook's recipes are compiled
     // rather than believed.
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
+    // For the cookbook's coroutine recipes, which compile against kotlinx's own `await`.
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 }
 
 val repoRoot = rootProject.projectDir.absolutePath

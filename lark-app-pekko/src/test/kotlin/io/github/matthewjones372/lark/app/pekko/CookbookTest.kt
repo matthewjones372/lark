@@ -20,6 +20,7 @@ class CookbookTest {
         private const val FIXTURES = "<!-- cookbook-fixtures -->"
         private const val RECIPE = "<!-- cookbook -->"
         private const val PEKKO = "<!-- cookbook-pekko -->"
+        private const val COROUTINES = "<!-- cookbook-coroutines -->"
     }
 
     @TempDir
@@ -64,5 +65,20 @@ class CookbookTest {
         // One compilation rather than one each: a recipe builds on the value the one above it named,
         // which is how a reader meets them.
         compiles((listOf(fixtures) + recipes).joinToString("\n\n"))
+    }
+
+    /**
+     * A coroutine recipe is a file of its own, with its own imports: in one file with lark's `await`,
+     * lark's `CompletableFuture` overload is the more specific and would win inside the coroutine.
+     */
+    @Test
+    fun `every coroutine recipe compiles on its own`() {
+        val recipes = fences(COROUTINES)
+
+        withClue("the page must carry coroutine recipes, or this test is asserting nothing") {
+            recipes.shouldNotBeEmpty()
+        }
+
+        recipes.forEach(::compiles)
     }
 }
