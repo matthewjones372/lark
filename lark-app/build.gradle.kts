@@ -8,7 +8,10 @@ val repoRoot = rootProject.projectDir.absolutePath
 val publishedModules = rootProject.extra["publishedModules"] as List<String>
 
 // The pages AgentDocsTest holds to the published modules.
-val agentDocs = files(rootProject.layout.projectDirectory.file("llms.txt"))
+val agentDocs = files(
+    rootProject.layout.projectDirectory.file("llms.txt"),
+    rootProject.layout.projectDirectory.file("plugins/lark/skills/lark/SKILL.md"),
+)
 
 // The page WiringDiagramTest holds to what render answers, declared so editing
 // it re-runs the test rather than leaving a stale answer behind.
