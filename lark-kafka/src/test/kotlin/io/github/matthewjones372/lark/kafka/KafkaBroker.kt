@@ -5,12 +5,15 @@ import io.github.embeddedkafka.EmbeddedKafka
 import io.github.embeddedkafka.EmbeddedKafkaConfig
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
+import org.apache.kafka.clients.admin.ListOffsetsOptions
 import org.apache.kafka.clients.admin.NewTopic
+import org.apache.kafka.clients.admin.OffsetSpec
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.IsolationLevel
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
@@ -104,9 +107,11 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     /**
      * Every record on [topic]'s only partition up to its end, as a reader at [isolation] sees it: with
      * `read_committed` the end is the last committed transaction's, and an aborted one's records are skipped.
+     * Read once no transaction is open on it, so a transaction that has just ended is read as it ended.
      */
-    fun readAll(topic: String, isolation: String): List<ConsumerRecord<String?, String?>> =
-        KafkaConsumer(
+    fun readAll(topic: String, isolation: String): List<ConsumerRecord<String?, String?>> {
+        settled(TopicPartition(topic, 0))
+        return KafkaConsumer(
             mapOf<String, Any>(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap,
                 ConsumerConfig.ISOLATION_LEVEL_CONFIG to isolation,
@@ -125,6 +130,24 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
             }
             read
         }
+    }
+
+    // commitTransaction returns once the coordinator has prepared the commit; the marker that ends the
+    // transaction on the partition is written after, so until then a read_committed reader stops short of it.
+    private fun settled(partition: TopicPartition) {
+        Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
+            fun end(isolation: IsolationLevel): Long =
+                admin.listOffsets(mapOf(partition to OffsetSpec.latest()), ListOffsetsOptions(isolation))
+                    .all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS).getValue(partition).offset()
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)
+            while (end(IsolationLevel.READ_COMMITTED) < end(IsolationLevel.READ_UNCOMMITTED)) {
+                check(System.nanoTime() < until) {
+                    "a transaction on $partition was still open after ${TIMEOUT_SECONDS}s"
+                }
+                Thread.sleep(SETTLE_MILLIS)
+            }
+        }
+    }
 
     /** The offset the group has committed on the topic's only partition, or null for none. */
     fun committed(group: String, topic: String): Long? =
@@ -148,5 +171,6 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
         const val TIMEOUT_SECONDS = 30L
         const val ATTEMPTS = 3
         const val POLL_MILLIS = 200L
+        const val SETTLE_MILLIS = 5L
     }
 }
