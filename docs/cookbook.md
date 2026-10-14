@@ -62,6 +62,7 @@ import io.github.matthewjones372.lark.app.overriding
 import io.github.matthewjones372.lark.app.probe
 import io.github.matthewjones372.lark.app.runApp
 import io.github.matthewjones372.lark.app.boundTo
+import io.github.matthewjones372.lark.app.closingOf
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.singleOf
 import io.github.matthewjones372.lark.app.subgraph
@@ -81,9 +82,9 @@ data class HttpConfig(val port: Int)
 data class AppConfig(val db: DbConfig, val http: HttpConfig)
 
 interface Pool { fun healthy(): Boolean }
-class Hikari(val config: DbConfig) : Pool {
+class Hikari(val config: DbConfig) : Pool, AutoCloseable {
     override fun healthy() = true
-    fun close() = Unit
+    override fun close() = Unit
 }
 
 interface UserRepo { fun find(id: Long): String? }
@@ -115,13 +116,21 @@ val fromConstructors: Module = singleOf(::Hikari).boundTo<Pool>() + singleOf(::P
 what stops the type-argument trap below: with `singleOf` you never give a type
 argument beside a dependency.
 
-Most of a graph is not a bare constructor, though — it is a pool, a client or a
-connection with a teardown called `close` or `dispose` or `shutdown`. That takes
-the release beside the constructor:
+Most of a graph is not a bare constructor, though: it is a pool, a client or a
+connection that has to be given back. One that is `AutoCloseable` is closed on
+release by `closingOf`, in reverse dependency order:
 
 <!-- cookbook -->
 ```kotlin
-val heldThings: Module = singleOf(::Hikari, Hikari::close).boundTo<Pool>()
+val heldThings: Module = closingOf(::Hikari).boundTo<Pool>()
+```
+
+A teardown called anything else, `stop` or `dispose` or `shutdown`, goes beside
+the constructor:
+
+<!-- cookbook -->
+```kotlin
+val served: Module = singleOf(::HttpServer, HttpServer::stop)
 ```
 
 ## What a `single` is
@@ -205,7 +214,7 @@ val config: Module =
     single { app: AppConfig -> app.http }
 
 val persistence: Module =
-    single { db: DbConfig -> install({ Hikari(db) }) { pool, _ -> pool.close() } as Pool } +
+    closingOf(::Hikari).boundTo<Pool>() +
     single<UserRepo, Pool> { pool -> PgUserRepo(pool) }
 
 val domain: Module = single { users: UserRepo -> RegisterUser(users) }
@@ -264,7 +273,7 @@ data class DbSettings(val url: String, val poolSize: Int, val idle: kotlin.time.
 val database: Module =
     single<Config> { ConfigFactory.load() } +
     config<DbSettings>("database") { DbSettings(string("url"), int("poolSize"), duration("idle")) } +
-    single { db: DbSettings -> install({ Hikari(DbConfig(db.url)) }) { pool, _ -> pool.close() } as Pool }
+    closingOf { db: DbSettings -> Hikari(DbConfig(db.url)) }.boundTo<Pool>()
 ```
 
 `string`, `int`, `long`, `boolean`, `duration`, `bytes` and `strings` are the
@@ -486,7 +495,7 @@ been constructed and can serve nothing.
 <!-- cookbook -->
 ```kotlin
 val probed: Module =
-    single { db: DbConfig -> install({ Hikari(db) }) { pool, _ -> pool.close() } as Pool }
+    closingOf(::Hikari).boundTo<Pool>()
         .probe("db", timeout = 2.seconds, attempts = 10, interval = 500.milliseconds) { pool: Pool ->
             pool.healthy()
         }
@@ -964,7 +973,7 @@ import io.github.matthewjones372.lark.app.liquibase.Migrated
 import io.github.matthewjones372.lark.app.liquibase.migrations
 
 val database: Module =
-    single { cfg: DbConfig -> install({ Hikari(cfg) }) { pool, _ -> pool.close() } as DataSource } +
+    closingOf { cfg: DbConfig -> HikariDataSource(cfg) }.boundTo<DataSource>() +
     migrations("db/changelog.xml") +
     single { db: DataSource, _: Migrated -> PgUserRepo(db) as UserRepo }
 ```
@@ -1068,7 +1077,8 @@ opened it is released.
 | a value built once and shared | `singleOf(::Thing)` — the constructor names the key and the dependencies |
 | that node keyed as an interface | `.boundTo<Interface>()` |
 | a recipe that is not just a constructor | `single { dep: Other -> … }` |
-| a value that must be closed | `install(acquire) { held, exit -> … }` |
+| a value that must be closed, and is `AutoCloseable` | `closingOf(::Thing)` |
+| a value given back some other way | `singleOf(::Thing, Thing::stop)`, or `install(acquire) { held, exit -> … }` for the exit |
 | a start that can decline | `refuse("why")` |
 | two of one type | a `@JvmInline value class` wrapper |
 | more than nine dependencies | group them into a node of their own |

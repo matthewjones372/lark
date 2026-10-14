@@ -38,10 +38,12 @@ service needs which, to point them at.
 ## A module is a value
 
 ```kotlin
+import io.github.matthewjones372.lark.app.boundTo
+import io.github.matthewjones372.lark.app.closingOf
 import io.github.matthewjones372.lark.app.single
 
 val persistence =
-    single { cfg: DbConfig -> install({ HikariDataSource(cfg) }) { ds, _ -> ds.close() } as DataSource } +
+    closingOf { cfg: DbConfig -> HikariDataSource(cfg) }.boundTo<DataSource>() +
     single<UserRepo, DataSource> { ds -> PgUserRepo(ds) } +
     single<OrderRepo, DataSource> { ds -> PgOrderRepo(ds) }
 
@@ -205,11 +207,12 @@ because a service reading several names wants every complaint at once, which is
 ## Started means ready
 
 ```kotlin
+import io.github.matthewjones372.lark.app.closingOf
 import io.github.matthewjones372.lark.app.probe
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-single { cfg: KafkaConfig -> install({ KafkaClient.connect(cfg) }) { c, _ -> c.close() } }
+closingOf { cfg: KafkaConfig -> KafkaClient.connect(cfg) }
     .probe("kafka", timeout = 2.seconds, attempts = 10, interval = 500.milliseconds) { it.assigned() }
 ```
 
