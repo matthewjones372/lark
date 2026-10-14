@@ -264,8 +264,13 @@ shop.cluster {
 val shop = loadedConfig() + actors() + cluster("shop.cluster") + single { cluster: Cluster -> Orders(cluster) }
 ```
 
-The `Cluster` node is started once `cluster.ready()`, and the flock leaves the
-cluster before the application's actors stop. `cluster(ClusterSettings(...))`
+The node joins as `Joining` and is admitted once every node of the graph is
+built, so no shard is placed on it before its regions are open (spec 0129).
+A node that needs the `Cluster`, such as `Orders` above, is therefore built
+while this one is still `Joining`: sharding holds what it tells until there is
+an owner, but anything that needs this node `Up` waits for `use`'s block, which
+runs only once `cluster.ready()`. The flock leaves the cluster before the
+application's actors stop. `cluster(ClusterSettings(...))`
 takes the same settings from code, for an application that reads its
 configuration its own way.
 

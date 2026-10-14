@@ -9,6 +9,7 @@ import io.github.matthewjones372.lark.ResourceScope
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.resourceScope
+import java.util.concurrent.CancellationException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.reflect.KType
@@ -45,7 +46,10 @@ interface Wiring : ResourceScope {
     /** Ends the start, naming this node and [reason]. */
     fun refuse(reason: String): Nothing
 
-    /** Runs [started] once every node is built, in the graph's order, before any `WhenStarted` probe (spec 0129). */
+    /**
+     * Runs [started] once every node is built, in the graph's order, before any `WhenStarted` probe (spec 0129). One
+     * that throws ends the start as this node's refusal. Asked for once the graph has started, it throws.
+     */
     fun onStarted(started: () -> Unit)
 }
 
@@ -70,7 +74,7 @@ internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError
         onRelease { exit -> releases.release(order, exit) }
         val starts = Starts()
         val built = build(this@use, plan, releases, starts, health)
-        starts.run(order)
+        starts.run(order, this@either)
         probes.filter { it.asked == Asked.WhenStarted }.forEach { probe ->
             val answer = answers(probe, built.getValue(probe.key))
             if (answer is Answer.No) raise(StartupError.Unready(probe.key, probe.name, answer.cause))
@@ -125,8 +129,13 @@ private class NodeWiring(
 
     override fun onStarted(started: () -> Unit) = starts.add(key, started)
 
-    override fun refuse(reason: String): Nothing = raise.raise(StartupError.Refused(key, reason))
+    // A hook runs after the build's own scope has ended, so its refusal goes to the one running the hooks.
+    override fun refuse(reason: String): Nothing =
+        if (starts.running) throw Refusal(key, reason) else raise.raise(StartupError.Refused(key, reason))
 }
+
+/** A refusal from inside an `onStarted` hook, on its way to [Starts.run]. */
+private class Refusal(val key: KType, val reason: String) : RuntimeException(reason)
 
 /**
  * The releases of every node, kept by the node that installed them, because a layer's forks install at
@@ -157,12 +166,46 @@ private class Starts {
 
     private val lock = ReentrantLock()
     private val byKey = mutableMapOf<KType, MutableList<() -> Unit>>()
+    private var ran = false
 
+    @Volatile
+    var running = false
+        private set
+
+    // A hook asked for after the run would never run, and nothing would say so.
     fun add(key: KType, started: () -> Unit) {
-        lock.withLock { byKey.getOrPut(key) { mutableListOf() }.add(started) }
+        lock.withLock {
+            check(!ran) { "${labelOf(key)} asked for onStarted after the graph had started" }
+            byKey.getOrPut(key) { mutableListOf() }.add(started)
+        }
     }
 
-    fun run(order: List<KType>) = lock.withLock { order.flatMap { byKey[it].orEmpty() } }.forEach { it() }
+    /** Runs every hook, in [order]; one that throws ends the start, naming its node, as a refusal does. */
+    fun run(order: List<KType>, raise: Raise<StartupError>) {
+        val hooks = lock.withLock {
+            ran = true
+            order.flatMap { key -> byKey[key].orEmpty().map { key to it } }
+        }
+        running = true
+        try {
+            hooks.forEach { (key, started) -> runHook(key, started, raise) }
+        } finally {
+            running = false
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun runHook(key: KType, started: () -> Unit, raise: Raise<StartupError>) {
+        try {
+            started()
+        } catch (refused: Refusal) {
+            raise.raise(StartupError.Refused(refused.key, refused.reason))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (thrown: Exception) {
+            raise.raise(StartupError.Refused(key, "its onStarted threw ${thrown::class.simpleName}: ${thrown.message}"))
+        }
+    }
 }
 
 /** What a release threw, if anything. Every release runs whatever one before it threw, so none is let off. */
