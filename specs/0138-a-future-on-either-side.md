@@ -75,8 +75,13 @@ Recipes: *Wait for a future*, *Hand back a future*, *Call a coroutine library*, 
 
 ## Open questions
 
-1. Move `await` out of `lark-pekko` outright, or leave a deprecated forward for one release? Recommended: move
-   it; the README already says the next version breaks things.
-2. `larkFuture` or `forkFuture` / `virtualFuture`? Recommended: `larkFuture`, as it says whose rules run inside.
-3. Should `larkFuture` carry the caller's lark bindings to its thread, as a fork does? Recommended: yes, through
-   the same snapshot `flock` takes, so a span opened before it is the parent of what runs inside.
+Answered when the spec was merged, each with the recommended answer:
+
+1. `await` moves out of `lark-pekko` outright, with no deprecated forward. The README already says the next
+   version breaks things.
+2. The name is `larkFuture`, as it says whose rules run inside.
+3. `larkFuture` carries the caller's lark bindings to its thread, through the same snapshot `flock` takes, so a
+   span opened before it is the parent of what runs inside.
+
+A `CompletableFuture` is both a `CompletionStage` and a `Future`, so `await` has a third overload on it, which
+only breaks the tie.

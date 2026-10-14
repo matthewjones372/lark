@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.app.pekko
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.Wiring
 import io.github.matthewjones372.lark.app.single
-import io.github.matthewjones372.lark.pekko.await
+import io.github.matthewjones372.lark.await
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.Behavior

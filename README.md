@@ -77,8 +77,8 @@ Claude Code, the lark plugin loads the same advice whenever the code uses lark:
 
 | Module | What it is for | Adds | Published |
 |---|---|---|---|
-| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `policy`, `LarkLocal`, `Clock`, the log and metrics | `arrow-core` | yes |
-| `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's stages awaited from a fork | `pekko-actor` | yes |
+| `lark` | `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`, `timeout`, `policy`, `LarkLocal`, `Clock`, the log and metrics, and a future awaited from a fork | `arrow-core` | yes |
+| `lark-pekko` | a Pekko dispatcher as the executor, and Pekko's Scala futures awaited from a fork | `pekko-actor` | yes |
 | `lark-structured` | `parZip`, `parMap`, `raceN` and `timeout` on the JDK's `StructuredTaskScope`; experimental, as that API is a preview | nothing | no |
 
 **Applications**
@@ -301,7 +301,7 @@ Pekko's APIs (an HTTP request, an `ask`, a stream run into a sink), and
 `await()` is how a fork waits for one:
 
 ```kotlin
-import io.github.matthewjones372.lark.pekko.await
+import io.github.matthewjones372.lark.await
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.pattern.Patterns
 import java.time.Duration
@@ -320,8 +320,9 @@ rather than the `CompletionException` or `ExecutionException` wrapped around
 it, so the body can catch the exception it declared. An interrupt (from a
 closing scope, a `raceN` loser or a `timeout`) cancels the stage with
 `cancel(true)` and rethrows the `InterruptedException`, so a value that arrives
-later is dropped instead of being delivered to nobody. Pekko's Scala futures
-support `await()` too.
+later is dropped instead of being delivered to nobody. `await()` is in `lark`
+and takes any `CompletionStage` or `Future`, Pekko's or not; Pekko's Scala
+futures have one of their own in `lark-pekko`.
 
 `await()` does not change what a stage holds. A stream run into `Sink.seq`
 still buffers every element before it completes, so awaiting it means waiting
