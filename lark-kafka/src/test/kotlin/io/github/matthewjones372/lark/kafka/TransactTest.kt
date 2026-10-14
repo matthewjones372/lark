@@ -29,7 +29,6 @@ import org.junit.jupiter.params.provider.ValueSource
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /** A record's outputs and its offset in one transaction, on whichever backend the run names. */
@@ -113,7 +112,9 @@ class TransactTest {
         val exit = producer("failing-$on", refusing).use { orders ->
             consumed("failing-$on", input)
                 .mapRecord { record -> record.value() }
-                .runTransactionally(orders, within = 5.seconds) { cart -> listOf(output.record(cart, cart)) }
+                .runTransactionally(orders, batch = 3, within = GENEROUS_SECONDS.seconds) { cart ->
+                    listOf(output.record(cart, cart))
+                }
                 .run(backend(on))
                 .settled()
         }
@@ -163,9 +164,13 @@ class TransactTest {
         producer("retried-$on", onceRefusing).use { orders ->
             consumed("retried-$on", input)
                 .mapRecord { record -> record.value() }
-                .take(3)
-                .transacted(orders, within = 200.milliseconds) { cart -> listOf(output.record(cart, cart)) }
+                // No take upstream: the first attempt's consumer is still polling when the restart gives it up.
+                .transacted(orders, batch = 3, within = GENEROUS_SECONDS.seconds) { cart ->
+                    listOf(output.record(cart, cart))
+                }
                 .restartOnDefect(Schedule.recurs<Throwable>(1))
+                // Ends after the commit, so the consumer is still in its group when the offsets reach the broker.
+                .take(1)
                 .runFold(0L, Long::plus)
                 .run(backend(on))
                 .settled() shouldBe Exit.Done(3L)
