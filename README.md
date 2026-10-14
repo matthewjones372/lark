@@ -667,7 +667,6 @@ under a key that nothing asked for, and starting the graph runs one topological
 layer at a time on lark's forks, with releases in reverse topological order.
 
 ```kotlin
-import io.github.matthewjones372.lark.app.AppScope
 import io.github.matthewjones372.lark.app.LarkApp
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.runApp
@@ -675,7 +674,6 @@ import kotlin.reflect.typeOf
 
 object App : LarkApp<HttpServer>() {
     override val module: Module = config + persistence + domain + web
-    override fun AppScope.run(root: HttpServer) { root.start(); awaitShutdown() }
 }
 
 fun main(): Unit = exitProcess(runApp(App).code)

@@ -396,7 +396,6 @@ fun persistence(conf: Config): Module =
 
 object Shop : LarkApp<Pool>() {
     override val module = ConfigFactory.load().let { conf -> configOf(conf) + persistence(conf) }
-    override fun AppScope.run(root: Pool) = awaitShutdown()
 }
 ```
 
@@ -562,13 +561,7 @@ given as the path around it.
 <!-- cookbook -->
 ```kotlin
 object TheApp : LarkApp<HttpServer>() {
-
     override val module: Module = app
-
-    override fun AppScope.run(root: HttpServer) {
-        root.start()
-        awaitShutdown()
-    }
 }
 
 fun everyFault(): String = TheApp.module.findings(TheApp.root).report()

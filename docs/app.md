@@ -171,11 +171,15 @@ import io.github.matthewjones372.lark.app.runApp
 
 object Petshop : LarkApp<HttpServer>() {
     override val module: Module = core + persistence + web
-    override fun AppScope.run(root: HttpServer) { root.start(); awaitShutdown() }
 }
 
 fun main(): Unit = exitProcess(runApp(Petshop).code)
 ```
+
+A service writes no `run`: the default parks until the process is asked to stop,
+and the graph's release then stops the server, which `web`'s node started. A
+job overrides `run` with its work, and the graph is released when it returns
+([0135](../specs/0135-a-service-that-does-not-say-wait.md)).
 
 The type argument is written twice because a type parameter is erased by the
 time a build tool reads it, and `findings` needs the root to say what nothing
