@@ -1,6 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * A resource opened once per run and read by blocking: a consumer's `poll`, a cursor, a queue's `take`.
@@ -28,11 +30,14 @@ class Opened(private val node: Node.Blocking) {
     private val woken = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
 
+    /** Held for each read, so a close from another thread waits for the read it would close under. */
+    private val reading = ReentrantLock()
+
     /** The next element, or `null` once the resource is done or the run was woken to stop. */
     // Whatever a woken next throws is how it was told to stop, so it ends the stream rather than the run.
     @Suppress("TooGenericExceptionCaught")
-    fun next(): Any? =
-        if (woken.get()) {
+    fun next(): Any? = reading.withLock {
+        if (woken.get() || closed.get()) {
             null
         } else {
             try {
@@ -41,13 +46,26 @@ class Opened(private val node: Node.Blocking) {
                 if (woken.get()) null else throw thrown
             }
         }
+    }
 
     /** Tells a blocked [next] to return; a resource already closed is not asked. */
     fun wake() {
         if (woken.compareAndSet(false, true) && !closed.get()) node.wake(resource)
     }
 
+    /**
+     * Closed once, after the last read. A read still running on another thread, a feed's fork given up by a
+     * restart, is woken first: a Kafka consumer closed under its own `poll` throws and stays in its group.
+     */
     fun close() {
-        if (closed.compareAndSet(false, true)) node.close(resource)
+        if (!reading.tryLock()) {
+            wake()
+            reading.lock()
+        }
+        try {
+            if (closed.compareAndSet(false, true)) node.close(resource)
+        } finally {
+            reading.unlock()
+        }
     }
 }
