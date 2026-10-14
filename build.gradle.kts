@@ -123,6 +123,9 @@ val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks")
 // to run, not a library to depend on (spec 0094).
 val unpublished = setOf("lark-structured", "lark-stream-parity", "lark-bank") + benchmarkModules
 
+// What llms.txt and the lark skill must name, no more and no fewer: AgentDocsTest in lark-app reads it.
+extra["publishedModules"] = subprojects.map { it.name }.filterNot { it in unpublished }.sorted()
+
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.
 kover {
