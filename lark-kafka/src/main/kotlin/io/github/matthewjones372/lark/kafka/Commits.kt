@@ -54,6 +54,9 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     /** What was handled committed, then the consumer closed, however the commit went. */
     fun close() {
         leaving.set(true)
+        // A take that ends a Forks run interrupts the fork reading the source, and that fork closes it: the
+        // client would refuse both the commit and the close, and the last records handled be read again.
+        val interrupted = Thread.interrupted()
         try {
             // A wake the loop never saw is still pending, and would fail this commit rather than a poll.
             try {
@@ -62,7 +65,11 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
                 commit()
             }
         } finally {
-            consumer.close()
+            try {
+                consumer.close()
+            } finally {
+                if (interrupted) Thread.currentThread().interrupt()
+            }
         }
     }
 }
