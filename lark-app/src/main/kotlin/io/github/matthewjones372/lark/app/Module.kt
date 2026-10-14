@@ -22,6 +22,8 @@ class Module private constructor(
     internal val nodes: Map<KType, Node>,
     internal val probes: List<Probe>,
     internal val shadows: List<Shadow> = emptyList(),
+    /** Overrides for keys only a choice's branch brings, used when a chosen branch brings them (spec 0136). */
+    internal val pending: Map<KType, Node> = emptyMap(),
 ) {
 
     /** [other]'s node wins wherever the two share a key, and takes the probes of that key with it. */
@@ -32,6 +34,7 @@ class Module private constructor(
             // Kept rather than discarded: the merge cannot tell a deliberate override from a typo, and
             // only `overriding` knows which it was.
             shadows + other.shadows + collisionsWith(other),
+            pending + other.pending,
         )
 
     private fun collisionsWith(other: Module): List<Shadow> =
@@ -44,13 +47,23 @@ class Module private constructor(
      * Named by what survives rather than by the keys to drop: a base module that already shadowed a
      * key by accident keeps saying so, and only the collisions this merge introduced are forgiven.
      */
-    internal fun shadowing(kept: List<Shadow>): Module = Module(nodes, probes, kept)
+    internal fun shadowing(kept: List<Shadow>): Module = Module(nodes, probes, kept, pending)
+
+    /** The same module, with [replacements] waiting for a chosen branch that brings their keys. */
+    internal fun pendingFor(replacements: Map<KType, Node>): Module = Module(
+        nodes, probes, shadows,
+        pending + replacements,
+    )
 
     internal companion object {
         fun of(node: Node): Module = Module(mapOf(node.key to node), emptyList())
 
-        fun of(nodes: Map<KType, Node>, probes: List<Probe>, shadows: List<Shadow> = emptyList()): Module =
-            Module(nodes, probes, shadows)
+        fun of(
+            nodes: Map<KType, Node>,
+            probes: List<Probe>,
+            shadows: List<Shadow> = emptyList(),
+            pending: Map<KType, Node> = emptyMap(),
+        ): Module = Module(nodes, probes, shadows, pending)
     }
 }
 

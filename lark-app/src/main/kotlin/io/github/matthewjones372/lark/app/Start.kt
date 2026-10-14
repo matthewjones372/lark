@@ -101,7 +101,12 @@ private fun Raise<StartupError>.build(
     var built = mapOf<KType, Any>(typeOf<HealthRegistry>() to health)
     while (true) {
         val remaining = module.nodes.values.filter { it.key !in built }
-        if (remaining.isEmpty()) return built
+        if (remaining.isEmpty()) {
+            module.pending.keys.firstOrNull()?.let { key ->
+                raise(StartupError.Refused(key, "it was overridden, and no chosen branch provides it"))
+            }
+            return built
+        }
         val ready = remaining.filter { node -> node.dependencies.all { it in built } }
         val (choices, nodes) = ready.partition { it.choice != null }
         when {
@@ -148,7 +153,9 @@ private fun Raise<StartupError>.expanded(
     val key = choice.key
     val branch = checkNotNull(choice.choice).pick(choice.dependencies.map(built::getValue))
     if (key !in branch.nodes) raise(StartupError.Refused(key, "the branch chosen for it does not provide it"))
+    // What a test overrode wins: a node already in the graph, or one waiting for a branch to bring its key.
     val added = branch.nodes.filterKeys { it == key || it !in module.nodes }
+        .mapValues { (brought, node) -> module.pending[brought] ?: node }
     val missing = added.values.flatMap { it.dependencies }
         .filterNot { it in module.nodes || it in added || it in runtimeProvided }
         .distinct()
@@ -162,7 +169,7 @@ private fun Raise<StartupError>.expanded(
     }
     val probes = branch.probes.filter { it.key in added }
     health.adding(probes)
-    return Module.of((module.nodes - key) + added, module.probes + probes, module.shadows)
+    return Module.of((module.nodes - key) + added, module.probes + probes, module.shadows, module.pending - added.keys)
 }
 
 /**

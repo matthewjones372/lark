@@ -71,4 +71,5 @@ internal fun Module.probed(
     interval: Duration,
     asked: Asked,
     ask: (Any) -> Boolean,
-): Module = Module.of(nodes, probes + Probe(name, key, timeout, critical, attempts, interval, asked, ask), shadows)
+): Module =
+    Module.of(nodes, probes + Probe(name, key, timeout, critical, attempts, interval, asked, ask), shadows, pending)
