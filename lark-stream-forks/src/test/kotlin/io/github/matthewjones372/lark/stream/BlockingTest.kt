@@ -2,13 +2,17 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Schedule
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.seconds
 
 /** A resource opened per run, read by blocking on the pulling thread, and closed once however the run ended. */
 class BlockingTest {
@@ -112,6 +116,54 @@ class BlockingTest {
         withClue("the failed resource was closed before the second read, and the second when the run ended") {
             closed.get() shouldBe 2
         }
+    }
+
+    @Test
+    fun `a restart wakes a source still reading on another fork, and closes it once the read has returned`() {
+        class Attempt(val number: Int) {
+            val reads = AtomicInteger()
+            val reading = AtomicBoolean(false)
+            val woken = CountDownLatch(1)
+        }
+        val attempts = AtomicInteger()
+        val events = CopyOnWriteArrayList<String>()
+        val overlapped = CopyOnWriteArrayList<Int>()
+
+        val exit = Stream.blocking(
+            open = { Attempt(attempts.incrementAndGet()).also { events += "open ${it.number}" } },
+            next = { attempt ->
+                attempt.reading.set(true)
+                try {
+                    if (attempt.reads.getAndIncrement() == 0) {
+                        attempt.number
+                    } else {
+                        attempt.woken.await(GENEROUS_SECONDS, TimeUnit.SECONDS)
+                        null
+                    }
+                } finally {
+                    attempt.reading.set(false)
+                }
+            },
+            wake = { it.woken.countDown() },
+            close = { attempt ->
+                if (attempt.reading.get()) overlapped += attempt.number
+                events += "close ${attempt.number}"
+            },
+        )
+            // The window reads its source on a fork of its own, as a Kafka consumer's transactions do.
+            .groupedWithin(1, GENEROUS_SECONDS.seconds)
+            .map { batch -> batch.also { check(it != listOf(1)) { "the first attempt's batch fails" } } }
+            .restartOnDefect(Schedule.recurs<Throwable>(1))
+            .take(1)
+            .runCollect()
+            .run(Forks())
+            .settled()
+
+        exit shouldBe Exit.Done(listOf(listOf(2)))
+        withClue("no resource was closed while a read of it was still running") {
+            overlapped.shouldBeEmpty()
+        }
+        events shouldBe listOf("open 1", "close 1", "open 2", "close 2")
     }
 
     @Test
