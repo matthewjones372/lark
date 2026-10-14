@@ -11,9 +11,11 @@ import kotlin.reflect.KType
  * ```kotlin
  * object Petshop : LarkApp<PelicanServer>() {
  *     override val module = petshop
- *     override fun AppScope.run(root: PelicanServer) = awaitShutdown()
  * }
  * ```
+ *
+ * A service has no `run`: the default parks until the process is asked to stop, and the graph's release then
+ * stops the root (spec 0135). A job overrides `run` with its work, and the graph is released when it returns.
  *
  * The root is named once. A type parameter is erased at a *use* site, which is why `single` and the
  * rest are inline functions — but a type argument written into a *subclass declaration* is kept in
@@ -24,7 +26,8 @@ abstract class LarkApp<A : Any> {
 
     abstract val module: Module
 
-    abstract fun AppScope.run(root: A)
+    /** Parks until the process is asked to stop. Not the root's own wait: that ends on the release, after this. */
+    open fun AppScope.run(root: A) = awaitShutdown()
 
     /** The key `A` names, found among the graph's own keys so that no `KType` has to be built. */
     val root: KType by lazy { rootOf(javaClass, module) }
