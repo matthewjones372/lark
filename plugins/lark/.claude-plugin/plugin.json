@@ -1,0 +1,9 @@
+{
+  "name": "lark",
+  "description": "What lark ships and when to reach for it, so code on lark uses the library instead of rewriting it.",
+  "author": {
+    "name": "matthewjones372"
+  },
+  "homepage": "https://github.com/matthewjones372/lark",
+  "license": "Apache-2.0"
+}

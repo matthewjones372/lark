@@ -61,6 +61,16 @@ Each one brings only itself, the lark modules it builds on, and the dependency
 named in the tables below, and the `NoOtherDependenciesTest` in each module
 checks that.
 
+## For an agent writing code on lark
+
+[`llms.txt`](llms.txt) says what lark ships and when to reach for each piece. In
+Claude Code, the lark plugin loads the same advice whenever the code uses lark:
+
+```
+/plugin marketplace add matthewjones372/lark
+/plugin install lark@lark
+```
+
 ## Modules
 
 **Core**

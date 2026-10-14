@@ -22,6 +22,11 @@ class AgentDocsTest {
     fun `llms txt names every published module, and nothing else, under Modules`() {
         modulesIn(page("llms.txt")) shouldBe published
     }
+
+    @Test
+    fun `the lark skill names the same modules`() {
+        modulesIn(page("plugins/lark/skills/lark/SKILL.md")) shouldBe published
+    }
 }
 
 /** The module names a page lists, one `- \`name\`:` line each under its "## Modules" heading. */
