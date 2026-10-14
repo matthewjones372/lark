@@ -5,6 +5,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.io.File
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.reflect.typeOf
 
@@ -18,6 +20,18 @@ internal object Sampled : LarkApp<Counter>() {
     override fun AppScope.run(root: Counter) {
         root.started.set("ran")
     }
+}
+
+internal class Released : AutoCloseable {
+    val closed = AtomicBoolean()
+
+    override fun close() = closed.set(true)
+}
+
+/** A service: no run, so the default waits for shutdown. */
+internal object Waits : LarkApp<Released>() {
+
+    override val module: Module = closingOf { -> Released() }
 }
 
 /** A graph short of a key, so the checker has something to fail on. */
@@ -48,6 +62,28 @@ class LarkAppTest {
         val exit = runApp(Sampled)
 
         exit shouldBe ExitCode.Ok
+    }
+
+    @Test
+    fun `an application with no run waits for shutdown, and its graph is released after`() {
+        val shutdown = Shutdown()
+        val built = CompletableFuture<Released>()
+        val running = Thread.ofVirtual().start {
+            Waits.module.use(Waits.root) { root ->
+                built.complete(root as Released)
+                with(Waits) { appScope(shutdown).run(root) }
+            }
+        }
+        val held = built.join()
+
+        // Parked in run rather than returned: the thread is waiting, and nothing has been released.
+        while (running.state != Thread.State.WAITING) Thread.onSpinWait()
+        held.closed.get() shouldBe false
+
+        shutdown.request()
+        running.join()
+
+        held.closed.get() shouldBe true
     }
 
     @Test
