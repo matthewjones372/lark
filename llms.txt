@@ -27,8 +27,8 @@ Facts worth having before anything else:
 
 - `lark`: `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
   `timeout`, `policy` (retry, circuit breaker, bulkhead, rate limiter),
-  `LarkLocal`, `Clock`, the log and metrics calls, and `await()` for a
-  `CompletionStage` or `Future`.
+  `LarkLocal`, `Clock`, the log and metrics calls, `await()` for a
+  `CompletionStage` or `Future`, and `larkFuture { }` to hand one back.
 - `lark-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
   awaited from a fork.
 - `lark-stream`: `Stream<E, A>` as a description, with its failure in the type
