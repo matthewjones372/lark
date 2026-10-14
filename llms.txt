@@ -102,6 +102,9 @@ Facts worth having before anything else:
 | a retry or backoff | `Schedule.exponential(…)`, `Schedule.spaced(…)` |
 | a stream that restarts after a defect | `restartOnDefect(schedule)` |
 | a log line, a counter, a timer | `logInfo`, `counter(…).increment()`, `timed(…) { … }` |
+| a value from a future | `future.await()` |
+| to hand back a future, or be called from coroutines | `larkFuture { … }`; a coroutine waits on it with kotlinx's `await` |
+| a coroutine library's answer | `runBlocking { … }`, with no `raise` inside |
 | a fake in a test | `.overriding(single<T> { … })` |
 | a smaller test | `.subgraph<Root>()` and `testApp(module) { root -> … }` |
 | a test that waits for something | `eventually(within) { … }`, never `Thread.sleep` |
