@@ -39,7 +39,7 @@ class CallSiteLineTest {
 
     // The repository root, which the build already hands every test in this module.
     private fun lines(): Int =
-        File(System.getProperty("lark.app.repoRoot"), "lark-app/src/test/kotlin/$SOURCE").readLines().size
+        File(System.getProperty("lark.app.repoRoot"), "app/lark-app/src/test/kotlin/$SOURCE").readLines().size
 }
 
 private const val SOURCE = "io/github/matthewjones372/lark/app/CallSiteLineTest.kt"
