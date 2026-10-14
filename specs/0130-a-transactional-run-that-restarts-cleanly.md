@@ -60,15 +60,19 @@ For 3, JUnit's own dump is one property and no code, but it misses exactly the t
 
 ## Stack
 
-- [ ] **`spec-0130-threads-on-timeout`**: the callback, registered for `lark-kafka`'s tests by extension autodetection.
+- [x] **`spec-0130-threads-on-timeout`** ([#368](https://github.com/matthewjones372/lark/pull/368)):
+      the callback, registered for `lark-kafka`'s tests by extension autodetection.
       Done when: a test that parks a virtual thread and times out prints that thread's stack in its report.
-- [ ] **`spec-0130-close-after-read`**: `Opened.close()` wakes and waits for a read in flight.
+- [x] **`spec-0130-close-after-read`** ([#370](https://github.com/matthewjones372/lark/pull/370)):
+      `Opened.close()` wakes and waits for a read in flight.
       Done when: a Forks test of `restartOnDefect` over a `Stream.blocking` whose `next` blocks until woken never sees
       `close` overlap `next`, and the next attempt opens only after the last one closed.
-- [ ] **`spec-0130-commit-when-interrupted`**: `Commits.close()` commits and closes with the interrupt held aside.
+- [x] **`spec-0130-commit-when-interrupted`** ([#373](https://github.com/matthewjones372/lark/pull/373)):
+      `Commits.close()` commits and closes with the interrupt held aside.
       Done when: a Forks `runCommitting` run that a `take` ends commits every record it handled, with the closing
       thread interrupted, and the thread is still interrupted afterwards.
-- [ ] **`spec-0130-one-batch`**: `TransactTest` batches by count, the restart case drops its upstream `take`, and
+- [x] **`spec-0130-one-batch`** ([#384](https://github.com/matthewjones372/lark/pull/384)):
+      `TransactTest` batches by count, the restart case drops its upstream `take`, and
       `readAll` waits for the partition's transactions to end.
       Done when: `./gradlew :lark-kafka:test` passes 100 runs in a row under load, on both backends.
 

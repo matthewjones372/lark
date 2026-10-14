@@ -51,7 +51,8 @@ Three ways, recommended first:
 
 ## Stack
 
-- [ ] **`spec-0131-ordered-leave`**: `Handle.withGroup`, the lock in `Commits`, `commit` sending through it.
+- [x] **`spec-0131-ordered-leave`** ([#385](https://github.com/matthewjones372/lark/pull/385)):
+      `Handle.withGroup`, the lock in `Commits`, `commit` sending through it.
       Done when: a test that closes the consumer while a commit holds the lock sees the close wait, and the commit
       succeed as the member; a commit that starts after `close()` commits with the group alone; neither is `Died`.
 
