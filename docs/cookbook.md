@@ -373,43 +373,39 @@ ignored.
 
 ### A setting that picks a module
 
-`useCache` does not configure a repository; it chooses between two. `config`
-cannot answer that, because it makes the section a node and the choice has to be
-made before any node is built — lark-app builds every node the graph holds, so a
-branch left in one starts its resources too.
+`useCache` does not configure a repository; it chooses between two. lark-app
+builds every node a graph holds, so the branch not taken must not be in it.
 
-`choosing` reads the section where the graph is assembled, and hands it to a
-block that picks:
+`choice` is a node that depends on the setting and provides what every branch
+provides; its value is the module lark builds into the graph once the setting is
+built ([0136](../specs/0136-a-choice-made-inside-the-graph.md)):
 
 ```kotlin
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.app.typesafe.choosing
-import io.github.matthewjones372.lark.app.typesafe.configOf
+import io.github.matthewjones372.lark.app.choice
+import io.github.matthewjones372.lark.app.typesafe.config
+import io.github.matthewjones372.lark.app.typesafe.loadedConfig
 
 data class RepoSettings(val useCache: Boolean, val ttl: kotlin.time.Duration)
 
-fun persistence(conf: Config): Module =
-    conf.choosing("repo", { RepoSettings(boolean("useCache"), duration("ttl")) }) { repo ->
-        if (repo.useCache) cachingRepo else plainRepo
-    }
+val persistence: Module =
+    config<RepoSettings>("repo") { RepoSettings(boolean("useCache"), duration("ttl")) } +
+        choice<RepoSettings, UserRepo> { repo -> if (repo.useCache) cachingRepo else plainRepo }
 
-object Shop : LarkApp<Pool>() {
-    override val module = ConfigFactory.load().let { conf -> configOf(conf) + persistence(conf) }
+object Shop : LarkApp<UserRepo>() {
+    override val module = loadedConfig() + persistence
 }
 ```
 
 The branch not taken contributes no node, nothing to build and nothing to start.
-`RepoSettings` is still a node, so a recipe that wants `ttl` takes it as a
-dependency rather than naming the path a second time, and a section that will
-not read refuses the start there, naming every fault at once.
+Before anything runs, the choice is one node providing `UserRepo`, so `validate`,
+`render` and the compiler check the rest of the graph against it; a branch that
+does not provide `UserRepo`, or needs what nothing builds, refuses the start.
+`overridingConfig("repo.useCache = false")` flips it in a test, and `overriding`
+reaches a node only the chosen branch brings.
 
-Two things follow from the choice being made at assembly rather than at start.
-`checkWiring` runs on the main runtime classpath, so the graph it draws is the
-one `application.conf` picks — a branch reached only through a deployment
-override is not drawn. And `overridingConfig` cannot un-pick a choice already
-made: a test flips it by assembling with its own `Config`, or by `overriding`
-the node the branch provides.
+`Config.choosing` makes the same choice where the graph is assembled, from a
+`Config` in hand, for the case that really is decided before there is a graph;
+the module that uses it is then a function of that `Config`.
 
 Where the setting is already in hand, none of this is needed. `Module` is a
 value, so `when` over it answers with one:

@@ -275,11 +275,21 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
     val key = arguments.firstOrNull()
     val rest = arguments.drop(1)
     return when {
-        called == SINGLE || called == SINGLE_OF -> key?.let { node(it, rest, at) }
+        called == SINGLE || called == SINGLE_OF || called == CLOSING_OF -> key?.let { node(it, rest, at) }
+
+        // choice<S, P>: a node providing P that needs S; which branch is built is a start's business (spec 0136).
+        called == CHOICE -> rest.singleOrNull()?.let { provided ->
+            key?.let { setting -> node(provided, listOf(setting), at) }
+        }
+
         called == CONFIG || called == CONFIGURED -> key?.let { node(it, listOf(TYPESAFE_CONFIG), at) }
+
         called == ACTOR -> key?.let { node("$ACTOR_REF<$it>", listOf(ACTOR_SYSTEM) + rest, at) }
+
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
+
         called in SOURCES -> node(TYPESAFE_CONFIG, emptyList(), at)
+
         else -> null
     }
 }
@@ -329,6 +339,8 @@ private fun extension(module: String, name: String) = CallableId(FqName("$APP.$m
 
 private val SINGLE = app("single")
 private val SINGLE_OF = app("singleOf")
+private val CLOSING_OF = app("closingOf")
+private val CHOICE = app("choice")
 private val BOUND_TO = app("boundTo")
 private val PROBE = app("probe")
 private val OVERRIDING = app("overriding")
