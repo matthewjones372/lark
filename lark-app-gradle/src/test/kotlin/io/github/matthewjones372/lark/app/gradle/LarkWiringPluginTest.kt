@@ -414,6 +414,20 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `a secret read as a string in main code is named, with secret beside it`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", SECRETS)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        result.output shouldContain "string(\"db.password\") reads a secret as a String that prints itself"
+        result.output shouldContain "read it with secret(\"db.password\")"
+        withClue("passwordPolicy is not a password, and a path the compiler cannot read is left alone") {
+            result.output.split("reads a secret").size shouldBe 2
+        }
+    }
+
+    @Test
     fun `a sleep that means it is silenced by name`(@TempDir dir: File) {
         project(dir, "", SOUND)
         source(dir, "test", "@file:Suppress(\"LARK_SLEEP_IN_TEST\")\n$SLEEPS")
@@ -596,4 +610,15 @@ fun schedulers() = listOf(
     Timer(),
     Executors.newVirtualThreadPerTaskExecutor(),
 )
+"""
+
+/** One secret by its last segment, one name that only starts like one, and a path that is not a literal. */
+private const val SECRETS = """
+import io.github.matthewjones372.lark.app.typesafe.config
+
+data class Db(val password: String, val policy: String, val other: String)
+
+val path = "db.password"
+
+val db = config<Db>("app") { Db(string("db.password"), string("passwordPolicy"), string(path)) }
 """
