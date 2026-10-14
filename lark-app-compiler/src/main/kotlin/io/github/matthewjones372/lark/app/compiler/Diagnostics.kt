@@ -54,6 +54,10 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
     val LARK_SLEEP_IN_TEST: KtDiagnosticFactory1<String> =
         factory("LARK_SLEEP_IN_TEST", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
 
+    /** A scheduler built by hand where a `Stream.tick` on the graph's backend runs, stops and is tested the same. */
+    val LARK_SCHEDULER_BY_HAND: KtDiagnosticFactory1<String> =
+        factory("LARK_SCHEDULER_BY_HAND", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private fun factory(
@@ -105,6 +109,11 @@ private object Renderers : BaseDiagnosticRendererFactory() {
             LarkDiagnostics.LARK_SLEEP_IN_TEST,
             // MessageFormat: a single quote opens a quoted run, so an apostrophe is written twice.
             "lark: {0} waits a fixed time; wait for the condition with lark-test''s eventually(within) instead",
+            CommonRenderers.STRING,
+        )
+        map.put(
+            LarkDiagnostics.LARK_SCHEDULER_BY_HAND,
+            "lark: {0} schedules work by hand; run it as Stream.tick(every) started on the graph''s StreamBackend",
             CommonRenderers.STRING,
         )
     }
