@@ -428,6 +428,25 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `a run that parks on its root is named, with awaitShutdown beside it`(@TempDir dir: File) {
+        project(dir, "", PARKED)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        result.output shouldContain "run parks on block()"
+        result.output shouldContain "park on awaitShutdown()"
+    }
+
+    @Test
+    fun `a run that awaits shutdown, or returns, is left alone`(@TempDir dir: File) {
+        project(dir, "", AWAITED)
+        runner(dir, "compileKotlin").build().output shouldNotContain "run parks on"
+
+        project(dir, "", SOUND)
+        runner(dir, "compileKotlin").build().output shouldNotContain "run parks on"
+    }
+
+    @Test
     fun `a sleep that means it is silenced by name`(@TempDir dir: File) {
         project(dir, "", SOUND)
         source(dir, "test", "@file:Suppress(\"LARK_SLEEP_IN_TEST\")\n$SLEEPS")
@@ -621,4 +640,34 @@ data class Db(val password: String, val policy: String, val other: String)
 val path = "db.password"
 
 val db = config<Db>("app") { Db(string("db.password"), string("passwordPolicy"), string(path)) }
+"""
+
+/** A root whose own wait ends only when it is stopped, which is the release, after run returns. */
+private const val PARKED = """
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.single
+
+class Server { fun block() = Unit }
+
+object Under : LarkApp<Server>() {
+    override val module: Module = single<Server> { Server() }
+    override fun AppScope.run(root: Server) { root.block() }
+}
+"""
+
+/** The same root, with run parked where lark can end it. */
+private const val AWAITED = """
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.single
+
+class Server { fun block() = Unit }
+
+object Under : LarkApp<Server>() {
+    override val module: Module = single<Server> { Server() }
+    override fun AppScope.run(root: Server) { awaitShutdown() }
+}
 """
