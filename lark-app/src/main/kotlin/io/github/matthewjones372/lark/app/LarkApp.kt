@@ -11,7 +11,7 @@ import kotlin.reflect.KType
  * ```kotlin
  * object Petshop : LarkApp<PelicanServer>() {
  *     override val module = petshop
- *     override fun AppScope.run(root: PelicanServer) = root.block()
+ *     override fun AppScope.run(root: PelicanServer) = awaitShutdown()
  * }
  * ```
  *

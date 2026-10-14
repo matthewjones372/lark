@@ -14,6 +14,8 @@ const val PLUGIN_ID: String = "io.github.matthewjones372.lark.app"
 
 internal val VERBOSE = CompilerConfigurationKey.create<Boolean>("say which applications were found")
 
+internal val TEST = CompilerConfigurationKey.create<Boolean>("this compilation is tests")
+
 /**
  * The one option, which exists so that a build can prove the plugin is loaded at all.
  *
@@ -32,11 +34,18 @@ class LarkCommandLineProcessor : CommandLineProcessor {
             description = "Reports every application the checker found, as a warning.",
             required = false,
         ),
+        CliOption(
+            optionName = "test",
+            valueDescription = "true|false",
+            description = "Whether this compilation is tests, where a different set of hand-rolled code is named.",
+            required = false,
+        ),
     )
 
     override fun processOption(option: AbstractCliOption, value: String, configuration: CompilerConfiguration) {
         when (option.optionName) {
             "verbose" -> configuration.put(VERBOSE, value.toBoolean())
+            "test" -> configuration.put(TEST, value.toBoolean())
             else -> error("unknown option ${option.optionName}")
         }
     }
@@ -56,6 +65,11 @@ class LarkCompilerPluginRegistrar : CompilerPluginRegistrar() {
     override val supportsK2: Boolean = true
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
-        FirExtensionRegistrarAdapter.registerExtension(LarkFirExtensionRegistrar(configuration[VERBOSE] ?: false))
+        FirExtensionRegistrarAdapter.registerExtension(
+            LarkFirExtensionRegistrar(
+                verbose = configuration[VERBOSE] ?: false,
+                test = configuration[TEST] ?: false,
+            ),
+        )
     }
 }

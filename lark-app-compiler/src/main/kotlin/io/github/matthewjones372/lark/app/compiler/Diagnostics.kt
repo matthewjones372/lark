@@ -50,6 +50,10 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
     val LARK_APP_CYCLE: KtDiagnosticFactory1<String> =
         factory("LARK_APP_CYCLE", Severity.ERROR, SourceElementPositioningStrategies.DEFAULT)
 
+    /** A test waiting a fixed time where `eventually` waits only as long as it takes. Test compilations only. */
+    val LARK_SLEEP_IN_TEST: KtDiagnosticFactory1<String> =
+        factory("LARK_SLEEP_IN_TEST", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private fun factory(
@@ -95,6 +99,12 @@ private object Renderers : BaseDiagnosticRendererFactory() {
         map.put(
             LarkDiagnostics.LARK_APP_UNREAD,
             "lark-app: this graph was not read here, and is checked by larkWiring alone: {0}",
+            CommonRenderers.STRING,
+        )
+        map.put(
+            LarkDiagnostics.LARK_SLEEP_IN_TEST,
+            // MessageFormat: a single quote opens a quoted run, so an apostrophe is written twice.
+            "lark: {0} waits a fixed time; wait for the condition with lark-test''s eventually(within) instead",
             CommonRenderers.STRING,
         )
     }
