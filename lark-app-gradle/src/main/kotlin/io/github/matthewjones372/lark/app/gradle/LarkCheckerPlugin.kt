@@ -30,8 +30,10 @@ class LarkCheckerPlugin : KotlinCompilerPluginSupportPlugin {
     override fun applyToCompilation(kotlinCompilation: KotlinCompilation<*>): Provider<List<SubpluginOption>> {
         val verbose = kotlinCompilation.target.project.extensions
             .getByType(LarkWiringExtension::class.java).verbose
+        // Every compilation but main is tests: test, testFixtures and any source set a build adds for them.
+        val test = kotlinCompilation.compilationName != KotlinCompilation.MAIN_COMPILATION_NAME
         return kotlinCompilation.target.project.provider {
-            listOf(SubpluginOption("verbose", verbose.get().toString()))
+            listOf(SubpluginOption("verbose", verbose.get().toString()), SubpluginOption("test", test.toString()))
         }
     }
 

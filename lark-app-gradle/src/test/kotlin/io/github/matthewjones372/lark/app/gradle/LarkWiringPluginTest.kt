@@ -369,6 +369,40 @@ class LarkWiringPluginTest {
 
         run(dir, "larkWiring").output shouldContain "provided twice"
     }
+
+    private fun source(dir: File, set: String, text: String) {
+        val file = File(dir, "src/$set/kotlin/Waits.kt")
+        file.parentFile.mkdirs()
+        file.writeText(text)
+    }
+
+    @Test
+    fun `a sleep in a test is named, with eventually beside it`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "test", SLEEPS)
+
+        val result = runner(dir, "compileTestKotlin").build()
+
+        result.output shouldContain "Thread.sleep waits a fixed time"
+        result.output shouldContain "TimeUnit.sleep waits a fixed time"
+        result.output shouldContain "lark-test's eventually(within)"
+    }
+
+    @Test
+    fun `a sleep in main code is not a test's, and is left alone`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", SLEEPS)
+
+        runner(dir, "compileKotlin").build().output shouldNotContain "waits a fixed time"
+    }
+
+    @Test
+    fun `a sleep that means it is silenced by name`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "test", "@file:Suppress(\"LARK_SLEEP_IN_TEST\")\n$SLEEPS")
+
+        runner(dir, "compileTestKotlin").build().output shouldNotContain "waits a fixed time"
+    }
 }
 
 private const val IMPORTS = """
@@ -519,5 +553,15 @@ object Under : LarkApp<Pump>() {
     override val module: Module =
         single { _: DataSource -> Pump() } + single { _: Pump -> DataSource() }
     override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** Both sleeps the JDK has, the way a test reaches for them. */
+private const val SLEEPS = """
+import java.util.concurrent.TimeUnit
+
+fun waits() {
+    Thread.sleep(200)
+    TimeUnit.MILLISECONDS.sleep(200)
 }
 """
