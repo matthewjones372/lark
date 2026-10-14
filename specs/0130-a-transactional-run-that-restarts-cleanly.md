@@ -20,6 +20,14 @@ Pekko. Taking the test's timing out exposed a deterministic failure on Forks.
    (`junit.jupiter.execution.timeout.threaddump.enabled`) uses `Thread.getAllStackTraces()`, which leaves out virtual
    threads, and every Forks body and feed is one. The abort-case hang in run 38458164384 is still unexplained for this
    reason.
+4. **A stop on Forks loses the consumer's last commit.** Found by the 100-run check: `ConsumeTest`'s `mapParRecord` case
+   committed 2 or 1 of 3 offsets in 3 of 100 runs, and in 1 of 36 runs before 2's fix. A `take` that ends the run
+   interrupts `mapPar`'s feed while it is in `poll`, and the consumer is then closed on that interrupted thread, so
+   `Commits.close()`'s `commitSync` throws `InterruptException` on every Forks stop. What it held back is committed only
+   if the loop's commit before its next 100ms poll came first; otherwise a new consumer reads it again.
+5. **`readAll` can read before a transaction has ended.** Also found by the check. `commitTransaction` returns once the
+   coordinator has prepared the commit; the marker that ends the transaction is written after, and until it lands a
+   `read_committed` reader stops short of it. The restart case read nothing once in 13 runs.
 
 The other two local failures were a stop racing its last transaction's group metadata; spec 0131 takes that.
 
@@ -36,6 +44,10 @@ The other two local failures were a stop racing its last transaction's group met
 - **Batches by count in the tests.** `transacted(orders, batch = 3, within = GENEROUS_SECONDS.seconds)` for each batch a
   case depends on. The restart case has no `take` upstream, so it is the reproducer for 2, and ends with `.take(1)`
   after its commit.
+- **A close that commits whatever thread it runs on.** `Commits.close()` clears the thread's interrupt around its commit
+  and `consumer.close()`, and sets it again after, so an interrupt that stopped the read does not also stop the commit.
+- **`readAll` after the transaction ends.** The test broker's `readAll` waits until no transaction is open on the
+  partition, within its 30-second deadline, before it reads.
 - **Every thread on timeout.** A `PreInterruptCallback` in `lark-kafka`'s tests writes
   `HotSpotDiagnosticMXBean.dumpThreads(path, TEXT)`, virtual threads included, to stderr before JUnit interrupts the
   test. Stderr is in the XML report CI already uploads.
@@ -53,7 +65,11 @@ For 3, JUnit's own dump is one property and no code, but it misses exactly the t
 - [ ] **`spec-0130-close-after-read`**: `Opened.close()` wakes and waits for a read in flight.
       Done when: a Forks test of `restartOnDefect` over a `Stream.blocking` whose `next` blocks until woken never sees
       `close` overlap `next`, and the next attempt opens only after the last one closed.
-- [ ] **`spec-0130-one-batch`**: `TransactTest` batches by count, and the restart case drops its upstream `take`.
+- [ ] **`spec-0130-commit-when-interrupted`**: `Commits.close()` commits and closes with the interrupt held aside.
+      Done when: a Forks `runCommitting` run that a `take` ends commits every record it handled, with the closing
+      thread interrupted, and the thread is still interrupted afterwards.
+- [ ] **`spec-0130-one-batch`**: `TransactTest` batches by count, the restart case drops its upstream `take`, and
+      `readAll` waits for the partition's transactions to end.
       Done when: `./gradlew :lark-kafka:test` passes 100 runs in a row under load, on both backends.
 
 ## Acceptance
