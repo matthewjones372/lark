@@ -62,6 +62,10 @@ object LarkDiagnostics : KtDiagnosticsContainer() {
     val LARK_SECRET_AS_STRING: KtDiagnosticFactory1<String> =
         factory("LARK_SECRET_AS_STRING", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
 
+    /** A `run` that parks on its root and never on `awaitShutdown`, so a SIGTERM releases nothing. */
+    val LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN: KtDiagnosticFactory1<String> =
+        factory("LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private fun factory(
@@ -123,6 +127,12 @@ private object Renderers : BaseDiagnosticRendererFactory() {
         map.put(
             LarkDiagnostics.LARK_SECRET_AS_STRING,
             "lark: string(\"{0}\") reads a secret as a String that prints itself; read it with secret(\"{0}\")",
+            CommonRenderers.STRING,
+        )
+        map.put(
+            LarkDiagnostics.LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN,
+            "lark: run parks on {0}, which waits for the release that only runs after run returns; " +
+                "park on awaitShutdown() so a SIGTERM releases the graph",
             CommonRenderers.STRING,
         )
     }

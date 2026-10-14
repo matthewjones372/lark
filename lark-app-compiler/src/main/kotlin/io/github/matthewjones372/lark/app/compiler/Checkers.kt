@@ -21,7 +21,7 @@ internal class LarkCheckers(session: FirSession, verbose: Boolean, test: Boolean
     FirAdditionalCheckersExtension(session) {
 
     override val declarationCheckers: DeclarationCheckers = object : DeclarationCheckers() {
-        override val classCheckers: Set<FirClassChecker> = setOf(ApplicationChecker(verbose))
+        override val classCheckers: Set<FirClassChecker> = setOf(ApplicationChecker(verbose), ShutdownChecker())
     }
 
     override val expressionCheckers: ExpressionCheckers = object : ExpressionCheckers() {

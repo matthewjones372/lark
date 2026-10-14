@@ -652,6 +652,22 @@ the fence: a graph that moves without the picture moving fails the build.
 `WiringDiagramTest` holds the fence above to what `render` actually answers. A
 drawing of a graph is worth having in review only while it is the graph.
 
+
+### What the checker names besides the graph
+
+The same compiler plugin warns where a service hand-rolls something lark ships,
+on the call that does it:
+
+| Warning | On | Instead |
+|---|---|---|
+| `LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN` | `run` calling a zero-argument `block()`, `join()` or `await()` and never `awaitShutdown()` | `awaitShutdown()`, so a SIGTERM releases the graph |
+| `LARK_SCHEDULER_BY_HAND` | `Executors.newScheduledThreadPool`, `newSingleThreadScheduledExecutor`, `ScheduledThreadPoolExecutor`, `Timer`, in main code | `Stream.tick(every)` started on the graph's `StreamBackend` |
+| `LARK_SECRET_AS_STRING` | `string("…password")` and the other names `Secrets.default` masks, in main code | `secret(path)` |
+| `LARK_SLEEP_IN_TEST` | `Thread.sleep`, `TimeUnit.sleep`, in any compilation but main | `eventually(within)` from lark-test |
+
+Each is a warning, silenced where it is meant by its name:
+`@Suppress("LARK_SLEEP_IN_TEST")`.
+
 ## Write a log line
 
 `logInfo` and its three siblings write to whichever `Logger` the current thread
