@@ -7,7 +7,12 @@ internal class Node(
     val dependencies: List<KType>,
     val site: String?,
     val build: Wiring.(List<Any>) -> Any,
+    /** Set on the node a choice stands in the graph as; it is expanded, never built. */
+    val choice: Choice? = null,
 )
+
+/** What a choice does once its dependencies are built: answer the module to build in its place. */
+internal class Choice(val pick: (List<Any>) -> Module)
 
 /** A key two modules both provided, and where each was written. */
 internal class Shadow(val key: KType, val shadowed: String?, val wins: String?)

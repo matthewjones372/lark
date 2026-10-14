@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.app
 
 import io.github.matthewjones372.lark.parMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
@@ -24,13 +25,20 @@ internal val runtimeProvided: Set<KType> = setOf(typeOf<HealthRegistry>())
  * The probes of a running graph, asked again whenever something wants to know. A node takes one as a
  * dependency like any other, which is how a route answers `/ready` without being handed the graph.
  */
-class HealthRegistry internal constructor(private val probes: List<Probe>) {
+class HealthRegistry internal constructor(initial: List<Probe>) {
+
+    // Grows when a choice's branch is built: its probes are only known then (spec 0136).
+    private val probes = CopyOnWriteArrayList(initial)
 
     private val started = ConcurrentHashMap<KType, Any>()
     private val running = AtomicBoolean(false)
 
     internal fun started(key: KType, value: Any) {
         started[key] = value
+    }
+
+    internal fun adding(more: List<Probe>) {
+        probes.addAll(more)
     }
 
     internal fun running() {
