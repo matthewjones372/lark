@@ -14,16 +14,27 @@ internal fun Module.subgraph(root: KType): Module {
         nodes.filterKeys { it in kept },
         probes.filter { it.key in kept },
         shadows.filter { it.key in kept },
+        pending,
     )
 }
 
-/** [plus], refusing a key this module does not already hold: a fake under a new key fakes nothing. */
+/**
+ * [plus], refusing a key this module does not already hold: a fake under a new key fakes nothing. In a graph with a
+ * choice, a key it does not hold may be one a branch brings, so it waits for one that does, and the start is refused
+ * if no chosen branch brings it (spec 0136).
+ */
 fun Module.overriding(replacements: Module): Module {
     val unknown = replacements.nodes.keys - nodes.keys
-    require(unknown.isEmpty()) {
+    require(unknown.isEmpty() || nodes.values.any { it.choice != null }) {
         "overriding a key nothing provides: ${unknown.joinToString { labelOf(it) }}"
     }
-    return (this + replacements).shadowing(shadows + replacements.shadows)
+    val known = Module.of(
+        replacements.nodes.filterKeys { it !in unknown },
+        replacements.probes.filter { it.key !in unknown },
+        replacements.shadows,
+    )
+    return (this + known).shadowing(shadows + replacements.shadows)
+        .pendingFor(replacements.nodes.filterKeys { it in unknown })
 }
 
 /** Starts the whole graph for a test and gives it back afterwards, whatever the block did. */

@@ -101,6 +101,23 @@ class ChoiceTest {
     }
 
     @Test
+    fun `a node only the chosen branch brings can be overridden`() {
+        val fake = Producer(CopyOnWriteArrayList())
+        val app = bus(Kind.Remote).overriding(single<Producer> { fake })
+
+        testApp(app) { uses: Uses -> (uses.bus as RemoteBus).producer shouldBe fake }
+    }
+
+    @Test
+    fun `an override no chosen branch brings refuses the start`() {
+        val app = bus(Kind.InProcess).overriding(single<Producer> { Producer(closed) })
+
+        val refused = app.use { _: Uses -> }.leftOrNull()
+
+        refused.shouldBeInstanceOf<StartupError.Refused>().reason shouldContain "no chosen branch provides it"
+    }
+
+    @Test
     fun `a probe in the branch is asked like any other`() {
         val app = single<Kind> { Kind.InProcess } +
             choice<Kind, Bus> { _ ->
