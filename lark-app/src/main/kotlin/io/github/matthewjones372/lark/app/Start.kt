@@ -10,6 +10,7 @@ import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.resourceScope
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.reflect.KType
@@ -62,19 +63,20 @@ inline fun <reified A : Any, B> Module.use(noinline block: (A) -> B): Either<Sta
 
 @PublishedApi
 internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError, B> = either {
-    val plan = validate().mapLeft { faults -> StartupError.Unwireable(faults, nodes.keys) }.bind()
+    validate().mapLeft { faults -> StartupError.Unwireable(faults, nodes.keys) }.bind()
     if (!nodes.containsKey(root)) raise(StartupError.NoSuchNode(root))
 
-    val order = plan.layers.flatten()
     val health = HealthRegistry(probes)
+    // The order nodes were built in, layer by layer: a choice's branch is only known once its setting is built.
+    val order = CopyOnWriteArrayList<KType>()
     resourceScope {
         val releases = Releases()
         // One release on lark's scope, installed before anything is acquired: it decides the ExitCase,
         // and the order below is this graph's rather than whichever fork happened to finish first.
-        onRelease { exit -> releases.release(order, exit) }
+        onRelease { exit -> releases.release(order.toList(), exit) }
         val starts = Starts()
-        val built = build(this@use, plan, releases, starts, health)
-        starts.run(order, this@either)
+        val built = build(this@use, releases, starts, health, order)
+        starts.run(order.toList(), this@either)
         probes.filter { it.asked == Asked.WhenStarted }.forEach { probe ->
             val answer = answers(probe, built.getValue(probe.key))
             if (answer is Answer.No) raise(StartupError.Unready(probe.key, probe.name, answer.cause))
@@ -84,25 +86,84 @@ internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError
     }
 }
 
+/**
+ * A layer at a time: every node whose dependencies are built. A choice whose dependencies are built is expanded
+ * first, its branch taking its place, and the layers are worked out again with the branch in them.
+ */
 private fun Raise<StartupError>.build(
-    module: Module,
-    plan: Plan,
+    start: Module,
     releases: Releases,
     starts: Starts,
     health: HealthRegistry,
-): Map<KType, Any> =
-    plan.layers.fold(mapOf<KType, Any>(typeOf<HealthRegistry>() to health)) { built, layer ->
-        built + parMap(layer) { key ->
-            val node = module.nodes.getValue(key)
-            val value = node.build(NodeWiring(key, releases, starts, this), node.dependencies.map(built::getValue))
-            module.probes.filter { it.key == key && it.asked == Asked.WhenBuilt }.forEach { probe ->
-                val answer = answers(probe, value)
-                if (answer is Answer.No) raise(StartupError.Unready(key, probe.name, answer.cause))
+    order: MutableList<KType>,
+): Map<KType, Any> {
+    var module = start
+    var built = mapOf<KType, Any>(typeOf<HealthRegistry>() to health)
+    while (true) {
+        val remaining = module.nodes.values.filter { it.key !in built }
+        if (remaining.isEmpty()) return built
+        val ready = remaining.filter { node -> node.dependencies.all { it in built } }
+        val (choices, nodes) = ready.partition { it.choice != null }
+        when {
+            choices.isNotEmpty() -> module = choices.fold(module) { m, choice -> expanded(m, choice, built, health) }
+
+            nodes.isEmpty() -> raise(
+                StartupError.Refused(
+                    remaining.first().key,
+                    "a chosen branch left ${remaining.joinToString { labelOf(it.key) }} needing each other",
+                ),
+            )
+
+            else -> {
+                val layer = nodes.map { it.key }.sortedBy { it.toString() }
+                val current = module
+                built = built + parMap(layer) { key ->
+                    val node = current.nodes.getValue(key)
+                    val wiring = NodeWiring(key, releases, starts, this)
+                    val value = node.build(wiring, node.dependencies.map(built::getValue))
+                    current.probes.filter { it.key == key && it.asked == Asked.WhenBuilt }.forEach { probe ->
+                        val answer = answers(probe, value)
+                        if (answer is Answer.No) raise(StartupError.Unready(key, probe.name, answer.cause))
+                    }
+                    health.started(key, value)
+                    key to value
+                }
+                order += layer
             }
-            health.started(key, value)
-            key to value
         }
     }
+}
+
+/**
+ * [module] with [choice]'s branch in its place. A branch node never replaces one the graph already holds under its
+ * key, so what a test overrode stays overridden; a branch that does not provide the choice's key, or needs what
+ * nothing builds, refuses the start under that key.
+ */
+private fun Raise<StartupError>.expanded(
+    module: Module,
+    choice: Node,
+    built: Map<KType, Any>,
+    health: HealthRegistry,
+): Module {
+    val key = choice.key
+    val branch = checkNotNull(choice.choice).pick(choice.dependencies.map(built::getValue))
+    if (key !in branch.nodes) raise(StartupError.Refused(key, "the branch chosen for it does not provide it"))
+    val added = branch.nodes.filterKeys { it == key || it !in module.nodes }
+    val missing = added.values.flatMap { it.dependencies }
+        .filterNot { it in module.nodes || it in added || it in runtimeProvided }
+        .distinct()
+    if (missing.isNotEmpty()) {
+        raise(
+            StartupError.Refused(
+                key,
+                "the branch chosen for it needs ${missing.joinToString(transform = ::labelOf)}, and nothing builds it",
+            ),
+        )
+    }
+    val probes = branch.probes.filter { it.key in added }
+    health.adding(probes)
+    return Module.of((module.nodes - key) + added, module.probes + probes, module.shadows)
+}
 
 /**
  * Asked again up to [Probe.attempts] times, waiting out [Probe.interval] on the inherited clock. A throw is asked
