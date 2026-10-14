@@ -23,6 +23,8 @@ jobs:
     # come from anyone and must never run on the home cluster. A push to main uses the repository variable
     # RUNNER if it is set (for example home-lark, lark-bank spec 0017), and GitHub's runners otherwise.
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || vars.RUNNER || 'ubuntu-latest' }}
+    # A backstop behind the step's own limit below, for a hang outside it. GitHub's default is six hours.
+    timeout-minutes: 40
 
     strategy:
       fail-fast: false
@@ -50,7 +52,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # A green build takes under ten minutes. The limit is on the step rather than the job, so the reports
+      # below are still uploaded when it is hit.
       - name: Build and test
+        timeout-minutes: 25
         run: ./gradlew build ${{ matrix.gradleArgs }} --stacktrace
 
       # The suites run an Api in memory and assert on which thread a body ran
