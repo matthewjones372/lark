@@ -397,6 +397,23 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `a scheduler built by hand in main code is named, with Stream tick beside it`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", SCHEDULERS)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        result.output shouldContain "Executors.newScheduledThreadPool schedules work by hand"
+        result.output shouldContain "Executors.newSingleThreadScheduledExecutor schedules work by hand"
+        result.output shouldContain "ScheduledThreadPoolExecutor(..) schedules work by hand"
+        result.output shouldContain "Timer(..) schedules work by hand"
+        result.output shouldContain "Stream.tick(every) started on the graph's StreamBackend"
+        withClue("an executor that schedules nothing is not a scheduler") {
+            result.output shouldNotContain "newVirtualThreadPerTaskExecutor"
+        }
+    }
+
+    @Test
     fun `a sleep that means it is silenced by name`(@TempDir dir: File) {
         project(dir, "", SOUND)
         source(dir, "test", "@file:Suppress(\"LARK_SLEEP_IN_TEST\")\n$SLEEPS")
@@ -564,4 +581,19 @@ fun waits() {
     Thread.sleep(200)
     TimeUnit.MILLISECONDS.sleep(200)
 }
+"""
+
+/** Every way the JDK builds a scheduler, and one executor that is not one. */
+private const val SCHEDULERS = """
+import java.util.Timer
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledThreadPoolExecutor
+
+fun schedulers() = listOf(
+    Executors.newScheduledThreadPool(1),
+    Executors.newSingleThreadScheduledExecutor(),
+    ScheduledThreadPoolExecutor(1),
+    Timer(),
+    Executors.newVirtualThreadPerTaskExecutor(),
+)
 """
