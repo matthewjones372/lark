@@ -2,7 +2,7 @@
 
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.pekko.await
+import io.github.matthewjones372.lark.await
 import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.stream.Attributes
 import org.apache.pekko.stream.UniqueKillSwitch
