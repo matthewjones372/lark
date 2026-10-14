@@ -46,12 +46,12 @@ class TransactionalProducer<K, V> @KafkaSpi constructor(private val client: Clie
     internal fun commit(
         records: List<ProducerRecord<K, V>>,
         offsets: Map<TopicPartition, OffsetAndMetadata>,
-        group: () -> ConsumerGroupMetadata,
+        withGroup: ((ConsumerGroupMetadata) -> Unit) -> Unit,
     ) {
         client.beginTransaction()
         try {
             records.map(client::send).forEach { sent -> sent.awaited() }
-            if (offsets.isNotEmpty()) client.sendOffsetsToTransaction(offsets, group())
+            if (offsets.isNotEmpty()) withGroup { group -> client.sendOffsetsToTransaction(offsets, group) }
             client.commitTransaction()
         } catch (failed: Exception) {
             if (failed.abortable()) abort(failed)
@@ -106,7 +106,7 @@ fun <E, A : Any, K, V> Stream<E, Committed<A>>.transacted(
         // One transaction at a time, off the stream's own thread, because committing one blocks.
         .mapPar(1) { taken: List<Committed<A>> ->
             val outputs = taken.flatMap { c -> c.annotated(to).toList() }
-            producer.commit(outputs, taken.offsets()) { taken.group() }
+            producer.commit(outputs, taken.offsets()) { send -> taken.withGroup(send) }
             taken.count { it.handle != null }.toLong()
         }
 
@@ -128,12 +128,14 @@ private fun List<Committed<*>>.offsets(): Map<TopicPartition, OffsetAndMetadata>
         .mapValues { (_, records) -> OffsetAndMetadata(records.maxOf { it.position.offset } + 1) }
 
 /**
- * The group the batch was read in: the first record's, so a batch that straddles a rebalance is committed in the
- * generation it began in, and the broker refuses it rather than committing a partition this consumer has lost.
+ * [send] with the group the batch was read in: the first record's, so a batch that straddles a rebalance is
+ * committed in the generation it began in, and the broker refuses it rather than committing a partition this
+ * consumer has lost.
  */
-private fun List<Committed<*>>.group(): ConsumerGroupMetadata =
-    firstNotNullOfOrNull { it.handle?.group() }
-        ?: error("runTransactionally commits offsets in a transaction, which only records from Kafka.consume can")
+private fun List<Committed<*>>.withGroup(send: (ConsumerGroupMetadata) -> Unit) {
+    val sent = mapNotNull { it.handle }.any { handle -> handle.withGroup { group -> group?.let(send) != null } }
+    check(sent) { "runTransactionally commits offsets in a transaction, which only records from Kafka.consume can" }
+}
 
 /** Kafka's word on what leaves a producer unusable, which no abort can follow: its only way on is to close. */
 private fun Exception.abortable(): Boolean =
