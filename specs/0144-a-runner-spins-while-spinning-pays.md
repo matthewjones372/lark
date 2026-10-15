@@ -75,10 +75,10 @@ local 4.2 / 4.1 against 4.6 / 3.7 µs, Tell one-to-one 64 / 72 against 61 / 63 n
 ## Open questions
 
 1. **Adapt, or drop the spin?** Dropping it is one line and wins the paced case, but costs a hand-off chain about
-   10 µs a hop. Recommended: adapt.
+   10 µs a hop. Decided: adapt.
 2. **Per runner, or one spin shared by the flock?** Shared learns faster but is a field every runner writes.
-   Recommended: per runner.
+   Decided: per runner.
 3. **How does the test see the spin?** An `internal` total of nanoseconds spun, read by `RunnersTest`, as `starts`
-   is. Recommended: that counter.
+   is. Decided: that counter.
 4. **Is the paced probe a JMH benchmark?** JMH times a paced run at the pace, so it says nothing; CPU is what moves.
-   Recommended: a plain `main` task beside `footprint`.
+   Decided: a plain `main` task beside `footprint`.
