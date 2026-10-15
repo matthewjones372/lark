@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor.benchmarks
 
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Behaviour
+import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.stay
 import org.apache.pekko.actor.typed.Behavior
@@ -23,6 +24,11 @@ class LarkBall(val left: Int, val back: ActorRef<LarkBall>, val done: CountDownL
 
 class PekkoBall(val left: Int, val back: PekkoRef<PekkoBall>, val done: CountDownLatch)
 
+/** A question whose answer is the number it carries. */
+class LarkQuestion(val n: Int, val reply: Reply<Int>)
+
+class PekkoQuestion(val n: Int, val reply: PekkoRef<Int>)
+
 internal const val BLOCK_MILLIS = 1L
 
 fun larkCounter(): Behaviour<Hit, Unit, Nothing> = behaviour(Unit) { _, _, hit ->
@@ -32,6 +38,16 @@ fun larkCounter(): Behaviour<Hit, Unit, Nothing> = behaviour(Unit) { _, _, hit -
 
 fun pekkoCounter(): Behavior<Hit> = Behaviors.receiveMessage { hit ->
     hit.done.countDown()
+    Behaviors.same()
+}
+
+fun larkAnswerer(): Behaviour<LarkQuestion, Unit, Nothing> = behaviour(Unit) { _, _, question ->
+    question.reply(question.n)
+    stay()
+}
+
+fun pekkoAnswerer(): Behavior<PekkoQuestion> = Behaviors.receiveMessage { question ->
+    question.reply.tell(question.n)
     Behaviors.same()
 }
 
