@@ -286,6 +286,10 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == ACTOR -> key?.let { node("$ACTOR_REF<$it>", listOf(ACTOR_SYSTEM) + rest, at) }
 
+        called == ACTORS -> node(LARK_ACTORS, emptyList(), at)
+
+        called == LARK_ACTOR -> key?.let { node("$LARK_ACTOR_REF<$it>", listOf(LARK_ACTORS) + rest, at) }
+
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
 
         called in SOURCES -> node(TYPESAFE_CONFIG, emptyList(), at)
@@ -347,6 +351,8 @@ private val OVERRIDING = app("overriding")
 private val PLUS = CallableId(ClassId(FqName(APP), Name.identifier("Module")), Name.identifier("plus"))
 
 private val ACTOR = extension("pekko", "actor")
+private val ACTORS = extension("actor", "actors")
+private val LARK_ACTOR = extension("actor", "actor")
 private val CONFIG = extension("typesafe", "config")
 private val CONFIGURED = extension("typesafe", "configured")
 private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
@@ -368,6 +374,8 @@ private val RUNTIME_PROVIDED = setOf("$APP.HealthRegistry")
 
 private const val ACTOR_REF = "org.apache.pekko.actor.typed.ActorRef"
 private const val ACTOR_SYSTEM = "org.apache.pekko.actor.ActorSystem"
+private const val LARK_ACTOR_REF = "io.github.matthewjones372.lark.actor.ActorRef"
+private const val LARK_ACTORS = "$APP.actor.Actors"
 private const val TYPESAFE_CONFIG = "com.typesafe.config.Config"
 private const val DATA_SOURCE = "javax.sql.DataSource"
 private const val MIGRATED = "$APP.liquibase.Migrated"
