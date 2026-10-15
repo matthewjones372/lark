@@ -65,6 +65,30 @@ iterations of 1 s, `-prof gc`), is one command, about 15 minutes:
   A trial starts only once a probe has reached all 30 subscribers, so neither side is measured while its nodes
   are still finding each other's topics.
 
+## A runner that waits for the next message, 2026-10-15
+
+After spec [0143](../specs/0143-a-runner-that-waits-for-the-next-message.md): a runner that runs out of work parks
+and is woken instead of leaving, and a submit leaves work to a runner still spinning. JDK 25, 8 cores, the machine
+otherwise lightly loaded (load average 4 to 12), lark's rows only, before and after on the same run.
+
+| Row | Per | before | after |
+|---|---|---|---|
+| `AskBenchmark`: 64 virtual threads asking one actor, 1,000 asks each | ask | 813 ± 71 ns | **519 ± 60 ns** |
+| `TellBenchmark.larkOneToOne` | message | **61 ± 4 ns** | 74 ± 6 ns |
+| `TellBenchmark.larkManyToOne` | message | 179 ± 18 ns | 180 ± 15 ns |
+| `PingPongBenchmark` | rally | 29.6 ± 0.4 µs | 28.0 ± 0.2 µs |
+| `FanOutBenchmark.lark` | fan-out | 1.81 ± 0.10 ms | 1.70 ± 0.17 ms |
+| `BlockingBenchmark` | burst | 12.9 ± 0.2 ms | 13.1 ± 0.3 ms |
+
+What the rows say:
+
+- **An ask to one busy actor is 36% faster.** Before, nearly every activation started a runner thread: 498,967
+  starts for 502,538 activations. After, 9 starts for 1.56 million.
+- **One-to-one tells lose wall time and use less CPU.** Measured by process CPU outside JMH, a message costs
+  204 to 253 ns of CPU after against 312 to 341 ns before, where a runner started at the end of each batch spun
+  on another carrier. The likeliest reason for the wall time is that the consumer now stays close behind the
+  sender, so the two contend on the mailbox; not proven.
+
 ## A journal across databases, 2026-09-27
 
 After spec [0088](../specs/0088-a-journal-across-databases.md): 10,000 payments spread round-robin over 256
