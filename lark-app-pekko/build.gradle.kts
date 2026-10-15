@@ -14,9 +14,14 @@ dependencies {
 
 val repoRoot = rootProject.projectDir.absolutePath
 
-// The page CookbookTest compiles, declared so that editing it re-runs the test
+// The pages CookbookTest and CoreGuideTest compile, declared so that editing one re-runs the tests
 // rather than leaving a stale answer behind.
-val documentedRecipes = files(rootProject.layout.projectDirectory.file("docs/cookbook.md"))
+val documentedRecipes = files(
+    rootProject.layout.projectDirectory.file("docs/cookbook.md"),
+    rootProject.layout.projectDirectory.file("docs/core.md"),
+    rootProject.layout.projectDirectory.file("docs/observability.md"),
+    rootProject.layout.projectDirectory.file("docs/testing.md"),
+)
 
 tasks.test {
     val mainRuntime = configurations.runtimeClasspath

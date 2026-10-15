@@ -1,121 +1,107 @@
-# lark-app
+# Applications
 
-> Lark is a scratchpad, not a finished library — see
-> [what this is](../README.md#what-this-is). Everything here works and is tested;
-> none of it is settled.
+`lark-app` describes an application as a value: a dependency graph you can
+check, draw, subset, override and start. Each node says what it builds and
+takes what it needs as parameters, so the whole graph is known before any of it
+is constructed.
 
-**An application as a value.** A dependency graph you can read, subset,
-override and start: `single` names what a recipe builds and takes what it needs
-as parameters, so the graph is data before any recipe runs. `validate` answers
-what is missing before anything is constructed, `subgraph` gives a test the four
-nodes it needs rather than the forty an application has, and starting one runs
-a topological layer at a time on lark's forks.
+With the graph as a value, Lark can:
 
-The module is `lark-app` and everything below is in
-`io.github.matthewjones372.lark.app`. It depends on `lark`, and on nothing else.
+- report every missing dependency and cycle before anything starts, at build
+  time through a Gradle plugin and in the editor through a compiler plugin;
+- start independent nodes in parallel, wait for readiness probes, and release
+  everything in reverse dependency order on shutdown;
+- start only the part of the graph a test needs, with fakes swapped in safely.
+
+There are no annotations, no reflection-driven container and no effect type.
+A node is a function, and a module is an ordinary Kotlin expression.
 
 ```kotlin
 dependencies {
+    // brings lark, and through it arrow-core
     implementation("io.github.matthewjones372:lark-app:0.10.1")
 }
 ```
 
-[`cookbook.md`](cookbook.md) is the task-shaped version of this page: wiring,
-configuration, probes, testing, actors, one recipe each.
+Everything here is in `io.github.matthewjones372.lark.app`. This page explains
+how the graph behaves. The [cookbook](cookbook.md) has one compiled recipe per
+task, including configuration, migrations and actors.
 
-## The problem
+1. [Nodes and modules](#nodes-and-modules)
+2. [Checking a graph](#checking-a-graph)
+3. [Starting and stopping](#starting-and-stopping)
+4. [Readiness and health](#readiness-and-health)
+5. [Testing](#testing)
+6. [Integrations](#integrations)
+7. [Checking the graph in the build](#checking-the-graph-in-the-build)
+8. [Checking the graph in the editor](#checking-the-graph-in-the-editor)
+9. [Limitations](#limitations)
 
-A service wires itself by hand in `main`, so nested `resourceScope` blocks *are*
-its dependency graph: moving a dependency means moving a brace, release order is
-right by accident, and nothing starts in parallel because a `resourceScope` body
-is one thread. A test that needs one repository starts the whole tree, because
-the only way to reach a leaf is to build the trunk.
-
-Nothing here is an effect type or a container. `Resource`, `parMap`, `Schedule`
-and `timeout` already do the work; what was missing is a value saying which
-service needs which, to point them at.
-
-## A module is a value
+## Nodes and modules
 
 ```kotlin
+import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.boundTo
 import io.github.matthewjones372.lark.app.closingOf
 import io.github.matthewjones372.lark.app.single
+import io.github.matthewjones372.lark.app.singleOf
 
-val persistence =
+val persistence: Module =
     closingOf { cfg: DbConfig -> HikariDataSource(cfg) }.boundTo<DataSource>() +
-    single<UserRepo, DataSource> { ds -> PgUserRepo(ds) } +
-    single<OrderRepo, DataSource> { ds -> PgOrderRepo(ds) }
+        singleOf(::PgUserRepo).boundTo<UserRepo>() +
+        single<OrderRepo, DataSource> { ds -> PgOrderRepo(ds) }
 
-val domain =
-    single { users: UserRepo -> RegisterUser(users) } +
-    single { users: UserRepo, orders: OrderRepo -> PlaceOrder(users, orders) }
+val domain: Module =
+    singleOf(::RegisterUser) +
+        single { users: UserRepo, orders: OrderRepo -> PlaceOrder(users, orders) }
 
-val app = config + persistence + domain + web
+val app: Module = config + persistence + domain + web
 ```
 
-A node is keyed by the type its recipe returns, and built once however many
-things need it: one `DataSource`, both repositories on it. `plus` is override —
-the right-hand node wins wherever the two share a key — and the order you write
-the modules in means nothing, because matching is by type.
+- **A node is keyed by the type it provides**, and is built once however many
+  nodes depend on it: one `DataSource`, shared by both repositories.
+- **Its parameters are its dependencies.** A node can take up to nine; past
+  that, group them into a node of their own.
+- **`singleOf(::Constructor)`** reads the key and the dependencies off a
+  constructor reference. `single { … }` takes a lambda for anything else.
+- **`boundTo<Interface>()`** keys a node as the type its dependents ask for.
+  Without it, `singleOf(::PgUserRepo)` is keyed `PgUserRepo`.
+- **`closingOf`** builds an `AutoCloseable` and closes it on release.
+  `singleOf(::Server, Server::stop)` gives a release with another name, and
+  `install(acquire) { held, exit -> … }` inside `single` gives one that sees
+  how the application ended.
+- **`plus` combines modules.** Order means nothing, because matching is by
+  type, except where two modules provide the same key: then the right-hand
+  node wins.
 
-A recipe takes up to nine dependencies, as `parZip` takes nine branches. Past
-that, group them into a node of their own.
+Two values of one type need two keys. A `@JvmInline value class Replica(val ds: DataSource)`
+costs nothing at runtime and says which one a dependent wants.
 
-Where the recipe returns a concrete class and the key should be its interface,
-say both:
+A Kotlin quirk shapes the API: there is no partial type-argument inference, so
+`single<UserRepo, DataSource> { ds -> … }` has to name the dependency as well
+as the key. `boundTo` avoids that by taking the key afterwards. A Java factory
+returns a platform type such as `Tracer!`, which matches no node asking for
+`Tracer`; name the key with `boundTo` there too.
 
-```kotlin
-single<UserRepo, DataSource> { ds -> PgUserRepo(ds) }         // keyed UserRepo
-single { ds: DataSource -> PgUserRepo(ds) }                   // keyed PgUserRepo
-```
-
-Kotlin has no partial type-argument inference, so it is all the type arguments
-or none.
-
-## What the graph can tell you
-
-```kotlin
-import io.github.matthewjones372.lark.app.render
-import io.github.matthewjones372.lark.app.validate
-
-app.validate()      // Either<NonEmptyList<WiringError>, Plan>
-app.render()        // mermaid, in an order a golden file can hold
-```
-
-`validate` runs no recipe. It answers with every missing key at once rather than
-the first, because a graph is usually short of a module rather than of one node,
-and a cycle answers with the path around it rather than the set of keys on it:
-
-```
-lark-app wiring error
-
-❯ missing DataSource
-❯     for OrderRepo          Wiring.kt:42
-❯     for UserRepo           Wiring.kt:47
-```
-
-A node remembers the file and line it was written on, so the report names the
-recipe to edit rather than only the type it asked for. `single` and `singleOf`
-are inline, so the site is the caller's own line; a factory like `actor` names
-the graph that called it rather than itself.
-
-As a test it is one line, though the plugin below runs it without one:
-
-```kotlin
-@Test
-fun `the application wires`() = app.validate().shouldBeRight()
-```
-
-`findings` asks the same question and two more, and answers with a list rather
-than a `Plan`:
+## Checking a graph
 
 ```kotlin
 import io.github.matthewjones372.lark.app.findings
+import io.github.matthewjones372.lark.app.render
 import io.github.matthewjones372.lark.app.report
+import io.github.matthewjones372.lark.app.validate
 
-app.findings(root = typeOf<HttpServer>()).report()
+app.validate()                                    // Either<NonEmptyList<WiringError>, Plan>
+app.findings(root = typeOf<HttpServer>()).report() // every error and warning, as text
+app.render()                                      // the graph as Mermaid
 ```
+
+`validate` runs no node. It answers with every missing key at once, because a
+graph is usually short of a whole module rather than one node. If nothing is
+missing it checks for cycles, and reports a cycle as the path around it.
+
+Each node records the file and line it was written on, so a report names the
+recipe to edit:
 
 ```
 lark-app wiring
@@ -130,85 +116,78 @@ lark-app wiring
 ❯ warning: nothing reaches KafkaProducer    Kafka.kt:9
 ```
 
-A missing key and a cycle are errors. A key provided twice is a warning,
-because `plus` is override and `overriding` is a duplicate on purpose — one
-written through `overriding` is not reported. A node no root reaches is a
-warning too, and only the top of each unreached subtree is named: a module left
-out of the graph is one edit, not nine lines. Omitting `root` skips that check
-and nothing else.
+`findings` reports four kinds of fault:
+
+| Fault | Severity |
+|---|---|
+| a key nothing provides | error |
+| a cycle | error |
+| a key provided twice, where `plus` shadowed one | warning (not reported for `overriding`, which replaces on purpose) |
+| a node the root does not reach | warning, naming only the top of each unreached subtree |
+
+Omitting `root` skips the reachability check. `render` draws the graph in a
+stable order, so the drawing can be kept in a golden file and reviewed. The
+[cookbook](cookbook.md#check-the-graph-without-running-it) shows a rendered
+example.
 
 ## Starting and stopping
 
-```kotlin
-import io.github.matthewjones372.lark.app.runApp
-
-fun main() {
-    exitProcess(runApp(app) { server: HttpServer -> server.start(); awaitShutdown() }.code)
-}
-```
-
-A topological layer starts at a time under `parMap`, so independent nodes come
-up on forks of their own, the first refusal interrupts its siblings, and lark
-guarantees every fork has ended before the combinator returns. What was acquired
-before a failure is released.
-
-Releases run in reverse **topological** order rather than reverse acquisition
-order: under `parMap` the acquisition order is whichever fork got there first,
-so it is not an order to give anything back in.
-
-A recipe that cannot proceed says so rather than throwing:
-
-```kotlin
-single { sys: Sys -> sys.required("DB_URL").getOrElse { refuse("DB_URL is not set") } }
-```
-
-An application that wants checking declares itself as a value, so the root is
-something a build can read without running `main`:
+An application declares its graph and the node it starts from:
 
 ```kotlin
 import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.runApp
+import kotlin.system.exitProcess
 
 object Petshop : LarkApp<HttpServer>() {
-    override val module: Module = core + persistence + web
+    override val module: Module = config + persistence + domain + web
 }
 
 fun main(): Unit = exitProcess(runApp(Petshop).code)
 ```
 
-A service writes no `run`: the default parks until the process is asked to stop,
-and the graph's release then stops the server, which `web`'s node started. A
-job overrides `run` with its work, and the graph is released when it returns
-([0135](../specs/0135-a-service-that-does-not-say-wait.md)).
+Starting runs the graph one topological layer at a time. Nodes in the same
+layer start in parallel on [Lark forks](core.md#forking), so the first refusal
+or failure interrupts its siblings, and everything already acquired is
+released before `runApp` returns.
 
-The type argument is written twice because a type parameter is erased by the
-time a build tool reads it, and `findings` needs the root to say what nothing
-reaches. The `runApp(module) { }` form stays for tests and one-file examples.
+Releases run in reverse **topological** order, not reverse acquisition order:
+with parallel starts, acquisition order is whichever fork finished first,
+which is no order to release in.
 
-`Shutdown` is a value, so a test asks an application to stop without raising a
-signal; `runApp` puts a JVM hook behind it, and the hook waits for the releases
-to finish. What went wrong reaches stderr through `describe()`, and `runApp`
-answers with an `ExitCode` rather than ending the process — so a test can run an
-application and read what it decided. The `exitProcess` is the caller's.
+- **`run`.** A service writes no `run`: the default calls `awaitShutdown()`,
+  which parks until the process is asked to stop, and the graph's release then
+  stops the server. A job overrides `AppScope.run(root)` with its work, and the
+  graph is released when it returns. *Unreleased: in 0.10.1, `run` has no
+  default, and a service writes `override fun AppScope.run(root: HttpServer) = awaitShutdown()`.*
+- **`refuse(reason)`.** A node that cannot start says why, and the start fails
+  with that reason rather than a stack trace:
+  `single { sys: Sys -> DbConfig(sys.env("DB_URL") ?: refuse("DB_URL is not set")) }`.
+- **Shutdown.** `runApp` installs a JVM shutdown hook that requests shutdown
+  and waits up to 30 seconds for the releases to finish. A test can request it
+  with `Shutdown.request()` instead of sending a signal.
+- **Exit code.** `runApp` returns an `ExitCode` and prints what went wrong to
+  stderr; it never ends the process itself. The `exitProcess` is yours, and
+  worth calling: a stray non-daemon thread would otherwise keep the JVM alive.
 
-## Reading the environment
+The root is a type argument of `LarkApp` so that a build tool can read it from
+the class file without running `main`. `runApp(module) { root: HttpServer -> … }`
+is the same without a `LarkApp`, for tests and one-file programs.
 
-```kotlin
-import io.github.matthewjones372.lark.app.RealSys
-import io.github.matthewjones372.lark.app.Sys
-import io.github.matthewjones372.lark.app.int
-import io.github.matthewjones372.lark.app.required
+### Reading the environment
 
-single<Sys> { RealSys }
-single { sys: Sys -> AppConfig(sys.required("DB_URL").bind(), sys.int("PORT").bind()) }
-```
+`Sys` is the process environment as a node: `sys.env(name)` and
+`sys.property(name)` answer `String?`. Provide `single<Sys> { RealSys }` in the
+application and `FakeSys(mapOf("DB_URL" to "jdbc:…"))` in a test, so no test
+has to set a JVM-wide environment variable. For configuration files, use
+[`lark-app-typesafe`](cookbook.md#configuration-a-module-owns).
 
-A node calling `System.getenv` is a node no test can configure. The readers
-answer with `Either` — `ConfigError.NotA("PORT", "an Int", "eighty-eighty")` —
-because a service reading several names wants every complaint at once, which is
-`parZipOrAccumulate`'s shape rather than a raise's.
+## Readiness and health
 
-## Started means ready
+A node that is constructed is not necessarily ready: a pool with no
+connection, or a consumer with no partition assignment. A probe makes "started"
+mean "ready":
 
 ```kotlin
 import io.github.matthewjones372.lark.app.closingOf
@@ -216,36 +195,33 @@ import io.github.matthewjones372.lark.app.probe
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-closingOf { cfg: KafkaConfig -> KafkaClient.connect(cfg) }
-    .probe("kafka", timeout = 2.seconds, attempts = 10, interval = 500.milliseconds) { it.assigned() }
+val kafka: Module =
+    closingOf { cfg: KafkaConfig -> KafkaClient.connect(cfg) }
+        .probe("kafka", timeout = 2.seconds, attempts = 10, interval = 500.milliseconds) { it.assigned() }
 ```
 
-Dependents wait for the probe, not the recipe. A pool with no connection and a
-consumer with no assignment have both been constructed and neither can serve
-anything. Each probe is asked inside its own timeout, so a probe that hangs is
-not a start that hangs, and the wait between attempts goes through the clock the
-thread inherited — under `fixedClock`, ten attempts take microseconds.
+- Dependents wait for the probe, not just the constructor.
+- Each attempt runs inside its own timeout, so a probe that hangs does not
+  hang the start. The wait between attempts uses the inherited
+  [clock](core.md#what-a-fork-inherits).
+- A probe that throws has failed, like one that answers `false`, and is asked
+  again while it has attempts left. A start that gives up reports what the
+  last attempt threw.
+- `asked = Asked.WhenStarted` defers a probe until the whole graph is built,
+  for a check that needs other nodes running first.
 
-A probe that throws has failed, the same as one that answers `false`: it is
-asked again while it has attempts left, and a start that gives up says what the
-last attempt threw. So a probe can borrow a connection without a `try` around
-it. A pool with no connection to give throws, and that is the answer.
-
-The same probes answer afterwards:
+The same probes answer afterwards through `HealthRegistry`, a node the running
+application provides itself, so an HTTP route can depend on it:
 
 ```kotlin
-import io.github.matthewjones372.lark.app.HealthRegistry
-
-single { health: HealthRegistry -> routes { get("/ready") { health.readiness() } } }
+single { health: HealthRegistry -> Routes(ready = { health.readiness() }, live = { health.liveness() }) }
 ```
 
-`HealthRegistry` is the one key a running application provides itself, so a
-route takes it as a dependency rather than being handed the graph. Every probe
-is asked at once and each inside its own timeout; `critical = false` degrades
-rather than downs, and a node reading `liveness()` on the way up is told the
-graph is still coming up. A probe that throws is listed among the failing, and is never
-an exception out of `readiness()`, so a route answering `/ready` does not fail
-at the moment it is asked most.
+`readiness()` asks every probe at once, each inside its own timeout, and
+answers `Up`, `Degraded` (only probes with `critical = false` failing) or
+`Down`. A probe that throws is listed as failing; `readiness()` itself never
+throws. `liveness()` answers `Down` with the reason `starting` until the graph
+is running.
 
 ## Testing
 
@@ -254,105 +230,149 @@ import io.github.matthewjones372.lark.app.overriding
 import io.github.matthewjones372.lark.app.subgraph
 import io.github.matthewjones372.lark.app.testApp
 
-testApp(app.subgraph<UserRepo>().overriding(single<Sys> { FakeSys(mapOf("PORT" to "8080")) })) { repo: UserRepo ->
-    repo.find(id).shouldBeRight()
+testApp(app.subgraph<RegisterUser>().overriding(single<UserRepo> { InMemoryUsers() })) { register: RegisterUser ->
+    register.register("ada") shouldBe Registered("ada")
 }
 ```
 
-`subgraph` keeps only what its root is reached through, so a test of one
-repository starts a pool and a config rather than a broker and a server.
-`overriding` is `plus` that refuses a key the module does not already hold —
-plain `plus` would add a node nothing asked for and leave the real one running,
-which is a green test that faked nothing. `testApp` gives the graph back
-whatever the block did, an assertion failure among them.
+- **`subgraph<Root>()`** keeps only the nodes the root is reached through, so
+  a test of one use case starts a few nodes rather than a broker and a server.
+- **`overriding`** replaces nodes, and refuses a key the graph does not already
+  hold. Plain `plus` would add the fake beside the real node and leave the real
+  one running: a green test that faked nothing.
+- **`testApp`** starts the graph, runs the block with the root, and releases
+  the graph however the block ends, a failed assertion included.
 
-Nothing here is a singleton and there is no service locator, which is what makes
-all three possible.
+Nothing in a graph is a global singleton and there is no service locator,
+which is what makes all three possible. `app.validate().shouldBeRight()` is a
+one-line test that the whole application wires, although the Gradle plugin
+below runs that check without one.
 
-## Actors
+## Integrations
 
-`lark-app-pekko` makes an actor a node, keyed by the `ActorRef<T>` of its
-protocol.
+Each integration is a separate module that makes something a node:
+
+| Module | Provides | Recipe |
+|---|---|---|
+| `lark-app-typesafe` | `config<T>("section") { … }`, a HOCON section read into a type, with every fault in a bad file reported at once; `secret(path)`; where each setting came from | [Configuration](cookbook.md#configuration-a-module-owns) |
+| `lark-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
+| `lark-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
+| `lark-app-actor` | `actors()`, a `lark-actor` flock that lives as long as the application, and `actor("name") { … }`, keyed by Lark's `ActorRef<M>` | [Lark actor](cookbook.md#spawn-a-lark-actor) |
+| `lark-app-cluster` | `cluster("path")`, a cluster membership joined as a HOCON section describes | [Joined from config](cluster.md#joined-from-config) |
+
+A choice between modules can also be made inside the graph:
+`choice<Settings, Provided> { settings -> if (…) moduleA else moduleB }` is a
+node that depends on a setting and expands into the chosen module once the
+setting is built, so the other branch is never built. *Unreleased: `choice` is
+on `main` and not in 0.10.1.* See the [cookbook](cookbook.md#a-setting-that-picks-a-module).
+
+## Checking the graph in the build
+
+`lark-app-gradle` is a Gradle plugin that checks every `LarkApp` in a project
+as it compiles. It is published to Maven Central, not the Gradle Plugin Portal,
+so the plugin repositories must include Maven Central:
 
 ```kotlin
-dependencies {
-    implementation("io.github.matthewjones372:lark-app-pekko:0.10.1")
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
 ```
 
 ```kotlin
-import io.github.matthewjones372.lark.app.pekko.actor
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.actor.typed.ActorRef
-
-val actors =
-    single<ActorSystem> { install({ ActorSystem.create("app") }) { system, _ -> system.terminate() } } +
-    actor<IngestCommand>("ingest") { repo: UserRepo -> IngestBehavior.create(repo) } +
-    actor<ReportCommand>("report") { repo: UserRepo -> ReportBehavior.create(repo) }
-
-single { ingest: ActorRef<IngestCommand>, cfg: HttpConfig -> HttpServer(cfg, ingest) }
-```
-
-Two protocols are two keys with no ceremony, and a dependent declares the
-protocol it sends rather than a name. The stop is awaited through
-`gracefulStop`, so an actor holding a connection has given it back before the
-node that opened the connection is released.
-
-## The build running the check
-
-Applying the plugin is the whole of what a project does to get every graph in
-it checked as it compiles:
-
-```kotlin
+// build.gradle.kts
 plugins {
-    kotlin("jvm")
-    id("io.github.matthewjones372.lark.wiring")
+    kotlin("jvm") version "2.4.10"
+    id("io.github.matthewjones372.lark.wiring") version "0.10.1"
 }
+
+repositories { mavenCentral() }
 
 larkWiring {
-    failOn = "WARN"                                  // default "FAIL"
+    failOn = "WARN"                                  // "FAIL" (the default) or "WARN"
     diagrams = layout.buildDirectory.dir("wiring")   // default build/reports/lark
 }
 ```
 
-`larkWiring` finds every `LarkApp` in the project's own class output, checks it
-against the root it declares, and writes `<name>.mmd` for each — a mermaid
-diagram the IDE renders. A project with no `LarkApp` passes, so a library
-module in an application build needs no opt-out.
+The plugin registers a `larkWiring` task once the Kotlin JVM plugin is
+applied. The task finalizes `classes` and is a dependency of `check`, so it
+runs whenever the IDE or a run configuration builds the project. It:
 
-It finalises `classes`, which is what the IDE runs when it builds the project
-and what a run configuration builds before it starts anything. A fault arrives
-where a compile error arrives, rather than where a test failure does, and it
-arrives in the shape the compiler uses:
+- finds every `LarkApp` in the project's own class output, loading classes
+  without initialising them, so unrelated static state is not run;
+- initialises each match, which runs the expression that assembles its graph
+  but none of the nodes in it;
+- checks the graph against the root it declares, and writes `<Name>.mmd`, a
+  Mermaid diagram, for each.
+
+A project with no `LarkApp` passes, so a library module in an application
+build needs no opt-out. Faults are printed in the compiler's format, which the
+IDE turns into entries in its Build window that open the node's source:
 
 ```
 e: file:///…/petshop/app/src/main/kotlin/petshop/app/Wiring.kt:92:1 lark-app: PetShop needs ActorRef<Shop>, and nothing builds it
-e: file:///…/petshop/app/src/main/kotlin/petshop/app/Arrivals.kt:29:1 lark-app: Arrivals needs ActorRef<Shop>, and nothing builds it
 ```
 
-The IDE parses that already, so each line is an entry in the Build window that
-opens the recipe that asked. The line is the one the recipe was written on:
-`single` is inline, so the line the JVM reports for the frame is a synthetic
-one past the end of the file, and lark reads the class file's own SMAP to
-translate it back.
+Because `single` is inline, the JVM reports a synthetic line for a node; Lark
+reads the class file's SMAP to map it back to the line the node was written on.
 
-Finding an application loads classes without initialising them, so scanning
-runs no unrelated static state; only a match is initialised. Initialising one
-runs the expression that assembles its graph and none of the recipes in it,
-which is the same thing `validate` has always promised.
+The task runs the graph-building expression, so it sees everything: nodes
+built in conditionals, actor nodes, modules from other Gradle modules. It is
+the authoritative check.
 
-## What it does not do
+## Checking the graph in the editor
 
-- **No annotations and no annotation processor.** KSP models declarations and a
-  module is an expression, so the compile-time report ZIO's macro gives has no
-  route here that keeps `plus`, `subgraph` and `render`. The `larkWiring` task
-  is the gate instead, and it sees the whole graph — actor nodes and modules
-  assembled in a conditional included — because it runs the expression rather
-  than reading the source. What it cannot give is an error on the line while
-  you type. [Spec 0016](../specs/0016-an-application-that-starts-as-a-value.md)
-  and [0026](../specs/0026-the-build-runs-the-check.md) say so at more length.
-- **No local environment.** One graph, one instance per key. Two `DataSource`s
-  are two keys — a `@JvmInline value class Replica(val ds: DataSource)` is free
-  under the type keys and says which one a consumer wanted.
-- **No effect type.** A recipe is a function, a node is a value, and `suspend`
-  appears nowhere.
+Applying the Gradle plugin also applies `lark-app-compiler`, a K2 compiler
+checker that reports the same faults while you type, with no build:
+
+![IntelliJ underlining `singleOf(::ActorPetShop)` in red, with the tooltip
+"lark-app: PetShop needs ActorRef<Shop>, and nothing builds it".](editor-error.png)
+
+It reads the source rather than running it, so it follows only the shapes it
+knows:
+
+- `single`, `singleOf`, `closingOf` and `choice`;
+- `lark-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
+  `configFromResource` and `configFromFile`; `lark-app-liquibase`'s
+  `migrations`; `lark-app-pekko`'s `actor`;
+- `plus`, `overriding`, `overridingConfig`, `boundTo` and `probe`;
+- references to `val`s and single-expression functions in the same
+  compilation, `if` and `when` with single-expression branches, and `as`.
+
+When it meets anything else, including `lark-app-actor`'s `actor` and
+`actors()`, `lark-app-cluster`'s `cluster` and a module defined in another
+Gradle module, it does not guess: it reports the warning `LARK_APP_UNREAD`
+and leaves that application to the `larkWiring` task. A false error on working
+code would be worse than a fault reported a moment later. It also reports
+`LARK_APP_UNREAD` when the Kotlin compiler's version differs from the one the
+checker was built for.
+
+IntelliJ runs third-party compiler plugins in the editor only after
+`kotlin.k2.only.bundled.compiler.plugins.enabled` is unchecked in its registry
+(Help, Find Action, Registry).
+
+### What the compiler plugin warns about
+
+The same plugin warns where code hand-rolls something Lark provides:
+
+| Warning | On | Use instead |
+|---|---|---|
+| `LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN` | a `LarkApp`'s `run` that calls a zero-argument `block()`, `join()` or `await()` and never `awaitShutdown()` | `awaitShutdown()`, so a SIGTERM releases the graph |
+| `LARK_SCHEDULER_BY_HAND` | `Executors.newScheduledThreadPool`, `newSingleThreadScheduledExecutor`, `ScheduledThreadPoolExecutor` or `java.util.Timer` in main code | `Stream.tick(every)` started on a [stream backend](stream.md#backends) |
+| `LARK_SECRET_AS_STRING` | `string("…")` in a `config` reading, where the path ends in a secret-like name such as `password`, `token` or `apiKey`, in main code | `secret(path)` |
+| `LARK_SLEEP_IN_TEST` | `Thread.sleep` or `TimeUnit.sleep` in test code | `eventually(within)` from `lark-test`, or a [test clock](testing.md#time) |
+
+Each is a warning, silenced where it is intended by name, for example
+`@Suppress("LARK_SLEEP_IN_TEST")`.
+
+## Limitations
+
+- **One instance per key.** There are no scopes or named instances; use a
+  wrapper type for a second instance.
+- **No annotation processing.** A module is an expression, not a declaration,
+  so annotation processors such as KSP have nothing to read. The Gradle task
+  is the complete check, and the editor check covers the common shapes.
+- **No effect type.** A node is a function, and `suspend` appears nowhere.

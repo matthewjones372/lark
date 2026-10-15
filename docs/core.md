@@ -1,0 +1,531 @@
+# Core: concurrency, errors and resources
+
+`lark` is the module everything else builds on. It provides structured
+concurrency on virtual threads, typed errors through Arrow's `Raise`, resource
+safety, schedules, timeouts and call policies, and the context that forks
+inherit. Everything on this page is in the package
+`io.github.matthewjones372.lark`.
+
+```kotlin
+dependencies {
+    // brings arrow-core and nothing else
+    implementation("io.github.matthewjones372:lark:0.10.1")
+}
+```
+
+The complete examples on this page, the fences that carry their own imports,
+are compiled by `CoreGuideTest`.
+
+1. [Forking](#forking)
+2. [Failure and cancellation](#failure-and-cancellation)
+3. [Collecting every error](#collecting-every-error)
+4. [Resources](#resources)
+5. [Schedules, retries and timeouts](#schedules-retries-and-timeouts)
+6. [Policies](#policies)
+7. [What a fork inherits](#what-a-fork-inherits)
+8. [Running forks on Pekko](#running-forks-on-pekko)
+9. [Requirements and limitations](#requirements-and-limitations)
+
+## Forking
+
+The combinators have the same names and shapes as `arrow-fx-coroutines`.
+Inside an `either { }` (or any `Raise<E>`), a branch can `bind()` an `Either`
+or `raise` an error, and the first raise becomes the block's `Left`:
+
+<!-- core-forking -->
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.parMap
+import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.lark.raceN
+
+data class Err(val why: String)
+
+data class User(val id: Int)
+
+data class Order(val id: Int)
+
+data class Dashboard(val user: User, val orders: List<Order>)
+
+// Blocking stand-ins for a repository and a client.
+fun findUser(id: Int): Either<Err, User> = Either.Right(User(id))
+
+fun ordersFor(id: Int): Either<Err, List<Order>> = Either.Right(listOf(Order(1)))
+
+fun quoteFrom(source: String): Long = source.length.toLong()
+
+// Two branches at once; up to nine are supported.
+fun dashboard(id: Int): Either<Err, Dashboard> = either {
+    parZip({ findUser(id).bind() }, { ordersFor(id).bind() }) { user, orders -> Dashboard(user, orders) }
+}
+
+// One fork per element, answered in the input's order.
+fun users(ids: List<Int>): Either<Err, List<User>> = either { parMap(ids) { findUser(it).bind() } }
+
+// The first branch to answer wins, and the loser is interrupted. Left is the first branch, Right the second.
+fun quote(): Either<Long, Long> = raceN({ quoteFrom("primary") }, { quoteFrom("fallback") })
+
+// async and await, for forks the combinators do not shape.
+fun report(id: Int): Either<Err, Dashboard> = flock {
+    val user = async { findUser(id).bind() }
+    val orders = async { ordersFor(id).bind() }
+    Dashboard(user.await(), orders.await())
+}
+```
+
+- `parZip` takes two to nine branches. `raceN` takes two or three; with three
+  it answers `Either<A, Either<B, C>>`.
+- Outside a `Raise`, `parZip`, `parMap` and `raceN` take plain `() -> A`
+  branches and return the combined value.
+- `parMap` starts one fork per element and has no concurrency limit. To cap
+  concurrency against a shared resource, use a [`Bulkhead`](#policies) or
+  [`mapPar`](stream.md#a-body-that-must-block) on a stream.
+- `flock { }` is the scope that `async` forks in. On its own it returns
+  `Either<E, A>`; inside an existing `Raise<E>` it returns `A` and a raise
+  propagates to the enclosing scope.
+
+By default each fork is a new virtual thread. Every forking combinator also
+has an overload that takes the executor to fork on as its first argument, for
+example `parZip(on = pool, { … }, { … }) { … }` or `timeout(on = pool, 2.seconds) { … }`.
+`flock(on = pool) { }` and `async(on = pool) { }` take it as a defaulted
+parameter.
+
+### Lazy forks
+
+`async(start = Start.Lazy) { }` does not reach the executor until something
+awaits it, so work that a later branch decides it does not need is never
+started. A lazy fork that is never awaited never runs, so it cannot fail the
+scope either. The choice is made per fork rather than per scope, because a
+scope where nothing started until it was awaited would turn a fan-out into
+sequential code.
+
+## Failure and cancellation
+
+A scope does not return until every fork it started has ended. That is the
+property everything else on this page relies on: when `parZip`, `flock` or
+`timeout` returns, normally or by raising or throwing, none of its work is
+still running.
+
+- **The first failure stops the rest.** When a branch raises or throws, its
+  siblings are interrupted and joined, and the combinator answers with that
+  failure. If several branches fail on their own, the one started first wins;
+  an exception thrown only because a branch was interrupted is not reported.
+- **Unawaited forks still count.** A `Deferred` that nobody awaits is joined
+  when its `flock` closes, and if it raised, the raise becomes the block's
+  `Left`. If it threw, the exception is rethrown.
+- **Cancellation is interruption.** The JDK has no other cancellation, so a
+  cancelled branch stops at its next interruptible blocking call: a sleep, a
+  lock, a socket read, `Future.get`. A branch that is computing without
+  blocking runs on until it reaches one.
+- **`cancel()` stops one fork.** `deferred.cancel()` interrupts that fork and
+  returns once it has ended. A cancelled fork's outcome counts as handled, so
+  the scope does not answer with it even if it raised before the interrupt
+  arrived. If its body swallowed the interrupt and returned a value, `await()`
+  after `cancel()` returns that value.
+- **The interrupt flag does not leak.** A fork clears the flag as its body
+  exits, so a pooled executor's next task does not start interrupted.
+
+<!-- core-cancel -->
+```kotlin
+import arrow.core.Either
+import io.github.matthewjones372.lark.flock
+
+data class Credit(val hasCredit: Boolean)
+
+fun buildReport(id: Int): String {
+    Thread.sleep(500) // interruptible, so cancel() stops it here
+    return "report for $id"
+}
+
+fun creditFor(id: Int): Credit = Credit(hasCredit = id % 2 == 0)
+
+// Start the expensive work early, and stop it if the cheap check says it is not wanted.
+fun page(id: Int): Either<Nothing, String> = flock {
+    val report = async { buildReport(id) }
+    if (creditFor(id).hasCredit) {
+        report.await()
+    } else {
+        report.cancel()
+        "no report"
+    }
+}
+```
+
+A `Raise` scope never crosses a thread on its own. The combinators carry a
+branch's raise back to the scope that started it, but work handed to some
+other thread, such as a callback, should answer with an `Either` that the
+handler binds.
+
+## Collecting every error
+
+`parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion
+and return all the raises instead of only the first, which suits validation:
+
+<!-- core-accumulate -->
+```kotlin
+import arrow.core.Either
+import arrow.core.NonEmptyList
+import arrow.core.raise.either
+import arrow.core.raise.ensure
+import io.github.matthewjones372.lark.parMapOrAccumulate
+import io.github.matthewjones372.lark.parZipOrAccumulate
+
+data class Form(val name: String, val email: String)
+
+data class Account(val name: String, val email: String)
+
+data class Invalid(val field: String)
+
+fun validate(form: Form): Either<NonEmptyList<Invalid>, Account> = either {
+    parZipOrAccumulate(
+        { form.name.also { ensure(it.isNotBlank()) { Invalid("name") } } },
+        { form.email.also { ensure('@' in it) { Invalid("email") } } },
+    ) { name, email -> Account(name, email) }
+}
+
+fun validateAll(forms: List<Form>): Either<NonEmptyList<Invalid>, List<Account>> = either {
+    parMapOrAccumulate(forms) { form -> validate(form).mapLeft { it.first() }.bind() }
+}
+```
+
+- Errors are returned in branch order (or the input's order), whichever branch
+  raised first.
+- Each function also has a form taking `combine: (E, E) -> E` as its first
+  argument, for a scope with a single error type that knows how to merge two.
+- A thrown exception is not accumulated. It interrupts the other branches, as
+  in `parZip`, and the same instance is rethrown.
+
+## Resources
+
+`resourceScope { }` runs a block with resources acquired inside it and releases
+them in reverse order when the block exits, whether by returning, raising,
+throwing or being interrupted. `install` takes an acquire and a release, and the
+release is told how the scope ended:
+
+<!-- core-resources -->
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.ExitCase
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.lark.resourceScope
+import io.github.matthewjones372.lark.use
+
+class Connection : AutoCloseable {
+    fun rows(id: Int): List<String> = listOf("row-$id")
+
+    fun commit() = Unit
+
+    fun rollback() = Unit
+
+    override fun close() = Unit
+}
+
+data class NotFound(val id: Int)
+
+val connection: Resource<Connection> = resource {
+    install({ Connection() }) { held, exit ->
+        if (exit is ExitCase.Failure) held.rollback() else held.commit()
+        held.close()
+    }
+}
+
+fun report(id: Int): Either<NotFound, String> = either {
+    resourceScope {
+        val db = connection.bind()                                  // released when this scope ends
+        val out = install({ StringBuilder() }) { _, _ -> }
+        val rows = db.rows(id).ifEmpty { raise(NotFound(id)) }      // a raise releases both, in reverse
+        out.append(rows.joinToString()).toString()
+    }
+}
+
+// A single resource for the length of one block.
+fun rows(id: Int): List<String> = connection use { it.rows(id) }
+```
+
+`ExitCase` has three cases:
+
+| Case | When |
+|---|---|
+| `ExitCase.Completed` | the block returned, or raised |
+| `ExitCase.Failure(failure)` | the block threw |
+| `ExitCase.Cancelled(interrupt)` | the block was interrupted; it carries the `InterruptedException` |
+
+A raise releases with `Completed`: it is a declared answer, and the `either`
+it leaves through returns a value. Every release runs even if an earlier one
+throws. A release that throws when nothing else failed becomes the exception
+the caller sees; one that throws after another failure is added to it as
+suppressed.
+
+In an application, the graph in [`lark-app`](app.md) uses the same `install`
+for each node, and releases nodes in reverse dependency order.
+
+## Schedules, retries and timeouts
+
+A `Schedule<Input, Output>` is a value that answers each input with a
+decision: continue after a delay, or stop. `retry` feeds it what the action
+threw, and `repeat` feeds it what the action returned. The delays are spent
+on the calling thread through the inherited [clock](#what-a-fork-inherits), so
+an interrupt ends the schedule where it is and a test can skip the waiting.
+
+<!-- core-schedule -->
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.retry
+import io.github.matthewjones372.lark.retryRaise
+import io.github.matthewjones372.lark.timeout
+import io.github.matthewjones372.lark.timeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+data class Unavailable(val id: Int)
+
+fun fetchRow(id: Int): String = "row-$id"
+
+fun findRow(id: Int): Either<Unavailable, String> = Either.Right("row-$id")
+
+fun pending(): Long = 0
+
+// Exponential backoff with jitter, at most five retries.
+val backoff = Schedule.exponential<Throwable>(100.milliseconds).jittered() and Schedule.recurs(5)
+
+fun fetch(id: Int): String = backoff.retry { fetchRow(id) }          // rethrows the last failure
+
+// Bounded by elapsed time rather than by attempts.
+val patiently = Schedule.spaced<Throwable>(20.milliseconds) zipLeft Schedule.upTo(5.seconds)
+
+fun drained(): Unit = patiently.retry { check(pending() == 0L) }
+
+// Retrying a declared error: the last raise is the Left.
+fun row(id: Int): Either<Unavailable, String> = Schedule.recurs<Unavailable>(5).retryRaise { findRow(id).bind() }
+
+fun quote(id: Int): Either<Unavailable, String> = either {
+    timeout(2.seconds) { findRow(id).bind() }                       // throws TimeoutException
+}
+
+fun maybeQuote(id: Int): Either<Unavailable, String?> = either {
+    timeoutOrNull(2.seconds) { findRow(id).bind() }                 // null instead
+}
+```
+
+Builders: `recurs`, `spaced`, `upTo`, `exponential`, `linear`, `fibonacci`,
+`forever`, `identity`, `doWhile`, `doUntil` and `collect`. Combinators: `and`,
+`andThen`, `zipLeft` and `zipRight` (all infix), `or` (with explicit functions
+to combine the outputs and the delays), `map`, `fold`, `delayed` and
+`jittered`. Inside a `Raise`, `retry(schedule) { }` retries raises rather than
+throws.
+
+`timeout` runs its block on a fork and races it against a sleeper. A block that
+does not finish in time is interrupted, and `timeout` throws
+`java.util.concurrent.TimeoutException` once the block has ended. As with any
+cancellation, a block that never reaches an interruptible call cannot be
+stopped early. The sleeper waits on the inherited clock, so under
+`fixedClock()`, whose sleeps return at once, a `timeout` gives up immediately;
+use a `TestClock` to test one.
+
+## Policies
+
+A `policy` combines a deadline, retries, guards and a per-attempt timeout into
+one value. It is checked when it is built and applied as a whole on every call:
+
+<!-- core-policy -->
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.Bulkhead
+import io.github.matthewjones372.lark.CircuitBreaker
+import io.github.matthewjones372.lark.RateLimiter
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.guarded
+import io.github.matthewjones372.lark.policy
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+class Partner(private val call: (String) -> String) {
+    private val breaker = CircuitBreaker(
+        name = "partner-api",
+        maxFailures = 5,
+        resetAfter = Schedule.exponential<Unit>(1.seconds).jittered(0.8, 1.2) zipLeft Schedule.recurs(6),
+    )
+    private val limiter = RateLimiter(name = "partner-api", rate = 50, per = 1.seconds, burst = 10, maxWait = 200.milliseconds)
+    private val bulkhead = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
+
+    private val partner = policy("partner-api") {
+        deadline(2.seconds)
+        retry(Schedule.exponential<Throwable>(100.milliseconds).jittered() zipLeft Schedule.recurs(3))
+        guard(breaker)
+        guard(limiter, cost = 1)
+        guard(bulkhead)
+        attemptTimeout(500.milliseconds)
+    }
+
+    fun quote(id: String): String = partner { call(id) }
+
+    // A refusal by any guard, as a declared error rather than an exception.
+    fun quoted(id: String): Either<String, String> = either {
+        guarded(partner, ifRejected = { "${it.guard} refused: ${it.message}" }) { call(id) }
+    }
+}
+```
+
+Steps must appear in the order deadline, retry, breaker, limiter, bulkhead,
+attemptTimeout. A step out of order, a repeated step, or an attempt timeout
+longer than the deadline throws `IllegalArgumentException` when the policy is
+built, not on the first call. Each step is optional.
+
+- **`deadline(total)`** is one time budget for the whole call, retries
+  included. Retrying stops before a delay the budget cannot cover, and each
+  attempt is limited to the shorter of its own timeout and what is left.
+- **`retry(schedule)`** retries what the call throws. A `raise` is the call's
+  own answer: it passes through every step and is not retried.
+- **A `CircuitBreaker`** opens after `maxFailures` failures in a row and then
+  refuses every call with `Rejected.CircuitOpen` (carrying `retryAt`) without
+  making it. Once the next delay of its `resetAfter` schedule has passed, one
+  trial call goes through. If it succeeds the breaker closes and the schedule
+  starts again; if it fails the breaker reopens for the schedule's next delay.
+  A timeout inside the breaker counts as a failure; a raise never does.
+- **A `RateLimiter`** is a token bucket refilled at `rate` every `per`, holding
+  at most `burst`. A call without a token reserves the next one and waits for
+  it, so callers are served in arrival order. A call that would wait longer
+  than `maxWait` (or the deadline) is refused at once with
+  `Rejected.RateLimited` and its `retryAfter`. `cost` weighs a call the quota
+  counts as several.
+- **A `Bulkhead`** lets at most `maxConcurrent` callers in at once, in arrival
+  order. The rest wait up to `maxWait` (or the deadline) and are then refused
+  with `Rejected.BulkheadFull`. Virtual threads make callers cheap, so a
+  bulkhead is what keeps thousands of them off a pool of twenty connections.
+- **`attemptTimeout(each)`** limits each attempt.
+
+Called as `partner { … }`, a refusal throws its `Rejected`, which is a
+`RuntimeException`. `guarded(policy, ifRejected) { }` turns it into a raise.
+
+Each guard records metrics through lark's [metrics](observability.md#metrics):
+
+| Metric | Kind | Tags |
+|---|---|---|
+| `lark.policy.calls` | counter | `policy`, `outcome` (`success`, `failure`, `rejected`), `refused_by` (`deadline`, a guard's name, or `none`) |
+| `lark.breaker.state` | gauge | `name`; 0 closed, 1 half-open, 2 open |
+| `lark.breaker.calls` | counter | `name`, `outcome` (`success`, `failure`, `rejected`) |
+| `lark.bulkhead.in_use` | gauge | `name` |
+| `lark.bulkhead.calls` | counter | `name`, `outcome` (`admitted`, `rejected`) |
+| `lark.ratelimiter.calls` | counter | `name`, `outcome` (`immediate`, `waited`, `rejected`) |
+| `lark.ratelimiter.wait` | histogram, seconds | `name` |
+
+## What a fork inherits
+
+A plain virtual thread inherits nothing from the thread that started it. A
+`LarkLocal` is a value that does cross: it is read on the thread that forks and
+bound again inside the fork, whichever executor the fork runs on.
+
+<!-- core-local -->
+```kotlin
+import io.github.matthewjones372.lark.larkLocal
+import io.github.matthewjones372.lark.parMap
+
+val requestId = larkLocal { "none" }
+
+fun tagged(rows: List<String>): List<String> =
+    requestId.locally("abc-123") {
+        parMap(rows) { row -> "${requestId.get()}: $row" }   // every branch reads abc-123
+    }
+```
+
+Lark's own context uses the same mechanism:
+
+- **The clock.** `clock` is a `LarkLocal<Clock>`. `Schedule`, `timeout`, probes,
+  timers and stream operators all wait on it, so binding `fixedClock()` makes
+  a five-retry backoff finish immediately, and a `TestClock` moves only when a
+  test calls `adjust`. See [Testing](testing.md#time).
+- **Log annotations and metric tags.** `logAnnotated` and `metricTagged` bind
+  values that every log line and measurement inside the block carries,
+  including on forks. See [Observability](observability.md).
+- **Trace context.** With `lark-otel` on the classpath, OpenTelemetry's
+  `Context` is kept in a `LarkLocal`.
+
+The same context also travels with an actor message, local or remote, and is
+stored with journal events, so a correlation id or trace follows a request
+through an actor system.
+
+## Running forks on Pekko
+
+A Pekko application already has one place that names, sizes and instruments
+its threads: the dispatcher configuration. `lark-pekko` makes a dispatcher
+configured there the executor Lark forks on, and lets a fork wait for Pekko's
+`CompletionStage`s and Scala `Future`s.
+
+```kotlin
+dependencies {
+    // brings lark and pekko-actor
+    implementation("io.github.matthewjones372:lark-pekko:0.10.1")
+}
+```
+
+The dispatcher is configured beside Pekko's own, and named by the part after
+`pekko.actor.`:
+
+```hocon
+pekko.actor.lark {
+  executor = "virtual-thread-executor"
+}
+```
+
+<!-- core-pekko -->
+```kotlin
+import arrow.core.Either
+import arrow.core.raise.either
+import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.lark.pekko.await
+import io.github.matthewjones372.lark.pekko.larkDispatcher
+import org.apache.pekko.actor.ActorSystem
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+
+data class Missing(val id: Int)
+
+fun price(id: Int): CompletionStage<Long> = CompletableFuture.completedFuture(100L * id)
+
+fun stock(id: Int): Either<Missing, Int> = Either.Right(3)
+
+fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = either {
+    val lark = system.larkDispatcher()   // pekko.actor.lark; larkDispatcher("other") for another
+    parZip(on = lark, { price(id).await() }, { stock(id).bind() }) { p, s -> p to s }
+}
+```
+
+- `larkDispatcher` accepts a dispatcher whose executor is
+  `virtual-thread-executor`, or one with `type = PinnedDispatcher`, whose thread
+  is not shared. It rejects any other executor, including Pekko's default
+  fork-join pool, with an `IllegalArgumentException` naming the setting: a
+  Lark fork blocks, and blocking the pool Pekko sizes for its actors starves
+  them. Both the classic and the typed `ActorSystem` can call it.
+- `await()` parks the calling fork until the stage completes. A failed stage
+  rethrows the original cause, not the `CompletionException` around it. An
+  interrupt cancels the stage with `cancel(true)` and rethrows the
+  `InterruptedException`, so a value that arrives later is dropped.
+- `await()` does not change what a stage holds. A stream run into `Sink.seq`
+  still collects every element before it completes.
+
+## Requirements and limitations
+
+- **JDK 25 or newer.** Before JDK 24, a virtual thread blocked inside a
+  `synchronized` block pinned its carrier thread, and a service could run out
+  of carriers when a driver or serializer synchronized internally. JEP 491
+  removed that in JDK 24, and 25 is the first long-term-support release with
+  it. The Gradle and compiler plugins are built for JDK 21, because they run
+  inside the build tools.
+- **No `suspend`.** No published module uses coroutines or depends on
+  `kotlinx-coroutines`. Calling Lark from coroutine code works as any blocking
+  call does, on a dispatcher that tolerates blocking.
+- **Cancellation is cooperative.** It relies on interruption, so code that
+  swallows `InterruptedException` or never blocks cannot be stopped early.
+- **`lark-structured`** is an unpublished variant of `parZip` (two and three
+  branches), `parMap`, `raceN` (two branches) and `timeout` built on the JDK's
+  `StructuredTaskScope`, so that forks appear under their caller in a thread
+  dump and inherit `ScopedValue` bindings. It compiles against JDK 27, where
+  that API is still a preview, and will not be published until the API is
+  final.

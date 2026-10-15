@@ -163,31 +163,29 @@ that grows an import grows a line in its block.
 
 ## Layout
 
-Three modules. `lark` depends on `arrow-core` and on the JDK, and on nothing
-else: no HTTP library, no JSON library, no coroutines, and virtual threads come
-from `java.lang.Thread`. `lark-pekko` adds `pekko-actor` and only that: it
-exists to hand a Pekko dispatcher to `lark` as the executor its forks run on,
-and to await Pekko's stages from a virtual thread. `lark-stream` is
-`Stream<E, A>` as a description, and depends on `lark` and the Arrow that
-arrives with it, and on nothing else: no backend. `lark-stream-pekko` runs one
-on Pekko Streams, and depends on `lark-stream`, on `lark-pekko` — `awaitExit`
-waits through its `await`, so one bridge cancels an abandoned stage for a
-handler and for a run alike — and on `pekko-stream`, and on nothing else.
+One Gradle module per capability, listed in `settings.gradle.kts`;
+[`docs/modules.md`](docs/modules.md) says what each is for. `lark` depends on
+`arrow-core` and on the JDK, and on nothing else: no HTTP library, no JSON
+library, no coroutines, and virtual threads come from `java.lang.Thread`. Every
+other module depends on the Lark modules it builds on and, at most, the one
+external library or SDK its name says it integrates: `lark-pekko` adds
+`pekko-actor`, `lark-stream` adds nothing, `lark-stream-pekko` adds
+`pekko-stream`, `lark-kafka` adds `kafka-clients`, and so on.
 
 Each claim is a test. `NoOtherDependenciesTest` asserts the module's main
 runtime classpath, in every module alike.
 
-A dependency added to either is a build failure, not a judgement call.
+A dependency added to any module is a build failure, not a judgement call.
 
 ## Values, errors and effects
 
 Descriptions are values. There is no registry and nothing that has to run at
-startup: `routes` is a `List<ServerEndpoint>` that can be split across files or
-filtered. Prefer a value to a function when adding a feature.
+startup: a `Module`, a `Stream` and a `Behaviour` are values that can be split
+across files, combined or filtered. Prefer a value to a function when adding a
+feature.
 
-Errors a caller was promised are values in the return type. `orFail` puts the
-declared failure into the endpoint's type and `handledOrFail` takes a handler
-returning `Outcome<E, A>`. Throwing is for what nobody declared — a decode
+Errors a caller was promised are values in the return type: a `Raise<E>`, an
+`Either`, a stream's `E`. Throwing is for what nobody declared — a decode
 failure, a broken codec, a bug.
 
 Do not wrap a handler in `runCatching` and map the result into a failure. That
@@ -231,6 +229,16 @@ Work out which of these a change can break:
 - **Thread claims.** A test that says the body ran on a virtual thread reads
   `Thread.currentThread().isVirtual` inside the body and asserts on it
   afterwards; it does not count threads or time sleeps.
+
+### Examples in the docs are compiled
+
+The guides' Kotlin fences are compiled by tests that read the Markdown:
+`ReadmeExampleTest` (README and `docs/stream.md`), `CoreGuideTest` and
+`CookbookTest` (`docs/core.md`, `observability.md`, `testing.md`,
+`cookbook.md`), `ActorsGuideTest` and `GuideExampleTest`. A fence is found by
+the HTML comment above it, such as `<!-- core-policy -->`, so keep the marker
+when editing an example, and add one to a new complete example. Each module's
+`build.gradle.kts` declares the pages it reads as test inputs.
 
 ### An actor system belongs to the test class
 

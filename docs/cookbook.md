@@ -1,53 +1,27 @@
-# Building an application
+# Application cookbook
 
-> Lark is a scratchpad, not a finished library — see
-> [what this is](../README.md#what-this-is). Everything here works and is tested;
-> none of it is settled.
+Recipes for [`lark-app`](app.md), in roughly the order a service needs them.
+Each Kotlin fence marked for it is compiled by `CookbookTest`, together with
+the fixtures below, so a recipe that stops matching the library fails the
+build. The fences for `lark-app-typesafe` and `lark-app-liquibase` are not
+compiled by that test, because those modules are not on its classpath.
 
-Recipes for `lark-app`, in the order a service meets them. Every Kotlin fence
-below is compiled by `CookbookTest` against the library it documents, so a
-recipe that stops being true stops the build.
+[Applications](app.md) explains how the graph behaves; this page shows how to
+write each piece.
 
 ```kotlin
 dependencies {
     implementation("io.github.matthewjones372:lark-app:0.10.1")
-    implementation("io.github.matthewjones372:lark-app-pekko:0.10.1")  // actors only
+    implementation("io.github.matthewjones372:lark-app-pekko:0.10.1")  // Pekko actors only
 }
 ```
 
-The types the recipes are written against, once:
+The types the recipes are written against:
 
 <!-- cookbook-fixtures -->
 ```kotlin
-import arrow.core.getOrElse
 import kotlin.system.exitProcess
 import io.github.matthewjones372.lark.app.render
-import io.github.matthewjones372.lark.LogLevel
-import io.github.matthewjones372.lark.LogLine
-import io.github.matthewjones372.lark.Logger
-import io.github.matthewjones372.lark.logSpan
-import io.github.matthewjones372.lark.logger
-import org.slf4j.LoggerFactory
-import io.github.matthewjones372.lark.capturingLogs
-import io.github.matthewjones372.lark.capturingMetrics
-import io.github.matthewjones372.lark.counter
-import io.github.matthewjones372.lark.gauge
-import io.github.matthewjones372.lark.increment
-import io.github.matthewjones372.lark.metricTagged
-import io.github.matthewjones372.lark.timed
-import arrow.core.Either
-import arrow.core.raise.either
-import io.github.matthewjones372.lark.Bulkhead
-import io.github.matthewjones372.lark.RateLimiter
-import io.github.matthewjones372.lark.CircuitBreaker
-import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.guarded
-import io.github.matthewjones372.lark.policy
-import io.github.matthewjones372.lark.clock
-import io.github.matthewjones372.lark.fixedClock
-import io.github.matthewjones372.lark.logAnnotated
-import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.app.pekko.actor
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.ActorRef
@@ -67,13 +41,10 @@ import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.singleOf
 import io.github.matthewjones372.lark.app.subgraph
 import io.github.matthewjones372.lark.app.testApp
-import io.github.matthewjones372.lark.app.AppScope
 import io.github.matthewjones372.lark.app.LarkApp
 import io.github.matthewjones372.lark.app.findings
 import io.github.matthewjones372.lark.app.report
-import io.github.matthewjones372.lark.app.use
 import io.github.matthewjones372.lark.app.validate
-import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -103,7 +74,7 @@ class HttpServer(private val config: HttpConfig, private val register: RegisterU
 ## A constructor is a node
 
 A constructor reference already declares what it builds and what it needs, so
-`singleOf` reads both off it:
+`singleOf` reads both from it:
 
 <!-- cookbook -->
 ```kotlin
@@ -112,21 +83,19 @@ class PgUsers(private val pool: Pool)
 val fromConstructors: Module = singleOf(::Hikari).boundTo<Pool>() + singleOf(::PgUsers)
 ```
 
-`boundTo` keys a node as the interface everything else asks for, which is also
-what stops the type-argument trap below: with `singleOf` you never give a type
-argument beside a dependency.
+`boundTo` keys the node as the interface its dependents ask for. With
+`singleOf` you never write a type argument beside a dependency.
 
-Most of a graph is not a bare constructor, though: it is a pool, a client or a
-connection that has to be given back. One that is `AutoCloseable` is closed on
-release by `closingOf`, in reverse dependency order:
+A node that is `AutoCloseable` is closed on release by `closingOf`, in reverse
+dependency order:
 
 <!-- cookbook -->
 ```kotlin
 val heldThings: Module = closingOf(::Hikari).boundTo<Pool>()
 ```
 
-A teardown called anything else, `stop` or `dispose` or `shutdown`, goes beside
-the constructor:
+A release with another name, such as `stop` or `shutdown`, goes beside the
+constructor:
 
 <!-- cookbook -->
 ```kotlin
@@ -135,24 +104,23 @@ val served: Module = singleOf(::HttpServer, HttpServer::stop)
 
 ## What a `single` is
 
-One node of the graph: how to build one value, and what it needs to build it.
+`single` is one node written as a lambda: how to build one value, and what it
+needs.
 
 <!-- cookbook -->
 ```kotlin
 val aPool: Module = single { db: DbConfig -> Hikari(db) as Pool }
 ```
 
-Three things are said there, all by the types:
+The types say three things:
 
-- **the parameters are the dependencies.** This one needs a `DbConfig`, and the
-  graph will not build it until something else has provided one.
-- **the return type is the key.** This one provides a `Pool`. A node asking for
-  a `Pool` gets this.
-- **it is built once.** The name means one instance per application, not one per
-  use: ten nodes asking for a `Pool` share the one this built.
+- **The parameters are the dependencies.** This node needs a `DbConfig`, and
+  is not built until something has provided one.
+- **The return type is the key.** This node provides a `Pool`.
+- **It is built once.** Ten nodes asking for a `Pool` share this one.
 
-Without the graph you would write the same thing by hand, and it works right up
-until ordering, sharing, closing and testing matter:
+Without the graph, the same wiring is written by hand, which works until
+ordering, sharing, closing and testing matter:
 
 ```kotlin
 val db = DbConfig("jdbc:…")
@@ -160,8 +128,7 @@ val pool = Hikari(db)              // who closes it, and when?
 val users = PgUserRepo(pool)       // and if two things need a pool, is it this one?
 ```
 
-`plus` puts nodes together, and the order you write them in means nothing —
-matching is by type:
+`plus` puts nodes together, in any order, because matching is by type:
 
 <!-- cookbook -->
 ```kotlin
@@ -169,26 +136,23 @@ val twoNodes: Module = single { db: DbConfig -> Hikari(db) as Pool } +
     single<UserRepo, Pool> { pool -> PgUserRepo(pool) }
 ```
 
-### A factory that came from Java
+### A factory from Java
 
-A Java method hands back a *platform* type, so the key is inferred as `Tracer!`
-and nothing asking for a `Tracer` ever matches it — the graph says `missing
-Tracer` while a Tracer sits in it. Name the key with `boundTo`, not with a type
-argument:
+A Java method returns a platform type, so the key is inferred as `Tracer!` and
+nothing asking for a `Tracer` matches it. The graph then reports `missing
+Tracer` although a Tracer is in it. Name the key with `boundTo`:
 
 <!-- cookbook -->
 ```kotlin
 val fromJava: Module = single { pool: Pool -> pool.toString() }.boundTo<CharSequence>()
 ```
 
-A type argument would work too, and costs more than it looks: naming the key as
-one forces the dependency to be one as well, because Kotlin has no partial
-type-argument inference. `single<CharSequence, Pool> { … }` names `Pool` twice —
-once as a type argument, once as the lambda's parameter. `boundTo` takes the key
-afterwards, so each type is written once.
+A type argument would also work, but Kotlin has no partial type-argument
+inference, so `single<CharSequence, Pool> { … }` has to name `Pool` twice.
+`boundTo` takes the key afterwards, so each type is written once.
 
-A node that needs nothing writes its type argument out, because a bare lambda
-would also fit the one-dependency overload with the dependency as its `it`:
+A node with no dependencies writes its type argument, because a bare lambda
+would also fit the one-dependency overload:
 
 <!-- cookbook -->
 ```kotlin
@@ -196,9 +160,6 @@ val noDependencies: Module = single<Sys> { RealSys }
 ```
 
 ## Wire an application
-
-A recipe names what it builds and takes what it needs as parameters. Nothing
-runs while the graph is being described.
 
 <!-- cookbook -->
 ```kotlin
@@ -225,14 +186,32 @@ val web: Module =
 val app: Module = config + persistence + domain + web
 ```
 
-Order means nothing — matching is by type. `plus` is override, so the
-right-hand node wins wherever two share a key.
+`refuse` ends the start with a reason instead of an exception. `plus` is
+override, so where two modules provide the same key, the right-hand node wins.
 
 ## Run it
 
+An application declared as a `LarkApp` names the node it starts from, which
+lets the build check it without running `main`:
+
 <!-- cookbook -->
 ```kotlin
-fun main() {
+object TheApp : LarkApp<HttpServer>() {
+    override val module: Module = app
+}
+
+fun main(): Unit = exitProcess(runApp(TheApp).code)
+```
+
+With no `run` of its own, `TheApp` parks until the process is asked to stop,
+then releases the graph. *Unreleased: in 0.10.1, write
+`override fun AppScope.run(root: HttpServer) = awaitShutdown()`.*
+
+The same without a `LarkApp`, with the root's work written inline:
+
+<!-- cookbook -->
+```kotlin
+fun mainInline() {
     exitProcess(
         runApp(app) { server: HttpServer ->
             server.start()
@@ -243,185 +222,17 @@ fun main() {
 ```
 
 `runApp` answers with an `ExitCode` rather than ending the process, so a test
-can run an application and read what it decided. The `exitProcess` is yours and
-worth making: a stray non-daemon thread keeps a JVM alive after `main` returns.
-
-Independent nodes start on forks of their own, the first refusal interrupts its
-siblings, and everything acquired is released in reverse topological order. A
-signal returns from `awaitShutdown`, and the JVM hook waits for the releases
-before the process leaves.
-
-## Configuration a module owns
-
-`lark-app-typesafe` makes a HOCON section a node, read by the module that needs
-it. Nothing is wrapped: `of` hands you the real `com.typesafe.config.Config`, so
-substitution, merging, lists, `getDuration` and `getMemorySize` all still work.
-
-```kotlin
-dependencies {
-    implementation("io.github.matthewjones372:lark-app-typesafe:0.10.1")
-}
-```
-
-```kotlin
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.app.typesafe.config
-
-data class DbSettings(val url: String, val poolSize: Int, val idle: kotlin.time.Duration)
-
-val database: Module =
-    single<Config> { ConfigFactory.load() } +
-    config<DbSettings>("database") { DbSettings(string("url"), int("poolSize"), duration("idle")) } +
-    closingOf { db: DbSettings -> Hikari(DbConfig(db.url)) }.boundTo<Pool>()
-```
-
-`string`, `int`, `long`, `boolean`, `duration`, `bytes` and `strings` are the
-readers; `of(default) { … }` hands you the real `Config` for anything else, so
-`getMemorySize`, `getConfigList` and the rest are a line away rather than
-walled off.
-
-The module owns its section: one added later brings its own reading rather than
-editing a root type that has to know about every section. What the integration
-adds over Typesafe Config is that a failed read records its fault and the block
-runs on, so a bad file is one message rather than one deploy per fault — in
-Typesafe Config's own words, which name the file and the line.
-
-### Where a setting came from
-
-A hierarchy resolves to one document, and the question is always which file said
-that and what it overrode:
-
-```kotlin
-import io.github.matthewjones372.lark.app.typesafe.layeredConfig
-import io.github.matthewjones372.lark.app.typesafe.origins
-
-layeredConfig().origins().report()
-```
-
-<!-- cookbook-config-report -->
-```
-lark-app configuration
-
-petshop.arrivalsEvery  30s           reference.conf:4
-petshop.db.password    ●●●●●●        application.conf:5
-petshop.db.pool        16            application.conf:4
-                       overrides 4 at reference.conf:3
-petshop.port           9090          application.conf:2
-                       overrides 8080 at reference.conf:2
-```
-
-`config.origins()` answers the same for a document already merged, minus the
-override line: `withFallback` keeps the winner and forgets what it beat, so the
-layers have to be held apart for that — the same thing `plus` does to a shadowed
-node, answered the same way. `layeredConfig()` holds them.
-
-**Values are redacted by default.** A name match — `password`, `token`, `key`
-and the rest — is the floor, and it misses a secret that has no such name:
-
-```kotlin
-import io.github.matthewjones372.lark.app.typesafe.Secrets
-
-config.origins(Secrets.default.and("petshop.db.url")).report()   // jdbc:…//user:pass@host
-```
-
-`Secrets` can be added to and not shrunk. For the value itself, `secret(path)`
-reads one as a `Secret`, which prints as the mask through `toString` and gives
-its value only to `reveal()` — so a log line and an exception cannot leak it
-either:
-
-```kotlin
-import io.github.matthewjones372.lark.app.typesafe.Secret
-
-data class Credentials(val url: Secret, val poolSize: Int)
-
-config<Credentials>("database") { Credentials(secret("url"), int("poolSize")) }
-```
-
-Two things worth knowing about HOCON that the report is careful with. An
-**environment variable is not a layer**: it enters only where a file wrote
-`${?FOO}`, and setting one with no such substitution changes nothing. And
-`ConfigFactory.defaultReference()` already carries system properties, so
-`layeredConfig` parses the reference file itself rather than asking for it —
-otherwise the report would say `reference.conf` holds a value that came from
-`-D`.
-
-### Configuration in a test
-
-```kotlin
-import io.github.matthewjones372.lark.app.typesafe.configFromResource
-import io.github.matthewjones372.lark.app.typesafe.configOf
-import io.github.matthewjones372.lark.app.typesafe.loadedConfig
-import io.github.matthewjones372.lark.app.typesafe.overridingConfig
-
-loadedConfig()                              // what the service reads: application.conf and its reference
-configFromResource("test.conf")             // a file beside the test
-configOf("database.poolSize = 1")           // a document written where the test is
-```
-
-Changing one key without restating the file is the case that matters:
-
-```kotlin
-testApp(app.overridingConfig("petshop.port = 0")) { server: PelicanServer -> server.baseUrl }
-```
-
-`overridingConfig` puts the document on top of what the service would have read,
-so the port is a random one while the database, the broker and everything else
-still come from `application.conf`. The `overriding` underneath refuses a key
-nothing provides, so a typo is a failed test rather than a setting silently
-ignored.
-
-### A setting that picks a module
-
-`useCache` does not configure a repository; it chooses between two. lark-app
-builds every node a graph holds, so the branch not taken must not be in it.
-
-`choice` is a node that depends on the setting and provides what every branch
-provides; its value is the module lark builds into the graph once the setting is
-built ([0136](../specs/0136-a-choice-made-inside-the-graph.md)):
-
-```kotlin
-import io.github.matthewjones372.lark.app.choice
-import io.github.matthewjones372.lark.app.typesafe.config
-import io.github.matthewjones372.lark.app.typesafe.loadedConfig
-
-data class RepoSettings(val useCache: Boolean, val ttl: kotlin.time.Duration)
-
-val persistence: Module =
-    config<RepoSettings>("repo") { RepoSettings(boolean("useCache"), duration("ttl")) } +
-        choice<RepoSettings, UserRepo> { repo -> if (repo.useCache) cachingRepo else plainRepo }
-
-object Shop : LarkApp<UserRepo>() {
-    override val module = loadedConfig() + persistence
-}
-```
-
-The branch not taken contributes no node, nothing to build and nothing to start.
-Before anything runs, the choice is one node providing `UserRepo`, so `validate`,
-`render` and the compiler check the rest of the graph against it; a branch that
-does not provide `UserRepo`, or needs what nothing builds, refuses the start.
-`overridingConfig("repo.useCache = false")` flips it in a test, and `overriding`
-reaches a node only the chosen branch brings.
-
-`Config.choosing` makes the same choice where the graph is assembled, from a
-`Config` in hand, for the case that really is decided before there is a graph;
-the module that uses it is then a function of that `Config`.
-
-Where the setting is already in hand, none of this is needed. `Module` is a
-value, so `when` over it answers with one:
-
-```kotlin
-val carts: Module = when (settings.getString("cartStore")) {
-    "postgres" -> postgresCarts
-    else -> redisCarts
-}
-```
+can run an application and read what it decided. The `exitProcess` is yours.
+Independent nodes start on forks of their own, the first refusal interrupts
+its siblings, and everything acquired is released in reverse dependency
+order. A signal returns from `awaitShutdown`, and the shutdown hook waits for
+the releases before the process leaves.
 
 ## Read the process itself
 
-`Sys` is the process rather than a configuration library: what a node reads when
-it wants `PATH` rather than a setting. A node calling `System.getenv` directly is
-a node no test can configure.
+`Sys` is the process: what a node reads when it wants an environment variable
+or a system property rather than a setting. A node calling `System.getenv`
+directly is a node no test can configure.
 
 <!-- cookbook -->
 ```kotlin
@@ -430,10 +241,12 @@ val fromTheProcess: Module =
     single { sys: Sys -> DbConfig(sys.env("DB_URL") ?: refuse("DB_URL is not set")) }
 ```
 
-`FakeSys(mapOf("DB_URL" to "jdbc:postgresql://db/app"))` replaces it in a test, with no
-JVM-wide environment variable set anywhere.
+`FakeSys(mapOf("DB_URL" to "jdbc:postgresql://db/app"))` replaces it in a test.
 
 ## Something that has to be given back
+
+`install` inside a node gives a release that is told how the application
+ended:
 
 <!-- cookbook -->
 ```kotlin
@@ -444,14 +257,10 @@ val closing: Module = single { db: DbConfig ->
 }
 ```
 
-The release is told how the scope ended. Releases run in reverse **topological**
-order, not reverse acquisition order — under `parMap` whichever fork won the
-race is not an order to give anything back in.
-
 ## Two of the same type
 
-One key, one instance. A second `Pool` needs a second key, and a value class is
-free under type keys:
+One key, one instance. A second `Pool` needs a second key, and a value class
+costs nothing:
 
 <!-- cookbook -->
 ```kotlin
@@ -464,13 +273,10 @@ val replicated: Module =
     single { primary: Pool, replica: Replica -> PgUserRepo(replica.pool) as UserRepo }
 ```
 
-The type says which one a consumer wanted, which a `named("replica")` string
+The type says which one a dependent wants, which a `named("replica")` string
 would not.
 
 ## Bind an interface
-
-The key is the recipe's return type. Kotlin has no partial type-argument
-inference, so it is all the type arguments or none:
 
 <!-- cookbook -->
 ```kotlin
@@ -480,12 +286,11 @@ val boundToTheClass: Module = single { pool: Pool -> PgUserRepo(pool) }
 ```
 
 The first is keyed `UserRepo`, the second `PgUserRepo`. Bind to the interface
-when a test will swap it; otherwise the class is honest.
+when a test will swap it.
 
 ## Something slow to start
 
-Dependents wait for the probe, not the recipe. A pool with no connection has
-been constructed and can serve nothing.
+Dependents wait for the probe, not the constructor:
 
 <!-- cookbook -->
 ```kotlin
@@ -496,14 +301,10 @@ val probed: Module =
         }
 ```
 
-Each probe is asked inside its own timeout, so a probe that hangs is not a start
-that hangs. The wait between attempts goes through the bound clock — under
-`fixedClock`, ten attempts take microseconds.
-
 ## Answer /ready and /live
 
-The same probes answer afterwards. `HealthRegistry` is the one key a running
-application provides itself, so a route takes it as a dependency:
+`HealthRegistry` is provided by the running application, so a route takes it
+as a dependency:
 
 <!-- cookbook -->
 ```kotlin
@@ -515,8 +316,7 @@ class Routes(private val health: HealthRegistry) {
 val routed: Module = probed + single { health: HealthRegistry -> Routes(health) }
 ```
 
-`critical = false` on a probe degrades rather than downs. A node reading
-`liveness()` on the way up is told the graph is still coming up.
+`critical = false` on a probe degrades readiness rather than downing it.
 
 ## Test one thing, not everything
 
@@ -534,11 +334,9 @@ fun aTest() {
 }
 ```
 
-`subgraph` keeps only what its root is reached through — four nodes, not forty.
-`overriding` refuses a key the module does not already hold, because plain
-`plus` would add a node nothing asked for and leave the real one running: a
-green test that faked nothing. `testApp` releases whatever the block did, an
-assertion failure included.
+`subgraph` keeps only what its root is reached through. `overriding` refuses a
+key the graph does not already hold, so a fake cannot sit beside the real node
+while the real one runs. `testApp` releases the graph however the block ends.
 
 ## Check the graph without running it
 
@@ -547,21 +345,11 @@ assertion failure included.
 fun theApplicationWires() = app.validate()
 
 fun theWiringIsWhatWeThink(): String = app.render()
-```
-
-`validate` runs no recipe and names every missing key at once, with a cycle
-given as the path around it.
-
-`findings` asks that and two more, and answers with a list rather than a `Plan`:
-
-<!-- cookbook -->
-```kotlin
-object TheApp : LarkApp<HttpServer>() {
-    override val module: Module = app
-}
 
 fun everyFault(): String = TheApp.module.findings(TheApp.root).report()
 ```
+
+`findings` answers with every error and warning:
 
 ```
 lark-app wiring
@@ -576,22 +364,12 @@ lark-app wiring
 ❯ warning: nothing reaches Metrics          Telemetry.kt:9
 ```
 
-A node remembers the file and line it was written on, so the report names the
-recipe to edit rather than only the type it asked for. A missing key and a cycle
-are errors; a key provided twice and a node no root reaches are warnings —
-`plus` is override, so `overriding` is a duplicate on purpose and is not
-reported, and a node held for its side effect alone is legal. Only the top of
-each unreached subtree is named: a module left out of the graph is one edit, not
-nine lines.
+Applying the `io.github.matthewjones372.lark.wiring` Gradle plugin runs this on
+every build and draws each graph; see
+[Checking the graph in the build](app.md#checking-the-graph-in-the-build).
 
-An application declared as a value carries the root the check measures
-reachability from, which `runApp(TheApp)` also starts. Applying
-`io.github.matthewjones372.lark.wiring` to the project runs all of this on every
-`check` and draws each graph into `build/reports/lark` — see
-[`docs/app.md`](app.md).
-
-`render` draws mermaid in a stable order, so the drawing can live in review. For
-this graph —
+`render` draws Mermaid in a stable order, so the drawing can be reviewed. For
+this graph:
 
 ```kotlin
 val drawn: Module =
@@ -605,8 +383,8 @@ val drawn: Module =
         single { _: Memo, _: Opening, _: Reporting -> Frontage() }
 ```
 
-— `drawn.render()` answers exactly this, which GitHub renders as the picture
-([and as a PNG](wiring.png), for a viewer that does not draw mermaid):
+`drawn.render()` answers exactly this, which GitHub draws as a diagram (there
+is also [a PNG](wiring.png) for viewers that do not render Mermaid):
 
 <!-- cookbook-diagram -->
 ```mermaid
@@ -631,341 +409,181 @@ graph TD
     Postings --> Reporting
 ```
 
-Two things a reader gets from it that the code does not show: `Database` and
-`Memo` have no edge between them, so they start at the same time; and every
-path into `Frontage` is a thing that must be ready before the door opens.
+The diagram shows two things the code does not: `Database` and `Memo` have no
+edge between them, so they start at the same time; and every path into
+`Frontage` is something that must be ready before the service accepts
+requests.
 
-The PNG is made by `docs/render-diagram.sh`, and `DiagramImageTest` holds it to
-the fence: a graph that moves without the picture moving fails the build.
+`WiringDiagramTest` holds the fence above to what `render` answers, and
+`DiagramImageTest` holds the PNG to the fence. After changing the graph, run
+`docs/render-diagram.sh` to redraw the PNG.
 
-`WiringDiagramTest` holds the fence above to what `render` actually answers. A
-drawing of a graph is worth having in review only while it is the graph.
+## Configuration a module owns
 
-
-### What the checker names besides the graph
-
-The same compiler plugin warns where a service hand-rolls something lark ships,
-on the call that does it:
-
-| Warning | On | Instead |
-|---|---|---|
-| `LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN` | `run` calling a zero-argument `block()`, `join()` or `await()` and never `awaitShutdown()` | `awaitShutdown()`, so a SIGTERM releases the graph |
-| `LARK_SCHEDULER_BY_HAND` | `Executors.newScheduledThreadPool`, `newSingleThreadScheduledExecutor`, `ScheduledThreadPoolExecutor`, `Timer`, in main code | `Stream.tick(every)` started on the graph's `StreamBackend` |
-| `LARK_SECRET_AS_STRING` | `string("…password")` and the other names `Secrets.default` masks, in main code | `secret(path)` |
-| `LARK_SLEEP_IN_TEST` | `Thread.sleep`, `TimeUnit.sleep`, in any compilation but main | `eventually(within)` from lark-test |
-
-Each is a warning, silenced where it is meant by its name:
-`@Suppress("LARK_SLEEP_IN_TEST")`.
-
-## Write a log line
-
-`logInfo` and its three siblings write to whichever `Logger` the current thread
-has bound. No node takes a logger, and none has to:
-
-<!-- cookbook -->
-```kotlin
-class Registering(private val users: UserRepo) {
-    fun register(id: Long): String {
-        logInfo("registering $id")
-        return users.find(id) ?: "created"
-    }
-}
-```
-
-Out of the box that reaches stderr, which is enough to watch a service start.
-
-## Send the log somewhere real
-
-Put `lark-slf4j` on the classpath. There is no second step: the module registers
-itself, so every line the application writes — every node's recipe, every fork of
-a `parMap` — goes to the backend the rest of the service already logs through.
+`lark-app-typesafe` makes a HOCON section a node, read by the module that
+needs it. Nothing is wrapped: `of` hands over the real
+`com.typesafe.config.Config`, so substitution, merging, `getDuration` and
+`getMemorySize` all still work.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-slf4j:0.2.0")
+    implementation("io.github.matthewjones372:lark-app-typesafe:0.10.1")
 }
 ```
-
-An annotation goes to the MDC, so `%X{correlation_id}` and a JSON encoder read
-it. Appending it to the message, which is what a hand-rolled adapter usually
-does, leaves every field search with nothing.
-
-To write your own instead — a different backend, or a different shape of line —
-bind it once around `runApp`, and that binding wins over anything the classpath
-registered:
-
-<!-- cookbook -->
-```kotlin
-class Slf4jLogger : Logger {
-    override fun log(line: LogLine) {
-        // origin is the class that wrote the line, so a backend can set a level per package
-        val log = LoggerFactory.getLogger(line.origin ?: "app")
-        val annotated = line.annotations.entries.joinToString(" ") { (key, value) -> "$key=$value" }
-        val message = if (annotated.isEmpty()) line.message else "${line.message} $annotated"
-        when (line.level) {
-            LogLevel.Debug -> log.debug(message)
-            LogLevel.Info -> log.info(message)
-            LogLevel.Warn -> log.warn(message)
-            LogLevel.Error -> log.error(message, line.cause)
-        }
-    }
-}
-
-fun mainWithLogging() {
-    val exit = logger.locally(Slf4jLogger()) {
-        runApp(app) { server: HttpServer ->
-            server.start()
-            awaitShutdown()
-        }
-    }
-    exitProcess(exit.code)
-}
-```
-
-`lark` has no logging dependency and never will; the adapter is yours, and it is
-the twenty lines above.
-
-## Say which request a line belongs to
-
-An annotation is bound for a block, and every line written inside it carries it
-— including lines written on a fork, which is what an MDC cannot do:
-
-<!-- cookbook -->
-```kotlin
-fun handling(id: String, items: List<Int>): List<Unit> =
-    logAnnotated("correlation_id" to id) {
-        logSpan("register") {
-            parMap(items) { item -> logInfo("checking $item") }
-        }
-    }
-```
-
-Each line carries `correlation_id=…` and `register_ms=…`, the second being how
-long the span had been running when the line was written. Spans nest, and each
-is keyed by its own name.
-
-## Assert on what was logged
-
-<!-- cookbook -->
-```kotlin
-fun aLoggingTest(): List<LogLine> = capturingLogs { logs ->
-    logAnnotated("correlation_id" to "abc-123") { logInfo("registered") }
-    logs.all()
-}
-```
-
-`capturingLogs` binds a logger the test can read, so a claim about logging is a
-claim about values rather than about a backend.
-
-## Count something
-
-No node takes a registry, and nothing is declared up front. A meter is looked up
-by name, which every backend does with a map:
-
-<!-- cookbook -->
-```kotlin
-class Adopting(private val pets: MutableList<String>) {
-    fun adopt(name: String): String = timed("petshop.adopt.duration.seconds") {
-        counter("petshop.adoptions").increment()
-        gauge("petshop.queue.depth").set(pets.size.toDouble())
-        name
-    }
-}
-```
-
-`timed` records how long the block took, in seconds, and answers what the block
-answered. Seconds because that is what a backend assumes a duration is: name
-the metric for it and Prometheus, Grafana and every dashboard agree about the
-axis without being told. It records in a `finally`, so a call that failed slowly
-is still counted; leaving it out makes the numbers say the opposite of what
-happened.
-
-Up to 0.9.2, `timed`, `lark.ratelimiter.wait`, `lark.stream.busy` and
-`lark.stream.waiting` recorded milliseconds. A dashboard or alert carried over
-from then reads a thousand times too high until its unit, and the metric's name
-if it says `ms`, changes with it.
-
-## Say which series a number belongs to
-
-<!-- cookbook -->
-```kotlin
-fun adoptingATortoise(): Unit = metricTagged("species" to "tortoise") {
-    counter("petshop.adoptions").increment()
-}
-```
-
-A tag bound for a block is on every measurement taken inside it, including on a
-fork, which is the same binding a log annotation rides.
-
-It is **not** the same source. `logAnnotated("correlation_id" to id)` is written
-to be unique, and a tag whose values are unbounded is one time series per
-request — which is how a metrics backend dies. A tag's values are few and known
-before the code runs.
-
-## Send the numbers somewhere real
-
-Put `lark-micrometer` on the classpath. There is no second step: it registers
-itself, and the measurements reach whatever registry the service already has —
-Prometheus, Datadog, StatsD, OTLP.
 
 ```kotlin
-dependencies {
-    implementation("io.github.matthewjones372:lark-micrometer:0.10.1")
-}
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import io.github.matthewjones372.lark.app.typesafe.config
+
+data class DbSettings(val url: String, val poolSize: Int, val idle: kotlin.time.Duration)
+
+val database: Module =
+    single<Config> { ConfigFactory.load() } +
+    config<DbSettings>("database") { DbSettings(string("url"), int("poolSize"), duration("idle")) } +
+    closingOf { db: DbSettings -> Hikari(DbConfig(db.url)) }.boundTo<Pool>()
 ```
 
-It takes Micrometer's global registry unless it is handed one, since that is
-where a service on Spring or on the OpenTelemetry bridge has already put theirs.
-With nothing on the classpath a measurement is recorded nowhere, which costs
-nothing and throws nothing.
+The readers are `string`, `int`, `long`, `boolean`, `duration` (a Kotlin
+`Duration`), `bytes`, `strings` and `secret`; `of(default) { … }` reads
+anything else from the `Config` directly.
 
-## Assert on what was measured
+A failed read records its fault and the block carries on, so a bad file
+produces one message listing every fault, in Typesafe Config's own words with
+the file and line, rather than one deploy per fault. Each module owns its
+section, so adding one does not mean editing a root configuration type.
 
-<!-- cookbook -->
+### Where a setting came from
+
+A hierarchy of files resolves to one document. `origins()` says which file each
+value came from and what it overrode:
+
 ```kotlin
-fun aMeteredTest(): Double = capturingMetrics { measured ->
-    counter("petshop.adoptions").increment()
-    measured.counter("petshop.adoptions")
-}
+import io.github.matthewjones372.lark.app.typesafe.layeredConfig
+import io.github.matthewjones372.lark.app.typesafe.origins
+
+layeredConfig().origins().report()
 ```
 
-## Control time
+<!-- cookbook-config-report -->
+```
+lark-app configuration
 
-<!-- cookbook -->
+petshop.arrivalsEvery  30s           reference.conf:4
+petshop.db.password    ●●●●●●        application.conf:5
+petshop.db.pool        16            application.conf:4
+                       overrides 4 at reference.conf:3
+petshop.port           9090          application.conf:2
+                       overrides 8080 at reference.conf:2
+```
+
+`ReportedTest` holds this output to what the code prints. `layeredConfig()`
+keeps system properties, `application.conf` and `reference.conf` apart so it
+can report what was overridden. `config.origins()` on an already merged
+`Config` gives the same report without the override lines, because
+`withFallback` keeps only the winner.
+
+**Values are redacted by default.** Names such as `password`, `token` and
+`key` are masked, but that misses a secret with an ordinary name, so add exact
+paths:
+
 ```kotlin
-fun aTimedTest(): List<LogLine> = clock.locally(fixedClock()) {
-    capturingLogs { logs ->
-        parMap(listOf(1, 2, 3)) { logInfo("branch $it") }
-        logs.all()
-    }
-}
+import io.github.matthewjones372.lark.app.typesafe.Secrets
+
+config.origins(Secrets.default.and("petshop.db.url")).report()   // jdbc:…//user:pass@host
 ```
 
-Under `fixedClock` nothing waits: a five-retry exponential backoff finishes in
-microseconds, and every line is stamped with the same instant. `TestClock` is
-the other one — it moves only when a test moves it, and `adjustWhenBlocked`
-waits until every sleep is on a time still ahead before moving.
+For the value itself, `secret(path)` reads a `Secret`, which prints as the mask
+through `toString` and gives its value only to `reveal()`, so a log line or an
+exception message cannot leak it:
 
-## Guard a call to something unreliable
-
-<!-- cookbook -->
 ```kotlin
-class Quotes(private val fetch: (String) -> Double) {
-    private val partner = policy("partner-api") {
-        deadline(2.seconds)
-        retry(Schedule.exponential<Throwable>(100.milliseconds).jittered() zipLeft Schedule.recurs(3))
-        attemptTimeout(500.milliseconds)
-    }
+import io.github.matthewjones372.lark.app.typesafe.Secret
 
-    fun quote(id: String): Double = partner { fetch(id) }
+data class Credentials(val url: Secret, val poolSize: Int)
 
-    fun quoted(id: String): Either<String, Double> = either {
-        guarded(partner, ifRejected = { "${it.guard} refused: ${it.message}" }) { fetch(id) }
-    }
-}
+config<Credentials>("database") { Credentials(secret("url"), int("poolSize")) }
 ```
 
-A policy is a value, checked when it is built: steps out of the order
-deadline → retry → breaker → limiter → bulkhead → attemptTimeout throw there, not on the first call. The
-`deadline` is one budget for the call, retries included. Retry stops before a
-delay the budget cannot cover, and each attempt is cut to the shorter of its own
-timeout and what is left.
+Two details of HOCON that the report handles: an environment variable is not
+a layer, and only takes effect where a file wrote `${?FOO}`; and
+`ConfigFactory.defaultReference()` already includes system properties, so
+`layeredConfig` parses `reference.conf` itself to avoid attributing a `-D`
+value to it.
 
-Every call counts once in `lark.policy.calls`, tagged with the `policy`, an
-`outcome` of `success`, `failure` or `rejected`, and `refused_by`: `deadline`,
-or the guard that refused, or `none`. A `raise` is the call's own answer, so it
-passes through every step and is not counted.
+### Configuration in a test
 
-## Stop calling something that is down
-
-<!-- cookbook -->
 ```kotlin
-class Accounts(private val query: (String) -> String) {
-    private val breaker = CircuitBreaker(
-        name = "accounts-db",
-        maxFailures = 5,
-        resetAfter = Schedule.exponential<Unit>(1.seconds).jittered(0.8, 1.2) zipLeft Schedule.recurs(6),
-    )
+import io.github.matthewjones372.lark.app.typesafe.configFromResource
+import io.github.matthewjones372.lark.app.typesafe.configOf
+import io.github.matthewjones372.lark.app.typesafe.loadedConfig
+import io.github.matthewjones372.lark.app.typesafe.overridingConfig
 
-    private val db = policy("accounts-db") {
-        guard(breaker)
-        attemptTimeout(2.seconds)
-    }
-
-    fun row(id: String): String = db { query(id) }
-}
+loadedConfig()                              // what the service reads: application.conf and its reference
+configFromResource("test.conf")             // a file beside the test
+configOf("database.poolSize = 1")           // a document written in the test
 ```
 
-After `maxFailures` failures in a row the breaker opens, and every call is
-refused with `Rejected.CircuitOpen` without being made. Once the next delay of
-`resetAfter` has passed, one trial goes through. If it answers, the breaker
-closes and the schedule starts again; if it fails, the breaker reopens on the
-schedule's next delay. A timeout inside the breaker counts as a failure, and a
-`raise` never does. With a `deadline` in the policy, a refused call waits for
-the trial when the deadline covers the wait.
+Changing one key without restating the file:
 
-`lark.breaker.state` is a gauge per breaker `name`: 0 closed, 1 half-open,
-2 open. `lark.breaker.calls` counts its calls by `outcome`: `success`,
-`failure` or `rejected`.
-
-## Cap the calls to something slow
-
-<!-- cookbook -->
 ```kotlin
-class Partner(private val call: (String) -> String) {
-    private val bulkhead = Bulkhead(name = "partner-api", maxConcurrent = 20, maxWait = 50.milliseconds)
-
-    private val partner = policy("partner-api") {
-        deadline(2.seconds)
-        guard(bulkhead)
-    }
-
-    fun quote(id: String): String = partner { call(id) }
-}
+testApp(app.overridingConfig("petshop.port = 0")) { server: HttpServer -> server }
 ```
 
-At most `maxConcurrent` callers are inside at once, let in in the order they
-arrived. The rest wait up to `maxWait`, cut to what the `deadline` leaves, and
-are refused with `Rejected.BulkheadFull` after. Virtual threads make a caller
-cheap, so the bulkhead is what keeps five thousand of them off a pool of twenty
-connections. The permit is given back however the call ends.
+`overridingConfig` puts the document on top of what the service would read, so
+the port changes while everything else still comes from `application.conf`.
+It uses `overriding`, so a key the graph does not use fails the test rather
+than being silently ignored.
 
-`lark.bulkhead.in_use` is a gauge per bulkhead `name` of the permits taken, and
-`lark.bulkhead.calls` counts its calls by `outcome`: `admitted` or `rejected`.
+### A setting that picks a module
 
-## Stay under someone else's quota
+A setting such as `useCache` does not configure a repository; it chooses
+between two. Lark builds every node in a graph, so the branch not taken must
+not be in it.
 
-<!-- cookbook -->
+`choice` is a node that depends on the setting and provides what every branch
+provides. Its value is the module Lark builds into the graph once the setting
+is built. *Unreleased: `choice` is on `main` and not in 0.10.1.*
+
 ```kotlin
-class Search(private val call: (String) -> String) {
-    private val limiter = RateLimiter(name = "partner-api", rate = 50, per = 1.seconds, burst = 10, maxWait = 200.milliseconds)
+import io.github.matthewjones372.lark.app.choice
+import io.github.matthewjones372.lark.app.typesafe.config
+import io.github.matthewjones372.lark.app.typesafe.loadedConfig
 
-    private val partner = policy("partner-api") {
-        deadline(2.seconds)
-        guard(limiter, cost = 5)
-    }
+data class RepoSettings(val useCache: Boolean, val ttl: kotlin.time.Duration)
 
-    fun search(query: String): String = partner { call(query) }
+val choosing: Module =
+    config<RepoSettings>("repo") { RepoSettings(boolean("useCache"), duration("ttl")) } +
+        choice<RepoSettings, UserRepo> { repo -> if (repo.useCache) cachingRepo else plainRepo }
+
+object Shop : LarkApp<UserRepo>() {
+    override val module = loadedConfig() + choosing
 }
 ```
 
-A token bucket refilled at `rate` every `per`, holding at most `burst`. A call
-without a token reserves the next one and sleeps until it arrives, so callers are
-served in the order they came, and one that would wait past `maxWait`, cut to
-the `deadline`, is refused at once with `Rejected.RateLimited` and its
-`retryAfter`, taking nothing. `cost` weighs a call that the quota counts as
-several. A call the bulkhead behind the limiter refuses was never made, so its
-tokens go back.
+The branch not taken contributes no node. Before anything runs, the choice is
+one node providing `UserRepo`, so `validate`, `render` and the compiler check
+the rest of the graph against it; a chosen branch that does not provide
+`UserRepo`, or needs something nothing builds, refuses the start.
+`overridingConfig("repo.useCache = false")` flips it in a test, and
+`overriding` can replace a node that only the chosen branch brings.
 
-`lark.ratelimiter.calls` counts calls per limiter `name` by `outcome`:
-`immediate`, `waited` or `rejected`. `lark.ratelimiter.wait` records how long
-each admitted call waited, in seconds, as `timed` does.
+`Config.choosing(path, read) { settings -> module }` makes the same choice
+while the graph is assembled, from a `Config` already in hand. Where the
+setting is a plain value already, `Module` is a value, so `when` works:
+
+```kotlin
+val carts: Module = when (settings.getString("cartStore")) {
+    "postgres" -> postgresCarts
+    else -> redisCarts
+}
+```
 
 ## Run migrations as a step
 
-`lark-app-liquibase` makes a changelog a node. Anything that reads the database
-takes a `Migrated`, which turns "after the migrations" from a comment into an
-edge the graph enforces and `render()` draws:
+`lark-app-liquibase` makes a changelog a node. Anything that reads the
+database takes a `Migrated`, which turns "after the migrations" into an edge
+the graph enforces and `render()` draws:
 
 ```kotlin
 dependencies {
@@ -983,52 +601,15 @@ val database: Module =
     single { db: DataSource, _: Migrated -> PgUserRepo(db) as UserRepo }
 ```
 
-`PgUserRepo` cannot be built before the changelog has run, and nothing had to
-remember that. The connection the migration used is given back before the node
-answers, so it is not a pool slot held for the life of the process.
+`PgUserRepo` cannot be built before the changelog has run. The connection the
+migration used is returned to the pool before the node finishes.
+`Migrated.applied` is the number of changesets that ran. Outside a graph,
+`migrate(dataSource, changelog)` runs a changelog immediately.
 
-`Migrated.applied` is how many changesets ran, which is the log line worth
-having on a deploy.
+## Spawn a Pekko actor
 
-## Trace across a fork
-
-`lark-otel` puts OpenTelemetry's `Context` in a `LarkLocal` and registers it
-through `META-INF/services`, so a span opened before a `parMap` is the parent of
-what each branch opens — which a `ThreadLocal`, and so OpenTelemetry's own
-storage, cannot be. Nothing in your code changes; the module being on the
-classpath is the change.
-
-```kotlin
-dependencies {
-    implementation("io.github.matthewjones372:lark-otel:0.10.1")
-}
-```
-
-```kotlin
-import io.github.matthewjones372.lark.otel.span
-import io.github.matthewjones372.lark.otel.tracedSpan
-
-fun pricing(tracer: Tracer, orders: List<Order>): List<Price> =
-    tracer.span("price-all") {
-        parMap(orders) { order -> tracer.span("price") { price(order) } }
-    }
-```
-
-`tracedSpan` is the same thing with the ids on every log line written inside it,
-so a line found in a log says which trace to open and a trace says which lines
-to read:
-
-```kotlin
-tracer.tracedSpan("register") { logInfo("started") }   // trace_id=… span_id=…
-```
-
-The registration is process-wide: with the module on the classpath, every
-library using OpenTelemetry's context in the JVM reads and writes it here,
-whether or not it has heard of lark. That is the point — an HTTP client's span
-has to be the same span a forked handler continues — and it is why this is a
-module you opt into rather than anything in `lark`.
-
-## Spawn an actor
+`lark-app-pekko` makes a Pekko typed actor a node keyed by the `ActorRef<T>`
+of its protocol. It needs a classic `ActorSystem` node:
 
 <!-- cookbook-pekko -->
 ```kotlin
@@ -1051,11 +632,15 @@ class Routes2(private val ingest: ActorRef<Ingest>) {
 }
 ```
 
-The protocol is inferred from the behaviour's own type. Write it out —
-`actor<Ingest>(…)` — only where the actor takes no dependencies, because with
-one type argument given, the overload that takes a dependency cannot apply.
+The protocol is inferred from the behaviour's type. Write it out,
+`actor<Ingest>(…)`, only where the actor takes no dependencies: with one type
+argument given, the overloads that take dependencies cannot apply.
 
-Asking one, and the reason the answer is bound to `Any`:
+Two protocols are two keys, and a dependent declares the protocol it sends.
+The actor is stopped through `gracefulStop` and awaited, so it has given back
+what it held before the nodes it depends on are released.
+
+Asking an actor, and why the reply type is bound to `Any`:
 
 ```kotlin
 import io.github.matthewjones372.lark.app.pekko.ask
@@ -1064,47 +649,58 @@ fun find(ref: ActorRef<Shop>, system: ActorSystem, id: PetId): Option<Pet> =
     ref.ask(system, 3.seconds) { replyTo -> Find(id, replyTo) }
 ```
 
-Pekko refuses a null message, so an actor answering "there is no such thing"
-with `null` throws where it meant to answer — and `ActorRef<Pet?>` compiles, so
-neither Kotlin nor a typed protocol stops you writing it. `ask`'s reply is bound
-to `Any`, which does: absence has to be modelled, as an `Option`, a sealed
-reply, or an empty list. A `DoesNotCompileTest` fixture holds that.
+Pekko refuses a `null` message, so an actor that answers "no such pet" with
+`null` throws instead of answering, and `ActorRef<Pet?>` compiles, so neither
+Kotlin nor the typed protocol stops it. Binding the reply to `Any` does:
+absence has to be modelled as an `Option`, a sealed reply or an empty list.
 
-An actor is keyed by the `ActorRef<T>` of its protocol, so two protocols are two
-keys and a dependent declares what it sends. The stop is awaited through
-`gracefulStop`, so an actor has given back what it held before the node that
-opened it is released.
+## Spawn a Lark actor
+
+`lark-app-actor` does the same for [`lark-actor`](actors.md). `actors()` is a
+node providing `Actors`, a flock that lives as long as the application, and
+`actor` spawns a behaviour in it, keyed by Lark's own `ActorRef<M>`:
+
+```kotlin
+import io.github.matthewjones372.lark.actor.ActorRef
+import io.github.matthewjones372.lark.app.actor.actor
+import io.github.matthewjones372.lark.app.actor.actors
+
+val tills: Module =
+    actors() +
+        actor("till") { users: UserRepo -> till(users) } +      // till(users) returns a Behaviour<Till, *, *>
+        single { till: ActorRef<Till> -> Checkout(till) }
+```
+
+An actor node takes up to two dependencies and is stopped, and awaited,
+before anything it depends on is released. `Actors.within { }` runs code in
+the application's flock, which is how a [cluster](cluster.md#stopping) joins
+as a node.
 
 ## What to reach for
 
 | Want | Recipe |
 |---|---|
-| a value built once and shared | `singleOf(::Thing)` — the constructor names the key and the dependencies |
+| a value built once and shared | `singleOf(::Thing)` |
 | that node keyed as an interface | `.boundTo<Interface>()` |
-| a recipe that is not just a constructor | `single { dep: Other -> … }` |
+| a node that is not just a constructor | `single { dep: Other -> … }` |
 | a value that must be closed, and is `AutoCloseable` | `closingOf(::Thing)` |
-| a value given back some other way | `singleOf(::Thing, Thing::stop)`, or `install(acquire) { held, exit -> … }` for the exit |
+| a value given back some other way | `singleOf(::Thing, Thing::stop)`, or `install(acquire) { held, exit -> … }` |
 | a start that can decline | `refuse("why")` |
 | two of one type | a `@JvmInline value class` wrapper |
 | more than nine dependencies | group them into a node of their own |
+| `main` | `object App : LarkApp<Root>()` and `exitProcess(runApp(App).code)` |
 | readiness | `.probe(name, timeout, attempts, interval) { … }` |
+| `/ready` and `/live` | a node taking `HealthRegistry` |
 | a fake in a test | `.overriding(single<T> { … })`, never plain `plus` |
-| a smaller test | `.subgraph<Root>()` |
-| no waiting in a test | `clock.locally(fixedClock()) { … }` |
-| a call to something unreliable | `policy("…") { deadline(…); retry(…); attemptTimeout(…) }` |
-| to stop calling something that is down | `guard(CircuitBreaker("…", maxFailures, resetAfter))` in a policy |
-| to cap the calls to something slow | `guard(Bulkhead("…", maxConcurrent, maxWait))` in a policy |
-| to stay under someone else's quota | `guard(RateLimiter("…", rate, per, burst, maxWait), cost)` in a policy |
-| a log line | `logInfo("…")` — no node takes a logger |
-| that log somewhere real | put `lark-slf4j` on the classpath; nothing else |
-| a backend of your own | `logger.locally(MyLogger()) { runApp(…) }`, which wins over the classpath |
-| which request a line belongs to | `logAnnotated("correlation_id" to id) { … }` |
-| what a test logged | `capturingLogs { logs -> … ; logs.all() }` |
-| to count something | `counter("…").increment()` — no node takes a registry |
-| how long something took | `timed("….seconds") { … }`, which answers what the block did |
-| those numbers somewhere real | put `lark-micrometer` on the classpath; nothing else |
-| which series a number belongs to | `metricTagged("species" to "tortoise") { … }` |
-| what a test measured | `capturingMetrics { measured -> … }` |
-| a trace that survives a fork | put `lark-otel` on the classpath; nothing else |
+| a smaller test | `.subgraph<Root>()` and `testApp(module) { root: Root -> … }` |
+| configuration | `config<Settings>("section") { … }` |
+| a password or token | `secret("path")` |
+| a setting that picks a module | `choice<Settings, Provided> { … }` |
 | migrations before anything reads | `migrations("db/changelog.xml")`, then take a `Migrated` |
+| an actor | `actor("name") { … }` from `lark-app-pekko` or `lark-app-actor` |
 | the wiring in review | `render()` against a golden file |
+
+Retries, timeouts, circuit breakers, rate limiters and bulkheads are in
+[Core](core.md#policies); logging, metrics and tracing in
+[Observability](observability.md); test clocks and captured logs in
+[Testing](testing.md).
