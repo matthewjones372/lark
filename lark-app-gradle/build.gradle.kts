@@ -40,6 +40,7 @@ dependencies {
     // them is the only thing that catches the reader's copy of their dependencies going stale, and
     // a stale copy is the one fault the design cannot tolerate: a red line under working code.
     larkAppUnderTest(project(":lark-app-pekko"))
+    larkAppUnderTest(project(":lark-app-actor"))
     larkAppUnderTest(project(":lark-app-typesafe"))
 }
 

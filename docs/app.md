@@ -337,16 +337,17 @@ knows:
 - `single`, `singleOf`, `closingOf` and `choice`;
 - `lark-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
   `configFromResource` and `configFromFile`; `lark-app-liquibase`'s
-  `migrations`; `lark-app-pekko`'s `actor`;
+  `migrations`; `lark-app-pekko`'s `actor`; `lark-app-actor`'s `actors` and
+  `actor`;
 - `plus`, `overriding`, `overridingConfig`, `boundTo` and `probe`;
 - references to `val`s and single-expression functions in the same
   compilation, `if` and `when` with single-expression branches, and `as`.
 
-When it meets anything else, including `lark-app-actor`'s `actor` and
-`actors()`, `lark-app-cluster`'s `cluster` and a module defined in another
-Gradle module, it does not guess: it reports the warning `LARK_APP_UNREAD`
-and leaves that application to the `larkWiring` task. A false error on working
-code would be worse than a fault reported a moment later. It also reports
+When it meets anything else, including `lark-app-cluster`'s `cluster` and a
+module defined in another Gradle module, it does not guess: it reports the
+warning `LARK_APP_UNREAD` and leaves that application to the `larkWiring` task.
+A false error on working code would be worse than a fault reported a moment
+later. It also reports
 `LARK_APP_UNREAD` when the Kotlin compiler's version differs from the one the
 checker was built for.
 
