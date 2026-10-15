@@ -56,9 +56,9 @@ A first prototype used `ConcurrentLinkedDeque` with `removeFirstOccurrence` on s
 
 ## Stack
 
-- [ ] **`spec-0143-ask-benchmark`** — `AskBenchmark` in `lark-actor-benchmarks`, lark against Pekko.
+- [x] **`spec-0143-ask-benchmark`** ([#420](https://github.com/matthewjones372/lark/pull/420)) — `AskBenchmark` in `lark-actor-benchmarks`, lark against Pekko.
       Done when: `./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs="AskBenchmark"` prints both rows.
-- [ ] **`spec-0143-parked-runners`** — runners park and are woken; a `RunnersTest` that fails on main.
+- [x] **`spec-0143-parked-runners`** ([#421](https://github.com/matthewjones372/lark/pull/421)) — runners park and are woken; a `RunnersTest` that fails on main.
       Done when: 10,000 activations submitted one after another start at most `parallelism` runners, and
       `./gradlew build` is green.
 
