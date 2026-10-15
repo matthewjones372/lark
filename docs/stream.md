@@ -220,6 +220,7 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | every operator above | on `Pipe` too, in two forms: `Pipe.map(f)` starts a pipe and `pipe.map(f)` carries one on. `Stream`'s are `via` of them, so there is one implementation of each |
 | **The way out** | |
 | `Stream<Nothing, A>.toSource(): Source<A, NotUsed>` | Pekko's own `Source`, once nothing is left to declare *(Pekko)* |
+| `Stream<Nothing, A>.toSequence(backend: StreamBackend, buffer: Int = 16): Sequence<A>` | a Kotlin `Sequence`, one run on `backend` per iteration, iterable once; see [Pulled as a sequence](#pulled-as-a-sequence) |
 
 ## A body that must block
 
@@ -415,6 +416,27 @@ hub.close()                               // every subscription ends Done, after
   subscribes goes nowhere.
 - On `TestStreams` a waiting subscription gives up its turn, so a test can
   publish and see the run read it without moving the clock.
+
+## Pulled as a sequence
+
+Code that pulls, such as Pelican's Jetty backend writing a response from a
+`Sequence`, takes a stream through `toSequence`:
+
+```kotlin
+events streamedNow { watch().toSequence(streams) }
+```
+
+- Iterating starts one run on the backend named. A second iteration throws.
+- At most `buffer` elements wait between the run and the reader, so a reader
+  that stops pulling holds the run back.
+- The iterator is `AutoCloseable`. Closing it, from any thread, stops the run
+  and returns once the run has let go. Pelican's Jetty writer closes it however
+  the response ends.
+- A run that dies throws its cause from the reader's next `hasNext()`, after
+  the elements it sent. A run stopped by closing throws nothing.
+- Only `Stream<Nothing, A>` has it, as with `toSource()`. On `TestStreams`,
+  which runs on the caller's thread, a stream longer than its buffer holds the
+  reader there.
 
 ## Optimisation, rendering and profiling
 
