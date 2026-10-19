@@ -51,6 +51,11 @@ What each module of an application provides and needs. lark-app and the compiler
 plugin both read it for missing, cyclic and unreached keys.
 _Avoid_: dependency graph, plan
 
+**Section**:
+The part of an application's configuration one module owns, read into one type.
+A section that cannot be read refuses the start, naming every fault at once.
+_Avoid_: settings, config block
+
 ## Streams
 
 **Stage**:
