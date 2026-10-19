@@ -277,3 +277,17 @@ Before saying it is done:
 - `./gradlew build` is green, gates included.
 - No new dependency in `lark`.
 - The README reflects the change, or the change is invisible from outside.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `matthewjones372/lark`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
