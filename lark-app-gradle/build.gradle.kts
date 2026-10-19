@@ -65,6 +65,10 @@ val checkerRepo: Provider<Directory> = rootProject.layout.buildDirectory.dir("re
 
 tasks.test {
     inputs.files(larkAppUnderTest).withPropertyName("larkAppUnderTest")
+    val reader = rootProject.file(
+        "lark-app-compiler/src/main/kotlin/io/github/matthewjones372/lark/app/compiler/Reader.kt",
+    )
+    inputs.file(reader).withPropertyName("reader")
     // Both halves, resolved by a TestKit build the way a consumer's build resolves them. Injecting
     // this jar with `withPluginClasspath` instead would put it in a classloader of its own, where
     // the Kotlin plugin cannot see that it implements `KotlinCompilerPluginSupportPlugin`.
@@ -79,6 +83,7 @@ tasks.test {
                     larkAppUnderTest.joinToString(File.pathSeparator) { it.absolutePath },
                 "-Dlark.checker.repo=" + checkerRepo.get().asFile.absolutePath,
                 "-Dlark.checker.version=" + version,
+                "-Dlark.checker.reader=" + reader.absolutePath,
             )
         },
     )
