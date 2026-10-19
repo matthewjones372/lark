@@ -216,6 +216,17 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `lark-app-kotlinx's config is read from the reader's list too`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", LIBRARY_KOTLINX)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("config with no block takes a Config, as the block form does") {
+            result.output shouldContain "provides [Config, Settings], and is short of []"
+        }
+    }
+
+    @Test
     fun `a graph the reader could not follow says so, whether or not it was asked`(@TempDir dir: File) {
         project(dir, "", UNREADABLE)
 
@@ -568,6 +579,22 @@ object Under : LarkApp<ActorRef<Ping>>() {
             single<Ledger> { Ledger() } +
             actor<Ping, Ledger>("ping") { _ -> behaviour<Ping, Unit>(Unit) { _, _, _ -> stay() } }
     override fun AppScope.run(root: ActorRef<Ping>) = Unit
+}
+"""
+
+/** lark-app-kotlinx's config, compiled against the real module; only the reader runs, so no serialization plugin. */
+private const val LIBRARY_KOTLINX = """
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.kotlinx.config
+import io.github.matthewjones372.lark.app.typesafe.loadedConfig
+
+class Settings(val port: Int)
+
+object Under : LarkApp<Settings>() {
+    override val module: Module = loadedConfig() + config<Settings>("under")
+    override fun AppScope.run(root: Settings) = Unit
 }
 """
 

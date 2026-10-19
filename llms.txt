@@ -51,6 +51,8 @@ Facts worth having before anything else:
 - `lark-app-typesafe`: a HOCON section as a node (`config`), every fault at
   once, `secret`, `Config.choosing`, `overridingConfig`, and where each setting
   came from (`origins`).
+- `lark-app-kotlinx`: a HOCON section read from its `@Serializable` class,
+  `config<Settings>("section")` with no block.
 - `lark-app-liquibase`: a changelog as a node (`migrations`); readers take a
   `Migrated`.
 - `lark-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
