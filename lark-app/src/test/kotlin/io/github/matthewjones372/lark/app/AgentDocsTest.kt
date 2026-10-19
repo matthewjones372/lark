@@ -24,6 +24,12 @@ class AgentDocsTest {
     }
 
     @Test
+    fun `every published module has a description for its POM`() {
+        val described = System.getProperty("lark.app.describedModules").shouldNotBeNull().split(",").toSet()
+        withClue("moduleDescriptions in the root build.gradle.kts") { published - described shouldBe emptySet() }
+    }
+
+    @Test
     fun `the lark skill names the same modules`() {
         modulesIn(page("plugins/lark/skills/lark/SKILL.md")) shouldBe published
     }

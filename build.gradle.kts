@@ -79,6 +79,8 @@ val moduleDescriptions = mapOf(
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
+    "lark-slf4j" to "lark's log lines through SLF4J, with a fork's annotations in the MDC.",
+    "lark-micrometer" to "lark's metrics into a Micrometer registry.",
     "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
     "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
     "lark-app-kotlinx" to "lark-app-typesafe from a @Serializable class: the section read from the class itself.",
@@ -126,6 +128,9 @@ val unpublished = setOf("lark-structured", "lark-stream-parity", "lark-bank") + 
 
 // What llms.txt and the lark skill must name, no more and no fewer: AgentDocsTest in lark-app reads it.
 extra["publishedModules"] = subprojects.map { it.name }.filterNot { it in unpublished }.sorted()
+
+// AgentDocsTest holds this to the published set: a module missing here ships a POM with no description.
+extra["describedModules"] = moduleDescriptions.keys.sorted()
 
 // The floor is a ratchet against regression, not a target to code towards — a
 // test written to move a percentage is worth less than no test at all.

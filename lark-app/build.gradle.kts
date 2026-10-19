@@ -7,6 +7,9 @@ val repoRoot = rootProject.projectDir.absolutePath
 @Suppress("UNCHECKED_CAST")
 val publishedModules = rootProject.extra["publishedModules"] as List<String>
 
+@Suppress("UNCHECKED_CAST")
+val describedModules = rootProject.extra["describedModules"] as List<String>
+
 // The pages AgentDocsTest holds to the published modules.
 val agentDocs = files(
     rootProject.layout.projectDirectory.file("llms.txt"),
@@ -28,6 +31,7 @@ tasks.test {
     inputs.files(documentedDiagram).withPropertyName("documentedDiagram")
     inputs.files(agentDocs).withPropertyName("agentDocs")
     inputs.property("publishedModules", publishedModules)
+    inputs.property("describedModules", describedModules)
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
     jvmArgumentProviders.add(
@@ -37,6 +41,7 @@ tasks.test {
                     mainRuntime.get().joinToString(File.pathSeparator) { it.name },
                 "-Dlark.app.repoRoot=$repoRoot",
                 "-Dlark.app.publishedModules=${publishedModules.joinToString(",")}",
+                "-Dlark.app.describedModules=${describedModules.joinToString(",")}",
                 "-Dlark.app.testClasses=" +
                     testClassDirs.files.joinToString(File.pathSeparator) { it.absolutePath },
             )
