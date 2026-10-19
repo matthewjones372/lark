@@ -7,7 +7,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.serializer
@@ -27,7 +26,7 @@ object SecretSerializer : KSerializer<Masked> {
     override fun serialize(encoder: Encoder, value: Masked) = encoder.encodeString(MASK)
 }
 
-private const val SECRET = "io.github.matthewjones372.lark.app.typesafe.Secret"
+internal const val SECRET = "io.github.matthewjones372.lark.app.typesafe.Secret"
 
 /** The same, and every path under [path] that [A] reads as a [Secret], which a name match cannot see. */
 inline fun <reified A : Any> Secrets.andSecretsOf(path: String, naming: Naming = Naming.AsDeclared): Secrets =
@@ -38,9 +37,9 @@ internal fun secretPaths(descriptor: SerialDescriptor, at: String, naming: Namin
     (0 until descriptor.elementsCount).flatMap { index ->
         val element = descriptor.getElementDescriptor(index)
         val path = "$at.${naming.key(descriptor.getElementName(index))}"
-        when {
-            element.serialName.removeSuffix("?") == SECRET -> listOf(path)
-            element.kind == StructureKind.CLASS -> secretPaths(element, path, naming)
-            else -> emptyList()
+        when (shapeOf(element)) {
+            Shape.Secret -> listOf(path)
+            Shape.Section -> secretPaths(element, path, naming)
+            Shape.Duration, Shape.Strings, Shape.Unsupported, Shape.Leaf -> emptyList()
         }
     }

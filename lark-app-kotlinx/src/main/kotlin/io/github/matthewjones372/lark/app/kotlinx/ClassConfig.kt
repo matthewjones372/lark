@@ -40,26 +40,19 @@ private const val DURATION = "kotlin.time.Duration"
 private const val LIST = "kotlin.collections.ArrayList"
 
 /** What a property's type is to a class read. */
-internal enum class Shape { Duration, Strings, Section, Unsupported, Leaf }
+internal enum class Shape { Duration, Secret, Strings, Section, Unsupported, Leaf }
 
 @OptIn(ExperimentalSerializationApi::class)
-internal fun shapeOf(descriptor: SerialDescriptor): Shape = when {
-    descriptor.serialName.removeSuffix("?") == DURATION -> Shape.Duration
-
-    descriptor.kind == StructureKind.LIST ->
-        if (descriptor.serialName.removeSuffix("?") == LIST &&
-            descriptor.getElementDescriptor(0).kind == PrimitiveKind.STRING
-        ) {
-            Shape.Strings
-        } else {
-            Shape.Unsupported
-        }
-
-    descriptor.kind == StructureKind.CLASS -> Shape.Section
-
-    descriptor.kind in UNSUPPORTED -> Shape.Unsupported
-
-    else -> Shape.Leaf
+internal fun shapeOf(descriptor: SerialDescriptor): Shape {
+    val name = descriptor.serialName.removeSuffix("?")
+    return when {
+        name == DURATION -> Shape.Duration
+        name == SECRET -> Shape.Secret
+        name == LIST && descriptor.getElementDescriptor(0).kind == PrimitiveKind.STRING -> Shape.Strings
+        descriptor.kind == StructureKind.CLASS -> Shape.Section
+        descriptor.kind == StructureKind.LIST || descriptor.kind in UNSUPPORTED -> Shape.Unsupported
+        else -> Shape.Leaf
+    }
 }
 
 private val UNSUPPORTED: Set<SerialKind> = setOf(
@@ -157,7 +150,7 @@ private class SectionDecoder(private val reading: Reading, private val naming: N
             // An empty collection of the declared type, so the read goes on to the next property.
             Shape.Unsupported -> deserializer.deserialize(Empty)
 
-            Shape.Leaf -> super.decodeSerializableValue(deserializer)
+            Shape.Secret, Shape.Leaf -> super.decodeSerializableValue(deserializer)
         }
     }
 }
