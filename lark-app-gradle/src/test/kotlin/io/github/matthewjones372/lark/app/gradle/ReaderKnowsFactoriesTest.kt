@@ -56,6 +56,7 @@ class ReaderKnowsFactoriesTest {
         val UNREAD = setOf(
             // The module is whatever `chosen` returns for a setting read at assembly, which no compiler can see.
             "typesafe.choosing",
+            "kotlinx.choosing",
         )
     }
 }
