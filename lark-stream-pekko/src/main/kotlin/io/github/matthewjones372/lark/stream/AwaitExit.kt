@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.raise.Raise
-import io.github.matthewjones372.lark.pekko.await
+import io.github.matthewjones372.lark.await
 import java.util.concurrent.CompletionStage
 
 /**

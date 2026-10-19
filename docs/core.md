@@ -478,8 +478,8 @@ pekko.actor.lark {
 ```kotlin
 import arrow.core.Either
 import arrow.core.raise.either
+import io.github.matthewjones372.lark.await
 import io.github.matthewjones372.lark.parZip
-import io.github.matthewjones372.lark.pekko.await
 import io.github.matthewjones372.lark.pekko.larkDispatcher
 import org.apache.pekko.actor.ActorSystem
 import java.util.concurrent.CompletableFuture
@@ -507,6 +507,8 @@ fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = eith
   rethrows the original cause, not the `CompletionException` around it. An
   interrupt cancels the stage with `cancel(true)` and rethrows the
   `InterruptedException`, so a value that arrives later is dropped.
+- `await()` is in `lark` and takes any `CompletionStage` or `Future`, Pekko's
+  or not; Pekko's Scala futures have one of their own in `lark-pekko`.
 - `await()` does not change what a stage holds. A stream run into `Sink.seq`
   still collects every element before it completes.
 

@@ -31,10 +31,11 @@ Facts worth having before anything else:
 
 - `lark`: `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
   `timeout`, `policy` (retry, circuit breaker, bulkhead, rate limiter),
-  `LarkLocal`, `Clock`, `TestClock`, the log and metrics calls, and
-  `capturingLogs` and `capturingMetrics` for tests.
-- `lark-pekko`: a Pekko dispatcher as the executor, and Pekko's stages awaited
-  from a fork.
+  `LarkLocal`, `Clock`, `TestClock`, the log and metrics calls,
+  `capturingLogs` and `capturingMetrics` for tests, and `await()` for a
+  `CompletionStage` or `Future`.
+- `lark-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
+  awaited from a fork.
 - `lark-stream`: `Stream<E, A>` as a description, with its failure in the type
   and no backend named.
 - `lark-stream-forks`: runs a `Stream` as a pull loop on one virtual thread;
