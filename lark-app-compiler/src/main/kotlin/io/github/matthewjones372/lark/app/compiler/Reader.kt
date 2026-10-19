@@ -339,6 +339,7 @@ private const val APP = "io.github.matthewjones372.lark.app"
 
 private fun app(name: String) = CallableId(FqName(APP), Name.identifier(name))
 
+// Spelled out as `extension("module", "name")` at every use: ReaderKnowsFactoriesTest reads them from this file.
 private fun extension(module: String, name: String) = CallableId(FqName("$APP.$module"), Name.identifier(name))
 
 private val SINGLE = app("single")
@@ -371,9 +372,12 @@ private val MIGRATIONS = extension("liquibase", "migrations")
  * for using one — and every graph that reads configuration at all starts with one of these. They are
  * listed rather than read because what each builds is part of lark's own API.
  */
-private val SOURCES = setOf("loadedConfig", "configOf", "configFromResource", "configFromFile")
-    .map { extension("typesafe", it) }
-    .toSet()
+private val SOURCES = setOf(
+    extension("typesafe", "loadedConfig"),
+    extension("typesafe", "configOf"),
+    extension("typesafe", "configFromResource"),
+    extension("typesafe", "configFromFile"),
+)
 
 /** What a started graph hands its nodes without any module providing it; `lark-app` says the same. */
 private val RUNTIME_PROVIDED = setOf("$APP.HealthRegistry")
