@@ -282,7 +282,7 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
             key?.let { setting -> node(provided, listOf(setting), at) }
         }
 
-        called == CONFIG || called == CONFIGURED -> key?.let { node(it, listOf(TYPESAFE_CONFIG), at) }
+        called in CONFIGS -> key?.let { node(it, listOf(TYPESAFE_CONFIG), at) }
 
         called == ACTOR -> key?.let { node("$ACTOR_REF<$it>", listOf(ACTOR_SYSTEM) + rest, at) }
 
@@ -353,8 +353,14 @@ private val PLUS = CallableId(ClassId(FqName(APP), Name.identifier("Module")), N
 private val ACTOR = extension("pekko", "actor")
 private val ACTORS = extension("actor", "actors")
 private val LARK_ACTOR = extension("actor", "actor")
-private val CONFIG = extension("typesafe", "config")
-private val CONFIGURED = extension("typesafe", "configured")
+
+/** Every `config`, the block form and the class form alike: each is a node built from a `Config`. */
+private val CONFIGS = setOf(
+    extension("typesafe", "config"),
+    extension("typesafe", "configured"),
+    extension("kotlinx", "config"),
+)
+
 private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
 private val MIGRATIONS = extension("liquibase", "migrations")
 

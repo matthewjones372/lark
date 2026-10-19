@@ -336,9 +336,9 @@ knows:
 
 - `single`, `singleOf`, `closingOf` and `choice`;
 - `lark-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
-  `configFromResource` and `configFromFile`; `lark-app-liquibase`'s
-  `migrations`; `lark-app-pekko`'s `actor`; `lark-app-actor`'s `actors` and
-  `actor`;
+  `configFromResource` and `configFromFile`; `lark-app-kotlinx`'s `config`;
+  `lark-app-liquibase`'s `migrations`; `lark-app-pekko`'s `actor`;
+  `lark-app-actor`'s `actors` and `actor`;
 - `plus`, `overriding`, `overridingConfig`, `boundTo` and `probe`;
 - references to `val`s and single-expression functions in the same
   compilation, `if` and `when` with single-expression branches, and `as`.

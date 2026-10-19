@@ -81,6 +81,7 @@ val moduleDescriptions = mapOf(
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
     "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
     "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
+    "lark-app-kotlinx" to "lark-app-typesafe from a @Serializable class: the section read from the class itself.",
     "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn as it compiles.",
     "lark-app-compiler" to "lark-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
     "lark-structured" to "lark over the JDK's StructuredTaskScope: a flock the thread dump can see.",

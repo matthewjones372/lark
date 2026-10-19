@@ -42,6 +42,7 @@ dependencies {
     larkAppUnderTest(project(":lark-app-pekko"))
     larkAppUnderTest(project(":lark-app-actor"))
     larkAppUnderTest(project(":lark-app-typesafe"))
+    larkAppUnderTest(project(":lark-app-kotlinx"))
 }
 
 // The checker is resolved from a repository at compile time, so the plugin has to name a version.
