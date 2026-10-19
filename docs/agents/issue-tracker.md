@@ -1,6 +1,20 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Issues for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+
+## Specs are not issues
+
+A spec is a file, `specs/NNNN-kebab-name.md`, with no GitHub issue behind it.
+When a skill asks for a spec's tickets:
+
+- **Tickets** are the spec's Stack entries. Each is one branch, named in the
+  entry, and one pull request.
+- **Blocking order** is stack order. Each entry blocks the one after it, so the
+  frontier is always the lowest unticked entry.
+- **Integration branch** is the top of the stack. There is no separate branch:
+  each entry's branch sits on the one below it (`docs/agents/stacking.md`).
+- **Closing** a ticket is ticking its entry and linking the PR, once the PR
+  merges (`specs/README.md`, Lifecycle).
 
 ## Conventions
 
