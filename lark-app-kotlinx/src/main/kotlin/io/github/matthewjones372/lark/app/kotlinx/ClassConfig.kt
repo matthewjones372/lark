@@ -1,8 +1,10 @@
 package io.github.matthewjones372.lark.app.kotlinx
 
+import com.typesafe.config.Config
 import com.typesafe.config.ConfigException
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.typesafe.Reading
+import io.github.matthewjones372.lark.app.typesafe.choosing
 import io.github.matthewjones372.lark.app.typesafe.config
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -20,36 +22,37 @@ import kotlinx.serialization.serializer
  * The section at [path] as a node, read from [A]'s own properties: each is a path named after it, a
  * nested class a nested section. Every fault is named at once, as the block form names them.
  */
-inline fun <reified A : Any> config(path: String): Module = config(path) { decoded(serializer<A>()) }
+inline fun <reified A : Any> config(path: String, naming: Naming = Naming.AsDeclared): Module =
+    config(path) { decoded(serializer<A>(), naming) }
+
+/** `choosing` with the section read from [A]'s own properties, as [config] reads it. */
+inline fun <reified A : Any> Config.choosing(
+    path: String,
+    naming: Naming = Naming.AsDeclared,
+    chosen: (A) -> Module,
+): Module = choosing(path, { decoded(serializer<A>(), naming) }, chosen)
 
 @PublishedApi
-internal fun <A> Reading.decoded(deserializer: DeserializationStrategy<A>): A =
-    deserializer.deserialize(SectionDecoder(this))
+internal fun <A> Reading.decoded(deserializer: DeserializationStrategy<A>, naming: Naming): A =
+    deserializer.deserialize(SectionDecoder(this, naming))
 
 private const val DURATION = "kotlin.time.Duration"
 private const val LIST = "kotlin.collections.ArrayList"
 
 /** What a property's type is to a class read. */
-internal enum class Shape { Duration, Strings, Section, Unsupported, Leaf }
+internal enum class Shape { Duration, Secret, Strings, Section, Unsupported, Leaf }
 
 @OptIn(ExperimentalSerializationApi::class)
-internal fun shapeOf(descriptor: SerialDescriptor): Shape = when {
-    descriptor.serialName.removeSuffix("?") == DURATION -> Shape.Duration
-
-    descriptor.kind == StructureKind.LIST ->
-        if (descriptor.serialName.removeSuffix("?") == LIST &&
-            descriptor.getElementDescriptor(0).kind == PrimitiveKind.STRING
-        ) {
-            Shape.Strings
-        } else {
-            Shape.Unsupported
-        }
-
-    descriptor.kind == StructureKind.CLASS -> Shape.Section
-
-    descriptor.kind in UNSUPPORTED -> Shape.Unsupported
-
-    else -> Shape.Leaf
+internal fun shapeOf(descriptor: SerialDescriptor): Shape {
+    val name = descriptor.serialName.removeSuffix("?")
+    return when {
+        name == DURATION -> Shape.Duration
+        name == SECRET -> Shape.Secret
+        name == LIST && descriptor.getElementDescriptor(0).kind == PrimitiveKind.STRING -> Shape.Strings
+        descriptor.kind == StructureKind.CLASS -> Shape.Section
+        descriptor.kind == StructureKind.LIST || descriptor.kind in UNSUPPORTED -> Shape.Unsupported
+        else -> Shape.Leaf
+    }
 }
 
 private val UNSUPPORTED: Set<SerialKind> = setOf(
@@ -82,7 +85,7 @@ private fun typeName(descriptor: SerialDescriptor): String = when (descriptor.ki
  * the fault, where kotlinx would stop at the first with a `MissingFieldException`.
  */
 @OptIn(ExperimentalSerializationApi::class)
-private class SectionDecoder(private val reading: Reading) : AbstractDecoder() {
+private class SectionDecoder(private val reading: Reading, private val naming: Naming) : AbstractDecoder() {
 
     override val serializersModule: SerializersModule = EmptySerializersModule()
 
@@ -92,7 +95,7 @@ private class SectionDecoder(private val reading: Reading) : AbstractDecoder() {
     override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
         while (next < descriptor.elementsCount) {
             val index = next++
-            key = descriptor.getElementName(index)
+            key = naming.key(descriptor.getElementName(index))
             val element = descriptor.getElementDescriptor(index)
             if (shapeOf(element) == Shape.Unsupported) {
                 reading.of(Unit) { throw ConfigException.BadValue(key, "is a ${typeName(element)}, $UNREAD") }
@@ -123,6 +126,15 @@ private class SectionDecoder(private val reading: Reading) : AbstractDecoder() {
 
     override fun decodeChar(): Char = ' '
 
+    override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
+        val entries = List(enumDescriptor.elementsCount, enumDescriptor::getElementName)
+        return reading.of(0) {
+            val said = getString(key)
+            entries.indexOf(said).takeIf { it >= 0 }
+                ?: throw ConfigException.BadValue(key, "is ${entries.joinToString(" or ")}, not $said")
+        }
+    }
+
     // The casts hold because each branch is chosen by the descriptor of the very type it returns.
     @Suppress("UNCHECKED_CAST")
     override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T {
@@ -133,12 +145,12 @@ private class SectionDecoder(private val reading: Reading) : AbstractDecoder() {
 
             Shape.Strings -> reading.strings(key) as T
 
-            Shape.Section -> reading.section(key) { decoded(deserializer) }
+            Shape.Section -> reading.section(key) { decoded(deserializer, naming) }
 
             // An empty collection of the declared type, so the read goes on to the next property.
             Shape.Unsupported -> deserializer.deserialize(Empty)
 
-            Shape.Leaf -> super.decodeSerializableValue(deserializer)
+            Shape.Secret, Shape.Leaf -> super.decodeSerializableValue(deserializer)
         }
     }
 }
