@@ -19,10 +19,10 @@ permissions:
 
 jobs:
   build:
-    # A pull request always builds on GitHub's runners: this repository is public, so a pull request can
-    # come from anyone and must never run on the home cluster. A push to main uses the repository variable
-    # RUNNER if it is set (for example home-lark, lark-bank spec 0017), and GitHub's runners otherwise.
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || vars.RUNNER || 'ubuntu-latest' }}
+    # A pull request from a fork builds on GitHub's runners: this repository is public, so a fork's
+    # pull request can come from anyone and must not run on the Namespace account. Everything else,
+    # a push to main or a pull request from a branch here, builds on Namespace.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'namespace-profile-mattjones372' }}
     # A backstop behind the step's own limit below, for a hang outside it. GitHub's default is six hours.
     timeout-minutes: 40
 
