@@ -18,8 +18,8 @@ The wiring plugin and editor checker read a graph by recognising lark's
 factories by package and name. A factory they do not know makes them give up on
 every graph that uses it.
 
-- `lark-app-compiler/.../Reader.kt`: add the factory to the reader's known set
-  (`CONFIGS` for a `config`-style one).
+- `lark-app-compiler/.../Reader.kt`: add an `extension("…", "…")` entry for
+  the factory. `ReaderKnowsFactoriesTest` fails when one is missing.
 - `lark-app-gradle/build.gradle.kts`: `larkAppUnderTest(project(":…"))`, and a
   case in `LarkWiringPluginTest`.
 - `docs/app.md`: the list of shapes the checker follows.
