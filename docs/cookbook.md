@@ -46,8 +46,8 @@ import io.github.matthewjones372.lark.app.LarkApp
 import io.github.matthewjones372.lark.app.findings
 import io.github.matthewjones372.lark.app.report
 import io.github.matthewjones372.lark.app.validate
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
@@ -431,7 +431,7 @@ requests.
 `lark-app-typesafe` makes a HOCON section a node, read by the module that
 needs it. `lark-app-kotlinx` reads it from a `@Serializable` class, each
 property a path named after it. *Unreleased: `lark-app-kotlinx` is on `main`
-and not in 0.10.1.*
+and not in 0.10.1, so its coordinate is the [snapshot](modules.md#requirements-and-coordinates).*
 
 ```kotlin
 plugins {
@@ -439,7 +439,7 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-kotlinx:0.10.1")
+    implementation("io.github.matthewjones372:lark-app-kotlinx:0.10.2-SNAPSHOT")
 }
 ```
 
@@ -458,15 +458,23 @@ A nested class is a nested section. A default or a nullable makes a key
 optional, and an enum names its entries when the file says something else.
 `Duration` reads `30s`; `Secret` reads a string that prints as the mask.
 `Naming.Kebab` reads `poolSize` from `pool-size`, and `@SerialName` names one
-key. Every fault is named at once, as the block form names them.
-`Secrets.default.andSecretsOf<PoolSettings>("database")` masks each `Secret`
-path in the report below, and `config.choosing<Settings>(path) { settings -> … }`
+key, itself kebab-cased under `Naming.Kebab` if it has capitals. Every fault is
+named at once, as the block form names them.
+`Secrets.default.andSecretsOf<PoolSettings>("database", Naming.Kebab)` masks
+each `Secret` path in the report below, given the naming `config` was given;
+and `config.choosing<Settings>(path) { settings -> … }`
 reads the class the same way.
 
 The block form says what a class cannot: a size in bytes, a value computed
 from two keys, or anything else read from the `Config` directly. Nothing is
 wrapped: `of` hands over the real `com.typesafe.config.Config`, so
 substitution, merging, `getDuration` and `getMemorySize` all still work.
+
+```kotlin
+dependencies {
+    implementation("io.github.matthewjones372:lark-app-typesafe:0.10.1")
+}
+```
 
 ```kotlin
 import com.typesafe.config.Config
