@@ -12,6 +12,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
     // The cookbook's configuration recipe reads a section from its @Serializable class.
     testImplementation(project(":lark-app-kotlinx"))
+    // For the core guide's coroutine examples, which compile against kotlinx's own `await`.
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 }
 
 // The serialization plugin, handed to the embedded compiler as a reader's build applies it, so a
