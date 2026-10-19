@@ -70,16 +70,19 @@ dependency with nothing checked at compile time. Both were rejected.
 
 ## Stack
 
-- [ ] **`spec-0153-module`**: `lark-app-kotlinx` with a `Decoder` on
+- [x] **`spec-0153-module`** ([#426](https://github.com/matthewjones372/lark/pull/426)):
+      `lark-app-kotlinx` with a `Decoder` on
       `Reading` for the leaves, nested sections, defaults and nulls.
       `config<A>(path)` is added.
       Done when: a class with every supported leaf reads from HOCON, and a
       file with three faults is refused naming all three.
-- [ ] **`spec-0153-naming`**: `Naming.Kebab`, `@SerialName` and `Secret`,
+- [x] **`spec-0153-naming`** ([#427](https://github.com/matthewjones372/lark/pull/427)):
+      `Naming.Kebab`, `@SerialName` and `Secret`,
       plus the `choosing` overload.
       Done when: `arrivalsEvery` reads `arrivals-every` under `Naming.Kebab`,
       and a `Secret` property is masked in `toString` and in the report.
-- [ ] **`spec-0153-docs`**: the cookbook's configuration recipe shows the
+- [x] **`spec-0153-docs`** ([#428](https://github.com/matthewjones372/lark/pull/428)):
+      the cookbook's configuration recipe shows the
       class form first. `docs/app.md` and `docs/modules.md` list the module.
       Done when: `CookbookTest` compiles the new fence.
 
