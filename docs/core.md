@@ -509,6 +509,12 @@ fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = eith
   `InterruptedException`, so a value that arrives later is dropped.
 - `await()` is in `lark` and takes any `CompletionStage` or `Future`, Pekko's
   or not; Pekko's Scala futures have one of their own in `lark-pekko`.
+- The other way round, `larkFuture { }` hands lark to a caller that wants a
+  future: the block runs on a virtual thread of its own, with the caller's
+  bindings as a fork has them, and the future's `cancel` interrupts it, so its
+  forks stop. `CompletableFuture.supplyAsync` would ignore the cancel. A
+  coroutine awaiting it with kotlinx's own `await()` cancels it when the
+  coroutine is cancelled.
 - `await()` does not change what a stage holds. A stream run into `Sink.seq`
   still collects every element before it completes.
 

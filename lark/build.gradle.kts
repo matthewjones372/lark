@@ -3,6 +3,10 @@
 // with an Either, so nothing here needs to know what is being served.
 dependencies {
     api("io.arrow-kt:arrow-core:2.1.2")
+
+    // Test only: larkFuture's cancel has to reach lark from a coroutine awaiting it with kotlinx's own
+    // await, and NoOtherDependenciesTest keeps it off the main runtime classpath.
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 }
 
 tasks.test {
