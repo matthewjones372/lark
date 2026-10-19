@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.app.kotlinx
 
+import com.typesafe.config.ConfigException
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.typesafe.Reading
 import io.github.matthewjones372.lark.app.typesafe.config
@@ -7,6 +8,7 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.SerialKind
 import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.encoding.AbstractDecoder
 import kotlinx.serialization.encoding.CompositeDecoder
@@ -25,6 +27,53 @@ internal fun <A> Reading.decoded(deserializer: DeserializationStrategy<A>): A =
     deserializer.deserialize(SectionDecoder(this))
 
 private const val DURATION = "kotlin.time.Duration"
+private const val LIST = "kotlin.collections.ArrayList"
+
+/** What a property's type is to a class read. */
+internal enum class Shape { Duration, Strings, Section, Unsupported, Leaf }
+
+@OptIn(ExperimentalSerializationApi::class)
+internal fun shapeOf(descriptor: SerialDescriptor): Shape = when {
+    descriptor.serialName.removeSuffix("?") == DURATION -> Shape.Duration
+
+    descriptor.kind == StructureKind.LIST ->
+        if (descriptor.serialName.removeSuffix("?") == LIST &&
+            descriptor.getElementDescriptor(0).kind == PrimitiveKind.STRING
+        ) {
+            Shape.Strings
+        } else {
+            Shape.Unsupported
+        }
+
+    descriptor.kind == StructureKind.CLASS -> Shape.Section
+
+    descriptor.kind in UNSUPPORTED -> Shape.Unsupported
+
+    else -> Shape.Leaf
+}
+
+private val UNSUPPORTED: Set<SerialKind> = setOf(
+    PrimitiveKind.DOUBLE,
+    PrimitiveKind.FLOAT,
+    PrimitiveKind.SHORT,
+    PrimitiveKind.BYTE,
+    PrimitiveKind.CHAR,
+    StructureKind.MAP,
+)
+
+/** `Map<String, Int>` rather than kotlinx's `kotlin.collections.LinkedHashMap`. */
+@OptIn(ExperimentalSerializationApi::class)
+private fun typeName(descriptor: SerialDescriptor): String = when (descriptor.kind) {
+    StructureKind.LIST, StructureKind.MAP -> {
+        val name = descriptor.serialName
+        val elements = List(descriptor.elementsCount) { typeName(descriptor.getElementDescriptor(it)) }
+        name.removeSuffix("?").substringAfterLast('.').removePrefix("Linked").removePrefix("Hash")
+            .replace("ArrayList", "List") + elements.joinToString(", ", "<", ">") +
+            (if (name.endsWith("?")) "?" else "")
+    }
+
+    else -> descriptor.serialName.removePrefix("kotlin.")
+}
 
 /**
  * Each property read through [reading]'s own leaves, so a fault is recorded and the read carries on.
@@ -44,6 +93,10 @@ private class SectionDecoder(private val reading: Reading) : AbstractDecoder() {
         while (next < descriptor.elementsCount) {
             val index = next++
             key = descriptor.getElementName(index)
+            val element = descriptor.getElementDescriptor(index)
+            if (shapeOf(element) == Shape.Unsupported) {
+                reading.of(Unit) { throw ConfigException.BadValue(key, "is a ${typeName(element)}, $UNREAD") }
+            }
             if (!descriptor.isElementOptional(index) || reading.config.hasPath(key)) return index
         }
         return CompositeDecoder.DECODE_DONE
@@ -59,20 +112,42 @@ private class SectionDecoder(private val reading: Reading) : AbstractDecoder() {
 
     override fun decodeBoolean(): Boolean = reading.boolean(key)
 
+    // The unsupported leaves: decodeElementIndex has recorded the fault, so the value is discarded.
+    override fun decodeDouble(): Double = 0.0
+
+    override fun decodeFloat(): Float = 0f
+
+    override fun decodeShort(): Short = 0
+
+    override fun decodeByte(): Byte = 0
+
+    override fun decodeChar(): Char = ' '
+
     // The casts hold because each branch is chosen by the descriptor of the very type it returns.
     @Suppress("UNCHECKED_CAST")
     override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T {
         val descriptor = deserializer.descriptor
-        return when {
+        return when (shapeOf(descriptor)) {
             // kotlinx's own serializer reads ISO-8601; HOCON says `30s`.
-            descriptor.serialName == DURATION -> reading.duration(key) as T
+            Shape.Duration -> reading.duration(key) as T
 
-            descriptor.kind == StructureKind.LIST && descriptor.getElementDescriptor(0).kind == PrimitiveKind.STRING ->
-                reading.strings(key) as T
+            Shape.Strings -> reading.strings(key) as T
 
-            descriptor.kind == StructureKind.CLASS -> reading.section(key) { decoded(deserializer) }
+            Shape.Section -> reading.section(key) { decoded(deserializer) }
 
-            else -> super.decodeSerializableValue(deserializer)
+            // An empty collection of the declared type, so the read goes on to the next property.
+            Shape.Unsupported -> deserializer.deserialize(Empty)
+
+            Shape.Leaf -> super.decodeSerializableValue(deserializer)
         }
     }
+}
+
+private const val UNREAD = "which config<A> does not read; read it in the block form"
+
+@OptIn(ExperimentalSerializationApi::class)
+private object Empty : AbstractDecoder() {
+    override val serializersModule: SerializersModule = EmptySerializersModule()
+
+    override fun decodeElementIndex(descriptor: SerialDescriptor): Int = CompositeDecoder.DECODE_DONE
 }

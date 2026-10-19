@@ -28,11 +28,25 @@ private data class Settings(
 )
 
 @Serializable
-private data class Optional(
+private data class Defaulted(
     val port: Int = 8080,
     val proxy: String? = null,
     val fallback: String?,
     val timeout: Duration? = null,
+)
+
+@Serializable
+private data class Unreadable(
+    val host: String,
+    val ratio: Double,
+    val weight: Float,
+    val small: Short,
+    val tiny: Byte,
+    val initial: Char,
+    val ports: List<Int>,
+    val tags: Set<String>,
+    val limits: Map<String, Int>,
+    val spare: Double? = null,
 )
 
 class ClassConfigTest {
@@ -68,9 +82,9 @@ class ClassConfigTest {
     fun `an absent path is the property's default, and an absent nullable is null`() {
         val file = configOf("petshop { timeout = 5s }")
 
-        val settings = testApp(file + config<Optional>("petshop")) { settings: Optional -> settings }
+        val settings = testApp(file + config<Defaulted>("petshop")) { settings: Defaulted -> settings }
 
-        settings shouldBe Optional(port = 8080, proxy = null, fallback = null, timeout = 5.seconds)
+        settings shouldBe Defaulted(port = 8080, proxy = null, fallback = null, timeout = 5.seconds)
     }
 
     @Test
@@ -95,6 +109,34 @@ class ClassConfigTest {
             reason shouldContain "port"
             reason shouldContain "arrivalsEvery"
             reason shouldContain "url"
+        }
+    }
+
+    @Test
+    fun `a property of a type the class form cannot read is a fault naming its type, beside every other`() {
+        val file = configOf(
+            """
+            petshop {
+              ratio = 0.5, weight = 1.5, small = 1, tiny = 1, initial = x
+              ports = [1, 2], tags = [a], limits { a = 1 }
+            }
+            """,
+        )
+
+        val error = (file + config<Unreadable>("petshop")).use { _: Unreadable -> }.leftOrNull().shouldNotBeNull()
+
+        val reason = error.shouldBeInstanceOf<StartupError.Refused>().reason
+        withClue(reason) {
+            reason shouldContain "host"
+            reason shouldContain "'ratio': is a Double"
+            reason shouldContain "'weight': is a Float"
+            reason shouldContain "'small': is a Short"
+            reason shouldContain "'tiny': is a Byte"
+            reason shouldContain "'initial': is a Char"
+            reason shouldContain "'ports': is a List<Int>"
+            reason shouldContain "'tags': is a Set<String>"
+            reason shouldContain "'limits': is a Map<String, Int>"
+            reason shouldContain "'spare': is a Double?"
         }
     }
 }
