@@ -53,10 +53,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       # A green build takes under ten minutes. The limit is on the step rather than the job, so the reports
-      # below are still uploaded when it is hit.
+      # below are still uploaded when it is hit. Two workers, not one per core: the Namespace machine has
+      # 8 GB, and four at once (test JVMs of up to 2 GB, TestKit's own Gradle, the Kotlin daemon beside
+      # Gradle's) got the daemon OOM-killed on a build with nothing cached.
       - name: Build and test
         timeout-minutes: 25
-        run: ./gradlew build ${{ matrix.gradleArgs }} --stacktrace
+        run: ./gradlew build ${{ matrix.gradleArgs }} --max-workers=2 --stacktrace
 
       # The suites run an Api in memory and assert on which thread a body ran
       # on, so a failure is worth reading rather than guessing at.
