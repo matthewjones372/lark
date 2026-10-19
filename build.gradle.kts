@@ -216,6 +216,30 @@ subprojects {
     // ForbiddenMethodCall, for one — are silently skipped there. `check`
     // depends on the type-resolving pair instead.
     tasks.named("check") { dependsOn("detektMain", "detektTest") }
+    // A source detekt cannot compile is analysed without its types, and detekt
+    // only prints a count of the errors and passes: it has no setting to fail
+    // instead, so each task watches its own output. Detekt runs on the task's
+    // thread, and other tasks print to the same listeners in parallel, so only
+    // that thread's lines count. The usual cause is a call to code a compiler
+    // plugin generates, such as `Paid.serializer()`: detekt runs no compiler
+    // plugins, and `serializer<Paid>()` resolves without one.
+    tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
+        val running = java.util.concurrent.atomic.AtomicReference<Thread>()
+        val compilerErrors = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        doFirst { running.set(Thread.currentThread()) }
+        logging.addStandardOutputListener {
+            if (Thread.currentThread() == running.get() && "compiler errors found during analysis" in it) {
+                compilerErrors += it.toString().trim()
+            }
+        }
+        doLast {
+            if (compilerErrors.isNotEmpty()) {
+                throw GradleException(
+                    "$path: ${compilerErrors.joinToString()} Set `debug = true` on the task to see them.",
+                )
+            }
+        }
+    }
 
     apply(plugin = "com.diffplug.spotless")
     extensions.configure<com.diffplug.gradle.spotless.SpotlessExtension> {
