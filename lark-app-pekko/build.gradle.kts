@@ -10,6 +10,18 @@ dependencies {
     // The Kotlin compiler in the test JVM, so the cookbook's recipes are compiled
     // rather than believed.
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
+    // The cookbook's configuration recipe reads a section from its @Serializable class.
+    testImplementation(project(":lark-app-kotlinx"))
+}
+
+// The serialization plugin, handed to the embedded compiler as a reader's build applies it, so a
+// @Serializable recipe is checked rather than passed through as a bare annotation.
+val serializationPlugin: Configuration by configurations.creating {
+    isTransitive = false
+}
+
+dependencies {
+    serializationPlugin("org.jetbrains.kotlin:kotlin-serialization-compiler-plugin-embeddable:2.4.10")
 }
 
 val repoRoot = rootProject.projectDir.absolutePath
@@ -27,12 +39,14 @@ tasks.test {
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
     inputs.files(documentedRecipes).withPropertyName("documentedRecipes")
+    inputs.files(serializationPlugin).withPropertyName("serializationPlugin")
     jvmArgumentProviders.add(
         CommandLineArgumentProvider {
             listOf(
                 "-Dlark.app.pekko.runtimeClasspath=" +
                     mainRuntime.get().joinToString(File.pathSeparator) { it.name },
                 "-Dlark.app.pekko.repoRoot=$repoRoot",
+                "-Dlark.app.pekko.serializationPlugin=" + serializationPlugin.singleFile.absolutePath,
             )
         },
     )

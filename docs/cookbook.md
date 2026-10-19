@@ -3,8 +3,9 @@
 Recipes for [`lark-app`](app.md), in roughly the order a service needs them.
 Each Kotlin fence marked for it is compiled by `CookbookTest`, together with
 the fixtures below, so a recipe that stops matching the library fails the
-build. The fences for `lark-app-typesafe` and `lark-app-liquibase` are not
-compiled by that test, because those modules are not on its classpath.
+build. Of the configuration fences only the class form is compiled, and the
+`lark-app-liquibase` fences are not, because that module is not on its
+classpath.
 
 [Applications](app.md) explains how the graph behaves; this page shows how to
 write each piece.
@@ -46,7 +47,14 @@ import io.github.matthewjones372.lark.app.findings
 import io.github.matthewjones372.lark.app.report
 import io.github.matthewjones372.lark.app.validate
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import io.github.matthewjones372.lark.app.kotlinx.Naming
+import io.github.matthewjones372.lark.app.kotlinx.Secret
+import io.github.matthewjones372.lark.app.kotlinx.config
+import kotlinx.serialization.Serializable
 
 data class DbConfig(val url: String)
 data class HttpConfig(val port: Int)
@@ -421,15 +429,44 @@ requests.
 ## Configuration a module owns
 
 `lark-app-typesafe` makes a HOCON section a node, read by the module that
-needs it. Nothing is wrapped: `of` hands over the real
-`com.typesafe.config.Config`, so substitution, merging, `getDuration` and
-`getMemorySize` all still work.
+needs it. `lark-app-kotlinx` reads it from a `@Serializable` class, each
+property a path named after it. *Unreleased: `lark-app-kotlinx` is on `main`
+and not in 0.10.1.*
 
 ```kotlin
+plugins {
+    kotlin("plugin.serialization") version "2.4.10"
+}
+
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-typesafe:0.10.1")
+    implementation("io.github.matthewjones372:lark-app-kotlinx:0.10.1")
 }
 ```
+
+<!-- cookbook -->
+```kotlin
+@Serializable
+data class PoolSettings(val url: String, val poolSize: Int = 8, val idle: Duration, val password: Secret)
+
+val pool: Module =
+    single<Config> { ConfigFactory.load() } +
+        config<PoolSettings>("database", Naming.Kebab) +
+        closingOf { db: PoolSettings -> Hikari(DbConfig(db.url)) }.boundTo<Pool>()
+```
+
+A nested class is a nested section. A default or a nullable makes a key
+optional, and an enum names its entries when the file says something else.
+`Duration` reads `30s`; `Secret` reads a string that prints as the mask.
+`Naming.Kebab` reads `poolSize` from `pool-size`, and `@SerialName` names one
+key. Every fault is named at once, as the block form names them.
+`Secrets.default.andSecretsOf<PoolSettings>("database")` masks each `Secret`
+path in the report below, and `config.choosing<Settings>(path) { settings -> … }`
+reads the class the same way.
+
+The block form says what a class cannot: a size in bytes, a value computed
+from two keys, or anything else read from the `Config` directly. Nothing is
+wrapped: `of` hands over the real `com.typesafe.config.Config`, so
+substitution, merging, `getDuration` and `getMemorySize` all still work.
 
 ```kotlin
 import com.typesafe.config.Config
