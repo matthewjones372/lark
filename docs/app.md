@@ -181,7 +181,8 @@ is the same without a `LarkApp`, for tests and one-file programs.
 `sys.property(name)` answer `String?`. Provide `single<Sys> { RealSys }` in the
 application and `FakeSys(mapOf("DB_URL" to "jdbc:…"))` in a test, so no test
 has to set a JVM-wide environment variable. For configuration files, use
-[`lark-app-typesafe`](cookbook.md#configuration-a-module-owns).
+[`lark-app-typesafe`](cookbook.md#configuration-a-module-owns), or
+`lark-app-kotlinx` to read a section from its `@Serializable` class.
 
 ## Readiness and health
 
@@ -255,6 +256,7 @@ Each integration is a separate module that makes something a node:
 | Module | Provides | Recipe |
 |---|---|---|
 | `lark-app-typesafe` | `config<T>("section") { … }`, a HOCON section read into a type, with every fault in a bad file reported at once; `secret(path)`; where each setting came from | [Configuration](cookbook.md#configuration-a-module-owns) |
+| `lark-app-kotlinx` | `config<T>("section")`, the section read from `T`'s own `@Serializable` properties, every fault at once | [Configuration](cookbook.md#configuration-a-module-owns) |
 | `lark-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
 | `lark-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
 | `lark-app-actor` | `actors()`, a `lark-actor` flock that lives as long as the application, and `actor("name") { … }`, keyed by Lark's `ActorRef<M>` | [Lark actor](cookbook.md#spawn-a-lark-actor) |

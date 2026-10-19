@@ -53,6 +53,13 @@ class CookbookTest {
     }
 
     @Test
+    fun `the configuration recipe compiles its class form`() {
+        withClue("a section read from its @Serializable class is the form a reader copies first") {
+            fences(RECIPE).any { recipe -> "@Serializable" in recipe } shouldBe true
+        }
+    }
+
+    @Test
     fun `every recipe compiles against the library it documents`() {
         val fixtures = fences(FIXTURES).single()
         val recipes = fences(RECIPE) + fences(PEKKO)

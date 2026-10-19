@@ -45,8 +45,8 @@ Start from the core and add the pieces a service needs:
 - **Any service:** `lark`. Add `lark-pekko` only to run forks on a Pekko
   dispatcher.
 - **Wiring and lifecycle:** `lark-app`, plus the integrations for what the
-  service uses (`lark-app-typesafe`, `lark-app-liquibase`, `lark-app-pekko`,
-  `lark-app-actor`, `lark-app-cluster`). Apply the Gradle plugin from
+  service uses (`lark-app-typesafe`, `lark-app-kotlinx`, `lark-app-liquibase`,
+  `lark-app-pekko`, `lark-app-actor`, `lark-app-cluster`). Apply the Gradle plugin from
   `lark-app-gradle` to check graphs at build time.
 - **Streams:** `lark-stream` for the description, and one backend:
   `lark-stream-forks` unless you already run Pekko Streams. Kafka adds
@@ -79,6 +79,7 @@ against; the library's own transitive dependencies come with it.
 |---|---|---|---|---|
 | `lark-app` | an application as a checked dependency graph ([guide](app.md)) | `lark` | none | yes |
 | `lark-app-typesafe` | HOCON sections as nodes, every fault at once, where each setting came from ([cookbook](cookbook.md#configuration-a-module-owns)) | `lark-app` | `com.typesafe:config` 1.4.3 | yes |
+| `lark-app-kotlinx` | a HOCON section read from its `@Serializable` class ([cookbook](cookbook.md#configuration-a-module-owns)) | `lark-app-typesafe` | `kotlinx-serialization-core` 1.11.0 | yes |
 | `lark-app-liquibase` | a changelog as a node that readers of the database depend on ([cookbook](cookbook.md#run-migrations-as-a-step)) | `lark-app` | `liquibase-core` 4.32.0 | yes |
 | `lark-app-pekko` | a Pekko typed actor as a node ([cookbook](cookbook.md#spawn-a-pekko-actor)) | `lark-app`, `lark-pekko` | `pekko-actor-typed` 1.2.1 | yes |
 | `lark-app-actor` | a `lark-actor` flock and actors as nodes ([cookbook](cookbook.md#spawn-a-lark-actor)) | `lark-app`, `lark-actor` | none | yes |
