@@ -21,40 +21,40 @@ The types the recipes are written against:
 
 <!-- cookbook-fixtures -->
 ```kotlin
-import kotlin.system.exitProcess
-import io.github.matthewjones372.lark.app.render
-import io.github.matthewjones372.lark.app.pekko.actor
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.actor.typed.ActorRef
-import org.apache.pekko.actor.typed.Behavior
-import org.apache.pekko.actor.typed.javadsl.Behaviors
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.lark.ExitCase
 import io.github.matthewjones372.lark.app.HealthRegistry
-import io.github.matthewjones372.lark.app.RealSys
+import io.github.matthewjones372.lark.app.LarkApp
 import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.RealSys
 import io.github.matthewjones372.lark.app.Sys
-import io.github.matthewjones372.lark.app.overriding
-import io.github.matthewjones372.lark.app.probe
-import io.github.matthewjones372.lark.app.runApp
 import io.github.matthewjones372.lark.app.boundTo
 import io.github.matthewjones372.lark.app.closingOf
+import io.github.matthewjones372.lark.app.findings
+import io.github.matthewjones372.lark.app.kotlinx.Naming
+import io.github.matthewjones372.lark.app.kotlinx.Secret
+import io.github.matthewjones372.lark.app.kotlinx.config
+import io.github.matthewjones372.lark.app.overriding
+import io.github.matthewjones372.lark.app.pekko.actor
+import io.github.matthewjones372.lark.app.probe
+import io.github.matthewjones372.lark.app.render
+import io.github.matthewjones372.lark.app.report
+import io.github.matthewjones372.lark.app.runApp
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.singleOf
 import io.github.matthewjones372.lark.app.subgraph
 import io.github.matthewjones372.lark.app.testApp
-import io.github.matthewjones372.lark.app.LarkApp
-import io.github.matthewjones372.lark.app.findings
-import io.github.matthewjones372.lark.app.report
 import io.github.matthewjones372.lark.app.validate
+import kotlinx.serialization.Serializable
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.actor.typed.ActorRef
+import org.apache.pekko.actor.typed.Behavior
+import org.apache.pekko.actor.typed.javadsl.Behaviors
+import kotlin.system.exitProcess
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.app.kotlinx.Naming
-import io.github.matthewjones372.lark.app.kotlinx.Secret
-import io.github.matthewjones372.lark.app.kotlinx.config
-import kotlinx.serialization.Serializable
 
 data class DbConfig(val url: String)
 data class HttpConfig(val port: Int)

@@ -16,6 +16,10 @@ val agentDocs = files(
     rootProject.layout.projectDirectory.file("plugins/lark/skills/lark/SKILL.md"),
 )
 
+// The pages DocsTest reads for import order and coordinates.
+val guides = files(rootProject.layout.projectDirectory.file("README.md")) +
+    fileTree(rootProject.layout.projectDirectory.dir("docs")) { include("*.md") }
+
 // The page WiringDiagramTest holds to what render answers, declared so editing
 // it re-runs the test rather than leaving a stale answer behind.
 val documentedDiagram = files(
@@ -30,6 +34,7 @@ val testClassDirs = sourceSets.test.get().output.classesDirs
 tasks.test {
     inputs.files(documentedDiagram).withPropertyName("documentedDiagram")
     inputs.files(agentDocs).withPropertyName("agentDocs")
+    inputs.files(guides).withPropertyName("guides")
     inputs.property("publishedModules", publishedModules)
     inputs.property("describedModules", describedModules)
     val mainRuntime = configurations.runtimeClasspath
