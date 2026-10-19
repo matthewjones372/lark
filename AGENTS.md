@@ -121,7 +121,7 @@ would otherwise be unverified.
 
 | Gate | Fails when | Not the fix |
 |---|---|---|
-| detekt | any finding | a suppression with no reason |
+| detekt | any finding, or a source it cannot compile (`X.serializer()`: write `serializer<X>()`) | a suppression with no reason |
 | `NoOtherDependenciesTest` | anything but core and Arrow on the runtime classpath | widening the allow-list |
 | Kover | line coverage under 90% | lowering the floor |
 
