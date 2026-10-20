@@ -1,16 +1,23 @@
-# lark-kafka
+# Kafka
 
 **A Kafka record is committed only after the work on it is done.** A
 subscription is a `Stream` of `Committed` elements, each carrying its record's
 offset, and the only way to run one is `runCommitting`. Forgetting to commit,
 or committing before the work, does not compile.
 
-Everything below is in `io.github.matthewjones372.lark.kafka`. Specs
-[0053](../specs/0053-a-record-that-commits-after-it-is-handled.md),
-[0054](../specs/0054-a-record-that-fails-to-decode.md),
-[0056](../specs/0056-kafka-on-any-backend.md),
-[0087](../specs/0087-a-record-written-to-kafka.md) and
-[0124](../specs/0124-a-record-written-exactly-once.md) give the reasons.
+Everything below is in `io.github.matthewjones372.lark.kafka`. A Kafka
+pipeline is an ordinary [lark-stream](stream.md) `Stream`, so the operators,
+backends and test support described there apply here too.
+
+## Delivery at a glance
+
+| Pipeline | Offsets committed | Guarantee |
+|---|---|---|
+| `Kafka.consume(…)…runCommitting()` | once the record's element reaches the end of the stream | at least once: a crash or restart before the commit handles the record again |
+| `…publishRecord(producer) { … }.runCommitting()` | once the output is acknowledged by the broker, in order | at least once: an output can be written twice |
+| `…transacted(producer) { … }` | in the same Kafka transaction as the outputs | exactly once for consumers reading with `isolation.level=read_committed`, with one caveat at the end of a run (see [Exactly once](#exactly-once-in-a-transaction)) |
+
+Handlers should be idempotent wherever the guarantee is at least once.
 
 ## Picking a backend
 
@@ -67,7 +74,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 | Runs on | Forks, Pekko, TestStreams | Pekko |
 | Ends on | `runCommitting(): Run<E, Long>`, the count of elements | `runCommitting(settings): Run<E, Done>` |
 | Commits | on the polling thread, before each poll and on close | through the connector's committer sink, in batches |
-| `mapParRecord`, `divertLefts` | yes, on Forks as a window of bodies in flight (0051) | yes |
+| `mapParRecord`, `divertLefts` | yes, on Forks as a window of bodies in flight | yes |
 | `restartOnDefect` | yes, on every backend; a restart closes the failed consumer before it opens the next | yes |
 
 ## Operators
@@ -76,6 +83,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 |---|---|
 | `Kafka.consume(properties, vararg topics, key: Deserializer<K>, value: Deserializer<V>)` | `Stream<Nothing, Committed<ConsumerRecord<K, V>>>` on any backend |
 | `Kafka.consume(properties, vararg topics, key: Decoder<K>, value: Decoder<V>)` | the same over bytes, each record decoded in the stream: `Committed<Either<DecodeError, ConsumerRecord<K, V>>>` |
+| `Kafka.read(properties, topic, partition, key, value, from, until)` | one partition, assigned rather than subscribed, so no rebalance can take it away; `from` is `Committed`, `Earliest`, `Latest` or an `Offset`, and `until` is `Never` or `EndAtStart`. With no `group.id`, nothing is committed |
 | `Kafka.subscribe(settings, vararg topics)` and its `Decoder` form | the same two, through Pekko's connector |
 | `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | lark-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside lark-stream's would be ambiguous |
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
@@ -164,9 +172,15 @@ Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), va
   no group metadata, and are refused.
 - **The transactional id** is one per instance and stable across restarts,
   so a restarted instance fences the one it replaces.
-- **A run's last transaction** commits after its consumer has left the
-  group, with the group id alone. If the group rebalances in that moment, a
-  new owner may read that last batch again. Spec 0124 says why.
+- **Fencing.** A transaction's offsets are committed with the group metadata
+  of the member that polled its batch, so a batch that straddles a rebalance
+  is refused by the broker rather than committing a partition this consumer
+  has lost.
+- **A run's last transaction** can commit after its consumer has left the
+  group, when the run ends by `take`, `stop()` or a restart giving up. That
+  transaction is committed with the group id alone, which the broker accepts
+  without a generation check, so if the group rebalances at that moment a new
+  owner may read the last batch again.
 
 ## A registry that is down is not a bad record
 

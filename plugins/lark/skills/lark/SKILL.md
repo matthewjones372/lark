@@ -26,7 +26,7 @@ Before writing any of the code below, use the lark call beside it.
 | a stream that dies on one bad dependency call | `restartOnDefect(schedule)` |
 | `ConfigFactory.load().getString(…)` in a node | `config<Settings>("section") { Settings(string(…), duration(…)) }` |
 | `string("password")` | `secret("password")`, a `Secret` that prints as a mask |
-| `if (config.getString("kind") == …)` choosing a module | `conf.choosing("section", read) { chosen -> … }` |
+| `if (config.getString("kind") == …)` choosing a module | `choice<Settings, Provided> { chosen -> … }` (unreleased, on `main`), or `conf.choosing("section", read) { chosen -> … }` |
 | `CREATE TABLE IF NOT EXISTS` at start-up | `migrations("db/changelog.sql")` from `lark-app-liquibase`; readers take a `Migrated` |
 | a startup wait for a dependency | `.probe(name, timeout, attempts, interval) { … }` |
 | a logger or `MeterRegistry` passed into a class | `logInfo(…)`, `counter(…).increment()`, `timed(…) { … }`; put `lark-slf4j` and `lark-micrometer` on the classpath |
@@ -46,16 +46,17 @@ suppressing one, unless the call really means it.
 
 All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 
-- `lark`: forks, resources, `Schedule`, `timeout`, `policy`, `Clock`, logs and metrics.
+- `lark`: forks, resources, `Schedule`, `timeout`, `policy`, `Clock`, `TestClock`, logs and metrics, `capturingLogs`, `capturingMetrics`.
 - `lark-pekko`: a Pekko dispatcher as the executor.
 - `lark-stream`: `Stream<E, A>`, described once and run on a backend.
 - `lark-stream-forks`: the usual backend, a pull loop on a virtual thread.
 - `lark-stream-pekko`: the Pekko Streams backend.
 - `lark-stream-actors`: the `lark-actor` backend.
 - `lark-stream-test`: `TestStreams` and `TestClock`.
-- `lark-test`: `story`, `eventually`, `capturingLogs`, `capturingMetrics`.
+- `lark-test`: `story`, `eventually`.
 - `lark-app`: the graph, `LarkApp`, `closingOf`, probes, `testApp`.
 - `lark-app-typesafe`: `config`, `secret`, `choosing`, `overridingConfig`.
+- `lark-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.
 - `lark-app-liquibase`: `migrations` and `Migrated`.
 - `lark-app-pekko`: a Pekko typed actor as a node.
 - `lark-app-actor`: a `lark-actor` flock and actors as nodes.
@@ -81,4 +82,6 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 ## More
 
 `llms.txt` at https://github.com/matthewjones372/lark/blob/main/llms.txt has the
-facts and the full table; `docs/cookbook.md` has one compiled recipe per task.
+facts, the full table and links to every guide; `docs/cookbook.md` has one
+recipe per application task, and `docs/core.md` covers retries, timeouts and
+policies.

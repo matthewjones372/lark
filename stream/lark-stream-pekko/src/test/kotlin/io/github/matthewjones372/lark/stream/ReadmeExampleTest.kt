@@ -26,9 +26,7 @@ import java.util.concurrent.TimeUnit
  * beside it: the fences marked `<!-- ... -->`, because a marker renders as
  * nothing on the page and survives the heading above it being reworded.
  *
- * The README's Streams section shows the ingest from the document, held to the same text here so that
- * one compilation covers both pages, and one example of its own: a description run on every backend,
- * compiled out of the README against all three.
+ * The README's quick start is compiled here too, since this module's test classpath holds the core it uses.
  */
 class ReadmeExampleTest {
 
@@ -50,13 +48,13 @@ class ReadmeExampleTest {
         /** The one that only the document carries, since the README sends the reader there for it. */
         private const val BLOCKING = "<!-- mappar-example -->"
 
-        /** The README's own: one description, started on Pekko, Forks and TestStreams. */
+        /** One description, started on Pekko, Forks and TestStreams. */
         private const val BACKENDS = "<!-- backend-example -->"
 
-        private val shownOnBothPages = listOf(MARKER)
+        /** The README's complete program, on the core alone. */
+        private const val QUICKSTART = "<!-- quickstart-example -->"
 
-        /** The document's alone: the README sends the reader there for them. */
-        private val onlyInTheDocument = listOf(FIXTURES, BEFORE, AFTER, MISSING, BLOCKING)
+        private val inTheDocument = listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING, BLOCKING, BACKENDS)
     }
 
     @TempDir
@@ -98,21 +96,17 @@ class ReadmeExampleTest {
 
     @Test
     fun `the document marks one fence for each example it compiles`() {
-        (shownOnBothPages + onlyInTheDocument).forEach { marker -> only(document(), marker) }
+        inTheDocument.forEach { marker -> only(document(), marker) }
     }
 
     @Test
-    fun `the README's description runs on every backend, and compiles against all three`() {
-        compiles(only(readme(), BACKENDS))
+    fun `the document's description runs on every backend, and compiles against all three`() {
+        compiles(only(document(), BACKENDS))
     }
 
     @Test
-    fun `the README's Streams section shows the examples the document compiles`() {
-        shownOnBothPages.forEach { marker ->
-            withClue("the two pages must show the same $marker fence, so that compiling it covers both") {
-                only(readme(), marker) shouldBe only(document(), marker)
-            }
-        }
+    fun `the README's quick start compiles against the core`() {
+        compiles(only(readme(), QUICKSTART))
     }
 
     @Test

@@ -282,9 +282,13 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
             key?.let { setting -> node(provided, listOf(setting), at) }
         }
 
-        called == CONFIG || called == CONFIGURED -> key?.let { node(it, listOf(TYPESAFE_CONFIG), at) }
+        called in CONFIGS -> key?.let { node(it, listOf(TYPESAFE_CONFIG), at) }
 
         called == ACTOR -> key?.let { node("$ACTOR_REF<$it>", listOf(ACTOR_SYSTEM) + rest, at) }
+
+        called == ACTORS -> node(LARK_ACTORS, emptyList(), at)
+
+        called == LARK_ACTOR -> key?.let { node("$LARK_ACTOR_REF<$it>", listOf(LARK_ACTORS) + rest, at) }
 
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
 
@@ -335,6 +339,7 @@ private const val APP = "io.github.matthewjones372.lark.app"
 
 private fun app(name: String) = CallableId(FqName(APP), Name.identifier(name))
 
+// Spelled out as `extension("module", "name")` at every use: ReaderKnowsFactoriesTest reads them from this file.
 private fun extension(module: String, name: String) = CallableId(FqName("$APP.$module"), Name.identifier(name))
 
 private val SINGLE = app("single")
@@ -347,8 +352,16 @@ private val OVERRIDING = app("overriding")
 private val PLUS = CallableId(ClassId(FqName(APP), Name.identifier("Module")), Name.identifier("plus"))
 
 private val ACTOR = extension("pekko", "actor")
-private val CONFIG = extension("typesafe", "config")
-private val CONFIGURED = extension("typesafe", "configured")
+private val ACTORS = extension("actor", "actors")
+private val LARK_ACTOR = extension("actor", "actor")
+
+/** Every `config`, the block form and the class form alike: each is a node built from a `Config`. */
+private val CONFIGS = setOf(
+    extension("typesafe", "config"),
+    extension("typesafe", "configured"),
+    extension("kotlinx", "config"),
+)
+
 private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
 private val MIGRATIONS = extension("liquibase", "migrations")
 
@@ -359,15 +372,20 @@ private val MIGRATIONS = extension("liquibase", "migrations")
  * for using one — and every graph that reads configuration at all starts with one of these. They are
  * listed rather than read because what each builds is part of lark's own API.
  */
-private val SOURCES = setOf("loadedConfig", "configOf", "configFromResource", "configFromFile")
-    .map { extension("typesafe", it) }
-    .toSet()
+private val SOURCES = setOf(
+    extension("typesafe", "loadedConfig"),
+    extension("typesafe", "configOf"),
+    extension("typesafe", "configFromResource"),
+    extension("typesafe", "configFromFile"),
+)
 
 /** What a started graph hands its nodes without any module providing it; `lark-app` says the same. */
 private val RUNTIME_PROVIDED = setOf("$APP.HealthRegistry")
 
 private const val ACTOR_REF = "org.apache.pekko.actor.typed.ActorRef"
 private const val ACTOR_SYSTEM = "org.apache.pekko.actor.ActorSystem"
+private const val LARK_ACTOR_REF = "io.github.matthewjones372.lark.actor.ActorRef"
+private const val LARK_ACTORS = "$APP.actor.Actors"
 private const val TYPESAFE_CONFIG = "com.typesafe.config.Config"
 private const val DATA_SOURCE = "javax.sql.DataSource"
 private const val MIGRATED = "$APP.liquibase.Migrated"

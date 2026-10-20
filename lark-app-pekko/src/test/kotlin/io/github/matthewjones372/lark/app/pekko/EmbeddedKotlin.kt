@@ -41,6 +41,9 @@ internal class EmbeddedKotlin(private val workspace: File) {
                 // the compiler defaults to 1.8 and every fixture fails for a
                 // reason that has nothing to do with what is being asserted.
                 jvmTarget = "25"
+                // What a reader's build applies to a @Serializable class; absent, the annotation is unchecked.
+                pluginClasspaths =
+                    listOfNotNull(System.getProperty("lark.app.pekko.serializationPlugin")).toTypedArray()
             },
         )
 
