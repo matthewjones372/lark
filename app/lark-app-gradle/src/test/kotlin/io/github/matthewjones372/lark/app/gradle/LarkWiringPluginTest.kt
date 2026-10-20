@@ -205,6 +205,28 @@ class LarkWiringPluginTest {
     }
 
     @Test
+    fun `lark-app-actor's actors and actor are read from the reader's list too`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", LIBRARY_ACTORS)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("actors needs nothing, and actor takes Actors and then what its behaviour does") {
+            result.output shouldContain "provides [ActorRef<Ping>, Actors, Ledger], and is short of []"
+        }
+    }
+
+    @Test
+    fun `lark-app-kotlinx's config is read from the reader's list too`(@TempDir dir: File) {
+        project(dir, "larkWiring { verbose = true }", LIBRARY_KOTLINX)
+
+        val result = runner(dir, "compileKotlin").build()
+
+        withClue("config with no block takes a Config, as the block form does") {
+            result.output shouldContain "provides [Config, Settings], and is short of []"
+        }
+    }
+
+    @Test
     fun `a graph the reader could not follow says so, whether or not it was asked`(@TempDir dir: File) {
         project(dir, "", UNREADABLE)
 
@@ -532,6 +554,46 @@ object Under : LarkApp<Settings>() {
             loadedConfig() +
             config<Settings>("under") { Settings(int("port")) } +
             actor<Ping>("ping") { Behaviors.empty<Ping>() }
+    override fun AppScope.run(root: Settings) = Unit
+}
+"""
+
+/** lark-app-actor's factories, compiled against the real module, as [LIBRARY] does for the others. */
+private const val LIBRARY_ACTORS = """
+import io.github.matthewjones372.lark.actor.ActorRef
+import io.github.matthewjones372.lark.actor.behaviour
+import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.actor.actor
+import io.github.matthewjones372.lark.app.actor.actors
+import io.github.matthewjones372.lark.app.single
+
+class Ping
+class Ledger
+
+object Under : LarkApp<ActorRef<Ping>>() {
+    override val module: Module =
+        actors() +
+            single<Ledger> { Ledger() } +
+            actor<Ping, Ledger>("ping") { _ -> behaviour<Ping, Unit>(Unit) { _, _, _ -> stay() } }
+    override fun AppScope.run(root: ActorRef<Ping>) = Unit
+}
+"""
+
+/** lark-app-kotlinx's config, compiled against the real module; only the reader runs, so no serialization plugin. */
+private const val LIBRARY_KOTLINX = """
+import io.github.matthewjones372.lark.app.AppScope
+import io.github.matthewjones372.lark.app.LarkApp
+import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.kotlinx.config
+import io.github.matthewjones372.lark.app.typesafe.loadedConfig
+
+class Settings(val port: Int)
+
+object Under : LarkApp<Settings>() {
+    override val module: Module = loadedConfig() + config<Settings>("under")
     override fun AppScope.run(root: Settings) = Unit
 }
 """

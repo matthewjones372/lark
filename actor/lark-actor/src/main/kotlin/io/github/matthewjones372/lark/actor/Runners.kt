@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -17,8 +18,15 @@ internal fun interface Activation {
     fun activate()
 }
 
-/** How long a runner with nothing to take spins before it leaves: a wake that close behind starts no thread. */
+/** How long a runner with nothing to take spins before it parks: a wake that close behind needs no unpark. */
 private val SPIN_NANOS = TimeUnit.MICROSECONDS.toNanos(10)
+
+/** How long a parked runner waits to be woken before it leaves: a mailbox that empties often starts no thread. */
+private val KEEP_NANOS = TimeUnit.SECONDS.toNanos(1)
+
+private const val RUNNING = 0
+private const val PARKED = 1
+private const val RETIRED = 2
 
 /** How often the watcher looks at the runners while work is queued. */
 private val WATCH_NANOS = TimeUnit.MICROSECONDS.toNanos(50)
@@ -26,7 +34,8 @@ private val WATCH_NANOS = TimeUnit.MICROSECONDS.toNanos(50)
 /**
  * The virtual threads that run one flock's actors. A woken actor joins a queue, and [parallelism] runners, one per
  * carrier, take actors from it in turn, so a burst of wakes starts a handful of threads rather than one each. A
- * runner that finds nothing spins briefly and then leaves, so nothing ever has to wake it. A step that blocks parks
+ * runner that finds nothing spins briefly, then parks until a submit wakes it or a second passes, so an actor whose
+ * mailbox empties between messages starts no thread per message (spec 0143). A step that blocks parks
  * its runner; when every runner is in a step and the queue stands still, a watcher adds runners, doubling each time
  * it still stands still, up to [cap].
  */
@@ -38,9 +47,19 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
         @Volatile
         var busy = false
 
+        /** [RUNNING], or [PARKED] and wakeable, or [RETIRED]; a waker claims a parked runner by moving it on. */
+        val state = AtomicInteger(RUNNING)
+
+        /** On the parked stack, so that each runner is on it at most once. */
+        @Volatile
+        var listed = false
+
         /** In a step that is parked on something: a lock, a sleep, a read. */
         fun blocked(): Boolean = busy && thread.state.let { it == WAITING || it == TIMED_WAITING || it == BLOCKED }
     }
+
+    /** A node of the parked stack, fresh for each push so a popped node cannot come back under a waker's CAS. */
+    private class Parked(val runner: Runner, val next: Parked?)
 
     private val ready = ConcurrentLinkedQueue<Activation>()
 
@@ -50,8 +69,15 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
 
     private fun nothingQueued() = urgent.isEmpty() && ready.isEmpty()
     private val active = AtomicInteger()
+
+    /** How many runner threads this has started, for the test that says a busy actor does not start one each. */
+    internal val starts = AtomicInteger()
     private val watching = AtomicBoolean()
     private val started = ConcurrentHashMap.newKeySet<Runner>()
+    private val spinning = AtomicInteger()
+
+    // Most recently parked first, so the warmest runner is woken and the coldest left to retire.
+    private val parked = AtomicReference<Parked?>()
     private val lock = ReentrantLock()
     private val quiet = lock.newCondition()
 
@@ -74,7 +100,8 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
 
     fun submit(activation: Activation, first: Boolean = false) {
         if (first) urgent.offer(activation) else ready.offer(activation)
-        if (!grow(parallelism)) watch()
+        // A spinning runner sees the queue after this offer, or decrements before its last look and sees it then.
+        if (spinning.get() == 0) signal()
     }
 
     /** Starts a runner when fewer than [limit] run; whether it did. */
@@ -83,6 +110,7 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
             val running = active.get()
             if (running >= limit) return false
             if (active.compareAndSet(running, running + 1)) {
+                starts.incrementAndGet()
                 val runner = Runner()
                 runner.thread = Thread.ofVirtual().unstarted { run(runner) }
                 started.add(runner)
@@ -96,18 +124,73 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
         runner.busy = true
         val next = urgent.poll() ?: ready.poll()
         if (next != null) {
+            // A submit that saw this runner spinning left the rest of a burst to it: pass it on.
+            if (spinning.get() == 0 && !nothingQueued()) signal()
             runOne(next)
             return run(runner)
         }
         runner.busy = false
         if (awaiting > 0) lock.withLock { quiet.signalAll() }
-        if (workArrives()) return run(runner)
+        spinning.incrementAndGet()
+        val arrived = workArrives()
+        spinning.decrementAndGet()
+        if (arrived || parks(runner)) return run(runner)
         started.remove(runner)
         active.decrementAndGet()
         // An actor queued after the last poll, by a wake that counted this runner as still running, is ours to take.
         if (nothingQueued() || !rejoin()) return
         started.add(runner)
         run(runner)
+    }
+
+    /** Wakes a parked runner, else starts one, else leaves it to the watcher. */
+    private fun signal() {
+        if (!wake() && !grow(parallelism)) watch()
+    }
+
+    /** Hands queued work to a parked runner: whether there was one. */
+    private fun wake(): Boolean {
+        while (true) {
+            val runner = pop() ?: return false
+            runner.listed = false
+            if (runner.state.compareAndSet(PARKED, RUNNING)) {
+                LockSupport.unpark(runner.thread)
+                return true
+            }
+        }
+    }
+
+    private fun push(runner: Runner) {
+        while (true) {
+            val head = parked.get()
+            if (parked.compareAndSet(head, Parked(runner, head))) return
+        }
+    }
+
+    private fun pop(): Runner? {
+        while (true) {
+            val head = parked.get() ?: return null
+            if (parked.compareAndSet(head, head.next)) return head.runner
+        }
+    }
+
+    /** Parks for up to [KEEP_NANOS] waiting to be woken: whether it was, or false to retire. */
+    private fun parks(runner: Runner): Boolean {
+        runner.state.set(PARKED)
+        // Left on the stack by a runner that claimed itself or retired, an entry stays: a waker skips it.
+        if (!runner.listed) {
+            runner.listed = true
+            push(runner)
+        }
+        // Work queued before this runner was on the stack found no one to wake, so it is this runner's.
+        if (!nothingQueued() && runner.state.compareAndSet(PARKED, RUNNING)) return true
+        val deadline = System.nanoTime() + KEEP_NANOS
+        while (runner.state.get() == PARKED) {
+            val left = deadline - System.nanoTime()
+            if (left <= 0 && runner.state.compareAndSet(PARKED, RETIRED)) return false
+            LockSupport.parkNanos(left)
+        }
+        return true
     }
 
     /** Spins for up to [SPIN_NANOS] watching for work, without taking it: whether some arrived. */

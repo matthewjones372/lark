@@ -50,6 +50,16 @@ fun <E, R : Any> Run<E, R>.start(backend: StreamBackend): Running<E, R> =
 fun <E, R : Any> Run<E, R>.run(backend: StreamBackend): CompletionStage<Exit<E, R>> = start(backend).exit
 
 /**
+ * One run on [backend] per iteration, read by pulling, and iterable once. At most [buffer] elements wait for the
+ * reader, so a reader that stops pulling holds the run. The iterator is `AutoCloseable`: closing it, from any
+ * thread, stops the run. A run that dies throws its cause from the reader's next `hasNext()`.
+ */
+fun <A : Any> Stream<Nothing, A>.toSequence(backend: StreamBackend, buffer: Int = 16): Sequence<A> {
+    require(buffer > 0) { "a sequence's buffer holds at least one element, not $buffer" }
+    return Sequence { Pulled(this, backend, buffer) }.constrainOnce()
+}
+
+/**
  * The defect a run is refused with when it holds another backend's native value or an operator [backend]
  * cannot run, found before anything materialises. It names the operator and where it was written, because
  * the run cannot start to say so.

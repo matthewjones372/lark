@@ -1,14 +1,10 @@
-# Running a cluster
-
-> Lark is a scratchpad, not a finished library — see
-> [what this is](../README.md#what-this-is). Everything here works and is tested;
-> none of it is settled.
+# Remoting and clusters
 
 `lark-actor` runs actors in one process, which the
 [actors guide](actors.md) covers. This page is what comes after: a
-second node, then a cluster of them, then entities spread across it. It is
-ordered the way a service meets these things, and each section says which spec
-argued for the design, for the reasoning this page leaves out.
+second node, then a cluster of them, then entities spread across it, state
+that survives a move, commands that must arrive, and topics. It is ordered the
+way a service meets these things.
 
 Every complete example below is compiled against the library by
 `GuideExampleTest`, so what you read is what builds. Each is written as an
@@ -18,8 +14,10 @@ business.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor-remote:0.10.1") // two nodes
-    implementation("io.github.matthewjones372:lark-cluster:0.10.1")      // everything else here
+    implementation("io.github.matthewjones372:lark-actor-remote:0.10.1")       // two nodes
+    implementation("io.github.matthewjones372:lark-cluster:0.10.1")            // membership, sharding, delivery, topics
+    implementation("io.github.matthewjones372:lark-actor-journal-jdbc:0.10.1") // a journal every node reaches
+    implementation("io.github.matthewjones372:lark-actor-projection:0.10.1")   // read models
 }
 ```
 
@@ -32,19 +30,41 @@ dependencies {
 
 ## Two nodes
 
-A node is a flock that listens on a port. An actor becomes reachable from other
-nodes when you expose it with a codec, and another node reaches it through a
-ref made from its address. Tell and ask work as they do in one process, with
-one difference: across a network a message may be lost, so a remote tell is
-at most once. A message that cannot be sent becomes a dead letter on the
-sending side ([spec 0068](../specs/0068-an-actor-on-another-node.md)).
+A node is a flock that listens on a port, on loopback unless you give it a
+`host`. An actor becomes reachable from other nodes when you expose it with a
+codec, and another node reaches it through a ref made from its address. Tell
+and ask work as they do in one process, with one difference: across a network
+a message may be lost, so a remote tell is at most once.
+
+- **Connections.** Nodes talk over TCP on JDK sockets and virtual threads. A
+  node opens its own outbound connections to each peer, one for control
+  traffic and one for messages, so order holds for each sender, receiver and
+  lane.
+- **Loss.** Frames for a peer queue up to a bound (8,192 frames). Past that,
+  or while the peer is unreachable, they are dropped and become dead letters
+  on the sending side. A message for a path or incarnation that no longer
+  exists becomes a dead letter on the receiving node.
+- **Watching.** A watch on a remote actor ends when the actor stops or once
+  its node has been unreachable for `unreachableAfter` (10 seconds by
+  default); in a cluster, membership decides instead.
+
+For commands that must arrive, see
+[Commands that must arrive](#commands-that-must-arrive).
 
 No serialisation library is chosen for you. A `MessageCodec` writes a message
 field by field; a `Reply` or an `ActorRef` inside a message crosses as an
-address, so an ask made on one node is answered from another.
-`lark-actor-remote-protobuf` and `lark-actor-remote-avro` give you a codec
-from generated classes instead
-([spec 0071](../specs/0071-messages-in-protobuf-or-avro.md)).
+address, so an ask made on one node is answered from another. Three modules
+build codecs from classes you already have instead:
+
+- `lark-actor-remote-protobuf`: a codec for a generated message, `oneOf` for a
+  protocol of several messages under fixed tags, and `asked` for an ask whose
+  request is one.
+- `lark-actor-remote-avro`: a codec for a specific record in single-object
+  encoding, read across its versions through a `SchemaStore`, and `asked`.
+- `lark-actor-remote-kotlinx`: codecs for messages, events and snapshot state
+  from `@Serializable` classes, in ProtoBuf by default, `oneOf`, `asked`, and
+  `proto()` for the `.proto` schema the classes produce. kotlinx.serialization
+  marks its ProtoBuf format experimental.
 
 <!-- cluster-remote -->
 ```kotlin
@@ -125,8 +145,7 @@ means whichever actor is at that path when the message arrives.
 A node listens on loopback by default, and speaks plain TCP. To run nodes on a
 network you do not wholly trust, give each one a `Tls`: every connection, both
 ways, is TLS 1.3 with a certificate on each side, and a peer's certificate
-must name it, as a DNS subject alternative name, by the node name it gives
-([spec 0073](../specs/0073-nodes-that-know-each-other.md)). A node whose
+must name it, as a DNS subject alternative name, by the node name it gives. A node whose
 certificate another CA signed, or that claims another node's name, is refused
 before it can send anything.
 
@@ -155,8 +174,7 @@ fun Flock<Nothing>.secured(password: CharArray): RemoteNode {
 
 A cluster is nodes that agree who is up. `cluster(node, discovery)` joins the
 nodes that `discovery` finds, or forms a cluster if this node is the lowest
-seed and nobody answers. Membership is agreed by gossip, with no coordinator
-([spec 0069](../specs/0069-nodes-that-agree-who-is-up.md)).
+seed and nobody answers. Membership is agreed by gossip, with no coordinator.
 
 - **Seeds.** `Discovery.static` for a fixed list, `Discovery.dns` for every
   address a name resolves to, and `Discovery.srv` for SRV records.
@@ -177,11 +195,9 @@ seed and nobody answers. Membership is agreed by gossip, with no coordinator
   with a new `cluster.uid`. The earlier life is downed as the new one joins,
   then removed, and the new life hears both, under its own address.
   `cluster.isSelf(member)` tells this life from an earlier one, so compare
-  with it, not with `cluster.self`. A watch ends with the life it was made on
-  ([spec 0097](../specs/0097-a-node-that-restarts-where-it-was.md)).
+  with it, not with `cluster.self`. A watch ends with the life it was made on.
 - **Ready.** `cluster.ready()` is true while this node is `Up`, has a leader,
-  and can reach every member it sees. It is the answer to `/ready`
-  ([spec 0081](../specs/0081-a-cluster-you-can-see.md)).
+  and can reach every member it sees. It is the answer to `/ready`.
 
 <!-- cluster-membership -->
 ```kotlin
@@ -227,8 +243,7 @@ too low will see live members as unreachable.
 ### Joined from config
 
 An application in `lark-app` need not assemble any of that. `lark-app-cluster`
-makes the cluster a node of the graph, joined as a HOCON section says
-([spec 0096](../specs/0096-a-cluster-joined-from-config.md)). `join` names the
+makes the cluster a node of the graph, joined as a HOCON section says. `join` names the
 backend, and the section of that name holds what it needs. The backend is
 found on the classpath, so add `lark-cluster-kubernetes` or `lark-cluster-aws`
 to join through it. A name whose module is missing refuses the start, naming
@@ -265,7 +280,7 @@ val shop = loadedConfig() + actors() + cluster("shop.cluster") + single { cluste
 ```
 
 The node joins as `Joining` and is admitted once every node of the graph is
-built, so no shard is placed on it before its regions are open (spec 0129).
+built, so no shard is placed on it before its regions are open.
 A node that needs the `Cluster`, such as `Orders` above, is therefore built
 while this one is still `Joining`: sharding holds what it tells until there is
 an owner, but anything that needs this node `Up` waits for `use`'s block, which
@@ -279,8 +294,7 @@ configuration its own way.
 An entity is an actor with an id, run on whichever member owns it.
 `cluster.sharding(kind, codec, passivateAfter) { id -> behaviour }` spreads a
 kind's ids over 256 shards and each shard over the `Up` members, by a hash
-every node computes the same way, so there is no coordinator to ask
-([spec 0070](../specs/0070-an-entity-on-whichever-node-owns-it.md)).
+every node computes the same way, so there is no coordinator to ask.
 `entity(id)` is a ref that stays good while the entity moves: tell it from any
 node and the message reaches the owner. An entity that has had nothing for
 `passivateAfter` stops, and starts again on its next message.
@@ -292,8 +306,7 @@ bound, and delivered once the shard settles.
 
 Shards spread evenly by count, not by work. A kind whose ids are skewed can
 ask its shards to follow the load with
-`rebalance = Rebalance.byLoad(every = 1.minutes, tolerance = 0.2, mostMoves = 4)`
-([spec 0090](../specs/0090-shards-that-follow-the-load.md)). Each member
+`rebalance = Rebalance.byLoad(every = 1.minutes, tolerance = 0.2, mostMoves = 4)`. Each member
 gossips what it runs, and every `every` the leader moves up to `mostMoves` of
 the busiest member's shards to the least-loaded members, while it is over the
 mean by more than `tolerance`. Load is messages handled where there are any,
@@ -306,7 +319,7 @@ moves by the same handoff when that member goes.
 
 Every node calls `sharding` and `singleton` with the same arguments, including
 nodes that should never host them: give the nodes that should host them a role
-the others lack, and place by it ([spec 0083](../specs/0083-nodes-that-do-different-work.md)).
+the others lack, and place by it.
 
 <!-- cluster-entities -->
 ```kotlin
@@ -388,8 +401,7 @@ the entity persistent: the next section.
 A persistent behaviour is remembered by its events. A command answers an
 effect: `persist` writes events to the flock's journal and then applies them,
 `none` writes nothing, and `then` runs once they are written. On start, and on
-every move, the entity replays its events before its first command
-([spec 0063](../specs/0063-an-actor-that-is-remembered.md)). Two writers for
+every move, the entity replays its events before its first command. Two writers for
 one entity cannot both succeed: the second append is a conflict, raised as the
 entity's failure for its supervision to decide.
 
@@ -397,24 +409,20 @@ For a cluster the journal must be one every node reaches. `JdbcJournal` keeps
 events in one table over the `DataSource` you give it, and ships its tables in
 the jar as a Liquibase changelog in formatted SQL, `lark/journal/jdbc/postgres.sql`,
 for your changelog to include (or `lark-app-liquibase`'s
-`migrate` to run); nothing creates tables at start
-([spec 0072](../specs/0072-events-that-outlive-the-node.md),
-[spec 0078](../specs/0078-the-journal-on-postgres.md)).
+`migrate` to run); nothing creates tables at start.
 
 - **Snapshots.** With `snapshots = every(100, codec)` the entity saves its state
   after each hundredth event, and a start replays only what came after the
-  newest snapshot ([spec 0074](../specs/0074-a-recovery-that-does-not-replay-everything.md)).
+  newest snapshot.
 - **Pruning.** Give `every` a `Prune` and the events a snapshot covers are
   deleted: `Prune.always`, or `Prune.after(offsets, "name", …)` to wait until
-  every named read model has read them
-  ([spec 0076](../specs/0076-a-journal-that-does-not-grow-forever.md),
-  [spec 0077](../specs/0077-pruning-that-waits-for-read-models.md)).
+  every named read model has read them.
 - **Read models.** `Projection.follow` is every event of one kind, across
   entities, in one order, as a stream on any lark-stream backend.
   `runProjecting()` saves each event's offset once its work is done, so a read
   model started again goes on where it left off. Delivery is at least once:
   write handlers that are safe to repeat, keyed by the entity and the event's
-  sequence number ([spec 0075](../specs/0075-a-read-model-that-follows-the-journal.md)).
+  sequence number.
 
 <!-- cluster-persistent -->
 ```kotlin
@@ -548,8 +556,7 @@ fun ledger(database: DataSource, ledger: Ledger): Running<Nothing, Long> {
 ## A journal across databases
 
 One database takes every write from every node. When that is the limit, split
-the journal by entity across several
-([spec 0088](../specs/0088-a-journal-across-databases.md)):
+the journal by entity across several:
 
 - **Each id lives in one database.** Its slice is murmur3 of `kind|id`, out
   of 1,024 fixed forever, and each database owns a contiguous range of slices
@@ -604,8 +611,7 @@ fun ledgers(journal: ShardedJournal, offsets: JdbcOffsets): List<Running<Nothing
 
 A tell across nodes is at most once, and a message already in an entity's
 mailbox when its shard moves is dropped. For a command that must not be lost,
-such as a payment, send it reliably
-([spec 0079](../specs/0079-a-message-that-arrives-when-its-entity-moves.md)):
+such as a payment, send it reliably:
 
 - **The command carries its delivery.** It implements `Delivered`, and its
   codec writes the `Delivery` with `out.delivery(…)` and reads it back with
@@ -683,15 +689,13 @@ crashes loses it, and one that stops properly waits for it first (the next
 section). Where a crash must lose nothing, pass `durable = true`: the producer
 keeps each command in the flock's journal before `send` returns, and one started
 again under the same id sends what is still unconfirmed. Its commands implement
-`Delivered.redeliver`, usually as `copy(delivery = delivery)`
-([spec 0085](../specs/0085-a-sender-that-survives-its-crash.md)). The journal
+`Delivered.redeliver`, usually as `copy(delivery = delivery)`. The journal
 keeps it under the node's life as well as the id, its name and `Cluster.uid`,
 so each restart of a node has an outbox of its own. A singleton,
 `lark-producers`, lists every such producer. When a life leaves the cluster,
 the singleton starts that life's producers on its own node, and retires each
 once everything it kept is confirmed. A node that never comes back loses
-nothing it accepted
-([spec 0099](../specs/0099-commands-a-crashed-node-left-behind.md)).
+nothing it accepted.
 
 A durable `send` can fail for a second reason: the journal throws, because the
 database is down or a connection was lost. It then answers `Unwritten` with
@@ -699,8 +703,7 @@ what the journal threw, and nothing was kept. The producer restarts itself,
 100 ms after the throw and doubling to 5 s, and until its journal can be read
 again every `send` answers `Unwritten` at once rather than waiting out
 `within`. Neither answer is retried for the caller, so a service tells "slow
-down" from "unavailable" by matching on `NotSent`
-([spec 0098](../specs/0098-a-sender-whose-journal-goes-down.md)):
+down" from "unavailable" by matching on `NotSent`:
 
 <!-- cluster-reliable-answers -->
 ```kotlin
@@ -730,8 +733,7 @@ on it waits for what it keeps to be confirmed: up to `drainWithin` for
 the node leaves, waiting up to `leaveWithin` (30 seconds by default) to be
 removed. Its shards move to their next owners while it is `Leaving`. The
 others see it leave and remove it, rather than finding it unreachable and
-downing it `stableAfter` later
-([spec 0080](../specs/0080-a-node-that-stops-without-crashing.md)).
+downing it `stableAfter` later.
 `cluster.stop(within)` does the same before the flock closes, for a service
 that has something of its own to do after. A `leaveWithin` of zero leaves
 nothing, and the node goes as a crashed one does.
@@ -773,8 +775,7 @@ as crashed.
 
 Every flock records through lark's `metrics`, so a service with
 `lark-micrometer` installed exports these with nothing more to write. Each
-carries a `node` tag naming the node it was recorded on
-([spec 0081](../specs/0081-a-cluster-you-can-see.md)).
+carries a `node` tag naming the node it was recorded on.
 
 | Metric | Kind | What it tells an operator |
 | --- | --- | --- |
@@ -804,7 +805,7 @@ would cost what the actors are built to avoid.
 ### Telling everyone
 
 An event several nodes must hear, such as a price every node caches, is a
-topic ([spec 0082](../specs/0082-a-topic-every-node-hears.md)). A publish on
+topic. A publish on
 any member reaches every subscriber on every `Up` member; a member still joining,
 or already leaving, misses what is published meanwhile. Delivery is at most once
 to each subscriber, and one member's publishes arrive in the order it made

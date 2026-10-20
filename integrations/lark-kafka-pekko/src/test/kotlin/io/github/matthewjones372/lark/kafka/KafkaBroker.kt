@@ -31,9 +31,10 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     // broker wraps the BindException in whatever it was starting, so the catch is wide and the cause chain decides.
     @Suppress("TooGenericExceptionCaught")
     private fun start(attempt: Int): EmbeddedK {
+        val (kafkaPort, controllerPort) = twoFreePorts()
         val config = EmbeddedKafkaConfig.apply(
-            freePort(),
-            freePort(),
+            kafkaPort,
+            controllerPort,
             // A group's first member is not kept waiting for others to join, which is 3s a test by default.
             brokerProperties(),
             EmbeddedKafkaConfig.`apply$default$4`(),
@@ -73,7 +74,10 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
         EmbeddedKafkaConfig.`apply$default$3`()
             .updated("group.initial.rebalance.delay.ms", "0") as scala.collection.immutable.Map<String, String>
 
-    private fun freePort(): Int = ServerSocket(0).use { it.localPort }
+    // Both held open while the other is chosen: one closed before the next opens can be handed out again, and the
+    // broker rejects a listener and a controller on one port, which is not a BindException to retry on.
+    private fun twoFreePorts(): Pair<Int, Int> =
+        ServerSocket(0).use { first -> ServerSocket(0).use { second -> first.localPort to second.localPort } }
 
     private companion object {
         const val TIMEOUT_SECONDS = 30L
