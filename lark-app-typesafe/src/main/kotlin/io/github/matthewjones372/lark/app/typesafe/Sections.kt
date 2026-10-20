@@ -16,6 +16,9 @@ import kotlin.time.toKotlinDuration
 /** A path that could not be read, in Typesafe Config's own words — which name the file and the line. */
 data class ConfigFault(val why: String)
 
+/** A path a section asked for, from the document's root, and whether it was asked for as a [Secret]. */
+data class PathRead(val path: String, val secret: Boolean)
+
 /**
  * A read of a HOCON section that answers with every fault rather than the first.
  *
@@ -24,9 +27,19 @@ data class ConfigFault(val why: String)
  * all still work. What is added is the one thing Typesafe Config does not do — carrying on after a
  * missing path so that a bad file is one message rather than one deploy per fault.
  */
-class Reading internal constructor(val config: Config) {
+class Reading internal constructor(
+    val config: Config,
+    private val at: String? = null,
+    private val read: MutableMap<String, Boolean> = linkedMapOf(),
+) {
 
     internal val faults: MutableList<ConfigFault> = mutableListOf()
+
+    /**
+     * Every path a leaf asked for, nested sections' included, in the order asked — what the report of
+     * this section prints, and all it prints. A path read through [of] without one is not here.
+     */
+    val paths: List<PathRead> get() = read.map { (path, secret) -> PathRead(path, secret) }
 
     /**
      * [read] against the section, or [absent] where it threw — with the exception's own message kept,
@@ -40,15 +53,18 @@ class Reading internal constructor(val config: Config) {
             absent
         }
 
-    fun string(path: String): String = of("") { getString(path) }
+    /** [of], with the [path] [read] reads recorded, for a leaf this class has no reader of its own for. */
+    fun <A> of(path: String, absent: A, read: Config.() -> A): A = recorded(path, secret = false) { of(absent, read) }
 
-    fun int(path: String): Int = of(0) { getInt(path) }
+    fun string(path: String): String = of(path, "") { getString(path) }
 
-    fun long(path: String): Long = of(0) { getLong(path) }
+    fun int(path: String): Int = of(path, 0) { getInt(path) }
 
-    fun boolean(path: String): Boolean = of(false) { getBoolean(path) }
+    fun long(path: String): Long = of(path, 0) { getLong(path) }
 
-    fun strings(path: String): List<String> = of(emptyList()) { getStringList(path) }
+    fun boolean(path: String): Boolean = of(path, false) { getBoolean(path) }
+
+    fun strings(path: String): List<String> = of(path, emptyList()) { getStringList(path) }
 
     /**
      * A string that will not print itself.
@@ -57,17 +73,17 @@ class Reading internal constructor(val config: Config) {
      * says nothing. What comes back masks itself in a log line, an exception and a data class's
      * `toString` alike; `Secrets.and(path)` is the other half, and redacts it in a report.
      */
-    fun secret(path: String): Secret = Secret(of("") { getString(path) })
+    fun secret(path: String): Secret = recorded(path, secret = true) { Secret(of("") { getString(path) }) }
 
     /** HOCON's own duration — `30s`, `5 minutes` — as `kotlin.time`'s, which is what lark takes. */
-    fun duration(path: String): Duration = of(Duration.ZERO) { getDuration(path).toKotlinDuration() }
+    fun duration(path: String): Duration = of(path, Duration.ZERO) { getDuration(path).toKotlinDuration() }
 
     /** HOCON's own size — `512M`, `2 GiB` — in bytes. */
-    fun bytes(path: String): Long = of(0) { getMemorySize(path).toBytes() }
+    fun bytes(path: String): Long = of(path, 0) { getMemorySize(path).toBytes() }
 
     /** A nested section, read the same way. Its faults are this one's. */
     fun <A> section(path: String, block: Reading.() -> A): A {
-        val nested = Reading(of(config.root().toConfig()) { getConfig(path) })
+        val nested = Reading(of(config.root().toConfig()) { getConfig(path) }, full(path), read)
         // In a finally rather than after the call: a constructor that validates one of the discarded
         // values throws past it, and the faults that produced those values are the answer wanted.
         try {
@@ -75,6 +91,14 @@ class Reading internal constructor(val config: Config) {
         } finally {
             faults += nested.faults
         }
+    }
+
+    private fun full(path: String): String = at?.let { "$it.$path" } ?: path
+
+    /** Secret if any read of it was: a value masked once and printed once has been printed. */
+    private fun <A> recorded(path: String, secret: Boolean, value: () -> A): A {
+        read.merge(full(path), secret, Boolean::or)
+        return value()
     }
 }
 
@@ -134,13 +158,13 @@ inline fun <reified A : Any> Config.choosing(
 
 /** What a section read and what it could not, which [reading] keeps apart because it answers with one. */
 @PublishedApi
-internal class Section(val value: Any?, val faults: List<ConfigFault>)
+internal class Section(val value: Any?, val faults: List<ConfigFault>, val paths: List<PathRead>)
 
 @PublishedApi
 internal fun <A> Config.sectionOf(path: String, read: Reading.() -> A): Section {
     val reading = Reading(this)
     val value = reading.readOrFaulted { section(path, read) }
-    return Section(value?.value, reading.faults.toList())
+    return Section(value?.value, reading.faults.toList(), reading.paths)
 }
 
 /** A value read, boxed so that a read answering `null` is told apart from one that threw. */
