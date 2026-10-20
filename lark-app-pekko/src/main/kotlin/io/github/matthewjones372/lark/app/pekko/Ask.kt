@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.app.pekko
 
-import io.github.matthewjones372.lark.pekko.await
+import io.github.matthewjones372.lark.await
 import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.javadsl.Adapter

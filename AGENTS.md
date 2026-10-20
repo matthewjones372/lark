@@ -30,191 +30,40 @@ Before a spec exists: ask questions, read code, answer in chat. No code.
 Pull requests are stacked. Each branch sits on the one before it and is
 reviewable on its own.
 
-- **Soft cap: 200 changed lines**, excluding generated sources and golden
-  fixtures. Past that, split before writing code rather than after.
+- **Soft cap: 200 changed lines** of main sources, build files and docs. Tests,
+  generated sources and golden fixtures do not count. Past that, split before
+  writing code rather than after.
 - **One spec section per PR.** A spec with four stack entries is four branches,
   not one branch with four commits.
 - **Announce the split first.** Post the intended stack — branch name and one
   line each — and wait for a yes before the first commit.
 
-### Working a stack
-
-GitHub tracks a stack itself, so the chain is one object rather than a set of
-pull requests that happen to point at each other. Install the extension once:
-
-```bash
-gh extension install github/gh-stack
-```
-
-Start the stack on the branch the first entry lands on, then add one branch per
-entry, bottom-up:
-
-```bash
-gh stack init spec-0003-descriptor
-# ... write code, commit ...
-gh stack add spec-0003-codec
-# ... write code, commit ...
-gh stack submit
-```
-
-`submit` pushes every branch, opens a pull request per entry with the right
-base, and links them. `gh stack view` prints the chain and where each one is.
-
-An agent has no terminal to prompt at, so `submit` does what `--auto` does: it
-writes the titles itself and opens every pull request as a draft. Ask for them
-open instead, or the stack is handed over in a state nobody reviews:
-
-```bash
-gh stack submit --open
-```
-
-A stack already submitted is opened one at a time with `gh pr ready`, which
-leaves the descriptions alone.
-
-A change asked for on a lower entry is made there, not worked around above it:
-
-```bash
-gh stack checkout spec-0003-descriptor
-# ... commit the change ...
-gh stack rebase --upstack
-gh stack push
-```
-
-GitHub's own *Rebase stack* button in the merge box does the same thing
-server-side, and the commits it writes are unsigned. Prefer `gh stack rebase`,
-which follows whatever signature configuration the machine has.
-
-When the bottom pull request merges, one command catches the rest up:
-
-```bash
-gh stack sync --prune
-```
-
-Branches that already exist become a stack without being rebuilt:
-
-```bash
-gh stack init branch-one branch-two branch-three && gh stack submit
-```
-
-## Comments
-
-Comments record what the code cannot: the reason a thing is done the way it is.
-They do not restate the code, and they are not essays.
-
-**Write a comment when there is a why.** A surprising API, a constraint from a
-dependency, a trade-off that was actually made, a bug that a naive version
-reintroduces. One or two sentences.
-
-**Do not write one when there is not.** If the signature and the body already
-say it, say nothing.
-
-### Rules
-
-- **KDoc: one line by default.** Two or three only where the reason genuinely
-  takes them. Reserve a multi-paragraph block for a decision the reader would
-  otherwise undo — there should be very few in a file.
-- **No worked examples in KDoc** unless the call is hard to get right from the
-  signature. The README and `docs/` carry the tutorial; a code comment is not
-  the place to teach the DSL twice.
-- **No restating the code.** `/** The status. */ val status: Int` earns
-  nothing.
-- **No history.** "The alternative was…", "this used to…", "before this it
-  was…" belongs in the commit message, not the source. Exception: naming a bug
-  the comment exists to stop coming back.
-- **No rhetorical framing.** Skip "Note the split of responsibilities", "which
-  is the whole point", "and that is the difference that buys". State the fact.
-- **Inline `//` notes are for the line below them**, not for paragraphs. If it
-  runs past three lines, it is either KDoc or it is too long.
-
-### Shape
-
-```kotlin
-// Yes — names a real constraint, once.
-/** Pekko's `StatusCodes.get` throws for unregistered codes; `custom` does not. */
-private fun statusOf(code: Int): StatusCode = ...
-
-// No — restatement, then an essay about it.
-/**
- * Pekko's own status where it knows one, and a custom status where it does not.
- *
- * `StatusCodes.get` is not a lookup: it is `int2StatusCode`, which throws for
- * anything not in the registry. So an endpoint that declared a perfectly legal
- * 419 used to document that status and then answer 500, because the throw
- * landed in the interpreter's own `exceptionally`. ...
- */
-```
-
-Same rules in test sources. A test name should carry the claim; the KDoc above
-it should not repeat the name in longer words.
-
-## Imports
-
-**No wildcard imports, anywhere, and no unused ones.** One line per name, so an
-import block is an inventory of what a file uses and where each piece lives —
-and so a reader of the documentation's examples can see exactly what to import.
-Two detekt rules fail the build on either mistake, `WildcardImport` and
-`UnusedImport`, and `.editorconfig` tells ktlint and the IDE the same thing so
-an optimize-imports cannot put a star back.
-
-The same holds in the docs and the examples: every complete example carries its
-imports written out, and the `dependencies { }` block naming the modules it
-needs, with real coordinates. `example/` generates neither by hand — a file
-that grows an import grows a line in its block.
+Stacking commands (`gh stack init`, `add`, `submit --open`, fixing a lower
+entry): [`docs/agents/stacking.md`](docs/agents/stacking.md).
 
 ## Layout
 
-Three modules. `lark` depends on `arrow-core` and on the JDK, and on nothing
-else: no HTTP library, no JSON library, no coroutines, and virtual threads come
-from `java.lang.Thread`. `lark-pekko` adds `pekko-actor` and only that: it
-exists to hand a Pekko dispatcher to `lark` as the executor its forks run on,
-and to await Pekko's stages from a virtual thread. `lark-stream` is
-`Stream<E, A>` as a description, and depends on `lark` and the Arrow that
-arrives with it, and on nothing else: no backend. `lark-stream-pekko` runs one
-on Pekko Streams, and depends on `lark-stream`, on `lark-pekko` — `awaitExit`
-waits through its `await`, so one bridge cancels an abandoned stage for a
-handler and for a run alike — and on `pekko-stream`, and on nothing else.
+One Gradle module per capability, listed in `settings.gradle.kts`;
+[`docs/modules.md`](docs/modules.md) says what each is for. `lark` depends on
+`arrow-core` and on the JDK, and on nothing else: no HTTP library, no JSON
+library, no coroutines, and virtual threads come from `java.lang.Thread`. Every
+other module depends on the Lark modules it builds on and, at most, the one
+external library or SDK its name says it integrates: `lark-pekko` adds
+`pekko-actor`, `lark-stream` adds nothing, `lark-stream-pekko` adds
+`pekko-stream`, `lark-kafka` adds `kafka-clients`, and so on.
 
 Each claim is a test. `NoOtherDependenciesTest` asserts the module's main
 runtime classpath, in every module alike.
 
-A dependency added to either is a build failure, not a judgement call.
+A dependency added to any module is a build failure, not a judgement call.
 
-## Values, errors and effects
+Adding a module: [`docs/agents/new-module.md`](docs/agents/new-module.md) lists
+every place that has to name it.
 
-Descriptions are values. There is no registry and nothing that has to run at
-startup: `routes` is a `List<ServerEndpoint>` that can be split across files or
-filtered. Prefer a value to a function when adding a feature.
+## Coding standards
 
-Errors a caller was promised are values in the return type. `orFail` puts the
-declared failure into the endpoint's type and `handledOrFail` takes a handler
-returning `Outcome<E, A>`. Throwing is for what nobody declared — a decode
-failure, a broken codec, a bug.
-
-Do not wrap a handler in `runCatching` and map the result into a failure. That
-produces a second error model beside the declared one. `runCatching` is not used
-anywhere, test sources included, and detekt fails the build on one: it catches
-interrupts and bugs along with what was meant. Catch the exception you expect,
-by name.
-
-In a lark handler, `raise` is the only way to leave with a declared failure.
-A raise unwinds through the body as an exception, so a `catch` between it and
-the boundary eats it: `catch (t: Throwable)` belongs in the one function that
-completes the stage from the virtual thread, and detekt permits it nowhere
-else.
-
-A `Raise` scope never crosses a thread. Work forked from a handler answers
-with an `Either`, and the handler binds it.
-
-Never add an `else` to a `when` over a sealed type. The missing branch is the
-compiler naming a case that needs handling in every interpreter.
-
-Public API returns read-only types. A mutable accumulator is allowed inside a
-builder that freezes it before returning. `FunctionalStyleTest` lists every
-file permitted one, each with its reason; a new file needs an entry and a
-reason, not a path added to get green.
-
-The handler chain carries `CompletionStage<Any?>`. `suspend` cannot appear
-anywhere in `lark` — `NoOtherDependenciesTest` would say so.
+Comments, imports, errors, effects and read-only API:
+[`CODING_STANDARDS.md`](CODING_STANDARDS.md). Review enforces it.
 
 ## Testing
 
@@ -231,6 +80,16 @@ Work out which of these a change can break:
 - **Thread claims.** A test that says the body ran on a virtual thread reads
   `Thread.currentThread().isVirtual` inside the body and asserts on it
   afterwards; it does not count threads or time sleeps.
+
+### Examples in the docs are compiled
+
+The guides' Kotlin fences are compiled by tests that read the Markdown:
+`ReadmeExampleTest` (README and `docs/stream.md`), `CoreGuideTest` and
+`CookbookTest` (`docs/core.md`, `observability.md`, `testing.md`,
+`cookbook.md`), `ActorsGuideTest` and `GuideExampleTest`. A fence is found by
+the HTML comment above it, such as `<!-- core-policy -->`, so keep the marker
+when editing an example, and add one to a new complete example. Each module's
+`build.gradle.kts` declares the pages it reads as test inputs.
 
 ### An actor system belongs to the test class
 
@@ -254,12 +113,15 @@ it next. Run it last, after the final edit, so nothing lands unformatted:
 ./gradlew spotlessApply && ./gradlew build
 ```
 
+One Gradle build at a time per checkout. Two at once fail with timeouts and
+missing test results that look like real failures.
+
 Three gates sit beyond the tests. Each exists because a claim in the README
 would otherwise be unverified.
 
 | Gate | Fails when | Not the fix |
 |---|---|---|
-| detekt | any finding | a suppression with no reason |
+| detekt | any finding, or a source it cannot compile (`X.serializer()`: write `serializer<X>()`) | a suppression with no reason |
 | `NoOtherDependenciesTest` | anything but core and Arrow on the runtime classpath | widening the allow-list |
 | Kover | line coverage under 90% | lowering the floor |
 
@@ -269,3 +131,19 @@ Before saying it is done:
 - `./gradlew build` is green, gates included.
 - No new dependency in `lark`.
 - The README reflects the change, or the change is invisible from outside.
+
+## Agent skills
+
+### Issue tracker
+
+Specs are the tickets: a spec's Stack entries are its work items, in blocking
+order. Other issues live in GitHub Issues for `matthewjones372/lark`, via the
+`gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

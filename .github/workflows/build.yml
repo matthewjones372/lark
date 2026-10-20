@@ -19,10 +19,10 @@ permissions:
 
 jobs:
   build:
-    # A pull request always builds on GitHub's runners: this repository is public, so a pull request can
-    # come from anyone and must never run on the home cluster. A push to main uses the repository variable
-    # RUNNER if it is set (for example home-lark, lark-bank spec 0017), and GitHub's runners otherwise.
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || vars.RUNNER || 'ubuntu-latest' }}
+    # A pull request from a fork builds on GitHub's runners: this repository is public, so a fork's
+    # pull request can come from anyone and must not run on the Namespace account. Everything else,
+    # a push to main or a pull request from a branch here, builds on Namespace.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'namespace-profile-mattjones372' }}
     # A backstop behind the step's own limit below, for a hang outside it. GitHub's default is six hours.
     timeout-minutes: 40
 
@@ -53,10 +53,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       # A green build takes under ten minutes. The limit is on the step rather than the job, so the reports
-      # below are still uploaded when it is hit.
+      # below are still uploaded when it is hit. Two workers, not one per core: the Namespace machine has
+      # 8 GB, and four at once (test JVMs of up to 2 GB, TestKit's own Gradle, the Kotlin daemon beside
+      # Gradle's) got the daemon OOM-killed on a build with nothing cached.
       - name: Build and test
         timeout-minutes: 25
-        run: ./gradlew build ${{ matrix.gradleArgs }} --stacktrace
+        run: ./gradlew build ${{ matrix.gradleArgs }} --max-workers=2 --stacktrace
 
       # The suites run an Api in memory and assert on which thread a body ran
       # on, so a failure is worth reading rather than guessing at.

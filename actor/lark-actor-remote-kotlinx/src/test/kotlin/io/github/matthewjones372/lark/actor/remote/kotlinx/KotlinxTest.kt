@@ -29,6 +29,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.cbor.Cbor
+import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
@@ -37,7 +38,7 @@ import kotlin.time.Duration.Companion.minutes
 /** A request for a price, and the lark reply its answer goes to: what `asked` writes. */
 private data class Quote(val request: Till.Paid, val reply: Reply<Long>)
 
-private val quote = Kotlinx.asked(Till.Paid.serializer(), Codecs.long, ::Quote, Quote::request, Quote::reply)
+private val quote = Kotlinx.asked(serializer<Till.Paid>(), Codecs.long, ::Quote, Quote::request, Quote::reply)
 
 /** Refs that keep every reply they are given, and hand the same one back for its address. */
 private class Kept : Refs {
@@ -68,8 +69,8 @@ class KotlinxTest {
     @Test
     fun `one data class crosses as its own bytes and reads back equal`() {
         val takings = Takings(Pence(350), listOf("a", "b"), open = true)
-        Kotlinx.codec(Takings.serializer()).roundTrip(takings) shouldBe takings
-        Kotlinx.state(Takings.serializer()).let { it.decode(it.encode(takings)) } shouldBe takings
+        Kotlinx.codec(serializer<Takings>()).roundTrip(takings) shouldBe takings
+        Kotlinx.state(serializer<Takings>()).let { it.decode(it.encode(takings)) } shouldBe takings
     }
 
     @Test
@@ -123,7 +124,7 @@ class KotlinxTest {
             id = id,
             empty = Takings(Pence(0), emptyList(), open = true),
             codec = tills.events(),
-            snapshots = every(2, Kotlinx.state(Takings.serializer())),
+            snapshots = every(2, Kotlinx.state(serializer<Takings>())),
             command = { _, _, happened -> persist(happened) },
             event = { takings, happened ->
                 when (happened) {

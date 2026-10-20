@@ -1,17 +1,17 @@
 # Actors on one node
 
-> Lark is a scratchpad, not a finished library — see
-> [what this is](../README.md#what-this-is). Everything here works and is tested;
-> none of it is settled.
-
 `lark-actor` is an actor as a value: a state, and a step that takes one
-message at a time. This page is what a service writes with it in one process,
-in the order it meets it. Each section names the spec that argued for the
-design, for the reasoning this page leaves out. A second node, a cluster and
-entities spread across it are the [cluster guide](cluster.md)'s.
+message at a time. Actors run on virtual threads inside the same structured
+scope, `flock`, that the core uses for forks, so there is no actor system to
+start and stop, and a step may block.
+
+This page covers actors in one process: failure and supervision, timers,
+finding and routing, persistence and testing. A second node, a cluster and
+entities spread across it are covered in the [cluster guide](cluster.md).
 
 Every complete example below is compiled against the library by
-`ActorsGuideTest`, so what you read is what builds.
+`ActorsGuideTest`, and the testing examples are also run, so what you read is
+what builds.
 
 ```kotlin
 dependencies {
@@ -29,8 +29,7 @@ dependencies {
 
 ## An actor
 
-A `behaviour` is where an actor starts and what one message does to it
-([spec 0059](../specs/0059-an-actor-without-an-actor-system.md)). A step gets
+A `behaviour` is where an actor starts and what one message does to it. A step gets
 the actor's context, its state and one message, and answers what happens next:
 
 - `stay()` keeps the state;
@@ -39,14 +38,22 @@ the actor's context, its state and one message, and answers what happens next:
 - `unhandled()` keeps the state and sends the message where dead letters go.
 
 Nothing runs until the behaviour is spawned. An actor lives in a `flock`, the
-structured scope `lark` already has, and cannot outlive it: closing the flock
-stops every actor in it, after any step already running has returned. Each
-actor has a virtual thread when it has work and none when it has not, so a step
-may block on JDBC or a client with no async API.
+structured scope `lark` already has, and cannot outlive it: when the flock's
+block ends, every actor in it is stopped, and the flock returns only once they
+have. On virtual threads a step still running at that point is interrupted; on
+another executor it is waited for.
 
-`tell` sends and returns. `ask` sends a message carrying a `Reply` and waits up
-to a timeout for the answer, which comes back as an `Either`: an actor that
-stopped, or took too long, is a value rather than an exception.
+An idle actor holds no thread. An actor with messages waiting is run by the
+flock's runners, virtual threads shared by its actors, one per carrier thread
+to start with and more while steps are blocked. So a step may block on JDBC or
+a client with no async API without starving the other actors.
+
+`tell` sends and returns. A mailbox holds 1,024 messages by default
+(`capacity` on `spawn`): a sender outside any actor waits while it is full,
+and a step that tells a full mailbox fails. `ask` sends a message carrying a
+`Reply` and blocks the caller for up to a timeout, answering with an
+`Either`: an actor that stopped, took too long or could not be reached is an
+`AskFailure` value rather than an exception.
 
 <!-- actors-actor -->
 ```kotlin
@@ -100,8 +107,7 @@ actor.
 
 ## Failure
 
-A step fails in one of two ways
-([spec 0060](../specs/0060-an-actor-that-fails-and-is-watched.md)):
+A step fails in one of two ways:
 
 - **It raises** a failure it declared. A behaviour names its failure type as
   its third type parameter, `behaviour<M, S, E>`, and its step raises with
@@ -188,8 +194,7 @@ anywhere else.
 
 ## Time
 
-An actor's timers send it messages later, under a key
-([spec 0061](../specs/0061-an-actor-on-a-clock.md)):
+An actor's timers send it messages later, under a key:
 `ctx.timers.after` once, `ctx.timers.every` repeatedly, and `ctx.timers.cancel`
 to take one back. Starting a key that is running replaces it, and a message
 from a cancelled timer never arrives, even one already in the mailbox. A
@@ -276,7 +281,7 @@ fun main() {
 ## Finding and routing
 
 An actor that should be found registers under a `ServiceKey`, a protocol by
-name ([spec 0062](../specs/0062-actors-that-find-each-other.md)).
+name.
 `ctx.register` lists it until it stops or restarts; `find` on the flock answers
 the refs listed now; and `ctx.subscribe` tells an actor the listing now and
 again each time it changes, as a message of its own protocol. A registration
@@ -361,8 +366,7 @@ fun Flock<Nothing>.office() {
 
 ## Remembering
 
-A `persistent` actor is remembered by its events
-([spec 0063](../specs/0063-an-actor-that-is-remembered.md)). A command answers
+A `persistent` actor is remembered by its events. A command answers
 an effect instead of a next state:
 
 - `persist(events)` writes them to the journal, then applies them with `event`;
@@ -375,11 +379,14 @@ first command. Its state is a `Remembered`: the value the events built and the
 number of the last one. An append that finds another writer has got there first
 is raised as a `JournalConflict`, so supervision decides.
 
+With `persistent(…, batch = n)`, up to `n` commands already waiting in the
+mailbox are handled together and their events written in one append, which
+raises throughput for a busy entity; a conflict fails the whole batch.
+
 The journal and the snapshot store are the flock's. `InMemoryJournal` and
 `InMemorySnapshots` keep everything in the process, for tests and for trying
 things out. With `snapshots = every(n, codec)`, the actor saves its state every
-`n` events and a start replays only what came after the newest save
-([spec 0074](../specs/0074-a-recovery-that-does-not-replay-everything.md)).
+`n` events and a start replays only what came after the newest save.
 A journal that outlives the node, on Postgres, and read models that follow it
 are the [cluster guide](cluster.md#state-that-survives)'s.
 
@@ -468,7 +475,7 @@ fun main() {
 
 Events outlive the code that wrote them. When an event's class changes, the
 journal still holds every event written in the old shape, and a replay has to
-read them ([spec 0091](../specs/0091-events-that-change-shape.md)).
+read them.
 
 `versioned` wraps the codec a service already has. It writes each event as
 the current version, behind a short mark, and reads an older one through an
@@ -529,8 +536,7 @@ codec, so it never meets an old shape.
 
 ## Testing
 
-Everything above runs without threads, stepped by the test itself
-([spec 0059](../specs/0059-an-actor-without-an-actor-system.md)).
+Everything above runs without threads, stepped by the test itself.
 `behaviour.test()` runs one actor on the calling thread, and `testActors { }`
 runs several that talk to each other. A tell from the test returns once that
 message, and everything it caused, has been handled, so a test asserts straight
@@ -550,7 +556,7 @@ after it with nothing to wait for.
   messages to one receiver in order, so a race shows up under some seed and
   that seed replays it. `trace` lists every delivery for a failing test, and
   `settle()` runs messages and timers to idle, failing after 100,000 steps
-  rather than hanging ([spec 0128](../specs/0128-a-test-runtime-that-can-be-unkind.md)).
+  rather than hanging.
 - **Lost, doubled and late messages.** `faults = Faults(drop = 0.1,
   duplicate = 0.1, delay = 0.1, maxDelay = 2.seconds)` does each to a tell
   between actors by probability from the same seed, and records it in `trace`.

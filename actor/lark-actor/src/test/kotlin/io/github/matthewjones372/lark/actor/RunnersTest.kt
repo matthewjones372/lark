@@ -1,13 +1,15 @@
 package io.github.matthewjones372.lark.actor
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 
-/** Spec 0104: an urgent activation is taken before every ordinary one already waiting. */
 class RunnersTest {
 
+    /** Spec 0104: an urgent activation is taken before every ordinary one already waiting. */
     @Test
     fun `an urgent activation runs ahead of the ordinary ones queued before it`() {
         val runners = Runners(parallelism = 1, cap = 1)
@@ -23,5 +25,21 @@ class RunnersTest {
 
         ran.first() shouldBe "urgent"
         ran.size shouldBe 1_001
+    }
+
+    /** Spec 0143: a runner that runs out of work waits to be woken rather than leaving for a new one to start. */
+    @Test
+    fun `activations submitted one after another start no more runners than the parallelism`() {
+        val runners = Runners(parallelism = 4, cap = 4)
+        repeat(10_000) {
+            val ran = CountDownLatch(1)
+            runners.submit(Activation { ran.countDown() })
+            ran.await()
+        }
+        runners.awaitIdle()
+
+        withClue("runner threads started for 10,000 activations, each queued after the last had run") {
+            runners.starts.get() shouldBeLessThanOrEqual 4
+        }
     }
 }

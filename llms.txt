@@ -8,9 +8,13 @@ Facts worth having before anything else:
 
 - Kotlin 2.4, JDK 25 or newer. Apache 2.0. On Maven Central as
   `io.github.matthewjones372:lark` and sibling modules, all on one version.
-- Releases are tagged `vX.Y.Z`; between them, `X.Y.(Z+1)-SNAPSHOT` is published
-  to `https://central.sonatype.com/repository/maven-snapshots/`.
-- Experimental: everything is tested, and the API can still change.
+- Releases are tagged `vX.Y.Z`. Between them, `X.Y.(Z+1)-SNAPSHOT` is
+  published by hand, not on every push, to
+  `https://central.sonatype.com/repository/maven-snapshots/`.
+- Experimental: everything is tested, and the API can change in any `0.x`
+  release. Pin an exact version.
+- Each module brings at most the one external library or SDK it integrates,
+  so depend only on the modules the code uses.
 - Blocking is fine: every fork is a virtual thread. Do not reach for
   `suspend`, a dispatcher or a `CompletableFuture` where a lark call exists.
 - A service is a `Module` (a dependency graph) run by `LarkApp` and `runApp`.
@@ -27,9 +31,11 @@ Facts worth having before anything else:
 
 - `lark`: `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
   `timeout`, `policy` (retry, circuit breaker, bulkhead, rate limiter),
-  `LarkLocal`, `Clock`, and the log and metrics calls.
-- `lark-pekko`: a Pekko dispatcher as the executor, and Pekko's stages awaited
-  from a fork.
+  `LarkLocal`, `Clock`, `TestClock`, the log and metrics calls,
+  `capturingLogs` and `capturingMetrics` for tests, `await()` for a
+  `CompletionStage` or `Future`, and `larkFuture { }` to hand one back.
+- `lark-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
+  awaited from a fork.
 - `lark-stream`: `Stream<E, A>` as a description, with its failure in the type
   and no backend named.
 - `lark-stream-forks`: runs a `Stream` as a pull loop on one virtual thread;
@@ -39,14 +45,15 @@ Facts worth having before anything else:
 - `lark-stream-actors`: runs a `Stream` on `lark-actor`, an actor per run.
 - `lark-stream-test`: `TestStreams` and `TestClock`, every stage on the calling
   thread and time the test moves.
-- `lark-test`: `story` (Given, When, Then), `eventually(within)`,
-  `capturingLogs`, `capturingMetrics`.
+- `lark-test`: `story` (Given, When, Then), `eventually(within)`.
 - `lark-app`: an application as a value: `single`, `singleOf`, `closingOf`,
   `boundTo`, `overriding`, `subgraph`, probes, health, `testApp`, `LarkApp`,
   `awaitShutdown`.
 - `lark-app-typesafe`: a HOCON section as a node (`config`), every fault at
-  once, `secret`, `choosing`, `overridingConfig`, and where each setting came
-  from (`origins`).
+  once, `secret`, `Config.choosing`, `overridingConfig`, and where each setting
+  came from (`origins`).
+- `lark-app-kotlinx`: a HOCON section read from its `@Serializable` class,
+  `config<Settings>("section")` with no block.
 - `lark-app-liquibase`: a changelog as a node (`migrations`); readers take a
   `Migrated`.
 - `lark-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
@@ -54,7 +61,8 @@ Facts worth having before anything else:
 - `lark-app-cluster`: a `lark-cluster` membership as a node, joined as a HOCON
   section says.
 - `lark-app-gradle`: the Gradle plugin `io.github.matthewjones372.lark.wiring`,
-  which checks and draws every graph as it compiles.
+  which checks and draws every graph as it compiles. It is on Maven Central,
+  not the Plugin Portal, so `pluginManagement` needs `mavenCentral()`.
 - `lark-app-compiler`: the K2 checker behind it, which shows the same faults
   and warnings in the editor.
 - `lark-otel`: an OpenTelemetry `Context` that crosses a fork; on the classpath
@@ -89,10 +97,10 @@ Facts worth having before anything else:
 | a value built once and shared | `singleOf(::Thing)` |
 | a value that must be closed, and is `AutoCloseable` | `closingOf(::Thing)` |
 | a value given back some other way | `singleOf(::Thing, Thing::stop)` |
-| `main` | `object App : LarkApp<Root>()` and `runApp(App)`; `run` parks on `awaitShutdown()` |
+| `main` | `object App : LarkApp<Root>()` and `exitProcess(runApp(App).code)`; `run` parks on `awaitShutdown()` (the default on `main`; write it out on 0.10.1) |
 | configuration | `config<Settings>("section") { … }` from `lark-app-typesafe` |
 | a password or token | `secret("password")`, never `string(…)` |
-| a setting that picks a module | `conf.choosing("section", read) { … }` |
+| a setting that picks a module | `choice<Settings, Provided> { … }` inside the graph (unreleased, on `main`), or `conf.choosing("section", read) { … }` |
 | migrations | `migrations("db/changelog.sql")`, then take a `Migrated` |
 | readiness | `.probe(name, timeout, attempts, interval) { … }` |
 | background work on an interval | `Stream.tick(every)` started on the graph's `StreamBackend` |
@@ -101,14 +109,21 @@ Facts worth having before anything else:
 | a retry or backoff | `Schedule.exponential(…)`, `Schedule.spaced(…)` |
 | a stream that restarts after a defect | `restartOnDefect(schedule)` |
 | a log line, a counter, a timer | `logInfo`, `counter(…).increment()`, `timed(…) { … }` |
+| a value from a future | `future.await()` |
+| to hand back a future, or be called from coroutines | `larkFuture { … }`; a coroutine waits on it with kotlinx's `await` |
+| a coroutine library's answer | `runBlocking { … }`, with no `raise` inside |
 | a fake in a test | `.overriding(single<T> { … })` |
 | a smaller test | `.subgraph<Root>()` and `testApp(module) { root -> … }` |
 | a test that waits for something | `eventually(within) { … }`, never `Thread.sleep` |
-| a test of something on a timer | `TestStreams` and `TestClock` from `lark-stream-test` |
+| a test of something on a timer | `TestStreams` from `lark-stream-test`, with `TestClock` |
+| a test of a backoff | `clock.locally(fixedClock()) { … }`; not for `timeout`, which fires at once under it |
 
 ## Docs
 
-- [README](https://github.com/matthewjones372/lark/blob/main/README.md): the core, resources, retries and policies, streams, actors, clusters, Kafka, observability, testing.
-- [Applications](https://github.com/matthewjones372/lark/blob/main/docs/app.md): the graph, starting and stopping, probes.
-- [Cookbook](https://github.com/matthewjones372/lark/blob/main/docs/cookbook.md): one recipe per task, every one compiled by a test.
-- [Streams](https://github.com/matthewjones372/lark/blob/main/docs/stream.md), [Actors](https://github.com/matthewjones372/lark/blob/main/docs/actors.md), [Kafka](https://github.com/matthewjones372/lark/blob/main/docs/kafka.md), [Clusters](https://github.com/matthewjones372/lark/blob/main/docs/cluster.md).
+- [README](https://github.com/matthewjones372/lark/blob/main/README.md): what Lark is, a first example, and where to go next.
+- [Modules](https://github.com/matthewjones372/lark/blob/main/docs/modules.md): every module, what it adds, maturity, performance and limitations.
+- [Core](https://github.com/matthewjones372/lark/blob/main/docs/core.md): forks, cancellation, errors, resources, schedules, timeouts, policies, context, Pekko dispatchers.
+- [Applications](https://github.com/matthewjones372/lark/blob/main/docs/app.md): the graph, starting and stopping, probes, testing, the Gradle and compiler plugins.
+- [Application cookbook](https://github.com/matthewjones372/lark/blob/main/docs/cookbook.md): one recipe per task, most compiled by a test.
+- [Streams](https://github.com/matthewjones372/lark/blob/main/docs/stream.md), [Kafka](https://github.com/matthewjones372/lark/blob/main/docs/kafka.md), [Actors](https://github.com/matthewjones372/lark/blob/main/docs/actors.md), [Remoting and clusters](https://github.com/matthewjones372/lark/blob/main/docs/cluster.md).
+- [Observability](https://github.com/matthewjones372/lark/blob/main/docs/observability.md) and [Testing](https://github.com/matthewjones372/lark/blob/main/docs/testing.md).

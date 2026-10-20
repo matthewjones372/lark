@@ -14,7 +14,8 @@ the cheapest way to stop scope growing.
 
 What the API or behaviour should look like when this is done. Sketch the call
 you want to be able to write — an agent will match a sketch rather than invent
-one.
+one. The sketch compiles against today's types: an annotation or serializer it
+needs is part of the shape.
 
 ```kotlin
 // the call you want to be able to write
@@ -48,3 +49,6 @@ How anyone confirms the whole thing works. Commands, not prose:
 What the drafting agent could not decide from the codebase alone, as questions
 with a recommended answer each. An empty list on a first draft usually means
 the agent guessed instead of asking.
+
+Before the spec is committed for building, each question is answered in place
+or marked deferred. A question left open is the implementer's guess.
