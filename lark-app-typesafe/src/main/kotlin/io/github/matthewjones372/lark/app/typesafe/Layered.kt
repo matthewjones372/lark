@@ -25,16 +25,45 @@ class Layered internal constructor(val layers: List<Layer>) {
 }
 
 /**
- * What a service reads at start-up, as layers rather than as the merge of them.
+ * What `ConfigFactory.load()` reads, as layers rather than as the merge of them, in its order: the
+ * `CONFIG_FORCE_` variables when `-Dconfig.override_with_env_vars` asks for them, system properties,
+ * the application layer, and the reference.
  *
  * Not `defaultReference()`, which merges system properties into the reference before handing it
  * over: a report built on that says `reference.conf` holds a value that came from `-D`.
  */
-fun layeredConfig(): Layered = layeredConfigOf(
-    "system properties" to ConfigFactory.defaultOverrides(),
-    "application.conf" to ConfigFactory.parseResources("application.conf"),
-    "reference.conf" to ConfigFactory.parseResources("reference.conf"),
+fun layeredConfig(): Layered = Layered(
+    listOfNotNull(environmentOverrides(), "system properties" to ConfigFactory.systemProperties())
+        .plus(application())
+        .plus("reference.conf" to ConfigFactory.defaultReferenceUnresolved())
+        .map { (name, config) -> Layer(name, config) },
 )
+
+/** `defaultOverrides()` merges these into the system properties, which would credit `-D` with an env var. */
+private fun environmentOverrides(): Pair<String, Config>? =
+    if (System.getProperty("config.override_with_env_vars").toBoolean()) {
+        "environment overrides" to ConfigFactory.systemEnvironmentOverrides()
+    } else {
+        null
+    }
+
+/**
+ * `defaultApplication()`, split where it merges: a strategy or a `config.file`, `.resource` or `.url`
+ * replaces the whole layer, and otherwise `application.conf` beats `.json`, which beats `.properties`.
+ */
+private fun application(): List<Pair<String, Config>> {
+    val strategy = System.getProperty("config.strategy")
+    val replacement = REPLACEMENTS.firstNotNullOfOrNull { System.getProperty(it) }
+    return when {
+        strategy != null -> listOf(strategy to ConfigFactory.defaultApplication())
+        replacement != null -> listOf(replacement to ConfigFactory.parseApplicationReplacement().get())
+        else -> APPLICATION.map { name -> name to ConfigFactory.parseResources(name) }
+    }
+}
+
+private val REPLACEMENTS = listOf("config.resource", "config.file", "config.url")
+
+private val APPLICATION = listOf("application.conf", "application.json", "application.properties")
 
 /** The stack written out, for a test that would rather not have three files. Highest precedence first. */
 fun layeredConfigOf(vararg layers: Pair<String, Config>): Layered =

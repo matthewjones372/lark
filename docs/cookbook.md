@@ -523,8 +523,12 @@ petshop.port           9090          application.conf:2
 ```
 
 `ReportedTest` holds this output to what the code prints. `layeredConfig()`
-keeps system properties, `application.conf` and `reference.conf` apart so it
-can report what was overridden. `config.origins()` on an already merged
+reads what `ConfigFactory.load()` reads, layer by layer — `CONFIG_FORCE_`
+variables under `-Dconfig.override_with_env_vars`, system properties,
+`config.file`/`resource`/`url` or else `application.conf`, `.json` and
+`.properties`, then `reference.conf` — and keeps them apart so it can report
+what was overridden. `loadedConfig()` and the other sources put a `Layered` in
+the graph beside the `Config` it merges to. `config.origins()` on an already merged
 `Config` gives the same report without the override lines, because
 `withFallback` keeps only the winner.
 
@@ -551,9 +555,10 @@ config<Credentials>("database") { Credentials(secret("url"), int("poolSize")) }
 ```
 
 Two details of HOCON that the report handles: an environment variable is not
-a layer, and only takes effect where a file wrote `${?FOO}`; and
+a layer, other than a forced `CONFIG_FORCE_` one, and only takes effect where a
+file wrote `${?FOO}`; and
 `ConfigFactory.defaultReference()` already includes system properties, so
-`layeredConfig` parses `reference.conf` itself to avoid attributing a `-D`
+`layeredConfig` reads `reference.conf` unresolved to avoid attributing a `-D`
 value to it.
 
 ### Configuration in a test
