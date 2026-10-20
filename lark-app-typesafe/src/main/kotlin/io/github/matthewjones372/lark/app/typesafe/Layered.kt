@@ -16,12 +16,34 @@ class Layer internal constructor(val name: String, val config: Config)
  */
 class Layered internal constructor(val layers: List<Layer>) {
 
-    /** The merge, resolved once over the whole stack, because a substitution may cross a layer. */
+    /**
+     * The merge, resolved once over the whole stack, because a substitution may cross a layer. It
+     * remembers these layers, so a section read from it can report what each setting overrode.
+     */
     val config: Config by lazy {
-        layers.map { it.config }.reduceOrNull { above, below -> above.withFallback(below) }
-            ?.resolve()
-            ?: ConfigFactory.empty()
+        LayeredConfig(
+            this,
+            layers.map { it.config }.reduceOrNull { above, below -> above.withFallback(below) }
+                ?.resolve()
+                ?: ConfigFactory.empty(),
+        )
     }
+}
+
+/**
+ * The merge itself, and the [layered] it came from.
+ *
+ * A section depends on `Config` alone, so one written by hand still starts; the layers ride along on
+ * the value for the report rather than as a second node it would have to require. Equal to the merge,
+ * though the merge's own `equals` does not know to answer the same.
+ */
+internal class LayeredConfig(val layered: Layered, private val merged: Config) : Config by merged {
+
+    override fun equals(other: Any?): Boolean = merged == ((other as? LayeredConfig)?.merged ?: other)
+
+    override fun hashCode(): Int = merged.hashCode()
+
+    override fun toString(): String = merged.toString()
 }
 
 /**

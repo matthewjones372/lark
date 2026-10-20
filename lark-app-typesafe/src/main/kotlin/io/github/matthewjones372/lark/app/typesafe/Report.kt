@@ -1,0 +1,32 @@
+package io.github.matthewjones372.lark.app.typesafe
+
+import com.typesafe.config.Config
+
+/** Where each section's block goes. Its level is the switch: there is no flag to turn the report off. */
+private val logger: System.Logger = System.getLogger("lark-app")
+
+/**
+ * What [section] read under [path], logged before anything is built on it — and before a refusal,
+ * whose faults are easier to read beside the settings that were found.
+ */
+@PublishedApi
+internal fun Section.logged(root: Config, path: String) {
+    if (paths.isNotEmpty()) logger.log(System.Logger.Level.INFO) { root.reportOf(path, paths) }
+}
+
+/**
+ * The block for one section: only the [paths] it read, in the order read, each masked if it was read
+ * as a secret or [Secrets.default] would mask it. Over layers it says what each setting overrode; over
+ * a `Config` written by hand, only where each came from.
+ */
+internal fun Config.reportOf(section: String, paths: List<PathRead>): String {
+    val secrets = paths.filter { it.secret }.fold(Secrets.default) { secrets, read -> secrets.and(read.path) }
+    val known = ((this as? LayeredConfig)?.layered?.origins(secrets) ?: origins(secrets)).associateBy { it.path }
+    val lines = paths.map { (path) ->
+        known[path] ?: when {
+            hasPath(path) -> originOf(path, getValue(path), secrets)
+            else -> Origin(path, value = "", where = "not set", redacted = false)
+        }
+    }
+    return Origins(lines).report("lark-app configuration: $section")
+}

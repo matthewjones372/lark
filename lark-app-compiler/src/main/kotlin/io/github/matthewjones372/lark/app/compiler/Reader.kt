@@ -292,7 +292,7 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
 
-        called in SOURCES -> node(TYPESAFE_CONFIG, emptyList(), at)
+        called in SOURCES -> node(TYPESAFE_CONFIG, emptyList(), at) + node(LAYERED, emptyList(), at)
 
         else -> null
     }
@@ -314,7 +314,7 @@ private fun combinator(
     return when (called) {
         PLUS -> left()?.let { base -> right()?.let { merged(base, it, gave) } }
         OVERRIDING -> left()?.let { base -> right()?.let { base.overriding(it) } }
-        OVERRIDING_CONFIG -> left()?.overriding(node(TYPESAFE_CONFIG, emptyList(), call.source))
+        OVERRIDING_CONFIG -> left()?.overriding(node(LAYERED, emptyList(), call.source))
         BOUND_TO -> arguments.singleOrNull()?.let { key -> left()?.keyedAs(key) }
         PROBE -> left()
         else -> null
@@ -387,5 +387,6 @@ private const val ACTOR_SYSTEM = "org.apache.pekko.actor.ActorSystem"
 private const val LARK_ACTOR_REF = "io.github.matthewjones372.lark.actor.ActorRef"
 private const val LARK_ACTORS = "$APP.actor.Actors"
 private const val TYPESAFE_CONFIG = "com.typesafe.config.Config"
+private const val LAYERED = "$APP.typesafe.Layered"
 private const val DATA_SOURCE = "javax.sql.DataSource"
 private const val MIGRATED = "$APP.liquibase.Migrated"
