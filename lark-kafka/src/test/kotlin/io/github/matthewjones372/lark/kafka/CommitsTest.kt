@@ -225,4 +225,37 @@ class CommitsTest {
 
         withClue("the consumer left its group") { kafka.members(topic) shouldBe 0 }
     }
+
+    @Test
+    fun `a coordinator that does not answer the close's lookup leaves Kafka's own close, rather than a failed stop`() {
+        val topic = "closed-with-no-coordinator"
+        kafka.send(topic, "1")
+        // A coordinator that will not answer: the lookup that stands in for a commit's round trip times out.
+        val consumer = object : KafkaConsumer<String, String>(
+            mapOf<String, Any>(
+                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrap,
+                ConsumerConfig.GROUP_ID_CONFIG to topic,
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest",
+                ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG to false,
+            ),
+            StringDeserializer(),
+            StringDeserializer(),
+        ) {
+            override fun committed(partitions: Set<TopicPartition>): Map<TopicPartition, OffsetAndMetadata> =
+                throw org.apache.kafka.common.errors.TimeoutException("the coordinator did not answer")
+
+            override fun committed(
+                partitions: Set<TopicPartition>,
+                timeout: Duration,
+            ): Map<TopicPartition, OffsetAndMetadata> =
+                throw org.apache.kafka.common.errors.TimeoutException("the coordinator did not answer")
+        }.also { it.subscribe(listOf(topic)) }
+        val commits = Commits(consumer)
+        // Joined, with nothing handled: the close has nothing to commit, so it asks instead.
+        consumer.polled(1)
+
+        commits.close()
+
+        withClue("the consumer left its group") { kafka.members(topic) shouldBe 0 }
+    }
 }

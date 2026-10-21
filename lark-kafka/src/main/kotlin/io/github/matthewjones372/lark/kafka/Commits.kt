@@ -7,6 +7,7 @@ import org.apache.kafka.clients.consumer.ConsumerGroupMetadata
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
+import org.apache.kafka.common.KafkaException
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.RetriableException
 import org.apache.kafka.common.errors.WakeupException
@@ -87,6 +88,24 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     fun forget(partitions: Collection<TopicPartition>) = partitions.forEach(handled::revoked)
 
     /**
+     * One lookup at the coordinator, timed, for a close with nothing to commit; null when it does not answer within
+     * [LOOKUP_WITHIN] or fails, which leaves Kafka's own close. Only a measurement: it never fails the close.
+     */
+    private fun roundTrip(): Duration? {
+        val started = System.nanoTime()
+        return try {
+            try {
+                consumer.committed(consumer.assignment(), LOOKUP_WITHIN)
+            } catch (_: WakeupException) {
+                consumer.committed(consumer.assignment(), LOOKUP_WITHIN)
+            }
+            since(started)
+        } catch (_: KafkaException) {
+            null
+        }
+    }
+
+    /**
      * What was handled committed, then the consumer closed, however the commit went: within a few times the round
      * trip to its coordinator, which bounds the leave, rather than waiting behind a fetch the broker holds for
      * `fetch.max.wait.ms` (spec 0164). A commit that failed leaves no round trip, and Kafka's own close.
@@ -100,22 +119,15 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
         // Set once the commit has gone through: a close that follows a failed one is Kafka's own.
         var budget: Duration? = null
         try {
-            budget = timed {
-                // A wake the loop never saw is still pending, and fails the first call that reaches the network.
-                val sent = try {
-                    commit()
-                } catch (_: WakeupException) {
-                    commit()
-                }
-                // Nothing was due: one lookup at the coordinator stands in for the commit's round trip.
-                if (!sent && committing) {
-                    try {
-                        consumer.committed(consumer.assignment())
-                    } catch (_: WakeupException) {
-                        consumer.committed(consumer.assignment())
-                    }
-                }
+            val started = System.nanoTime()
+            // A wake the loop never saw is still pending, and fails the first call that reaches the network.
+            val sent = try {
+                commit()
+            } catch (_: WakeupException) {
+                commit()
             }
+            // Nothing was due: one lookup at the coordinator stands in for the commit's round trip.
+            budget = if (sent || !committing) since(started) else roundTrip()
         } finally {
             try {
                 budget?.let { within -> consumer.close(CloseOptions.timeout(within)) } ?: consumer.close()
@@ -126,14 +138,12 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     }
 }
 
-/** How long a close may take: [ROUND_TRIPS] times what [step] took, and never less than [CLOSE_FLOOR]. */
-private inline fun timed(step: () -> Unit): Duration {
-    val started = System.nanoTime()
-    step()
-    return maxOf(Duration.ofNanos(System.nanoTime() - started).multipliedBy(ROUND_TRIPS), CLOSE_FLOOR)
-}
+/** How long a close may take, from a round trip begun at [started]: [ROUND_TRIPS] of it, [CLOSE_FLOOR] at least. */
+private fun since(started: Long): Duration =
+    maxOf(Duration.ofNanos(System.nanoTime() - started).multipliedBy(ROUND_TRIPS), CLOSE_FLOOR)
 
 private const val ROUND_TRIPS = 5L
+private val LOOKUP_WITHIN: Duration = Duration.ofSeconds(1)
 private val CLOSE_FLOOR: Duration = Duration.ofMillis(10)
 
 /**
