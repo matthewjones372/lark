@@ -140,6 +140,16 @@ class SectionReportTest {
     }
 
     @Test
+    fun `a setting a lower layer left null, overridden above, still starts and says so`() {
+        val base = layeredConfigOf("base" to ConfigFactory.parseString(hocon + "\npetshop.port = null"))
+        val app = configOf(hocon).overridingConfig("petshop.port = 8081", fallback = base) + shop
+
+        testApp(app) { _: Shop -> Unit }
+
+        block() shouldContain "overrides null"
+    }
+
+    @Test
     fun `a hand-written Config, with no layers, is still reported`() {
         val app = single<Config> { ConfigFactory.parseString(hocon).resolve() } + shop
 

@@ -127,10 +127,14 @@ private fun List<Layer>.beaten(origin: Origin, secrets: Secrets): Overridden? =
         .drop(1)
         .firstOrNull()
         ?.let { layer ->
-            val value = layer.config.getValue(origin.path)
+            // A null beaten is still a value beaten, and getValue throws on one rather than return it.
+            val value = layer.config.takeUnless { it.getIsNull(origin.path) }?.getValue(origin.path)
             // Masked by the winner's own verdict: a report that hides the new password and prints the
             // old one has published a secret that is probably still in use somewhere.
-            Overridden(if (secrets.redacts(origin.path)) MASK else value.rendered(), value.origin().where())
+            Overridden(
+                if (secrets.redacts(origin.path)) MASK else value?.rendered() ?: "null",
+                value?.origin()?.where() ?: layer.name,
+            )
         }
 
 private const val GRAFT = "lark-layered-origins"
