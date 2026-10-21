@@ -1,3 +1,5 @@
+import java.util.Properties
+
 /**
  * lark-stream measured by JMH: the baseline 0046 and 0047 report against.
  *
@@ -95,6 +97,8 @@ tasks.register<JavaExec>("jmh") {
  * half of [tolerance] slower: a time per operation that rose, or a throughput that fell, as each row's JMH mode says.
  * JMH's error bars are printed and decide nothing, since they measure one run's iterations and not the drift between
  * two runs. Every row is written to `jmh-compare.txt`, so drift is visible before it trips.
+ *
+ * `gate-tolerance.properties`, beside this file, gives a row known to be noisy a tolerance of its own.
  */
 tasks.register("jmhCompare") {
     group = "verification"
@@ -102,6 +106,7 @@ tasks.register("jmhCompare") {
     val baseline = providers.gradleProperty("baseline")
     val candidate = providers.gradleProperty("candidate")
     val tolerance = providers.gradleProperty("tolerance").map(String::toDouble).orElse(defaultTolerance)
+    val tolerances = layout.projectDirectory.file("gate-tolerance.properties")
     val report = layout.buildDirectory.file("jmh-compare.txt")
     // The rows found slower, one name a line, so gate.sh can measure them again before it believes them.
     val slowerRows = layout.buildDirectory.file("jmh-slower.txt")
@@ -115,8 +120,14 @@ tasks.register("jmhCompare") {
         if (after.isEmpty() || before.size != after.size) {
             throw GradleException("${before.size} baseline round(s) against ${after.size} candidate round(s)")
         }
+        val own = Properties().apply { tolerances.asFile.takeIf { it.exists() }?.reader()?.use(::load) }
+
+        // The longest key that is the row's name, or its class, so `MapParBenchmark.lark` can differ from its class.
+        fun toleranceOf(name: String): Double =
+            own.stringPropertyNames().filter { name == it || name.startsWith("$it.") }.maxByOrNull { it.length }
+                ?.let { own.getProperty(it).trim().toDouble() } ?: tolerance.get()
         val rows = after.flatMap { it.keys }.distinct().sorted().map { name ->
-            compared(name, before.zip(after).map { (b, a) -> b[name] to a[name] }, tolerance.get())
+            compared(name, before.zip(after).map { (b, a) -> b[name] to a[name] }, toleranceOf(name), tolerance.get())
         }
         val table = rows.joinToString("\n") { it.line }
         report.get().asFile.apply { parentFile.mkdirs() }.writeText(table + "\n")
@@ -158,7 +169,7 @@ fun median(values: List<Double>): Double {
 }
 
 /** One row over its rounds, each a baseline and a candidate score, either missing where that round lacks the row. */
-fun compared(name: String, rounds: List<Pair<Score?, Score?>>, tolerance: Double): Compared {
+fun compared(name: String, rounds: List<Pair<Score?, Score?>>, tolerance: Double, default: Double): Compared {
     val paired = rounds.mapNotNull { (before, after) -> if (before != null && after != null) before to after else null }
     if (paired.isEmpty()) {
         val score = median(rounds.mapNotNull { it.second?.score })
@@ -177,10 +188,11 @@ fun compared(name: String, rounds: List<Pair<Score?, Score?>>, tolerance: Double
         else -> "ok"
     }
     val each = changes.joinToString(" ") { "%+.1f".format(it * 100) }
+    val own = if (tolerance == default) "" else "  (tolerance %.0f%%)".format(tolerance * 100)
     return Compared(
         name,
-        "%-45s %10.1f -> %10.1f  %+6.1f%%  rounds %s  %s"
-            .format(name, was, score, median(changes) * 100, each, verdict),
+        "%-45s %10.1f -> %10.1f  %+6.1f%%  rounds %s  %s%s"
+            .format(name, was, score, median(changes) * 100, each, verdict, own),
         slower,
     )
 }

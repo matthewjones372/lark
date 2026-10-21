@@ -159,6 +159,8 @@ median round is more than 10% slower (`-Ptolerance` to change it) and all rounds
 slower. Slower is a time per operation that rose, or for a `Throughput` row a score that fell. A row found
 slower is measured again on its own for as many rounds more, and fails only if it is still slower over all of
 them: one fork far off its others no longer fails the gate. The first table is kept as `rounds/first-compare.txt`.
+`gate-tolerance.properties` gives a row the gate failed on identical code a tolerance of its own:
+`MapParBenchmark` rows may be 50% slower, since their forks disagree by more than any 10% could hold.
 
 A runner that slows down for a minute slows both sides of the benchmarks it measured in that minute, where
 measuring one side's suite and then the other's put the slow minute on one side and read it as a regression.
