@@ -41,6 +41,20 @@ JDK 25.0.4, 4 vCPU / 16 GB (a shared cloud container), kafka-clients and embedde
 | `javaParallelBatch`: each poll fanned out to ≤64 virtual threads, then committed | 37 ± 8 | 55 ± 5 | 142 ± 7 |
 | `larkMapPar`: `mapParRecord(64)` | 50 ± 4 | 60 ± 20 | 136 ± 5 |
 
+`SkewBenchmarks` is that parallel pair at 1,000 µs, with partition 0's records handled `skew` times slower, as when
+one tenant's writes are slow (spec [0156](../specs/0156-ordered-per-partition.md)). With the default `fetch`, each
+partition comes back whole, so a slow partition is one run of records; `interleaved` fetches 16 KB a partition,
+so each poll carries a little of every partition, as a topic with steady traffic does. Measured before
+`mapParKeyed`, `-f 2 -wi 3 -i 5` ([`2026-10-21-jdk25-skew.json`](baseline/2026-10-21-jdk25-skew.json)), in ms/op:
+
+| Row | whole, ×1 | whole, ×10 | interleaved, ×1 | interleaved, ×10 |
+|---|---|---|---|---|
+| `javaParallelBatch` | 157 ± 19 | 291 ± 17 | 740 ± 22 | 1,027 ± 35 |
+| `larkMapPar` | 159 ± 9 | 297 ± 36 | 170 ± 28 | 409 ± 17 |
+
+Interleaved, the hand-written loop waits for each small poll's slowest record before it polls again; lark keeps
+polling, but every result still waits behind the slow partition's.
+
 What the rows say:
 
 - **About 500 ms of every 50k run is `close()`**, the Java loop's included: the fetch-session close queues
