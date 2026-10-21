@@ -128,7 +128,7 @@ private class SectionDecoder(private val reading: Reading, private val naming: N
 
     override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
         val entries = List(enumDescriptor.elementsCount, enumDescriptor::getElementName)
-        return reading.of(0) {
+        return reading.of(key, 0) {
             val said = getString(key)
             entries.indexOf(said).takeIf { it >= 0 }
                 ?: throw ConfigException.BadValue(key, "is ${entries.joinToString(" or ")}, not $said")
@@ -147,10 +147,13 @@ private class SectionDecoder(private val reading: Reading, private val naming: N
 
             Shape.Section -> reading.section(key) { decoded(deserializer, naming) }
 
+            // Through secret() rather than the string leaf, so the path is recorded as one.
+            Shape.Secret -> reading.secret(key) as T
+
             // An empty collection of the declared type, so the read goes on to the next property.
             Shape.Unsupported -> deserializer.deserialize(Empty)
 
-            Shape.Secret, Shape.Leaf -> super.decodeSerializableValue(deserializer)
+            Shape.Leaf -> super.decodeSerializableValue(deserializer)
         }
     }
 }
