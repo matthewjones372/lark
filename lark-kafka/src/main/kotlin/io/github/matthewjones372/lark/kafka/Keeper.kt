@@ -116,12 +116,12 @@ internal class Keeper<K, V>(
     private fun keepAlive() {
         keeping = true
         try {
-            val assigned = consumer.assignment()
-            consumer.pause(assigned)
-            meters.paused(assigned.size)
+            consumer.pause(consumer.assignment())
             val started = System.nanoTime()
             val records = consumer.poll(Duration.ZERO)
             meters.polled(records, started)
+            // After the poll, so partitions a rebalance assigned during it, and paused in assigned(), are counted.
+            meters.paused(consumer.paused().size)
             keep(records)
             polledAt = System.nanoTime()
         } catch (_: WakeupException) {
