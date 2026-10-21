@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.kafka.benchmarks
 import io.github.matthewjones372.lark.kafka.Kafka
 import io.github.matthewjones372.lark.kafka.Topic
 import io.github.matthewjones372.lark.kafka.consume
+import io.github.matthewjones372.lark.kafka.mapParPartitioned
 import io.github.matthewjones372.lark.kafka.mapParRecord
 import io.github.matthewjones372.lark.kafka.runCommitting
 import io.github.matthewjones372.lark.stream.Forks
@@ -101,6 +102,14 @@ open class SkewBenchmarks {
     @Benchmark
     fun larkMapPar(broker: Broker) {
         val handled = larkSource(broker).mapParRecord(PARALLELISM) { record -> handle(micros(record.partition())) }
+        check(handled.take(SLOW_RECORDS.toLong()).runCommitting().run(forks).done(), SLOW_RECORDS)
+    }
+
+    /** `mapParPartitioned(64)`: each result waits only behind its own partition's (spec 0156). */
+    @Benchmark
+    fun larkMapParPartitioned(broker: Broker) {
+        val handled =
+            larkSource(broker).mapParPartitioned(PARALLELISM) { record -> handle(micros(record.partition())) }
         check(handled.take(SLOW_RECORDS.toLong()).runCommitting().run(forks).done(), SLOW_RECORDS)
     }
 }

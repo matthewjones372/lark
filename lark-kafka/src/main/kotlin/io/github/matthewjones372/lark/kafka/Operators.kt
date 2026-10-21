@@ -10,6 +10,7 @@ import io.github.matthewjones372.lark.stream.map
 import io.github.matthewjones372.lark.stream.mapConcat
 import io.github.matthewjones372.lark.stream.mapOrFail
 import io.github.matthewjones372.lark.stream.mapPar
+import io.github.matthewjones372.lark.stream.mapParKeyed
 import io.github.matthewjones372.lark.stream.mapParOrFail
 
 // lark-stream's operators with the body on the value and the offset carried through. Named apart from
@@ -43,6 +44,19 @@ fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParRecord(
     f: Raise<E>.(A) -> B,
 ): Stream<E, Committed<B>> =
     mapPar(parallelism) { c: Committed<A> -> c.carrying(c.annotated { f(this, it) }) }
+
+/**
+ * [mapParRecord] in order only within each partition: a slow record holds back the records after it on its own
+ * partition, and no other's (spec 0156). Each partition's offsets still reach the end in order, so what is
+ * committed is never past a record still being handled.
+ */
+fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParPartitioned(
+    parallelism: Int,
+    f: Raise<E>.(A) -> B,
+): Stream<E, Committed<B>> =
+    mapParKeyed(parallelism, key = { c: Committed<A> -> c.position.topic to c.position.partition }) { c ->
+        c.carrying(c.annotated { f(this, it) })
+    }
 
 @JvmName("mapParRecordOrFailDeclaring")
 fun <F, A : Any, B : Any> Stream<Nothing, Committed<A>>.mapParRecordOrFail(
