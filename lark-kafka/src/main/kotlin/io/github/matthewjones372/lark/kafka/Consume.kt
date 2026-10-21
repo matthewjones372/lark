@@ -117,6 +117,7 @@ private class Loop<K, V>(
             val started = System.nanoTime()
             val records = consumer.poll(pollTimeout.toJavaDuration())
             meters.polled(records, started)
+            meters.lagged(consumer)
             polled.addAll(records)
             commits.polled()
         }
@@ -140,6 +141,7 @@ private class Loop<K, V>(
         val lost = partitions.toSet()
         polled.removeAll { TopicPartition(it.topic(), it.partition()) in lost }
         owned.removeAll(lost)
+        meters.left(lost)
         meters.rebalanced("revoked", owned.size)
     }
 

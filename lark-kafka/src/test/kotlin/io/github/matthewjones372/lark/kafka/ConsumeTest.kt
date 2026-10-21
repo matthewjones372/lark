@@ -14,6 +14,7 @@ import io.github.matthewjones372.lark.stream.take
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.maps.shouldContainAll
@@ -352,5 +353,36 @@ class ConsumeTest {
             first.isNullOrEmpty() shouldBe false
             first shouldNotBe second
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `lag reads what is left unread, then nothing, and latency how stale each handled record was`(on: String) {
+        val topic = "lagging-$on"
+        kafka.send(topic, "1", "2", "3", "4", "5")
+        // One record a poll, so a poll leaves the rest fetched and unread.
+        val oneAtATime = properties("lagging-$on") + (ConsumerConfig.MAX_POLL_RECORDS_CONFIG to 1)
+        val lags = ConcurrentLinkedQueue<Double?>()
+
+        val captured = capturingMetrics { captured ->
+            Kafka.consume(oneAtATime, Topic(topic), key = StringDeserializer(), value = StringDeserializer())
+                .mapRecord { lags.add(captured.gauge("lark.kafka.consumer.lag")) }
+                .take(5)
+                .runCommitting()
+                .run(backend(on))
+                .settled() shouldBe Exit.Done(5L)
+            captured
+        }
+
+        // Pekko's source reads ahead of the handler, so only the last record's reading is the same on both.
+        if (on == "Forks") lags.first() shouldBe 4.0
+        lags.last() shouldBe 0.0
+        captured.tags("lark.kafka.consumer.lag") shouldContainAll mapOf("topic" to topic, "partition" to "0")
+        withClue("a partition this consumer has left lags nothing here") {
+            captured.gauge("lark.kafka.consumer.lag") shouldBe 0.0
+        }
+        val latencies = captured.histogram("lark.kafka.consumer.latency")
+        latencies.size shouldBe 5
+        latencies.forEach { seconds -> seconds shouldBeLessThan GENEROUS_SECONDS.toDouble() }
     }
 }

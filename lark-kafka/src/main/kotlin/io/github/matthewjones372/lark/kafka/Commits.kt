@@ -52,9 +52,9 @@ internal class Commits(
             record.offset(),
             group,
             leaving,
-            meters,
+            meters.handing(record),
         ),
-    ).also { meters.handed() }
+    )
 
     /** A refusal an async commit reported that sending again cannot fix, for the polling thread to throw. */
     private var refused: Exception? = null
@@ -211,11 +211,11 @@ private class Offset(
     private val offset: Long,
     private val polledIn: ConsumerGroupMetadata?,
     private val leaving: Leaving,
-    private val meters: ConsumerMeters,
+    private val handling: Handling,
 ) : Handle {
     override fun handled() {
         marking.mark(offset + 1)
-        meters.handled()
+        handling.handled()
     }
 
     /**
