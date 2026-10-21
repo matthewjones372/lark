@@ -130,7 +130,7 @@ internal class Keeper<K, V>(
         val DEFAULT_INTERVAL: Duration = Duration.ofMinutes(5)
 
         fun intervalOf(properties: Map<String, Any>): Duration =
-            properties[ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG]?.toString()?.toLongOrNull()
+            properties[ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG]?.toString()?.trim()?.toLongOrNull()
                 ?.let(Duration::ofMillis) ?: DEFAULT_INTERVAL
     }
 }

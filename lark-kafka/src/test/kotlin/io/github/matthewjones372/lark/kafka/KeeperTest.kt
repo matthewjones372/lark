@@ -50,4 +50,20 @@ class KeeperTest {
             thrown.message shouldBe "refused"
         }
     }
+
+    @Test
+    fun `an interval written with spaces around it is read as Kafka reads it`() {
+        Failing().use { consumer ->
+            val properties =
+                mapOf<String, Any>(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG to " $SHORT_INTERVAL_MILLIS ")
+            val keeper = Keeper(consumer, properties) { }
+            try {
+                withClue("the keeper polled within the short interval, not the five-minute default") {
+                    consumer.polled.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+                }
+            } finally {
+                keeper.stop()
+            }
+        }
+    }
 }
