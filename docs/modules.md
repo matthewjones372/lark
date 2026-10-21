@@ -105,6 +105,7 @@ against; the library's own transitive dependencies come with it.
 |---|---|---|---|---|
 | `lark-kafka` | a topic as a `Stream` on any backend, producers, transactions ([guide](kafka.md)) | `lark-stream` | `kafka-clients` 4.3.0 | yes |
 | `lark-kafka-pekko` | the same through Pekko's Kafka connector, on Pekko Streams | `lark-kafka`, `lark-stream-pekko` | `pekko-connectors-kafka` 1.1.0 | yes |
+| `lark-kafka-benchmarks` | JMH benchmarks against the Java client ([results](../lark-kafka-benchmarks/README.md)) | | JMH, embedded-kafka | no |
 
 ### Actors and clusters
 
@@ -158,7 +159,7 @@ not published for that reason.
 
 ## Performance
 
-Two JMH suites compare Lark with Pekko written by hand. Their READMEs give
+Three JMH suites compare Lark with Pekko or the Kafka client written by hand. Their READMEs give
 the method and every number; a few headline results:
 
 - **Streams** ([results](../lark-stream-benchmarks/README.md)): a five-stage
@@ -171,6 +172,10 @@ the method and every number; a few headline results:
   Typed, a remote ask round trip takes about 199 µs against 547 µs, and a burst
   of remote tells about 2.1 µs per tell against 4.0 µs. Idle actors take about
   56% of Pekko's heap each.
+- **Kafka** ([results](../lark-kafka-benchmarks/README.md)): zio-kafka's
+  comparison of 50k records, against the Java client. lark on Forks takes 657 ms
+  against 646 ms for the same hand-written loop and 557 ms for one that never
+  commits; about 500 ms of each is the consumer's own close.
 
 These numbers were measured on JDK 21 on a shared four-vCPU cloud container,
 before the libraries moved to JDK 25, and the READMEs note they are noisy. The
