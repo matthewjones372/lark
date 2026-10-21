@@ -7,12 +7,17 @@ import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.NoMetrics
 import io.github.matthewjones372.lark.metricTags
 import io.github.matthewjones372.lark.metrics
+import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.ConsumerRecords
+import org.apache.kafka.common.TopicPartition
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.LongAdder
 
 // A duration is recorded in seconds, as lark's `timed` records it and a backend assumes a duration is.
 private const val NANOS_PER_SECOND = 1_000_000_000.0
+private const val MILLIS_PER_SECOND = 1_000.0
 
 /**
  * Where a consumer's meters go, and the caller's tags: taken where the consumer is described, as `Measured` takes
@@ -53,11 +58,15 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
     private val handed = LongAdder()
     private val handled = LongAdder()
 
+    /** A partition's own meters, looked up once each: a latency is recorded for every record handled. */
+    private val lags = ConcurrentHashMap<TopicPartition, Gauge>()
+    private val latencies = ConcurrentHashMap<TopicPartition, Histogram>()
+
     /** What a poll begun at [started] returned, per partition, and how long it took. */
     fun polled(records: ConsumerRecords<*, *>, started: Long) {
         poll.record(secondsSince(started))
         records.partitions().forEach { partition ->
-            val of = tags + mapOf("topic" to partition.topic(), "partition" to partition.partition().toString())
+            val of = tagsOf(partition)
             val returned = records.records(partition)
             metrics.counter("$PREFIX.records", of).increment(returned.size.toDouble())
             val bytes = returned.sumOf { maxOf(it.serializedKeySize(), 0) + maxOf(it.serializedValueSize(), 0) }
@@ -66,15 +75,41 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
         inFlight()
     }
 
-    fun handed() {
-        handed.increment()
-        inFlight()
+    /**
+     * How far behind its partitions' ends [consumer] is, after a poll: the client's own reckoning from the last fetch,
+     * which costs no request, and none for a partition it has fetched nothing from yet.
+     */
+    fun lagged(consumer: Consumer<*, *>) = consumer.assignment().forEach { partition ->
+        val lag = consumer.currentLag(partition)
+        if (lag.isPresent) lagOf(partition).set(lag.asLong.toDouble())
     }
 
-    fun handled() {
-        handled.increment()
+    /** [partitions] this consumer no longer owns lag nothing here: their new owner reports them. */
+    fun left(partitions: Collection<TopicPartition>) = partitions.forEach { partition -> lagOf(partition).set(0.0) }
+
+    /**
+     * [record] handed to the stream, and what marks it handled: how stale it was then, from its timestamp, whichever
+     * of create or append time its topic records.
+     */
+    fun handing(record: ConsumerRecord<*, *>): Handling {
+        handed.increment()
         inFlight()
+        val latency = latencies.computeIfAbsent(TopicPartition(record.topic(), record.partition())) { partition ->
+            metrics.histogram("$PREFIX.latency", tagsOf(partition))
+        }
+        val written = record.timestamp()
+        return Handling {
+            handled.increment()
+            inFlight()
+            if (written >= 0) latency.record(maxOf(System.currentTimeMillis() - written, 0) / MILLIS_PER_SECOND)
+        }
     }
+
+    private fun lagOf(partition: TopicPartition): Gauge =
+        lags.computeIfAbsent(partition) { metrics.gauge("$PREFIX.lag", tagsOf(it)) }
+
+    private fun tagsOf(partition: TopicPartition): Map<String, String> =
+        tags + mapOf("topic" to partition.topic(), "partition" to partition.partition().toString())
 
     /** Records handed to the stream and not yet handled, as each is handed or handled. */
     private fun inFlight() = inFlight.set((handed.sum() - handled.sum()).toDouble())
@@ -106,4 +141,9 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
         /** Meters nobody reads: a loop that records nothing, such as one over assigned partitions, for now. */
         fun none(): ConsumerMeters = ConsumerMeters(NoMetrics, emptyMap())
     }
+}
+
+/** What marks one record handled in a consumer's meters. */
+internal fun interface Handling {
+    fun handled()
 }
