@@ -198,8 +198,10 @@ metrics API, so installing `lark-micrometer` exports them, and with no backend
 bound they cost nothing measurable (`larkForks` against `larkForksMetered` in
 `lark-kafka-benchmarks`). A consumer records to the metrics in scope, with the
 `metricTagged` tags bound, where it is described; a producer where it is
-opened. Every meter carries `group` (consumers) and `client`, empty where the
-properties name none; durations are in seconds.
+opened. Every meter carries `group` (consumers) and `client`; a consumer whose
+properties name no `client.id` is given one, `lark-consumer-<group>-<n>`, so two
+consumers of one group in one process keep their own gauges. A producer's `client`
+is empty where its properties name none. Durations are in seconds.
 
 | Meter | Kind | Tags | Recorded |
 |---|---|---|---|
