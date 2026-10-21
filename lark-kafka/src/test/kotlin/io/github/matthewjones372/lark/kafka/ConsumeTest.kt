@@ -1,6 +1,8 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.capturingMetrics
+import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.PekkoStreams
@@ -10,8 +12,13 @@ import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
+import io.kotest.matchers.maps.shouldContainAll
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.errors.SerializationException
@@ -26,6 +33,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** One description of a consumer, run on whichever backend the run names, against one broker. */
 class ConsumeTest {
@@ -244,20 +252,105 @@ class ConsumeTest {
         val seen = ConcurrentLinkedQueue<String>()
         val never = CountDownLatch(1)
 
-        val exit = Kafka.consume(slow, Topic(topic), key = StringDeserializer(), value = StringDeserializer())
-            .mapRecord { record ->
-                if (record.value() == "1") never.await(SLOW_HANDLER_MILLIS, TimeUnit.MILLISECONDS)
-                record.value().also(seen::add)
-            }
-            .take(3)
-            .runCommitting()
-            .run(backend(on))
-            .settled()
+        // What the meters read as the slow handler started, and as it finished.
+        val pollsBefore = AtomicInteger()
+        val pollsAfter = AtomicInteger()
+        val pausedDuring = AtomicReference<Double?>()
+        val (exit, captured) = capturingMetrics { captured ->
+            Kafka.consume(slow, Topic(topic), key = StringDeserializer(), value = StringDeserializer())
+                .mapRecord { record ->
+                    if (record.value() == "1") {
+                        pollsBefore.set(captured.histogram("lark.kafka.consumer.poll").size)
+                        never.await(SLOW_HANDLER_MILLIS, TimeUnit.MILLISECONDS)
+                        pollsAfter.set(captured.histogram("lark.kafka.consumer.poll").size)
+                        pausedDuring.set(captured.gauge("lark.kafka.consumer.paused"))
+                    }
+                    record.value().also(seen::add)
+                }
+                .take(3)
+                .runCommitting()
+                .run(backend(on))
+                .settled() to captured
+        }
 
         exit shouldBe Exit.Done(3L)
+        // On Pekko the source reads ahead on a thread of its own, which keeps polling: the keeper has nothing to do.
+        if (on == "Forks") {
+            withClue("the keeper paused the partitions it polled for, and its polls were timed") {
+                pausedDuring.get() shouldBe 1.0
+                pollsAfter.get() shouldBeGreaterThan pollsBefore.get()
+            }
+            withClue("nothing is paused once the consumer has closed") {
+                captured.gauge("lark.kafka.consumer.paused") shouldBe 0.0
+            }
+        }
         withClue("no record was handed to this consumer twice, as it would be once its group had moved on") {
             seen.toList() shouldBe listOf("1", "2", "3")
         }
         kafka.committed("slow-$on", topic) shouldBe 3L
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `a run records what it read, how long it polled, committed and closed, and what it owned`(on: String) {
+        val topic = "metered-$on"
+        kafka.send(topic, "one", "two", "three")
+
+        val inFlight = ConcurrentLinkedQueue<Double>()
+        val (exit, captured) = capturingMetrics { captured ->
+            metricTagged("service" to "orders") {
+                strings("metering-$on", topic)
+                    .mapRecord { record ->
+                        captured.gauge("lark.kafka.consumer.in.flight")?.let(inFlight::add)
+                        record.value()
+                    }
+                    .take(3)
+                    .runCommitting()
+                    .run(backend(on))
+                    .settled()
+            } to captured
+        }
+        withClue("each record was in flight while it was handled: $inFlight") {
+            inFlight.size shouldBe 3
+            inFlight.forEach { count -> count shouldBeGreaterThanOrEqual 1.0 }
+        }
+
+        exit shouldBe Exit.Done(3L)
+        captured.counter("lark.kafka.consumer.records") shouldBe 3.0
+        withClue("each value's bytes, and no key") { captured.counter("lark.kafka.consumer.bytes") shouldBe 11.0 }
+        captured.histogram("lark.kafka.consumer.poll").shouldNotBeEmpty()
+        withClue("the close commits what was handled, and waits for it") {
+            captured.histogram("lark.kafka.consumer.commit").shouldNotBeEmpty()
+        }
+        captured.histogram("lark.kafka.consumer.close").size shouldBe 1
+        captured.counter("lark.kafka.consumer.rebalances") shouldNotBe 0.0
+        withClue("nothing is owned or in flight once the consumer has left") {
+            captured.gauge("lark.kafka.consumer.assigned") shouldBe 0.0
+            captured.gauge("lark.kafka.consumer.in.flight") shouldBe 0.0
+        }
+        captured.tags("lark.kafka.consumer.records") shouldContainAll
+            mapOf("service" to "orders", "group" to "metering-$on", "topic" to topic, "partition" to "0")
+        listOf("records", "bytes", "poll", "commit", "close", "rebalances", "assigned", "in.flight").forEach { meter ->
+            withClue("$meter reads back") { captured.read("lark.kafka.consumer.$meter").shouldNotBeEmpty() }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `two consumers in one group with no client id each keep their own meters`(on: String) {
+        val topic = "shared-$on"
+        kafka.send(topic, "1", "2")
+        fun clientOfOneRun() = capturingMetrics { captured ->
+            strings("sharing-$on", topic).take(1).runCommitting().run(backend(on)).settled() shouldBe Exit.Done(1L)
+            captured.tags("lark.kafka.consumer.assigned")["client"]
+        }
+
+        val first = clientOfOneRun()
+        val second = clientOfOneRun()
+
+        withClue("each consumer is named, so its gauges are its own: $first, $second") {
+            first.isNullOrEmpty() shouldBe false
+            first shouldNotBe second
+        }
     }
 }
