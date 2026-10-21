@@ -56,7 +56,7 @@ class KeeperTest {
         Failing().use { consumer ->
             val properties =
                 mapOf<String, Any>(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG to " $SHORT_INTERVAL_MILLIS ")
-            val keeper = Keeper(consumer, properties) { }
+            val keeper = Keeper(consumer, properties, ConsumerMeters.none()) { }
             try {
                 withClue("the keeper polled within the short interval, not the five-minute default") {
                     consumer.polled.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true

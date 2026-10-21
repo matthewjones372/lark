@@ -334,4 +334,23 @@ class ConsumeTest {
             withClue("$meter reads back") { captured.read("lark.kafka.consumer.$meter").shouldNotBeEmpty() }
         }
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `two consumers in one group with no client id each keep their own meters`(on: String) {
+        val topic = "shared-$on"
+        kafka.send(topic, "1", "2")
+        fun clientOfOneRun() = capturingMetrics { captured ->
+            strings("sharing-$on", topic).take(1).runCommitting().run(backend(on)).settled() shouldBe Exit.Done(1L)
+            captured.tags("lark.kafka.consumer.assigned")["client"]
+        }
+
+        val first = clientOfOneRun()
+        val second = clientOfOneRun()
+
+        withClue("each consumer is named, so its gauges are its own: $first, $second") {
+            first.isNullOrEmpty() shouldBe false
+            first shouldNotBe second
+        }
+    }
 }

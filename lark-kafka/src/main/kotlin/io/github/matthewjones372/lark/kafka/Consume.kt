@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 import org.apache.kafka.common.serialization.Deserializer
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.toJavaDuration
@@ -35,7 +36,10 @@ fun <K, V> Kafka.consume(
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
     val measuring = Measuring.here()
     return Stream.blocking(
-        open = { Loop(properties, topics.map { it.name }, key, value, pollTimeout, measuring.consumer(properties)) },
+        open = {
+            val named = properties.named()
+            Loop(named, topics.map { it.name }, key, value, pollTimeout, measuring.consumer(named))
+        },
         next = { loop -> loop.next() },
         ready = { loop -> loop.ready() },
         wake = { loop -> loop.wake() },
@@ -62,6 +66,21 @@ fun <K, V> Kafka.consume(
         pollTimeout = pollTimeout,
     )
         .decodedWith(key, value)
+
+/** How many consumers this process has named, as the client numbers the ones it names itself. */
+private val named = AtomicLong()
+
+/**
+ * [this], with a `client.id` of its own where it names none: two consumers of one group in one process would
+ * otherwise share their meters, each overwriting the other's gauges (spec 0163). Named as the client names its own.
+ */
+private fun Map<String, Any>.named(): Map<String, Any> =
+    if (ConsumerConfig.CLIENT_ID_CONFIG in this) {
+        this
+    } else {
+        val group = this[ConsumerConfig.GROUP_ID_CONFIG]?.let { "$it-" }.orEmpty()
+        this + (ConsumerConfig.CLIENT_ID_CONFIG to "lark-consumer-$group${named.incrementAndGet()}")
+    }
 
 /** One run's consumer of a group's partitions, committing what was handled through [commits]. */
 private class Loop<K, V>(
