@@ -57,6 +57,7 @@ fun <K, V> Kafka.read(
     return Stream.blocking(
         open = { Assigned(properties, TopicPartition(topic.name, partition), key, value, from, until, pollTimeout) },
         next = { read -> read.next() },
+        ready = { read -> read.ready() },
         wake = { read -> read.wake() },
         close = { read -> read.close() },
     )
@@ -120,6 +121,9 @@ private class Assigned<K, V>(
         }
         return commits.carrying(polled.next())
     }
+
+    /** Whether the last poll still holds a record, so [next] returns without polling. */
+    fun ready() = polled.hasNext()
 
     fun wake() = consumer.wakeup()
 

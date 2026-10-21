@@ -34,13 +34,14 @@ sealed interface Node {
 
     class FromStage(val stage: CompletionStage<*>, val onNull: () -> Throwable) : StreamOnly
 
-    /** A resource opened per run and read by blocking: [Stream.Companion.blocking]'s four functions, erased. */
+    /** A resource opened per run and read by blocking: [Stream.Companion.blocking]'s functions, erased. */
     class Blocking(
         val open: () -> Any,
         val next: (Any) -> Any?,
         val wake: (Any) -> Unit,
         val close: (Any) -> Unit,
         val at: String,
+        val ready: (Any) -> Boolean = { false },
     ) : StreamOnly
 
     class Fail(val error: Any?) : StreamOnly

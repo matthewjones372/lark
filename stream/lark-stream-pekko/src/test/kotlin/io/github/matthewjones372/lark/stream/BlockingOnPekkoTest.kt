@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A blocking source on Pekko: read on the blocking-IO dispatcher, woken by stop(), closed once. */
@@ -19,6 +20,9 @@ class BlockingOnPekkoTest {
         val pekko = PekkoActorSystem("lark-stream-blocking-on-pekko-test")
 
         private const val GENEROUS_SECONDS = 30L
+
+        // Long enough for one element to cross to the stream many times over.
+        private const val NOT_SEEN_MILLIS = 200L
     }
 
     private class Queue(vararg items: Int) {
@@ -95,5 +99,29 @@ class BlockingOnPekkoTest {
         ).runCollect().run(pekko.system).settled()
 
         (exit as Exit.Died).cause.message shouldBe "the connection would not close"
+    }
+
+    @Test
+    fun `reads that are ready reach the stream together, so a ready read is made before the one before it is seen`() {
+        val firstSeen = CountDownLatch(1)
+        val secondReadFirst = AtomicBoolean(false)
+        val items = ArrayDeque(listOf(1, 2, 3))
+
+        val exit = Stream.blocking(
+            open = { items },
+            next = { queue ->
+                queue.removeFirstOrNull()?.also { item ->
+                    if (item == 2) secondReadFirst.set(!firstSeen.await(NOT_SEEN_MILLIS, TimeUnit.MILLISECONDS))
+                }
+            },
+            ready = { queue -> queue.isNotEmpty() },
+            wake = { },
+            close = { },
+        ).map { item -> item.also { if (it == 1) firstSeen.countDown() } }.runCollect().run(pekko.system).settled()
+
+        exit shouldBe Exit.Done(listOf(1, 2, 3))
+        withClue("the second read was made while the first was still in the source's batch, not handed over alone") {
+            secondReadFirst.get() shouldBe true
+        }
     }
 }
