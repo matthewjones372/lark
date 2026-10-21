@@ -191,6 +191,33 @@ Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), va
   without a generation check, so if the group rebalances at that moment a new
   owner may read the last batch again.
 
+## Meters
+
+`Kafka.consume`, the producers and `runTransactionally` record through lark's
+metrics API, so installing `lark-micrometer` exports them, and with no backend
+bound they cost nothing measurable (`larkForks` against `larkForksMetered` in
+`lark-kafka-benchmarks`). A consumer records to the metrics in scope, with the
+`metricTagged` tags bound, where it is described; a producer where it is
+opened. Every meter carries `group` (consumers) and `client`, empty where the
+properties name none; durations are in seconds.
+
+| Meter | Kind | Tags | Recorded |
+|---|---|---|---|
+| `lark.kafka.consumer.records`, `.bytes` | counter | `topic`, `partition` | each poll |
+| `lark.kafka.consumer.lag` | gauge | `topic`, `partition` | after each poll, from the client's last fetch; 0 once the partition is lost |
+| `lark.kafka.consumer.latency` | histogram | `topic`, `partition` | when a record is marked handled: now less its timestamp |
+| `lark.kafka.consumer.in.flight` | gauge | | records handed to the stream and not yet handled, at each poll |
+| `lark.kafka.consumer.poll`, `.commit`, `.close` | timer | | around each; `commit` is the commit a rebalance or close waits for |
+| `lark.kafka.consumer.commit.failures` | counter | | a commit the broker refused |
+| `lark.kafka.consumer.rebalances` | counter | `kind`: `assigned` or `revoked` | each rebalance |
+| `lark.kafka.consumer.assigned`, `.paused` | gauge | | the partitions owned, and those paused while the stream is slow |
+| `lark.kafka.producer.records`, `.bytes`, `.failures` | counter | `topic` | each acknowledgement, or each record given up on |
+| `lark.kafka.producer.ack` | timer | `topic` | send to acknowledgement |
+| `lark.kafka.dead.letters` | counter | `topic` read from | each `deadLetters` write |
+| `lark.kafka.transactions`, `.aborts` | timer, counter | | each `runTransactionally` commit, and each abort |
+
+`Kafka.read` records none yet.
+
 ## A registry that is down is not a bad record
 
 A `Decoder` wraps any Kafka `Deserializer`, Avro and a schema registry
