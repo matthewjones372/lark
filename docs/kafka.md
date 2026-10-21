@@ -46,9 +46,11 @@ placing.start(PekkoStreams(system))     // the same description on Pekko Streams
 `Kafka.consume` is one `KafkaConsumer` per run, read through
 `Stream.blocking`, and it is in `lark-kafka`, which brings no backend at all.
 Only the thread that polls touches the consumer. It commits what
-`runCommitting()` marked handled before each poll, for the partitions it loses
-in a rebalance, and when the run ends, and a run's exit completes only after
-that last commit. A `stop()` wakes a poll that is waiting on a quiet topic.
+`runCommitting()` marked handled before each poll, without waiting for the
+broker's answer, so the poll is not held up by it. For the partitions it loses
+in a rebalance, and when the run ends, it waits, and a run's exit completes only
+after that last commit. A commit the broker refuses for good fails the run at
+the next poll, as a defect. A `stop()` wakes a poll that is waiting on a quiet topic.
 
 `Kafka.subscribe` is Pekko's own Kafka connector, in `lark-kafka-pekko`: a
 backpressured prefetch, commits batched by its committer sink, and a `stop()`
@@ -73,7 +75,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 |---|---|---|
 | Runs on | Forks, Pekko, TestStreams | Pekko |
 | Ends on | `runCommitting(): Run<E, Long>`, the count of elements | `runCommitting(settings): Run<E, Done>` |
-| Commits | on the polling thread, before each poll and on close | through the connector's committer sink, in batches |
+| Commits | on the polling thread: sent before each poll without waiting, waited for on a rebalance and on close | through the connector's committer sink, in batches |
 | `mapParRecord`, `divertLefts` | yes, on Forks as a window of bodies in flight | yes |
 | `restartOnDefect` | yes, on every backend; a restart closes the failed consumer before it opens the next | yes |
 
