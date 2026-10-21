@@ -34,6 +34,7 @@ fun <K, V> Kafka.consume(
     Stream.blocking(
         open = { Loop(properties, topics.map { it.name }, key, value, pollTimeout) },
         next = { loop -> loop.next() },
+        ready = { loop -> loop.ready() },
         wake = { loop -> loop.wake() },
         close = { loop -> loop.close() },
     )
@@ -86,6 +87,9 @@ private class Loop<K, V>(
         }
         return commits.carrying(polled.next())
     }
+
+    /** Whether the last poll still holds a record, so [next] returns without polling. */
+    fun ready() = polled.hasNext()
 
     fun wake() = consumer.wakeup()
 

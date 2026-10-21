@@ -13,6 +13,7 @@ import org.apache.pekko.stream.javadsl.Source
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.toJavaDuration
 import org.apache.pekko.japi.Pair as PekkoPair
@@ -45,6 +46,9 @@ internal val Run<*, *>.graph: RunnableGraph<PekkoPair<UniqueKillSwitch, Completi
  * Pekko's `unfoldResource`, which reads on the blocking-IO dispatcher so a blocked read holds none of the
  * stream's threads. A woken read ends the source, so a stop is a drain: what it read still reaches the sink.
  *
+ * Each crossing from that dispatcher to the stream carries a [Batches]: a read, and the reads after it that
+ * `ready` says will not block. One element a crossing cost a 50k-record Kafka run 200 ms (spec 0154).
+ *
  * A cancel from downstream wakes it too. Pekko reads ahead, so a `take` that is satisfied finds the source
  * already blocked on the next read, and the cancel cannot land, nor the resource close, until that returns.
  */
@@ -55,11 +59,39 @@ private fun Node.Blocking.blockingSource(): Source<Any, NotUsed> =
         val current = AtomicReference<Opened?>(null)
         val closing = hooks.closing()
         Source.unfoldResource(
-            { Opened(this).also { opened -> current.set(opened).also { hooks.onStop(opened::wake) } } },
-            { opened -> Optional.ofNullable(opened.next()) },
-            { opened -> closedInto(closing) { opened.close() } },
+            { Batches(Opened(this).also { opened -> current.set(opened).also { hooks.onStop(opened::wake) } }) },
+            { batches -> Optional.ofNullable(batches.next()) },
+            { batches -> closedInto(closing) { batches.opened.close() } },
         ).watchTermination { _, terminated -> terminated.whenComplete { _, _ -> current.get()?.wake() } }
+            .mapConcat { batch -> batch }
     }.mapMaterializedValue { NotUsed.getInstance() }
+
+/** A read that may block, then up to [MOST_READY] that will not, handed to the stream together. */
+internal class Batches(val opened: Opened) {
+
+    /** Set once a read inside a batch ended the resource, so the batch goes out and nothing is read after it. */
+    private val ended = AtomicBoolean(false)
+
+    fun next(): List<Any>? {
+        if (ended.get()) return null
+        val first = opened.next() ?: return null
+        val batch = arrayListOf(first)
+        while (batch.size < MOST_READY && opened.ready()) {
+            val more = opened.next()
+            if (more == null) {
+                ended.set(true)
+                break
+            }
+            batch += more
+        }
+        return batch
+    }
+
+    private companion object {
+        /** A bound on one batch, for a resource that is always ready; a Kafka poll returns 500 by default. */
+        const val MOST_READY = 1024
+    }
+}
 
 /** [close] run, and its outcome told to [closing], which the run's exit waits on. */
 @Suppress("TooGenericExceptionCaught") // Whatever the close threw is the run's to report, not this stage's to lose.
