@@ -152,13 +152,16 @@ bench/lark-stream-benchmarks/gate.sh origin/main                  # every row, t
 bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
 ```
 
-`gate.sh` runs the benchmarks on the ref and on this checkout, each from a worktree of its own, in
-rounds, one fork of each side a round, alternating which goes first (`GATE_ROUNDS`, 3 by default). `jmhCompare` pairs the rounds and
-fails when a row's median round is more than 10% slower (`-Ptolerance` to change it) and all rounds but one
-are more than 5% slower. Slower is a time per operation that rose, or for a `Throughput` row a score that
-fell. A runner that drifts over the job slows both halves of a round alike, so it cancels, where measuring
-one side and then the other read the drift as a regression. JMH's error bars are left out of the decision:
-they measure one run's iterations, not that drift. The `benchmarks` workflow runs it on a pull request labelled
+`gate.sh` runs the benchmarks on the ref and on this checkout, each from a worktree of its own. A round
+runs every benchmark once on each side, one fork each, the two sides of a benchmark back to back and which
+goes first alternating (`GATE_ROUNDS`, 3 by default). `jmhCompare` pairs the rounds and fails when a row's
+median round is more than 10% slower (`-Ptolerance` to change it) and all rounds but one are more than 5%
+slower. Slower is a time per operation that rose, or for a `Throughput` row a score that fell.
+
+A runner that slows down for a minute slows both sides of the benchmarks it measured in that minute, where
+measuring one side's suite and then the other's put the slow minute on one side and read it as a regression.
+JMH's error bars are left out of the decision: they measure one run's iterations, not that drift.
+The `benchmarks` workflow runs it on a pull request labelled
 `benchmarks`, again on each push to it, or from Run workflow, and keeps each run's table as an artifact.
 
 The committed numbers above are records, not thresholds: they were measured on one machine, and a gate

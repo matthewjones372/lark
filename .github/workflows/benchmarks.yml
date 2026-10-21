@@ -14,6 +14,9 @@ on:
       base:
         description: "Branch to compare against; this branch itself measures the gate's own noise"
         default: main
+      benchmarks:
+        description: "Only the benchmarks matching this JMH pattern; empty for all of them"
+        default: ""
 
 permissions:
   contents: read
@@ -46,7 +49,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Benchmarks on the base and on this change
-        run: bench/lark-stream-benchmarks/gate.sh "origin/${{ github.base_ref || inputs.base || 'main' }}"
+        # Inputs reach the script as variables, so nothing typed into Run workflow is read as shell.
+        env:
+          BASE: ${{ github.base_ref || inputs.base || 'main' }}
+          BENCHMARKS: ${{ inputs.benchmarks }}
+        run: bench/lark-stream-benchmarks/gate.sh "origin/$BASE" "$BENCHMARKS"
 
       # Where each benchmark's time went, drawn: the diagrams to read when the gate goes red.
       - name: Profile each benchmark's pipeline

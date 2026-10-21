@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# The benchmarks on <ref> and on this checkout, in rounds on this machine, and red when a row got slower.
+# The benchmarks on <ref> and on this checkout, alternated on this machine, and red when a row got slower.
 # A committed number was measured somewhere else; only a comparison made here says anything about here.
 #
 #   bench/lark-stream-benchmarks/gate.sh origin/main
 #   bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"      # this working tree against its own last commit
 #   GATE_ROUNDS=5 bench/lark-stream-benchmarks/gate.sh origin/main  # more rounds, for a noisy runner
 #
-# Each round is one fork of every benchmark on each side, in the order A B, B A, A B, ..., so that a machine
-# drifting over the job slows both sides alike rather than whichever ran second. Both sides run from a worktree
-# of their own: measured from this checkout, identical code read up to 1.7x slower on the concurrent
-# benchmarks than from a worktree beside it. This checkout's uncommitted changes go into its worktree; files git
+# Each round runs every benchmark once on each side, one fork each, the two sides of a benchmark back to back and
+# which goes first alternating. A runner that slows down for a minute then slows both sides of the benchmarks it
+# measured in that minute, where running one side's suite and then the other's put the minute on one side only.
+# Both sides run from a worktree of their own. This checkout's uncommitted changes go into its worktree; files git
 # does not track yet do not.
 set -euo pipefail
 
@@ -17,6 +17,7 @@ ref="${1:-origin/main}"
 benchmarks="${2:-}"
 rounds="${GATE_ROUNDS:-3}"
 root="$(git rev-parse --show-toplevel)"
+here="$root/bench/lark-stream-benchmarks"
 base="$(mktemp -d)"
 cand="$(mktemp -d)"
 trap 'git -C "$root" worktree remove --force "$base"; git -C "$root" worktree remove --force "$cand"' EXIT
@@ -27,35 +28,70 @@ git -C "$root" worktree add --quiet --detach "$cand" "${working:-HEAD}"
 # Nothing measured on the base is nothing to have got slower than: the first pull request to add the
 # benchmarks passes, and every one after it is compared.
 # A base from before spec 0139 keeps the module at the root rather than under bench/.
-baseDir="$base/bench/lark-stream-benchmarks"
-[ -d "$baseDir" ] || baseDir="$base/lark-stream-benchmarks"
-if [ ! -d "$baseDir" ]; then
+[ -d "$base/bench/lark-stream-benchmarks" ] || [ -d "$base/lark-stream-benchmarks" ] || {
   echo "$ref has no lark-stream-benchmarks, so there is nothing to compare against"
   exit 0
-fi
+}
 
-candDir="$cand/bench/lark-stream-benchmarks"
-out="$root/bench/lark-stream-benchmarks/build/rounds"
+out="$here/build/rounds"
 rm -rf "$out"
-mkdir -p "$out"
+mkdir -p "$out/runs"
 
-# One fork of every benchmark on one side, kept as <side>-<round>.json.
+# Builds a side, through its own jmh task with JMH told only to list, and keeps the JVM and classpath that task
+# would run with in <side>.classpath and the benchmarks the pattern matches in <side>.list.
+prepare() {
+  local checkout="$1" side="$2"
+  (cd "$checkout" && GATE_CLASSPATH="$out/$side.classpath" ./gradlew --quiet --no-configuration-cache \
+    --init-script "$here/gate-classpath.gradle" :lark-stream-benchmarks:jmh -PbenchmarkArgs="-l" > /dev/null)
+  "$(sed -n 1p "$out/$side.classpath")" -cp "$(sed -n 2p "$out/$side.classpath")" org.openjdk.jmh.Main \
+    -l $benchmarks < /dev/null | grep -E '^[A-Za-z0-9_.$]+$' | grep -F . > "$out/$side.list" || true
+}
+prepare "$base" base
+prepare "$cand" candidate
+
+# One fork of one benchmark on one side, kept as runs/<side>-<round>-<benchmark>.json.
 measure() {
-  local checkout="$1" dir="$2" name="$3"
-  (cd "$checkout" && ./gradlew --quiet :lark-stream-benchmarks:jmh -PbenchmarkArgs="-f 1 $benchmarks")
-  cp "$dir/build/jmh-result.json" "$out/$name.json"
+  local side="$1" round="$2" benchmark="$3"
+  grep -qxF "$benchmark" "$out/$side.list" || return 0
+  echo "round $round, $side: $benchmark"
+  local java classpath
+  java="$(sed -n 1p "$out/$side.classpath")"
+  classpath="$(sed -n 2p "$out/$side.classpath")"
+  "$java" -cp "$classpath" org.openjdk.jmh.Main -f 1 -prof gc -rf json \
+    -rff "$out/runs/$side-$round-$benchmark.json" "^${benchmark//./\\.}\$" < /dev/null > /dev/null
+}
+
+# A round's runs on one side as one JMH result, which is what jmhCompare reads.
+collect() {
+  local side="$1" round="$2" first=1
+  {
+    echo "["
+    for run in "$out/runs/$side-$round-"*.json; do
+      [ -e "$run" ] || continue
+      [ "$first" -eq 1 ] || echo ","
+      first=0
+      sed '1d;$d' "$run"
+    done
+    echo "]"
+  } > "$out/$side-$round.json"
 }
 
 baselines=()
 candidates=()
 for round in $(seq 1 "$rounds"); do
-  if [ $((round % 2)) -eq 1 ]; then
-    measure "$base" "$baseDir" "base-$round"
-    measure "$cand" "$candDir" "candidate-$round"
-  else
-    measure "$cand" "$candDir" "candidate-$round"
-    measure "$base" "$baseDir" "base-$round"
-  fi
+  index=0
+  while read -r benchmark; do
+    if [ $(((index + round) % 2)) -eq 1 ]; then
+      measure base "$round" "$benchmark"
+      measure candidate "$round" "$benchmark"
+    else
+      measure candidate "$round" "$benchmark"
+      measure base "$round" "$benchmark"
+    fi
+    index=$((index + 1))
+  done < "$out/candidate.list"
+  collect base "$round"
+  collect candidate "$round"
   baselines+=("$out/base-$round.json")
   candidates+=("$out/candidate-$round.json")
 done
