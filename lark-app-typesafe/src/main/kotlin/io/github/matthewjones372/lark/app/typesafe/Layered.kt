@@ -3,8 +3,7 @@ package io.github.matthewjones372.lark.app.typesafe
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigResolveOptions
-import java.util.Collections
-import java.util.WeakHashMap
+import java.lang.ref.WeakReference
 
 /** One document in the stack, under the name a reader knows it by. */
 class Layer internal constructor(val name: String, val config: Config)
@@ -24,22 +23,35 @@ class Layered internal constructor(val layers: List<Layer>) {
      */
     val config: Config by lazy {
         val merged = layers.map { it.config }.reduceOrNull { above, below -> above.withFallback(below) }
-        (merged?.resolve() ?: ConfigFactory.empty()).also { merges[it] = layers }
+        (merged?.resolve() ?: ConfigFactory.empty()).also { remember(it, this) }
     }
 }
 
 /**
- * The layers behind each merge [Layered.config] has handed out.
+ * Each merge [Layered.config] has handed out, beside the stack it came from.
  *
  * A section depends on `Config` alone, so one written by hand still starts; the layers ride beside the
  * merge for the report rather than as a second node it would have to require. Beside it, not wrapped
  * round it: `withFallback` casts its argument to Typesafe's own `Config`, so a wrapper breaks the first
- * merge it is handed to. Weak, so a merge nobody holds is not kept for its report.
+ * merge it is handed to. Found by identity, because Typesafe's `equals` ignores origins and two stacks
+ * can merge to equal documents. Both held weakly: a single layer with nothing to resolve is its own
+ * merge, so a strong hold on either would keep the other.
  */
-private val merges: MutableMap<Config, List<Layer>> = Collections.synchronizedMap(WeakHashMap())
+private class Merge(config: Config, layered: Layered) {
+    val config = WeakReference(config)
+    val layered = WeakReference(layered)
+}
 
-/** The layers this merge came from, or null for a `Config` written by hand. */
-internal fun Config.layeredOrNull(): Layered? = merges[this]?.let(::Layered)
+private val merges = mutableListOf<Merge>()
+
+private fun remember(config: Config, layered: Layered) = synchronized(merges) {
+    merges.removeAll { it.config.get() == null }
+    merges += Merge(config, layered)
+}
+
+/** The stack this merge came from, or null for a `Config` written by hand. */
+internal fun Config.layeredOrNull(): Layered? =
+    synchronized(merges) { merges.lastOrNull { it.config.get() === this }?.layered?.get() }
 
 /**
  * What `ConfigFactory.load()` reads, as layers rather than as the merge of them, in its order: the

@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.Config
+import com.typesafe.config.ConfigException
 
 /** Where each section's block goes. Its level is the switch: there is no flag to turn the report off. */
 private val logger: System.Logger = System.getLogger("lark-app")
@@ -29,10 +30,18 @@ internal fun Config.reportOf(section: String, paths: List<PathRead>): String {
             ?: known.values.filter { it.path.startsWith("$path.") }.ifEmpty { null }
             ?: listOf(
                 when {
-                    hasPath(path) -> originOf(path, getValue(path), secrets)
+                    has(path) -> originOf(path, getValue(path), secrets)
                     else -> Origin(path, value = "", where = "not set", redacted = false)
                 },
             )
     }
     return Origins(lines).report("lark-app configuration: $section")
 }
+
+/** A path HOCON cannot parse is one the read recorded a fault for; the report says it is not set. */
+private fun Config.has(path: String): Boolean =
+    try {
+        hasPath(path)
+    } catch (_: ConfigException.BadPath) {
+        false
+    }

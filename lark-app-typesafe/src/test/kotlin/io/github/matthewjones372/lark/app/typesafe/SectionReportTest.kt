@@ -119,6 +119,27 @@ class SectionReportTest {
     }
 
     @Test
+    fun `two stacks that merge to equal documents each keep their own layers`() {
+        val first = layeredConfigOf("first" to ConfigFactory.parseString(hocon))
+        val second = layeredConfigOf("second" to ConfigFactory.parseString(hocon))
+
+        withClue("Typesafe's equals ignores origins, so the two merges are equal and still not the same stack") {
+            first.config shouldBe second.config
+        }
+        first.config.layeredOrNull()?.layers?.map { it.name } shouldBe listOf("first")
+        second.config.layeredOrNull()?.layers?.map { it.name } shouldBe listOf("second")
+    }
+
+    @Test
+    fun `a path HOCON cannot parse refuses the start with its fault, not the report's`() {
+        val app = configOf(hocon) + config<String>("petshop") { string("not..a.path") }
+
+        val refused = app.use { _: String -> Unit }.leftOrNull()
+
+        refused.shouldBeInstanceOf<StartupError.Refused>()
+    }
+
+    @Test
     fun `a hand-written Config, with no layers, is still reported`() {
         val app = single<Config> { ConfigFactory.parseString(hocon).resolve() } + shop
 
