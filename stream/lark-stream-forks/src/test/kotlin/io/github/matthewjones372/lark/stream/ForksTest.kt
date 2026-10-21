@@ -249,7 +249,10 @@ class ForksTest {
             .take(3)
             .collected()
 
-        exit shouldBe Exit.Done(listOf(1, 2, 3))
+        // 1 and 3 share a key and keep their order; 2 has its own, and may pass either.
+        val taken = exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        taken.sorted() shouldBe listOf(1, 2, 3)
+        taken.filter { it % 2 == 1 } shouldBe listOf(1, 3)
         running.get() shouldBe 0
     }
 
@@ -354,7 +357,10 @@ class ForksTest {
             .take(3)
             .collected()
 
-        exit shouldBe Exit.Done(listOf(1, 2, 3))
+        // 1 and 3 share a key and keep their order; 2 has its own, and may pass either.
+        val taken = exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        taken.sorted() shouldBe listOf(1, 2, 3)
+        taken.filter { it % 2 == 1 } shouldBe listOf(1, 3)
         running.get() shouldBe 0
     }
 
