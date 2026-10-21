@@ -7,7 +7,7 @@ answers `assignment`, `position`, `committed`, `beginningOffsets`, `endOffsets`,
 and `metrics` on its consumer, and `flush`, `partitionsFor` and `metrics` on its producer. Lag (end offset minus
 committed), the number every Kafka dashboard starts from, cannot be read from a lark run at all.
 
-lark already has `lark-micrometer` and `lark-otel` for a run's own metrics.
+Meters are spec 0163; this spec is the questions code asks.
 
 ## Not doing
 
@@ -42,7 +42,6 @@ second consumer that only asks, sees the group but not this member's position.
       test broker.
 - [ ] **`spec-0160-consumer`**: the questions above, posted to the polling thread. Done when: `lag()` reads 0
       after a run has committed everything, and N with N records unread.
-- [ ] **`spec-0160-meters`**: lag and the client's metrics as Micrometer gauges in `lark-micrometer`.
 
 ## Acceptance
 
@@ -55,5 +54,5 @@ second consumer that only asks, sees the group but not this member's position.
 1. **Where the handle hangs:** `running.kafka`, or a value the caller passes in to be filled? Recommended: a
    value passed in, since `Running` belongs to lark-stream, which knows nothing of Kafka.
 2. **Blocking or `CompletionStage`?** Recommended: blocking, on the caller's virtual thread, as lark is.
-3. **Meters in this spec or the next?** Recommended: here, as the last entry, so lag is visible as soon as it
-   can be read.
+3. **`metrics()` returns the client's own map, all of it?** Recommended: yes; 0163 records a curated set, and
+   this is where the rest is read.
