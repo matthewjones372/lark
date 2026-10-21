@@ -2,13 +2,16 @@
 
 package io.github.matthewjones372.lark.kafka
 
+import org.apache.kafka.clients.consumer.CloseOptions
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
+import org.apache.kafka.common.KafkaException
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.RetriableException
 import org.apache.kafka.common.errors.WakeupException
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
@@ -72,40 +75,79 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
      * What was handled on partitions this consumer still owns, committed, and forgotten once it is. Waits for the
      * broker, and for any async commit still on its way: for a rebalance and a close, which must not lose them.
      */
-    fun commit(owned: Set<TopicPartition> = consumer.assignment()) {
+    fun commit(owned: Set<TopicPartition> = consumer.assignment()): Boolean {
         val due = handled.due(owned)
-        if (due.isEmpty() || !committing) return
+        if (due.isEmpty() || !committing) return false
         consumer.commitSync(due.mapValues { (_, next) -> OffsetAndMetadata(next) })
         // Only if nothing newer was handled meanwhile; a later offset is committed next time.
         due.forEach { (partition, next) -> handled.committed(partition, next) }
+        return true
     }
 
     /** [partitions] lost to a rebalance: what was handled on them is dropped, and so is anything marked later. */
     fun forget(partitions: Collection<TopicPartition>) = partitions.forEach(handled::revoked)
 
-    /** What was handled committed, then the consumer closed, however the commit went. */
+    /**
+     * One lookup at the coordinator, timed, for a close with nothing to commit; null when it does not answer within
+     * [LOOKUP_WITHIN] or fails, which leaves Kafka's own close. Only a measurement: it never fails the close. A member
+     * with no partition has nothing to look up, and the client answers that without asking: null, as it measures
+     * nothing.
+     */
+    private fun roundTrip(): Duration? {
+        if (consumer.assignment().isEmpty()) return null
+        val started = System.nanoTime()
+        return try {
+            try {
+                consumer.committed(consumer.assignment(), LOOKUP_WITHIN)
+            } catch (_: WakeupException) {
+                consumer.committed(consumer.assignment(), LOOKUP_WITHIN)
+            }
+            since(started)
+        } catch (_: KafkaException) {
+            null
+        }
+    }
+
+    /**
+     * What was handled committed, then the consumer closed, however the commit went: within a few times the round
+     * trip to its coordinator, which bounds the leave, rather than waiting behind a fetch the broker holds for
+     * `fetch.max.wait.ms` (spec 0164). A commit that failed leaves no round trip, and Kafka's own close.
+     */
     fun close() {
         // Waits for a transaction already sending this member's offsets: the member must still be there for it.
         leaving.start()
         // A take that ends a Forks run interrupts the fork reading the source, and that fork closes it: the
         // client would refuse both the commit and the close, and the last records handled be read again.
         val interrupted = Thread.interrupted()
+        // Set once the commit has gone through: a close that follows a failed one is Kafka's own.
+        var budget: Duration? = null
         try {
-            // A wake the loop never saw is still pending, and would fail this commit rather than a poll.
-            try {
+            val started = System.nanoTime()
+            // A wake the loop never saw is still pending, and fails the first call that reaches the network.
+            val sent = try {
                 commit()
             } catch (_: WakeupException) {
                 commit()
             }
+            // Nothing was due: one lookup at the coordinator stands in for the commit's round trip.
+            budget = if (sent || !committing) since(started) else roundTrip()
         } finally {
             try {
-                consumer.close()
+                budget?.let { within -> consumer.close(CloseOptions.timeout(within)) } ?: consumer.close()
             } finally {
                 if (interrupted) Thread.currentThread().interrupt()
             }
         }
     }
 }
+
+/** How long a close may take, from a round trip begun at [started]: [ROUND_TRIPS] of it, [CLOSE_FLOOR] at least. */
+private fun since(started: Long): Duration =
+    maxOf(Duration.ofNanos(System.nanoTime() - started).multipliedBy(ROUND_TRIPS), CLOSE_FLOOR)
+
+private const val ROUND_TRIPS = 5L
+private val LOOKUP_WITHIN: Duration = Duration.ofSeconds(1)
+private val CLOSE_FLOOR: Duration = Duration.ofMillis(10)
 
 /**
  * The next offset to commit per partition, and how often each was revoked. A record read before a revoke is the new

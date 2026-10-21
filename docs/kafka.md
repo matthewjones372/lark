@@ -50,7 +50,10 @@ Only the thread that polls touches the consumer. It commits what
 broker's answer, so the poll is not held up by it. For the partitions it loses
 in a rebalance, and when the run ends, it waits, and a run's exit completes only
 after that last commit. A commit the broker refuses for good fails the run at
-the next poll, as a defect. A `stop()` wakes a poll that is waiting on a quiet topic.
+the next poll, as a defect. The consumer then closes within a few round trips to its
+coordinator, enough for it to leave its group, rather than waiting up to
+`fetch.max.wait.ms` for a fetch the broker is holding, as `KafkaConsumer.close()`
+does by default. A `stop()` wakes a poll that is waiting on a quiet topic.
 
 `Kafka.subscribe` is Pekko's own Kafka connector, in `lark-kafka-pekko`: a
 backpressured prefetch, commits batched by its committer sink, and a `stop()`
