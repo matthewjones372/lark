@@ -28,7 +28,14 @@ import org.apache.kafka.clients.producer.Producer as Client
  * Its transactions run one at a time, so one run uses it; a second run waits for the first's transaction to end.
  * Whoever opens it closes it.
  */
-class TransactionalProducer<K, V> @KafkaSpi constructor(private val client: Client<K, V>) : AutoCloseable {
+class TransactionalProducer<K, V> internal constructor(
+    private val client: Client<K, V>,
+    private val meters: ProducerMeters,
+) : AutoCloseable {
+
+    /** A producer over [client], recording to the meters in scope here (spec 0163). */
+    @KafkaSpi
+    constructor(client: Client<K, V>) : this(client, ProducerMeters.here(emptyMap()))
 
     init {
         // Fences any earlier producer with the same transactional.id, and finishes what it left open.
@@ -48,6 +55,7 @@ class TransactionalProducer<K, V> @KafkaSpi constructor(private val client: Clie
         offsets: Map<TopicPartition, OffsetAndMetadata>,
         withGroup: ((ConsumerGroupMetadata) -> Unit) -> Unit,
     ) {
+        val started = System.nanoTime()
         client.beginTransaction()
         try {
             records.map(client::send).forEach { sent -> sent.awaited() }
@@ -56,12 +64,15 @@ class TransactionalProducer<K, V> @KafkaSpi constructor(private val client: Clie
         } catch (failed: Exception) {
             if (failed.abortable()) abort(failed)
             throw failed
+        } finally {
+            meters.transacted(started)
         }
     }
 
     /** The transaction aborted; an abort that fails too rides on what failed the transaction. */
     @Suppress("TooGenericExceptionCaught")
     private fun abort(failed: Exception) {
+        meters.aborted()
         try {
             client.abortTransaction()
         } catch (alsoFailed: Exception) {
@@ -83,7 +94,7 @@ fun <K, V> Kafka.transactionalProducer(
     value: Serializer<V>,
 ): TransactionalProducer<K, V> {
     val transactional = properties + (ProducerConfig.TRANSACTIONAL_ID_CONFIG to transactionalId)
-    return TransactionalProducer(KafkaProducer(transactional, key, value))
+    return TransactionalProducer(KafkaProducer(transactional, key, value), ProducerMeters.here(properties))
 }
 
 /**

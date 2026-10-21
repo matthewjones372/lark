@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.PekkoStreams
@@ -13,6 +14,7 @@ import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runFold
 import io.github.matthewjones372.lark.stream.take
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -84,14 +86,19 @@ class TransactTest {
         val output = Topic("orders-$on")
         kafka.send(input, "1", "2", "3")
 
-        producer("checkout-$on").use { orders ->
-            consumed("checkout-$on", input)
-                .mapRecord { record -> record.value() }
-                .take(3)
-                .runTransactionally(orders) { cart -> listOf(output.record(cart, "order $cart")) }
-                .run(backend(on))
-                .settled() shouldBe Exit.Done(3L)
+        val captured = capturingMetrics { captured ->
+            producer("checkout-$on").use { orders ->
+                consumed("checkout-$on", input)
+                    .mapRecord { record -> record.value() }
+                    .take(3)
+                    .runTransactionally(orders) { cart -> listOf(output.record(cart, "order $cart")) }
+                    .run(backend(on))
+                    .settled() shouldBe Exit.Done(3L)
+            }
+            captured
         }
+        captured.histogram("lark.kafka.transactions").shouldNotBeEmpty()
+        captured.counter("lark.kafka.transactions.aborts") shouldBe 0.0
 
         kafka.readAll(output.name, COMMITTED).map { it.value() } shouldBe listOf("order 1", "order 2", "order 3")
         withClue("the transaction committed the group's offsets; the consumer committed none of its own") {
@@ -109,17 +116,20 @@ class TransactTest {
             if (value == "boom") throw SerializationException("unwritable") else value.toByteArray()
         }
 
-        val exit = producer("failing-$on", refusing).use { orders ->
-            consumed("failing-$on", input)
-                .mapRecord { record -> record.value() }
-                .runTransactionally(orders, batch = 3, within = GENEROUS_SECONDS.seconds) { cart ->
-                    listOf(output.record(cart, cart))
-                }
-                .run(backend(on))
-                .settled()
+        val (exit, captured) = capturingMetrics { captured ->
+            producer("failing-$on", refusing).use { orders ->
+                consumed("failing-$on", input)
+                    .mapRecord { record -> record.value() }
+                    .runTransactionally(orders, batch = 3, within = GENEROUS_SECONDS.seconds) { cart ->
+                        listOf(output.record(cart, cart))
+                    }
+                    .run(backend(on))
+                    .settled()
+            } to captured
         }
 
         exit.shouldBeInstanceOf<Exit.Died>()
+        captured.counter("lark.kafka.transactions.aborts") shouldBe 1.0
         withClue("the two records sent before the failure were aborted with it") {
             kafka.readAll(output.name, COMMITTED) shouldBe emptyList()
         }
