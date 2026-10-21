@@ -55,7 +55,7 @@ Recommended: (a) first. It closes the correctness gap; (b) is a throughput chang
 
 ## Open questions
 
-1. **(a) or (b)?** Recommended: (a).
+1. **(a) or (b)?** Recommended: (a). **Answered:** (a).
 2. **A thread per consumer**, where today the stream's own thread polls. Recommended: a virtual thread, started
-   with the run and stopped with it, as `mapPar`'s feeding fork is.
-3. **Pause at half the poll interval?** Recommended: yes, read from the consumer's own config.
+   with the run and stopped with it, as `mapPar`'s feeding fork is. **Answered:** yes.
+3. **Pause at half the poll interval?** Recommended: yes, read from the consumer's own config. **Answered:** yes.

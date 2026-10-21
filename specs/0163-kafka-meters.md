@@ -64,6 +64,6 @@ the work is, not how fast one call is.
 ## Open questions
 
 1. **Per-partition tags by default?** Recommended: yes; partitions are few. A topic with thousands would want
-   them off: a switch, later, if anyone has one.
-2. **Latency from `CreateTime` or `LogAppendTime`?** Recommended: whichever the topic records; the record says.
-3. **Ahead of 0160?** Recommended: yes. Meters are what an on-call engineer reads; the questions are for code.
+   them off: a switch, later, if anyone has one. **Answered:** yes.
+2. **Latency from `CreateTime` or `LogAppendTime`?** Recommended: whichever the topic records; the record says. **Answered:** yes.
+3. **Ahead of 0160?** Recommended: yes. Meters are what an on-call engineer reads; the questions are for code. **Answered:** yes.
