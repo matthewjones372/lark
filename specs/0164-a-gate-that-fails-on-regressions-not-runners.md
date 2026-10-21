@@ -91,14 +91,13 @@ bench/lark-stream-benchmarks/gate.sh origin/main ChainBenchmark   # red, on fork
 
 ## Open questions
 
-1. **How many rounds?** 3 rounds of 1 fork is 1.5× today's measuring, about 35
-   minutes, inside the 60-minute timeout. Recommend 3. Could warmup drop from 5 to 3
-   iterations to pay for it?
-2. **Order within a round:** A B B A (cancels linear drift) or a fixed A B? Recommend
-   A B B A.
-3. **`rounds − 1` agreement:** with 3 rounds that means 2 of 3. Is that strict
-   enough to catch a real +12%, or should a real regression have to show up in every
-   round? Recommend 2 of 3 plus the confirming re-run.
-4. **Should the confirming re-run be in the first PR?** It is small, and A/A may
-   already pass without it. Recommend keeping it second, so we can see what rounds
-   alone achieve.
+0. **Answered: when does the gate run?** Not on every pull request: only on one
+   labelled `benchmarks` (and each push to it), or from Run workflow. Landed ahead
+   of the stack, on its own.
+
+1. **Answered: how many rounds?** 3, one fork a side each, about 1.5× today's
+   measuring. Warmup stays at 5 iterations.
+2. **Answered: order.** A B, then B A, alternating round by round.
+3. **Answered: agreement.** The median round more than `tolerance` slower and all
+   rounds but one more than half of it: 2 of 3 by default.
+4. **Answered: the confirming re-run** is second, so rounds alone are measured first.

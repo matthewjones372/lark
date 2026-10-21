@@ -152,11 +152,21 @@ bench/lark-stream-benchmarks/gate.sh origin/main                  # every row, t
 bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
 ```
 
-`gate.sh` runs the benchmarks on the ref in a worktree and then on this checkout, on the same machine
-one after the other, and `jmhCompare` fails when a row is both more than 10% slower (`-Ptolerance` to
-change it) and outside both error bars. Slower is a time per operation that rose, or for a `Throughput` row a
-score that fell. The `benchmarks` workflow runs it on every pull request that
-touches a stream module and keeps each run's table as an artifact.
+`gate.sh` runs the benchmarks on the ref and on this checkout, each from a worktree of its own. A round
+runs every benchmark once on each side, one fork each, the two sides of a benchmark back to back and which
+goes first alternating (`GATE_ROUNDS`, 3 by default). `jmhCompare` pairs the rounds and fails when a row's
+median round is more than 10% slower (`-Ptolerance` to change it) and all rounds but one are more than 5%
+slower. Slower is a time per operation that rose, or for a `Throughput` row a score that fell. A row found
+slower is measured again on its own for as many rounds more, and fails only if it is still slower over all of
+them: one fork far off its others no longer fails the gate. The first table is kept as `rounds/first-compare.txt`.
+`gate-tolerance.properties` gives a row the gate failed on identical code a tolerance of its own:
+`MapParBenchmark` rows may be 50% slower, since their forks disagree by more than any 10% could hold.
+
+A runner that slows down for a minute slows both sides of the benchmarks it measured in that minute, where
+measuring one side's suite and then the other's put the slow minute on one side and read it as a regression.
+JMH's error bars are left out of the decision: they measure one run's iterations, not that drift.
+The `benchmarks` workflow runs it on a pull request labelled
+`benchmarks`, again on each push to it, or from Run workflow, and keeps each run's table as an artifact.
 
 The committed numbers above are records, not thresholds: they were measured on one machine, and a gate
 against them on another would be measuring the machine.
