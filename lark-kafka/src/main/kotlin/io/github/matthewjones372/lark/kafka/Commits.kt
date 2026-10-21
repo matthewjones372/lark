@@ -23,7 +23,7 @@ import kotlin.concurrent.withLock
 internal class Commits(private val consumer: KafkaConsumer<*, *>, private val committing: Boolean = true) {
 
     /** The next offset to commit per partition: written by whichever thread ends the stream, read by the poller. */
-    private val handled = ConcurrentHashMap<TopicPartition, Long>()
+    private val handled = Handled()
 
     /** The group as the last poll left it: read on the polling thread, and handed out with each record. */
     private var group: ConsumerGroupMetadata? = null
@@ -40,7 +40,7 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     fun <K, V> carrying(record: ConsumerRecord<K, V>): Committed<ConsumerRecord<K, V>> = Committed(
         record,
         Position(record.topic(), record.partition(), record.offset()),
-        Offset(handled, TopicPartition(record.topic(), record.partition()), record.offset(), group, leaving),
+        Offset(handled.marking(TopicPartition(record.topic(), record.partition())), record.offset(), group, leaving),
     )
 
     /** A refusal an async commit reported that sending again cannot fix, for the polling thread to throw. */
@@ -57,11 +57,11 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
             refused = null
             throw failure
         }
-        val due = handled.filterKeys { it in consumer.assignment() }
+        val due = handled.due(consumer.assignment())
         if (due.isEmpty() || !committing) return
         consumer.commitAsync(due.mapValues { (_, next) -> OffsetAndMetadata(next) }) { _, failure ->
             when (failure) {
-                null -> due.forEach { (partition, next) -> handled.remove(partition, next) }
+                null -> due.forEach { (partition, next) -> handled.committed(partition, next) }
                 is RetriableException -> Unit
                 else -> refused = failure
             }
@@ -73,14 +73,15 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
      * broker, and for any async commit still on its way: for a rebalance and a close, which must not lose them.
      */
     fun commit(owned: Set<TopicPartition> = consumer.assignment()) {
-        val due = handled.filterKeys { it in owned }
+        val due = handled.due(owned)
         if (due.isEmpty() || !committing) return
         consumer.commitSync(due.mapValues { (_, next) -> OffsetAndMetadata(next) })
         // Only if nothing newer was handled meanwhile; a later offset is committed next time.
-        due.forEach { (partition, next) -> handled.remove(partition, next) }
+        due.forEach { (partition, next) -> handled.committed(partition, next) }
     }
 
-    fun forget(partitions: Collection<TopicPartition>) = partitions.forEach(handled::remove)
+    /** [partitions] lost to a rebalance: what was handled on them is dropped, and so is anything marked later. */
+    fun forget(partitions: Collection<TopicPartition>) = partitions.forEach(handled::revoked)
 
     /** What was handled committed, then the consumer closed, however the commit went. */
     fun close() {
@@ -107,15 +108,50 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
 }
 
 /** A record's offset, marked handled for its consumer to commit: the one after it is where the group resumes. */
+
+/**
+ * The next offset to commit per partition, and how often each was revoked. A record read before a revoke is the new
+ * owner's to commit, and may reach the end of the stream after it, on Pekko more so since it reads ahead: its mark is
+ * dropped rather than committed for a partition this consumer may be given back (spec 0154).
+ */
+private class Handled {
+    private val next = ConcurrentHashMap<TopicPartition, Long>()
+    private val revokes = ConcurrentHashMap<TopicPartition, Int>()
+
+    /** How a record read now marks [partition]: only while no revoke has come between. */
+    fun marking(partition: TopicPartition): Marking {
+        val readUnder = revokes[partition] ?: 0
+        // In the map's lock for the partition, which a revoke's remove also takes, so a mark cannot land after it.
+        return Marking { offset ->
+            next.compute(partition) { _, was ->
+                if ((revokes[partition] ?: 0) != readUnder) was else maxOf(was ?: offset, offset)
+            }
+        }
+    }
+
+    fun due(owned: Set<TopicPartition>): Map<TopicPartition, Long> = next.filterKeys { it in owned }
+
+    /** Forgotten only if nothing newer was marked meanwhile; a later offset is committed next time. */
+    fun committed(partition: TopicPartition, offset: Long) = next.remove(partition, offset)
+
+    fun revoked(partition: TopicPartition) {
+        revokes.merge(partition, 1, Int::plus)
+        next.remove(partition)
+    }
+}
+
+private fun interface Marking {
+    fun mark(next: Long)
+}
+
 private class Offset(
-    private val handled: ConcurrentHashMap<TopicPartition, Long>,
-    private val partition: TopicPartition,
+    private val marking: Marking,
     private val offset: Long,
     private val polledIn: ConsumerGroupMetadata?,
     private val leaving: Leaving,
 ) : Handle {
     override fun handled() {
-        handled.merge(partition, offset + 1, ::maxOf)
+        marking.mark(offset + 1)
     }
 
     /**

@@ -147,4 +147,29 @@ class CommitsTest {
 
         kafka.committed(topic, topic) shouldBe 3L
     }
+
+    @Test
+    fun `a record handled after its partition was revoked commits nothing, and one read after it is back does`() {
+        val topic = "handled-after-revoke"
+        kafka.send(topic, "1", "2", "3")
+        val consumer = consumer(topic).also { it.subscribe(listOf(topic)) }
+        val commits = Commits(consumer)
+        val records = consumer.polled(3)
+        val late = records.map { commits.carrying(it).handle!! }
+        val partition = TopicPartition(topic, 0)
+
+        // What a rebalance does to a partition this consumer loses, while its records are still in the stream.
+        commits.forget(listOf(partition))
+        late.forEach { it.handled() }
+        commits.commit()
+        withClue("records read before the revoke are the new owner's to commit") {
+            kafka.committed(topic, topic) shouldBe null
+        }
+
+        commits.carrying(records.last()).handle!!.handled()
+        commits.close()
+        withClue("a record read once the partition is this consumer's again commits as usual") {
+            kafka.committed(topic, topic) shouldBe 3L
+        }
+    }
 }
