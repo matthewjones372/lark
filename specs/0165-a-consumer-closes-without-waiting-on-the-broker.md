@@ -1,4 +1,4 @@
-# 0164 — a consumer closes without waiting on the broker's held fetch
+# 0165 — a consumer closes without waiting on the broker's held fetch
 
 ## Problem
 

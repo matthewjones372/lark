@@ -130,7 +130,7 @@ internal class Commits(
     /**
      * What was handled committed, then the consumer closed, however the commit went: within a few times the round
      * trip to its coordinator, which bounds the leave, rather than waiting behind a fetch the broker holds for
-     * `fetch.max.wait.ms` (spec 0164). A commit that failed leaves no round trip, and Kafka's own close.
+     * `fetch.max.wait.ms` (spec 0165). A commit that failed leaves no round trip, and Kafka's own close.
      */
     fun close() {
         val closing = System.nanoTime()
