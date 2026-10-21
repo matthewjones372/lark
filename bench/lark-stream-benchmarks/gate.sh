@@ -48,6 +48,11 @@ prepare() {
 }
 prepare "$base" base
 prepare "$cand" candidate
+# The base may lack a benchmark the change adds, but either side listing nothing at all would pass on nothing.
+if [ ! -s "$out/candidate.list" ] || { [ -z "$benchmarks" ] && [ ! -s "$out/base.list" ]; }; then
+  echo "nothing to measure: no benchmark matches '$benchmarks' on one side" >&2
+  exit 1
+fi
 
 # One fork of one benchmark on one side, kept as runs/<side>-<round>-<benchmark>.json.
 measure() {
@@ -70,7 +75,8 @@ collect() {
       [ -e "$run" ] || continue
       [ "$first" -eq 1 ] || echo ","
       first=0
-      sed '1d;$d' "$run"
+      # JMH writes the array's brackets alone on their lines, with blank lines after: keep what is between.
+      grep -v -e '^\[$' -e '^\]$' -e '^$' "$run"
     done
     echo "]"
   } > "$out/$side-$round.json"
