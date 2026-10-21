@@ -55,6 +55,17 @@ internal class Keeper<K, V>(
         block()
     }
 
+    /**
+     * [block], the consumer's last use, whatever the keeper's poll threw: the commit and close are not skipped for
+     * it. What it threw is thrown after, as the stream's next touch would have.
+     */
+    fun closing(block: () -> Unit) = lock.withLock {
+        val pending = failed
+        failed = null
+        block()
+        pending?.let { thrown -> throw thrown }
+    }
+
     /** Before the stream's own poll: everything the keeper paused is read again. */
     fun polling() {
         consumer.resume(consumer.paused())

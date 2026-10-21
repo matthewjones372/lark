@@ -75,11 +75,12 @@ private class Loop<K, V>(
     /** What the last polls returned and the stream has yet to take: the keeper's poll can add to it. */
     private val polled = ArrayDeque<ConsumerRecord<K, V>>()
 
-    private val keeper = Keeper(consumer, properties) { records -> polled.addAll(records) }
-
+    // Before the keeper starts, so a subscription the client refuses leaves no keeper running.
     init {
         consumer.subscribe(topics, this)
     }
+
+    private val keeper = Keeper(consumer, properties) { records -> polled.addAll(records) }
 
     /** The next record; a poll waiting on a quiet topic waits until one arrives or [wake] is called. */
     fun next(): Committed<ConsumerRecord<K, V>> = keeper.touching {
@@ -99,7 +100,7 @@ private class Loop<K, V>(
 
     fun close() {
         keeper.stop()
-        keeper.touching { commits.close() }
+        keeper.closing { commits.close() }
     }
 
     override fun onPartitionsRevoked(partitions: Collection<TopicPartition>) {
