@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.stream
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.comparables.shouldBeLessThan
@@ -262,6 +263,11 @@ class ForksTest {
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
         (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain "mapPar"
+    }
+
+    @Test
+    fun `mapParKeyed refuses a parallelism with no room for a body, rather than waiting for one`() {
+        shouldThrow<IllegalArgumentException> { Stream.of(1).mapParKeyed(0, key = { it }) { n -> n } }
     }
 
     @Test

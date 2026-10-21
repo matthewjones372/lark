@@ -209,10 +209,11 @@ internal fun Node.MapPar.keyedWindow(key: (Any) -> Any, releases: Releases?): Pu
             keyedFeed(up, room, released, tails) { a ->
                 val k = keyOf(a)
                 val behind = tails[k] ?: CompletableFuture.completedFuture(Unit)
-                val passed = CompletableFuture<Unit>()
-                tails[k] = passed
+                // Started before it is the key's tail: a body the executor refuses leaves no tail nothing completes.
                 val flight = InFlight(executor) { body(a) }
                 running.add(flight)
+                val passed = CompletableFuture<Unit>()
+                tails[k] = passed
                 flight.whenDone {
                     behind.whenComplete { _, _ ->
                         running.remove(flight)

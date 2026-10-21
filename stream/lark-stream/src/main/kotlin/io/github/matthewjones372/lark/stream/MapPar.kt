@@ -23,7 +23,10 @@ fun <E, A : Any, B : Any> Stream<E, A>.mapParKeyed(
     parallelism: Int,
     key: (A) -> Any,
     f: Raise<E>.(A) -> B,
-): Stream<E, B> = via(Pipe(Node.MapPar(Node.Hole, parallelism, VirtualThreads, f.erased(), buildSite(), key.erased())))
+): Stream<E, B> {
+    require(parallelism > 0) { "mapParKeyed needs room for at least one body, and was given $parallelism" }
+    return via(Pipe(Node.MapPar(Node.Hole, parallelism, VirtualThreads, f.erased(), buildSite(), key.erased())))
+}
 
 /** The starting form: a pipe of bodies, each on a virtual thread of its own. */
 fun <E, A : Any, B : Any> Pipe.Companion.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
