@@ -8,6 +8,7 @@ import arrow.core.right
 import arrow.core.toNonEmptyListOrNull
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigException
+import com.typesafe.config.ConfigUtil
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.single
 import kotlin.time.Duration
@@ -95,11 +96,22 @@ class Reading internal constructor(
 
     private fun full(path: String): String = at?.let { "$it.$path" } ?: path
 
-    /** Secret if any read of it was: a value masked once and printed once has been printed. */
+    /**
+     * Secret if any read of it was: a value masked once and printed once has been printed. Kept as
+     * HOCON writes it back, so `"host"` and `host` are one setting; a path HOCON cannot parse is kept
+     * as given, and its read records the fault.
+     */
     private fun <A> recorded(path: String, secret: Boolean, value: () -> A): A {
-        read.merge(full(path), secret, Boolean::or)
+        read.merge(canonical(full(path)), secret, Boolean::or)
         return value()
     }
+
+    private fun canonical(path: String): String =
+        try {
+            ConfigUtil.joinPath(ConfigUtil.splitPath(path))
+        } catch (_: ConfigException.BadPath) {
+            path
+        }
 }
 
 /**

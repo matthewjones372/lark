@@ -5,6 +5,7 @@ import io.github.matthewjones372.lark.app.typesafe.PathRead
 import io.github.matthewjones372.lark.app.typesafe.reading
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.shouldBe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Test
@@ -17,6 +18,9 @@ private data class Database(val url: Secret, val poolSize: Int)
 
 @Serializable
 private enum class Trading { Live, Demo }
+
+@Serializable
+private data class Token(val token: Secret?)
 
 /** A class read lists the paths it read as the block form does, its `Secret` marked (spec 0155). */
 class ClassPathsReadTest {
@@ -45,5 +49,14 @@ class ClassPathsReadTest {
                 PathRead("petshop.database.poolSize", secret = false),
             )
         }
+    }
+
+    @Test
+    fun `an absent Secret that may be null, with no default, reads as null`() {
+        val read = ConfigFactory.parseString("petshop {}").reading {
+            section("petshop") { decoded(serializer<Token>(), Naming.AsDeclared) }
+        }
+
+        read.getOrNull() shouldBe Token(token = null)
     }
 }

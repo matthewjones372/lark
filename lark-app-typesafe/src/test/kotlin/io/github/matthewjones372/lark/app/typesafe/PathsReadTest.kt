@@ -56,4 +56,11 @@ class PathsReadTest {
 
         section.paths shouldContainExactly listOf(PathRead("petshop.unread", secret = false))
     }
+
+    @Test
+    fun `a quoted path is the same setting as its plain one, recorded once and secret if either read was`() {
+        val section = hocon.sectionOf("petshop") { string("host") to secret("\"host\"") }
+
+        section.paths shouldContainExactly listOf(PathRead("petshop.host", secret = true))
+    }
 }
