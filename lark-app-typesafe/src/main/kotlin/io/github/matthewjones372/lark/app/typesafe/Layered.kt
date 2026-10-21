@@ -3,6 +3,8 @@ package io.github.matthewjones372.lark.app.typesafe
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigResolveOptions
+import java.util.Collections
+import java.util.WeakHashMap
 
 /** One document in the stack, under the name a reader knows it by. */
 class Layer internal constructor(val name: String, val config: Config)
@@ -21,30 +23,23 @@ class Layered internal constructor(val layers: List<Layer>) {
      * remembers these layers, so a section read from it can report what each setting overrode.
      */
     val config: Config by lazy {
-        LayeredConfig(
-            this,
-            layers.map { it.config }.reduceOrNull { above, below -> above.withFallback(below) }
-                ?.resolve()
-                ?: ConfigFactory.empty(),
-        )
+        val merged = layers.map { it.config }.reduceOrNull { above, below -> above.withFallback(below) }
+        (merged?.resolve() ?: ConfigFactory.empty()).also { merges[it] = layers }
     }
 }
 
 /**
- * The merge itself, and the [layered] it came from.
+ * The layers behind each merge [Layered.config] has handed out.
  *
- * A section depends on `Config` alone, so one written by hand still starts; the layers ride along on
- * the value for the report rather than as a second node it would have to require. Equal to the merge,
- * though the merge's own `equals` does not know to answer the same.
+ * A section depends on `Config` alone, so one written by hand still starts; the layers ride beside the
+ * merge for the report rather than as a second node it would have to require. Beside it, not wrapped
+ * round it: `withFallback` casts its argument to Typesafe's own `Config`, so a wrapper breaks the first
+ * merge it is handed to. Weak, so a merge nobody holds is not kept for its report.
  */
-internal class LayeredConfig(val layered: Layered, private val merged: Config) : Config by merged {
+private val merges: MutableMap<Config, List<Layer>> = Collections.synchronizedMap(WeakHashMap())
 
-    override fun equals(other: Any?): Boolean = merged == ((other as? LayeredConfig)?.merged ?: other)
-
-    override fun hashCode(): Int = merged.hashCode()
-
-    override fun toString(): String = merged.toString()
-}
+/** The layers this merge came from, or null for a `Config` written by hand. */
+internal fun Config.layeredOrNull(): Layered? = merges[this]?.let(::Layered)
 
 /**
  * What `ConfigFactory.load()` reads, as layers rather than as the merge of them, in its order: the

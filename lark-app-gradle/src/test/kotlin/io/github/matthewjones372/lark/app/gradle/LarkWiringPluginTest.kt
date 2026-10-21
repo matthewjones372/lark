@@ -225,6 +225,9 @@ class LarkWiringPluginTest {
         withClue("config with no block takes a Config, as the block form does") {
             result.output shouldContain "provides [Config, Layered, Settings], and is short of []"
         }
+        withClue("the Config a source provides is its Layered's merge, so reaching one reaches both") {
+            result.output shouldNotContain "nothing reaches Layered"
+        }
     }
 
     @Test

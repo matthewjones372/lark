@@ -292,7 +292,8 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
 
-        called in SOURCES -> node(TYPESAFE_CONFIG, emptyList(), at) + node(LAYERED, emptyList(), at)
+        // A source provides its Layered and the merge of it, which is the Config: reaching one reaches both.
+        called in SOURCES -> node(TYPESAFE_CONFIG, listOf(LAYERED), at) + node(LAYERED, emptyList(), at)
 
         else -> null
     }

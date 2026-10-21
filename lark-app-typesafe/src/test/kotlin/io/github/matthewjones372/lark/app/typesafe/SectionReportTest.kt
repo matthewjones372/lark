@@ -19,6 +19,8 @@ import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
 
+private class WholeDb(val settings: Config)
+
 private data class Shop(val host: String, val port: Int, val url: Secret, val password: String)
 
 /** Each section logs what it read, as it reads it, and nothing it did not (spec 0155). */
@@ -79,6 +81,41 @@ class SectionReportTest {
         testApp(app) { _: Shop -> Unit }
 
         block() shouldContain "overrides 9090"
+    }
+
+    @Test
+    fun `a layered merge is a Config Typesafe can merge under another, and still reports its layers`() {
+        val base = layeredConfigOf("base" to ConfigFactory.parseString(hocon))
+
+        withClue("withFallback casts its argument to Typesafe's own Config, so the merge has to be one") {
+            val above = ConfigFactory.parseString("petshop.port = 8081")
+            above.withFallback(base.config).getInt("petshop.port") shouldBe 8081
+        }
+        val app = configOf(hocon).overridingConfig("petshop.port = 8082", fallback = base.config) + shop
+        testApp(app) { _: Shop -> Unit }
+
+        block() shouldContain "8082"
+    }
+
+    @Test
+    fun `a setting read by its quoted path is masked as its plain one would be`() {
+        val quoted = config<String>("petshop") { string("\"password\"") }
+
+        testApp(configOf(hocon) + quoted) { _: String -> Unit }
+
+        block() shouldNotContain "hunter3"
+    }
+
+    @Test
+    fun `an object read whole is reported as its settings, each masked as it would be alone`() {
+        val whole = config<WholeDb>("petshop") { WholeDb(of("db", ConfigFactory.empty()) { getConfig("db") }) }
+        val nested = """petshop { db { user = "shop", password = "hunter4" } }"""
+
+        testApp(configOf(nested) + whole) { _: WholeDb -> Unit }
+
+        val block = block()
+        block shouldContain "petshop.db.user"
+        withClue("a password under an object read whole is still a password") { block shouldNotContain "hunter4" }
     }
 
     @Test

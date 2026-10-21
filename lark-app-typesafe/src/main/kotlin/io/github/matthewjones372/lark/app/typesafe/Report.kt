@@ -21,12 +21,18 @@ internal fun Section.logged(root: Config, path: String) {
  */
 internal fun Config.reportOf(section: String, paths: List<PathRead>): String {
     val secrets = paths.filter { it.secret }.fold(Secrets.default) { secrets, read -> secrets.and(read.path) }
-    val known = ((this as? LayeredConfig)?.layered?.origins(secrets) ?: origins(secrets)).associateBy { it.path }
-    val lines = paths.map { (path) ->
-        known[path] ?: when {
-            hasPath(path) -> originOf(path, getValue(path), secrets)
-            else -> Origin(path, value = "", where = "not set", redacted = false)
-        }
+    val known = (layeredOrNull()?.origins(secrets) ?: origins(secrets)).associateBy { it.path }
+    val lines = paths.flatMap { (path) ->
+        known[path]?.let(::listOf)
+            // An object read whole is its settings, each masked as it would be alone: rendered as one
+            // value, the password inside it is printed under a name that says nothing.
+            ?: known.values.filter { it.path.startsWith("$path.") }.ifEmpty { null }
+            ?: listOf(
+                when {
+                    hasPath(path) -> originOf(path, getValue(path), secrets)
+                    else -> Origin(path, value = "", where = "not set", redacted = false)
+                },
+            )
     }
     return Origins(lines).report("lark-app configuration: $section")
 }
