@@ -1,6 +1,6 @@
 name: benchmarks
 
-# The stream modules measured on the base branch and on the pull request, back to back on one runner, and
+# The stream modules measured on the base branch and on the pull request, in alternating rounds on one runner, and
 # red when a row got slower (bench/lark-stream-benchmarks/gate.sh). A committed number was measured on some other
 # machine, so the gate compares only what it measured itself.
 #
@@ -10,6 +10,10 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, labeled]
   workflow_dispatch:
+    inputs:
+      base:
+        description: "Branch to compare against; this branch itself measures the gate's own noise"
+        default: main
 
 permissions:
   contents: read
@@ -42,7 +46,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Benchmarks on the base and on this change
-        run: bench/lark-stream-benchmarks/gate.sh "origin/${{ github.base_ref || 'main' }}"
+        run: bench/lark-stream-benchmarks/gate.sh "origin/${{ github.base_ref || inputs.base || 'main' }}"
 
       # Where each benchmark's time went, drawn: the diagrams to read when the gate goes red.
       - name: Profile each benchmark's pipeline
@@ -57,6 +61,6 @@ jobs:
           name: jmh-compare
           path: |
             bench/lark-stream-benchmarks/build/jmh-compare.txt
-            bench/lark-stream-benchmarks/build/jmh-result.json
+            bench/lark-stream-benchmarks/build/rounds/
             bench/lark-stream-benchmarks/build/profiles/
           retention-days: 90

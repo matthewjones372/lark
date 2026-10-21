@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# The benchmarks on <ref> and on this checkout, back to back on this machine, and red when a row got slower.
+# The benchmarks on <ref> and on this checkout, in rounds on this machine, and red when a row got slower.
 # A committed number was measured somewhere else; only a comparison made here says anything about here.
 #
 #   bench/lark-stream-benchmarks/gate.sh origin/main
 #   bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"      # this working tree against its own last commit
+#   GATE_ROUNDS=5 bench/lark-stream-benchmarks/gate.sh origin/main  # more rounds, for a noisy runner
+#
+# Each round is one fork of every benchmark on each side, in the order A B, B A, A B, ..., so that a machine
+# drifting over the job slows both sides alike rather than whichever ran second.
 set -euo pipefail
 
 ref="${1:-origin/main}"
 benchmarks="${2:-}"
+rounds="${GATE_ROUNDS:-3}"
 root="$(git rev-parse --show-toplevel)"
 base="$(mktemp -d)"
 git -C "$root" worktree add --quiet --detach "$base" "$ref"
@@ -23,8 +28,32 @@ if [ ! -d "$baseDir" ]; then
   exit 0
 fi
 
-(cd "$base" && ./gradlew --quiet :lark-stream-benchmarks:jmh -PbenchmarkArgs="$benchmarks")
-(cd "$root" && ./gradlew --quiet :lark-stream-benchmarks:jmh -PbenchmarkArgs="$benchmarks")
+candDir="$root/bench/lark-stream-benchmarks"
+out="$candDir/build/rounds"
+rm -rf "$out"
+mkdir -p "$out"
+
+# One fork of every benchmark on one side, kept as <side>-<round>.json.
+measure() {
+  local checkout="$1" dir="$2" name="$3"
+  (cd "$checkout" && ./gradlew --quiet :lark-stream-benchmarks:jmh -PbenchmarkArgs="-f 1 $benchmarks")
+  cp "$dir/build/jmh-result.json" "$out/$name.json"
+}
+
+baselines=()
+candidates=()
+for round in $(seq 1 "$rounds"); do
+  if [ $((round % 2)) -eq 1 ]; then
+    measure "$base" "$baseDir" "base-$round"
+    measure "$root" "$candDir" "candidate-$round"
+  else
+    measure "$root" "$candDir" "candidate-$round"
+    measure "$base" "$baseDir" "base-$round"
+  fi
+  baselines+=("$out/base-$round.json")
+  candidates+=("$out/candidate-$round.json")
+done
+
 (cd "$root" && ./gradlew --quiet :lark-stream-benchmarks:jmhCompare \
-  -Pbaseline="$baseDir/build/jmh-result.json" \
-  -Pcandidate="$root/bench/lark-stream-benchmarks/build/jmh-result.json")
+  -Pbaseline="$(IFS=,; echo "${baselines[*]}")" \
+  -Pcandidate="$(IFS=,; echo "${candidates[*]}")")

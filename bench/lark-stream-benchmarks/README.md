@@ -152,10 +152,13 @@ bench/lark-stream-benchmarks/gate.sh origin/main                  # every row, t
 bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
 ```
 
-`gate.sh` runs the benchmarks on the ref in a worktree and then on this checkout, on the same machine
-one after the other, and `jmhCompare` fails when a row is both more than 10% slower (`-Ptolerance` to
-change it) and outside both error bars. Slower is a time per operation that rose, or for a `Throughput` row a
-score that fell. The `benchmarks` workflow runs it on a pull request labelled
+`gate.sh` runs the benchmarks on the ref in a worktree and on this checkout in rounds, one fork of each
+side a round, alternating which goes first (`GATE_ROUNDS`, 3 by default). `jmhCompare` pairs the rounds and
+fails when a row's median round is more than 10% slower (`-Ptolerance` to change it) and all rounds but one
+are more than 5% slower. Slower is a time per operation that rose, or for a `Throughput` row a score that
+fell. A runner that drifts over the job slows both halves of a round alike, so it cancels, where measuring
+one side and then the other read the drift as a regression. JMH's error bars are left out of the decision:
+they measure one run's iterations, not that drift. The `benchmarks` workflow runs it on a pull request labelled
 `benchmarks`, again on each push to it, or from Run workflow, and keeps each run's table as an artifact.
 
 The committed numbers above are records, not thresholds: they were measured on one machine, and a gate
