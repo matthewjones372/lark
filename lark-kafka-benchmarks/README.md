@@ -28,9 +28,13 @@ JDK 25.0.4, 4 vCPU / 16 GB (a shared cloud container), kafka-clients and embedde
 | `kafkaClientsFreshConsumer` | a new consumer and group per run, closed at the end | 571 ± 4 |
 | `kafkaClientsCommitting` | the same, `commitSync()` before each poll and at the end | 646 ± 7 |
 | `larkForks` | `Kafka.consume(…).take(50k).runCommitting()` on Forks | 657 ± 5 |
+| `larkForksMetered` | `larkForks` with its meters recorded to an in-memory backend (spec 0163) | — |
 | `manualLarkForks` | six `Kafka.read`s to `EndAtStart`, merged, nothing committed | 571 ± 3 |
 | `larkPekko` | `larkForks`' description on Pekko Streams | 854 ± 9 |
 | `larkPekkoConnector` | `Kafka.subscribe` from lark-kafka-pekko, with Pekko's committer | 716 ± 11 |
+
+`larkForksMetered` came after the baseline. On the stack through spec 0163, three forks of both rows in one run gave
+141 ± 15 ms/op metered against 140 ± 17 for `larkForks`: the meters cost nothing measurable.
 
 `ProcessingBenchmarks`: 5k records, each handled by a blocking call of the given length, committed as they go.
 

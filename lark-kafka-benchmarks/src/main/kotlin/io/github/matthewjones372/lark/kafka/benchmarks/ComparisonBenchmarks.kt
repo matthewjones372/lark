@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.kafka.benchmarks
 
+import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.kafka.From
 import io.github.matthewjones372.lark.kafka.Kafka
 import io.github.matthewjones372.lark.kafka.Topic
@@ -131,6 +132,14 @@ open class ComparisonBenchmarks {
     /** `Kafka.consume` on Forks: one virtual thread polls, carries each record to the end, and commits. */
     @Benchmark
     fun larkForks(broker: Broker) = check(larkConsume(broker).run(forks).done(), RECORDS)
+
+    /**
+     * [larkForks] recording its meters to an in-memory backend, which keeps every latency: what the meters cost
+     * where something reads them. [larkForks] is the same run with no backend bound.
+     */
+    @Benchmark
+    fun larkForksMetered(broker: Broker) =
+        capturingMetrics { check(larkConsume(broker).run(forks).done(), RECORDS) }
 
     /** The same description on Pekko Streams. */
     @Benchmark
