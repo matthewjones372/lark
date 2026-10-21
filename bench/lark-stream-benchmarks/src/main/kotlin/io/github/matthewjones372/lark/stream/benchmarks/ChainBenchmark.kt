@@ -66,7 +66,15 @@ open class ChainBenchmark {
 
     /** The same description on `Forks`: one pull loop, where Pekko hands each element from stage to stage. */
     @Benchmark
-    fun forks(): Long = chain().run(forks).done()
+    fun forks(): Long {
+        // A deliberate 30% slowdown, to show the gate catches one: spin for 0.3 of the run's own time.
+        val start = System.nanoTime()
+        val result = chain().run(forks).done()
+        val until = start + (System.nanoTime() - start) * 13 / 10
+        @Suppress("ControlFlowWithEmptyBody")
+        while (System.nanoTime() < until) {}
+        return result
+    }
 
     /** The same description on `Actors`: the same loop, a batch at a time on an actor. */
     @Benchmark
