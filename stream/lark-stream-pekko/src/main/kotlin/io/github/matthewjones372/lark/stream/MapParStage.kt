@@ -24,7 +24,14 @@ internal fun Node.MapPar.mapParStage(): Flow<Any, *, NotUsed> {
         val bodies = Bodies(on)
         // Pekko's own mapAsync rather than this library's: a body answers with a `B : Any`, so
         // there is no null completion to guard, and `mapPar` is the operator a defect names.
-        Flow.create<Any>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
+        val started = key?.let { keyed ->
+            val keyOf = guarded("mapParKeyed", at, keyed)
+            val tails = Tails()
+            Flow.create<Any>()
+                .mapAsyncUnordered(parallelism) { a -> tails.behind(keyOf(a), bodies.start { body(a) }) }
+                .map(Passed::released)
+        } ?: Flow.create<Any>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
+        started
             .watchTermination { mat, ended ->
                 // Pekko never cancels the stage a mapAsync is waiting on, so this is where a body
                 // learns that the stream which asked for its element has gone.
@@ -56,6 +63,39 @@ private class Bodies(private val on: Executor) {
     }
 
     fun tearDown() = running.forEach { it.cancel() }
+}
+
+/** Each key's newest element in one run, dropped once it is released while still the newest. */
+private class Tails {
+
+    private val newest = ConcurrentHashMap<Any, CompletableFuture<Unit>>()
+
+    /**
+     * [stage]'s outcome, once the element before it with [key] has been released: emitted, not just completed.
+     * `mapAsyncUnordered` passes on a stage already complete when it arrives ahead of one whose callback is
+     * still queued, so completion alone would let a key's elements overtake each other. Completed by hand
+     * rather than composed, so that what a body failed with reaches the stream as it was thrown, not wrapped.
+     */
+    fun behind(key: Any, stage: CompletionStage<Any>): CompletionStage<Passed> {
+        val passed = CompletableFuture<Passed>()
+        val released = CompletableFuture<Unit>()
+        val before = newest.put(key, released) ?: CompletableFuture.completedFuture(Unit)
+        val release: () -> Unit = {
+            released.complete(Unit)
+            newest.remove(key, released)
+        }
+        before.whenComplete { _, _ ->
+            stage.whenComplete { b, failed ->
+                if (failed == null) passed.complete(Passed(b, release)) else passed.completeExceptionally(failed)
+            }
+        }
+        return passed
+    }
+}
+
+/** A keyed body's result on its way out of `mapAsyncUnordered`, which lets the next one with its key go. */
+private class Passed(private val value: Any, private val release: () -> Unit) {
+    fun released(): Any = value.also { release() }
 }
 
 /**
