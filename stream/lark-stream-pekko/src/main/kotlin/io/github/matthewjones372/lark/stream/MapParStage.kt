@@ -73,7 +73,8 @@ private class Tails {
     /**
      * [stage]'s outcome, once the element before it with [key] has been released: emitted, not just completed.
      * `mapAsyncUnordered` passes on a stage already complete when it arrives ahead of one whose callback is
-     * still queued, so completion alone would let a key's elements overtake each other. Completed by hand
+     * still queued, so completion alone would let a key's elements overtake each other. A failure does not wait
+     * for its turn, as none does in `mapAsync`. Completed by hand
      * rather than composed, so that what a body failed with reaches the stream as it was thrown, not wrapped.
      */
     fun behind(key: Any, stage: CompletionStage<Any>): CompletionStage<Passed> {
@@ -84,9 +85,12 @@ private class Tails {
             released.complete(Unit)
             newest.remove(key, released)
         }
-        before.whenComplete { _, _ ->
-            stage.whenComplete { b, failed ->
-                if (failed == null) passed.complete(Passed(b, release)) else passed.completeExceptionally(failed)
+        // A failure ends the stream at once, as `mapAsync`'s does; only a result waits for the key's turn.
+        stage.whenComplete { b, failed ->
+            if (failed != null) {
+                passed.completeExceptionally(failed)
+            } else {
+                before.whenComplete { _, _ -> passed.complete(Passed(b, release)) }
             }
         }
         return passed

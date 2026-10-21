@@ -270,4 +270,22 @@ class MapParTest {
 
         exit.shouldBeInstanceOf<Exit.Died>().cause shouldBeSameInstanceAs thrown
     }
+
+    @Test
+    fun `a throw in a later mapParKeyed body ends the run while an earlier one with its key still runs`() {
+        val thrown = IllegalStateException("no ledger")
+        val never = CountDownLatch(1)
+
+        val exit = Stream.from(listOf(1, 2))
+            .mapParKeyed(2, key = { "same" }) { id ->
+                if (id == 1) never.await(1, TimeUnit.MINUTES)
+                if (id == 2) throw thrown else id
+            }
+            .runCollect()
+            .run(pekko.system)
+            .toCompletableFuture()
+            .get(GENEROUS_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Died>().cause shouldBeSameInstanceAs thrown
+    }
 }
