@@ -109,7 +109,8 @@ tasks.register("jmhCompare") {
         fun rounds(files: String) = files.split(",").filter { it.isNotBlank() }.map { scores(root.resolve(it.trim())) }
         val before = rounds(baseline.get())
         val after = rounds(candidate.get())
-        if (before.size != after.size) {
+        // No rounds would compare no rows, and a gate that measured nothing must not pass.
+        if (after.isEmpty() || before.size != after.size) {
             throw GradleException("${before.size} baseline round(s) against ${after.size} candidate round(s)")
         }
         val rows = after.flatMap { it.keys }.distinct().sorted().map { name ->
