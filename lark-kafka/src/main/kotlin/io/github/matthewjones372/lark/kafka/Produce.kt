@@ -20,19 +20,34 @@ import org.apache.kafka.clients.producer.Producer as Client
  * A send the client can retry, it retries, for up to `delivery.timeout.ms`. What reaches lark is final: a record
  * the broker acknowledged, or one the producer gave up on.
  */
-class Producer<K, V> @KafkaSpi constructor(private val client: Client<K, V>) : AutoCloseable {
+class Producer<K, V> internal constructor(
+    private val client: Client<K, V>,
+    private val meters: ProducerMeters,
+) : AutoCloseable {
+
+    /** A producer over [client], recording to the meters in scope here (spec 0163). */
+    @KafkaSpi
+    constructor(client: Client<K, V>) : this(client, ProducerMeters.here(emptyMap()))
 
     /** The record handed to the producer; the stage completes once the broker acknowledges it. */
     fun send(record: ProducerRecord<K, V>): CompletableFuture<Published> {
         val acked = CompletableFuture<Published>()
+        val started = System.nanoTime()
         // A serializer that throws does so here rather than in the callback, and a full buffer waits here too.
         Either.catch {
             client.send(record) { metadata, failed ->
+                meters.sent(record.topic(), started, metadata.takeIf { failed == null })
                 if (failed == null) acked.complete(metadata.published()) else acked.completeExceptionally(failed)
             }
-        }.onLeft(acked::completeExceptionally)
+        }.onLeft { thrown ->
+            meters.sent(record.topic(), started, null)
+            acked.completeExceptionally(thrown)
+        }
         return acked
     }
+
+    /** A record from [topic] written to its dead letters. */
+    internal fun deadLetter(topic: String) = meters.deadLetter(topic)
 
     /** [send], waited on: `Left` for a record the producer gave up on. */
     fun publish(record: ProducerRecord<K, V>): Either<PublishFailed, Published> =
@@ -44,7 +59,7 @@ class Producer<K, V> @KafkaSpi constructor(private val client: Client<K, V>) : A
 
 /** A producer from [properties], each record's key and value written by [key] and [value]. */
 fun <K, V> Kafka.producer(properties: Map<String, Any>, key: Serializer<K>, value: Serializer<V>): Producer<K, V> =
-    Producer(KafkaProducer(properties, key, value))
+    Producer(KafkaProducer(properties, key, value), ProducerMeters.here(properties))
 
 /** Where the broker put a record. */
 data class Published(val topic: String, val partition: Int, val offset: Long)
@@ -95,6 +110,7 @@ fun Producer<ByteArray?, ByteArray?>.deadLetters(topic: Topic): (DecodeError) ->
         "cause" to error.cause.toString(),
     ).forEach { (name, value) -> letter.headers().add("$DEAD_LETTER_HEADER.$name", value.toByteArray()) }
     publish(letter).onLeft { failed -> throw failed.cause }
+    deadLetter(error.topic)
 }
 
 /** Enough in flight for the producer to fill its batches, few enough that a stop leaves little to send again. */

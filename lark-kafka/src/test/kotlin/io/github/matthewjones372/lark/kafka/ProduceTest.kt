@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.PekkoStreams
@@ -9,6 +10,7 @@ import io.github.matthewjones372.lark.stream.of
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runCollect
 import io.github.matthewjones372.lark.stream.take
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -136,19 +138,24 @@ class ProduceTest {
             String(data).also { if (it == "bad") throw SerializationException("unreadable") }
         }
 
-        Kafka.producer(producerProperties(), ByteArraySerializer(), ByteArraySerializer()).use { bytes ->
-            Kafka.consume(
-                consumerProperties("letters-$on"),
-                Topic(input),
-                key = Decoder.string(),
-                value = Decoder(strict) { false },
-            )
-                .divertLefts(bytes.deadLetters(dead))
-                .take(2)
-                .runCommitting()
-                .run(backend(on))
-                .settled() shouldBe Exit.Done(2L)
+        val captured = capturingMetrics { captured ->
+            Kafka.producer(producerProperties(), ByteArraySerializer(), ByteArraySerializer()).use { bytes ->
+                Kafka.consume(
+                    consumerProperties("letters-$on"),
+                    Topic(input),
+                    key = Decoder.string(),
+                    value = Decoder(strict) { false },
+                )
+                    .divertLefts(bytes.deadLetters(dead))
+                    .take(2)
+                    .runCommitting()
+                    .run(backend(on))
+                    .settled() shouldBe Exit.Done(2L)
+            }
+            captured
         }
+        captured.counter("lark.kafka.dead.letters") shouldBe 1.0
+        captured.tags("lark.kafka.dead.letters")["topic"] shouldBe input
 
         val letter = kafka.read(dead.name, 1).single()
         letter.value() shouldBe "bad"
@@ -163,10 +170,21 @@ class ProduceTest {
     fun `publish answers where the record went, or why the producer gave up on it`() {
         val topic = Topic("published")
 
-        strings().use { producer ->
-            producer.publish(topic.record("k", "v")).getOrNull() shouldBe Published(topic.name, 0, 0L)
-            producer.publish(topic.record("k", "x".repeat(MAX_REQUEST_BYTES * 2))).leftOrNull()!!
-                .cause.shouldBeInstanceOf<RecordTooLargeException>()
+        val captured = capturingMetrics { captured ->
+            strings().use { producer ->
+                producer.publish(topic.record("k", "v")).getOrNull() shouldBe Published(topic.name, 0, 0L)
+                producer.publish(topic.record("k", "x".repeat(MAX_REQUEST_BYTES * 2))).leftOrNull()!!
+                    .cause.shouldBeInstanceOf<RecordTooLargeException>()
+            }
+            captured
         }
+
+        captured.counter("lark.kafka.producer.records") shouldBe 1.0
+        withClue("the acknowledged record's key and value") {
+            captured.counter("lark.kafka.producer.bytes") shouldBe 2.0
+        }
+        captured.counter("lark.kafka.producer.failures") shouldBe 1.0
+        captured.histogram("lark.kafka.producer.ack").size shouldBe 1
+        captured.tags("lark.kafka.producer.records")["topic"] shouldBe topic.name
     }
 }

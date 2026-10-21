@@ -11,6 +11,8 @@ import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.ConsumerRecords
+import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.LongAdder
@@ -133,8 +135,6 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
 
     fun paused(partitions: Int) = paused.set(partitions.toDouble())
 
-    private fun secondsSince(started: Long): Double = (System.nanoTime() - started) / NANOS_PER_SECOND
-
     companion object {
         private const val PREFIX = "lark.kafka.consumer"
 
@@ -147,3 +147,52 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
 internal fun interface Handling {
     fun handled()
 }
+
+/**
+ * A producer's own meters, `lark.kafka.producer.*`, `lark.kafka.dead.letters` and `lark.kafka.transactions.*` (spec
+ * 0163), tagged with its client and, for a record, its topic. A producer is opened once and shared, so its meters go
+ * where they were in scope when it was opened; a topic's are looked up once.
+ */
+internal class ProducerMeters(private val metrics: Metrics, private val tags: Map<String, String>) {
+
+    private val topics = ConcurrentHashMap<String, Sent>()
+    private val transactions: Histogram = metrics.histogram("lark.kafka.transactions", tags)
+    private val aborts: Counter = metrics.counter("lark.kafka.transactions.aborts", tags)
+
+    /** A send begun at [started] to [topic], acknowledged with [metadata]'s sizes or given up on. */
+    fun sent(topic: String, started: Long, metadata: RecordMetadata?) {
+        val sent = topics.computeIfAbsent(topic) { Sent(metrics, tags + ("topic" to it)) }
+        if (metadata == null) {
+            sent.failures.increment(1.0)
+        } else {
+            sent.records.increment(1.0)
+            val bytes = maxOf(metadata.serializedKeySize(), 0) + maxOf(metadata.serializedValueSize(), 0)
+            sent.bytes.increment(bytes.toDouble())
+            sent.ack.record(secondsSince(started))
+        }
+    }
+
+    /** A record from [topic] written to its dead letters. */
+    fun deadLetter(topic: String) = metrics.counter("lark.kafka.dead.letters", tags + ("topic" to topic)).increment(1.0)
+
+    fun transacted(started: Long) = transactions.record(secondsSince(started))
+
+    fun aborted() = aborts.increment(1.0)
+
+    private class Sent(metrics: Metrics, tags: Map<String, String>) {
+        val records: Counter = metrics.counter("lark.kafka.producer.records", tags)
+        val bytes: Counter = metrics.counter("lark.kafka.producer.bytes", tags)
+        val failures: Counter = metrics.counter("lark.kafka.producer.failures", tags)
+        val ack: Histogram = metrics.histogram("lark.kafka.producer.ack", tags)
+    }
+
+    companion object {
+        /** The meters in scope here, tagged with the client [properties] name, or none. */
+        fun here(properties: Map<String, Any>): ProducerMeters = ProducerMeters(
+            metrics.get(),
+            metricTags.get() + ("client" to properties[ProducerConfig.CLIENT_ID_CONFIG]?.toString().orEmpty()),
+        )
+    }
+}
+
+private fun secondsSince(started: Long): Double = (System.nanoTime() - started) / NANOS_PER_SECOND
