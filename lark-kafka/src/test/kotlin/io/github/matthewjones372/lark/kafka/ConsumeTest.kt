@@ -41,6 +41,8 @@ class ConsumeTest {
 
         private const val GENEROUS_SECONDS = 60L
         private const val SLOW_RECORD_MILLIS = 500L
+        private const val SHORT_POLL_INTERVAL_MILLIS = 1500
+        private const val SLOW_HANDLER_MILLIS = 4000L
     }
 
     /** By name, so JUnit names each case; the actor system exists only once the class has started. */
@@ -230,5 +232,32 @@ class ConsumeTest {
         order.filter { it in setOf("slow", "after slow") } shouldBe listOf("slow", "after slow")
         order.filter { it in setOf("a", "b") } shouldBe listOf("a", "b")
         withClue("partition 0's two records") { kafka.committed("partitioned-$on", topic) shouldBe 2L }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `a handler slower than the poll interval keeps its group, and each record is handled once`(on: String) {
+        val topic = "slow-handler-$on"
+        kafka.send(topic, "1", "2", "3")
+        // A group that drops a member which has not polled for 1.5s; the first record takes 4s to handle.
+        val slow = properties("slow-$on") + (ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG to SHORT_POLL_INTERVAL_MILLIS)
+        val seen = ConcurrentLinkedQueue<String>()
+        val never = CountDownLatch(1)
+
+        val exit = Kafka.consume(slow, Topic(topic), key = StringDeserializer(), value = StringDeserializer())
+            .mapRecord { record ->
+                if (record.value() == "1") never.await(SLOW_HANDLER_MILLIS, TimeUnit.MILLISECONDS)
+                record.value().also(seen::add)
+            }
+            .take(3)
+            .runCommitting()
+            .run(backend(on))
+            .settled()
+
+        exit shouldBe Exit.Done(3L)
+        withClue("no record was handed to this consumer twice, as it would be once its group had moved on") {
+            seen.toList() shouldBe listOf("1", "2", "3")
+        }
+        kafka.committed("slow-$on", topic) shouldBe 3L
     }
 }
