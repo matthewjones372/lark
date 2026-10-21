@@ -34,7 +34,7 @@ JDK 25.0.4, 4 vCPU / 16 GB (a shared cloud container), kafka-clients and embedde
 | `larkPekkoConnector` | `Kafka.subscribe` from lark-kafka-pekko, with Pekko's committer | 716 ± 11 |
 
 `larkForksMetered` came after the baseline. On the stack through spec 0163, three forks of both rows in one run gave
-136 ± 13 ms/op metered against 136 ± 15 for `larkForks`: the meters cost nothing measurable.
+141 ± 15 ms/op metered against 140 ± 17 for `larkForks`: the meters cost nothing measurable.
 
 `ProcessingBenchmarks`: 5k records, each handled by a blocking call of the given length, committed as they go.
 
