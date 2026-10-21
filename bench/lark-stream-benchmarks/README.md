@@ -154,7 +154,8 @@ bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted
 
 `gate.sh` runs the benchmarks on the ref in a worktree and then on this checkout, on the same machine
 one after the other, and `jmhCompare` fails when a row is both more than 10% slower (`-Ptolerance` to
-change it) and outside both error bars. The `benchmarks` workflow runs it on every pull request that
+change it) and outside both error bars. Slower is a time per operation that rose, or for a `Throughput` row a
+score that fell. The `benchmarks` workflow runs it on every pull request that
 touches a stream module and keeps each run's table as an artifact.
 
 The committed numbers above are records, not thresholds: they were measured on one machine, and a gate

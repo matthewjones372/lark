@@ -89,7 +89,8 @@ tasks.register<JavaExec>("jmh") {
 /**
  * `-Pbaseline=a.json -Pcandidate=b.json`: red when a row of the candidate is slower than the baseline's.
  *
- * Slower means both more than [tolerance] slower and outside both error bars. A shared runner is noisy, and
+ * Slower means both more than [tolerance] slower and outside both error bars: a time per operation that rose, or a
+ * throughput that fell, as each row's JMH mode says. A shared runner is noisy, and
  * a gate that fails on noise is one people learn to rerun. Every row is written to `jmh-compare.txt`, so
  * drift is visible before it trips. `gate.sh` produces the two files on one machine, back to back.
  */
@@ -121,8 +122,11 @@ tasks.register("jmhCompare") {
 
 val defaultTolerance = 0.10
 
-/** A benchmark's score and error, by name, from a JMH JSON result. */
-fun scores(result: File): Map<String, Pair<Double, Double>> {
+/** A benchmark row's score and error, and whether a higher score is better, as it is for throughput. */
+class Score(val score: Double, val error: Double, val higherIsBetter: Boolean)
+
+/** Each benchmark's [Score], by name, from a JMH JSON result. */
+fun scores(result: File): Map<String, Score> {
     @Suppress("UNCHECKED_CAST")
     val rows = groovy.json.JsonSlurper().parse(result) as List<Map<String, Any?>>
     return rows.associate { row ->
@@ -130,20 +134,28 @@ fun scores(result: File): Map<String, Pair<Double, Double>> {
         val metric = row.getValue("primaryMetric") as Map<String, Any?>
         val score = (metric.getValue("score") as Number).toDouble()
         val error = (metric["scoreError"] as? Number)?.toDouble()?.takeUnless { it.isNaN() } ?: 0.0
-        (row.getValue("benchmark") as String).substringAfterLast("benchmarks.") to (score to error)
+        (row.getValue("benchmark") as String).substringAfterLast("benchmarks.") to
+            Score(score, error, higherIsBetter = row["mode"] == "thrpt")
     }
 }
 
 class Compared(val line: String, val slower: Boolean)
 
-fun compared(name: String, before: Pair<Double, Double>?, after: Pair<Double, Double>, tolerance: Double): Compared {
-    val (score, error) = after
+fun compared(name: String, before: Score?, after: Score, tolerance: Double): Compared {
+    val score = after.score
+    val error = after.error
     if (before == null) {
         return Compared("%-45s %12s -> %10.1f ± %.1f  new".format(name, "", score, error), false)
     }
-    val (was, wasError) = before
+    val was = before.score
+    val wasError = before.error
     val change = score / was - 1
-    val slower = change > tolerance && score - error > was + wasError
+    // A time per operation is slower when it rose; a throughput, when it fell.
+    val slower = if (after.higherIsBetter) {
+        -change > tolerance && score + error < was - wasError
+    } else {
+        change > tolerance && score - error > was + wasError
+    }
     val verdict = if (slower) "SLOWER" else "ok"
     return Compared(
         "%-45s %10.1f ± %.1f -> %10.1f ± %.1f  %+6.1f%%  %s"
