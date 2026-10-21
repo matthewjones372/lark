@@ -89,9 +89,12 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
 
     /**
      * One lookup at the coordinator, timed, for a close with nothing to commit; null when it does not answer within
-     * [LOOKUP_WITHIN] or fails, which leaves Kafka's own close. Only a measurement: it never fails the close.
+     * [LOOKUP_WITHIN] or fails, which leaves Kafka's own close. Only a measurement: it never fails the close. A member
+     * with no partition has nothing to look up, and the client answers that without asking: null, as it measures
+     * nothing.
      */
     private fun roundTrip(): Duration? {
+        if (consumer.assignment().isEmpty()) return null
         val started = System.nanoTime()
         return try {
             try {

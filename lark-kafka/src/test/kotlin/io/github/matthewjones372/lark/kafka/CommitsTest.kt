@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.kafka
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
+import org.apache.kafka.clients.consumer.CloseOptions
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -207,6 +208,60 @@ class CommitsTest {
         kafka.committed(topic, topic) shouldBe 3L
         withClue("the consumer left its group rather than timing out of it") {
             kafka.members(topic) shouldBe 0
+        }
+    }
+
+    /** A consumer that records which close it was asked for. */
+    private class ClosingRecorded(group: String) : KafkaConsumer<String, String>(
+        mapOf<String, Any>(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrap,
+            ConsumerConfig.GROUP_ID_CONFIG to group,
+            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest",
+            ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG to false,
+        ),
+        StringDeserializer(),
+        StringDeserializer(),
+    ) {
+        var closedWithin: Duration? = null
+        var closedAsKafkaDoes = false
+
+        override fun close() {
+            closedAsKafkaDoes = true
+            super.close()
+        }
+
+        override fun close(option: CloseOptions) {
+            closedWithin = option.timeout().orElse(null)
+            super.close(option)
+        }
+    }
+
+    @Test
+    fun `a member that was given no partition closes as Kafka does, rather than within a lookup it never made`() {
+        val topic = "more-members-than-partitions"
+        kafka.send(topic, "1")
+        consumer(topic).use { owner ->
+            owner.subscribe(listOf(topic))
+            owner.polled(1)
+            val idle = ClosingRecorded(topic).also { it.subscribe(listOf(topic)) }
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(GENEROUS_SECONDS)
+            while (kafka.members(topic) < 2 && System.nanoTime() < until) {
+                idle.poll(Duration.ofMillis(POLL_MILLIS))
+                owner.poll(Duration.ofMillis(POLL_MILLIS))
+            }
+            withClue("the second member joined, and the topic's one partition stayed with the first") {
+                kafka.members(topic) shouldBe 2
+                idle.assignment() shouldBe emptySet()
+            }
+
+            Commits(idle).close()
+
+            // Looking up an empty assignment never reaches the coordinator, so it measures nothing to close within.
+            withClue("closed within ${idle.closedWithin}") { idle.closedAsKafkaDoes shouldBe true }
+            // Within the 30s the test allows, short of the 45s session timeout, so the member left rather than expired.
+            val left = System.nanoTime() + TimeUnit.SECONDS.toNanos(GENEROUS_SECONDS)
+            while (kafka.members(topic) > 1 && System.nanoTime() < left) owner.poll(Duration.ofMillis(POLL_MILLIS))
+            withClue("the member left its group") { kafka.members(topic) shouldBe 1 }
         }
     }
 
