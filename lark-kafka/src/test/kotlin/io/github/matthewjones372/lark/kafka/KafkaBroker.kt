@@ -186,6 +186,13 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
         }
     }
 
+    /** How many members [group] has now, as its coordinator answers. */
+    fun members(group: String): Int =
+        Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
+            admin.describeConsumerGroups(listOf(group)).all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .getValue(group).members().size
+        }
+
     // Scala's `updated` widens its value type, which Kotlin reads as a Map of Any; the entry added is a String.
     @Suppress("UNCHECKED_CAST")
     private fun brokerProperties(): scala.collection.immutable.Map<String, String> =

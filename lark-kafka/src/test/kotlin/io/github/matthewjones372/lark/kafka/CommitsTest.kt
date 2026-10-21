@@ -31,6 +31,9 @@ class CommitsTest {
 
         private const val GENEROUS_SECONDS = 30L
         private const val WAIT_MILLIS = 500L
+        private const val HELD_FETCH_MILLIS = 3000
+        private const val CLOSE_WITHIN_MILLIS = 1000L
+        private const val POLL_MILLIS = 50L
     }
 
     private fun consumer(group: String) = KafkaConsumer(
@@ -170,6 +173,40 @@ class CommitsTest {
         commits.close()
         withClue("a record read once the partition is this consumer's again commits as usual") {
             kafka.committed(topic, topic) shouldBe 3L
+        }
+    }
+
+    @Test
+    fun `a close does not wait out the fetch the broker is holding, and still leaves the group with its offsets`() {
+        val topic = "closed-past-a-held-fetch"
+        kafka.send(topic, "1", "2", "3")
+        // A broker that holds an empty fetch for 3s, so a close that waits for it is plain to see.
+        val consumer = KafkaConsumer(
+            mapOf<String, Any>(
+                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrap,
+                ConsumerConfig.GROUP_ID_CONFIG to topic,
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest",
+                ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG to false,
+                ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG to HELD_FETCH_MILLIS,
+            ),
+            StringDeserializer(),
+            StringDeserializer(),
+        ).also { it.subscribe(listOf(topic)) }
+        val commits = Commits(consumer)
+        consumer.polled(3).forEach { record -> commits.carrying(record).handle?.handled() }
+        // The read ahead that a take or a stop interrupts: its fetch is at the broker, held.
+        consumer.poll(Duration.ofMillis(POLL_MILLIS))
+
+        val started = System.nanoTime()
+        commits.close()
+        val closing = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+
+        withClue("the close took ${closing}ms against a fetch held for ${HELD_FETCH_MILLIS}ms") {
+            (closing < CLOSE_WITHIN_MILLIS) shouldBe true
+        }
+        kafka.committed(topic, topic) shouldBe 3L
+        withClue("the consumer left its group rather than timing out of it") {
+            kafka.members(topic) shouldBe 0
         }
     }
 }
