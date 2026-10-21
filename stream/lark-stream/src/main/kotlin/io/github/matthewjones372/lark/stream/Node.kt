@@ -211,6 +211,8 @@ sealed interface Node {
         val on: Executor,
         val f: Raise<Any?>.(Any) -> Any,
         val at: String,
+        /** Null keeps the input's order; otherwise only elements with the same key keep theirs. */
+        val key: ((Any) -> Any)? = null,
     ) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }

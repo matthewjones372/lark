@@ -67,6 +67,11 @@ class ParityTest {
 
     private fun <A : Any> Stream<*, A>.all(): Run<*, List<A>> = runCollect()
 
+    private val keyedDelays = List(60) { n -> (n * 7 % 4).toLong() }
+
+    /** Every element once, and each key's elements in the order they came. */
+    private fun byKey(results: List<Int>): Any = results.sorted() to results.groupBy { it % 3 }
+
     private val sorted: (Any) -> Any = { (it as List<*>).map { n -> n as Int }.sorted() }
 
     internal fun cases(): List<Case> = listOf(
@@ -136,6 +141,15 @@ class ParityTest {
             Stream.of(1, 2, 3).conflateWithSeed({ listOf(it) }, { batch, n -> batch + n }).all()
         },
         Case("mapPar", done(listOf(2, 4, 6))) { Stream.of(1, 2, 3).mapPar(2) { it * 2 }.all() },
+        Case(
+            "mapParKeyed keeps each key's order",
+            done(byKey((0 until 60).toList())),
+            { byKey((it as List<*>).map { n -> n as Int }) },
+        ) {
+            Stream.from(0 until 60)
+                .mapParKeyed(8, key = { it % 3 }) { n -> n.also { Thread.sleep(keyedDelays[n]) } }
+                .all()
+        },
         Case("mapParOrFail", Expected.Failed(Odd(3))) {
             Stream.of(2, 3).mapParOrFail(2) { if (it % 2 == 1) raise(Odd(it)) else it }.all()
         },
