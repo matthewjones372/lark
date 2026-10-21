@@ -80,7 +80,7 @@ private class Loop<K, V>(
     /** The next record; a poll waiting on a quiet topic waits until one arrives or [wake] is called. */
     fun next(): Committed<ConsumerRecord<K, V>> {
         while (!polled.hasNext()) {
-            commits.commit()
+            commits.commitAsync()
             polled = consumer.poll(pollTimeout.toJavaDuration()).iterator()
             commits.polled()
         }

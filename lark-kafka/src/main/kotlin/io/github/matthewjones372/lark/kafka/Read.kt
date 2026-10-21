@@ -112,7 +112,7 @@ private class Assigned<K, V>(
     fun next(): Committed<ConsumerRecord<K, V>>? {
         while (!polled.hasNext()) {
             if (end != null && consumer.position(partition) >= end) return null
-            commits.commit()
+            commits.commitAsync()
             val limit = end ?: Long.MAX_VALUE
             polled = consumer.poll(pollTimeout.toJavaDuration()).records(partition).filter { it.offset() < limit }
                 .iterator()

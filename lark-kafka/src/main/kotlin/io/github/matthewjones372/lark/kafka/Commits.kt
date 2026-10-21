@@ -7,6 +7,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.errors.RetriableException
 import org.apache.kafka.common.errors.WakeupException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -42,7 +43,35 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
         Offset(handled, TopicPartition(record.topic(), record.partition()), record.offset(), group, leaving),
     )
 
-    /** What was handled on partitions this consumer still owns, committed, and forgotten once it is. */
+    /** A refusal an async commit reported that sending again cannot fix, for the polling thread to throw. */
+    private var refused: Exception? = null
+
+    /**
+     * What was handled on partitions this consumer still owns, sent without waiting for the broker: the commit
+     * before each poll, which a poll would otherwise wait on. Its answer arrives in a later poll or commit, on
+     * this thread. What the broker could not write for now stays due and goes with the next commit; a refusal
+     * for good is thrown here, the next time, as a `commitSync` would have thrown it (spec 0154).
+     */
+    fun commitAsync() {
+        refused?.let { failure ->
+            refused = null
+            throw failure
+        }
+        val due = handled.filterKeys { it in consumer.assignment() }
+        if (due.isEmpty() || !committing) return
+        consumer.commitAsync(due.mapValues { (_, next) -> OffsetAndMetadata(next) }) { _, failure ->
+            when (failure) {
+                null -> due.forEach { (partition, next) -> handled.remove(partition, next) }
+                is RetriableException -> Unit
+                else -> refused = failure
+            }
+        }
+    }
+
+    /**
+     * What was handled on partitions this consumer still owns, committed, and forgotten once it is. Waits for the
+     * broker, and for any async commit still on its way: for a rebalance and a close, which must not lose them.
+     */
     fun commit(owned: Set<TopicPartition> = consumer.assignment()) {
         val due = handled.filterKeys { it in owned }
         if (due.isEmpty() || !committing) return
