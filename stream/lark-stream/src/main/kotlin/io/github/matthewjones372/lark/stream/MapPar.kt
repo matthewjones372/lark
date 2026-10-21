@@ -15,6 +15,16 @@ fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) 
 fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B> =
     via(Pipe.mapPar(parallelism, on, f))
 
+/**
+ * Up to [parallelism] bodies at once, as [mapPar]'s; each result passes on once every earlier element with the
+ * same [key] has. Elements with different keys pass each other.
+ */
+fun <E, A : Any, B : Any> Stream<E, A>.mapParKeyed(
+    parallelism: Int,
+    key: (A) -> Any,
+    f: Raise<E>.(A) -> B,
+): Stream<E, B> = via(Pipe(Node.MapPar(Node.Hole, parallelism, VirtualThreads, f.erased(), buildSite(), key.erased())))
+
 /** The starting form: a pipe of bodies, each on a virtual thread of its own. */
 fun <E, A : Any, B : Any> Pipe.Companion.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
     forked(parallelism, VirtualThreads, f)

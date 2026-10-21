@@ -133,8 +133,9 @@ internal fun Node.pull(): Pull =
         is Node.RestartOnDefect -> restarting(timeline())
 
         // On a test's clock one element at a time, in the order they came, which is the answer a test of
-        // timing wants; on Forks, a window of bodies in flight.
-        is Node.MapPar -> if (Turns.taking()) inOrder() else window(Releases.here())
+        // timing wants, and keeps every key's order too; on Forks, a window of bodies in flight.
+        is Node.MapPar ->
+            if (Turns.taking()) inOrder() else key?.let { keyedWindow(it, Releases.here()) } ?: window(Releases.here())
 
         is Node.Buffer -> if (Turns.taking()) bufferedOnClock(Turns.here()) else buffered(Releases.here())
 
