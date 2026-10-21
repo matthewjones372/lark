@@ -23,7 +23,11 @@ import kotlin.concurrent.withLock
  * [commit] and [close]; a [Handle] may be marked from any thread. A consumer with no group is not [committing]:
  * there is nowhere to commit to, and its handles are marked for nothing.
  */
-internal class Commits(private val consumer: KafkaConsumer<*, *>, private val committing: Boolean = true) {
+internal class Commits(
+    private val consumer: KafkaConsumer<*, *>,
+    private val committing: Boolean = true,
+    private val meters: ConsumerMeters = ConsumerMeters.none(),
+) {
 
     /** The next offset to commit per partition: written by whichever thread ends the stream, read by the poller. */
     private val handled = Handled()
@@ -43,8 +47,14 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     fun <K, V> carrying(record: ConsumerRecord<K, V>): Committed<ConsumerRecord<K, V>> = Committed(
         record,
         Position(record.topic(), record.partition(), record.offset()),
-        Offset(handled.marking(TopicPartition(record.topic(), record.partition())), record.offset(), group, leaving),
-    )
+        Offset(
+            handled.marking(TopicPartition(record.topic(), record.partition())),
+            record.offset(),
+            group,
+            leaving,
+            meters,
+        ),
+    ).also { meters.handed() }
 
     /** A refusal an async commit reported that sending again cannot fix, for the polling thread to throw. */
     private var refused: Exception? = null
@@ -63,6 +73,7 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
         val due = handled.due(consumer.assignment())
         if (due.isEmpty() || !committing) return
         consumer.commitAsync(due.mapValues { (_, next) -> OffsetAndMetadata(next) }) { _, failure ->
+            if (failure != null) meters.commitFailed()
             when (failure) {
                 null -> due.forEach { (partition, next) -> handled.committed(partition, next) }
                 is RetriableException -> Unit
@@ -78,7 +89,15 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     fun commit(owned: Set<TopicPartition> = consumer.assignment()): Boolean {
         val due = handled.due(owned)
         if (due.isEmpty() || !committing) return false
-        consumer.commitSync(due.mapValues { (_, next) -> OffsetAndMetadata(next) })
+        val started = System.nanoTime()
+        try {
+            consumer.commitSync(due.mapValues { (_, next) -> OffsetAndMetadata(next) })
+        } catch (failure: KafkaException) {
+            meters.commitFailed()
+            throw failure
+        } finally {
+            meters.committed(started)
+        }
         // Only if nothing newer was handled meanwhile; a later offset is committed next time.
         due.forEach { (partition, next) -> handled.committed(partition, next) }
         return true
@@ -114,6 +133,7 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
      * `fetch.max.wait.ms` (spec 0164). A commit that failed leaves no round trip, and Kafka's own close.
      */
     fun close() {
+        val closing = System.nanoTime()
         // Waits for a transaction already sending this member's offsets: the member must still be there for it.
         leaving.start()
         // A take that ends a Forks run interrupts the fork reading the source, and that fork closes it: the
@@ -135,6 +155,7 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
             try {
                 budget?.let { within -> consumer.close(CloseOptions.timeout(within)) } ?: consumer.close()
             } finally {
+                meters.closed(closing)
                 if (interrupted) Thread.currentThread().interrupt()
             }
         }
@@ -190,9 +211,11 @@ private class Offset(
     private val offset: Long,
     private val polledIn: ConsumerGroupMetadata?,
     private val leaving: Leaving,
+    private val meters: ConsumerMeters,
 ) : Handle {
     override fun handled() {
         marking.mark(offset + 1)
+        meters.handled()
     }
 
     /**

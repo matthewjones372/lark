@@ -23,6 +23,8 @@ import kotlin.time.toJavaDuration
  * Only the thread that polls touches the consumer: it commits what was handled before each poll, for the
  * partitions it loses in a rebalance, and when the run ends. A `stop()` wakes a poll that is waiting.
  * `enable.auto.commit` is always off.
+ *
+ * Each run records `lark.kafka.consumer.*` (spec 0163) to the metrics in scope here, with the tags bound here.
  */
 fun <K, V> Kafka.consume(
     properties: Map<String, Any>,
@@ -30,14 +32,16 @@ fun <K, V> Kafka.consume(
     key: Deserializer<K>,
     value: Deserializer<V>,
     pollTimeout: Duration = 100.milliseconds,
-): Stream<Nothing, Committed<ConsumerRecord<K, V>>> =
-    Stream.blocking(
-        open = { Loop(properties, topics.map { it.name }, key, value, pollTimeout) },
+): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
+    val measuring = Measuring.here()
+    return Stream.blocking(
+        open = { Loop(properties, topics.map { it.name }, key, value, pollTimeout, measuring.consumer(properties)) },
         next = { loop -> loop.next() },
         ready = { loop -> loop.ready() },
         wake = { loop -> loop.wake() },
         close = { loop -> loop.close() },
     )
+}
 
 /**
  * [consume] over bytes, each key and value decoded in the stream: a record that cannot be read is a `Left`
@@ -66,11 +70,15 @@ private class Loop<K, V>(
     key: Deserializer<K>,
     value: Deserializer<V>,
     private val pollTimeout: Duration,
+    private val meters: ConsumerMeters,
 ) : ConsumerRebalanceListener {
 
     private val consumer = KafkaConsumer(properties + (ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG to false), key, value)
 
-    private val commits = Commits(consumer)
+    private val commits = Commits(consumer, meters = meters)
+
+    /** The partitions this consumer owns, as its rebalances have left them: only touched inside a poll or close. */
+    private val owned = mutableSetOf<TopicPartition>()
 
     /** What the last polls returned and the stream has yet to take: the keeper's poll can add to it. */
     private val polled = ArrayDeque<ConsumerRecord<K, V>>()
@@ -80,14 +88,17 @@ private class Loop<K, V>(
         consumer.subscribe(topics, this)
     }
 
-    private val keeper = Keeper(consumer, properties) { records -> polled.addAll(records) }
+    private val keeper = Keeper(consumer, properties, meters) { records -> polled.addAll(records) }
 
     /** The next record; a poll waiting on a quiet topic waits until one arrives or [wake] is called. */
     fun next(): Committed<ConsumerRecord<K, V>> = keeper.touching {
         while (polled.isEmpty()) {
             commits.commitAsync()
             keeper.polling()
-            polled.addAll(consumer.poll(pollTimeout.toJavaDuration()))
+            val started = System.nanoTime()
+            val records = consumer.poll(pollTimeout.toJavaDuration())
+            meters.polled(records, started)
+            polled.addAll(records)
             commits.polled()
         }
         commits.carrying(polled.removeFirst())
@@ -109,7 +120,13 @@ private class Loop<K, V>(
         // Records already polled from a partition this consumer has lost are its new owner's to read.
         val lost = partitions.toSet()
         polled.removeAll { TopicPartition(it.topic(), it.partition()) in lost }
+        owned.removeAll(lost)
+        meters.rebalanced("revoked", owned.size)
     }
 
-    override fun onPartitionsAssigned(partitions: Collection<TopicPartition>) = keeper.assigned(partitions)
+    override fun onPartitionsAssigned(partitions: Collection<TopicPartition>) {
+        keeper.assigned(partitions)
+        owned.addAll(partitions)
+        meters.rebalanced("assigned", owned.size)
+    }
 }

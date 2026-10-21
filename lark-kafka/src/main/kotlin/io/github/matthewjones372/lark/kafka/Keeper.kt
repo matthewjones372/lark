@@ -23,6 +23,7 @@ import kotlin.concurrent.withLock
 internal class Keeper<K, V>(
     private val consumer: KafkaConsumer<K, V>,
     properties: Map<String, Any>,
+    private val meters: ConsumerMeters,
     private val keep: (Iterable<ConsumerRecord<K, V>>) -> Unit,
 ) {
 
@@ -68,7 +69,11 @@ internal class Keeper<K, V>(
 
     /** Before the stream's own poll: everything the keeper paused is read again. */
     fun polling() {
-        consumer.resume(consumer.paused())
+        val paused = consumer.paused()
+        if (paused.isNotEmpty()) {
+            consumer.resume(paused)
+            meters.paused(0)
+        }
         polledAt = System.nanoTime()
     }
 
@@ -111,7 +116,9 @@ internal class Keeper<K, V>(
     private fun keepAlive() {
         keeping = true
         try {
-            consumer.pause(consumer.assignment())
+            val assigned = consumer.assignment()
+            consumer.pause(assigned)
+            meters.paused(assigned.size)
             keep(consumer.poll(Duration.ZERO))
             polledAt = System.nanoTime()
         } catch (_: WakeupException) {
