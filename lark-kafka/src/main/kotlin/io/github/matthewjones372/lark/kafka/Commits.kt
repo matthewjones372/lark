@@ -13,7 +13,6 @@ import org.apache.kafka.common.errors.WakeupException
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -99,23 +98,27 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
         // client would refuse both the commit and the close, and the last records handled be read again.
         val interrupted = Thread.interrupted()
         // Set once the commit has gone through: a close that follows a failed one is Kafka's own.
-        val budget = AtomicReference<Duration>()
+        var budget: Duration? = null
         try {
-            budget.set(
-                timed {
-                    // A wake the loop never saw is still pending, and would fail this commit rather than a poll.
-                    val sent = try {
-                        commit()
+            budget = timed {
+                // A wake the loop never saw is still pending, and fails the first call that reaches the network.
+                val sent = try {
+                    commit()
+                } catch (_: WakeupException) {
+                    commit()
+                }
+                // Nothing was due: one lookup at the coordinator stands in for the commit's round trip.
+                if (!sent && committing) {
+                    try {
+                        consumer.committed(consumer.assignment())
                     } catch (_: WakeupException) {
-                        commit()
+                        consumer.committed(consumer.assignment())
                     }
-                    // Nothing was due: one lookup at the coordinator stands in for the commit's round trip.
-                    if (!sent && committing) consumer.committed(consumer.assignment())
-                },
-            )
+                }
+            }
         } finally {
             try {
-                budget.get()?.let { within -> consumer.close(CloseOptions.timeout(within)) } ?: consumer.close()
+                budget?.let { within -> consumer.close(CloseOptions.timeout(within)) } ?: consumer.close()
             } finally {
                 if (interrupted) Thread.currentThread().interrupt()
             }
@@ -131,7 +134,7 @@ private inline fun timed(step: () -> Unit): Duration {
 }
 
 private const val ROUND_TRIPS = 5L
-private val CLOSE_FLOOR: Duration = Duration.ofMillis(50)
+private val CLOSE_FLOOR: Duration = Duration.ofMillis(10)
 
 /**
  * The next offset to commit per partition, and how often each was revoked. A record read before a revoke is the new

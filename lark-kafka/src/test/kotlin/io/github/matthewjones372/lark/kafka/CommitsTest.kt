@@ -209,4 +209,20 @@ class CommitsTest {
             kafka.members(topic) shouldBe 0
         }
     }
+
+    @Test
+    fun `a close with nothing due and a wake still pending closes cleanly, rather than throwing the wake`() {
+        val topic = "closed-with-a-wake-pending"
+        kafka.send(topic, "1")
+        val consumer = consumer(topic).also { it.subscribe(listOf(topic)) }
+        val commits = Commits(consumer)
+        // Joined, with nothing handled: there is nothing for the close to commit.
+        consumer.polled(1)
+        // A stop that came after the poll it was meant to wake: the wake is still pending.
+        consumer.wakeup()
+
+        commits.close()
+
+        withClue("the consumer left its group") { kafka.members(topic) shouldBe 0 }
+    }
 }
