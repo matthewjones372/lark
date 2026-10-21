@@ -26,10 +26,10 @@ class ReportedTest {
         return File(root!!, "docs/cookbook.md")
     }
 
-    private fun printed(): String {
-        val fenced = Regex("""<!-- cookbook-config-report -->\s*```\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
+    private fun printed(marker: String = "cookbook-config-report"): String {
+        val fenced = Regex("""<!-- $marker -->\s*```\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
         val found = fenced.findAll(cookbook().readText()).map { it.groupValues[1] }.toList()
-        withClue("docs/cookbook.md must carry one fence marked <!-- cookbook-config-report -->") {
+        withClue("docs/cookbook.md must carry one fence marked <!-- $marker -->") {
             found.size shouldBe 1
         }
         return found.single()
@@ -38,5 +38,14 @@ class ReportedTest {
     @Test
     fun `the cookbook prints the report this stack answers`() {
         stacked.origins().report() shouldBe printed()
+    }
+
+    @Test
+    fun `the cookbook prints the block a section logs`() {
+        val read = stacked.config.sectionOf("petshop") {
+            int("port") to section("db") { int("pool") to secret("password") }
+        }
+
+        stacked.config.reportOf("petshop", read.paths) shouldBe printed("cookbook-section-report")
     }
 }

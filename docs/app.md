@@ -167,6 +167,10 @@ which is no order to release in.
 - **Shutdown.** `runApp` installs a JVM shutdown hook that requests shutdown
   and waits up to 30 seconds for the releases to finish. A test can request it
   with `Shutdown.request()` instead of sending a signal.
+- **Configuration.** Each `config` section logs the settings it read, where
+  each came from and what it overrode, as it is read, refusal included; nothing
+  in `main` asks for it. See the
+  [cookbook](cookbook.md#where-a-setting-came-from).
 - **Exit code.** `runApp` returns an `ExitCode` and prints what went wrong to
   stderr; it never ends the process itself. The `exitProcess` is yours, and
   worth calling: a stray non-daemon thread would otherwise keep the JVM alive.

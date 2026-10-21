@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.app.typesafe
 
 import arrow.core.Either
 import arrow.core.NonEmptyList
-import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
 import arrow.core.toNonEmptyListOrNull
@@ -136,8 +135,9 @@ fun <A> Config.reading(block: Reading.() -> A): Either<NonEmptyList<ConfigFault>
  */
 inline fun <reified A : Any> config(path: String, noinline read: Reading.() -> A): Module =
     single { root: Config ->
-        root.reading { section(path) { read() } }
-            .getOrElse { faults -> refuse(faults.joinToString("; ") { fault -> fault.why }) }
+        val section = root.sectionOf(path, read)
+        section.logged(root, path)
+        if (section.faults.isEmpty()) section.value as A else refuse(section.why)
     }
 
 @Deprecated("Named config, which is what it reads", ReplaceWith("config(path, read)"))
@@ -163,14 +163,21 @@ inline fun <reified A : Any> Config.choosing(
     chosen: (A) -> Module,
 ): Module {
     val section = sectionOf(path, read)
-    val why = section.faults.joinToString("; ") { fault -> fault.why }
+    val why = section.why
     val settings = checkNotNull(section.value) { "lark-app: $path could not be read: $why" } as A
-    return chosen(settings) + single<A> { if (why.isEmpty()) settings else refuse(why) }
+    // Logged as the graph starts rather than here, where the assembly is still being written down.
+    return chosen(settings) + single<A> {
+        section.logged(this@choosing, path)
+        if (why.isEmpty()) settings else refuse(why)
+    }
 }
 
 /** What a section read and what it could not, which [reading] keeps apart because it answers with one. */
 @PublishedApi
-internal class Section(val value: Any?, val faults: List<ConfigFault>, val paths: List<PathRead>)
+internal class Section(val value: Any?, val faults: List<ConfigFault>, val paths: List<PathRead>) {
+
+    val why: String get() = faults.joinToString("; ") { fault -> fault.why }
+}
 
 @PublishedApi
 internal fun <A> Config.sectionOf(path: String, read: Reading.() -> A): Section {

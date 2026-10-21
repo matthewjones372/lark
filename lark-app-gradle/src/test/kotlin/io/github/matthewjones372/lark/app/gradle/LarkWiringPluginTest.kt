@@ -199,8 +199,9 @@ class LarkWiringPluginTest {
 
         val result = runner(dir, "compileKotlin").build()
 
-        withClue("actor takes an ActorSystem and config takes a Config; the reader says so from a list") {
-            result.output shouldContain "provides [ActorRef<Ping>, ActorSystem, Config, Settings], and is short of []"
+        withClue("actor takes an ActorSystem, config a Config, and loadedConfig gives its Layered too") {
+            result.output shouldContain
+                "provides [ActorRef<Ping>, ActorSystem, Config, Layered, Settings], and is short of []"
         }
     }
 
@@ -222,7 +223,10 @@ class LarkWiringPluginTest {
         val result = runner(dir, "compileKotlin").build()
 
         withClue("config with no block takes a Config, as the block form does") {
-            result.output shouldContain "provides [Config, Settings], and is short of []"
+            result.output shouldContain "provides [Config, Layered, Settings], and is short of []"
+        }
+        withClue("the Config a source provides is its Layered's merge, so reaching one reaches both") {
+            result.output shouldNotContain "nothing reaches Layered"
         }
     }
 
