@@ -7,7 +7,10 @@
 #   GATE_ROUNDS=5 bench/lark-stream-benchmarks/gate.sh origin/main  # more rounds, for a noisy runner
 #
 # Each round is one fork of every benchmark on each side, in the order A B, B A, A B, ..., so that a machine
-# drifting over the job slows both sides alike rather than whichever ran second.
+# drifting over the job slows both sides alike rather than whichever ran second. Both sides run from a worktree
+# of their own: measured from this checkout, identical code read up to 1.7x slower on the concurrent
+# benchmarks than from a worktree beside it. This checkout's uncommitted changes go into its worktree; files git
+# does not track yet do not.
 set -euo pipefail
 
 ref="${1:-origin/main}"
@@ -15,8 +18,11 @@ benchmarks="${2:-}"
 rounds="${GATE_ROUNDS:-3}"
 root="$(git rev-parse --show-toplevel)"
 base="$(mktemp -d)"
+cand="$(mktemp -d)"
+trap 'git -C "$root" worktree remove --force "$base"; git -C "$root" worktree remove --force "$cand"' EXIT
 git -C "$root" worktree add --quiet --detach "$base" "$ref"
-trap 'git -C "$root" worktree remove --force "$base"' EXIT
+working="$(git -C "$root" stash create)"
+git -C "$root" worktree add --quiet --detach "$cand" "${working:-HEAD}"
 
 # Nothing measured on the base is nothing to have got slower than: the first pull request to add the
 # benchmarks passes, and every one after it is compared.
@@ -28,8 +34,8 @@ if [ ! -d "$baseDir" ]; then
   exit 0
 fi
 
-candDir="$root/bench/lark-stream-benchmarks"
-out="$candDir/build/rounds"
+candDir="$cand/bench/lark-stream-benchmarks"
+out="$root/bench/lark-stream-benchmarks/build/rounds"
 rm -rf "$out"
 mkdir -p "$out"
 
@@ -45,9 +51,9 @@ candidates=()
 for round in $(seq 1 "$rounds"); do
   if [ $((round % 2)) -eq 1 ]; then
     measure "$base" "$baseDir" "base-$round"
-    measure "$root" "$candDir" "candidate-$round"
+    measure "$cand" "$candDir" "candidate-$round"
   else
-    measure "$root" "$candDir" "candidate-$round"
+    measure "$cand" "$candDir" "candidate-$round"
     measure "$base" "$baseDir" "base-$round"
   fi
   baselines+=("$out/base-$round.json")

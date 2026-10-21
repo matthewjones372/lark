@@ -152,8 +152,8 @@ bench/lark-stream-benchmarks/gate.sh origin/main                  # every row, t
 bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
 ```
 
-`gate.sh` runs the benchmarks on the ref in a worktree and on this checkout in rounds, one fork of each
-side a round, alternating which goes first (`GATE_ROUNDS`, 3 by default). `jmhCompare` pairs the rounds and
+`gate.sh` runs the benchmarks on the ref and on this checkout, each from a worktree of its own, in
+rounds, one fork of each side a round, alternating which goes first (`GATE_ROUNDS`, 3 by default). `jmhCompare` pairs the rounds and
 fails when a row's median round is more than 10% slower (`-Ptolerance` to change it) and all rounds but one
 are more than 5% slower. Slower is a time per operation that rose, or for a `Throughput` row a score that
 fell. A runner that drifts over the job slows both halves of a round alike, so it cancels, where measuring
