@@ -28,7 +28,7 @@ Measured (`closeProbe`, embedded broker, five runs each, after an interrupted re
 ## Shape
 
 No API change. `Commits.close()` commits as now, timing the round trip, then
-`consumer.close(CloseOptions.timeout(max(5 × roundTrip, 50 ms)))`:
+`consumer.close(CloseOptions.timeout(max(5 × roundTrip, 10 ms)))`:
 
 - the commit sent nothing → the round trip of `consumer.committed(assignment)`, one request to the coordinator;
 - the commit threw → `close()` as today;
@@ -55,7 +55,8 @@ before the close either way, so the worst case is that wait, never a lost commit
 
 ## Open questions
 
-1. **Five times, 50 ms floor?** Recommended: yes; both are constants beside the close, and the probe's worst
-   run used 74 ms of a 70 ms budget. **Answered:** yes.
+1. **Five times, and what floor?** Five times the round trip bounds the leave; the floor only matters where the
+   round trip is tiny, as on an embedded broker. A 50 ms floor cost `larkMapPar` 50 ms a run where the round trip
+   was 5 ms. **Answered:** five times, 10 ms floor.
 2. **Should the Java rows in the benchmark close the same way?** They show what a hand-written loop pays.
    Recommended: no, and the README says how lark's close differs. **Answered:** no.
