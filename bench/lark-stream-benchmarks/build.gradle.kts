@@ -103,6 +103,8 @@ tasks.register("jmhCompare") {
     val candidate = providers.gradleProperty("candidate")
     val tolerance = providers.gradleProperty("tolerance").map(String::toDouble).orElse(defaultTolerance)
     val report = layout.buildDirectory.file("jmh-compare.txt")
+    // The rows found slower, one name a line, so gate.sh can measure them again before it believes them.
+    val slowerRows = layout.buildDirectory.file("jmh-slower.txt")
     // Paths are read from the repository root, where gate.sh and a person typing them both stand.
     val root = rootProject.projectDir
     doLast {
@@ -120,6 +122,7 @@ tasks.register("jmhCompare") {
         report.get().asFile.apply { parentFile.mkdirs() }.writeText(table + "\n")
         logger.lifecycle(table)
         val slower = rows.filter { it.slower }
+        slowerRows.get().asFile.writeText(slower.joinToString("") { it.name + "\n" })
         if (slower.isNotEmpty()) {
             val lines = slower.joinToString("\n") { it.line }
             throw GradleException("${slower.size} benchmark row(s) got slower:\n$lines")
@@ -146,7 +149,7 @@ fun scores(result: File): Map<String, Score> {
     }
 }
 
-class Compared(val line: String, val slower: Boolean)
+class Compared(val name: String, val line: String, val slower: Boolean)
 
 fun median(values: List<Double>): Double {
     val sorted = values.sorted()
@@ -159,7 +162,7 @@ fun compared(name: String, rounds: List<Pair<Score?, Score?>>, tolerance: Double
     val paired = rounds.mapNotNull { (before, after) -> if (before != null && after != null) before to after else null }
     if (paired.isEmpty()) {
         val score = median(rounds.mapNotNull { it.second?.score })
-        return Compared("%-45s %12s -> %10.1f  new".format(name, "", score), false)
+        return Compared(name, "%-45s %12s -> %10.1f  new".format(name, "", score), false)
     }
     val was = median(paired.map { it.first.score })
     val score = median(paired.map { it.second.score })
@@ -175,6 +178,7 @@ fun compared(name: String, rounds: List<Pair<Score?, Score?>>, tolerance: Double
     }
     val each = changes.joinToString(" ") { "%+.1f".format(it * 100) }
     return Compared(
+        name,
         "%-45s %10.1f -> %10.1f  %+6.1f%%  rounds %s  %s"
             .format(name, was, score, median(changes) * 100, each, verdict),
         slower,

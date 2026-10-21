@@ -84,8 +84,10 @@ collect() {
 
 baselines=()
 candidates=()
-for round in $(seq 1 "$rounds"); do
-  index=0
+
+# One round of the benchmarks listed in <list>, each on both sides back to back, the first side alternating.
+measure_round() {
+  local round="$1" list="$2" index=0
   while read -r benchmark; do
     if [ $(((index + round) % 2)) -eq 1 ]; then
       measure base "$round" "$benchmark"
@@ -95,13 +97,35 @@ for round in $(seq 1 "$rounds"); do
       measure base "$round" "$benchmark"
     fi
     index=$((index + 1))
-  done < "$out/candidate.list"
+  done < "$list"
   collect base "$round"
   collect candidate "$round"
   baselines+=("$out/base-$round.json")
   candidates+=("$out/candidate-$round.json")
-done
+}
 
-(cd "$root" && ./gradlew --quiet :lark-stream-benchmarks:jmhCompare \
-  -Pbaseline="$(IFS=,; echo "${baselines[*]}")" \
-  -Pcandidate="$(IFS=,; echo "${candidates[*]}")")
+compare() {
+  rm -f "$here/build/jmh-slower.txt"
+  (cd "$root" && ./gradlew --quiet :lark-stream-benchmarks:jmhCompare \
+    -Pbaseline="$(IFS=,; echo "${baselines[*]}")" \
+    -Pcandidate="$(IFS=,; echo "${candidates[*]}")")
+}
+
+for round in $(seq 1 "$rounds"); do
+  measure_round "$round" "$out/candidate.list"
+done
+compare && exit 0
+
+# A row found slower is measured again, on its own, for as many rounds more, and judged on all of them: one fork
+# that ran far off its others no longer fails the gate, and a row that is really slower is slower every round.
+slower="$here/build/jmh-slower.txt"
+[ -s "$slower" ] || exit 1
+cp "$here/build/jmh-compare.txt" "$out/first-compare.txt"
+# jmhCompare names a row without its package, as `ChainBenchmark.forks`; the list has it whole.
+awk 'NR == FNR { slower["." $0] = 1; next } { for (row in slower) if (substr($0, length($0) - length(row) + 1) == row) print }' \
+  "$slower" "$out/candidate.list" > "$out/again.list"
+echo "measuring $(wc -l < "$out/again.list") slower row(s) again"
+for round in $(seq $((rounds + 1)) $((rounds * 2))); do
+  measure_round "$round" "$out/again.list"
+done
+compare
