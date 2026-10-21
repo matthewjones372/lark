@@ -3,24 +3,28 @@ name: benchmarks
 # The stream modules measured on the base branch and on the pull request, back to back on one runner, and
 # red when a row got slower (bench/lark-stream-benchmarks/gate.sh). A committed number was measured on some other
 # machine, so the gate compares only what it measured itself.
+#
+# It takes half an hour, so it runs only on a pull request labelled `benchmarks`, on each push to it after
+# that, or from Run workflow.
 on:
   pull_request:
-    paths:
-      - "stream/lark-stream/**"
-      - "stream/lark-stream-pekko/**"
-      - "stream/lark-stream-forks/**"
-      - "bench/lark-stream-benchmarks/**"
+    types: [opened, reopened, synchronize, labeled]
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   gate:
+    # Any other label added to a labelled pull request is not a reason to measure it again.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'benchmarks') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'benchmarks'))
+    # On the job, not the workflow: a skipped run must not cancel the one measuring.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: namespace-profile-mattjones372
     timeout-minutes: 60
 

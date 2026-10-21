@@ -91,6 +91,10 @@ bench/lark-stream-benchmarks/gate.sh origin/main ChainBenchmark   # red, on fork
 
 ## Open questions
 
+0. **Answered: when does the gate run?** Not on every pull request: only on one
+   labelled `benchmarks` (and each push to it), or from Run workflow. Landed ahead
+   of the stack, on its own.
+
 1. **How many rounds?** 3 rounds of 1 fork is 1.5× today's measuring, about 35
    minutes, inside the 60-minute timeout. Recommend 3. Could warmup drop from 5 to 3
    iterations to pay for it?
