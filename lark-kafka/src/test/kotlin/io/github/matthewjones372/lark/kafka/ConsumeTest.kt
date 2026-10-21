@@ -10,6 +10,7 @@ import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
 import io.kotest.assertions.withClue
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -39,6 +40,7 @@ class ConsumeTest {
         val pekko = PekkoActorSystem("lark-kafka-consume-test")
 
         private const val GENEROUS_SECONDS = 60L
+        private const val SLOW_RECORD_MILLIS = 500L
     }
 
     /** By name, so JUnit names each case; the actor system exists only once the class has started. */
@@ -198,5 +200,35 @@ class ConsumeTest {
 
         asked.get() shouldBe 2
         kafka.committed("restarting-$on", topic) shouldBe 1L
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `mapParPartitioned lets a partition pass another's slow record, and keeps each one's order`(on: String) {
+        val topic = "partitioned-$on"
+        kafka.create(topic, partitions = 2)
+        kafka.sendTo(topic, 0, "slow", "after slow")
+        kafka.sendTo(topic, 1, "a", "b")
+        val arrived = ConcurrentLinkedQueue<String>()
+        val never = CountDownLatch(1)
+
+        strings("partitioned-$on", topic)
+            .mapParPartitioned(4) { record ->
+                if (record.value() == "slow") never.await(SLOW_RECORD_MILLIS, TimeUnit.MILLISECONDS)
+                record.value()
+            }
+            .mapRecord { value -> value.also(arrived::add) }
+            .take(4)
+            .runCommitting()
+            .run(backend(on))
+            .settled() shouldBe Exit.Done(4L)
+
+        val order = arrived.toList()
+        withClue("partition 1 was not held behind partition 0's slow record: $order") {
+            order.indexOf("b") shouldBeLessThan order.indexOf("slow")
+        }
+        order.filter { it in setOf("slow", "after slow") } shouldBe listOf("slow", "after slow")
+        order.filter { it in setOf("a", "b") } shouldBe listOf("a", "b")
+        withClue("partition 0's two records") { kafka.committed("partitioned-$on", topic) shouldBe 2L }
     }
 }

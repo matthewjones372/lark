@@ -55,6 +55,18 @@ so each poll carries a little of every partition, as a topic with steady traffic
 Interleaved, the hand-written loop waits for each small poll's slowest record before it polls again; lark keeps
 polling, but every result still waits behind the slow partition's.
 
+With `mapParPartitioned`, a result waits only behind its own partition's. Measured in one run with the rows above
+([`2026-10-21-jdk25-skew-partitioned.json`](baseline/2026-10-21-jdk25-skew-partitioned.json)):
+
+| Row | whole, ×1 | whole, ×10 | interleaved, ×1 | interleaved, ×10 |
+|---|---|---|---|---|
+| `javaParallelBatch` | 154 ± 9 | 287 ± 6 | 736 ± 22 | 1,007 ± 24 |
+| `larkMapPar` | 162 ± 11 | 287 ± 14 | 165 ± 9 | 409 ± 31 |
+| `larkMapParPartitioned` | 156 ± 9 | 288 ± 13 | 157 ± 19 | 279 ± 11 |
+
+Interleaved and skewed, it takes a third off `larkMapPar` and runs 3.6× as fast as the hand-written loop. Fetched
+whole, a slow partition is one run of records with nothing behind it to let through, and every row is the same.
+
 What the rows say:
 
 - **About 500 ms of every 50k run is `close()`**, the Java loop's included: the fetch-session close queues

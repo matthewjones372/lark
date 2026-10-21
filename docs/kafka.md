@@ -91,6 +91,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 | `Kafka.read(properties, topic, partition, key, value, from, until)` | one partition, assigned rather than subscribed, so no rebalance can take it away; `from` is `Committed`, `Earliest`, `Latest` or an `Offset`, and `until` is `Never` or `EndAtStart`. With no `group.id`, nothing is committed |
 | `Kafka.subscribe(settings, vararg topics)` and its `Decoder` form | the same two, through Pekko's connector |
 | `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | lark-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside lark-stream's would be ambiguous |
+| `mapParPartitioned(parallelism) { value -> }` | `mapParRecord` in order only within each partition, through `mapParKeyed`: a slow record holds back only its own partition's later records. Each partition's offsets still commit in order. On Forks and Pekko; Actors and TestStreams keep full order |
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
 | `absolve()` | the first `Left` ends the run `Failed` |
 | `publishTo(producer) { a -> record }`, `publishRecord(producer) { value -> record }` | each element sent, and passed on in order once the broker has it; see below |
