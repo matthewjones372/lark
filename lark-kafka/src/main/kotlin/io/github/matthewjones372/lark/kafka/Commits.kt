@@ -107,8 +107,6 @@ internal class Commits(private val consumer: KafkaConsumer<*, *>, private val co
     }
 }
 
-/** A record's offset, marked handled for its consumer to commit: the one after it is where the group resumes. */
-
 /**
  * The next offset to commit per partition, and how often each was revoked. A record read before a revoke is the new
  * owner's to commit, and may reach the end of the stream after it, on Pekko more so since it reads ahead: its mark is
@@ -144,6 +142,7 @@ private fun interface Marking {
     fun mark(next: Long)
 }
 
+/** A record's offset, marked handled for its consumer to commit: the one after it is where the group resumes. */
 private class Offset(
     private val marking: Marking,
     private val offset: Long,
