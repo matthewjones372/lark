@@ -13,6 +13,8 @@ import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.maps.shouldContainAll
 import io.kotest.matchers.shouldBe
@@ -31,6 +33,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** One description of a consumer, run on whichever backend the run names, against one broker. */
 class ConsumeTest {
@@ -249,10 +252,19 @@ class ConsumeTest {
         val seen = ConcurrentLinkedQueue<String>()
         val never = CountDownLatch(1)
 
+        // What the meters read as the slow handler started, and as it finished.
+        val pollsBefore = AtomicInteger()
+        val pollsAfter = AtomicInteger()
+        val pausedDuring = AtomicReference<Double?>()
         val (exit, captured) = capturingMetrics { captured ->
             Kafka.consume(slow, Topic(topic), key = StringDeserializer(), value = StringDeserializer())
                 .mapRecord { record ->
-                    if (record.value() == "1") never.await(SLOW_HANDLER_MILLIS, TimeUnit.MILLISECONDS)
+                    if (record.value() == "1") {
+                        pollsBefore.set(captured.histogram("lark.kafka.consumer.poll").size)
+                        never.await(SLOW_HANDLER_MILLIS, TimeUnit.MILLISECONDS)
+                        pollsAfter.set(captured.histogram("lark.kafka.consumer.poll").size)
+                        pausedDuring.set(captured.gauge("lark.kafka.consumer.paused"))
+                    }
                     record.value().also(seen::add)
                 }
                 .take(3)
@@ -264,8 +276,12 @@ class ConsumeTest {
         exit shouldBe Exit.Done(3L)
         // On Pekko the source reads ahead on a thread of its own, which keeps polling: the keeper has nothing to do.
         if (on == "Forks") {
-            withClue("the keeper paused the partitions it polled for") {
-                captured.gauge("lark.kafka.consumer.paused") shouldNotBe null
+            withClue("the keeper paused the partitions it polled for, and its polls were timed") {
+                pausedDuring.get() shouldBe 1.0
+                pollsAfter.get() shouldBeGreaterThan pollsBefore.get()
+            }
+            withClue("nothing is paused once the consumer has closed") {
+                captured.gauge("lark.kafka.consumer.paused") shouldBe 0.0
             }
         }
         withClue("no record was handed to this consumer twice, as it would be once its group had moved on") {
@@ -280,10 +296,23 @@ class ConsumeTest {
         val topic = "metered-$on"
         kafka.send(topic, "one", "two", "three")
 
+        val inFlight = ConcurrentLinkedQueue<Double>()
         val (exit, captured) = capturingMetrics { captured ->
             metricTagged("service" to "orders") {
-                strings("metering-$on", topic).take(3).runCommitting().run(backend(on)).settled()
+                strings("metering-$on", topic)
+                    .mapRecord { record ->
+                        captured.gauge("lark.kafka.consumer.in.flight")?.let(inFlight::add)
+                        record.value()
+                    }
+                    .take(3)
+                    .runCommitting()
+                    .run(backend(on))
+                    .settled()
             } to captured
+        }
+        withClue("each record was in flight while it was handled: $inFlight") {
+            inFlight.size shouldBe 3
+            inFlight.forEach { count -> count shouldBeGreaterThanOrEqual 1.0 }
         }
 
         exit shouldBe Exit.Done(3L)

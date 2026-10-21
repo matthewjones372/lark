@@ -49,8 +49,8 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
     private val paused: Gauge = metrics.gauge("$PREFIX.paused", tags)
     private val inFlight: Gauge = metrics.gauge("$PREFIX.in.flight", tags)
 
-    /** Records handed to the stream, counted on the polling thread, and those it has handled, from any thread. */
-    private var handed = 0L
+    /** Records handed to the stream and those it has handled, the two counted on different threads. */
+    private val handed = LongAdder()
     private val handled = LongAdder()
 
     /** What a poll begun at [started] returned, per partition, and how long it took. */
@@ -63,14 +63,21 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
             val bytes = returned.sumOf { maxOf(it.serializedKeySize(), 0) + maxOf(it.serializedValueSize(), 0) }
             metrics.counter("$PREFIX.bytes", of).increment(bytes.toDouble())
         }
-        inFlight.set((handed - handled.sum()).toDouble())
+        inFlight()
     }
 
     fun handed() {
-        handed++
+        handed.increment()
+        inFlight()
     }
 
-    fun handled() = handled.increment()
+    fun handled() {
+        handled.increment()
+        inFlight()
+    }
+
+    /** Records handed to the stream and not yet handled, as each is handed or handled. */
+    private fun inFlight() = inFlight.set((handed.sum() - handled.sum()).toDouble())
 
     /** A commit that waited for the broker, begun at [started], however it went. */
     fun committed(started: Long) = commit.record(secondsSince(started))
@@ -79,7 +86,8 @@ internal class ConsumerMeters(private val metrics: Metrics, private val tags: Ma
 
     fun closed(started: Long) {
         close.record(secondsSince(started))
-        inFlight.set((handed - handled.sum()).toDouble())
+        inFlight()
+        paused.set(0.0)
     }
 
     /** A rebalance of [kind], assigned or revoked, that left this consumer owning [owned] partitions. */

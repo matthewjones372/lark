@@ -119,7 +119,10 @@ internal class Keeper<K, V>(
             val assigned = consumer.assignment()
             consumer.pause(assigned)
             meters.paused(assigned.size)
-            keep(consumer.poll(Duration.ZERO))
+            val started = System.nanoTime()
+            val records = consumer.poll(Duration.ZERO)
+            meters.polled(records, started)
+            keep(records)
             polledAt = System.nanoTime()
         } catch (_: WakeupException) {
             consumer.wakeup()
