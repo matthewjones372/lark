@@ -15,7 +15,7 @@ sealed interface Either<out E, out A> {
 
     fun leftOrNull(): E? = (this as? Left)?.value
 
-    fun swap(): Either<A, E> = fold({ Left(it) }, { Right(it) })
+    fun swap(): Either<A, E> = fold({ Right(it) }, { Left(it) })
 }
 
 inline fun <E, A, B> Either<E, A>.fold(ifLeft: (E) -> B, ifRight: (A) -> B): B = when (this) {
