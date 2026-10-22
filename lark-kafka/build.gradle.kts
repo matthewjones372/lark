@@ -13,6 +13,8 @@ dependencies {
     // Both backends a consumer loop is run on in the tests, against one broker.
     testImplementation(project(":lark-stream-forks"))
     testImplementation(project(":lark-stream-pekko"))
+    // A run on a test's clock, for operators whose records need no broker.
+    testImplementation(project(":lark-stream-test"))
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary:$pekkoVersion")
     // A broker in the test JVM, so the suite needs no Docker. Its kafka-clients matches the one above.
     testImplementation("io.github.embeddedkafka:embedded-kafka_$scalaBinary:4.3.1")

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import java.time.Duration
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /** A subscription ends on `runCommitting`, and what it commits is where the group starts next time. */
 class SubscribeTest {
@@ -73,6 +74,20 @@ class SubscribeTest {
         withClue("a second run in the same group sees none of the five again") {
             next shouldBe Exit.Done(listOf("6"))
         }
+    }
+
+    @Test
+    fun `a batch commits through the connector, and the group starts after it next time`() {
+        kafka.send("bulk-orders", "1", "2", "3", "4")
+
+        Kafka.subscribe(consumer("bulk"), Topic("bulk-orders"))
+            .groupedRecord(3, 10.seconds)
+            .take(1)
+            .runCommitting(committer)
+            .run(pekko.system)
+            .settled() shouldBe Exit.Done(Done.getInstance())
+
+        kafka.committed("bulk", "bulk-orders") shouldBe 3L
     }
 
     @Test
