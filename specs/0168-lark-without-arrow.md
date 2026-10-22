@@ -8,8 +8,8 @@ from Arrow as its receiver, and `raceN` returns Arrow's `Either`. Arrow is
 imported by 51 main files across 14 modules, and by 73 test files. Users who
 don't use Arrow pay for a library they never call, and Lark's API changes
 whenever Arrow's does. The maintainer's direction (chat, 2026-10-22): drop
-Arrow, use what ships with the toolchain, and give Arrow users a module that
-converts.
+Arrow but keep `Either` and typed errors. Lark needs about 10% of Arrow, so
+it owns that part, and Arrow users get a module that converts.
 
 ## Not doing
 
@@ -23,10 +23,9 @@ converts.
 
 ## Shape
 
-Where the toolchain already has the type, Lark uses it: `A?` replaces
-`Option<A>`, and `List<A>` with a non-empty check replaces `NonEmptyList<A>`.
-Typed errors have no stdlib type, so `lark` owns a minimal one in
-`io.github.matthewjones372.lark.raise`:
+`lark` owns the minimal error model in `io.github.matthewjones372.lark.raise`.
+The few `Option` and `NonEmptyList` uses become `A?` and `List<A>` with a
+non-empty check:
 
 ```kotlin
 // lark, after: same code, different import
@@ -47,19 +46,11 @@ The `lark { }` call bridges an Arrow `Raise<E>` into a Lark `Raise<E>`.
 
 ## Why this shape
 
-A typed error needs a `Raise` and an `Either`, and neither ships with Kotlin.
-That leaves three options:
-
-- **(a) Lark owns about 150 lines of each.** This is recommended. It works
-  today and has no dependency.
-- **(b) Use `kotlin.Result` and throw exceptions.** This loses `E`, which is
-  the reason the error model exists.
-- **(c) Wait for Kotlin rich errors (`A | E`).** This is the real "comes with
-  the toolchain" answer, but it isn't stable on 2.4.10, so it is listed under
-  Open questions.
-
-(a) keeps the call sites identical apart from the import, so (c) can still
-replace it later.
+Lark keeps `Either` and typed errors, but it uses only a sliver of Arrow, so
+it owns that sliver: about 150 lines of `Raise`, `either`, `Either` and
+`nonFatalOrThrow`. Call sites change only their import, and `lark-arrow`
+covers the codebases that want the rest of Arrow. `kotlin.Result` was
+rejected (maintainer, 2026-10-22) because it loses `E`.
 
 ## Stack
 
@@ -92,11 +83,13 @@ grep -rl 'import arrow' --include=*.kt . | grep -v lark-arrow   # empty
 
 ## Open questions
 
-1. **What does "comes with the to…" mean: the toolchain (stdlib/JDK)?**
-   Recommended: yes, and that is what this draft assumes.
-2. **(a), (b) or (c) above?** Recommended: (a) now, and revisit (c) when
-   rich errors are stable.
-3. **Should `raceN` keep returning `Either<A, B>`, or a sealed `Race2`?**
-   Recommended: `Either`, which keeps call sites unchanged.
+1. ~~Toolchain, or Lark-owned types?~~ Answered (2026-10-22): keep `Either`
+   and `Raise` as Lark-owned types, and don't use `kotlin.Result`. Lark needs
+   about 10% of Arrow.
+2. ~~Should `raceN` keep returning `Either<A, B>`?~~ Answered: yes, Lark's
+   own `Either`.
+3. **Should the Lark `Either` keep Arrow's names (`Left`/`Right`, `fold`,
+   `getOrNull`, `mapLeft`), so the import swap is the only change?**
+   Recommended: yes, but only the members Lark's code and docs call today.
 4. **Is this a breaking release with no deprecation period?**
    Recommended: yes. `lark-arrow` is the migration path.
