@@ -130,11 +130,13 @@ fun <E, A : Any, K, V> Stream<E, Committed<A>>.runTransactionally(
 ): Run<E, Long> = transacted(producer, batch, within, to).runFold(0L, Long::plus)
 
 /**
- * The offset after the last of each partition's records whose every element is here: an element that is not
- * its record's last carries no handle, and its record's offset waits for the transaction its last is in.
+ * The offset after the last of each partition's records whose every element is here, a batch's among them: an
+ * element that is not its record's last carries no handle, and its record's offset waits for the transaction its
+ * last is in.
  */
 private fun List<Committed<*>>.offsets(): Map<TopicPartition, OffsetAndMetadata> =
-    filter { it.handle != null }
+    flatMap { it.records() }
+        .filter { it.handle != null }
         .groupBy { TopicPartition(it.position.topic, it.position.partition) }
         .mapValues { (_, records) -> OffsetAndMetadata(records.maxOf { it.position.offset } + 1) }
 

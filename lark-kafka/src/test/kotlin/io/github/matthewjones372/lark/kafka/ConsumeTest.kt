@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration.Companion.seconds
 
 /** One description of a consumer, run on whichever backend the run names, against one broker. */
 class ConsumeTest {
@@ -94,6 +95,48 @@ class ConsumeTest {
             .run(backend(on))
             .settled() shouldBe Exit.Done(1L)
         seen.toList() shouldBe listOf("6")
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `a batch over two partitions commits each one's last offset in it`(on: String) {
+        val topic = "batched-$on"
+        kafka.create(topic, partitions = 2)
+        kafka.sendTo(topic, 0, "a", "b", "c")
+        kafka.sendTo(topic, 1, "x", "y")
+
+        val sizes = ConcurrentLinkedQueue<Int>()
+        strings("inserting-$on", topic)
+            .groupedRecord(5, 10.seconds)
+            .mapRecord { records -> sizes.add(records.size) }
+            .take(1)
+            .runCommitting()
+            .run(backend(on))
+            .settled() shouldBe Exit.Done(1L)
+
+        sizes.toList() shouldBe listOf(5)
+        kafka.committed("inserting-$on", topic, number = 0) shouldBe 3L
+        kafka.committed("inserting-$on", topic, number = 1) shouldBe 2L
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `the next run in the group starts after the last batch committed`(on: String) {
+        val topic = "batches-$on"
+        kafka.send(topic, "1", "2", "3", "4", "5")
+
+        strings("bulk-$on", topic).groupedRecord(3, 10.seconds).take(1).runCommitting().run(backend(on))
+            .settled() shouldBe Exit.Done(1L)
+
+        val seen = ConcurrentLinkedQueue<String>()
+        strings("bulk-$on", topic)
+            .groupedRecord(2, 10.seconds)
+            .mapRecord { records -> records.forEach { seen.add(it.value()) } }
+            .take(1)
+            .runCommitting()
+            .run(backend(on))
+            .settled() shouldBe Exit.Done(1L)
+        seen.toList() shouldBe listOf("4", "5")
     }
 
     @ParameterizedTest

@@ -165,12 +165,13 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     }
 
     /**
-     * The offset the group has committed on the topic's only partition, or null for none, once no transaction is
-     * still committing one: a transaction's offsets are pending until its marker lands, and read before then, the
-     * group's last offset is the one before. Asked for by partition, a pending one comes back missing, not null.
+     * The offset the group has committed on the topic's partition [number], its first unless named, or null for
+     * none, once no transaction is still committing one: a transaction's offsets are pending until its marker lands,
+     * and read before then, the group's last offset is the one before. Asked for by partition, a pending one comes
+     * back missing, not null.
      */
-    fun committed(group: String, topic: String): Long? {
-        val partition = TopicPartition(topic, 0)
+    fun committed(group: String, topic: String, number: Int = 0): Long? {
+        val partition = TopicPartition(topic, number)
         val asked = mapOf(group to ListConsumerGroupOffsetsSpec().topicPartitions(listOf(partition)))
         return Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
             val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)

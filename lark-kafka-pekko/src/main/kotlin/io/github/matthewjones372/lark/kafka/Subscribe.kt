@@ -57,9 +57,12 @@ fun <K, V> Kafka.subscribe(
 ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
     subscribe(settings, *topics).decodedWith(key, value)
 
-/** A run described that commits each element's offset, through the connector, once it reaches the end. */
+/**
+ * A run described that commits each element's offset, or each of a batch's, through the connector once it reaches
+ * the end.
+ */
 fun <E> Stream<E, Committed<*>>.runCommitting(settings: CommitterSettings): Run<E, Done> =
-    mapConcat { element -> listOfNotNull(element.handle?.committable()) }
+    mapConcat { element -> element.records().mapNotNull { it.handle?.committable() } }
         .runWith(Committer.sink<ConsumerMessage.Committable>(settings))
 
 /** The connector's own offset, which its committer sink commits in batches. */

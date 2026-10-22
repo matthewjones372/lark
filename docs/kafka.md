@@ -94,6 +94,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 | `Kafka.read(properties, topic, partition, key, value, from, until)` | one partition, assigned rather than subscribed, so no rebalance can take it away; `from` is `Committed`, `Earliest`, `Latest` or an `Offset`, and `until` is `Never` or `EndAtStart`. With no `group.id`, nothing is committed |
 | `Kafka.subscribe(settings, vararg topics)` and its `Decoder` form | the same two, through Pekko's connector |
 | `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | lark-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside lark-stream's would be ambiguous |
+| `groupedRecord(n, within)` | up to `n` records, or what came within `within`, as one `Committed<List<A>>`; see [Reading in batches](#reading-in-batches) |
 | `mapParPartitioned(parallelism) { value -> }` | `mapParRecord` in order only within each partition, through `mapParKeyed`: a slow record holds back only its own partition's later records. Each partition's offsets still commit in order. On Forks and Pekko; Actors and TestStreams keep full order |
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
 | `absolve()` | the first `Left` ends the run `Failed` |
@@ -103,6 +104,32 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 
 Every body runs with `kafka.topic`, `kafka.partition` and `kafka.offset` on
 its log lines.
+
+## Reading in batches
+
+`groupedRecord` hands a body a list of records, for work that is cheaper in
+bulk, such as one insert for many rows:
+
+```kotlin
+import io.github.matthewjones372.lark.kafka.groupedRecord
+import kotlin.time.Duration.Companion.milliseconds
+
+Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), value = StringDeserializer())
+    .groupedRecord(500, 100.milliseconds)
+    .mapRecord { records -> db.insertAll(records.map { it.value() }) }
+    .runCommitting()
+```
+
+- **A batch commits as a whole.** It reaches `runCommitting` as one element,
+  every record in it is marked handled, and each partition's offset moves to
+  the last of its records in the batch.
+  It works the same through `Kafka.subscribe` and `runCommitting(settings)`,
+  and inside `transacted`.
+- **A record still expanding** under `mapConcatRecord` when a batch ends is
+  committed with the batch its last element lands in.
+- **A batch's body has no `kafka.*` annotations** on its lines, and runs
+  outside any record's trace, since its records may each come from a
+  different one.
 
 ## Writing to Kafka
 

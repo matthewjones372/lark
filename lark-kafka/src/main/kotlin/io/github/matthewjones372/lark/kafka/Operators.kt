@@ -6,12 +6,14 @@ import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.stream.Failing
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.filter
+import io.github.matthewjones372.lark.stream.groupedWithin
 import io.github.matthewjones372.lark.stream.map
 import io.github.matthewjones372.lark.stream.mapConcat
 import io.github.matthewjones372.lark.stream.mapOrFail
 import io.github.matthewjones372.lark.stream.mapPar
 import io.github.matthewjones372.lark.stream.mapParKeyed
 import io.github.matthewjones372.lark.stream.mapParOrFail
+import kotlin.time.Duration
 
 // lark-stream's operators with the body on the value and the offset carried through. Named apart from
 // them because the overloads cannot be told apart: with both packages imported, `map` would be ambiguous.
@@ -70,3 +72,14 @@ fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParRecordOrFail(
     f: Raise<E>.(A) -> B,
 ): Stream<E, Committed<B>> =
     mapParOrFail<E, Committed<A>, Committed<B>>(parallelism) { c -> c.carrying(c.annotated { f(this, it) }) }
+
+/**
+ * Up to [n] records, or what came within [within], as one element committed as a whole: each record in it is
+ * marked handled, so each partition's offset moves to the last of its records. A record still expanding into
+ * elements is committed with the batch its last element is in. A body on a batch runs outside any one record's
+ * position and trace.
+ */
+fun <E, A : Any> Stream<E, Committed<A>>.groupedRecord(n: Int, within: Duration): Stream<E, Committed<List<A>>> =
+    groupedWithin(n, within).map { taken: List<Committed<A>> ->
+        Committed(taken.map { it.value }, taken.first().position, Batched(taken))
+    }
