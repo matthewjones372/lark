@@ -118,14 +118,12 @@ grep -rl 'import arrow' --include=*.kt . | grep -v lark-arrow   # empty
    give Arrow's own design Lark's names.
 4. ~~Is this a breaking release with no deprecation period?~~ Answered: yes.
    `lark-arrow` is the migration path.
-5. **Are `Fail`, `fail` and `attempt` the right names?** The alternatives
-   are `Failure` with `failWith`, or `Errors` with `raiseError` and
-   `catching`. Recommended: `Fail`, `fail` and `attempt`, because they're
-   short and read as plain English.
+5. ~~Are `Fail`, `fail` and `attempt` the right names?~~ Answered
+   (2026-10-22): yes.
 6. ~~Should Lark use context parameters?~~ Answered (2026-10-22): yes, it
    follows where Kotlin is going. If 2.4.10 still needs
    `-Xcontext-parameters`, `fail-in-lark` turns it on in the root build for
    every module, not module by module.
-7. **Does the README credit go in a "Prior art" section or a NOTICE file?**
-   Recommended: a README line. Since no code is copied, a NOTICE file isn't
-   required.
+7. ~~Where does the credit to Arrow go?~~ Answered (2026-10-22): a README
+   line saying the error model is inspired by Arrow. No NOTICE file, since
+   no code is copied.
