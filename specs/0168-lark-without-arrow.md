@@ -88,8 +88,7 @@ grep -rl 'import arrow' --include=*.kt . | grep -v lark-arrow   # empty
    about 10% of Arrow.
 2. ~~Should `raceN` keep returning `Either<A, B>`?~~ Answered: yes, Lark's
    own `Either`.
-3. **Should the Lark `Either` keep Arrow's names (`Left`/`Right`, `fold`,
-   `getOrNull`, `mapLeft`), so the import swap is the only change?**
-   Recommended: yes, but only the members Lark's code and docs call today.
-4. **Is this a breaking release with no deprecation period?**
-   Recommended: yes. `lark-arrow` is the migration path.
+3. ~~Should Lark's `Either` keep Arrow's names?~~ Answered: yes, but only
+   the members Lark's code and docs call today.
+4. ~~Is this a breaking release with no deprecation period?~~ Answered: yes.
+   `lark-arrow` is the migration path.
