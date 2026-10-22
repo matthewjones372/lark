@@ -16,8 +16,8 @@ it owns that part, and Arrow users get a module that converts.
 - **No coroutine or `suspend` interop.** That is unchanged from 0003.
 - **No Arrow code, copied or ported.** Lark builds only what it uses:
   failing with an error, `bind`, `ensure`, `recover`, `Either` and
-  `nonFatalOrThrow`. There is no `Option`, no `Ior`, no `NonEmptyList`, no
-  error accumulation, and no optics.
+  `nonFatalOrThrow`, plus `NonEmptyList`. There is no `Option`, no `Ior`, no
+  error accumulation beyond what Lark already has, and no optics.
 - **No rich-errors support in this spec.** The maintainer wants it
   (2026-10-22), but the compiler feature is experimental. It gets its own
   spec once rich errors are usable on the build's Kotlin: `attempt` gains an
@@ -65,8 +65,11 @@ The design improves on Arrow in three places:
    points at the line where the scope was opened, in the style of spec
    0119.
 
-The few `Option` and `NonEmptyList` uses become `A?` and `List<A>` with a
-non-empty check.
+The few `Option` uses become `A?`. `NonEmptyList` stays, as Lark's own
+(maintainer, 2026-10-22), because `validate()`, `reading` and
+`parZipOrAccumulate` promise it in their signatures. It is a read-only
+`List` with `head`, `tail`, `map`, `plus`, `nonEmptyListOf` and
+`toNonEmptyListOrNull`.
 
 ## Why this shape
 
@@ -79,8 +82,8 @@ path easy for anyone already on Arrow.
 
 ## Stack
 
-- [ ] **`fail-in-lark`** — `Fail`, `attempt`, `Either` and `nonFatalOrThrow`
-      in `lark`, tested alone, with the three improvements. Arrow is still on the classpath.
+- [ ] **`fail-in-lark`** — `Fail`, `attempt`, `Either`, `NonEmptyList` and
+      `nonFatalOrThrow` in `lark`, tested alone, with the three improvements. Arrow is still on the classpath.
       Done when: the tests for these pass without importing `arrow`.
 - [ ] **`lark-arrow`** — a new module with `toArrow()`, `toLark()` and the
       `lark { }` bridge from `Raise` to `Fail`, which adds `arrow-core`.
