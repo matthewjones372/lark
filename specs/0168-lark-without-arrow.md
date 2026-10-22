@@ -16,8 +16,8 @@ it owns that part, and Arrow users get a module that converts.
 - **No coroutine or `suspend` interop.** That is unchanged from 0003.
 - **No Arrow code, copied or ported.** Lark builds only what it uses:
   failing with an error, `bind`, `ensure`, `recover`, `Either` and
-  `nonFatalOrThrow`. There is no `Option`, no `Ior`, no `NonEmptyList`, no
-  error accumulation, and no optics.
+  `nonFatalOrThrow`, plus `NonEmptyList`. There is no `Option`, no `Ior`, no
+  error accumulation beyond what Lark already has, and no optics.
 - **No rich-errors support in this spec.** The maintainer wants it
   (2026-10-22), but the compiler feature is experimental. It gets its own
   spec once rich errors are usable on the build's Kotlin: `attempt` gains an
@@ -65,8 +65,11 @@ The design improves on Arrow in three places:
    points at the line where the scope was opened, in the style of spec
    0119.
 
-The few `Option` and `NonEmptyList` uses become `A?` and `List<A>` with a
-non-empty check.
+The few `Option` uses become `A?`. `NonEmptyList` stays, as Lark's own
+(maintainer, 2026-10-22), because `validate()`, `reading` and
+`parZipOrAccumulate` promise it in their signatures. It is a read-only
+`List` with `head`, `tail`, `map`, `plus`, `nonEmptyListOf` and
+`toNonEmptyListOrNull`.
 
 ## Why this shape
 
@@ -79,25 +82,38 @@ path easy for anyone already on Arrow.
 
 ## Stack
 
-- [ ] **`fail-in-lark`** — `Fail`, `attempt`, `Either` and `nonFatalOrThrow`
-      in `lark`, tested alone, with the three improvements. Arrow is still on the classpath.
+- [ ] **`fail-in-lark`** — `Fail`, `attempt`, `Either`, `NonEmptyList` and
+      `nonFatalOrThrow` in `lark`, tested alone, with the three improvements. Arrow is still on the classpath.
       Done when: the tests for these pass without importing `arrow`.
 - [ ] **`lark-arrow`** — a new module with `toArrow()`, `toLark()` and the
       `lark { }` bridge from `Raise` to `Fail`, which adds `arrow-core`.
       Done when: its round-trip and bridge tests pass.
-- [ ] **`core-off-arrow`** — `core/lark` and `lark-structured` move to the
-      Lark types, and `arrow-core` leaves `lark`'s build.
-      Done when: `NoOtherDependenciesTest` allows only the JDK and the stdlib.
+- [ ] **`flock-on-fail`** — `Flock`, `Flight`, `Fork`, `Race`, `Timeout`,
+      `Retry` and `Policy` move to `Fail`, and a fail from a thread the scope
+      didn't fork is rejected. The Arrow-`Raise` versions stay as one-line
+      wrappers, so the modules above `lark` keep compiling.
+      Done when: core's tests pass on `Fail`, and every other module builds
+      unchanged.
+- [ ] **`par-on-fail`** — `parZip` and `parMap` at every arity, with
+      wrappers.
+- [ ] **`accumulate-on-fail`** — `parZipOrAccumulate` and
+      `parMapOrAccumulate`, with wrappers. Split by arity if it runs past the
+      cap.
+- [ ] **`structured-on-fail`** — `lark-structured`.
 - [ ] **`stream-off-arrow`** — the four `stream/` modules move.
 - [ ] **`actor-off-arrow`** — `lark-actor`, `-journal-jdbc` and `-remote`
       move.
 - [ ] **`app-off-arrow`** — `lark-app`, `-typesafe` and `lark-bank` move.
 - [ ] **`kafka-off-arrow`** — `lark-kafka` and `lark-kafka-pekko` move.
+- [ ] **`core-drops-arrow`** — the wrappers go, and `arrow-core` leaves
+      `lark`'s build.
+      Done when: `NoOtherDependenciesTest` allows only the JDK and the stdlib.
 - [ ] **`docs-off-arrow`** — the README, `docs/`, `llms.txt`, the SKILL and
       AGENTS.md move, with a migration page that points to `lark-arrow`.
 
 The test migrations ride along with each entry and don't count toward the
-cap. If an entry exceeds 200 lines it gets split by module.
+cap. The wrappers (maintainer, 2026-10-22) exist so that no entry has to
+move core and every module above it at once. If an entry exceeds 200 lines it gets split by module.
 
 ## Acceptance
 
