@@ -73,6 +73,8 @@ class FailTest {
         inner shouldBe Invalid("bad").left().right()
     }
 
+    // The claim is about exactly this broad catch.
+    @Suppress("TooGenericExceptionCaught")
     @Test
     fun `catching Exception in the block does not swallow a failure`() {
         val answered = attempt<NotFound, String> {
@@ -109,6 +111,8 @@ class FailTest {
         shouldThrow<OutOfMemoryError> { OutOfMemoryError().nonFatalOrThrow() }
     }
 
+    // The claim is about exactly this broad catch.
+    @Suppress("TooGenericExceptionCaught")
     @Test
     fun `nonFatalOrThrow puts a failure back on its way out`() {
         val answered = attempt<String, String> {

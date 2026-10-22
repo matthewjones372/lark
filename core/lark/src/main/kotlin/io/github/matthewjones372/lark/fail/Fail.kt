@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.fail
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 
-/** A scope that a declared failure of type [E] leaves through. [attempt] opens one and answers with what it ended on. */
+/** The scope a declared failure of type [E] leaves through; [attempt] opens one and answers with how it ended. */
 class Fail<in E> internal constructor(private val openedIn: String) {
 
     @Volatile
