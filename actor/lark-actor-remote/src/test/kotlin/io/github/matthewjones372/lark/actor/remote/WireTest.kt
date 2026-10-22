@@ -1,15 +1,20 @@
 package io.github.matthewjones372.lark.actor.remote
 
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /** A port nothing is listening on yet: bound and let go, so a node can be named before it listens. */
 private fun freePort(): Int = ServerSocket(0).use { it.localPort }
@@ -139,6 +144,59 @@ class WireTest {
 
         heard.droppedCount.await(1, TimeUnit.MINUTES) shouldBe true
         heard.connected.isEmpty() shouldBe true
+    }
+
+    @Test
+    fun `what was sent to a connected peer just before close still reaches it`() {
+        val one = node("one")
+        val two = node("two")
+        val heardByTwo = Heard()
+        Transport(two, heardByTwo).closedAfter().listen()
+        val heardByOne = Heard()
+        val first = Transport(one, heardByOne)
+        first.send(two, frame(0))
+        heardByTwo.take(1) shouldContainExactly listOf(one to 0)
+
+        (1..8_000).forEach { first.send(two, frame(it)) }
+        first.close()
+
+        heardByTwo.take(8_000) shouldBe (1..8_000).map { one to it }
+        heardByOne.dropped.isEmpty() shouldBe true
+    }
+
+    @Test
+    fun `a peer that stops reading holds a close no longer than its drain`() {
+        // Answers the handshake as "stuck", then reads nothing, so the sender's socket fills and its writes block.
+        val stuck = ServerSocket(0).closedAfter()
+        val answered = Thread.ofVirtual().start {
+            val socket = stuck.accept()
+            val input = DataInputStream(socket.getInputStream())
+            input.readInt()
+            input.readInt()
+            input.readUTF()
+            input.readLong()
+            DataOutputStream(socket.getOutputStream()).apply {
+                writeInt(0x4C41524B)
+                writeInt(2)
+                writeUTF("stuck@127.0.0.1:${stuck.localPort}")
+                writeLong(1)
+                flush()
+            }
+        }
+        val heard = Heard()
+        val first = Transport(node("one"), heard, drainWithin = 200.milliseconds)
+        val peer = Node("stuck", "127.0.0.1", stuck.localPort)
+        first.send(peer, frame(0))
+        heard.connected.poll(1, TimeUnit.MINUTES) shouldBe peer
+        val big = Frame("/user/clinic", 1, ByteArray(64 * 1024))
+        repeat(1_000) { first.send(peer, big) }
+
+        val closing = TimeSource.Monotonic.markNow()
+        first.close()
+
+        closing.elapsedNow() shouldBeLessThan 5.seconds
+        heard.dropped.isEmpty() shouldBe false
+        answered.join()
     }
 
     @Test
