@@ -56,7 +56,7 @@ connection, and short next to the 30 s `leaveWithin` a cluster gives its own lea
 
 ## Stack
 
-- [ ] **`spec-0166-drain`**: `Transport.close()` drains connected lanes for up to `drainWithin`, then closes as
+- [x] **`spec-0166-drain`**: `Transport.close()` drains connected lanes for up to `drainWithin`, then closes as
       today.
       Done when:
       - a new `WireTest` case fails today and passes with the change: a frame sent the instant before `close`,
@@ -74,9 +74,6 @@ connection, and short next to the 30 s `leaveWithin` a cluster gives its own lea
 
 ## Open questions
 
-1. **What should the default `drainWithin` be?** Recommend 1 s. Zero would keep today's behaviour for anyone who
-   wants it.
-2. **Should `drainWithin` be exposed** on `node(...)` / `RemoteNode`, or stay internal to `Transport`? Recommend
-   internal for now, since nothing has asked to tune it.
-3. **Should the cluster's own close wait a little after `stop` succeeds** so its last gossip goes out? Recommend
-   no: with the drain, the transport covers it.
+1. **Answered: the default `drainWithin`** is 1 s.
+2. **Answered: `drainWithin` stays internal** to `Transport`; nothing has asked to tune it.
+3. **Answered: the cluster adds no wait of its own.** The drain covers the removal gossip.
