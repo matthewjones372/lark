@@ -109,7 +109,7 @@ grep -rl 'import arrow' --include=*.kt . | grep -v lark-arrow   # empty
 ## Open questions
 
 1. ~~Toolchain, or Lark-owned types?~~ Answered (2026-10-22): keep `Either`
-   and `Raise` as Lark-owned types, and don't use `kotlin.Result`. Lark needs
+   and typed errors as Lark-owned types, and don't use `kotlin.Result`. Lark needs
    about 10% of Arrow.
 2. ~~Should `raceN` keep returning `Either<A, B>`?~~ Answered: yes, Lark's
    own `Either`.
