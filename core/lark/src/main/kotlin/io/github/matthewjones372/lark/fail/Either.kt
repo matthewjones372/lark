@@ -40,9 +40,13 @@ inline fun <E, A, B> Either<E, A>.flatMap(f: (A) -> Either<E, B>): Either<E, B> 
 
 inline fun <E, A> Either<E, A>.getOrElse(ifLeft: (E) -> A): A = fold(ifLeft) { it }
 
-inline fun <E, A> Either<E, A>.onLeft(action: (E) -> Unit): Either<E, A> = also { if (it is Either.Left) action(it.value) }
+inline fun <E, A> Either<E, A>.onLeft(action: (E) -> Unit): Either<E, A> = also {
+    if (it is Either.Left) action(it.value)
+}
 
-inline fun <E, A> Either<E, A>.onRight(action: (A) -> Unit): Either<E, A> = also { if (it is Either.Right) action(it.value) }
+inline fun <E, A> Either<E, A>.onRight(action: (A) -> Unit): Either<E, A> = also {
+    if (it is Either.Right) action(it.value)
+}
 
 /** The value on whichever side it is, where both sides are the same type. */
 fun <A> Either<A, A>.merge(): A = fold({ it }, { it })

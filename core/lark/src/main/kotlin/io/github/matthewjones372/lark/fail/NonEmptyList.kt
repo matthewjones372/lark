@@ -27,4 +27,6 @@ class NonEmptyList<out A> private constructor(private val all: List<A>) : List<A
 fun <A> nonEmptyListOf(head: A, vararg tail: A): NonEmptyList<A> = NonEmptyList.wrap(listOf(head) + tail)
 
 // toList copies, so a caller's mutable list cannot later change, or empty, the one handed out.
-fun <A> Iterable<A>.toNonEmptyListOrNull(): NonEmptyList<A>? = toList().takeIf { it.isNotEmpty() }?.let { NonEmptyList.wrap(it) }
+fun <A> Iterable<A>.toNonEmptyListOrNull(): NonEmptyList<A>? = toList().takeIf {
+    it.isNotEmpty()
+}?.let { NonEmptyList.wrap(it) }
