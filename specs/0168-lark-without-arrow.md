@@ -88,19 +88,32 @@ path easy for anyone already on Arrow.
 - [ ] **`lark-arrow`** — a new module with `toArrow()`, `toLark()` and the
       `lark { }` bridge from `Raise` to `Fail`, which adds `arrow-core`.
       Done when: its round-trip and bridge tests pass.
-- [ ] **`core-off-arrow`** — `core/lark` and `lark-structured` move to the
-      Lark types, and `arrow-core` leaves `lark`'s build.
-      Done when: `NoOtherDependenciesTest` allows only the JDK and the stdlib.
+- [ ] **`flock-on-fail`** — `Flock`, `Flight`, `Fork`, `Race`, `Timeout`,
+      `Retry` and `Policy` move to `Fail`, and a fail from a thread the scope
+      didn't fork is rejected. The Arrow-`Raise` versions stay as one-line
+      wrappers, so the modules above `lark` keep compiling.
+      Done when: core's tests pass on `Fail`, and every other module builds
+      unchanged.
+- [ ] **`par-on-fail`** — `parZip` and `parMap` at every arity, with
+      wrappers.
+- [ ] **`accumulate-on-fail`** — `parZipOrAccumulate` and
+      `parMapOrAccumulate`, with wrappers. Split by arity if it runs past the
+      cap.
+- [ ] **`structured-on-fail`** — `lark-structured`.
 - [ ] **`stream-off-arrow`** — the four `stream/` modules move.
 - [ ] **`actor-off-arrow`** — `lark-actor`, `-journal-jdbc` and `-remote`
       move.
 - [ ] **`app-off-arrow`** — `lark-app`, `-typesafe` and `lark-bank` move.
 - [ ] **`kafka-off-arrow`** — `lark-kafka` and `lark-kafka-pekko` move.
+- [ ] **`core-drops-arrow`** — the wrappers go, and `arrow-core` leaves
+      `lark`'s build.
+      Done when: `NoOtherDependenciesTest` allows only the JDK and the stdlib.
 - [ ] **`docs-off-arrow`** — the README, `docs/`, `llms.txt`, the SKILL and
       AGENTS.md move, with a migration page that points to `lark-arrow`.
 
 The test migrations ride along with each entry and don't count toward the
-cap. If an entry exceeds 200 lines it gets split by module.
+cap. The wrappers (maintainer, 2026-10-22) exist so that no entry has to
+move core and every module above it at once. If an entry exceeds 200 lines it gets split by module.
 
 ## Acceptance
 
