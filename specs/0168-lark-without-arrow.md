@@ -14,51 +14,71 @@ it owns that part, and Arrow users get a module that converts.
 ## Not doing
 
 - **No coroutine or `suspend` interop.** That is unchanged from 0003.
-- **No reimplementation of Arrow beyond what Lark itself uses.** That is
-  `Raise`, `either { }`, `bind`, `ensure`, `recover`, `Either`, `left` and
-  `right`, plus `nonFatalOrThrow`. There is no `Option`, no `Ior`, no
-  `NonEmptyList`, and no optics.
-- **No behaviour change.** Cancellation, interrupts and the order of failures
-  stay exactly as they are today. Only the types move.
+- **No Arrow code, copied or ported.** Lark builds only what it uses:
+  failing with an error, `bind`, `ensure`, `recover`, `Either` and
+  `nonFatalOrThrow`. There is no `Option`, no `Ior`, no `NonEmptyList`, no
+  error accumulation, and no optics.
+- **No change to concurrency behaviour.** Cancellation, interrupts and the
+  order of failures stay as they are. The only behaviour changes are the
+  three improvements under Shape.
 
 ## Shape
 
-`lark` owns the minimal error model in `io.github.matthewjones372.lark.raise`.
-The few `Option` and `NonEmptyList` uses become `A?` and `List<A>` with a
-non-empty check:
+`lark` owns its error model in `io.github.matthewjones372.lark.fail`, written
+from scratch. It takes Arrow's ideas but none of Arrow's code, and it is
+credited as such in the README. `Either`, `Left` and `Right` are the common
+vocabulary from Haskell and Scala, so they keep those names. The parts that
+are Arrow's own design get Lark's own names: `Fail<E>`, `fail(e)` and
+`attempt { }`.
 
 ```kotlin
-// lark, after: same code, different import
-import io.github.matthewjones372.lark.raise.either
+import io.github.matthewjones372.lark.fail.*
 
-fun dashboard(id: Id): Either<Err, Dashboard> = either {
+context(_: Fail<Err>)
+fun dashboard(id: Id): Dashboard =
     parZip({ users.find(id).bind() }, { orders.forUser(id).bind() }) { u, o -> Dashboard(u, o) }
-}
+
+val d: Either<Err, Dashboard> = attempt { dashboard(id) }
 
 // lark-arrow: for a codebase already on Arrow
-import io.github.matthewjones372.lark.arrow.*
-
-val a: arrow.core.Either<Err, Dashboard> = dashboard(id).toArrow()
-arrow.core.raise.either { lark { parZip({ find(id) }, { orders(id) }) { u, o -> u to o } } }
+val a: arrow.core.Either<Err, Dashboard> = attempt { dashboard(id) }.toArrow()
+arrow.core.raise.either { lark { dashboard(id) } }  // Arrow Raise<E> -> Lark Fail<E>
 ```
 
-The `lark { }` call bridges an Arrow `Raise<E>` into a Lark `Raise<E>`.
+The design improves on Arrow in three places:
+
+1. **Context parameters, not extension receivers.** A fallible function
+   needs a `Fail` from its caller (`context(_: Fail<E>)`) instead of being
+   written as an extension on it. Two error types then sit side by side
+   without nesting receivers.
+2. **`catch (e: Exception)` can't swallow a failure.** Lark's internal
+   signal extends `Throwable` directly, with no stack trace, so a broad
+   `catch` in user code no longer eats a raise. `nonFatalOrThrow` rethrows
+   it.
+3. **A leaked scope names its origin.** Calling `fail` after `attempt` has
+   returned, or from a thread the scope didn't fork, throws an error that
+   points at the line where the scope was opened, in the style of spec
+   0119.
+
+The few `Option` and `NonEmptyList` uses become `A?` and `List<A>` with a
+non-empty check.
 
 ## Why this shape
 
-Lark keeps `Either` and typed errors, but it uses only a sliver of Arrow, so
-it owns that sliver: about 150 lines of `Raise`, `either`, `Either` and
-`nonFatalOrThrow`. Call sites change only their import, and `lark-arrow`
-covers the codebases that want the rest of Arrow. `kotlin.Result` was
-rejected (maintainer, 2026-10-22) because it loses `E`.
+Lark uses only a sliver of Arrow, so it owns that sliver: about 200 lines,
+written fresh. `kotlin.Result` was rejected (maintainer, 2026-10-22) because
+it loses `E`. Keeping Arrow's names would have made the move only an import
+swap, but would have read as a copy of Arrow's API under another name.
+Lark's own names and an open credit avoid that, and `lark-arrow` keeps the
+path easy for anyone already on Arrow.
 
 ## Stack
 
-- [ ] **`raise-in-lark`** — `Raise`, `either`, `Either` and `nonFatalOrThrow`
-      in `lark`, tested alone. Arrow is still on the classpath.
+- [ ] **`fail-in-lark`** — `Fail`, `attempt`, `Either` and `nonFatalOrThrow`
+      in `lark`, tested alone, with the three improvements. Arrow is still on the classpath.
       Done when: the tests for these pass without importing `arrow`.
 - [ ] **`lark-arrow`** — a new module with `toArrow()`, `toLark()` and the
-      `lark { }` bridge, which adds `arrow-core`.
+      `lark { }` bridge from `Raise` to `Fail`, which adds `arrow-core`.
       Done when: its round-trip and bridge tests pass.
 - [ ] **`core-off-arrow`** — `core/lark` and `lark-structured` move to the
       Lark types, and `arrow-core` leaves `lark`'s build.
@@ -88,7 +108,19 @@ grep -rl 'import arrow' --include=*.kt . | grep -v lark-arrow   # empty
    about 10% of Arrow.
 2. ~~Should `raceN` keep returning `Either<A, B>`?~~ Answered: yes, Lark's
    own `Either`.
-3. ~~Should Lark's `Either` keep Arrow's names?~~ Answered: yes, but only
-   the members Lark's code and docs call today.
+3. ~~Should Lark's `Either` keep Arrow's names?~~ Revised (2026-10-22):
+   keep `Either`, `Left` and `Right`, but write everything from scratch and
+   give Arrow's own design Lark's names.
 4. ~~Is this a breaking release with no deprecation period?~~ Answered: yes.
    `lark-arrow` is the migration path.
+5. **Are `Fail`, `fail` and `attempt` the right names?** The alternatives
+   are `Failure` with `failWith`, or `Errors` with `raiseError` and
+   `catching`. Recommended: `Fail`, `fail` and `attempt`, because they're
+   short and read as plain English.
+6. **Context parameters need Kotlin 2.4.10. Are they stable there, or do
+   they need `-Xcontext-parameters` in every module?** Recommended: check in
+   `fail-in-lark`. If a flag is needed, fall back to extension receivers and
+   record that here.
+7. **Does the README credit go in a "Prior art" section or a NOTICE file?**
+   Recommended: a README line. Since no code is copied, a NOTICE file isn't
+   required.
