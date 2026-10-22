@@ -18,6 +18,11 @@ it owns that part, and Arrow users get a module that converts.
   failing with an error, `bind`, `ensure`, `recover`, `Either` and
   `nonFatalOrThrow`. There is no `Option`, no `Ior`, no `NonEmptyList`, no
   error accumulation, and no optics.
+- **No rich-errors support in this spec.** The maintainer wants it
+  (2026-10-22), but the compiler feature is experimental. It gets its own
+  spec once rich errors are usable on the build's Kotlin: `attempt` gains an
+  `A | E` form, plus conversion to and from `Either`. Here, `Fail<E>`
+  leaves `E` unbounded, so an `error class` can be used for `E` later.
 - **No change to concurrency behaviour.** Cancellation, interrupts and the
   order of failures stay as they are. The only behaviour changes are the
   three improvements under Shape.
@@ -117,10 +122,10 @@ grep -rl 'import arrow' --include=*.kt . | grep -v lark-arrow   # empty
    are `Failure` with `failWith`, or `Errors` with `raiseError` and
    `catching`. Recommended: `Fail`, `fail` and `attempt`, because they're
    short and read as plain English.
-6. **Context parameters need Kotlin 2.4.10. Are they stable there, or do
-   they need `-Xcontext-parameters` in every module?** Recommended: check in
-   `fail-in-lark`. If a flag is needed, fall back to extension receivers and
-   record that here.
+6. ~~Should Lark use context parameters?~~ Answered (2026-10-22): yes, it
+   follows where Kotlin is going. If 2.4.10 still needs
+   `-Xcontext-parameters`, `fail-in-lark` turns it on in the root build for
+   every module, not module by module.
 7. **Does the README credit go in a "Prior art" section or a NOTICE file?**
    Recommended: a README line. Since no code is copied, a NOTICE file isn't
    required.
