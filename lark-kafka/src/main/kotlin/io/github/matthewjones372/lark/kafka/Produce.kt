@@ -4,13 +4,18 @@ package io.github.matthewjones372.lark.kafka
 
 import arrow.core.Either
 import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.groupedWithin
 import io.github.matthewjones372.lark.stream.mapAsync
+import io.github.matthewjones372.lark.stream.mapConcat
+import io.github.matthewjones372.lark.stream.mapPar
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.Serializer
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration
 import org.apache.kafka.clients.producer.Producer as Client
 
 /**
@@ -50,9 +55,21 @@ class Producer<K, V> internal constructor(
     internal fun deadLetter(topic: String) = meters.deadLetter(topic)
 
     /** [send], waited on: `Left` for a record the producer gave up on. */
-    fun publish(record: ProducerRecord<K, V>): Either<PublishFailed, Published> =
-        Either.catch { send(record).get() }
-            .mapLeft { thrown -> PublishFailed(record, (thrown as? ExecutionException)?.cause ?: thrown) }
+    fun publish(record: ProducerRecord<K, V>): Either<PublishFailed, Published> = send(record).outcome(record)
+
+    /**
+     * Each of [records] handed to the producer without waiting on the one before, then waited on: one outcome per
+     * record, in order. Once one fails, in [send] or in its callback, the records not yet handed over are not sent,
+     * and come back `PublishFailed` with a [PublishOmitted] cause. Those already handed over keep their own.
+     */
+    fun publishAll(records: List<ProducerRecord<K, V>>): List<Either<PublishFailed, Published>> {
+        val first = AtomicReference<Throwable>()
+        val sent = records.map { record ->
+            first.get()?.let { failed -> CompletableFuture.failedFuture<Published>(PublishOmitted(failed)) }
+                ?: send(record).also { acked -> acked.whenComplete { _, failed -> first.compareAndSet(null, failed) } }
+        }
+        return records.zip(sent) { record, acked -> acked.outcome(record) }
+    }
 
     override fun close() = client.close()
 }
@@ -68,6 +85,10 @@ data class Published(val topic: String, val partition: Int, val offset: Long)
 class PublishFailed internal constructor(val record: ProducerRecord<*, *>, val cause: Throwable) {
     override fun toString(): String = "PublishFailed(${record.topic()}: $cause)"
 }
+
+/** A record [Producer.publishAll] did not send, because one before it in the batch failed with [cause]. */
+class PublishOmitted internal constructor(cause: Throwable) :
+    Exception("not sent: a record before it in the batch failed", cause)
 
 /** A record for this topic, so a sink's arguments read as the topic they write to. */
 fun <K, V> Topic.record(key: K, value: V): ProducerRecord<K, V> = ProducerRecord(name, key, value)
@@ -96,6 +117,23 @@ fun <E, A : Any, K, V> Stream<E, Committed<A>>.publishRecord(
     mapAsync(inFlight) { c: Committed<A> -> producer.send(c.annotated(to)).thenApply { c } }
 
 /**
+ * [publishRecord] in batches of up to [batch], or what came within [within], one at a time through
+ * [Producer.publishAll], with each record passed on as the outcome of its own write: `Left` for one the producer
+ * gave up on, and for the rest of its batch, which is not sent. Nothing here fails the stream; what comes after
+ * decides. `absolve()` ends the run with what came before the `Left` committed, `divertLefts` goes on past it.
+ */
+fun <E, A : Any, K, V> Stream<E, Committed<A>>.publishBatch(
+    producer: Producer<K, V>,
+    batch: Int = DEFAULT_BATCH,
+    within: Duration = DEFAULT_WITHIN,
+    to: (A) -> ProducerRecord<K, V>,
+): Stream<E, Committed<Either<PublishFailed, A>>> =
+    groupedWithin(batch, within)
+        // One batch at a time, off the stream's own thread, because publishAll blocks.
+        .mapPar(1) { taken: List<Committed<A>> -> taken.zip(producer.publishAll(taken.map { c -> c.annotated(to) })) }
+        .mapConcat { sent -> sent.map { (c, outcome) -> c.carrying(outcome.map { c.value }) } }
+
+/**
  * Each record that could not be read, written to [topic] as it was read, for `divertLefts`: its key, value and
  * headers, and headers saying where it came from and why. It returns once the broker has it, so the bad record's
  * offset moves on only then; a dead letter the producer gives up on is thrown, a defect.
@@ -120,3 +158,6 @@ const val DEFAULT_IN_FLIGHT: Int = 256
 const val DEAD_LETTER_HEADER: String = "lark.dead-letter"
 
 private fun RecordMetadata.published() = Published(topic(), partition(), offset())
+
+private fun CompletableFuture<Published>.outcome(record: ProducerRecord<*, *>): Either<PublishFailed, Published> =
+    Either.catch { get() }.mapLeft { thrown -> PublishFailed(record, (thrown as? ExecutionException)?.cause ?: thrown) }

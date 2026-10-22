@@ -15,6 +15,7 @@ backends and test support described there apply here too.
 |---|---|---|
 | `Kafka.consume(…)…runCommitting()` | once the record's element reaches the end of the stream | at least once: a crash or restart before the commit handles the record again |
 | `…publishRecord(producer) { … }.runCommitting()` | once the output is acknowledged by the broker, in order | at least once: an output can be written twice |
+| `…publishBatch(producer) { … }.absolve().runCommitting()` | once the output is acknowledged, up to the first that failed | at least once: the failed record and those after it are sent again |
 | `…transacted(producer) { … }` | in the same Kafka transaction as the outputs | exactly once for consumers reading with `isolation.level=read_committed`, with one caveat at the end of a run (see [Exactly once](#exactly-once-in-a-transaction)) |
 
 Handlers should be idempotent wherever the guarantee is at least once.
@@ -99,6 +100,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
 | `absolve()` | the first `Left` ends the run `Failed` |
 | `publishTo(producer) { a -> record }`, `publishRecord(producer) { value -> record }` | each element sent, and passed on in order once the broker has it; see below |
+| `publishBatch(producer) { value -> record }` | each batch sent through `producer.publishAll`, and each record passed on as `Committed<Either<PublishFailed, A>>`; see [What happens when a write in a batch fails](#what-happens-when-a-write-in-a-batch-fails) |
 | `transacted(producer) { value -> records }`, `runTransactionally(...)` | each batch's outputs and offsets in one transaction; see *Exactly once* |
 | `runCommitting()` / `runCommitting(settings)` | the run, committing each offset once its record's element reaches the end; `runCollect`, `runFold` and `runWith` over `Committed` do not compile, and each source's records end on their own one |
 
@@ -172,6 +174,43 @@ Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value 
   bytes and headers, plus `lark.dead-letter.topic`, `.partition`, `.offset`,
   `.part` and `.cause`. It returns once the letter is acknowledged, so the bad
   record is never committed past a letter that was not written.
+
+## What happens when a write in a batch fails
+
+`publishRecord` fails the stream when the producer gives up on a record.
+`publishBatch` hands the outcome to the stream instead, one per record, so
+what comes after picks what to do:
+
+```kotlin
+import io.github.matthewjones372.lark.kafka.absolve
+import io.github.matthewjones372.lark.kafka.publishBatch
+
+Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), value = carts)
+    .mapRecord { cart -> cart.value().checkout() }
+    .publishBatch(orders) { order -> Topic("orders").record(order.id, order) }
+    .absolve()                          // or .divertLefts { failed -> ... }
+    .runCommitting()
+```
+
+- **A batch is up to 500 records, or what came within 100 ms**, sent by
+  `producer.publishAll(records)`. Each record is handed to the producer
+  without waiting on the one before, and one batch is in flight at a time.
+- **Once a record fails, the rest of its batch is not sent.** Each comes back
+  `PublishFailed` with a `PublishOmitted` cause, whose own cause is the first
+  failure, so the outputs keep their order. A record already handed to the
+  producer when the failure is seen keeps its own outcome, and may be
+  written. In practice omission is for a failure `send` sees at once, such as
+  a record too large or a serializer that throws; one the broker answers
+  later usually arrives after the whole batch was handed over.
+- **Offsets move up to the first failure.** Each record reaches
+  `runCommitting` on its own, in order. `absolve()` ends the run `Failed`
+  with the `PublishFailed`, and only the records before it are committed: a
+  restart sends the failed record and everything after it again.
+- **`divertLefts` goes on past it**, to dead-letter or to skip. The failed
+  and omitted records are handed to its function, and their offsets commit
+  with the next record written on their partition.
+- **The producer has already retried** what it could, for up to
+  `delivery.timeout.ms`, so a `Left` is final.
 
 ## Exactly once, in a transaction
 
