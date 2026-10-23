@@ -13,6 +13,12 @@ import java.util.concurrent.CompletionStage
 fun <E, A : Any, B : Any> Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B> =
     via(Pipe.mapAsync(parallelism, f))
 
+/** As [mapAsync], but each result passes on as soon as its stage completes (spec 0170), Pekko's name and order. */
+fun <E, A : Any, B : Any> Stream<E, A>.mapAsyncUnordered(
+    parallelism: Int,
+    f: (A) -> CompletionStage<B>,
+): Stream<E, B> = via(Pipe.mapAsyncUnordered(parallelism, f))
+
 /** A backlog collapsed into one element while downstream is busy, and nothing dropped to do it. */
 fun <E, A : Any, S : Any> Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S> =
     via(Pipe.conflateWithSeed(seed, aggregate))
