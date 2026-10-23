@@ -64,7 +64,9 @@ class LarkEngine : TestEngine {
                                 report.started(test)
                                 started.countDown()
                                 val (result, lines) = capturingLogs { logs ->
-                                    capturingMetrics { outcomeOf { registered.body(shared) } } to logs.all()
+                                    capturingMetrics {
+                                        outcomeOf { registered.body(shared).verify(test.displayName) }
+                                    } to logs.all()
                                 }
                                 report.finished(test, result, lines)
                             }

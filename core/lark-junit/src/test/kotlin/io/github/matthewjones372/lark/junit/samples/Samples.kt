@@ -7,6 +7,7 @@ import io.github.matthewjones372.lark.counter
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
 import io.github.matthewjones372.lark.readings
@@ -24,7 +25,7 @@ object MixedSuite : Suite<Unit>() {
     override val shared: Resource<Unit> = resource { }
 
     init {
-        test("passes") { }
+        test("passes") { expect(true) }
         test("fails an assertion") { throw AssertionError("expected 1 but was 2") }
         test("throws something else") { error("the database was not there") }
     }
@@ -39,9 +40,9 @@ object OrderedSuite : Suite<String>(limit = Limit.fixed(1)) {
     }
 
     init {
-        test("first") { db -> seen += "first $db" }
-        test("second") { db -> seen += "second $db" }
-        test("third") { db -> seen += "third $db" }
+        test("first") { db -> expect(seen.add("first $db")) }
+        test("second") { db -> expect(seen.add("second $db")) }
+        test("third") { db -> expect(seen.add("third $db")) }
     }
 }
 
@@ -55,8 +56,8 @@ object UnacquirableSuite : Suite<String>() {
     }
 
     init {
-        test("first never runs") { }
-        test("second never runs") { }
+        test("first never runs") { expect(true) }
+        test("second never runs") { expect(true) }
     }
 }
 
@@ -67,8 +68,8 @@ object UnreleasableSuite : Suite<Unit>() {
     }
 
     init {
-        test("passes first") { }
-        test("passes second") { }
+        test("passes first") { expect(true) }
+        test("passes second") { expect(true) }
     }
 }
 
@@ -88,7 +89,7 @@ object CountedSuite : Suite<Unit>(limit = Limit.fixed(8)) {
         (1..16).forEach { n ->
             test("counted $n") {
                 Thread.sleep(n * 5L)
-                finished.incrementAndGet()
+                expect(finished.incrementAndGet() > 0)
             }
         }
     }
@@ -105,7 +106,7 @@ object GatedSuite : Suite<CountDownLatch>(limit = Limit.fixed(8)) {
             test("gated $n") { gate ->
                 virtual["gated $n"] = Thread.currentThread().isVirtual
                 gate.countDown()
-                check(gate.await(10, TimeUnit.SECONDS)) { "only ${8 - gate.count} of 8 tests ran together" }
+                expect(gate.await(10, TimeUnit.SECONDS))
             }
         }
     }
@@ -118,7 +119,7 @@ object SequentialSuite : Suite<Unit>(concurrent = false) {
     override val shared: Resource<Unit> = resource { }
 
     init {
-        (1..8).forEach { n -> test("in turn $n") { seen += "in turn $n" } }
+        (1..8).forEach { n -> test("in turn $n") { expect(seen.add("in turn $n")) } }
     }
 }
 
@@ -137,7 +138,7 @@ object AloneSuite : Suite<Unit>(limit = Limit.fixed(8)) {
         gate.countDown()
         check(gate.await(10, TimeUnit.SECONDS)) { "$name ran without its partner" }
         seen += name
-        running.decrementAndGet()
+        expect(running.decrementAndGet() >= 0)
     }
 
     init {
@@ -147,7 +148,7 @@ object AloneSuite : Suite<Unit>(limit = Limit.fixed(8)) {
         test("alone", alone = true) {
             runningWhileAlone = running.incrementAndGet()
             seen += "alone"
-            running.decrementAndGet()
+            expect(running.decrementAndGet() == 0)
         }
         val after = CountDownLatch(2)
         together("after a", after)
@@ -160,9 +161,18 @@ object FailingSiblingSuite : Suite<CountDownLatch>(limit = Limit.fixed(3)) {
     override val shared: Resource<CountDownLatch> = resource { CountDownLatch(3) }
 
     init {
-        test("waits first") { gate -> gate.countDown().also { check(gate.await(10, TimeUnit.SECONDS)) } }
-        test("fails") { gate -> gate.countDown().also { error("failed alone") } }
-        test("waits second") { gate -> gate.countDown().also { check(gate.await(10, TimeUnit.SECONDS)) } }
+        test("waits first") { gate ->
+            gate.countDown()
+            expect(gate.await(10, TimeUnit.SECONDS))
+        }
+        test("fails") { gate ->
+            gate.countDown()
+            error("failed alone")
+        }
+        test("waits second") { gate ->
+            gate.countDown()
+            expect(gate.await(10, TimeUnit.SECONDS))
+        }
     }
 }
 
@@ -181,7 +191,10 @@ object LoggingSuite : Suite<CountDownLatch>(limit = Limit.fixed(4)) {
     init {
         failsTogether("fails first")
         failsTogether("fails second")
-        test("passes quietly") { logInfo("nobody should see this") }
+        test("passes quietly") {
+            logInfo("nobody should see this")
+            expect(true)
+        }
         test("fails after its fork logs") {
             flock<Nothing, Unit> { async { logInfo("logged from a fork") } }
             error("the fork's line is mine")
@@ -200,6 +213,7 @@ object MeteredSuite : Suite<CountDownLatch>(limit = Limit.fixed(2)) {
         gate.countDown()
         check(gate.await(10, TimeUnit.SECONDS)) { "$name ran without its partner" }
         totals[name] = readings("hits").filterIsInstance<Reading.Total>().sumOf { it.total }
+        expect(true)
     }
 
     init {
@@ -213,6 +227,25 @@ class NotAnObject : Suite<Unit>() {
     override val shared: Resource<Unit> = resource { }
 
     init {
-        test("never found") { }
+        test("never found") { expect(true) }
+    }
+}
+
+/** Expectations combined every way, each test named for how it should end. */
+object ExpectingSuite : Suite<Int>() {
+    override val shared: Resource<Int> = resource { 2 }
+
+    init {
+        test("passes both") { two -> expect(two == 2) and expect(two + two == 4) }
+        test("fails both") { two ->
+            expect(two == 3) and
+                expect(two + two == 5)
+        }
+        test("fails one of two") { two -> expect(two == 2) and expect(two == 3) }
+        test("passes either") { two -> expect(two == 3) or expect(two == 2) }
+        test("fails either") { two -> expect(two == 3) or expect(two == 4) }
+        test("fails a negated pass") { two -> !expect(two == 2) }
+        test("passes a negated failure") { two -> !expect(two == 3) }
+        test("throws before it expects") { error("no expectations reached") }
     }
 }

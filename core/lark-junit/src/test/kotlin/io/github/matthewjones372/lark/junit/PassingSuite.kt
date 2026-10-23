@@ -8,7 +8,7 @@ object PassingSuite : Suite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     init {
-        test("the shared value reaches the test") { two -> check(two == 2) }
-        test("a test that returns passes") { }
+        test("the shared value reaches the test") { two -> expect(two == 2) }
+        test("a test whose expectation holds passes") { expect(true) }
     }
 }

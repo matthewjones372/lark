@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.junit
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.samples.AloneSuite
 import io.github.matthewjones372.lark.junit.samples.CountedSuite
+import io.github.matthewjones372.lark.junit.samples.ExpectingSuite
 import io.github.matthewjones372.lark.junit.samples.FailingSiblingSuite
 import io.github.matthewjones372.lark.junit.samples.GatedSuite
 import io.github.matthewjones372.lark.junit.samples.LoggingSuite
@@ -16,6 +17,7 @@ import io.github.matthewjones372.lark.junit.samples.UnreleasableSuite
 import io.github.matthewjones372.lark.resource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -31,6 +33,8 @@ import org.junit.platform.testkit.engine.EngineExecutionResults
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.junit.platform.testkit.engine.EventType
 import org.junit.platform.testkit.engine.Events
+import org.opentest4j.AssertionFailedError
+import org.opentest4j.MultipleFailuresError
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 
@@ -166,6 +170,7 @@ class LarkEngineTest {
         suites.sorted() shouldBe listOf(
             "AloneSuite",
             "CountedSuite",
+            "ExpectingSuite",
             "FailingSiblingSuite",
             "GatedSuite",
             "Lark",
@@ -240,6 +245,52 @@ class LarkEngineTest {
         MeteredSuite.totals shouldContainExactly mapOf("counts one" to 1.0, "counts two" to 2.0)
     }
 
+    private fun failuresOf(events: EngineExecutionResults): Map<String, Throwable> =
+        events.testEvents().failed().list().associate {
+            it.testDescriptor.displayName to it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()
+        }
+
+    @Test
+    fun `two failing expectations are both reported, each at its own line, as one MultipleFailuresError`() {
+        val failed = failuresOf(run(selectClass(ExpectingSuite::class.java))).getValue("fails both")
+
+        val both = (failed as MultipleFailuresError).failures
+        both.map { it::class } shouldBe listOf(AssertionFailedError::class, AssertionFailedError::class)
+        both.map { it.message.orEmpty().lines().last().trim() } shouldBe listOf(
+            "expect(two == 3) and",
+            "expect(two + two == 5)",
+        )
+        both.map { it.stackTrace.first().fileName } shouldBe listOf("Samples.kt", "Samples.kt")
+        withClue("the second failure is on the line after the first") {
+            both[1].stackTrace.first().lineNumber shouldBe both[0].stackTrace.first().lineNumber + 1
+        }
+        failed.message.orEmpty() shouldContain "fails both"
+    }
+
+    @Test
+    fun `and, or and not pass and fail as their names say`() {
+        val events = run(selectClass(ExpectingSuite::class.java))
+
+        events.testEvents().succeeded().names() shouldContainExactlyInAnyOrder
+            listOf("passes both", "passes either", "passes a negated failure")
+        failuresOf(events).mapValues { (_, thrown) -> thrown::class } shouldContainExactly mapOf(
+            "fails both" to MultipleFailuresError::class,
+            "fails one of two" to AssertionFailedError::class,
+            "fails either" to MultipleFailuresError::class,
+            "fails a negated pass" to AssertionFailedError::class,
+            "throws before it expects" to IllegalStateException::class,
+        )
+    }
+
+    @Test
+    fun `a single failed expectation is reported alone, quoting the line that expected it`() {
+        val failed = failuresOf(run(selectClass(ExpectingSuite::class.java)))
+
+        failed.getValue("fails one of two").message.orEmpty().lines().last().trim() shouldBe
+            "test(\"fails one of two\") { two -> expect(two == 2) and expect(two == 3) }"
+        failed.getValue("fails a negated pass").message.orEmpty() shouldContain "!expect(two == 2)"
+    }
+
     @Test
     fun `two tests with one name are refused, because the name is the test's ID`() {
         val refused = shouldThrow<IllegalArgumentException> {
@@ -247,8 +298,8 @@ class LarkEngineTest {
                 override val shared: Resource<Unit> = resource { }
 
                 init {
-                    test("twice") { }
-                    test("twice") { }
+                    test("twice") { expect(true) }
+                    test("twice") { expect(true) }
                 }
             }
         }

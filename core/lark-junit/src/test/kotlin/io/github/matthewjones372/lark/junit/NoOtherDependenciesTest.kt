@@ -4,7 +4,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
 
-/** What this module may put on a consumer's classpath: lark, and the JUnit Platform's engine API with its own. */
+/** What this module may put on a consumer's classpath: lark, lark-assert, and the JUnit Platform's engine API. */
 class NoOtherDependenciesTest {
 
     private val allowed = listOf(
@@ -18,7 +18,7 @@ class NoOtherDependenciesTest {
     )
 
     @Test
-    fun `the main runtime classpath is lark and junit-platform-engine, and nothing else`() {
+    fun `the main runtime classpath is lark, lark-assert and junit-platform-engine, and nothing else`() {
         val raw = System.getProperty("lark.junit.runtimeClasspath")
             ?: error("the build must pass -Dlark.junit.runtimeClasspath; see core/lark-junit/build.gradle.kts")
 

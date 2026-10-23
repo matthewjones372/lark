@@ -7,34 +7,58 @@ import java.io.File
 // The file facades of this module's own checks, whose frames a failure leaves out.
 private const val OWN = "io.github.matthewjones372.lark.assert."
 
+// This file's facade, left out of a failure built for another module.
+private const val SELF = OWN + "MismatchKt"
+
 // Where a test's source is, relative to the directory Gradle runs a module's tests in.
 private val sourceRoots = listOf("src/test/kotlin", "src/test/java", "src/testFixtures/kotlin")
+
+/** A seam for lark's own modules that report a failed check as this module does. */
+@RequiresOptIn("A seam for lark's own modules that report a failed check as this module does.")
+@Retention(AnnotationRetention.BINARY)
+@Target(AnnotationTarget.FUNCTION)
+annotation class FailureSeam
 
 /**
  * Fails with what was expected, what was found, the line of the test that checked it and that line's source. The
  * stack starts at the test's own frame, so the line a runner or an IDE names first is the check, not this module.
  */
 @PublishedApi
+@OptIn(FailureSeam::class)
 internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null, cause: Throwable? = null): Nothing {
-    val frames = Thread.currentThread().stackTrace.dropWhile { frame ->
-        frame.className == Thread::class.java.name ||
-            (frame.className.startsWith(OWN) && frame.className.endsWith("Kt"))
-    }
     val (shownExpected, shownActual) = expectedText?.let { it to show(actual) } ?: shownApart(expected, actual)
-    val message = buildString {
-        appendLine("expected: $shownExpected")
-        append("but was:  $shownActual")
+    throw failureAt(
+        "expected: $shownExpected\nbut was:  $shownActual",
+        skipping = { it.className.startsWith(OWN) && it.className.endsWith("Kt") },
+    ) { message ->
+        when (expectedText) {
+            null -> AssertionFailedError(message, expected, actual, cause)
+            else -> AssertionFailedError(message, cause)
+        }
+    }
+}
+
+/**
+ * [failure] with [message], the line of the first frame not [skipping] and that line's source, its stack starting at
+ * that frame. That frame is the test's own when [skipping] matches every frame of the module checking.
+ */
+@FailureSeam
+fun failureAt(
+    message: String,
+    skipping: (StackTraceElement) -> Boolean,
+    failure: (String) -> AssertionFailedError = ::AssertionFailedError,
+): AssertionFailedError {
+    val frames = Thread.currentThread().stackTrace.dropWhile { frame ->
+        frame.className == Thread::class.java.name || frame.className == SELF || skipping(frame)
+    }
+    val located = buildString {
+        append(message)
         frames.firstOrNull()?.let { site ->
             append("\nat ${site.fileName}:${site.lineNumber}")
             sourceLine(site)?.let { append("\n    $it") }
         }
     }
-    val failure = when (expectedText) {
-        null -> AssertionFailedError(message, expected, actual, cause)
-        else -> AssertionFailedError(message, cause)
-    }
-    failure.stackTrace = frames.toTypedArray()
-    throw failure
+    return failure(located).also { it.stackTrace = frames.toTypedArray() }
 }
 
 /** Both values as they print, with their types added when the two would otherwise print alike. */
