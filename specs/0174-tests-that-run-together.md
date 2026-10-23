@@ -116,14 +116,8 @@ after another, and only the tests inside a suite run concurrently. 3. Shared res
 5. Revisit `lark-test`'s promise in a separate spec. 6. Decide on moving the repo's tests after a pilot
 in `lark-pekko`.
 
-Open (maintainer, 2026-10-23: expectations as values, as in ZIO Test, with a well-rendered error).
-
-7. **What renders a failure: power-assert, Lark's own compiler plugin, or typed matchers?** Recommend
-   power-assert. Users apply `kotlin("plugin.power-assert")` with `expect` listed in its functions.
-   The guide shows how, and without the plugin you still get the quoted source line.
-8. **How is a dropped expectation rejected?** Recommend Kotlin's return-value checker on
-   `Expectations` (`-Xreturn-value-checker`), which the build turns into an error. Is it still
-   experimental on 2.4.10? The `expectations` entry checks. If it is, detekt's `IgnoredReturnValue` rule is
-   the fallback.
-9. **Can a throwing `shouldBe` still appear inside a test?** Recommend yes, but it's reported as an
-   error that stops the test, so the guide steers to `expect`.
+Expectations as values (maintainer, 2026-10-23): as in ZIO Test, with a well-rendered error.
+7. power-assert renders failures. The guide shows `kotlin("plugin.power-assert")` with `expect` listed
+in its functions. 8. Kotlin's return-value checker rejects a dropped expectation, with detekt's
+`IgnoredReturnValue` as the fallback if the checker is still experimental on 2.4.10. 9. A throwing
+`shouldBe` is allowed, and is reported as an error.
