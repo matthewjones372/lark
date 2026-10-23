@@ -25,12 +25,25 @@ annotation class FailureSeam
  */
 @PublishedApi
 @OptIn(FailureSeam::class)
-internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null, cause: Throwable? = null): Nothing {
+internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null, cause: Throwable? = null): Nothing =
+    throw mismatchAt(expected, actual, ::isOwn, expectedText, cause)
+
+private fun isOwn(frame: StackTraceElement): Boolean = frame.className.startsWith(OWN) && frame.className.endsWith("Kt")
+
+/**
+ * The failure [mismatch] throws, built at the first frame not [skipping] and returned. [expected] and [actual] are
+ * carried for an IDE's diff unless [expectedText] stands in for what was expected.
+ */
+@FailureSeam
+fun mismatchAt(
+    expected: Any?,
+    actual: Any?,
+    skipping: (StackTraceElement) -> Boolean,
+    expectedText: String? = null,
+    cause: Throwable? = null,
+): AssertionFailedError {
     val (shownExpected, shownActual) = expectedText?.let { it to show(actual) } ?: shownApart(expected, actual)
-    throw failureAt(
-        "expected: $shownExpected\nbut was:  $shownActual",
-        skipping = { it.className.startsWith(OWN) && it.className.endsWith("Kt") },
-    ) { message ->
+    return failureAt("expected: $shownExpected\nbut was:  $shownActual", skipping) { message ->
         when (expectedText) {
             null -> AssertionFailedError(message, expected, actual, cause)
             else -> AssertionFailedError(message, cause)
@@ -39,13 +52,15 @@ internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null
 }
 
 /**
- * [failure] with [message], the line of the first frame not [skipping] and that line's source, its stack starting at
- * that frame. That frame is the test's own when [skipping] matches every frame of the module checking.
+ * [failure] with [message], the line of the first frame not [skipping] and, if [quoting], that line's source, its
+ * stack starting at that frame. That frame is the test's own when [skipping] matches every frame of the module
+ * checking.
  */
 @FailureSeam
 fun failureAt(
     message: String,
     skipping: (StackTraceElement) -> Boolean,
+    quoting: Boolean = true,
     failure: (String) -> AssertionFailedError = ::AssertionFailedError,
 ): AssertionFailedError {
     val frames = Thread.currentThread().stackTrace.dropWhile { frame ->
@@ -55,7 +70,7 @@ fun failureAt(
         append(message)
         frames.firstOrNull()?.let { site ->
             append("\nat ${site.fileName}:${site.lineNumber}")
-            sourceLine(site)?.let { append("\n    $it") }
+            if (quoting) sourceLine(site)?.let { append("\n    $it") }
         }
     }
     return failure(located).also { it.stackTrace = frames.toTypedArray() }
