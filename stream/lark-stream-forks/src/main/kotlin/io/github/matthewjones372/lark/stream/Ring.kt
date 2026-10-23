@@ -71,10 +71,11 @@ internal open class RingPadAfterHead : RingHead() {
  * A ring of [capacity] between one producer and one consumer (spec 0172), which wakes either side only when it
  * must: the consumer when the ring stops being empty, the producer once a batch of room has been made.
  *
- * Either side parks the same way: it names itself, fences, and looks once more before parking, so a wake can
- * only be missed if the other side's fence is missing too. The producer fences on every put, since one
- * element may be all the consumer gets for a long time. The consumer fences only where its index crosses a
- * multiple of the batch: a parked producer left the ring full, so the consumer crosses one before it empties.
+ * Either side yields a few times and then parks the same way: it names itself, fences, and looks once more
+ * before parking, so a wake can only be missed if the other side's fence is missing too. The producer fences
+ * on every put, since one element may be all the consumer gets for a long time. The consumer fences only where
+ * its index crosses a multiple of the batch: a parked producer left the ring full, so the consumer crosses one
+ * before it empties.
  */
 internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     init {
@@ -107,7 +108,11 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     fun awaitRoom() {
         if (Thread.interrupted()) throw InterruptedException()
         val t = tail
-        while (t - headSeen >= capacity && t - head.also { headSeen = it } >= capacity) parkUntilRoom(t)
+        var yielded = 0
+        while (t - headSeen >= capacity && t - head.also { headSeen = it } >= capacity) {
+            // As the consumer does on an empty ring: a park and an unpark cost more than the room takes to appear.
+            if (yielded++ < YIELDS_BEFORE_PARKING) Thread.yield() else parkUntilRoom(t)
+        }
     }
 
     /** Adds [element] after [awaitRoom] said there was room: it never waits, and an interrupt cannot lose it. */
