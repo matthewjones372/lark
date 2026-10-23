@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.left
-import arrow.core.right
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.capturingMetrics
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.logger
 import io.kotest.assertions.throwables.shouldThrow

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import arrow.core.right
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.JournalPruning
@@ -8,6 +7,8 @@ import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.events
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.remote.Node
+import io.github.matthewjones372.lark.fail.onLeft
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe

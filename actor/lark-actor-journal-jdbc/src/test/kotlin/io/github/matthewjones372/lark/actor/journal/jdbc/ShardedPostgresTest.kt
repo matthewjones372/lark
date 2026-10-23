@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import arrow.core.Either
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.PersistenceId
@@ -15,6 +14,7 @@ import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.snapshots
 import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder

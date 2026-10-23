@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.right
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.types.shouldBeSameInstanceAs

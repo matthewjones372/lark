@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import arrow.core.right
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.PersistenceId
@@ -22,6 +21,7 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.snapshots
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe

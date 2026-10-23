@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.actor
 
 import arrow.core.Option
-import arrow.core.left
 import arrow.core.none
-import arrow.core.right
 import arrow.core.some
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty

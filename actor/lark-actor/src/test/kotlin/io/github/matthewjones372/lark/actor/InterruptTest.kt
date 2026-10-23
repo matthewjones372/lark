@@ -26,7 +26,7 @@ private fun chores(log: AtomicReference<List<String>>) = behaviour<Chore, Unit, 
 
         is Fumble -> {
             message.raising.countDown()
-            raise("fumbled")
+            fail("fumbled")
         }
     }
 }.onSignal { _, _, signal ->

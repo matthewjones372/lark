@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote.avro
 
-import arrow.core.right
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Reply
@@ -16,6 +15,7 @@ import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe

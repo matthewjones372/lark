@@ -25,7 +25,7 @@ private fun register() = delivered(
         when (command) {
             is TillSale -> become(total + command.pence)
             is TillCash -> become(total + command.pence)
-            is TillStuck -> raise("stuck")
+            is TillStuck -> fail("stuck")
         }
     },
 )
@@ -37,7 +37,7 @@ private fun shutTill() = delivered(
             total != null && command is TillSale -> become(total + command.pence)
             command is TillSale -> stay().also { ctx.stash(command) }
             command is TillCash -> become((total ?: 0) + command.pence).also { ctx.unstashAll() }
-            else -> raise("stuck")
+            else -> fail("stuck")
         }
     },
 )

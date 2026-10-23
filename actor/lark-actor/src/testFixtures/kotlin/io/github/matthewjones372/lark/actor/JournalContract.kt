@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly

@@ -2,7 +2,6 @@
 
 package io.github.matthewjones372.lark.actor.remote.kotlinx
 
-import arrow.core.right
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.InMemoryJournal
@@ -24,6 +23,7 @@ import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.testActors
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe

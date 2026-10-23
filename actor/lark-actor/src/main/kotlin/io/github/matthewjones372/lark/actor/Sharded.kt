@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
 
 /**
  * Which of [COUNT] slices an id's events live in (spec 0088): murmur3 of `"kind|id"`. The count and the hash are fixed
