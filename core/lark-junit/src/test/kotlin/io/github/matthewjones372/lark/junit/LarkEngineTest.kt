@@ -145,7 +145,8 @@ class LarkEngineTest {
         val events = run(selectClass(UnacquirableSuite::class.java))
 
         val failed = events.testEvents().failed().list()
-        failed.map { it.testDescriptor.displayName } shouldBe listOf("first never runs", "second never runs")
+        // The suite's tests run concurrently, so they finish, and are reported, in either order.
+        failed.map { it.testDescriptor.displayName }.sorted() shouldBe listOf("first never runs", "second never runs")
         val causes = failed.map { it.getRequiredPayload(TestExecutionResult::class.java).throwable.get() }
         withClue("one throwable, handed to every test") { causes.toSet().size shouldBe 1 }
         causes.first().message shouldBe "no database"
@@ -157,7 +158,7 @@ class LarkEngineTest {
     fun `a release that throws fails the suite and leaves its tests' results as they were`() {
         val events = run(selectClass(UnreleasableSuite::class.java))
 
-        events.testEvents().succeeded().names() shouldBe listOf("passes first", "passes second")
+        events.testEvents().succeeded().names().sorted() shouldBe listOf("passes first", "passes second")
         val suite = events.containerEvents().failed().list().single()
         suite.testDescriptor.displayName shouldBe "UnreleasableSuite"
         suite.getRequiredPayload(TestExecutionResult::class.java).throwable.get().message shouldBe "could not close"
