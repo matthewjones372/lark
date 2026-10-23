@@ -86,7 +86,7 @@ class LarkEngine : TestEngine {
     }
 }
 
-/** Forks report from their own threads, and a listener need not be thread-safe. JDK 21 pins on `synchronized`. */
+/** Forks report from their own threads, and a listener need not be thread-safe. */
 private class Report(private val listener: EngineExecutionListener) {
     private val lock = ReentrantLock()
 
