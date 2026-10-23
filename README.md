@@ -115,7 +115,9 @@ sends them to the backend a service already uses.
 **Tests that do not wait.** [Testing utilities](docs/testing.md) include
 `TestClock`, `story { Given / When / Then }`, `eventually`, `testApp` for a
 subgraph, actor tests that step on the calling thread, and a stream backend
-on a test clock.
+on a test clock. [`lark-junit`](#tests-that-run-together) runs a suite's tests
+concurrently on virtual threads, shares one resource across them, and reports
+to Gradle, the IDE and CI as JUnit does.
 
 ### How the pieces fit
 
@@ -161,6 +163,7 @@ your classpath, and which are unpublished.
 | `lark-kafka` | Kafka as a `Stream`, producers and transactions ([guide](docs/kafka.md)) | `kafka-clients` |
 | `lark-slf4j`, `lark-micrometer`, `lark-otel` | logs, metrics and traces to an existing backend ([guide](docs/observability.md)) | the library named |
 | `lark-test` | `story` and `eventually` for service tests ([guide](docs/testing.md)) | nothing |
+| `lark-junit` | suites whose tests run together, expectations as values, aspects ([guide](docs/testing.md#suites)) | `junit-platform-engine` |
 
 "Adds" is the external dependency a module brings beyond the Lark modules it
 builds on. Each module has a `NoOtherDependenciesTest` that checks its runtime
@@ -257,6 +260,76 @@ one more line, for example
 [module guide](docs/modules.md) has the coordinates, what each module brings,
 and how to use a snapshot or a local build.
 
+## Tests that run together
+
+`lark-junit` is a JUnit Platform engine, so its suites run beside JUnit
+Jupiter tests in the same `test` task, and Gradle's XML reports, the IDE and CI
+read the results unchanged.
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    testImplementation("io.github.matthewjones372:lark-junit:0.10.1")
+}
+
+tasks.test { useJUnitPlatform() }
+```
+
+A suite is an `object`. It acquires its `shared` resource once and hands it to
+every test, and its tests run concurrently, each on its own virtual thread,
+under the suite's `Limit`. A test returns what its checks found as a value, so
+a test that checks nothing does not compile, and every failed check is
+reported rather than only the first. A test's logs are printed only if it
+fails.
+
+<!-- readme-junit-suite -->
+```kotlin
+import io.github.matthewjones372.lark.Limit
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.flaky
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.tag
+import io.github.matthewjones372.lark.resource
+import java.util.concurrent.ConcurrentHashMap
+
+// Stands in for a database: started once for the suite, closed after its last test.
+class Inventory : AutoCloseable {
+    private val stock = ConcurrentHashMap<String, Int>()
+
+    fun add(item: String, count: Int) {
+        stock.merge(item, count, Int::plus)
+    }
+
+    fun count(item: String): Int = stock[item] ?: 0
+
+    override fun close() = stock.clear()
+}
+
+object InventorySuite : Suite<Inventory>(limit = Limit.fixed(8), aspects = tag("db")) {
+    override val shared: Resource<Inventory> = resource { install({ Inventory() }) { db, _ -> db.close() } }
+
+    init {
+        test("stock adds up") { db ->
+            db.add("apples", 2)
+            db.add("apples", 3)
+            (db.count("apples") shouldBe 5) and expect(db.count("pears") == 0)
+        }
+        test("a missing item has none", flaky(3)) { db -> db.count("plums") shouldBe 0 }
+    }
+}
+```
+
+With Kotlin's power-assert plugin applied to the test source set, a failed
+`expect` draws the value of each part of its expression; a failed `shouldBe`
+carries expected and actual, so IntelliJ opens its diff. Compile tests with
+`-Xreturn-value-checker=check` and `allWarningsAsErrors`, so that an
+expectation built and then dropped fails the build. The
+[testing guide](docs/testing.md#suites) covers the shared resource, running a
+test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
+`tag` and `ignore`.
+
 ## Where next
 
 **Evaluating Lark**
@@ -284,7 +357,8 @@ and how to use a snapshot or a local build.
   shared journal, read models, reliable delivery and topics.
 - [Kafka](docs/kafka.md): consuming, committing, producing and transactions.
 - [Observability](docs/observability.md): logs, metrics and traces.
-- [Testing](docs/testing.md): the test utilities in one place.
+- [Testing](docs/testing.md): the test utilities in one place, and
+  `lark-junit` suites.
 
 **Writing code with an agent.** [`llms.txt`](llms.txt) summarises what Lark
 ships and which call to use for a task. In Claude Code, the Lark plugin loads

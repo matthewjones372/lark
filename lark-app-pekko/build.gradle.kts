@@ -37,6 +37,7 @@ val documentedRecipes = files(
     rootProject.layout.projectDirectory.file("docs/core.md"),
     rootProject.layout.projectDirectory.file("docs/observability.md"),
     rootProject.layout.projectDirectory.file("docs/testing.md"),
+    rootProject.layout.projectDirectory.file("README.md"),
 )
 
 tasks.test {
