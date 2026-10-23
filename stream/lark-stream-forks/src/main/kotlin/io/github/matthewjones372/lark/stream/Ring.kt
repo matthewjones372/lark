@@ -26,6 +26,9 @@ internal open class RingPadBeforeTail {
 internal open class RingTail : RingPadBeforeTail() {
     @Volatile @JvmField
     var tail = 0L
+
+    // The producer's last sight of the consumer's index, kept off the consumer's line for the same reason.
+    @JvmField var headSeen = 0L
 }
 
 @Suppress("unused")
@@ -48,6 +51,9 @@ internal open class RingPadBeforeHead : RingTail() {
 internal open class RingHead : RingPadBeforeHead() {
     @Volatile @JvmField
     var head = 0L
+
+    // The consumer's last sight of the producer's index, kept off the producer's line for the same reason.
+    @JvmField var tailSeen = 0L
 }
 
 @Suppress("unused")
@@ -87,10 +93,6 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     // A quarter of the ring, but never so much that a wide window idles: with 10,000 calls in flight, waiting
     // for 2,500 to finish before starting more costs a quarter of the concurrency the caller asked for.
     private val batchMask = Integer.highestOneBit(maxOf(1, minOf(capacity / BATCHES, MAX_BATCH))).toLong() - 1
-
-    // Each side's last sight of the other's index, re-read only when it seems to have run out.
-    private var headSeen = 0L
-    private var tailSeen = 0L
 
     @Volatile private var parkedProducer: Thread? = null
 
