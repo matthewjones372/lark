@@ -8,6 +8,7 @@ Spec [0154](../specs/0154-kafka-faster-than-the-java-client.md) reports against 
 ```bash
 ./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"   # ~20 minutes
 ./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 3 -i 5 -r 1 -w 1 -t 1 -f 2 .*ProcessingBenchmarks.*"
+./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 3 -i 5 -r 1 -w 1 -t 1 -f 2 .*PublishBenchmarks.*"
 ./gradlew :lark-kafka-benchmarks:timelines     # one stamped run of each consumer, to build/timelines.json
 ./gradlew :lark-kafka-benchmarks:experiments   # a fresh consumer's join, polls, commits and close, timed
 ```
@@ -70,6 +71,20 @@ With `mapParPartitioned`, a result waits only behind its own partition's. Measur
 
 Interleaved and skewed, it takes a third off `larkMapPar` and runs 3.6× as fast as the hand-written loop. Fetched
 whole, a slow partition is one run of records with nothing behind it to let through, and every row is the same.
+
+`PublishBenchmarks` sends 20k records of 512 bytes to a topic of its own, at most 1,000 waiting on the broker at
+once: `publishTo`, which is `mapAsync` over the producer's futures, against the Java producer bounded by a
+`Semaphore` released in its callback. Added after the baseline, and measured on the same machine before and after
+spec 0172 (which rebuilt Forks' `mapAsync` and `mapPar` windows), two rounds each, in ms/op:
+
+| Row | before 0172 | after 0172 |
+|---|---|---|
+| `javaProducer` | 1,019 / 1,026 | 1,103 / 936 |
+| `larkPublishTo` | 942 / 1,119 | 1,066 / 954 |
+
+Both run at the broker's pace, about 20k records a second here, and lark is level with the Java producer. Spec
+0172 moved none of this module's rows outside the noise between rounds, which the Java rows show is ±10–15% on a
+shared machine: a poll, a commit or the broker, not the hand-off inside the stream, is what a Kafka pipeline waits on.
 
 What the rows say:
 
