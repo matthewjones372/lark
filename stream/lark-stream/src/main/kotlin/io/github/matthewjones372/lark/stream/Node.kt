@@ -157,6 +157,8 @@ sealed interface Node {
         val parallelism: Int,
         val f: (Any) -> CompletionStage<Any>,
         val at: String,
+        /** False passes each answer on as it completes (spec 0170); a backend may still keep order. */
+        val ordered: Boolean = true,
     ) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
@@ -213,6 +215,8 @@ sealed interface Node {
         val at: String,
         /** Null keeps the input's order; otherwise only elements with the same key keep theirs. */
         val key: ((Any) -> Any)? = null,
+        /** False passes each answer on as it completes (spec 0170); a backend may still keep order. */
+        val ordered: Boolean = true,
     ) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
