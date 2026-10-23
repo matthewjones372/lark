@@ -6,13 +6,13 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import org.junit.jupiter.api.Test
 import java.io.File
 
-/** What this module may put on a consumer's classpath, stated as a test: lark, and nothing else. */
+/** What this module may put on a consumer's classpath, stated as a test: lark and opentest4j, and nothing else. */
 class NoOtherDependenciesTest {
 
-    private val allowed = listOf("kotlin-stdlib", "annotations-", "arrow-", "lark")
+    private val allowed = listOf("kotlin-stdlib", "annotations-", "arrow-", "lark", "opentest4j")
 
     @Test
-    fun `the main runtime classpath is lark, and nothing else`() {
+    fun `the main runtime classpath is lark and opentest4j, and nothing else`() {
         val raw = System.getProperty("lark.assert.runtimeClasspath")
         withClue("the build must pass -Dlark.assert.runtimeClasspath; see core/lark-assert/build.gradle.kts") {
             raw.shouldNotBeNull()
@@ -22,7 +22,7 @@ class NoOtherDependenciesTest {
             .filter { it.isNotBlank() }
             .filterNot { entry -> allowed.any { entry.startsWith(it) } }
 
-        withClue("lark-assert must stay lark alone, but found: $unexpected") {
+        withClue("lark-assert must stay lark and opentest4j, but found: $unexpected") {
             unexpected.shouldBeEmpty()
         }
     }

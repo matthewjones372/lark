@@ -1,0 +1,65 @@
+package io.github.matthewjones372.lark.assert
+
+import io.github.matthewjones372.lark.fail.Either
+import org.opentest4j.AssertionFailedError
+import java.io.File
+
+// The file facades of this module's own checks, whose frames a failure leaves out.
+private const val OWN = "io.github.matthewjones372.lark.assert."
+
+// Where a test's source is, relative to the directory Gradle runs a module's tests in.
+private val sourceRoots = listOf("src/test/kotlin", "src/test/java", "src/testFixtures/kotlin")
+
+/**
+ * Fails with what was expected, what was found, the line of the test that checked it and that line's source. The
+ * stack starts at the test's own frame, so the line a runner or an IDE names first is the check, not this module.
+ */
+internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null): Nothing {
+    val frames = Thread.currentThread().stackTrace.dropWhile { frame ->
+        frame.className == Thread::class.java.name ||
+            (frame.className.startsWith(OWN) && frame.className.endsWith("Kt"))
+    }
+    val (shownExpected, shownActual) = expectedText?.let { it to show(actual) } ?: shownApart(expected, actual)
+    val message = buildString {
+        appendLine("expected: $shownExpected")
+        append("but was:  $shownActual")
+        frames.firstOrNull()?.let { site ->
+            append("\nat ${site.fileName}:${site.lineNumber}")
+            sourceLine(site)?.let { append("\n    $it") }
+        }
+    }
+    val failure = if (expectedText ==
+        null
+    ) AssertionFailedError(message, expected, actual) else AssertionFailedError(message)
+    failure.stackTrace = frames.toTypedArray()
+    throw failure
+}
+
+/** Both values as they print, with their types added when the two would otherwise print alike. */
+private fun shownApart(expected: Any?, actual: Any?): Pair<String, String> =
+    if (show(expected) != show(actual) || typeOf(expected) == typeOf(actual)) {
+        show(expected) to show(actual)
+    } else {
+        "${show(expected)} of ${typeOf(expected)}" to "${show(actual)} of ${typeOf(actual)}"
+    }
+
+private fun show(value: Any?): String = value.toString()
+
+/** The type that tells two alike-printing values apart: an Either's is the type of what it holds. */
+private fun typeOf(value: Any?): String = when (value) {
+    is Either.Right<*> -> typeOf(value.value)
+    is Either.Left<*> -> typeOf(value.value)
+    null -> "null"
+    else -> value::class.qualifiedName ?: value.javaClass.name
+}
+
+/** The trimmed source of [site]'s line, when the test's source is where Gradle runs it from. */
+private fun sourceLine(site: StackTraceElement): String? {
+    val file = site.fileName ?: return null
+    val directory = site.className.substringBeforeLast('.', "").replace('.', '/')
+    return sourceRoots.asSequence()
+        .map { File(it, "$directory/$file") }
+        .firstOrNull(File::isFile)
+        ?.useLines { lines -> lines.drop(site.lineNumber - 1).firstOrNull() }
+        ?.trim()
+}
