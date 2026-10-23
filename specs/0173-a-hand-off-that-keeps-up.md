@@ -39,7 +39,8 @@ one first.
 
 ## Stack
 
-- [x] **`spec-0173-handoff-keeps-up`** — the changes above, with the benchmark row before and after each one.
+- [x] **`spec-0173-handoff-keeps-up`** ([#493](https://github.com/matthewjones372/lark/pull/493)) — the changes above,
+      with the benchmark row before and after each one.
       Done when: `HandOffBenchmark.bufferForks` and blocking-vs-reactive's hand-off row are within 2× of Reactor's
       25 ms, or the PR says what is left and why.
 
