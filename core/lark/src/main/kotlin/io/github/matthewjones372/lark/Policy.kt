@@ -147,21 +147,25 @@ private fun <E, A> Raise<E>.runPolicy(policy: Policy, block: Raise<E>.() -> A): 
     var outcome: Pair<String, String>? = "failure" to "none"
     try {
         return from(policy, 0, Budget(null), block).also { outcome = "success" to "none" }
-    } catch (rejected: Rejected) {
-        outcome = "rejected" to rejected.refusedBy
-        throw rejected
-    } catch (passed: DeadlinePassed) {
-        outcome = "rejected" to "deadline"
-        throw passed
-    } catch (passing: Throwable) {
-        if (passing is CancellationException || passing is Failed) outcome = null
-        throw passing
+    } catch (thrown: Throwable) {
+        outcome = outcomeOf(thrown)
+        throw thrown
     } finally {
         outcome?.let { (result, by) ->
             counter("lark.policy.calls", "policy" to policy.name, "outcome" to result, "refused_by" to by).increment()
         }
     }
 }
+
+/** What a call that threw is counted as; nothing for a raise or a fail. */
+private fun outcomeOf(thrown: Throwable): Pair<String, String>? = when (thrown) {
+    is Rejected -> "rejected" to thrown.refusedBy
+    is DeadlinePassed -> "rejected" to "deadline"
+    is CancellationException, is Failed -> null
+    else -> "failure" to "none"
+}
+
+private fun Throwable.isNonFatal(): Boolean = this !is Failed && NonFatal(this)
 
 private val Rejected.refusedBy: String
     get() = when (this) {
@@ -204,10 +208,8 @@ private fun <E, A> Raise<E>.through(breaker: CircuitBreaker, budget: Budget, blo
     try {
         return block().also { result = CircuitBreaker.Result.SUCCESS }
     } catch (thrown: Throwable) {
-        // NonFatal is false for a raise and an interrupt as well as for what the JVM cannot recover from.
-        if (thrown !is Failed && NonFatal(thrown) &&
-            breaker.countsAsFailure(thrown)
-        ) result = CircuitBreaker.Result.FAILURE
+        // Not for a raise, a fail or an interrupt, nor for what the JVM cannot recover from.
+        if (thrown.isNonFatal() && breaker.countsAsFailure(thrown)) result = CircuitBreaker.Result.FAILURE
         throw thrown
     } finally {
         breaker.record(admitted, result)
