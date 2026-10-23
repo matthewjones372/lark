@@ -106,18 +106,21 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
 
     /** Waits while the ring is full. Throws [InterruptedException] if interrupted, whether it had to wait or not. */
     fun put(element: Any) {
-        awaitRoom()
+        // As the consumer does on an empty ring: a park and an unpark cost more than the room takes to appear.
+        awaitRoom(YIELDS_BEFORE_PARKING)
         offer(element)
     }
 
-    /** Waits while the ring is full, for a producer that must know there is room before it makes the element. */
-    fun awaitRoom() {
+    /**
+     * Waits while the ring is full, for a producer that must know there is room before it makes the element. A
+     * window's room comes only as its bodies finish, so it parks at once rather than [yields] first.
+     */
+    fun awaitRoom(yields: Int = 0) {
         if (Thread.interrupted()) throw InterruptedException()
         val t = tail
         var yielded = 0
         while (t - headSeen >= capacity && t - head.also { headSeen = it } >= capacity) {
-            // As the consumer does on an empty ring: a park and an unpark cost more than the room takes to appear.
-            if (yielded++ < YIELDS_BEFORE_PARKING) Thread.yield() else parkUntilRoom(t)
+            if (yielded++ < yields) Thread.yield() else parkUntilRoom(t)
         }
     }
 
