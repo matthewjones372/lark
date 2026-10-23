@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream.actors
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.stream.Actors
 import io.github.matthewjones372.lark.stream.Exit
@@ -51,7 +52,7 @@ class ActorsTest {
                 .run(Actors(this, batch = 7)).toCompletableFuture().join()
         }
 
-        exit.getOrNull() shouldBe Exit.Done((1..1_000).map { it * 2 }.filter { it % 3 == 0 }.sum())
+        exit shouldBeRight Exit.Done((1..1_000).map { it * 2 }.filter { it % 3 == 0 }.sum())
     }
 
     @Test
@@ -81,7 +82,7 @@ class ActorsTest {
             short to actors.running
         }
 
-        answer.getOrNull() shouldBe (Exit.Done(listOf(1, 2, 3)) to 0)
+        answer shouldBeRight (Exit.Done(listOf(1, 2, 3)) to 0)
     }
 
     @Test
@@ -104,7 +105,7 @@ class ActorsTest {
             running.exit.toCompletableFuture().join() to actors.running
         }
 
-        answer.getOrNull() shouldBe (Exit.Done(listOf(1, 2)) to 0)
+        answer shouldBeRight (Exit.Done(listOf(1, 2)) to 0)
     }
 
     @Test
@@ -122,7 +123,7 @@ class ActorsTest {
             }.runCollect().run(Actors(this)).toCompletableFuture().join()
         }
 
-        exit.getOrNull() shouldBe Exit.Done((1..9).map { it * 10 })
+        exit shouldBeRight Exit.Done((1..9).map { it * 10 })
         most.get() shouldBe 3
     }
 
@@ -232,7 +233,7 @@ class ActorsTest {
             Triple(ticks, groups, restarted)
         }
 
-        exits.getOrNull() shouldBe Triple(
+        exits shouldBeRight Triple(
             Exit.Done(listOf("tick", "tick", "tick")),
             Exit.Done(listOf(listOf(1, 2), listOf(3, 4), listOf(5))),
             Exit.Done(listOf(1)),

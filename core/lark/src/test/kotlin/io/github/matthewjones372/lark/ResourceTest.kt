@@ -2,6 +2,8 @@ package io.github.matthewjones372.lark
 
 import arrow.core.left
 import arrow.core.raise.either
+import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
@@ -83,7 +85,7 @@ class ResourceTest {
             "returned"
         }
 
-        outcome.getOrNull() shouldBe "returned"
+        outcome shouldBeRight "returned"
         val cancelled = exit.get().shouldBeInstanceOf<ExitCase.Cancelled>()
         withClue("interrupt is the only cancellation the JDK has, so Cancelled carries one") {
             cancelled.interrupt.shouldNotBeNull()
@@ -205,7 +207,7 @@ class ResourceTest {
             }
         }
 
-        failed.leftOrNull() shouldBe Bad("declared")
+        failed shouldBeLeft Bad("declared")
         exit.get() shouldBe ExitCase.Completed
     }
 }

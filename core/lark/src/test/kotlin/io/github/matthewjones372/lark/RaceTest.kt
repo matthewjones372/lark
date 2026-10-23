@@ -3,6 +3,8 @@ package io.github.matthewjones372.lark
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -28,7 +30,7 @@ class RaceTest {
         }
         val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
 
-        raced.getOrNull() shouldBe 42.right()
+        raced shouldBeRight 42.right()
         loser.wasInterrupted() shouldBe true
         withClue("the winner interrupts the loser, so the race cannot have waited out its sleep") {
             (elapsedMillis < PROMPT_MILLIS) shouldBe true
@@ -50,7 +52,7 @@ class RaceTest {
             )
         }
 
-        raced.leftOrNull() shouldBe Bad("broken")
+        raced shouldBeLeft Bad("broken")
         sleeper.wasInterrupted() shouldBe true
         sleeper.isAlive() shouldBe false
     }
@@ -70,7 +72,7 @@ class RaceTest {
                 { third.losingWith(false) },
             )
         }
-        firstWon.getOrNull() shouldBe "won".left()
+        firstWon shouldBeRight "won".left()
 
         val firstOfThree = Sleeper()
         val thirdOfThree = Sleeper()
@@ -85,7 +87,7 @@ class RaceTest {
                 { thirdOfThree.losingWith(false) },
             )
         }
-        secondWon.getOrNull() shouldBe 42.left().right()
+        secondWon shouldBeRight 42.left().right()
 
         val firstLoser = Sleeper()
         val secondLoser = Sleeper()
@@ -100,7 +102,7 @@ class RaceTest {
                 },
             )
         }
-        thirdWon.getOrNull() shouldBe true.right().right()
+        thirdWon shouldBeRight true.right().right()
     }
 
     @Test
@@ -124,7 +126,7 @@ class RaceTest {
             )
         }
 
-        raced.getOrNull() shouldBe "won".right()
+        raced shouldBeRight "won".right()
         withClue("a scope that returns with a loser still running is a leak") {
             loser.get().shouldNotBeNull().isAlive shouldBe false
         }

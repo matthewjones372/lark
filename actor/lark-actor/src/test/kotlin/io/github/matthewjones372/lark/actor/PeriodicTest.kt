@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
@@ -191,6 +192,6 @@ class PeriodicTest {
             }
         }
 
-        heard.getOrNull() shouldBe listOf("tick", "tick", "hush").right()
+        heard shouldBeRight listOf("tick", "tick", "hush").right()
     }
 }

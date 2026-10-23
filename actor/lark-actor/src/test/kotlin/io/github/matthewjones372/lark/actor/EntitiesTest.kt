@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.right
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.collections.shouldContainExactly
@@ -180,7 +181,7 @@ class EntitiesTest {
             }
         }
 
-        seen.getOrNull() shouldBe (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right())
+        seen shouldBeRight (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right())
     }
 
     /** An entity whose first message holds its step until [open], then keeps every number it is told, in order. */

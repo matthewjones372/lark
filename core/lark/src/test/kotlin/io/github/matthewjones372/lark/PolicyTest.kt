@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark
 import arrow.core.left
 import arrow.core.raise.Raise
 import arrow.core.raise.either
+import io.github.matthewjones372.lark.assert.shouldBeLeft
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -167,7 +168,7 @@ class PolicyTest {
                 attempts.incrementAndGet()
                 fail(Bad("declared"))
             }
-        }.leftOrNull() shouldBe Bad("declared")
+        } shouldBeLeft Bad("declared")
 
         attempts.get() shouldBe 1
     }

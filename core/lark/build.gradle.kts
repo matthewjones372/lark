@@ -2,6 +2,7 @@
 // nothing else, which is what NoOtherDependenciesTest asserts: a fork answers
 // with an Either, so nothing here needs to know what is being served.
 dependencies {
+    testImplementation(project(":lark-assert"))
     api("io.arrow-kt:arrow-core:2.1.2")
 
     // Test only: larkFuture's cancel has to reach lark from a coroutine awaiting it with kotlinx's own

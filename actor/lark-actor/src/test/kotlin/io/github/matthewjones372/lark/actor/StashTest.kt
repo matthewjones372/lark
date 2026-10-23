@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -107,7 +108,7 @@ class StashTest {
             phone.ask(1.minutes) { Transcript(it) }
         }
 
-        heard.getOrNull() shouldBe listOf(1, 2, 99).right()
+        heard shouldBeRight listOf(1, 2, 99).right()
     }
 
     @Test
@@ -118,6 +119,6 @@ class StashTest {
             phone.ask(1.minutes) { Transcript(it) }
         }
 
-        heard.getOrNull() shouldBe AskFailure.Stopped.left()
+        heard shouldBeRight AskFailure.Stopped.left()
     }
 }

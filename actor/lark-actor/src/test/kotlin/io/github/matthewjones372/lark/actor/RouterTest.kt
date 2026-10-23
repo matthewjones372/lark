@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
@@ -150,7 +151,7 @@ class RouterTest {
         }
 
         val routee2 = "/user/pool/routee-2".right()
-        answers.getOrNull() shouldBe listOf(routee2, Unit, routee2, routee2)
+        answers shouldBeRight listOf(routee2, Unit, routee2, routee2)
         served["/user/pool/routee-1"] shouldBe listOf("fills routee-1")
     }
 }

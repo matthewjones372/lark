@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.collections.shouldContainExactly
@@ -165,7 +166,7 @@ class PersistentTest {
             }
         }
 
-        weight.getOrNull() shouldBe 75.right()
+        weight shouldBeRight 75.right()
         journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25))
     }
 
@@ -185,7 +186,7 @@ class PersistentTest {
             second.ask(1.minutes) { Weigh(it) }
         }
 
-        weight.getOrNull() shouldBe 60.right()
+        weight shouldBeRight 60.right()
         journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(10))
     }
 }

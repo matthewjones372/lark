@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
 import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -62,7 +63,7 @@ class JournalTest {
             diary.ask(1.minutes) { Written(it) }
         }
 
-        written.getOrNull() shouldBe listOf("one", "two").right()
+        written shouldBeRight listOf("one", "two").right()
     }
 
     @Test

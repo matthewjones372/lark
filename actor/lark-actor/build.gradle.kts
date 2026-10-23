@@ -7,6 +7,7 @@ plugins {
 }
 
 dependencies {
+    testImplementation(project(":lark-assert"))
     api(project(":lark"))
 
     testFixturesApi("org.junit.jupiter:junit-jupiter-api:6.1.3")

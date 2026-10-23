@@ -2,6 +2,8 @@ package io.github.matthewjones372.lark
 
 import arrow.core.raise.ensure
 import io.github.matthewjones372.lark.Start.Lazy
+import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.left
@@ -31,7 +33,7 @@ class FlockTest {
             first.await() + second.await()
         }
 
-        sum shouldBe 42.right()
+        sum shouldBeRight 42
     }
 
     @Test
@@ -45,7 +47,7 @@ class FlockTest {
             value
         }
 
-        result shouldBe Bad("forked").left()
+        result shouldBeLeft Bad("forked")
         withClue("await() must leave the block by raising, not return to it") {
             afterTheAwait.get() shouldBe false
         }
@@ -88,7 +90,7 @@ class FlockTest {
         }
         val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
 
-        result shouldBe "returned".right()
+        result shouldBeRight "returned"
         sleeper.wasInterrupted() shouldBe true
         withClue("close interrupts, so flock cannot have waited out the fork's sleep") {
             (elapsedMillis < PROMPT_MILLIS) shouldBe true
@@ -113,7 +115,7 @@ class FlockTest {
             "returned"
         }
 
-        result shouldBe "returned".right()
+        result shouldBeRight "returned"
         interruptedAtCancel.get() shouldBe true
         withClue("cancel returns only once the fork it stopped has ended") {
             aliveAtCancel.get() shouldBe false
@@ -136,7 +138,7 @@ class FlockTest {
             "returned"
         }
 
-        result shouldBe "returned".right()
+        result shouldBeRight "returned"
     }
 
     @Test
@@ -147,7 +149,7 @@ class FlockTest {
             "returned"
         }
 
-        result shouldBe "returned".right()
+        result shouldBeRight "returned"
     }
 
     @Test
@@ -162,7 +164,7 @@ class FlockTest {
             sibling.await()
         }
 
-        result shouldBe 42.right()
+        result shouldBeRight 42
         sleeper.wasInterrupted() shouldBe true
     }
 
@@ -175,7 +177,7 @@ class FlockTest {
             "returned"
         }
 
-        result shouldBe "returned".right()
+        result shouldBeRight "returned"
         withClue("a scope that closes must not wait on a fork that never ran") {
             ran.get() shouldBe false
         }
@@ -185,7 +187,7 @@ class FlockTest {
     fun `a lazy fork runs when it is awaited`() {
         val result = flock<Bad, Int> { async(start = Lazy) { 42 }.await() }
 
-        result shouldBe 42.right()
+        result shouldBeRight 42
     }
 
     @Test
@@ -199,8 +201,8 @@ class FlockTest {
             "returned"
         }
 
-        lazily shouldBe "returned".right()
-        eagerly shouldBe Bad("forked").left()
+        lazily shouldBeRight "returned"
+        eagerly shouldBeLeft Bad("forked")
     }
 
     @Test
@@ -212,7 +214,7 @@ class FlockTest {
             counted.await() + counted.await()
         }
 
-        result shouldBe 2.right()
+        result shouldBeRight 2
         runs.get() shouldBe 1
     }
 
@@ -226,7 +228,7 @@ class FlockTest {
             "returned"
         }
 
-        result shouldBe "returned".right()
+        result shouldBeRight "returned"
         ran.get() shouldBe false
     }
 
@@ -237,7 +239,7 @@ class FlockTest {
             "returned anyway"
         }
 
-        result shouldBe Bad("orphan").left()
+        result shouldBeLeft Bad("orphan")
     }
 
     @Test
@@ -276,7 +278,7 @@ class FlockTest {
         }
 
         withClue("start order, not finishing order, names the scope's failure") {
-            result shouldBe Bad("first").left()
+            result shouldBeLeft Bad("first")
         }
     }
 
@@ -293,7 +295,7 @@ class FlockTest {
             outer.await() to inner.isAlive()
         }
 
-        outcome shouldBe ("outer done" to false).right()
+        outcome shouldBeRight ("outer done" to false)
         inner.wasInterrupted() shouldBe true
     }
 
@@ -307,7 +309,7 @@ class FlockTest {
             raise(Bad("caller"))
         }
 
-        result shouldBe Bad("caller").left()
+        result shouldBeLeft Bad("caller")
         sleeper.wasInterrupted() shouldBe true
         sleeper.isAlive() shouldBe false
     }
@@ -320,12 +322,12 @@ class FlockTest {
             value * 2
         }
 
-        bound shouldBe 42.right()
-        flock<Bad, Int> { broken.bind() } shouldBe Bad("bound").left()
+        bound shouldBeRight 42
+        flock<Bad, Int> { broken.bind() } shouldBeLeft Bad("bound")
         flock<Bad, Int> {
             ensure(false) { Bad("ensured") }
             1
-        } shouldBe Bad("ensured").left()
+        } shouldBeLeft Bad("ensured")
     }
 
     @Test
@@ -338,8 +340,8 @@ class FlockTest {
             }.await()
         }
 
-        bound shouldBe 42.right()
-        flock<Bad, Int> { async { broken.bind() }.await() } shouldBe Bad("bound").left()
+        bound shouldBeRight 42
+        flock<Bad, Int> { async { broken.bind() }.await() } shouldBeLeft Bad("bound")
     }
 
     @Test
@@ -364,7 +366,7 @@ class FlockTest {
             "done"
         }
 
-        closed shouldBe "done".right()
+        closed shouldBeRight "done"
         ran shouldBe listOf("second, answered 42", "first", "fork interrupted")
     }
 
@@ -414,7 +416,7 @@ class FlockTest {
             7
         }
 
-        closed shouldBe 7.right()
+        closed shouldBeRight 7
         ran shouldBe listOf("earlier")
     }
 
