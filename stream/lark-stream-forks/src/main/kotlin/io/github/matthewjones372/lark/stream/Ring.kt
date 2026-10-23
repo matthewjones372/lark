@@ -82,7 +82,10 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     }
 
     private val slots = arrayOfNulls<Any>(capacity)
-    private val batchMask = (Integer.highestOneBit(maxOf(1, capacity / BATCHES))).toLong() - 1
+
+    // A quarter of the ring, but never so much that a wide window idles: with 10,000 calls in flight, waiting
+    // for 2,500 to finish before starting more costs a quarter of the concurrency the caller asked for.
+    private val batchMask = Integer.highestOneBit(maxOf(1, minOf(capacity / BATCHES, MAX_BATCH))).toLong() - 1
 
     // Each side's last sight of the other's index, re-read only when it seems to have run out.
     private var headSeen = 0L
@@ -96,9 +99,21 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
 
     /** Waits while the ring is full. Throws [InterruptedException] if interrupted, whether it had to wait or not. */
     fun put(element: Any) {
+        awaitRoom()
+        offer(element)
+    }
+
+    /** Waits while the ring is full, for a producer that must know there is room before it makes the element. */
+    fun awaitRoom() {
         if (Thread.interrupted()) throw InterruptedException()
         val t = tail
         while (t - headSeen >= capacity && t - head.also { headSeen = it } >= capacity) parkUntilRoom(t)
+    }
+
+    /** Adds [element] after [awaitRoom] said there was room: it never waits, and an interrupt cannot lose it. */
+    fun offer(element: Any) {
+        val t = tail
+        check(t - head < capacity) { "offer without room" }
         slots[slot(t)] = element
         TAIL.setRelease(this, t + 1)
         VarHandle.fullFence()
@@ -109,14 +124,23 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     }
 
     /** Waits while the ring is empty. Throws [InterruptedException] if interrupted, whether it had to wait or not. */
-    fun take(): Any {
+    fun take(): Any = awaitHead().also { poll() }
+
+    /** The next element, left in the ring and so still counted against its capacity, waiting while there is none. */
+    fun awaitHead(): Any {
         if (Thread.interrupted()) throw InterruptedException()
         var yielded = 0
         while (true) {
-            poll()?.let { return it }
+            peek()?.let { return it }
             // A yield lets a producer on the same carrier run, and is far cheaper than a park and an unpark.
             if (yielded++ < YIELDS_BEFORE_PARKING) Thread.yield() else parkUntilNotEmpty()
         }
+    }
+
+    /** The next element, left in the ring, or `null` at once if the ring is empty. */
+    fun peek(): Any? {
+        val h = head
+        return if (h >= tailSeen && h >= tail.also { tailSeen = it }) null else slots[slot(h)]
     }
 
     private fun parkUntilRoom(t: Long) {
@@ -155,6 +179,7 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
 
     private companion object {
         const val BATCHES = 4
+        const val MAX_BATCH = 64
         const val YIELDS_BEFORE_PARKING = 4
 
         val TAIL: VarHandle =

@@ -5,7 +5,6 @@ import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.Semaphore
 
 /** How the stream a feeding fork read ended: marked in its queue after the last thing it started. */
@@ -14,6 +13,13 @@ internal sealed interface Fed {
 
     class Threw(val thrown: Throwable) : Fed
 }
+
+/**
+ * How often a pull yields before it parks on a body or stage that is not done yet. The head of a wide window is
+ * usually moments from done, and a few yields cost far less than the park and the unpark from whichever thread
+ * completes it.
+ */
+internal const val YIELDS_BEFORE_WAITING = 4
 
 /** An element and the stage the caller started for it. */
 private class Started(val element: Any, val stage: CompletableFuture<Any?>)
@@ -24,15 +30,17 @@ private class Started(val element: Any, val stage: CompletableFuture<Any?>)
  * even while upstream waits for the next element: a source that blocks, a Kafka consumer on a quiet topic
  * among them, waits for as long as it is quiet. A stage that fails is the defect `mapAsync` names, and one
  * that completes with `null` is too, as on Pekko. The run interrupts the fork and waits for it when it ends.
+ *
+ * The started stages wait in a [Ring] of [window]: the head leaves it only once it has answered, so the ring's
+ * capacity is the window, and the fork is woken for room a batch at a time rather than once per answer.
  */
 internal fun Node.MapAsync.fed(window: Int, releases: Releases?): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()
-    val room = Semaphore(window)
-    val started = LinkedBlockingQueue<Any>()
+    val started = Ring(window)
     val fork = InFlight(releases?.on ?: VirtualThreads) {
         Releases.within(releases) {
-            feed(up, room, started) { a ->
+            feed(up, started) { a ->
                 @Suppress("UNCHECKED_CAST")
                 Started(a, (start(a) as CompletionStage<Any?>).toCompletableFuture())
             }
@@ -42,10 +50,36 @@ internal fun Node.MapAsync.fed(window: Int, releases: Releases?): Pull {
     var ended = false
     return Pull {
         if (ended) return@Pull null
-        when (val next = started.take()) {
+        when (val next = started.awaitHead()) {
             Fed.Done -> null.also { ended = true }
             is Fed.Threw -> throw next.thrown.also { ended = true }
-            else -> answered(next as Started).also { room.release() }
+            else -> answered(next as Started).also { started.poll() }
+        }
+    }
+}
+
+/**
+ * Upstream's elements, each started by [start] once the ring has room for it, then how upstream ended. The
+ * room is waited for before upstream is pulled, so nothing is started that the window has no place for, and
+ * `offer` cannot be cut short by an interrupt, so nothing started is lost before the run can let go of it.
+ */
+// The catch is as wide as a pipeline: whatever upstream threw is the pull's to throw, after what came first.
+@Suppress("TooGenericExceptionCaught")
+internal fun feed(up: Pull, started: Ring, start: (Any) -> Any) {
+    try {
+        while (true) {
+            started.awaitRoom()
+            started.offer(start(up.next() ?: break))
+        }
+        started.offer(Fed.Done)
+    } catch (_: InterruptedException) {
+        // Let go of by the run: nothing reads what would have come next.
+    } catch (thrown: Throwable) {
+        try {
+            started.awaitRoom()
+            started.offer(Fed.Threw(thrown))
+        } catch (_: InterruptedException) {
+            // The run let go while this waited for room: nobody reads the failure either.
         }
     }
 }
@@ -74,6 +108,8 @@ internal fun feed(up: Pull, room: Semaphore, started: BlockingQueue<Any>, start:
 
 /** The stage's value, waited on, or the defect it failed with. */
 private fun Node.MapAsync.answered(next: Started): Any {
+    var yielded = 0
+    while (!next.stage.isDone && yielded++ < YIELDS_BEFORE_WAITING) Thread.yield()
     val b = try {
         next.stage.get()
     } catch (failed: ExecutionException) {
