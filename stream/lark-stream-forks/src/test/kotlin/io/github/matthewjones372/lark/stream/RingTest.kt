@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.LockSupport
 
 /** One producer and one consumer across a ring that wakes either side only when it has to. */
 class RingTest {
@@ -45,18 +46,20 @@ class RingTest {
 
     @Test
     fun `a producer runs ahead by the capacity and no further`() {
-        val ring = Ring(4)
-        val put = AtomicInteger()
-        val producer = Thread.ofVirtual().start {
-            repeat(10) {
-                ring.put(it)
-                put.incrementAndGet()
+        for (capacity in listOf(3, 4, 5)) {
+            val ring = Ring(capacity)
+            val put = AtomicInteger()
+            val producer = Thread.ofVirtual().start {
+                repeat(10) {
+                    ring.put(it)
+                    put.incrementAndGet()
+                }
             }
-        }
-        waitUntilParked(producer)
+            waitUntilParked(producer)
 
-        put.get() shouldBe 4
-        List(10) { ring.take() } shouldBe List(10) { it }
+            withClue("capacity $capacity") { put.get() shouldBe capacity }
+            List(10) { ring.take() } shouldBe List(10) { it }
+        }
     }
 
     @Test
@@ -78,6 +81,30 @@ class RingTest {
 
         produced.get(GENEROUS_SECONDS, TimeUnit.SECONDS)
         taken shouldBe List(100) { it }
+    }
+
+    @Test
+    fun `no wake-up is lost while each side keeps running dry and parking`() {
+        for (capacity in listOf(1, 2, 64)) {
+            val ring = Ring(capacity)
+            val count = 20_000
+            // Each side pauses now and then, so the other finds the ring empty or full and parks, over and over.
+            onVirtualThread {
+                repeat(count) {
+                    if (it % PRODUCER_PAUSES_EVERY == 0) LockSupport.parkNanos(PAUSE_NANOS)
+                    ring.put(it)
+                }
+            }
+            val taken = onVirtualThread {
+                List(count) {
+                    if (it % CONSUMER_PAUSES_EVERY == 0) LockSupport.parkNanos(PAUSE_NANOS)
+                    ring.take()
+                }
+            }
+            withClue("capacity $capacity") {
+                taken.get(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe List(count) { it }
+            }
+        }
     }
 
     @Test
@@ -125,5 +152,8 @@ class RingTest {
 
     private companion object {
         const val GENEROUS_SECONDS = 30L
+        const val PAUSE_NANOS = 20_000L
+        const val PRODUCER_PAUSES_EVERY = 7
+        const val CONSUMER_PAUSES_EVERY = 11
     }
 }
