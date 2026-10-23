@@ -185,6 +185,7 @@ class LarkEngineTest {
             "PartlyTaggedSuite",
             "SequentialSuite",
             "TaggedSuite",
+            "TimingSuite",
             "UnacquirableSuite",
             "UnreleasableSuite",
             "WrappedSuite",

@@ -1,6 +1,14 @@
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.retry
+import io.github.matthewjones372.lark.retryOrElse
+import io.github.matthewjones372.lark.timeout
 import org.junit.platform.engine.TestTag
+import kotlin.time.Duration
+
+/** Runs the test it is handed, and may publish a key and value to the test's report. */
+internal typealias Around = (report: (key: String, value: String) -> Unit, test: () -> Unit) -> Unit
 
 /**
  * Something said about how a test runs, given beside its name or to a [Suite] for each of its tests. In `a + b`,
@@ -11,21 +19,25 @@ class Aspect internal constructor(
     internal val tags: Set<TestTag> = emptySet(),
     internal val ignored: String? = null,
     internal val alone: Boolean = false,
-    private val arounds: List<(() -> Unit) -> Unit> = emptyList(),
+    private val arounds: List<Around> = emptyList(),
 ) {
 
     /** Both sides' tags, `alone` if either is, and ignored for the outer side's reason before the inner's. */
     operator fun plus(inner: Aspect): Aspect =
         Aspect(tags + inner.tags, ignored ?: inner.ignored, alone || inner.alone, arounds + inner.arounds)
 
-    /** Runs [test] inside every around, the leftmost outermost. */
-    internal fun run(test: () -> Unit) = arounds.foldRight(test) { around, inner -> { around(inner) } }()
+    /** Runs [test] inside every around, the leftmost outermost, handing each [report]. */
+    internal fun run(report: (key: String, value: String) -> Unit = { _, _ -> }, test: () -> Unit) =
+        arounds.foldRight(test) { around, inner -> { around(report, inner) } }()
 
     internal companion object {
         val none = Aspect()
 
         /** Runs a test through [around], which is handed the test to call. */
-        fun around(around: (() -> Unit) -> Unit) = Aspect(arounds = listOf(around))
+        fun around(around: (() -> Unit) -> Unit) = reporting { _, test -> around(test) }
+
+        /** The same, handed as well a way to publish to the test's report. */
+        fun reporting(around: Around) = Aspect(arounds = listOf(around))
     }
 }
 
@@ -37,3 +49,35 @@ fun ignore(why: String): Aspect = Aspect(ignored = why)
 
 /** Nothing else in the suite runs beside the test: it waits for those registered before it, and later ones wait. */
 val alone: Aspect = Aspect(alone = true)
+
+/** Runs the test up to [attempts] times, until one passes, and reports how many it took. */
+fun flaky(attempts: Int): Aspect {
+    require(attempts >= 1) { "flaky needs at least one attempt, not $attempts" }
+    return Aspect.reporting { report, test ->
+        var taken = 0
+        try {
+            Schedule.recurs<Throwable>(attempts - 1L).retry {
+                taken++
+                test()
+            }
+        } finally {
+            report("attempts", "$taken of $attempts")
+        }
+    }
+}
+
+/** Runs the test [runs] times, and fails on the first run that fails, naming it. */
+fun nonFlaky(runs: Int): Aspect {
+    require(runs >= 1) { "nonFlaky needs at least one run, not $runs" }
+    return Aspect.around { test ->
+        for (run in 1..runs) {
+            // Done at the first throw, so this is a catch that, like flaky's retry, passes interrupts through.
+            Schedule.recurs<Throwable>(0).retryOrElse(test) { failure, _ ->
+                throw AssertionError("run $run of $runs failed: ${failure.message}", failure)
+            }
+        }
+    }
+}
+
+/** Fails the test if it runs longer than [duration], interrupting it; the failure names [duration]. */
+fun timeout(duration: Duration): Aspect = Aspect.around { test -> timeout(duration, test) }

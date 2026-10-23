@@ -4,14 +4,19 @@ import io.github.matthewjones372.lark.junit.samples.IgnoringSuite
 import io.github.matthewjones372.lark.junit.samples.MixedSuite
 import io.github.matthewjones372.lark.junit.samples.PartlyTaggedSuite
 import io.github.matthewjones372.lark.junit.samples.TaggedSuite
+import io.github.matthewjones372.lark.junit.samples.TimingSuite
 import io.github.matthewjones372.lark.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.lark.junit.samples.WrappedSuite
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.Filter
+import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.TestTag
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
+import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.launcher.TagFilter.excludeTags
 import org.junit.platform.launcher.TagFilter.includeTags
 import org.junit.platform.testkit.engine.EngineTestKit
@@ -82,5 +87,23 @@ class AspectEngineTest {
 
         WrappedSuite.seen.toList() shouldBe
             listOf("suite in", "left in", "right in", "test", "right out", "left out", "suite out")
+    }
+
+    @Test
+    fun `timing aspects report a retried pass as passed with its attempts, and a failing run by its number`() {
+        val events = EngineTestKit.engine("lark").selectors(selectClass(TimingSuite::class.java)).execute()
+        val tests = events.testEvents()
+        val failures = tests.failed().list().associate {
+            it.testDescriptor.displayName to it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()
+        }
+        val attempts = events.allEvents().reportingEntryPublished().list().associate {
+            it.testDescriptor.displayName to it.getRequiredPayload(ReportEntry::class.java).keyValuePairs["attempts"]
+        }
+
+        tests.succeeded().names() shouldBe listOf("passes on its third attempt")
+        attempts shouldBe mapOf("passes on its third attempt" to "3 of 3", "fails both of its attempts" to "2 of 2")
+        failures.keys shouldBe setOf("fails both of its attempts", "fails one run in 10", "sleeps past its timeout")
+        failures.getValue("fails one run in 10").message shouldStartWith "run 7 of 50 failed: "
+        failures.getValue("sleeps past its timeout").message shouldContain "100ms"
     }
 }
