@@ -121,7 +121,7 @@ class WatchTest {
             lookout.ask(1.minutes) { Seen(it) }
         }
 
-        seen shouldBe 1.right().right()
+        seen.getOrNull() shouldBe 1.right()
     }
 
     @Test
@@ -146,7 +146,7 @@ class WatchTest {
             worker.ask(1.minutes) { _: Reply<Unit> -> Leave }
         }
 
-        heard shouldBe AskFailure.Stopped.left().right()
+        heard.getOrNull() shouldBe AskFailure.Stopped.left()
         stopping.get() shouldBe listOf("stopping")
     }
 
@@ -164,7 +164,7 @@ class WatchTest {
             lookout.ask(1.minutes) { Seen(it) }
         }
 
-        seen shouldBe 1.right().right()
+        seen.getOrNull() shouldBe 1.right()
     }
 
     @Test

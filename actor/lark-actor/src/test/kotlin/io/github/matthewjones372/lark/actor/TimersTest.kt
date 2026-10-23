@@ -194,7 +194,7 @@ class TimersTest {
             }
         }
 
-        heard shouldBe (emptyList<String>().right() to listOf("wake").right()).right()
+        heard.getOrNull() shouldBe (emptyList<String>().right() to listOf("wake").right())
     }
 
     @Test
@@ -207,7 +207,7 @@ class TimersTest {
             alarm.heard()
         }
 
-        heard shouldBe listOf("second").right().right()
+        heard.getOrNull() shouldBe listOf("second").right()
     }
 
     @Test
@@ -219,6 +219,6 @@ class TimersTest {
             alarm.ask(1.minutes) { Rung(1, it) }
         }
 
-        heard shouldBe listOf("sooner").right().right()
+        heard.getOrNull() shouldBe listOf("sooner").right()
     }
 }

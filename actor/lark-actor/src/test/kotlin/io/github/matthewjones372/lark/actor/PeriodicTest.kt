@@ -191,6 +191,6 @@ class PeriodicTest {
             }
         }
 
-        heard shouldBe listOf("tick", "tick", "hush").right().right()
+        heard.getOrNull() shouldBe listOf("tick", "tick", "hush").right()
     }
 }

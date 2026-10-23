@@ -109,7 +109,7 @@ class AvroTest {
                 desk.ask(1.minutes) { Price(Placed("o-1", 500), it) }
             }
 
-            answer shouldBe 600L.right().right()
+            answer.getOrNull() shouldBe 600L.right()
         } finally {
             done.countDown()
             pricing.join()

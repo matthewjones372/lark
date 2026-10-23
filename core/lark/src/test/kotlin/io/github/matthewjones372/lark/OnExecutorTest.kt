@@ -48,7 +48,7 @@ class OnExecutorTest {
                 ) { first, second -> first to second }
             }
 
-            names shouldBe (ONE_THREAD to ONE_THREAD).right()
+            names.getOrNull() shouldBe (ONE_THREAD to ONE_THREAD)
         }
     }
 
@@ -62,7 +62,7 @@ class OnExecutorTest {
                 scoped.await() to named.await()
             }
 
-            names shouldBe (ONE_THREAD to ONE_THREAD).right()
+            names.getOrNull() shouldBe (ONE_THREAD to ONE_THREAD)
         }
     }
 
@@ -77,7 +77,7 @@ class OnExecutorTest {
                 "returned"
             }
 
-            returned shouldBe "returned".right()
+            returned.getOrNull() shouldBe "returned"
             sleeper.wasInterrupted() shouldBe true
             val next = CompletableFuture<Boolean>()
             single.execute { next.complete(Thread.currentThread().isInterrupted) }
@@ -108,7 +108,7 @@ class OnExecutorTest {
                 )
             }
 
-            raced shouldBe "won".right().right()
+            raced.getOrNull() shouldBe "won".right()
             loser.wasInterrupted() shouldBe true
             ran shouldContainExactly listOf(TWO_THREADS, TWO_THREADS)
             val next = CompletableFuture<Boolean>()
@@ -123,8 +123,8 @@ class OnExecutorTest {
             parZip({ Thread.currentThread().isVirtual }, { Thread.currentThread().isVirtual }) { a, b -> a to b }
         }
 
-        zipped shouldBe (true to true).right()
+        zipped.getOrNull() shouldBe (true to true)
         parMap(listOf(1, 2)) { Thread.currentThread().isVirtual } shouldContainExactly listOf(true, true)
-        flock<Bad, Boolean> { async { Thread.currentThread().isVirtual }.await() } shouldBe true.right()
+        flock<Bad, Boolean> { async { Thread.currentThread().isVirtual }.await() }.getOrNull() shouldBe true
     }
 }

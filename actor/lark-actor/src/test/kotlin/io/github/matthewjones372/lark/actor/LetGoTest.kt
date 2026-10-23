@@ -104,7 +104,7 @@ class LetGoTest {
             parent.childCount
         }
 
-        parent shouldBe 0.right()
+        parent.getOrNull() shouldBe 0
     }
 
     @Test
@@ -114,7 +114,7 @@ class LetGoTest {
             actorCount
         }
 
-        held shouldBe 0.right()
+        held.getOrNull() shouldBe 0
     }
 
     @Test
@@ -133,6 +133,6 @@ class LetGoTest {
             }
         }
 
-        seen shouldBe (1.right() to 1).right()
+        seen.getOrNull() shouldBe (1.right() to 1)
     }
 }

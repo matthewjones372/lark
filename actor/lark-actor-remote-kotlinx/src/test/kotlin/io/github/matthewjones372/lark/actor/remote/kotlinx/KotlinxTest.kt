@@ -176,7 +176,7 @@ class KotlinxTest {
                     .remote(Address("till@127.0.0.1:$port", "/user/till", 0), quote)
                 till.ask(1.minutes) { Quote(Till.Paid(Pence(21), "q"), it) }
             }
-            answer shouldBe 42L.right().right()
+            answer.getOrNull() shouldBe 42L.right()
         } finally {
             done.countDown()
             tillNode.join()

@@ -107,7 +107,7 @@ class StashTest {
             phone.ask(1.minutes) { Transcript(it) }
         }
 
-        heard shouldBe listOf(1, 2, 99).right().right()
+        heard.getOrNull() shouldBe listOf(1, 2, 99).right()
     }
 
     @Test
@@ -118,6 +118,6 @@ class StashTest {
             phone.ask(1.minutes) { Transcript(it) }
         }
 
-        heard shouldBe AskFailure.Stopped.left().right()
+        heard.getOrNull() shouldBe AskFailure.Stopped.left()
     }
 }

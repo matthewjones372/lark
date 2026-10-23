@@ -138,7 +138,7 @@ class PersistentBatchTest {
             // The confirmations are tells to another actor, and a close drops what it has not handled yet.
             batchTill.ask(1.minutes) { BatchCount(it) }.also { awaitIdle() }
         }
-        counted shouldBe Either.Right(Either.Right(15))
+        counted.getOrNull() shouldBe Either.Right(15)
         journal.events(batchTillId, batchPence) shouldContainExactly listOf(10, 5)
         withClue("every delivery is confirmed, the duplicate included") { confirmed.size shouldBe 3 }
     }
@@ -196,7 +196,7 @@ class PersistentBatchTest {
             batchTill.tell(BatchRing(10))
             batchTill.ask(1.minutes) { BatchCount(it) }
         }
-        counted shouldBe Either.Right(Either.Right(10))
+        counted.getOrNull() shouldBe Either.Right(10)
         journal.events(batchTillId, batchPence) shouldContainExactly listOf(10)
     }
 }

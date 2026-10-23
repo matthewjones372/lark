@@ -122,7 +122,6 @@ private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : F
 
     override fun raise(r: E): Nothing = owner.fail(r)
 
-
     // Only the scope's own thread reaches this: a fork body is handed a nest of its own.
     private val forks = mutableListOf<Fork<E, *>>()
 

@@ -35,8 +35,8 @@ class SnapshotsTest {
             spawn("which", which()).ask(1.minutes) { Which(it) }
         }
 
-        given shouldBe store.right().right()
-        none shouldBe "none".right().right()
+        given.getOrNull() shouldBe store.right()
+        none.getOrNull() shouldBe "none".right()
     }
 
     @Test

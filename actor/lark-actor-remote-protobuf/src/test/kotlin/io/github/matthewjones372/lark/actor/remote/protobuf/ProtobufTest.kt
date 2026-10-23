@@ -127,7 +127,7 @@ class ProtobufTest {
                 desk.ask(1.minutes) { Quote(text("apples"), it) }
             }
 
-            answer shouldBe 600L.right().right()
+            answer.getOrNull() shouldBe 600L.right()
         } finally {
             done.countDown()
             prices.join()

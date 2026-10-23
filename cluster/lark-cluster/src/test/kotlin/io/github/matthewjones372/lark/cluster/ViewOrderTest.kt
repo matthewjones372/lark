@@ -44,6 +44,6 @@ class ViewOrderTest {
             !wokeEarly && viewerDone.get()
         }
 
-        wokeAfterViewer shouldBe true.right()
+        wokeAfterViewer.getOrNull() shouldBe true
     }
 }

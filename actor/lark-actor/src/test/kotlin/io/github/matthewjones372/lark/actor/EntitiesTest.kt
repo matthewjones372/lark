@@ -147,7 +147,8 @@ class EntitiesTest {
             }
         }
 
-        weights shouldBe Triple(listOf("bo stopped", "rex stopped"), ("rex" to 0).right(), ("bo" to 1).right()).right()
+        weights.getOrNull() shouldBe
+            Triple(listOf("bo stopped", "rex stopped"), ("rex" to 0).right(), ("bo" to 1).right())
     }
 
     @Test
@@ -179,7 +180,7 @@ class EntitiesTest {
             }
         }
 
-        seen shouldBe (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right()).right()
+        seen.getOrNull() shouldBe (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right())
     }
 
     /** An entity whose first message holds its step until [open], then keeps every number it is told, in order. */

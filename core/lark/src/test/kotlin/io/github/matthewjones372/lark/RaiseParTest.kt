@@ -6,8 +6,6 @@ import arrow.core.raise.Raise
 import arrow.core.raise.either
 import arrow.core.right
 import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.left as larkLeft
-import io.github.matthewjones372.lark.fail.right as larkRight
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -16,6 +14,8 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicReference
+import io.github.matthewjones372.lark.fail.left as larkLeft
+import io.github.matthewjones372.lark.fail.right as larkRight
 
 private data class User(val name: String)
 

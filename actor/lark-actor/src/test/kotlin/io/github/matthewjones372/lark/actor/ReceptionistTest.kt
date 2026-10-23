@@ -130,6 +130,6 @@ class ReceptionistTest {
             Triple(found == setOf(wicket), find(Wickets), usher.ask(1.minutes) { Sizes(it) })
         }
 
-        heard shouldBe Triple(true, emptySet<ActorRef<Wicket>>(), listOf(0, 1, 0).right()).right()
+        heard.getOrNull() shouldBe Triple(true, emptySet<ActorRef<Wicket>>(), listOf(0, 1, 0).right())
     }
 }

@@ -84,7 +84,7 @@ class ResourceTest {
             "returned"
         }
 
-        outcome shouldBe "returned".right()
+        outcome.getOrNull() shouldBe "returned"
         val cancelled = exit.get().shouldBeInstanceOf<ExitCase.Cancelled>()
         withClue("interrupt is the only cancellation the JDK has, so Cancelled carries one") {
             cancelled.interrupt.shouldNotBeNull()

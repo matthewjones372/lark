@@ -165,7 +165,7 @@ class PersistentTest {
             }
         }
 
-        weight shouldBe 75.right().right()
+        weight.getOrNull() shouldBe 75.right()
         journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25))
     }
 
@@ -185,7 +185,7 @@ class PersistentTest {
             second.ask(1.minutes) { Weigh(it) }
         }
 
-        weight shouldBe 60.right().right()
+        weight.getOrNull() shouldBe 60.right()
         journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(10))
     }
 }

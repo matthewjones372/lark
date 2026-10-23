@@ -62,7 +62,7 @@ class JournalTest {
             diary.ask(1.minutes) { Written(it) }
         }
 
-        written shouldBe listOf("one", "two").right().right()
+        written.getOrNull() shouldBe listOf("one", "two").right()
     }
 
     @Test

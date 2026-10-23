@@ -256,7 +256,7 @@ class ScheduleTest {
             }
             started.await()
             "returned"
-        } shouldBe "returned".right()
+        }.getOrNull() shouldBe "returned"
 
         withClue("the delay is waited on the calling thread, so an interrupt lands in it") {
             interrupted.get() shouldBe true

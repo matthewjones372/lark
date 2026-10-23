@@ -28,7 +28,7 @@ class RaceTest {
         }
         val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
 
-        raced shouldBe 42.right().right()
+        raced.getOrNull() shouldBe 42.right()
         loser.wasInterrupted() shouldBe true
         withClue("the winner interrupts the loser, so the race cannot have waited out its sleep") {
             (elapsedMillis < PROMPT_MILLIS) shouldBe true
@@ -50,7 +50,7 @@ class RaceTest {
             )
         }
 
-        raced shouldBe Bad("broken").left()
+        raced.leftOrNull() shouldBe Bad("broken")
         sleeper.wasInterrupted() shouldBe true
         sleeper.isAlive() shouldBe false
     }
@@ -70,7 +70,7 @@ class RaceTest {
                 { third.losingWith(false) },
             )
         }
-        firstWon shouldBe "won".left().right()
+        firstWon.getOrNull() shouldBe "won".left()
 
         val firstOfThree = Sleeper()
         val thirdOfThree = Sleeper()
@@ -85,7 +85,7 @@ class RaceTest {
                 { thirdOfThree.losingWith(false) },
             )
         }
-        secondWon shouldBe 42.left().right().right()
+        secondWon.getOrNull() shouldBe 42.left().right()
 
         val firstLoser = Sleeper()
         val secondLoser = Sleeper()
@@ -100,7 +100,7 @@ class RaceTest {
                 },
             )
         }
-        thirdWon shouldBe true.right().right().right()
+        thirdWon.getOrNull() shouldBe true.right().right()
     }
 
     @Test
@@ -124,7 +124,7 @@ class RaceTest {
             )
         }
 
-        raced shouldBe "won".right().right()
+        raced.getOrNull() shouldBe "won".right()
         withClue("a scope that returns with a loser still running is a leak") {
             loser.get().shouldNotBeNull().isAlive shouldBe false
         }

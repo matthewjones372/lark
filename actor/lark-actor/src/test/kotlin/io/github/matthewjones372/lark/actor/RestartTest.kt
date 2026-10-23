@@ -111,7 +111,7 @@ class RestartTest {
             }
         }
 
-        stamped shouldBe listOf(2, 3).right().right()
+        stamped.getOrNull() shouldBe listOf(2, 3).right()
     }
 
     @Test
@@ -122,6 +122,6 @@ class RestartTest {
             press.ask(1.minutes) { Stamped(it) }
         }
 
-        answer shouldBe AskFailure.Stopped.left().right()
+        answer.getOrNull() shouldBe AskFailure.Stopped.left()
     }
 }

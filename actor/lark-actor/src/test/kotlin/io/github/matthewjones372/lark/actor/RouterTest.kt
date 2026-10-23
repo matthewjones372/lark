@@ -150,7 +150,7 @@ class RouterTest {
         }
 
         val routee2 = "/user/pool/routee-2".right()
-        answers shouldBe listOf(routee2, Unit, routee2, routee2).right()
+        answers.getOrNull() shouldBe listOf(routee2, Unit, routee2, routee2)
         served["/user/pool/routee-1"] shouldBe listOf("fills routee-1")
     }
 }

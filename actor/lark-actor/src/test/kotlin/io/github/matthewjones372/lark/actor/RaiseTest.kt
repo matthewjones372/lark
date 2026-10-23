@@ -95,6 +95,6 @@ class RaiseTest {
             till.ask(1.minutes) { Count(it) }
         }
 
-        answer shouldBe AskFailure.Stopped.left().right()
+        answer.getOrNull() shouldBe AskFailure.Stopped.left()
     }
 }
