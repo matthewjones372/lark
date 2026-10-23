@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.Schedule
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -143,6 +144,12 @@ class ParityTest {
         Case("mapPar", done(listOf(2, 4, 6))) { Stream.of(1, 2, 3).mapPar(2) { it * 2 }.all() },
         Case("mapParUnordered answers every element once", done((1..60).map { it * 2 }), sorted) {
             Stream.from(1..60).mapParUnordered(8) { n -> (n * 2).also { Thread.sleep(keyedDelays[n - 1]) } }.all()
+        },
+        Case("mapPar under a Limit", done(listOf(2, 4, 6))) {
+            Stream.of(1, 2, 3).mapPar(Limit.fixed(2)) { it * 2 }.all()
+        },
+        Case("mapParUnordered under an adaptive Limit", done((1..60).map { it * 2 }), sorted) {
+            Stream.from(1..60).mapParUnordered(Limit.adaptive("parity", initial = 4, max = 8)) { it * 2 }.all()
         },
         Case("mapAsyncUnordered answers every element once", done((1..60).map { it * 2 }), sorted) {
             Stream.from(1..60).mapAsyncUnordered(8) { n -> CompletableFuture.completedFuture(n * 2) }.all()

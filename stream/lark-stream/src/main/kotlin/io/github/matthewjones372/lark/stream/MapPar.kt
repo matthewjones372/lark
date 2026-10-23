@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.VirtualThreads
 import java.util.concurrent.Executor
 
@@ -53,6 +54,18 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapParUnordered(
     parallelism: Int,
     f: Raise<E>.(Out) -> Out2,
 ): Pipe<E, In, Out2> = via(Pipe.mapParUnordered(parallelism, VirtualThreads, f))
+
+/**
+ * Bodies under a [Limit] (spec 0171): as many run at once as the limit allows now, and never more than its
+ * [Limit.max]. An adaptive limit finds that number itself, from how long the bodies take, and one shared limit
+ * bounds every stream and call that draws on the same dependency together.
+ */
+fun <E, A : Any, B : Any> Stream<E, A>.mapPar(limit: Limit, f: Raise<E>.(A) -> B): Stream<E, B> =
+    mapPar(limit.max) { a -> limit.withPermit { f(a) } }
+
+/** [mapParUnordered] under a [Limit], as [mapPar] is above. */
+fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(limit: Limit, f: Raise<E>.(A) -> B): Stream<E, B> =
+    mapParUnordered(limit.max) { a -> limit.withPermit { f(a) } }
 
 /** The starting form: a pipe of bodies, each on a virtual thread of its own. */
 fun <E, A : Any, B : Any> Pipe.Companion.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
