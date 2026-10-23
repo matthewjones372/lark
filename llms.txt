@@ -67,6 +67,8 @@ Facts worth having before anything else:
   and warnings in the editor.
 - `lark-otel`: an OpenTelemetry `Context` that crosses a fork; on the classpath
   and nothing else.
+- `lark-arrow`: Lark's `Either`, `NonEmptyList` and `Fail` to and from
+  Arrow's: `toArrow()`, `toLark()`, `lark { }` and `arrow { }`.
 - `lark-slf4j`: lark's log lines through SLF4J, annotations in the MDC; on the
   classpath and nothing else.
 - `lark-micrometer`: lark's counters, gauges and timers on Micrometer's

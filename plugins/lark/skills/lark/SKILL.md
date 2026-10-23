@@ -64,6 +64,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-app-gradle`: the wiring plugin.
 - `lark-app-compiler`: the checker behind the wiring plugin.
 - `lark-otel`: traces across forks.
+- `lark-arrow`: Lark's types to and from Arrow's.
 - `lark-slf4j`: log lines through SLF4J.
 - `lark-micrometer`: metrics on Micrometer.
 - `lark-kafka`: Kafka as a `Stream`, commit after the work, dead letters, transactions.
