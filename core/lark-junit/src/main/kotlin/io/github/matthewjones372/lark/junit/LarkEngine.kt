@@ -12,6 +12,7 @@ import org.junit.platform.engine.ExecutionRequest
 import org.junit.platform.engine.TestDescriptor
 import org.junit.platform.engine.TestEngine
 import org.junit.platform.engine.TestExecutionResult
+import org.junit.platform.engine.TestTag
 import org.junit.platform.engine.UniqueId
 import org.junit.platform.engine.discovery.ClassSelector
 import org.junit.platform.engine.reporting.ReportEntry
@@ -47,8 +48,11 @@ class LarkEngine : TestEngine {
     private fun <R> run(suite: Suite<R>, descriptor: SuiteDescriptor, listener: EngineExecutionListener) {
         listener.executionStarted(descriptor)
         val tests = suite.tests
-        val cases = descriptor.children.filterIsInstance<TestCaseDescriptor>()
         val report = Report(listener)
+        // Ignored tests are skipped before the resource is acquired, so a failed acquisition does not fail them.
+        val (ignored, cases) = descriptor.children.filterIsInstance<TestCaseDescriptor>()
+            .partition { tests.getValue(it.displayName).aspects.ignored != null }
+        ignored.forEach { test -> tests.getValue(test.displayName).aspects.ignored?.let { report.skipped(test, it) } }
         var acquired = false
         val outcome = outcomeOf {
             suite.shared.use { shared ->
@@ -57,7 +61,7 @@ class LarkEngine : TestEngine {
                     val running = mutableListOf<Deferred<Unit>>()
                     cases.forEach { test ->
                         val registered = tests.getValue(test.displayName)
-                        if (registered.alone) running.awaitAll()
+                        if (registered.aspects.alone) running.awaitAll()
                         val started = CountDownLatch(1)
                         running += async {
                             suite.limit.withPermit {
@@ -65,7 +69,9 @@ class LarkEngine : TestEngine {
                                 started.countDown()
                                 val (result, lines) = capturingLogs { logs ->
                                     capturingMetrics {
-                                        outcomeOf { registered.body(shared).verify(test.displayName) }
+                                        outcomeOf {
+                                            registered.aspects.run { registered.body(shared).verify(test.displayName) }
+                                        }
                                     } to logs.all()
                                 }
                                 report.finished(test, result, lines)
@@ -73,7 +79,7 @@ class LarkEngine : TestEngine {
                         }
                         // Waiting for each test to take its permit starts them in registration order.
                         started.await()
-                        if (registered.alone) running.awaitAll()
+                        if (registered.aspects.alone) running.awaitAll()
                     }
                     running.awaitAll()
                 }
@@ -113,6 +119,8 @@ private class Report(private val listener: EngineExecutionListener) {
     private val lock = ReentrantLock()
 
     fun started(test: TestDescriptor) = lock.withLock { listener.executionStarted(test) }
+
+    fun skipped(test: TestDescriptor, why: String) = lock.withLock { listener.executionSkipped(test, why) }
 
     /** A failed test's [lines] are published and printed before its result; a passing test's are dropped. */
     fun finished(test: TestDescriptor, result: TestExecutionResult, lines: List<LogLine> = emptyList()) =
@@ -160,16 +168,19 @@ internal class SuiteDescriptor private constructor(id: UniqueId, type: Class<*>,
         fun of(parent: UniqueId, type: Class<*>): SuiteDescriptor {
             val suite = type.getField("INSTANCE").get(null) as Suite<*>
             val descriptor = SuiteDescriptor(parent.append("suite", type.name), type, suite)
-            suite.tests.keys.forEach { name ->
-                descriptor.addChild(TestCaseDescriptor(descriptor.uniqueId.append("test", name), name, type))
+            suite.tests.forEach { (name, test) ->
+                val id = descriptor.uniqueId.append("test", name)
+                descriptor.addChild(TestCaseDescriptor(id, name, type, test.aspects.tags))
             }
             return descriptor
         }
     }
 }
 
-internal class TestCaseDescriptor(id: UniqueId, name: String, type: Class<*>) :
+internal class TestCaseDescriptor(id: UniqueId, name: String, type: Class<*>, private val tags: Set<TestTag>) :
     AbstractTestDescriptor(id, name, ClassSource.from(type)) {
 
     override fun getType(): TestDescriptor.Type = TestDescriptor.Type.TEST
+
+    override fun getTags(): Set<TestTag> = tags
 }

@@ -174,6 +174,7 @@ class LarkEngineTest {
             "ExpectingSuite",
             "FailingSiblingSuite",
             "GatedSuite",
+            "IgnoringSuite",
             "Lark",
             "LoggingSuite",
             "MatchingSuite",
@@ -181,9 +182,12 @@ class LarkEngineTest {
             "MixedSuite",
             "OrderSuite",
             "OrderedSuite",
+            "PartlyTaggedSuite",
             "SequentialSuite",
+            "TaggedSuite",
             "UnacquirableSuite",
             "UnreleasableSuite",
+            "WrappedSuite",
         )
         run(selectClass(NotAnObject::class.java)).testEvents().started().count() shouldBe 0L
     }

@@ -9,11 +9,14 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.tag
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
 import io.github.matthewjones372.lark.readings
@@ -64,6 +67,7 @@ object UnacquirableSuite : Suite<String>() {
     init {
         test("first never runs") { expect(true) }
         test("second never runs") { expect(true) }
+        test("ignored never runs", ignore("skipped before acquiring")) { expect(true) }
     }
 }
 
@@ -151,7 +155,7 @@ object AloneSuite : Suite<Unit>(limit = Limit.fixed(8)) {
         val before = CountDownLatch(2)
         together("before a", before)
         together("before b", before)
-        test("alone", alone = true) {
+        test("alone", tag("exclusive") + alone) {
             runningWhileAlone = running.incrementAndGet()
             seen += "alone"
             expect(running.decrementAndGet() == 0)
