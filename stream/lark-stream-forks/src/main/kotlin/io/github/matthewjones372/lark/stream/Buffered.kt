@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.VirtualThreads
-import java.util.concurrent.ArrayBlockingQueue
 
 /** How the stream a buffer holds for ended: marked in the queue after its last element. */
 private sealed interface Ended {
@@ -11,15 +10,15 @@ private sealed interface Ended {
 }
 
 /**
- * Upstream on a fork of its own, into a queue of [Node.Buffer.size]: it runs ahead until the queue is
- * full, and the pull takes from the queue. What upstream ended with arrives after its last element. The
+ * Upstream on a fork of its own, into a [Ring] of [Node.Buffer.size]: it runs ahead until the ring is
+ * full, and the pull takes from the ring. What upstream ended with arrives after its last element. The
  * run interrupts the fork and waits for it when it ends, however it ends.
  */
 // The catch is as wide as a pipeline: whatever upstream threw is the pull's to throw, in order.
 @Suppress("TooGenericExceptionCaught")
 internal fun Node.Buffer.buffered(releases: Releases?): Pull {
     val up = upstream.pull()
-    val queue = ArrayBlockingQueue<Any>(size)
+    val queue = Ring(size)
     val fork = InFlight(releases?.on ?: VirtualThreads) {
         try {
             Releases.within(releases) {
