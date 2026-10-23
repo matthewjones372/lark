@@ -191,6 +191,59 @@ internal fun Node.MapPar.window(releases: Releases?): Pull {
 }
 
 /**
+ * As [window], but each body is passed on as soon as it is done (spec 0170): a body puts itself in [Arrivals]
+ * for the pull once it ends, so a slow body holds back only itself. [running] is what a failure or the run's
+ * end lets go of.
+ */
+// The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
+@Suppress("TooGenericExceptionCaught")
+internal fun Node.MapPar.unorderedWindow(releases: Releases?): Pull {
+    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val up = upstream.pull()
+    val executor = releases?.executorFor(on) ?: on
+    val arrivals = Arrivals(parallelism)
+    val running = ConcurrentHashMap.newKeySet<InFlight<*>>()
+    val fork = InFlight(releases?.on ?: VirtualThreads) {
+        Releases.within(releases) {
+            feedUnordered(up, arrivals) { a ->
+                val flight = InFlight(executor) { body(a) }
+                running.add(flight)
+                flight.whenDone { arrivals.arrive(flight) }
+            }
+        }
+    }
+    // The fork first, so nothing is started behind the bodies being let go of.
+    val cancelAll = {
+        fork.cancel()
+        running.forEach { it.cancel() }
+    }
+    releases?.add(cancelAll)
+    var ended = false
+    return Pull {
+        if (ended) return@Pull null
+        when (val next = arrivals.take()) {
+            Fed.Done -> null.also { ended = true }
+
+            is Fed.Threw -> throw next.thrown.also { ended = true }
+
+            else -> {
+                @Suppress("UNCHECKED_CAST")
+                val done = next as InFlight<Either<Any?, Any>>
+                running.remove(done)
+                val answer = try {
+                    done.await()
+                } catch (thrown: Throwable) {
+                    cancelAll()
+                    throw thrown
+                }
+                arrivals.released()
+                answer.fold({ e -> cancelAll(); throw DeclaredFailure(e) }, { b -> b })
+            }
+        }
+    }
+}
+
+/**
  * As [window], but each body is passed on as soon as it is done and every earlier element with its key has
  * been: [released] queues the bodies in the order the pull takes them. A key's tail leaves [tails] once it
  * is released while still the newest for its key, so the map holds only keys with a body not yet passed on.

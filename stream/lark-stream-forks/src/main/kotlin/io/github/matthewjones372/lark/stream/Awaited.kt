@@ -82,6 +82,35 @@ internal fun feed(up: Pull, started: Ring, start: (Any) -> Any) {
     }
 }
 
+/**
+ * As [fed], but each answer is passed on as soon as its stage completes (spec 0170): a stage's completion puts it
+ * in [Arrivals] for the pull, from whichever thread completed it, so nothing waits on the oldest.
+ */
+internal fun Node.MapAsync.fedUnordered(releases: Releases?): Pull {
+    val start = guarded("mapAsync", at, f)
+    val up = upstream.pull()
+    val arrivals = Arrivals(parallelism)
+    val fork = InFlight(releases?.on ?: VirtualThreads) {
+        Releases.within(releases) {
+            feedUnordered(up, arrivals) { a ->
+                @Suppress("UNCHECKED_CAST")
+                val stage = (start(a) as CompletionStage<Any?>).toCompletableFuture()
+                stage.whenComplete { _, _ -> arrivals.arrive(Started(a, stage)) }
+            }
+        }
+    }
+    releases?.add(fork::cancel)
+    var ended = false
+    return Pull {
+        if (ended) return@Pull null
+        when (val next = arrivals.take()) {
+            Fed.Done -> null.also { ended = true }
+            is Fed.Threw -> throw next.thrown.also { ended = true }
+            else -> answered(next as Started).also { arrivals.released() }
+        }
+    }
+}
+
 /** The stage's value, waited on, or the defect it failed with. */
 private fun Node.MapAsync.answered(next: Started): Any {
     var yielded = 0
