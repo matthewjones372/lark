@@ -148,9 +148,9 @@ from `init` with `test(name) { shared -> … }` and returns
 
 - **Concurrency:** each test is a fork on a virtual thread, at most the
   suite's `Limit` at once, `Limit.fixed(availableProcessors)` by default.
-  Suites run one after another. A test given the `alone` aspect waits for those
-  registered before it, and later ones wait for it; `Suite(concurrent = false)`
-  runs every test alone.
+  Suites run one after another. A test given the [`alone`](#aspects) aspect
+  waits for those registered before it, and later ones wait for it;
+  `Suite(concurrent = false)` runs every test alone.
 - **Logs:** each test logs and measures into a capture of its own. A passing
   test prints nothing. A failed test's lines are printed under its name and
   published to the platform as a `logs` report entry.
@@ -309,6 +309,68 @@ kotlin {
     }
 }
 ```
+
+## Aspects
+
+An aspect says how a suite's test runs. It is given beside the test's name,
+`test(name, flaky(3)) { }`, or to the suite for each of its tests,
+`Suite(aspects = tag("io"))`. Aspects are known when the test is registered,
+so discovery reads tags and `ignore` without running anything.
+
+| Aspect | What it does | Reported as |
+|---|---|---|
+| `flaky(n)` | runs the test up to `n` times, until an attempt passes | passed if one does, with an `attempts` report entry such as `2 of 3`, given on failure too |
+| `nonFlaky(n)` | runs the test `n` times, and every run must pass | failed at the first failing run: `run 7 of 50 failed: …` |
+| `timeout(d)` | interrupts the test if it runs longer than `d`, on Lark's `timeout` | failed with a `TimeoutException`, `no answer within d` |
+| `ignore(why)` | does not run the test | skipped, with `why` |
+| `tag(name)` | a JUnit tag, which Gradle's `includeTags` and the IDE filter by | — |
+| `alone` | nothing else in the suite runs beside the test | — |
+
+`+` combines aspects, and the left one wraps the right one.
+`timeout(5.seconds) + flaky(3)` gives all three attempts five seconds
+together, and an attempt cut off by it is not retried;
+`flaky(3) + timeout(5.seconds)` gives each attempt five seconds, and retries
+one that runs out. A suite's aspects wrap each of its tests'. Tags add up, a
+test is `alone` if either side is, and an `ignore` on the left gives its reason
+before one on the right.
+
+<!-- testing-junit-aspects -->
+```kotlin
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.alone
+import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.flaky
+import io.github.matthewjones372.lark.junit.ignore
+import io.github.matthewjones372.lark.junit.nonFlaky
+import io.github.matthewjones372.lark.junit.tag
+import io.github.matthewjones372.lark.junit.timeout
+import io.github.matthewjones372.lark.resource
+import kotlin.time.Duration.Companion.seconds
+
+// Stands in for a connection to the service under test.
+class Wire {
+    fun roundTrip(frame: String): String = frame
+
+    fun reconnects(): Boolean = true
+}
+
+// Every test is tagged "io", and each runs within 30 seconds, retries and all.
+object WireSuite : Suite<Wire>(aspects = tag("io") + timeout(30.seconds)) {
+    override val shared: Resource<Wire> = resource { Wire() }
+
+    init {
+        test("frames survive a slow reader", nonFlaky(50) + alone) { wire ->
+            expect(wire.roundTrip("frame") == "frame")
+        }
+        test("reconnects after a reset", flaky(3) + timeout(5.seconds)) { wire -> expect(wire.reconnects()) }
+        test("speaks HTTP/3", ignore("no QUIC on CI")) { _ -> expect(false) }
+    }
+}
+```
+
+`tasks.test { useJUnitPlatform { includeTags("io") } }` then runs only the
+tagged tests, Jupiter's `@Tag`s among them.
 
 ## Applications
 
