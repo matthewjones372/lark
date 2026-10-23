@@ -5,6 +5,8 @@ import io.github.matthewjones372.lark.junit.samples.AloneSuite
 import io.github.matthewjones372.lark.junit.samples.CountedSuite
 import io.github.matthewjones372.lark.junit.samples.FailingSiblingSuite
 import io.github.matthewjones372.lark.junit.samples.GatedSuite
+import io.github.matthewjones372.lark.junit.samples.LoggingSuite
+import io.github.matthewjones372.lark.junit.samples.MeteredSuite
 import io.github.matthewjones372.lark.junit.samples.MixedSuite
 import io.github.matthewjones372.lark.junit.samples.NotAnObject
 import io.github.matthewjones372.lark.junit.samples.OrderedSuite
@@ -14,18 +16,23 @@ import io.github.matthewjones372.lark.junit.samples.UnreleasableSuite
 import io.github.matthewjones372.lark.resource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.DiscoverySelector
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage
+import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.testkit.engine.EngineExecutionResults
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.junit.platform.testkit.engine.EventType
 import org.junit.platform.testkit.engine.Events
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
 
 class LarkEngineTest {
 
@@ -162,6 +169,8 @@ class LarkEngineTest {
             "FailingSiblingSuite",
             "GatedSuite",
             "Lark",
+            "LoggingSuite",
+            "MeteredSuite",
             "MixedSuite",
             "OrderedSuite",
             "SequentialSuite",
@@ -169,6 +178,66 @@ class LarkEngineTest {
             "UnreleasableSuite",
         )
         run(selectClass(NotAnObject::class.java)).testEvents().started().count() shouldBe 0L
+    }
+
+    private fun logsOf(events: EngineExecutionResults): Map<String, List<String>> =
+        events.allEvents().reportingEntryPublished().list().groupBy(
+            { it.testDescriptor.displayName },
+            { it.getRequiredPayload(ReportEntry::class.java).keyValuePairs.getValue("logs") },
+        )
+
+    @Test
+    fun `a failing test's report entry holds its own log lines and none of a sibling's running beside it`() {
+        val logs = logsOf(run(selectClass(LoggingSuite::class.java)))
+
+        logs.getValue("fails first").single().lines() shouldBe listOf(
+            "INFO ${LoggingSuite::class.java.name} fails first started",
+            "WARN ${LoggingSuite::class.java.name} fails first is about to fail",
+        )
+        logs.getValue("fails second").single() shouldContain "fails second is about to fail"
+        logs.getValue("fails second").single() shouldNotContain "fails first"
+    }
+
+    @Test
+    fun `a passing test publishes no report entry`() {
+        logsOf(run(selectClass(LoggingSuite::class.java))).keys shouldNotContain "passes quietly"
+    }
+
+    @Test
+    fun `a line logged from a fork the test opened is the test's`() {
+        logsOf(run(selectClass(LoggingSuite::class.java))).getValue("fails after its fork logs").single() shouldBe
+            "INFO ${LoggingSuite::class.java.name} logged from a fork"
+    }
+
+    @Test
+    fun `tests failed by a failed acquisition ran nothing and publish no report entry`() {
+        logsOf(run(selectClass(UnacquirableSuite::class.java))) shouldBe emptyMap()
+    }
+
+    @Test
+    fun `a failing test's lines go to stdout, and a passing test's do not`() {
+        val captured = ByteArrayOutputStream()
+        val stdout = System.out
+        System.setOut(PrintStream(captured, true))
+        try {
+            run(selectClass(LoggingSuite::class.java))
+        } finally {
+            System.setOut(stdout)
+        }
+
+        val printed = captured.toString()
+        printed shouldContain "fails first is about to fail"
+        printed shouldContain "logged from a fork"
+        printed shouldNotContain "nobody should see this"
+    }
+
+    @Test
+    fun `two tests running together count into metrics of their own`() {
+        MeteredSuite.totals.clear()
+
+        run(selectClass(MeteredSuite::class.java)).testEvents().succeeded().count() shouldBe 2L
+
+        MeteredSuite.totals shouldContainExactly mapOf("counts one" to 1.0, "counts two" to 2.0)
     }
 
     @Test

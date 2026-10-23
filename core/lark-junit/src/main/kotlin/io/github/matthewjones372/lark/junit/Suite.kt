@@ -7,6 +7,7 @@ import io.github.matthewjones372.lark.Resource
  * Tests that share one [R], written as a Kotlin `object` so the `lark` engine finds it with no annotation.
  * Each test is registered from `init` with [test], and a test fails by throwing. Tests run as forks on
  * virtual threads, at most [limit] at once; with [concurrent] false, each runs alone.
+ * Each test logs and measures into a capture of its own, and a failed test's log lines are reported with it.
  */
 abstract class Suite<R>(
     internal val limit: Limit = Limit.fixed(Runtime.getRuntime().availableProcessors()),

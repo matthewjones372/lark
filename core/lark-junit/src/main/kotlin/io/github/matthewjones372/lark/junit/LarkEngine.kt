@@ -1,6 +1,9 @@
 package io.github.matthewjones372.lark.junit
 
 import io.github.matthewjones372.lark.Deferred
+import io.github.matthewjones372.lark.LogLine
+import io.github.matthewjones372.lark.capturingLogs
+import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.use
 import org.junit.platform.engine.EngineDiscoveryRequest
@@ -11,6 +14,7 @@ import org.junit.platform.engine.TestEngine
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.UniqueId
 import org.junit.platform.engine.discovery.ClassSelector
+import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.engine.support.descriptor.AbstractTestDescriptor
 import org.junit.platform.engine.support.descriptor.ClassSource
 import org.junit.platform.engine.support.descriptor.EngineDescriptor
@@ -59,7 +63,10 @@ class LarkEngine : TestEngine {
                             suite.limit.withPermit {
                                 report.started(test)
                                 started.countDown()
-                                report.finished(test, outcomeOf { registered.body(shared) })
+                                val (result, lines) = capturingLogs { logs ->
+                                    capturingMetrics { outcomeOf { registered.body(shared) } } to logs.all()
+                                }
+                                report.finished(test, result, lines)
                             }
                         }
                         // Waiting for each test to take its permit starts them in registration order.
@@ -105,9 +112,23 @@ private class Report(private val listener: EngineExecutionListener) {
 
     fun started(test: TestDescriptor) = lock.withLock { listener.executionStarted(test) }
 
-    fun finished(test: TestDescriptor, result: TestExecutionResult) =
-        lock.withLock { listener.executionFinished(test, result) }
+    /** A failed test's [lines] are published and printed before its result; a passing test's are dropped. */
+    fun finished(test: TestDescriptor, result: TestExecutionResult, lines: List<LogLine> = emptyList()) =
+        lock.withLock {
+            if (result.status == TestExecutionResult.Status.FAILED && lines.isNotEmpty()) {
+                val logs = lines.joinToString("\n") { it.rendered() }
+                listener.reportingEntryPublished(test, ReportEntry.from("logs", logs))
+                println("${test.displayName} logged:\n$logs")
+            }
+            listener.executionFinished(test, result)
+        }
 }
+
+/** `LEVEL origin message key=value`, and the cause's class and message where there is one. */
+private fun LogLine.rendered(): String =
+    (listOfNotNull(level.name.uppercase(), origin, message) + annotations.map { (key, value) -> "$key=$value" })
+        .plus(listOfNotNull(cause?.let { "($it)" }))
+        .joinToString(" ")
 
 /** A Kotlin `object`: its one instance is the static `INSTANCE` field, read without initialising the class. */
 private fun isSuiteObject(type: Class<*>): Boolean = Suite::class.java.isAssignableFrom(type) &&

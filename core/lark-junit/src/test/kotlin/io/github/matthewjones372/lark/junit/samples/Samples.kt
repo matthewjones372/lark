@@ -1,8 +1,15 @@
 package io.github.matthewjones372.lark.junit.samples
 
 import io.github.matthewjones372.lark.Limit
+import io.github.matthewjones372.lark.Reading
 import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.counter
+import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.logInfo
+import io.github.matthewjones372.lark.logWarn
+import io.github.matthewjones372.lark.readings
 import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -156,6 +163,48 @@ object FailingSiblingSuite : Suite<CountDownLatch>(limit = Limit.fixed(3)) {
         test("waits first") { gate -> gate.countDown().also { check(gate.await(10, TimeUnit.SECONDS)) } }
         test("fails") { gate -> gate.countDown().also { error("failed alone") } }
         test("waits second") { gate -> gate.countDown().also { check(gate.await(10, TimeUnit.SECONDS)) } }
+    }
+}
+
+/** Two tests that log while both are running and then fail, a passing one that logs, and one whose fork logs. */
+object LoggingSuite : Suite<CountDownLatch>(limit = Limit.fixed(4)) {
+    override val shared: Resource<CountDownLatch> = resource { CountDownLatch(2) }
+
+    private fun failsTogether(name: String) = test(name) { gate ->
+        logInfo("$name started")
+        gate.countDown()
+        check(gate.await(10, TimeUnit.SECONDS)) { "$name ran without its partner" }
+        logWarn("$name is about to fail")
+        throw AssertionError("$name failed")
+    }
+
+    init {
+        failsTogether("fails first")
+        failsTogether("fails second")
+        test("passes quietly") { logInfo("nobody should see this") }
+        test("fails after its fork logs") {
+            flock<Nothing, Unit> { async { logInfo("logged from a fork") } }
+            error("the fork's line is mine")
+        }
+    }
+}
+
+/** Two tests that count the same metric while both are running, and record the total each one read. */
+object MeteredSuite : Suite<CountDownLatch>(limit = Limit.fixed(2)) {
+    val totals: MutableMap<String, Double> = ConcurrentHashMap()
+
+    override val shared: Resource<CountDownLatch> = resource { CountDownLatch(2) }
+
+    private fun counts(name: String, times: Int) = test(name) { gate ->
+        repeat(times) { counter("hits").increment() }
+        gate.countDown()
+        check(gate.await(10, TimeUnit.SECONDS)) { "$name ran without its partner" }
+        totals[name] = readings("hits").filterIsInstance<Reading.Total>().sumOf { it.total }
+    }
+
+    init {
+        counts("counts one", 1)
+        counts("counts two", 2)
     }
 }
 
