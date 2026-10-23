@@ -18,7 +18,7 @@ class CommittedCompileTest {
 
     /** Both packages imported, as a service using both writes them, so a clash between them would show. */
     private val preamble = """
-        import arrow.core.Either
+        import io.github.matthewjones372.lark.fail.Either
         import io.github.matthewjones372.lark.kafka.Committed
         import io.github.matthewjones372.lark.kafka.DecodeError
         import io.github.matthewjones372.lark.kafka.Kafka
@@ -65,8 +65,8 @@ class CommittedCompileTest {
                 val twice: Stream<Nothing, Committed<Int>> = kept.mapConcatRecord { listOf(it, it) }
                 val declared: Stream<Refused, Committed<Int>> = twice.mapRecordOrFail { if (it < 0) fail(Refused) else it }
                 val parDeclared: Stream<Refused, Committed<Int>> =
-                    twice.mapParRecordOrFail(2) { if (it < 0) raise(Refused) else it }
-                val keeping: Stream<Refused, Committed<Int>> = declared.mapParRecord(2) { if (it < 0) raise(Refused) else it }
+                    twice.mapParRecordOrFail(2) { if (it < 0) fail(Refused) else it }
+                val keeping: Stream<Refused, Committed<Int>> = declared.mapParRecord(2) { if (it < 0) fail(Refused) else it }
                 return keeping.mapRecordOrFail { it }.mapParRecordOrFail(1) { it + parDeclared.hashCode() }
             }
 

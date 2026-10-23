@@ -1,13 +1,14 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Behaviour
 import io.github.matthewjones372.lark.actor.Ctx
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -58,7 +59,7 @@ internal class ActorBoundaries(private val batch: Int) : Boundaries {
      * in flight, and their answers come back in the order the elements came.
      */
     private fun Node.MapPar.workers(up: Pull): Pull {
-        val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+        val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
         val workers = List(parallelism) { spawn("mapPar", worker(body)) }
         val window = ArrayDeque<CompletableFuture<Either<Any?, Any>>>()
         var drained = false

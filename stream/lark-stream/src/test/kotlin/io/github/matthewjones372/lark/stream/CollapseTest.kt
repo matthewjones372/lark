@@ -39,7 +39,7 @@ class CollapseTest {
     @Test
     fun `a recovery over a stream that cannot fail is removed, and one over a stream that can is kept`() {
         val safe = numbers.map { it + 1 }.catchAll { Stream.of(0) }
-        val risky = numbers.mapOrFail { if (it == 3) raise(Odd(it)) else it }.catchAll { Stream.of(0) }
+        val risky = numbers.mapOrFail { if (it == 3) fail(Odd(it)) else it }.catchAll { Stream.of(0) }
 
         safe.node.collapsed().shouldBeInstanceOf<Node.Map>()
         safe.compiled() shouldNotContain "catchAll"

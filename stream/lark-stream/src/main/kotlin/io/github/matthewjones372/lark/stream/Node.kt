@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Logger
 import io.github.matthewjones372.lark.ScheduleStep
@@ -211,7 +210,7 @@ sealed interface Node {
         override val upstream: Node,
         val parallelism: Int,
         val on: Executor,
-        val f: Raise<Any?>.(Any) -> Any,
+        val f: io.github.matthewjones372.lark.fail.Fail<Any?>.(Any) -> Any,
         val at: String,
         /** Null keeps the input's order; otherwise only elements with the same key keep theirs. */
         val key: ((Any) -> Any)? = null,

@@ -1,7 +1,9 @@
 package io.github.matthewjones372.lark.kafka
 
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.mapLeft
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.header.Headers
@@ -21,7 +23,7 @@ class Decoder<out A>(deserializer: Deserializer<out A>, private val transient: (
         part: DecodeError.Part,
     ): Either<DecodeError, A> {
         val bytes = if (part == DecodeError.Part.Key) record.key() else record.value()
-        return Either.catch { read(record.topic(), record.headers(), bytes) }
+        return catching { read(record.topic(), record.headers(), bytes) }
             .mapLeft { thrown -> if (transient(thrown)) throw thrown else DecodeError(record, part, thrown) }
     }
 
@@ -53,7 +55,7 @@ class DecodeError internal constructor(
 internal fun <K, V> ConsumerRecord<ByteArray?, ByteArray?>.decoded(
     key: Decoder<K>,
     value: Decoder<V>,
-): Either<DecodeError, ConsumerRecord<K, V>> = either {
+): Either<DecodeError, ConsumerRecord<K, V>> = attempt {
     ConsumerRecord(
         topic(),
         partition(),

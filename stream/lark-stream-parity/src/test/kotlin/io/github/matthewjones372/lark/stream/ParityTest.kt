@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.left
-import arrow.core.right
 import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -108,7 +108,7 @@ class ParityTest {
         Case("Stream.tick", done(listOf("t", "t", "t"))) { Stream.tick(5.milliseconds, "t").take(3).all() },
         Case("map", done(listOf(2, 4, 6))) { Stream.of(1, 2, 3).map { it * 2 }.all() },
         Case("mapOrFail", Expected.Failed(Odd(3))) {
-            Stream.of(2, 3, 4).mapOrFail { if (it % 2 == 1) raise(Odd(it)) else it }.all()
+            Stream.of(2, 3, 4).mapOrFail { if (it % 2 == 1) fail(Odd(it)) else it }.all()
         },
         Case("filter", done(listOf(2, 4))) { Stream.of(1, 2, 3, 4).filter { it % 2 == 0 }.all() },
         Case("filterNot", done(listOf(1, 3))) { Stream.of(1, 2, 3, 4).filterNot { it % 2 == 0 }.all() },
@@ -125,7 +125,7 @@ class ParityTest {
             Stream.from(generateSequence(1) { it + 1 }.asIterable()).buffer(4).take(3).all()
         },
         Case("buffer carrying a failure in order", Expected.Failed(Odd(3))) {
-            Stream.of(2, 3, 4).mapOrFail { if (it % 2 == 1) raise(Odd(it)) else it }.buffer(2).all()
+            Stream.of(2, 3, 4).mapOrFail { if (it % 2 == 1) fail(Odd(it)) else it }.buffer(2).all()
         },
         Case("groupedWithin", done(listOf(listOf(1, 2), listOf(3)))) {
             Stream.of(1, 2, 3).groupedWithin(2, 1.seconds).all()
@@ -164,20 +164,20 @@ class ParityTest {
                 .all()
         },
         Case("mapParOrFail", Expected.Failed(Odd(3))) {
-            Stream.of(2, 3).mapParOrFail(2) { if (it % 2 == 1) raise(Odd(it)) else it }.all()
+            Stream.of(2, 3).mapParOrFail(2) { if (it % 2 == 1) fail(Odd(it)) else it }.all()
         },
         Case("either", done(listOf(1.right(), Odd(3).left()))) {
-            Stream.of(1, 3).mapOrFail { if (it == 3) raise(Odd(it)) else it }.either().all()
+            Stream.of(1, 3).mapOrFail { if (it == 3) fail(Odd(it)) else it }.either().all()
         },
         Case("absolve", Expected.Failed(Odd(2))) { Stream.of(1.right(), Odd(2).left(), 3.right()).absolve().all() },
         Case("catchAll", done(listOf(1, 9))) {
-            Stream.of(1, 3).mapOrFail { if (it == 3) raise(Odd(it)) else it }.catchAll { Stream.of(9) }.all()
+            Stream.of(1, 3).mapOrFail { if (it == 3) fail(Odd(it)) else it }.catchAll { Stream.of(9) }.all()
         },
         Case("mapError", Expected.Failed(3)) {
-            Stream.of(1, 3).mapOrFail { if (it == 3) raise(Odd(it)) else it }.mapError { it.value }.all()
+            Stream.of(1, 3).mapOrFail { if (it == 3) fail(Odd(it)) else it }.mapError { it.value }.all()
         },
         Case("orElse", done(listOf(1, 8))) {
-            Stream.of(1, 3).mapOrFail { if (it == 3) raise(Odd(it)) else it }.orElse(Stream.of(8)).all()
+            Stream.of(1, 3).mapOrFail { if (it == 3) fail(Odd(it)) else it }.orElse(Stream.of(8)).all()
         },
         Case("orFailIfEmpty on an empty stream", Expected.Failed(Odd(0))) {
             Stream.empty().orFailIfEmpty(Odd(0)).all()

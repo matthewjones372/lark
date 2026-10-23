@@ -1,7 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Flow
 import java.util.concurrent.CompletableFuture
@@ -17,7 +18,7 @@ internal fun Node.MapPar.mapParStage(): Flow<Any, *, NotUsed> {
     // The raise is folded into an Either inside the guard, so that the guard is the one place
     // deciding what a defect says: a declared failure comes back as a `Left` the stage is failed
     // with, and everything else picks up the three facts on its way out.
-    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     // What is in flight belongs to the run rather than to the description, which can be
     // materialised again while an earlier run of it is still going.
     return Flow.fromMaterializer<Any, Any, NotUsed> { _, _ ->

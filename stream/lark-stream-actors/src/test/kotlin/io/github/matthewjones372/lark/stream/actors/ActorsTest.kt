@@ -132,7 +132,7 @@ class ActorsTest {
         val exits = flock<Nothing, Pair<Any, Any>> {
             val actors = Actors(this)
             val numbers: Stream<String, Int> = Stream.from(1..10)
-            val failed = numbers.mapPar(2) { if (it == 4) raise("four") else it }.runCollect()
+            val failed = numbers.mapPar(2) { if (it == 4) fail("four") else it }.runCollect()
                 .run(actors).toCompletableFuture().join()
             val died = Stream.from(1..10).mapPar(2) { check(it < 4) { "too big" } }.runCollect()
                 .run(actors).toCompletableFuture().join()

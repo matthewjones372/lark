@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
 import java.util.concurrent.CompletionStage
 
 /**

@@ -1,7 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
@@ -228,7 +229,7 @@ private fun Node.MapOrFail.mapOrFail(): Pull {
 
 /** A `mapPar` one element at a time, on the pulling thread: its raise is the stream's, as on Pekko. */
 private fun Node.MapPar.inOrder(): Pull {
-    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
     return Pull { up.next()?.let { a -> body(a).fold({ e -> throw DeclaredFailure(e) }, { b -> b }) } }
 }

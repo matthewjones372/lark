@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.fail.Fail
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import kotlin.time.Duration
@@ -39,17 +39,14 @@ class DeclaredFailure(val error: Any?) : RuntimeException(null, null, false, fal
 fun <E> DeclaredFailure.declared(): E = error as E
 
 /**
- * The scope `mapOrFail` runs in: a `Raise<E>`, so `bind`, `ensure` and lark's
+ * The scope `mapOrFail` runs in: a `Fail<E>`, so `bind`, `ensure` and lark's
  * own combinators are in reach of an element body, and `fail` returns Nothing,
  * so it sits after an Elvis.
  */
-class Failing<in E> @StreamSpi constructor() : Raise<E> {
+class Failing<in E> @StreamSpi constructor() : Fail<E> {
 
     /** The failure travels as it always has: the wrapper only `run` unwraps. */
-    override fun raise(r: E): Nothing = throw DeclaredFailure(r)
-
-    /** The name dipper gave [raise], kept so every caller written against it still reads. */
-    fun fail(error: E): Nothing = raise(error)
+    override fun fail(error: E): Nothing = throw DeclaredFailure(error)
 }
 
 fun <A : Any> Stream.Companion.from(elements: Iterable<A>): Stream<Nothing, A> = Stream(Node.Elements(elements))

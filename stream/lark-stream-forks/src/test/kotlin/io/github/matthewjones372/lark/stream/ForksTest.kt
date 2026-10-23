@@ -1,8 +1,9 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
@@ -70,7 +71,7 @@ class ForksTest {
 
     @Test
     fun `a raise in an element body ends the run Failed with what it raised`() {
-        val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) raise(Odd(it)) else it }.collected()
+        val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) fail(Odd(it)) else it }.collected()
 
         exit shouldBe Exit.Failed(Odd(2))
     }
@@ -158,7 +159,7 @@ class ForksTest {
 
     @Test
     fun `the failure operators replace, recover and name as Pekko's do`() {
-        val failing = Stream.of(1, 2).mapOrFail { if (it == 2) raise(Odd(it)) else it }
+        val failing = Stream.of(1, 2).mapOrFail { if (it == 2) fail(Odd(it)) else it }
 
         failing.either().collected() shouldBe Exit.Done(listOf(1.right(), Odd(2).left()))
         failing.catchAll { Stream.of(9) }.collected() shouldBe Exit.Done(listOf(1, 9))
@@ -215,7 +216,7 @@ class ForksTest {
             .mapPar<Odd, Int, Int>(8) { n ->
                 if (n == 1) {
                     Thread.sleep(50)
-                    raise(Odd(n))
+                    fail(Odd(n))
                 }
                 try {
                     Thread.sleep(60_000)
@@ -314,7 +315,7 @@ class ForksTest {
             .mapParKeyed<Odd, Int, Int>(8, key = { it }) { n ->
                 if (n == 1) {
                     Thread.sleep(50)
-                    raise(Odd(n))
+                    fail(Odd(n))
                 }
                 try {
                     Thread.sleep(60_000)
