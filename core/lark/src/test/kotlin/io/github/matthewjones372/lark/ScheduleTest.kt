@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.left
-import arrow.core.raise.either
-import arrow.core.right
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
@@ -88,7 +88,7 @@ class ScheduleTest {
         val attempts = AtomicInteger(0)
 
         val raised = Schedule.recurs<Bad>(2).retryRaise {
-            raise(Bad("attempt ${attempts.incrementAndGet()}"))
+            fail(Bad("attempt ${attempts.incrementAndGet()}"))
         }
 
         raised shouldBe Bad("attempt 3").left()
@@ -100,11 +100,11 @@ class ScheduleTest {
         val attempts = AtomicInteger(0)
 
         Schedule.recurs<Bad>(5).retryRaise {
-            if (attempts.incrementAndGet() < 2) raise(Bad("again")) else "answered"
+            if (attempts.incrementAndGet() < 2) fail(Bad("again")) else "answered"
         } shouldBe "answered".right()
 
-        either<Bad, Int> {
-            retry(Schedule.recurs(1)) { raise(Bad("enclosing")) }
+        attempt<Bad, Int> {
+            retry(Schedule.recurs(1)) { fail(Bad("enclosing")) }
         } shouldBe Bad("enclosing").left()
     }
 

@@ -1,12 +1,11 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.NonFatal
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.CircuitBreaker.Admission.Admitted
 import io.github.matthewjones372.lark.CircuitBreaker.Admission.Refused
 import io.github.matthewjones372.lark.Policy.Step
 import io.github.matthewjones372.lark.Schedule.Decision.Continue
 import io.github.matthewjones372.lark.Schedule.Decision.Done
+import io.github.matthewjones372.lark.fail.Fail
 import io.github.matthewjones372.lark.fail.Failed
 import java.time.Instant
 import java.util.concurrent.CancellationException
@@ -17,7 +16,7 @@ import kotlin.time.toKotlinDuration
 
 /** A guard Lark cannot see into. It wraps whatever follows it in a [Policy], and refuses a call by throwing. */
 interface Guard {
-    fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A
+    fun <E, A> Fail<E>.guard(block: Fail<E>.() -> A): A
 }
 
 /** A call a guard refused to run, because it knew the call would fail or was told not to try it (spec 0110). */
@@ -95,11 +94,11 @@ class PolicyBuilder internal constructor() {
 fun policy(name: String, build: PolicyBuilder.() -> Unit): Policy = PolicyBuilder().apply(build).build(name)
 
 /** Runs [block] under [policy], with a refusal answered as [ifRejected] of it rather than thrown. */
-fun <E, A> Raise<E>.guarded(policy: Policy, ifRejected: (Rejected) -> E, block: Raise<E>.() -> A): A =
+fun <E, A> Fail<E>.guarded(policy: Policy, ifRejected: (Rejected) -> E, block: Fail<E>.() -> A): A =
     try {
         runPolicy(policy, block)
     } catch (rejected: Rejected) {
-        raise(ifRejected(rejected))
+        fail(ifRejected(rejected))
     }
 
 // The order the runner reads a plan in. A guard Lark cannot see into has no place in it.
@@ -142,8 +141,8 @@ private class Budget(private val until: Instant?) {
         until?.let { java.time.Duration.between(clock.get().now(), it).toKotlinDuration() } ?: Duration.INFINITE
 }
 
-// A raise or a fail is the call's own answer and passes through uncounted, as it passes through every step.
-private fun <E, A> Raise<E>.runPolicy(policy: Policy, block: Raise<E>.() -> A): A {
+// A fail is the call's own answer and passes through uncounted, as it passes through every step.
+private fun <E, A> Fail<E>.runPolicy(policy: Policy, block: Fail<E>.() -> A): A {
     var outcome: Pair<String, String>? = "failure" to "none"
     try {
         return from(policy, 0, Budget(null), block).also { outcome = "success" to "none" }
@@ -157,7 +156,7 @@ private fun <E, A> Raise<E>.runPolicy(policy: Policy, block: Raise<E>.() -> A): 
     }
 }
 
-/** What a call that threw is counted as; nothing for a raise or a fail. */
+/** What a call that threw is counted as; nothing for a fail or a cancellation. */
 private fun outcomeOf(thrown: Throwable): Pair<String, String>? = when (thrown) {
     is Rejected -> "rejected" to thrown.refusedBy
     is DeadlinePassed -> "rejected" to "deadline"
@@ -165,7 +164,11 @@ private fun outcomeOf(thrown: Throwable): Pair<String, String>? = when (thrown) 
     else -> "failure" to "none"
 }
 
-private fun Throwable.isNonFatal(): Boolean = this !is Failed && NonFatal(this)
+// The throws nonFatalOrThrow rethrows: neither a fault in the call nor one a breaker should count.
+private fun Throwable.isNonFatal(): Boolean = when (this) {
+    is VirtualMachineError, is LinkageError, is InterruptedException, is CancellationException, is Failed -> false
+    else -> true
+}
 
 private val Rejected.refusedBy: String
     get() = when (this) {
@@ -177,11 +180,11 @@ private val Rejected.refusedBy: String
 /** The policy's deadline ran out, as against a timeout of the call's own or one attempt's. */
 private class DeadlinePassed : TimeoutException("the policy's deadline has passed")
 
-private fun <E, A> Raise<E>.from(policy: Policy, at: Int, budget: Budget, block: Raise<E>.() -> A): A {
+private fun <E, A> Fail<E>.from(policy: Policy, at: Int, budget: Budget, block: Fail<E>.() -> A): A {
     if (at == policy.steps.size) {
         return if (policy.cutsBeforeTheCall) cut(budget.remaining(), budget, block) else block()
     }
-    val next: Raise<E>.() -> A = { from(policy, at + 1, budget, block) }
+    val next: Fail<E>.() -> A = { from(policy, at + 1, budget, block) }
     return when (val step = policy.steps[at]) {
         is Step.Deadline -> {
             val until = clock.get().now().plusNanos(step.total.inWholeNanoseconds)
@@ -202,13 +205,13 @@ private fun <E, A> Raise<E>.from(policy: Policy, at: Int, budget: Budget, block:
     }
 }
 
-private fun <E, A> Raise<E>.through(breaker: CircuitBreaker, budget: Budget, block: Raise<E>.() -> A): A {
+private fun <E, A> Fail<E>.through(breaker: CircuitBreaker, budget: Budget, block: Fail<E>.() -> A): A {
     val admitted = admitted(breaker, budget)
     var result = CircuitBreaker.Result.UNCOUNTED
     try {
         return block().also { result = CircuitBreaker.Result.SUCCESS }
     } catch (thrown: Throwable) {
-        // Not for a raise, a fail or an interrupt, nor for what the JVM cannot recover from.
+        // Not for a fail or an interrupt, nor for what the JVM cannot recover from.
         if (thrown.isNonFatal() && breaker.countsAsFailure(thrown)) result = CircuitBreaker.Result.FAILURE
         throw thrown
     } finally {
@@ -235,7 +238,7 @@ private tailrec fun admitted(breaker: CircuitBreaker, budget: Budget): Admitted 
 
 // A token is waited for only when the wait fits the deadline. A call the bulkhead then refuses, or a wait an interrupt
 // ends, was never made, so its tokens go back.
-private fun <E, A> Raise<E>.paced(limiter: RateLimiter, cost: Int, budget: Budget, block: Raise<E>.() -> A): A {
+private fun <E, A> Fail<E>.paced(limiter: RateLimiter, cost: Int, budget: Budget, block: Fail<E>.() -> A): A {
     when (val reservation = limiter.reserve(cost, minOf(limiter.maxWait, budget.remaining()))) {
         is RateLimiter.Reservation.Refused -> throw Rejected.RateLimited(limiter.name, reservation.retryAfter)
 
@@ -256,7 +259,7 @@ private fun <E, A> Raise<E>.paced(limiter: RateLimiter, cost: Int, budget: Budge
 }
 
 // The bulkhead's own wait, cut to what the deadline leaves. A refusal is a failed attempt to a retry outside it.
-private fun <E, A> Raise<E>.inside(bulkhead: Bulkhead, budget: Budget, block: Raise<E>.() -> A): A {
+private fun <E, A> Fail<E>.inside(bulkhead: Bulkhead, budget: Budget, block: Fail<E>.() -> A): A {
     if (!bulkhead.acquire(minOf(bulkhead.maxWait, budget.remaining()))) throw Rejected.BulkheadFull(bulkhead.name)
     try {
         return block()
@@ -267,7 +270,7 @@ private fun <E, A> Raise<E>.inside(bulkhead: Bulkhead, budget: Budget, block: Ra
 
 // One fork for an attempt, and none at all when nothing bounds it. A timeout that leaves no budget is the
 // deadline's, whichever limit was the shorter.
-private fun <E, A> Raise<E>.cut(limit: Duration, budget: Budget, block: Raise<E>.() -> A): A = when {
+private fun <E, A> Fail<E>.cut(limit: Duration, budget: Budget, block: Fail<E>.() -> A): A = when {
     limit <= ZERO -> throw DeadlinePassed()
 
     limit.isInfinite() -> block()

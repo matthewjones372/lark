@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.left
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThan
@@ -82,8 +82,8 @@ class BulkheadTest {
         shouldThrow<Boom> { partner { throw Boom() } }
         bulkhead.available shouldBe 1
 
-        either<Bad, Int> {
-            guarded(partner, ifRejected = { Bad("refused") }) { raise(Bad("declared")) }
+        attempt<Bad, Int> {
+            guarded(partner, ifRejected = { Bad("refused") }) { fail(Bad("declared")) }
         } shouldBe Bad("declared").left()
         bulkhead.available shouldBe 1
 

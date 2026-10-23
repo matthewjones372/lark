@@ -90,11 +90,6 @@ internal object Uncollected : Fail<Any?> {
     override fun fail(error: Any?): Nothing = error("an accumulated error is answered by its combinator")
 }
 
-/** An Arrow `Raise` as the owner of a [Flight], for the combinators that have not moved to [Fail] yet. */
-internal fun <E> Raise<E>.asFail(): Fail<E> = object : Fail<E> {
-    override fun fail(error: E): Nothing = raise(error)
-}
-
 private fun <E> Fail<E>.surface(failure: Failure<E>): Nothing = when (failure) {
     is Raised -> fail(failure.error)
     is Thrown -> throw failure.throwable
