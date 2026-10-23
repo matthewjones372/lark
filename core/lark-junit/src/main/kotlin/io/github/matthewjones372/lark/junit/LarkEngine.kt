@@ -21,6 +21,8 @@ import org.junit.platform.engine.support.discovery.SelectorResolver.Resolution
 import java.lang.reflect.Modifier
 import java.util.Optional
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /** Runs every [Suite] object the platform's selectors reach, one suite at a time and its tests as forks. */
 class LarkEngine : TestEngine {
@@ -84,13 +86,14 @@ class LarkEngine : TestEngine {
     }
 }
 
-/** Forks report from their own threads, and a listener need not be thread-safe. */
+/** Forks report from their own threads, and a listener need not be thread-safe. JDK 21 pins on `synchronized`. */
 private class Report(private val listener: EngineExecutionListener) {
-    @Synchronized
-    fun started(test: TestDescriptor) = listener.executionStarted(test)
+    private val lock = ReentrantLock()
 
-    @Synchronized
-    fun finished(test: TestDescriptor, result: TestExecutionResult) = listener.executionFinished(test, result)
+    fun started(test: TestDescriptor) = lock.withLock { listener.executionStarted(test) }
+
+    fun finished(test: TestDescriptor, result: TestExecutionResult) =
+        lock.withLock { listener.executionFinished(test, result) }
 }
 
 /** A Kotlin `object`: its one instance is the static `INSTANCE` field, read without initialising the class. */
