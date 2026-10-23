@@ -13,7 +13,10 @@ abstract class Suite<R>(
     internal val concurrent: Boolean = true,
 ) {
 
-    /** Acquired once for the suite, handed to each test, and released after the last. */
+    /**
+     * Acquired once for the suite, handed to each test, and released after the last. If acquiring throws, each
+     * test fails with that throw, and what was installed before it is released.
+     */
     abstract val shared: Resource<R>
 
     private val registered = LinkedHashMap<String, Registered<R>>()

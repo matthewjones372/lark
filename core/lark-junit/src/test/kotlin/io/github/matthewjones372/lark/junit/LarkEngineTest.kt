@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.junit
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.samples.AloneSuite
+import io.github.matthewjones372.lark.junit.samples.CountedSuite
 import io.github.matthewjones372.lark.junit.samples.FailingSiblingSuite
 import io.github.matthewjones372.lark.junit.samples.GatedSuite
 import io.github.matthewjones372.lark.junit.samples.MixedSuite
@@ -9,6 +10,7 @@ import io.github.matthewjones372.lark.junit.samples.NotAnObject
 import io.github.matthewjones372.lark.junit.samples.OrderedSuite
 import io.github.matthewjones372.lark.junit.samples.SequentialSuite
 import io.github.matthewjones372.lark.junit.samples.UnacquirableSuite
+import io.github.matthewjones372.lark.junit.samples.UnreleasableSuite
 import io.github.matthewjones372.lark.resource
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
@@ -115,11 +117,39 @@ class LarkEngineTest {
     }
 
     @Test
-    fun `a suite whose resource cannot be acquired fails, and none of its tests start`() {
+    fun `the shared resource is acquired once for many concurrent tests and released after the last finishes`() {
+        CountedSuite.acquired.set(0)
+        CountedSuite.finished.set(0)
+
+        run(selectClass(CountedSuite::class.java)).testEvents().succeeded().count() shouldBe 16L
+
+        CountedSuite.acquired.get() shouldBe 1
+        withClue("tests finished when the resource was released") { CountedSuite.finishedAtRelease shouldBe 16 }
+    }
+
+    @Test
+    fun `a failed acquisition fails each test with its cause, passes the suite and releases what it installed`() {
+        UnacquirableSuite.released.clear()
+
         val events = run(selectClass(UnacquirableSuite::class.java))
 
-        events.testEvents().started().count() shouldBe 0L
-        events.containerEvents().failed().names() shouldBe listOf(UnacquirableSuite::class.java.simpleName)
+        val failed = events.testEvents().failed().list()
+        failed.map { it.testDescriptor.displayName } shouldBe listOf("first never runs", "second never runs")
+        val causes = failed.map { it.getRequiredPayload(TestExecutionResult::class.java).throwable.get() }
+        withClue("one throwable, handed to every test") { causes.toSet().size shouldBe 1 }
+        causes.first().message shouldBe "no database"
+        events.containerEvents().succeeded().names() shouldBe listOf("UnacquirableSuite", "Lark")
+        UnacquirableSuite.released shouldBe listOf("connection")
+    }
+
+    @Test
+    fun `a release that throws fails the suite and leaves its tests' results as they were`() {
+        val events = run(selectClass(UnreleasableSuite::class.java))
+
+        events.testEvents().succeeded().names() shouldBe listOf("passes first", "passes second")
+        val suite = events.containerEvents().failed().list().single()
+        suite.testDescriptor.displayName shouldBe "UnreleasableSuite"
+        suite.getRequiredPayload(TestExecutionResult::class.java).throwable.get().message shouldBe "could not close"
     }
 
     @Test
@@ -128,6 +158,7 @@ class LarkEngineTest {
 
         suites.sorted() shouldBe listOf(
             "AloneSuite",
+            "CountedSuite",
             "FailingSiblingSuite",
             "GatedSuite",
             "Lark",
@@ -135,6 +166,7 @@ class LarkEngineTest {
             "OrderedSuite",
             "SequentialSuite",
             "UnacquirableSuite",
+            "UnreleasableSuite",
         )
         run(selectClass(NotAnObject::class.java)).testEvents().started().count() shouldBe 0L
     }

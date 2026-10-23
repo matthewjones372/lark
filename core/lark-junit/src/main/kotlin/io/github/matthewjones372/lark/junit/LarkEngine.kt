@@ -43,12 +43,15 @@ class LarkEngine : TestEngine {
     private fun <R> run(suite: Suite<R>, descriptor: SuiteDescriptor, listener: EngineExecutionListener) {
         listener.executionStarted(descriptor)
         val tests = suite.tests
+        val cases = descriptor.children.filterIsInstance<TestCaseDescriptor>()
         val report = Report(listener)
+        var acquired = false
         val outcome = outcomeOf {
             suite.shared.use { shared ->
+                acquired = true
                 flock<Nothing, Unit> {
                     val running = mutableListOf<Deferred<Unit>>()
-                    descriptor.children.filterIsInstance<TestCaseDescriptor>().forEach { test ->
+                    cases.forEach { test ->
                         val registered = tests.getValue(test.displayName)
                         if (registered.alone) running.awaitAll()
                         val started = CountDownLatch(1)
@@ -67,7 +70,17 @@ class LarkEngine : TestEngine {
                 }
             }
         }
-        listener.executionFinished(descriptor, outcome)
+        if (acquired) {
+            // The tests carry their own results, so a failure left here is from around them, such as the release's.
+            listener.executionFinished(descriptor, outcome)
+        } else {
+            // Each test carries the cause, so it is reported under every test's name and not again for the suite.
+            cases.forEach {
+                report.started(it)
+                report.finished(it, outcome)
+            }
+            listener.executionFinished(descriptor, TestExecutionResult.successful())
+        }
     }
 
     private fun MutableList<Deferred<Unit>>.awaitAll() {
