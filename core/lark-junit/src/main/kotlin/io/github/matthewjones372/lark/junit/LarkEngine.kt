@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.Deferred
+import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.use
 import org.junit.platform.engine.EngineDiscoveryRequest
 import org.junit.platform.engine.EngineExecutionListener
@@ -18,8 +20,11 @@ import org.junit.platform.engine.support.discovery.SelectorResolver.Match
 import org.junit.platform.engine.support.discovery.SelectorResolver.Resolution
 import java.lang.reflect.Modifier
 import java.util.Optional
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
-/** Runs every [Suite] object the platform's selectors reach, one suite and one test at a time. */
+/** Runs every [Suite] object the platform's selectors reach, one suite at a time and its tests as forks. */
 class LarkEngine : TestEngine {
 
     override fun getId(): String = "lark"
@@ -37,16 +42,37 @@ class LarkEngine : TestEngine {
 
     private fun <R> run(suite: Suite<R>, descriptor: SuiteDescriptor, listener: EngineExecutionListener) {
         listener.executionStarted(descriptor)
-        val bodies = suite.tests
+        val tests = suite.tests
+        val report = Report(listener)
         val outcome = outcomeOf {
             suite.shared.use { shared ->
-                descriptor.children.filterIsInstance<TestCaseDescriptor>().forEach { test ->
-                    listener.executionStarted(test)
-                    listener.executionFinished(test, outcomeOf { bodies.getValue(test.displayName)(shared) })
+                flock<Nothing, Unit> {
+                    val running = mutableListOf<Deferred<Unit>>()
+                    descriptor.children.filterIsInstance<TestCaseDescriptor>().forEach { test ->
+                        val registered = tests.getValue(test.displayName)
+                        if (registered.alone) running.awaitAll()
+                        val started = CountDownLatch(1)
+                        running += async {
+                            suite.limit.withPermit {
+                                report.started(test)
+                                started.countDown()
+                                report.finished(test, outcomeOf { registered.body(shared) })
+                            }
+                        }
+                        // Waiting for each test to take its permit starts them in registration order.
+                        started.await()
+                        if (registered.alone) running.awaitAll()
+                    }
+                    running.awaitAll()
                 }
             }
         }
         listener.executionFinished(descriptor, outcome)
+    }
+
+    private fun MutableList<Deferred<Unit>>.awaitAll() {
+        forEach { it.await() }
+        clear()
     }
 
     /** A test's throw is its result, of whatever type, as Jupiter's is; only the VM's own errors end the run. */
@@ -58,6 +84,16 @@ class LarkEngine : TestEngine {
     } catch (t: Throwable) {
         TestExecutionResult.failed(t)
     }
+}
+
+/** Forks report from their own threads, and a listener need not be thread-safe. */
+private class Report(private val listener: EngineExecutionListener) {
+    private val lock = ReentrantLock()
+
+    fun started(test: TestDescriptor) = lock.withLock { listener.executionStarted(test) }
+
+    fun finished(test: TestDescriptor, result: TestExecutionResult) =
+        lock.withLock { listener.executionFinished(test, result) }
 }
 
 /** A Kotlin `object`: its one instance is the static `INSTANCE` field, read without initialising the class. */

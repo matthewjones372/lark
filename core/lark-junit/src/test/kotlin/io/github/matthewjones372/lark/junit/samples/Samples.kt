@@ -1,8 +1,14 @@
 package io.github.matthewjones372.lark.junit.samples
 
+import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.resource
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 // Suites that fail on purpose. This module's own `test` task excludes this package, so only the
 // tests that select them through EngineTestKit or a Launcher run them.
@@ -18,7 +24,7 @@ object MixedSuite : Suite<Unit>() {
 }
 
 /** Records what each test was handed and when the resource was released, for the engine test to read. */
-object OrderedSuite : Suite<String>() {
+object OrderedSuite : Suite<String>(limit = Limit.fixed(1)) {
     val seen: MutableList<String> = mutableListOf()
 
     override val shared: Resource<String> = resource {
@@ -37,6 +43,78 @@ object UnacquirableSuite : Suite<String>() {
 
     init {
         test("never runs") { }
+    }
+}
+
+/** Each test waits for all eight to be running, so the suite only finishes if they run together. */
+object GatedSuite : Suite<CountDownLatch>(limit = Limit.fixed(8)) {
+    val virtual: MutableMap<String, Boolean> = ConcurrentHashMap()
+
+    override val shared: Resource<CountDownLatch> = resource { CountDownLatch(8) }
+
+    init {
+        (1..8).forEach { n ->
+            test("gated $n") { gate ->
+                virtual["gated $n"] = Thread.currentThread().isVirtual
+                gate.countDown()
+                check(gate.await(10, TimeUnit.SECONDS)) { "only ${8 - gate.count} of 8 tests ran together" }
+            }
+        }
+    }
+}
+
+/** Would run all at once under its default limit, if `concurrent = false` were ignored. */
+object SequentialSuite : Suite<Unit>(concurrent = false) {
+    val seen: MutableList<String> = CopyOnWriteArrayList()
+
+    override val shared: Resource<Unit> = resource { }
+
+    init {
+        (1..8).forEach { n -> test("in turn $n") { seen += "in turn $n" } }
+    }
+}
+
+/** Two concurrent tests on either side of an `alone` one, which reads how many of its suite are running. */
+object AloneSuite : Suite<Unit>(limit = Limit.fixed(8)) {
+    private val running = AtomicInteger()
+    val seen: MutableList<String> = CopyOnWriteArrayList()
+
+    @Volatile
+    var runningWhileAlone: Int = 0
+
+    override val shared: Resource<Unit> = resource { }
+
+    private fun together(name: String, gate: CountDownLatch) = test(name) {
+        running.incrementAndGet()
+        gate.countDown()
+        check(gate.await(10, TimeUnit.SECONDS)) { "$name ran without its partner" }
+        seen += name
+        running.decrementAndGet()
+    }
+
+    init {
+        val before = CountDownLatch(2)
+        together("before a", before)
+        together("before b", before)
+        test("alone", alone = true) {
+            runningWhileAlone = running.incrementAndGet()
+            seen += "alone"
+            running.decrementAndGet()
+        }
+        val after = CountDownLatch(2)
+        together("after a", after)
+        together("after b", after)
+    }
+}
+
+/** A failing test between two that wait for each other, so it fails while both are running. */
+object FailingSiblingSuite : Suite<CountDownLatch>(limit = Limit.fixed(3)) {
+    override val shared: Resource<CountDownLatch> = resource { CountDownLatch(3) }
+
+    init {
+        test("waits first") { gate -> gate.countDown().also { check(gate.await(10, TimeUnit.SECONDS)) } }
+        test("fails") { gate -> gate.countDown().also { error("failed alone") } }
+        test("waits second") { gate -> gate.countDown().also { check(gate.await(10, TimeUnit.SECONDS)) } }
     }
 }
 
