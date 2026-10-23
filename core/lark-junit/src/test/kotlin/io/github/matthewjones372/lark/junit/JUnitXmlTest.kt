@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.junit.samples.IgnoringSuite
 import io.github.matthewjones372.lark.junit.samples.MixedSuite
 import io.github.matthewjones372.lark.junit.samples.UnacquirableSuite
 import io.kotest.matchers.shouldBe
@@ -38,6 +39,15 @@ class JUnitXmlTest {
         xml shouldContain """<testcase name="first never runs""""
         xml shouldContain """<testcase name="second never runs""""
         xml.split("""<error message="no database" type="java.lang.IllegalStateException">""").size - 1 shouldBe 2
+    }
+
+    @Test
+    fun `an ignored test is recorded as skipped, with its reason`(@TempDir reports: Path) {
+        val xml = xmlOf(IgnoringSuite::class.java, reports)
+
+        val speaks = xml.substringAfter("""<testcase name="speaks HTTP/3"""").substringBefore("</testcase>")
+        speaks shouldContain "<skipped>"
+        speaks shouldContain "no QUIC on CI"
     }
 
     private fun xmlOf(suite: Class<*>, reports: Path): String {
