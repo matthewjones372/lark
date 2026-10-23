@@ -22,8 +22,20 @@ Lark has its own assertions, and the build drops Kotest.
 
 ## Shape
 
-A new module, `core/lark-assert`, depends on the Kotlin stdlib and nothing
-else. It provides infix checks that fail with an `AssertionError` whose
+A new module, `core/lark-assert`, depends on `lark`, opentest4j and the Kotlin
+stdlib and nothing else. It needs `lark` for `Either`, and opentest4j so that
+IDEs can compare expected and actual (maintainer, 2026-10-23).
+
+A failure names what was expected, what was found, the test's file and line,
+and that line's source. Its stack starts at the test's own frame, so the line
+that a runner or an IDE names first is the check that failed:
+
+```
+expected: Right(value=42)
+but was:  Left(value=Bad(why=broken))
+at FlockTest.kt:322
+    bound shouldBeRight 42
+``` It provides infix checks that fail with an `AssertionError` whose
 message gives the expected value, the actual value and the clue:
 
 ```kotlin
@@ -34,6 +46,15 @@ import io.github.matthewjones372.lark.assert.withClue
 attempt<NotFound, String> { find(2) } shouldBe NotFound(2).left()
 withClue("the loser is interrupted") { loser.wasInterrupted() shouldBe true }
 shouldThrow<IllegalStateException> { leaked.fail("late") }.message shouldContain "returned"
+```
+
+Lark's own `Either` gets matchers that say which side was expected and show
+the whole actual value, in place of `getOrNull() shouldBe`:
+
+```kotlin
+flock<Bad, Int> { 42 } shouldBeRight 42           // expected Right(42) but was Left(Bad(why=broken))
+attempt<Bad, Int> { fail(Bad("x")) } shouldBeLeft Bad("x")
+val value = attempt<Bad, Int> { 42 }.shouldBeRight()   // the side is asserted, the value returned
 ```
 
 The checks cover only the matchers the tree uses today, about 40 of them.
@@ -57,7 +78,14 @@ is a few hundred lines, and it frees the build of a dependency.
 
 ## Stack
 
-- [ ] **`spec-0169-lark-assert`** — the new module with its checks and
+- [ ] **`spec-0169-either-matchers`** — the new module, with
+      `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, plus
+      `shouldBe` and `shouldThrow` so that its own tests use nothing else,
+      and its `NoOtherDependenciesTest`. It lands first because spec 0168's
+      `flock-on-fail` needs it.
+      Done when: each matcher has a passing and a failing test, and the
+      failing test asserts the message.
+- [ ] **`spec-0169-lark-assert`** — the rest of the checks, with their
       tests, plus its `NoOtherDependenciesTest`.
       Done when: every check has a passing and a failing test, and the
       failing test asserts the message.
@@ -83,9 +111,9 @@ grep -rl 'io.kotest' --include=*.kt --include=*.kts .   # empty
 
 Answered (maintainer, 2026-10-23: the recommendations stand).
 
-1. ~~Should failures throw opentest4j's `AssertionFailedError`?~~ No for now.
-   A plain `AssertionError` with a readable message. Revisit if the IDE
-   diffs are missed.
+1. ~~Should failures throw opentest4j's `AssertionFailedError`?~~ Revised
+   (2026-10-23): yes. Failures carry expected and actual for IDEs to compare,
+   plus the test's location and source line.
 2. ~~Is the order 0168 then 0169, or interleaved?~~ The `lark-assert`
    module can land at any time. The test migrations wait until each
    module's 0168 entry has landed, so each test file is rewritten once.

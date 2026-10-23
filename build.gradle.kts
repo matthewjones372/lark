@@ -76,6 +76,7 @@ val moduleDescriptions = mapOf(
     "lark-stream-actors" to "lark-stream on lark-actor: a run is an actor, pulling its loop a batch at a time.",
     "lark-stream-test" to "lark-stream for tests: every stage on the calling thread, on a clock the test owns.",
     "lark-arrow" to "Lark's Either, NonEmptyList and Fail to and from Arrow's, for a codebase already on Arrow.",
+    "lark-assert" to "Assertions for tests of lark code: Either matchers that say which side they found.",
     "lark-test" to "For tests of a lark service: eventually on lark's clock, and a test that reads as a story.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
