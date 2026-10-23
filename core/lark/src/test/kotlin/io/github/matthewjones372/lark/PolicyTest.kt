@@ -154,6 +154,25 @@ class PolicyTest {
     }
 
     @Test
+    fun `a fail in a flock passes through every step uncounted, as a raise does`() {
+        val attempts = AtomicInteger()
+        val partner = policy("partner") {
+            deadline(1.seconds)
+            retry(Schedule.recurs(3))
+            attemptTimeout(1.seconds)
+        }
+
+        flock<Bad, Int> {
+            guarded(partner, ifRejected = { Bad("rejected") }) {
+                attempts.incrementAndGet()
+                fail(Bad("declared"))
+            }
+        }.leftOrNull() shouldBe Bad("declared")
+
+        attempts.get() shouldBe 1
+    }
+
+    @Test
     fun `guarded turns a rejection into the declared error`() {
         val refusing = object : Guard {
             override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A =

@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark
 
+import io.github.matthewjones372.lark.fail.Failed
 import java.util.concurrent.CancellationException
 
 /** How the block of a [resourceScope] left, as its release actions are told it. */
@@ -55,12 +56,12 @@ fun <A> resourceScope(block: ResourceScope.() -> A): A {
 infix fun <A, B> Resource<A>.use(block: (A) -> B): B = resourceScope { block(bind()) }
 
 /**
- * A raise unwinds as a `CancellationException` of Arrow's own, and it is neither: it is not an interrupt,
- * and the boundary it leaves through answers its caller with a value rather than a throw.
+ * A raise unwinds as a `CancellationException` of Arrow's own, and a fail as lark's [Failed], and neither is
+ * an interrupt or a failure: the boundary it leaves through answers its caller with a value rather than a throw.
  */
 private fun exitCaseOf(failure: Throwable): ExitCase = when (failure) {
     is InterruptedException -> ExitCase.Cancelled(failure)
-    is CancellationException -> ExitCase.Completed
+    is CancellationException, is Failed -> ExitCase.Completed
     else -> ExitCase.Failure(failure)
 }
 

@@ -1,12 +1,12 @@
 package io.github.matthewjones372.lark
 
 import arrow.core.Either
-import arrow.core.nonFatalOrThrow
 import arrow.core.raise.Raise
 import arrow.core.raise.either
 import arrow.core.raise.recover
 import io.github.matthewjones372.lark.Schedule.Decision.Continue
 import io.github.matthewjones372.lark.Schedule.Decision.Done
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 
 /** Runs [action] again on every throw the schedule accepts, and rethrows the last one when it ends. */
 fun <A> Schedule<Throwable, *>.retry(action: () -> A): A = retryOrElse(action) { failure, _ -> throw failure }

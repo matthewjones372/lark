@@ -2,12 +2,12 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.Either
 import arrow.core.left
-import arrow.core.nonFatalOrThrow
 import arrow.core.raise.Raise
 import arrow.core.right
 import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.ScheduleStep
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import io.github.matthewjones372.lark.fixedClock
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean

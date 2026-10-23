@@ -7,6 +7,7 @@ import io.github.matthewjones372.lark.CircuitBreaker.Admission.Refused
 import io.github.matthewjones372.lark.Policy.Step
 import io.github.matthewjones372.lark.Schedule.Decision.Continue
 import io.github.matthewjones372.lark.Schedule.Decision.Done
+import io.github.matthewjones372.lark.fail.Failed
 import java.time.Instant
 import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeoutException
@@ -141,7 +142,7 @@ private class Budget(private val until: Instant?) {
         until?.let { java.time.Duration.between(clock.get().now(), it).toKotlinDuration() } ?: Duration.INFINITE
 }
 
-// A raise is the call's own answer and passes through uncounted, as it passes through every step.
+// A raise or a fail is the call's own answer and passes through uncounted, as it passes through every step.
 private fun <E, A> Raise<E>.runPolicy(policy: Policy, block: Raise<E>.() -> A): A {
     var outcome: Pair<String, String>? = "failure" to "none"
     try {
@@ -152,9 +153,9 @@ private fun <E, A> Raise<E>.runPolicy(policy: Policy, block: Raise<E>.() -> A): 
     } catch (passed: DeadlinePassed) {
         outcome = "rejected" to "deadline"
         throw passed
-    } catch (raised: CancellationException) {
-        outcome = null
-        throw raised
+    } catch (passing: Throwable) {
+        if (passing is CancellationException || passing is Failed) outcome = null
+        throw passing
     } finally {
         outcome?.let { (result, by) ->
             counter("lark.policy.calls", "policy" to policy.name, "outcome" to result, "refused_by" to by).increment()
@@ -204,7 +205,9 @@ private fun <E, A> Raise<E>.through(breaker: CircuitBreaker, budget: Budget, blo
         return block().also { result = CircuitBreaker.Result.SUCCESS }
     } catch (thrown: Throwable) {
         // NonFatal is false for a raise and an interrupt as well as for what the JVM cannot recover from.
-        if (NonFatal(thrown) && breaker.countsAsFailure(thrown)) result = CircuitBreaker.Result.FAILURE
+        if (thrown !is Failed && NonFatal(thrown) &&
+            breaker.countsAsFailure(thrown)
+        ) result = CircuitBreaker.Result.FAILURE
         throw thrown
     } finally {
         breaker.record(admitted, result)

@@ -193,4 +193,19 @@ class ResourceTest {
 
         exits shouldContainExactly listOf(ExitCase.Completed, ExitCase.Completed)
     }
+
+    @Test
+    fun `a fail in a flock releases with Completed, as a raise does`() {
+        val exit = AtomicReference<ExitCase?>(null)
+
+        val failed = flock<Bad, Int> {
+            resourceScope {
+                install({ Held("held") }) { _, case -> exit.set(case) }
+                fail(Bad("declared"))
+            }
+        }
+
+        failed.leftOrNull() shouldBe Bad("declared")
+        exit.get() shouldBe ExitCase.Completed
+    }
 }
