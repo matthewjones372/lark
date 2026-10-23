@@ -79,8 +79,9 @@ is a few hundred lines, and it frees the build of a dependency.
 ## Stack
 
 - [ ] **`spec-0169-either-matchers`** — the new module, with
-      `shouldBeRight` and `shouldBeLeft` for Lark's `Either` only, and its
-      `NoOtherDependenciesTest`. It lands first because spec 0168's
+      `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, plus
+      `shouldBe` and `shouldThrow` so that its own tests use nothing else,
+      and its `NoOtherDependenciesTest`. It lands first because spec 0168's
       `flock-on-fail` needs it.
       Done when: each matcher has a passing and a failing test, and the
       failing test asserts the message.

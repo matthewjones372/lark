@@ -6,8 +6,6 @@ import io.github.matthewjones372.lark.fail.right
 import org.junit.jupiter.api.Test
 import org.opentest4j.AssertionFailedError
 import java.io.File
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 
 class EitherMatchersTest {
 
@@ -18,67 +16,61 @@ class EitherMatchersTest {
 
     @Test
     fun `shouldBeRight returns the value of a Right`() {
-        assertEquals(42, right.shouldBeRight())
-        assertEquals(42, right shouldBeRight 42)
+        right.shouldBeRight() shouldBe 42
+        (right shouldBeRight 42) shouldBe 42
     }
 
     @Test
     fun `shouldBeLeft returns the error of a Left`() {
-        assertEquals(Bad("broken"), left.shouldBeLeft())
-        assertEquals(Bad("broken"), left shouldBeLeft Bad("broken"))
+        left.shouldBeLeft() shouldBe Bad("broken")
+        (left shouldBeLeft Bad("broken")) shouldBe Bad("broken")
     }
 
     @Test
     fun `a failure says what was expected and what was found, then where and the line itself`() {
-        val failed = assertFailsWith<AssertionFailedError> { left shouldBeRight 42 }
+        val failed = shouldThrow<AssertionFailedError> { left shouldBeRight 42 }
 
-        assertEquals(
-            """
+        failed.message shouldBe """
             expected: Right(value=42)
             but was:  Left(value=Bad(why=broken))
             at EitherMatchersTest.kt:${lineOf("{ left shouldBeRight 42 }")}
-                val failed = assertFailsWith<AssertionFailedError> { left shouldBeRight 42 }
-            """.trimIndent(),
-            failed.message,
-        )
+                val failed = shouldThrow<AssertionFailedError> { left shouldBeRight 42 }
+        """.trimIndent()
     }
 
     @Test
     fun `a failure's stack starts at the test, not inside the matcher`() {
-        val failed = assertFailsWith<AssertionFailedError> { right.shouldBeLeft() }
+        val failed = shouldThrow<AssertionFailedError> { right.shouldBeLeft() }
 
         val top = failed.stackTrace.first()
-        assertEquals("EitherMatchersTest.kt", top.fileName)
-        assertEquals(lineOf("{ right.shouldBeLeft() }"), top.lineNumber)
+        top.fileName shouldBe "EitherMatchersTest.kt"
+        top.lineNumber shouldBe lineOf("{ right.shouldBeLeft() }")
     }
 
     @Test
     fun `a failure carries expected and actual for the IDE to compare`() {
-        val failed = assertFailsWith<AssertionFailedError> { right shouldBeLeft Bad("broken") }
+        val failed = shouldThrow<AssertionFailedError> { right shouldBeLeft Bad("broken") }
 
-        assertEquals("Left(value=Bad(why=broken))", failed.expected.stringRepresentation)
-        assertEquals("Right(value=42)", failed.actual.stringRepresentation)
+        failed.expected.stringRepresentation shouldBe "Left(value=Bad(why=broken))"
+        failed.actual.stringRepresentation shouldBe "Right(value=42)"
     }
 
     @Test
     fun `asserting only the side names the side expected`() {
-        val failed = assertFailsWith<AssertionFailedError> { left.shouldBeRight() }
+        val failed = shouldThrow<AssertionFailedError> { left.shouldBeRight() }
 
-        assertEquals(
-            listOf("expected: a Right", "but was:  Left(value=Bad(why=broken))"),
-            failed.message!!.lines().take(2),
-        )
+        failed.message!!.lines().take(2) shouldBe listOf("expected: a Right", "but was:  Left(value=Bad(why=broken))")
     }
 
     @Test
     fun `values that print alike but differ in type are shown with their types`() {
         val long: Either<Bad, Any> = 42L.right()
 
-        val failed = assertFailsWith<AssertionFailedError> { long shouldBeRight 42 }
+        val failed = shouldThrow<AssertionFailedError> { long shouldBeRight 42 }
 
-        assertEquals(
-            listOf("expected: Right(value=42) of kotlin.Int", "but was:  Right(value=42) of kotlin.Long"),
-            failed.message!!.lines().take(2),
+        failed.message!!.lines().take(2) shouldBe listOf(
+            "expected: Right(value=42) of kotlin.Int",
+            "but was:  Right(value=42) of kotlin.Long",
         )
     }
 
@@ -86,13 +78,13 @@ class EitherMatchersTest {
     fun `a Right holding null is not taken for a Left`() {
         val nothing: Either<Bad, Int?> = null.right()
 
-        assertEquals(null, nothing shouldBeRight null)
-        assertFailsWith<AssertionFailedError> { nothing.shouldBeLeft() }
+        (nothing shouldBeRight null) shouldBe null
+        shouldThrow<AssertionFailedError> { nothing.shouldBeLeft() }
     }
-
-    /** The line of this file that holds [text], as a stack frame numbers it. */
-    private fun lineOf(text: String): Int =
-        File("src/test/kotlin/io/github/matthewjones372/lark/assert/EitherMatchersTest.kt")
-            .readLines()
-            .indexOfFirst { text in it && "lineOf" !in it } + 1
 }
+
+/** The line of this file that holds [text], as a stack frame numbers it. */
+private fun lineOf(text: String): Int =
+    File("src/test/kotlin/io/github/matthewjones372/lark/assert/EitherMatchersTest.kt")
+        .readLines()
+        .indexOfFirst { text in it && "lineOf" !in it } + 1

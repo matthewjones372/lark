@@ -1,8 +1,5 @@
 package io.github.matthewjones372.lark.assert
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.nulls.shouldNotBeNull
 import org.junit.jupiter.api.Test
 import java.io.File
 
@@ -14,16 +11,10 @@ class NoOtherDependenciesTest {
     @Test
     fun `the main runtime classpath is lark and opentest4j, and nothing else`() {
         val raw = System.getProperty("lark.assert.runtimeClasspath")
-        withClue("the build must pass -Dlark.assert.runtimeClasspath; see core/lark-assert/build.gradle.kts") {
-            raw.shouldNotBeNull()
-        }
+            ?: error("the build must pass -Dlark.assert.runtimeClasspath; see core/lark-assert/build.gradle.kts")
 
-        val unexpected = raw!!.split(File.pathSeparator)
+        raw.split(File.pathSeparator)
             .filter { it.isNotBlank() }
-            .filterNot { entry -> allowed.any { entry.startsWith(it) } }
-
-        withClue("lark-assert must stay lark and opentest4j, but found: $unexpected") {
-            unexpected.shouldBeEmpty()
-        }
+            .filterNot { entry -> allowed.any { entry.startsWith(it) } } shouldBe emptyList()
     }
 }

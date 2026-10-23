@@ -14,7 +14,8 @@ private val sourceRoots = listOf("src/test/kotlin", "src/test/java", "src/testFi
  * Fails with what was expected, what was found, the line of the test that checked it and that line's source. The
  * stack starts at the test's own frame, so the line a runner or an IDE names first is the check, not this module.
  */
-internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null): Nothing {
+@PublishedApi
+internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null, cause: Throwable? = null): Nothing {
     val frames = Thread.currentThread().stackTrace.dropWhile { frame ->
         frame.className == Thread::class.java.name ||
             (frame.className.startsWith(OWN) && frame.className.endsWith("Kt"))
@@ -28,9 +29,10 @@ internal fun mismatch(expected: Any?, actual: Any?, expectedText: String? = null
             sourceLine(site)?.let { append("\n    $it") }
         }
     }
-    val failure = if (expectedText ==
-        null
-    ) AssertionFailedError(message, expected, actual) else AssertionFailedError(message)
+    val failure = when (expectedText) {
+        null -> AssertionFailedError(message, expected, actual, cause)
+        else -> AssertionFailedError(message, cause)
+    }
     failure.stackTrace = frames.toTypedArray()
     throw failure
 }
