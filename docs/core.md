@@ -161,14 +161,16 @@ handler binds.
 ## Collecting every error
 
 `parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion
-and return all the raises instead of only the first, which suits validation:
+and return all the failures instead of only the first, which suits validation:
 
 <!-- core-accumulate -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.NonEmptyList
-import arrow.core.raise.either
-import arrow.core.raise.ensure
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.NonEmptyList
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.ensure
+import io.github.matthewjones372.lark.fail.mapLeft
 import io.github.matthewjones372.lark.parMapOrAccumulate
 import io.github.matthewjones372.lark.parZipOrAccumulate
 
@@ -178,20 +180,20 @@ data class Account(val name: String, val email: String)
 
 data class Invalid(val field: String)
 
-fun validate(form: Form): Either<NonEmptyList<Invalid>, Account> = either {
+fun validate(form: Form): Either<NonEmptyList<Invalid>, Account> = attempt {
     parZipOrAccumulate(
         { form.name.also { ensure(it.isNotBlank()) { Invalid("name") } } },
         { form.email.also { ensure('@' in it) { Invalid("email") } } },
     ) { name, email -> Account(name, email) }
 }
 
-fun validateAll(forms: List<Form>): Either<NonEmptyList<Invalid>, List<Account>> = either {
+fun validateAll(forms: List<Form>): Either<NonEmptyList<Invalid>, List<Account>> = attempt {
     parMapOrAccumulate(forms) { form -> validate(form).mapLeft { it.first() }.bind() }
 }
 ```
 
 - Errors are returned in branch order (or the input's order), whichever branch
-  raised first.
+  failed first.
 - Each function also has a form taking `combine: (E, E) -> E` as its first
   argument, for a scope with a single error type that knows how to merge two.
 - A thrown exception is not accumulated. It interrupts the other branches, as
