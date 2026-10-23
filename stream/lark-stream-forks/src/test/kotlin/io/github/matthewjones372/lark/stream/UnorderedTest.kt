@@ -82,10 +82,16 @@ class UnorderedTest {
     @Test
     fun `a declared failure ends the run with it, and interrupts the bodies still running`() {
         val interrupted = CountDownLatch(1)
+        val sleeping = CountDownLatch(1)
         val odd: Stream<Odd, Int> = Stream.of(3, 2)
         val exit = odd
             .mapParUnordered(2) { n ->
-                if (n == 3) raise(Odd(n))
+                // 2's body has to be running before 3 fails, or there is nothing left to interrupt.
+                if (n == 3) {
+                    sleeping.await(SETTLE_SECONDS, TimeUnit.SECONDS)
+                    raise(Odd(n))
+                }
+                sleeping.countDown()
                 try {
                     Thread.sleep(TimeUnit.SECONDS.toMillis(SETTLE_SECONDS))
                 } catch (stopped: InterruptedException) {
