@@ -1,20 +1,20 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.fail.Fail
 import java.util.concurrent.Executor
 
 /**
  * Runs both branches on forks of their own and combines their values; the first branch to fail interrupts
- * the other, and its raise or throw surfaces here.
+ * the other, and its fail or throw surfaces here.
  */
-fun <E, A, B, C> Raise<E>.parZip(fa: Raise<E>.() -> A, fb: Raise<E>.() -> B, f: (A, B) -> C): C =
+fun <E, A, B, C> Fail<E>.parZip(fa: Fail<E>.() -> A, fb: Fail<E>.() -> B, f: (A, B) -> C): C =
     parZip(VirtualThreads, fa, fb, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C> Raise<E>.parZip(
+fun <E, A, B, C> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
     f: (A, B) -> C,
 ): C {
     val flight = Flight(this, on)
@@ -25,19 +25,19 @@ fun <E, A, B, C> Raise<E>.parZip(
 }
 
 /** Three branches, each on a fork of its own. */
-fun <E, A, B, C, D> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
+fun <E, A, B, C, D> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
     f: (A, B, C) -> D,
 ): D = parZip(VirtualThreads, fa, fb, fc, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D> Raise<E>.parZip(
+fun <E, A, B, C, D> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
     f: (A, B, C) -> D,
 ): D {
     val flight = Flight(this, on)
@@ -49,21 +49,21 @@ fun <E, A, B, C, D> Raise<E>.parZip(
 }
 
 /** Four branches, each on a fork of its own. */
-fun <E, A, B, C, D, F> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
+fun <E, A, B, C, D, F> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
     f: (A, B, C, D) -> F,
 ): F = parZip(VirtualThreads, fa, fb, fc, fd, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F> Raise<E>.parZip(
+fun <E, A, B, C, D, F> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
     f: (A, B, C, D) -> F,
 ): F {
     val flight = Flight(this, on)
@@ -76,23 +76,23 @@ fun <E, A, B, C, D, F> Raise<E>.parZip(
 }
 
 /** Five branches, each on a fork of its own. */
-fun <E, A, B, C, D, F, G> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
+fun <E, A, B, C, D, F, G> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
     f: (A, B, C, D, F) -> G,
 ): G = parZip(VirtualThreads, fa, fb, fc, fd, fe, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G> Raise<E>.parZip(
+fun <E, A, B, C, D, F, G> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
     f: (A, B, C, D, F) -> G,
 ): G {
     val flight = Flight(this, on)
@@ -106,25 +106,25 @@ fun <E, A, B, C, D, F, G> Raise<E>.parZip(
 }
 
 /** Six branches, each on a fork of its own. */
-fun <E, A, B, C, D, F, G, H> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
+fun <E, A, B, C, D, F, G, H> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
     f: (A, B, C, D, F, G) -> H,
 ): H = parZip(VirtualThreads, fa, fb, fc, fd, fe, ff, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H> Raise<E>.parZip(
+fun <E, A, B, C, D, F, G, H> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
     f: (A, B, C, D, F, G) -> H,
 ): H {
     val flight = Flight(this, on)
@@ -139,27 +139,27 @@ fun <E, A, B, C, D, F, G, H> Raise<E>.parZip(
 }
 
 /** Seven branches, each on a fork of its own. */
-fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
+fun <E, A, B, C, D, F, G, H, I> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
     f: (A, B, C, D, F, G, H) -> I,
 ): I = parZip(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZip(
+fun <E, A, B, C, D, F, G, H, I> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
     f: (A, B, C, D, F, G, H) -> I,
 ): I {
     val flight = Flight(this, on)
@@ -175,29 +175,29 @@ fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZip(
 }
 
 /** Eight branches, each on a fork of its own. */
-fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
+fun <E, A, B, C, D, F, G, H, I, J> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
     f: (A, B, C, D, F, G, H, I) -> J,
 ): J = parZip(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, fh, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZip(
+fun <E, A, B, C, D, F, G, H, I, J> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
     f: (A, B, C, D, F, G, H, I) -> J,
 ): J {
     val flight = Flight(this, on)
@@ -214,31 +214,31 @@ fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZip(
 }
 
 /** Nine branches, the last arity `arrow-fx-coroutines` has. */
-fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
-    fi: Raise<E>.() -> J,
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
     f: (A, B, C, D, F, G, H, I, J) -> K,
 ): K = parZip(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, fh, fi, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZip(
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<E>.parZip(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
-    fi: Raise<E>.() -> J,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
     f: (A, B, C, D, F, G, H, I, J) -> K,
 ): K {
     val flight = Flight(this, on)
@@ -256,14 +256,14 @@ fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZip(
 }
 
 /** Runs [f] over every element on a fork of its own, and answers in the iterable's order. */
-fun <E, A, B> Raise<E>.parMap(iterable: Iterable<A>, f: Raise<E>.(A) -> B): List<B> =
+fun <E, A, B> Fail<E>.parMap(iterable: Iterable<A>, f: Fail<E>.(A) -> B): List<B> =
     parMap(VirtualThreads, iterable, f)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B> Raise<E>.parMap(
+fun <E, A, B> Fail<E>.parMap(
     on: Executor,
     iterable: Iterable<A>,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): List<B> {
     val flight = Flight(this, on)
     val forks = iterable.map { element -> flight.fork { f(element) } }
@@ -271,8 +271,8 @@ fun <E, A, B> Raise<E>.parMap(
     return forks.map { it.await() }
 }
 
-// The same combinators for code outside any `Raise`, with plain branches: the arrow-fx-coroutines
-// signatures minus the `suspend`. Each forks under an owner that cannot be asked to raise.
+// The same combinators for code outside any `Fail`, with plain branches: the arrow-fx-coroutines
+// signatures minus the `suspend`. Each forks under an owner that cannot be asked to fail.
 
 /** Runs both branches on forks of their own and combines their values; the first to throw interrupts the other. */
 fun <A, B, C> parZip(fa: () -> A, fb: () -> B, f: (A, B) -> C): C = parZip(VirtualThreads, fa, fb, f)

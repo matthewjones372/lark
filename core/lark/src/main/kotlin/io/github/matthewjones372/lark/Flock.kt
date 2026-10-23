@@ -76,20 +76,27 @@ private fun <E, T> capture(on: Executor, block: Flock<E>.() -> T): Outcome<E, T>
  * The owner the top-level combinators fork under: `Nothing` has no value, so nothing running inside one
  * can hand it an error to raise.
  */
-internal object Unraisable : Raise<Nothing> {
+internal object Unraisable : Raise<Nothing>, Fail<Nothing> {
     override fun raise(r: Nothing): Nothing = r
+
+    override fun fail(error: Nothing): Nothing = error
 }
 
 /**
  * The owner an accumulating combinator forks under: it keeps its branches' errors and answers with all of
  * them at once, so no fork ever hands one back to be surfaced on its own.
  */
-internal object Uncollected : Raise<Any?> {
-    override fun raise(r: Any?): Nothing = error("an accumulated error is answered by its combinator")
+internal object Uncollected : Fail<Any?> {
+    override fun fail(error: Any?): Nothing = error("an accumulated error is answered by its combinator")
 }
 
-private fun <E> Raise<E>.surface(failure: Failure<E>): Nothing = when (failure) {
-    is Raised -> raise(failure.error)
+/** An Arrow `Raise` as the owner of a [Flight], for the combinators that have not moved to [Fail] yet. */
+internal fun <E> Raise<E>.asFail(): Fail<E> = object : Fail<E> {
+    override fun fail(error: E): Nothing = raise(error)
+}
+
+private fun <E> Fail<E>.surface(failure: Failure<E>): Nothing = when (failure) {
+    is Raised -> fail(failure.error)
     is Thrown -> throw failure.throwable
 }
 
@@ -174,12 +181,12 @@ private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : F
  * The forks a combinator owns rather than the scope: it opens them, waits on the calling thread, and does
  * not return until every one has ended, so none of them is left for the scope to notice at close.
  */
-internal class Flight<E>(private val owner: Raise<E>, private val on: Executor) {
+internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
 
     private val ended = Semaphore(0)
     private val forks = mutableListOf<Fork<E, *>>()
 
-    fun <T> fork(block: Raise<E>.() -> T): Fork<E, T> = Fork(owner, on, block, ended::release).also { forks += it }
+    fun <T> fork(block: Flock<E>.() -> T): Fork<E, T> = Fork(owner, on, block, ended::release).also { forks += it }
 
     /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
     fun settleAll() {
@@ -219,7 +226,7 @@ internal class Flight<E>(private val owner: Raise<E>, private val on: Executor) 
 }
 
 internal class Fork<E, T>(
-    private val owner: Raise<E>,
+    private val owner: Fail<E>,
     private val on: Executor,
     private val block: Flock<E>.() -> T,
     private val ended: () -> Unit = {},

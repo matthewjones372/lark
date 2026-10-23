@@ -7,6 +7,9 @@ import arrow.core.raise.either
 import io.github.matthewjones372.lark.ExitCase
 import io.github.matthewjones372.lark.ResourceScope
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.resourceScope
 import java.util.concurrent.CancellationException
@@ -122,17 +125,20 @@ private fun Raise<StartupError>.build(
             else -> {
                 val layer = nodes.map { it.key }.sortedBy { it.toString() }
                 val current = module
-                built = built + parMap(layer) { key ->
-                    val node = current.nodes.getValue(key)
-                    val wiring = NodeWiring(key, releases, starts, this)
-                    val value = node.build(wiring, node.dependencies.map(built::getValue))
-                    current.probes.filter { it.key == key && it.asked == Asked.WhenBuilt }.forEach { probe ->
-                        val answer = answers(probe, value)
-                        if (answer is Answer.No) raise(StartupError.Unready(key, probe.name, answer.cause))
+                // Each node fails into its own fork's scope, never into this one from another thread.
+                built = built + attempt {
+                    parMap(layer) { key ->
+                        val node = current.nodes.getValue(key)
+                        val wiring = NodeWiring(key, releases, starts, this)
+                        val value = node.build(wiring, node.dependencies.map(built::getValue))
+                        current.probes.filter { it.key == key && it.asked == Asked.WhenBuilt }.forEach { probe ->
+                            val answer = answers(probe, value)
+                            if (answer is Answer.No) fail(StartupError.Unready(key, probe.name, answer.cause))
+                        }
+                        health.started(key, value)
+                        key to value
                     }
-                    health.started(key, value)
-                    key to value
-                }
+                }.fold({ raise(it) }, { it })
                 order += layer
             }
         }
@@ -190,7 +196,7 @@ private class NodeWiring(
     private val key: KType,
     private val releases: Releases,
     private val starts: Starts,
-    private val raise: Raise<StartupError>,
+    private val failing: Fail<StartupError>,
 ) : Wiring {
 
     override fun onRelease(release: (ExitCase) -> Unit) = releases.add(key, release)
@@ -199,7 +205,7 @@ private class NodeWiring(
 
     // A hook runs after the build's own scope has ended, so its refusal goes to the one running the hooks.
     override fun refuse(reason: String): Nothing =
-        if (starts.running) throw Refusal(key, reason) else raise.raise(StartupError.Refused(key, reason))
+        if (starts.running) throw Refusal(key, reason) else failing.fail(StartupError.Refused(key, reason))
 }
 
 /** A refusal from inside an `onStarted` hook, on its way to [Starts.run]. */

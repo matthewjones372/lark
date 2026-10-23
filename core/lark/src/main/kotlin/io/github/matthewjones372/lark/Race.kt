@@ -18,7 +18,7 @@ fun <E, A, B> Raise<E>.raceN(
     fa: Raise<E>.() -> A,
     fb: Raise<E>.() -> B,
 ): Either<A, B> {
-    val flight = Flight(this, on)
+    val flight = Flight(asFail(), on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     flight.settleFirst()
@@ -39,7 +39,7 @@ fun <E, A, B, C> Raise<E>.raceN(
     fb: Raise<E>.() -> B,
     fc: Raise<E>.() -> C,
 ): Either<A, Either<B, C>> {
-    val flight = Flight(this, on)
+    val flight = Flight(asFail(), on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)

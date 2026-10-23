@@ -319,8 +319,9 @@ class Transport(
             while (true) {
                 val next = queue.poll() ?: run {
                     output.flush()
-                    if (finishing) return
-                    queue.take()
+                    // Frames can arrive during the flush, and finishing is set only after all of them have been
+                    // queued, so the queue is checked once more before stopping.
+                    if (finishing) queue.poll() ?: return else queue.take()
                 }
                 if (next === end) return output.flush()
                 output.frame(next, version)
