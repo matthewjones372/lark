@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.fail
 
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
@@ -94,6 +95,29 @@ class FailTest {
 
         val error = shouldThrow<IllegalStateException> { with(leaked!!) { fail("late") } }
         error.message shouldContain "after its attempt had returned"
+        error.message shouldContain FailTest::class.java.name
+    }
+
+    @Test
+    fun `a fail from a thread the scope did not fork names where it was opened, and leaves the attempt open`() {
+        var thrown: IllegalStateException? = null
+
+        val answered = attempt<String, String> {
+            val scope = scope()
+            val stray = Thread.ofVirtual().start {
+                try {
+                    with(scope) { fail("stray") }
+                } catch (refused: IllegalStateException) {
+                    thrown = refused
+                }
+            }
+            stray.join()
+            "carried on"
+        }
+
+        answered shouldBe "carried on".right()
+        val error = thrown.shouldNotBeNull()
+        error.message shouldContain "a thread it did not fork"
         error.message shouldContain FailTest::class.java.name
     }
 
