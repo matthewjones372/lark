@@ -38,11 +38,52 @@ object OrderedSuite : Suite<String>(limit = Limit.fixed(1)) {
     }
 }
 
+/** Opens a connection, then fails to open the database, so the connection is all there is to release. */
 object UnacquirableSuite : Suite<String>() {
-    override val shared: Resource<String> = resource { error("no database") }
+    val released: MutableList<String> = CopyOnWriteArrayList()
+
+    override val shared: Resource<String> = resource {
+        install({ "connection" }) { connection, _ -> released += connection }
+        error("no database")
+    }
 
     init {
-        test("never runs") { }
+        test("first never runs") { }
+        test("second never runs") { }
+    }
+}
+
+/** Its tests pass, and closing what they shared throws. */
+object UnreleasableSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource {
+        install({ }) { _, _ -> error("could not close") }
+    }
+
+    init {
+        test("passes first") { }
+        test("passes second") { }
+    }
+}
+
+/** Counts acquisitions, and records at release how many of its sixteen concurrent tests had finished. */
+object CountedSuite : Suite<Unit>(limit = Limit.fixed(8)) {
+    val acquired = AtomicInteger()
+    val finished = AtomicInteger()
+
+    @Volatile
+    var finishedAtRelease: Int = -1
+
+    override val shared: Resource<Unit> = resource {
+        install({ acquired.incrementAndGet() }) { _, _ -> finishedAtRelease = finished.get() }
+    }
+
+    init {
+        (1..16).forEach { n ->
+            test("counted $n") {
+                Thread.sleep(n * 5L)
+                finished.incrementAndGet()
+            }
+        }
     }
 }
 
