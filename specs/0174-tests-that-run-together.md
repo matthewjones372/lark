@@ -12,6 +12,7 @@ stderr whether it passed or not. Users of `lark-test` hit the same limits.
 - **No new runner, report format or Gradle plugin.** Results go through the JUnit Platform, so Gradle's
   JUnit XML, the IDE's test tree and CI parsers read them unchanged.
 - **No moving the repo's own tests**, and no change to `story`, `lark-assert` or `lark`'s API.
+  Making `lark-test` depend on `lark-assert` is a follow-up spec.
 - **No resources shared across suites**, no property testing, and no `eventually` rewrite.
 
 ## Shape
@@ -84,15 +85,13 @@ ls core/lark-junit/build/test-results/test/*.xml   # sample suites reported as J
 
 ## Open questions
 
-1. **Engine or Jupiter extension?** Recommend the engine: it's the only one of the two that gets
-   concurrent forks sharing a resource while still producing standard JUnit output.
-2. **Do suites run in parallel with each other?** Recommend not at first. Concurrency is within a
-   suite only, which keeps the per-class `ActorSystem` thread assertions honest.
-3. **Shared resource lifetime: per suite, per module or per run?** Recommend per suite. Weaver-style
-   global resources need suite ordering, and that's a separate spec.
-4. **Opting out?** Recommend concurrent by default, `alone = true` per test and `concurrent = false`
-   per suite. Load-sensitive tests such as `WireTest` (#489) and `UnorderedTest` (#490) opt out.
-5. **Does `lark-test`'s promise stand?** Recommend yes: `story` stays assertion-agnostic and works
-   inside a test here. Only `lark-junit` takes `lark-assert`.
-6. **Do the repo's own tests move here after 0169?** Recommend deciding after a pilot in `lark-pekko`,
-   which gains the most from a shared `ActorSystem`.
+Answered (maintainer, 2026-10-23).
+
+1. ~~Engine or Jupiter extension?~~ A JUnit Platform `TestEngine`.
+2. ~~Do suites run in parallel with each other?~~ No. Concurrency is within a suite only.
+3. ~~Shared resource lifetime?~~ Per suite. Global resources would be a separate spec.
+4. ~~Opting out?~~ Concurrent by default, with `alone = true` per test and `concurrent = false` per
+   suite.
+5. ~~Does `lark-test`'s promise stand?~~ Revisit it, in a separate spec: `lark-test` takes
+   `lark-assert` and `story` works with `Expectations`. Spec 0174 leaves `lark-test` unchanged.
+6. ~~Do the repo's own tests move here after 0169?~~ Decide after a pilot in `lark-pekko`.
