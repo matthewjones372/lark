@@ -22,8 +22,7 @@ internal fun Node.Buffer.buffered(releases: Releases?): Pull {
     val fork = InFlight(releases?.on ?: VirtualThreads) {
         try {
             Releases.within(releases) {
-                generateSequence { up.next() }.forEach { a -> queue.put(a) }
-                queue.put(Ended.Done)
+                up.into(queue)
             }
         } catch (_: InterruptedException) {
             // Let go of by the run: nothing reads what would have come next.
@@ -43,13 +42,20 @@ internal fun Node.Buffer.buffered(releases: Releases?): Pull {
         if (ended) {
             null
         } else {
-            when (val next = queue.take()) {
-                Ended.Done -> null.also { ended = true }
-                is Ended.Threw -> throw next.thrown.also { ended = true }
+            val next = queue.take()
+            when {
+                next === Ended.Done -> null.also { ended = true }
+                next is Ended.Threw -> throw next.thrown.also { ended = true }
                 else -> next
             }
         }
     }
+}
+
+/** Every element of this pull into [queue], then [Ended.Done]: a loop, as a sequence would wrap each element. */
+private fun Pull.into(queue: Ring) {
+    while (true) queue.put(next() ?: break)
+    queue.put(Ended.Done)
 }
 
 /**

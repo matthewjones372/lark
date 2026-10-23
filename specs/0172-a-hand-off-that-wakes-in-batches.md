@@ -1,4 +1,4 @@
-# 0169 — A hand-off that wakes in batches
+# 0172 — A hand-off that wakes in batches
 
 ## Problem
 
