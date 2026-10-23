@@ -12,6 +12,7 @@ sleep.
 | assertions on log lines or metrics | `capturingLogs { }`, `capturingMetrics { }` | `lark` |
 | a service test written as steps | `story { Given / When / Then }` | `lark-test` |
 | waiting for something to become true | `eventually(within) { }` | `lark-test` |
+| tests that share a resource and run concurrently | `object … : Suite<R>()` | `lark-junit` |
 | part of an application, with fakes | `testApp(module.subgraph<Root>().overriding(…)) { }` | `lark-app` |
 | configuration for one test | `overridingConfig("key = value")` | `lark-app-typesafe` |
 | a stream on a clock the test moves | `TestStreams(clock)` and `emitted()` | `lark-stream-test` |
@@ -134,6 +135,78 @@ class AdoptionTest {
 
 `lark-test` depends only on `lark`. It brings no assertion library; the
 example uses Kotest's matchers, but any assertion that throws works.
+
+## Suites
+
+`lark-junit` runs tests on the JUnit Platform with Lark's own concurrency. A
+suite is a Kotlin `object` extending `Suite<R>`, which the `lark` engine finds
+with no annotation. Its `shared` resource is acquired once, handed to every
+test, and released after the last; if acquiring throws, each test fails with
+that throw, and what was installed before it is released. A test is registered
+from `init` with `test(name) { shared -> … }` and returns `Expectations`, built
+with `expect`.
+
+- **Concurrency:** each test is a fork on a virtual thread, at most the
+  suite's `Limit` at once, `Limit.fixed(availableProcessors)` by default.
+  Suites run one after another. A test given the `alone` aspect waits for those
+  registered before it, and later ones wait for it; `Suite(concurrent = false)`
+  runs every test alone.
+- **Logs:** each test logs and measures into a capture of its own. A passing
+  test prints nothing. A failed test's lines are printed under its name and
+  published to the platform as a `logs` report entry.
+- **Reporting:** results go through the JUnit Platform, so Gradle's JUnit XML,
+  IntelliJ's test tree and CI read a suite as they read a Jupiter class, and
+  the two run side by side in one `test` task. A test's name is its display
+  name and its ID, so two tests in a suite cannot share one.
+
+```kotlin
+dependencies {
+    testImplementation("io.github.matthewjones372:lark-junit:0.10.1")
+}
+
+tasks.test { useJUnitPlatform() }
+```
+
+<!-- testing-junit-suite -->
+```kotlin
+import io.github.matthewjones372.lark.Limit
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.alone
+import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.logInfo
+import io.github.matthewjones372.lark.resource
+import java.util.concurrent.ConcurrentHashMap
+
+// Stands in for the service under test.
+class PetShop : AutoCloseable {
+    private val pets = ConcurrentHashMap<String, String>()
+
+    fun list(name: String) {
+        pets[name] = "available"
+    }
+
+    fun status(name: String): String? = pets[name]
+
+    fun count(): Int = pets.size
+
+    override fun close() = pets.clear()
+}
+
+object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {
+    override val shared: Resource<PetShop> = resource { install({ PetShop() }) { shop, _ -> shop.close() } }
+
+    init {
+        test("a listed pet is available") { shop ->
+            logInfo("listing Nibbles")                      // printed only if this test fails
+            shop.list("Nibbles")
+            expect(shop.status("Nibbles") == "available")
+        }
+        test("an unlisted pet has no status") { shop -> expect(shop.status("Mrs Peel") == null) }
+        test("one pet is listed", alone) { shop -> expect(shop.count() == 1) }   // after the tests above
+    }
+}
+```
 
 ## Applications
 

@@ -12,7 +12,7 @@ import java.io.File
 
 /**
  * The complete examples in `docs/core.md`, `docs/observability.md` and `docs/testing.md`, each compiled on its own:
- * this module's test classpath holds the core and lark-pekko, which is all those examples use.
+ * this module's test classpath holds the core, lark-pekko and lark-junit, which is all those examples use.
  */
 class CoreGuideTest {
 
