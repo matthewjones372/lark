@@ -122,10 +122,12 @@ threads and in what they accept.
   names, so Pekko's fusion, backpressure and materialisation apply. It is the
   only backend that runs the Pekko-specific operators.
 - **`Actors(flock)`** runs each run as an actor that pulls a batch per step,
-  with `mapPar`, `buffer` and the fan-in operators as child actors. Against
-  Forks it is faster for `mapPar` (about 5.7 times in the benchmarks), for
-  starting runs, and for `buffer` and `merge`, and about a quarter slower for a
-  plain element-at-a-time chain ([numbers](../lark-stream-benchmarks/README.md)).
+  with `mapPar`, `buffer` and the fan-in operators as child actors. It was
+  measured faster than Forks for `mapPar`, starting runs, `buffer` and `merge`,
+  and about a quarter slower for a plain element-at-a-time chain, but those
+  numbers predate spec 0172, which rebuilt Forks' `buffer`, `mapPar` and
+  `mapAsync`; re-run the [benchmarks](../bench/lark-stream-benchmarks/README.md)
+  before choosing between them on speed.
 - **`TestStreams(clock)`** runs one stage at a time on the calling thread, in
   the same order every time, with every wait on the test's `TestClock`. See
   [Time a test owns](#time-a-test-owns).
