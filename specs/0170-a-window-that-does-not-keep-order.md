@@ -32,7 +32,7 @@ val fetched: Stream<Nothing, Body> =
 - Answers in completion order. At most `parallelism` in flight, so backpressure is unchanged.
 - A failure or a declared error ends the run as it does in the ordered operators, interrupting or cancelling the
   rest.
-- On Forks, built on 0169's `Ring`: each completion puts its answer straight into the ring, with no slots and no
+- On Forks, built on 0172's `Ring`: each completion puts its answer straight into the ring, with no slots and no
   head to wait on. On Pekko, `mapAsyncUnordered`. On Actors and TestStreams, the ordered implementation is allowed
   (any order is a valid unordered order), as `mapParKeyed` already does.
 
@@ -60,7 +60,7 @@ which `lark-stream-pekko` users know. Recommended: separate operators.
 
 ## Open questions
 
-- **Does this wait for 0169?** Recommended: yes. Without `Ring`, the Forks version would be a third copy of
+- **Does this wait for 0172?** Recommended: yes. Without `Ring`, the Forks version would be a third copy of
   today's window.
 - **Should `mapParKeyed` with a unique key be documented as the old workaround?** Recommended: no. Point to the new
   operator instead.

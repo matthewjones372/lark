@@ -68,7 +68,7 @@ internal open class RingPadAfterHead : RingHead() {
 }
 
 /**
- * A ring of [capacity] between one producer and one consumer (spec 0169), which wakes either side only when it
+ * A ring of [capacity] between one producer and one consumer (spec 0172), which wakes either side only when it
  * must: the consumer when the ring stops being empty, the producer once a batch of room has been made.
  *
  * Either side parks the same way: it names itself, fences, and looks once more before parking, so a wake can
