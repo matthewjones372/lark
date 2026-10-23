@@ -70,7 +70,9 @@ class LarkEngine : TestEngine {
                                 val (result, lines) = capturingLogs { logs ->
                                     capturingMetrics {
                                         outcomeOf {
-                                            registered.aspects.run { registered.body(shared).verify(test.displayName) }
+                                            registered.aspects.run({ key, value -> report.entry(test, key, value) }) {
+                                                registered.body(shared).verify(test.displayName)
+                                            }
                                         }
                                     } to logs.all()
                                 }
@@ -121,6 +123,9 @@ private class Report(private val listener: EngineExecutionListener) {
     fun started(test: TestDescriptor) = lock.withLock { listener.executionStarted(test) }
 
     fun skipped(test: TestDescriptor, why: String) = lock.withLock { listener.executionSkipped(test, why) }
+
+    fun entry(test: TestDescriptor, key: String, value: String) =
+        lock.withLock { listener.reportingEntryPublished(test, ReportEntry.from(key, value)) }
 
     /** A failed test's [lines] are published and printed before its result; a passing test's are dropped. */
     fun finished(test: TestDescriptor, result: TestExecutionResult, lines: List<LogLine> = emptyList()) =
