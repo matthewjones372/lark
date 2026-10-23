@@ -48,13 +48,16 @@ class ReadmeExampleTest {
         /** The one that only the document carries, since the README sends the reader there for it. */
         private const val BLOCKING = "<!-- mappar-example -->"
 
+        /** The unordered window, which only the document shows (spec 0170). */
+        private const val UNORDERED = "<!-- unordered-example -->"
+
         /** One description, started on Pekko, Forks and TestStreams. */
         private const val BACKENDS = "<!-- backend-example -->"
 
         /** The README's complete program, on the core alone. */
         private const val QUICKSTART = "<!-- quickstart-example -->"
 
-        private val inTheDocument = listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING, BLOCKING, BACKENDS)
+        private val inTheDocument = listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING, BLOCKING, UNORDERED, BACKENDS)
     }
 
     @TempDir
@@ -131,6 +134,11 @@ class ReadmeExampleTest {
     @Test
     fun `the blocking body the document shows compiles`() {
         compiles(only(document(), BLOCKING))
+    }
+
+    @Test
+    fun `the unordered window the document shows compiles`() {
+        compiles(only(document(), UNORDERED))
     }
 
     /** The same pipeline, line for line, run: what the document shows is compiled and also true. */

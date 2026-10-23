@@ -171,6 +171,8 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Raise<E>`; `B : Any`, so no completion drops an element |
 | `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
 | `Stream<E, A>.mapParKeyed(parallelism: Int, key: (A) -> Any, f: Raise<E>.(A) -> B): Stream<E, B>` | `mapPar` that keeps order only among elements with the same key: a slow body holds back its own key's results, not the others'. Forks and Pekko let keys pass each other; Actors and TestStreams keep full order, which keeps every key's too |
+| `Stream<E, A>.mapParUnordered(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | `mapPar` that keeps no order: each result passes on as soon as its body is done, so a slow body holds back only itself. `on` as above |
+| `Stream<E, A>.mapAsyncUnordered(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | `mapAsync` that keeps no order, Pekko's name: each result passes on as its stage completes |
 | `Stream<E, A>.mapParOrFail(parallelism: Int, f: Raise<F>.(A) -> B): Stream<F, B>` | `mapPar` with the failure read out of the body, on a stream that has not named one; `mapOrFail`'s suffix, and `on` as above |
 | `Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B>` | each element's own elements, in its order; one that answers with none emits none |
 | `Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S>` | a backlog collapsed while downstream is busy: `seed` starts the aggregate and `aggregate` folds each later element in |
@@ -269,6 +271,38 @@ elements in flight cost four virtual threads, not four platform threads. A
 raise is the stream's declared failure, anything thrown is `Died(cause)`, and a
 body still running when the stream is torn down is interrupted where it
 blocked.
+
+### When order does not matter
+
+`mapPar` and `mapAsync` answer in the input's order, so one slow call holds
+back every answer behind it. Where nothing downstream needs that order, such as
+independent writes or a fan-out to a sink, `mapParUnordered` and
+`mapAsyncUnordered` pass each answer on as soon as it is ready. At most
+`parallelism` calls are in flight in either case, so the backpressure is the same:
+
+<!-- unordered-example -->
+```kotlin
+import io.github.matthewjones372.lark.stream.Stream
+import io.github.matthewjones372.lark.stream.from
+import io.github.matthewjones372.lark.stream.mapParUnordered
+
+data class Record(val id: Int)
+
+data class Receipt(val id: Int)
+
+class Store {
+    fun write(record: Record): Receipt = Receipt(record.id)
+}
+
+val store = Store()
+
+val receipts: Stream<Nothing, Receipt> =
+    Stream.from(listOf(Record(1), Record(2))).mapParUnordered(64) { record -> store.write(record) }
+```
+
+On Forks and Pekko, answers really do come in completion order. Actors and
+TestStreams keep the input's order, which is one of the orders an unordered
+operator may answer in.
 
 ## Missing is a failure, not an empty stream
 
