@@ -27,11 +27,23 @@ object OrderSuite : Suite<Database>(limit = Limit.fixed(8)) {
     init {
         test("an order is saved once") { db ->
             db.save(order)
-            expect(db.count() == 1) and expect.eq(order, db.find(order.id))
+            expect(db.count() == 1) and expect(db.find(order.id) == order)
         }
         test("reads the thread", alone = true) { _ -> expect(Thread.currentThread().isVirtual) }
+        test("does not compile") { db -> db.save(order) }   // Unit is not Expectations
     }
 }
+```
+
+A failure shows each failing expectation as a diagram of its expression's values:
+
+```
+an order is saved once: 1 of 2 expectations failed
+expect(db.count() == 1)
+       |  |       |
+       |  2       false
+       Database(orders=2)
+at OrderSuite.kt:6
 ```
 
 - **Suites** are Kotlin `object`s extending `Suite<R>`. A test's name is its display name and the
@@ -40,22 +52,30 @@ object OrderSuite : Suite<Database>(limit = Limit.fixed(8)) {
   capped by the suite's `Limit`, which defaults to `Limit.fixed(availableProcessors)`.
 - **Isolation:** each fork binds its own `logger`, `metrics` and `clock`. They are `LarkLocal`s, so
   concurrent tests can't see each other's bindings.
-- **Expectations** are values. `and` keeps every failure, and `or` passes if either side does. A
-  failure is reported as a `MultipleFailuresError` of `lark-assert`'s `AssertionFailedError`s, each with
-  its file, line and source, so IntelliJ shows a diff for each one. A throwing `shouldBe` still works,
-  as a single failure.
+- **Expectations are values, as in ZIO Test.** A test body is `(R) -> Expectations`, so a body that
+  checks nothing doesn't compile. `Expectations` is marked must-use, so with the repo's
+  `allWarningsAsErrors`, an expectation built and dropped mid-body doesn't compile either. `and`
+  keeps every failure, `or` passes if either side does, and `!` negates. A thrown exception
+  fails the test as an error, not as a failure.
+- **Rendering:** `expect(Boolean)` is rewritten by Kotlin's power-assert compiler plugin into the
+  diagram above. Each failure is a `lark-assert` `AssertionFailedError` with the test's file and
+  line, and a top-level `==` also carries expected and actual for IntelliJ's diff. Several failures
+  are reported as one `MultipleFailuresError`. Without the plugin, `expect` still quotes the source
+  line, as `lark-assert` does.
 - **Logs:** a failed test's captured lines go out as a `ReportEntry` and to stdout. A passing test
   prints nothing.
 
 ## Why this shape
 
-A `TestEngine` owns discovery, scheduling and reporting. It can run a suite's tests as forks and still
-report each one as an ordinary JUnit test. A Jupiter extension is smaller, but it can't run sibling
-`@Test`s concurrently itself. It would rely on Jupiter's global parallel mode, which uses platform
-threads and can't hand a fork a resource. The engine is recommended.
+A `TestEngine` runs a suite's tests as forks and still reports each one as an ordinary JUnit test. A
+Jupiter extension can't, because it would rely on Jupiter's own parallel mode, which uses platform
+threads.
 
-Value expectations are recommended over throwing-only checks, because once the first check throws
-nothing after it gets reported. Throwing checks are still allowed, so `lark-assert` stays the vocabulary.
+Expectations as values beat throwing checks: every failure is reported, and the compiler rejects a
+test that checks nothing. For rendering, power-assert is recommended: it's JetBrains' own plugin, it
+adds nothing to the runtime classpath, and one `expect` covers every check. Typed matchers
+(`expect(x).toEqual(y)`) need no plugin but can't show subexpressions. A compiler plugin of Lark's own
+(as `lark-app-compiler` is) could do what ZIO's macros do, but it's far more code to own.
 
 ## Stack
 
@@ -68,8 +88,13 @@ nothing after it gets reported. Throwing checks are still allowed, so `lark-asse
 - [ ] **`spec-0174-shared`** — `shared: Resource<R>`, acquired once and released after the last test.
       Done when: it is acquired once. If acquiring fails, every test fails with that cause, and what was
       already installed is released.
-- [ ] **`spec-0174-expectations`** — `Expectations`, `expect`, `and`/`or`, reported as `MultipleFailuresError`.
-      Done when: a test with two failing expectations reports both, each with its own line.
+- [ ] **`spec-0174-expectations`** — `Expectations`, `expect`, `and`/`or`/`!`, the `(R) -> Expectations`
+      body, must-use, and reporting as `MultipleFailuresError`.
+      Done when: two failing expectations are both reported, and a compile test shows that a `Unit` body and a
+      dropped `expect` are both rejected.
+- [ ] **`spec-0174-power-assert`** — the power-assert plugin applied to `expect`, plus expected and actual
+      for a top-level `==`.
+      Done when: a golden test matches the diagram above, and IntelliJ's diff opens on an `==` failure.
 - [ ] **`spec-0174-logs-on-failure`** — logs captured per test and shown only on failure.
       Done when: a failing test's report entry holds its log lines, and a passing test's has none.
 - [ ] **`spec-0174-docs`** — a `docs/testing.md` section with a `<!-- junit-suite -->` example, and a
@@ -85,13 +110,20 @@ ls core/lark-junit/build/test-results/test/*.xml   # sample suites reported as J
 
 ## Open questions
 
-Answered (maintainer, 2026-10-23).
+Answered (maintainer, 2026-10-23): 1. a `TestEngine`, not a Jupiter extension. 2. Suites run one
+after another, and only the tests inside a suite run concurrently. 3. Shared resources last one suite.
+4. Tests run concurrently by default, with `alone = true` and `concurrent = false` to opt out.
+5. Revisit `lark-test`'s promise in a separate spec. 6. Decide on moving the repo's tests after a pilot
+in `lark-pekko`.
 
-1. ~~Engine or Jupiter extension?~~ A JUnit Platform `TestEngine`.
-2. ~~Do suites run in parallel with each other?~~ No. Concurrency is within a suite only.
-3. ~~Shared resource lifetime?~~ Per suite. Global resources would be a separate spec.
-4. ~~Opting out?~~ Concurrent by default, with `alone = true` per test and `concurrent = false` per
-   suite.
-5. ~~Does `lark-test`'s promise stand?~~ Revisit it, in a separate spec: `lark-test` takes
-   `lark-assert` and `story` works with `Expectations`. Spec 0174 leaves `lark-test` unchanged.
-6. ~~Do the repo's own tests move here after 0169?~~ Decide after a pilot in `lark-pekko`.
+Open (maintainer, 2026-10-23: expectations as values, as in ZIO Test, with a well-rendered error).
+
+7. **What renders a failure: power-assert, Lark's own compiler plugin, or typed matchers?** Recommend
+   power-assert. Users apply `kotlin("plugin.power-assert")` with `expect` listed in its functions.
+   The guide shows how, and without the plugin you still get the quoted source line.
+8. **How is a dropped expectation rejected?** Recommend Kotlin's return-value checker on
+   `Expectations` (`-Xreturn-value-checker`), which the build turns into an error. Is it still
+   experimental on 2.4.10? The `expectations` entry checks. If it is, detekt's `IgnoredReturnValue` rule is
+   the fallback.
+9. **Can a throwing `shouldBe` still appear inside a test?** Recommend yes, but it's reported as an
+   error that stops the test, so the guide steers to `expect`.
