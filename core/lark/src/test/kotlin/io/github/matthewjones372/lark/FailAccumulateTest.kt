@@ -159,4 +159,83 @@ class FailAccumulateTest {
             parMapOrAccumulate({ left, _ -> left }, listOf(1, 2)) { it * 2 }
         } shouldBeRight listOf(2, 4)
     }
+
+    @Test
+    fun `parZipOrAccumulate combines six to eight branches`() {
+        attempt<NonEmptyList<Bad>, String> {
+            parZipOrAccumulate({ "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }) { a, b, c, d, e, f ->
+                a + b + c + d + e + f
+            }
+        } shouldBeRight "abcdef"
+
+        attempt<NonEmptyList<Bad>, String> {
+            parZipOrAccumulate({ "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }) { a, b, c, d, e, f, g ->
+                a + b + c + d + e + f + g
+            }
+        } shouldBeRight "abcdefg"
+
+        attempt<NonEmptyList<Bad>, String> {
+            parZipOrAccumulate(
+                { "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }, { "h" },
+            ) { a, b, c, d, e, f, g, h -> a + b + c + d + e + f + g + h }
+        } shouldBeRight "abcdefgh"
+    }
+
+    @Test
+    fun `a nine-branch parZipOrAccumulate answers, and keeps all nine failures`() {
+        attempt<NonEmptyList<Bad>, String> {
+            parZipOrAccumulate(
+                { "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }, { "h" }, { "i" },
+            ) { a, b, c, d, e, f, g, h, i -> a + b + c + d + e + f + g + h + i }
+        } shouldBeRight "abcdefghi"
+
+        val allNine = attempt<NonEmptyList<Bad>, String> {
+            parZipOrAccumulate(
+                { fail(Bad("1")) },
+                { fail(Bad("2")) },
+                { fail(Bad("3")) },
+                { fail(Bad("4")) },
+                { fail(Bad("5")) },
+                { fail(Bad("6")) },
+                { fail(Bad("7")) },
+                { fail(Bad("8")) },
+                { fail(Bad("9")) },
+            ) { _: String, _: String, _: String, _: String, _: String,
+                _: String, _: String, _: String, _: String,
+                ->
+                ""
+            }
+        }
+
+        allNine shouldBeLeft nonEmptyListOf(Bad("1"), *(2..9).map { Bad("$it") }.toTypedArray())
+    }
+
+    @Test
+    fun `the combine form combines six to nine branches`() {
+        val worst: (Bad, Bad) -> Bad = { left, _ -> left }
+
+        attempt<Bad, String> {
+            parZipOrAccumulate(worst, { "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }) { a, b, c, d, e, f ->
+                a + b + c + d + e + f
+            }
+        } shouldBeRight "abcdef"
+
+        attempt<Bad, String> {
+            parZipOrAccumulate(
+                worst, { "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" },
+            ) { a, b, c, d, e, f, g -> a + b + c + d + e + f + g }
+        } shouldBeRight "abcdefg"
+
+        attempt<Bad, String> {
+            parZipOrAccumulate(
+                worst, { "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }, { "h" },
+            ) { a, b, c, d, e, f, g, h -> a + b + c + d + e + f + g + h }
+        } shouldBeRight "abcdefgh"
+
+        attempt<Bad, String> {
+            parZipOrAccumulate(
+                worst, { "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }, { "h" }, { "i" },
+            ) { a, b, c, d, e, f, g, h, i -> a + b + c + d + e + f + g + h + i }
+        } shouldBeRight "abcdefghi"
+    }
 }

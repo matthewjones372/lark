@@ -1,12 +1,9 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.fail.Fail
 import io.github.matthewjones372.lark.fail.NonEmptyList
 import io.github.matthewjones372.lark.fail.toNonEmptyListOrNull
 import java.util.concurrent.Executor
-import arrow.core.NonEmptyList as ArrowNonEmptyList
-import arrow.core.toNonEmptyListOrNull as toArrowNonEmptyListOrNull
 
 /**
  * Runs both branches on forks of their own and keeps every failure: a fail does not end a sibling, so
@@ -224,25 +221,25 @@ fun <E, A, B, C, D, F, G> Fail<E>.parZipOrAccumulate(
 }
 
 /** Six branches, each on a fork of its own. */
-fun <E, A, B, C, D, F, G, H> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
+fun <E, A, B, C, D, F, G, H> Fail<NonEmptyList<E>>.parZipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
     transform: (A, B, C, D, F, G) -> H,
 ): H = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H> Fail<NonEmptyList<E>>.parZipOrAccumulate(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
     transform: (A, B, C, D, F, G) -> H,
 ): H {
     val flight = Flight<E>(Uncollected, on)
@@ -252,32 +249,32 @@ fun <E, A, B, C, D, F, G, H> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
     val d = flight.fork(fd)
     val e = flight.fork(fe)
     val f = flight.fork(ff)
-    raiseAll(flight.settleEvery())
+    failAll(flight.settleEvery())
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await())
 }
 
-/** Six branches, their raises folded with [combine]. */
-fun <E, A, B, C, D, F, G, H> Raise<E>.parZipOrAccumulate(
+/** Six branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H> Fail<E>.parZipOrAccumulate(
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
     transform: (A, B, C, D, F, G) -> H,
 ): H = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H> Raise<E>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H> Fail<E>.parZipOrAccumulate(
     on: Executor,
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
     transform: (A, B, C, D, F, G) -> H,
 ): H {
     val flight = Flight<E>(Uncollected, on)
@@ -287,32 +284,32 @@ fun <E, A, B, C, D, F, G, H> Raise<E>.parZipOrAccumulate(
     val d = flight.fork(fd)
     val e = flight.fork(fe)
     val f = flight.fork(ff)
-    raiseCombined(flight.settleEvery(), combine)
+    failCombined(flight.settleEvery(), combine)
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await())
 }
 
 /** Seven branches, each on a fork of its own. */
-fun <E, A, B, C, D, F, G, H, I> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
+fun <E, A, B, C, D, F, G, H, I> Fail<NonEmptyList<E>>.parZipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
     transform: (A, B, C, D, F, G, H) -> I,
 ): I = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H, I> Fail<NonEmptyList<E>>.parZipOrAccumulate(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
     transform: (A, B, C, D, F, G, H) -> I,
 ): I {
     val flight = Flight<E>(Uncollected, on)
@@ -323,34 +320,34 @@ fun <E, A, B, C, D, F, G, H, I> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
     val e = flight.fork(fe)
     val f = flight.fork(ff)
     val g = flight.fork(fg)
-    raiseAll(flight.settleEvery())
+    failAll(flight.settleEvery())
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await(), g.await())
 }
 
-/** Seven branches, their raises folded with [combine]. */
-fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZipOrAccumulate(
+/** Seven branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H, I> Fail<E>.parZipOrAccumulate(
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
     transform: (A, B, C, D, F, G, H) -> I,
 ): I = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, fg, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H, I> Fail<E>.parZipOrAccumulate(
     on: Executor,
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
     transform: (A, B, C, D, F, G, H) -> I,
 ): I {
     val flight = Flight<E>(Uncollected, on)
@@ -361,34 +358,34 @@ fun <E, A, B, C, D, F, G, H, I> Raise<E>.parZipOrAccumulate(
     val e = flight.fork(fe)
     val f = flight.fork(ff)
     val g = flight.fork(fg)
-    raiseCombined(flight.settleEvery(), combine)
+    failCombined(flight.settleEvery(), combine)
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await(), g.await())
 }
 
 /** Eight branches, each on a fork of its own. */
-fun <E, A, B, C, D, F, G, H, I, J> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
+fun <E, A, B, C, D, F, G, H, I, J> Fail<NonEmptyList<E>>.parZipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
     transform: (A, B, C, D, F, G, H, I) -> J,
 ): J = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, fh, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I, J> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H, I, J> Fail<NonEmptyList<E>>.parZipOrAccumulate(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
     transform: (A, B, C, D, F, G, H, I) -> J,
 ): J {
     val flight = Flight<E>(Uncollected, on)
@@ -400,36 +397,36 @@ fun <E, A, B, C, D, F, G, H, I, J> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulat
     val f = flight.fork(ff)
     val g = flight.fork(fg)
     val h = flight.fork(fh)
-    raiseAll(flight.settleEvery())
+    failAll(flight.settleEvery())
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await(), g.await(), h.await())
 }
 
-/** Eight branches, their raises folded with [combine]. */
-fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZipOrAccumulate(
+/** Eight branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H, I, J> Fail<E>.parZipOrAccumulate(
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
     transform: (A, B, C, D, F, G, H, I) -> J,
 ): J = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, fg, fh, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H, I, J> Fail<E>.parZipOrAccumulate(
     on: Executor,
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
     transform: (A, B, C, D, F, G, H, I) -> J,
 ): J {
     val flight = Flight<E>(Uncollected, on)
@@ -441,36 +438,36 @@ fun <E, A, B, C, D, F, G, H, I, J> Raise<E>.parZipOrAccumulate(
     val f = flight.fork(ff)
     val g = flight.fork(fg)
     val h = flight.fork(fh)
-    raiseCombined(flight.settleEvery(), combine)
+    failCombined(flight.settleEvery(), combine)
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await(), g.await(), h.await())
 }
 
 /** Nine branches, the last arity `arrow-fx-coroutines` has. */
-fun <E, A, B, C, D, F, G, H, I, J, K> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
-    fi: Raise<E>.() -> J,
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<NonEmptyList<E>>.parZipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
     transform: (A, B, C, D, F, G, H, I, J) -> K,
 ): K = parZipOrAccumulate(VirtualThreads, fa, fb, fc, fd, fe, ff, fg, fh, fi, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I, J, K> Raise<ArrowNonEmptyList<E>>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<NonEmptyList<E>>.parZipOrAccumulate(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
-    fi: Raise<E>.() -> J,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
     transform: (A, B, C, D, F, G, H, I, J) -> K,
 ): K {
     val flight = Flight<E>(Uncollected, on)
@@ -483,38 +480,38 @@ fun <E, A, B, C, D, F, G, H, I, J, K> Raise<ArrowNonEmptyList<E>>.parZipOrAccumu
     val g = flight.fork(fg)
     val h = flight.fork(fh)
     val i = flight.fork(fi)
-    raiseAll(flight.settleEvery())
+    failAll(flight.settleEvery())
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await(), g.await(), h.await(), i.await())
 }
 
-/** Nine branches, their raises folded with [combine]. */
-fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZipOrAccumulate(
+/** Nine branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<E>.parZipOrAccumulate(
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
-    fi: Raise<E>.() -> J,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
     transform: (A, B, C, D, F, G, H, I, J) -> K,
 ): K = parZipOrAccumulate(VirtualThreads, combine, fa, fb, fc, fd, fe, ff, fg, fh, fi, transform)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZipOrAccumulate(
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<E>.parZipOrAccumulate(
     on: Executor,
     combine: (E, E) -> E,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
-    fd: Raise<E>.() -> D,
-    fe: Raise<E>.() -> F,
-    ff: Raise<E>.() -> G,
-    fg: Raise<E>.() -> H,
-    fh: Raise<E>.() -> I,
-    fi: Raise<E>.() -> J,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
     transform: (A, B, C, D, F, G, H, I, J) -> K,
 ): K {
     val flight = Flight<E>(Uncollected, on)
@@ -527,7 +524,7 @@ fun <E, A, B, C, D, F, G, H, I, J, K> Raise<E>.parZipOrAccumulate(
     val g = flight.fork(fg)
     val h = flight.fork(fh)
     val i = flight.fork(fi)
-    raiseCombined(flight.settleEvery(), combine)
+    failCombined(flight.settleEvery(), combine)
     return transform(a.await(), b.await(), c.await(), d.await(), e.await(), f.await(), g.await(), h.await(), i.await())
 }
 
@@ -567,16 +564,6 @@ fun <E, A, B> Fail<E>.parMapOrAccumulate(
     val forks = iterable.map { element -> flight.fork { transform(element) } }
     failCombined(flight.settleEvery(), combine)
     return forks.map { it.await() }
-}
-
-/** Raises the branches' errors together, or returns so the caller can read their values. */
-private fun <E> Raise<ArrowNonEmptyList<E>>.raiseAll(errors: List<E>) {
-    errors.toArrowNonEmptyListOrNull()?.let { raise(it) }
-}
-
-/** The same, for a scope that declares one error and was handed the fold that makes it. */
-private fun <E> Raise<E>.raiseCombined(errors: List<E>, combine: (E, E) -> E) {
-    errors.reduceOrNull(combine)?.let { raise(it) }
 }
 
 /** Fails with the branches' errors together, or returns so the caller can read their values. */
