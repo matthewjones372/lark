@@ -30,7 +30,11 @@ internal fun Node.MapPar.mapParStage(): Flow<Any, *, NotUsed> {
             Flow.create<Any>()
                 .mapAsyncUnordered(parallelism) { a -> tails.behind(keyOf(a), bodies.start { body(a) }) }
                 .map(Passed::released)
-        } ?: Flow.create<Any>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
+        } ?: if (ordered) {
+            Flow.create<Any>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
+        } else {
+            Flow.create<Any>().mapAsyncUnordered(parallelism) { a -> bodies.start { body(a) } }
+        }
         started
             .watchTermination { mat, ended ->
                 // Pekko never cancels the stage a mapAsync is waiting on, so this is where a body

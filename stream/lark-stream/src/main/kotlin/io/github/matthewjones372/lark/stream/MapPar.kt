@@ -28,6 +28,32 @@ fun <E, A : Any, B : Any> Stream<E, A>.mapParKeyed(
     return via(Pipe(Node.MapPar(Node.Hole, parallelism, VirtualThreads, f.erased(), buildSite(), key.erased())))
 }
 
+/**
+ * As [mapPar], but each result passes on as soon as its body is done (spec 0170): a slow body holds back only
+ * itself. Up to [parallelism] bodies at once, as ever.
+ */
+fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B> =
+    via(Pipe.mapParUnordered(parallelism, VirtualThreads, f))
+
+/** The same, with every body run on [on]. */
+fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(
+    parallelism: Int,
+    on: Executor,
+    f: Raise<E>.(A) -> B,
+): Stream<E, B> = via(Pipe.mapParUnordered(parallelism, on, f))
+
+/** The starting form of [mapParUnordered]. */
+fun <E, A : Any, B : Any> Pipe.Companion.mapParUnordered(
+    parallelism: Int,
+    on: Executor = VirtualThreads,
+    f: Raise<E>.(A) -> B,
+): Pipe<E, A, B> = Pipe(Node.MapPar(Node.Hole, parallelism, on, f.erased(), buildSite(), ordered = false))
+
+fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapParUnordered(
+    parallelism: Int,
+    f: Raise<E>.(Out) -> Out2,
+): Pipe<E, In, Out2> = via(Pipe.mapParUnordered(parallelism, VirtualThreads, f))
+
 /** The starting form: a pipe of bodies, each on a virtual thread of its own. */
 fun <E, A : Any, B : Any> Pipe.Companion.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
     forked(parallelism, VirtualThreads, f)

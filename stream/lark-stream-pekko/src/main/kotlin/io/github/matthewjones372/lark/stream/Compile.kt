@@ -278,7 +278,11 @@ private fun Node.MapConcat.mapConcatStage(): Flow<Any, *, NotUsed> {
 
 private fun Node.MapAsync.mapAsyncStage(): Flow<Any, *, NotUsed> {
     val stage = guarded("mapAsync", at, f)
-    return Flow.create<Any>().mapAsync(parallelism) { a -> stage(a).orDieOnNull(a, at) }
+    return if (ordered) {
+        Flow.create<Any>().mapAsync(parallelism) { a -> stage(a).orDieOnNull(a, at) }
+    } else {
+        Flow.create<Any>().mapAsyncUnordered(parallelism) { a -> stage(a).orDieOnNull(a, at) }
+    }
 }
 
 private fun Node.Conflate.conflateStage(): Flow<Any, *, NotUsed> {

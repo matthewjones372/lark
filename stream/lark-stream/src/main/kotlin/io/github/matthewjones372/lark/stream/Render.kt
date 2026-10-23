@@ -172,9 +172,9 @@ private fun Node.label(): String {
 
         is Node.Tick -> "$every"
 
-        is Node.MapPar -> "$parallelism"
+        is Node.MapPar -> if (ordered) "$parallelism" else "$parallelism, unordered"
 
-        is Node.MapAsync -> "$parallelism"
+        is Node.MapAsync -> if (ordered) "$parallelism" else "$parallelism, unordered"
 
         is Node.Interleave -> "$segmentSize"
 

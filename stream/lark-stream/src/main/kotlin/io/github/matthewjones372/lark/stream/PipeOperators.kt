@@ -18,6 +18,17 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapAsync(
     f: (Out) -> CompletionStage<Out2>,
 ): Pipe<E, In, Out2> = via(Pipe.mapAsync(parallelism, f))
 
+/** The starting form of [mapAsyncUnordered]. */
+fun <A : Any, B : Any> Pipe.Companion.mapAsyncUnordered(
+    parallelism: Int,
+    f: (A) -> CompletionStage<B>,
+): Pipe<Nothing, A, B> = Pipe(Node.MapAsync(Node.Hole, parallelism, f.erased(), buildSite(), ordered = false))
+
+fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapAsyncUnordered(
+    parallelism: Int,
+    f: (Out) -> CompletionStage<Out2>,
+): Pipe<E, In, Out2> = via(Pipe.mapAsyncUnordered(parallelism, f))
+
 /**
  * A backlog collapsed into one element: [seed] starts an aggregate from the element downstream was
  * not ready for, and [aggregate] folds each later one into it until downstream asks again.

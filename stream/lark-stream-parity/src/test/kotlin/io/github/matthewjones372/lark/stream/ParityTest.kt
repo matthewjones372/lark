@@ -141,6 +141,12 @@ class ParityTest {
             Stream.of(1, 2, 3).conflateWithSeed({ listOf(it) }, { batch, n -> batch + n }).all()
         },
         Case("mapPar", done(listOf(2, 4, 6))) { Stream.of(1, 2, 3).mapPar(2) { it * 2 }.all() },
+        Case("mapParUnordered answers every element once", done((1..60).map { it * 2 }), sorted) {
+            Stream.from(1..60).mapParUnordered(8) { n -> (n * 2).also { Thread.sleep(keyedDelays[n - 1]) } }.all()
+        },
+        Case("mapAsyncUnordered answers every element once", done((1..60).map { it * 2 }), sorted) {
+            Stream.from(1..60).mapAsyncUnordered(8) { n -> CompletableFuture.completedFuture(n * 2) }.all()
+        },
         Case(
             "mapParKeyed keeps each key's order",
             done(byKey((0 until 60).toList())),
