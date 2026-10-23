@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.structured
 
-import arrow.core.raise.either
 import com.sun.management.HotSpotDiagnosticMXBean
+import io.github.matthewjones372.lark.fail.attempt
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
@@ -19,7 +19,7 @@ class ThreadDumpTest {
     fun `a thread dump shows each branch under the scope of the call that forked it`() {
         val waiting = CountDownLatch(1)
         val dumped = CountDownLatch(1)
-        val dump = either<Nothing, String> {
+        val dump = attempt<Nothing, String> {
             parZip({
                 waiting.countDown()
                 dumped.await()
