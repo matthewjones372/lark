@@ -153,7 +153,9 @@ class WireTest {
         val heardByTwo = Heard()
         Transport(two, heardByTwo).closedAfter().listen()
         val heardByOne = Heard()
-        val first = Transport(one, heardByOne)
+        // The claim is that close drains what was queued, not how fast: 8,000 frames on a loaded runner can take
+        // longer than the default second, and every frame left after it is dropped.
+        val first = Transport(one, heardByOne, drainWithin = 30.seconds)
         first.send(two, frame(0))
         heardByTwo.take(1) shouldContainExactly listOf(one to 0)
 
