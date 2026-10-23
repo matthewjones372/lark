@@ -4,10 +4,16 @@ import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.Reading
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.counter
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.increment
+import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeLeft
+import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.junit.shouldNotBe
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
 import io.github.matthewjones372.lark.readings
@@ -235,6 +241,9 @@ class NotAnObject : Suite<Unit>() {
 object ExpectingSuite : Suite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
+    // Power-assert rewrites calls, not references, so this is `expect` as a caller built without the plugin sees it.
+    private val unexplained: (Boolean) -> Expectations = ::expect
+
     init {
         test("passes both") { two -> expect(two == 2) and expect(two + two == 4) }
         test("fails both") { two ->
@@ -247,5 +256,23 @@ object ExpectingSuite : Suite<Int>() {
         test("fails a negated pass") { two -> !expect(two == 2) }
         test("passes a negated failure") { two -> !expect(two == 3) }
         test("throws before it expects") { error("no expectations reached") }
+        test("fails unexplained") { two -> unexplained(two == 3) }
+    }
+}
+
+/** lark-junit's value-returning matchers, each test named for how it should end. */
+object MatchingSuite : Suite<Int>() {
+    override val shared: Resource<Int> = resource { 2 }
+
+    init {
+        test("passes shouldBe and shouldNotBe") { two -> (two shouldBe 2) and (two shouldNotBe 3) }
+        test("fails shouldBe") { two -> two shouldBe 3 }
+        test("fails shouldNotBe") { two -> two shouldNotBe 2 }
+        test("fails both matchers") { two -> (two shouldBe 3) and (two shouldNotBe 2) }
+        test("passes either matcher") { two -> (two shouldBe 3) or (two shouldBe 2) }
+        test("passes shouldBeRight and shouldBeLeft") { two ->
+            (Either.Right(two) shouldBeRight 2) and (Either.Left(two) shouldBeLeft 2)
+        }
+        test("fails shouldBeRight") { two -> Either.Left(two) shouldBeRight 2 }
     }
 }

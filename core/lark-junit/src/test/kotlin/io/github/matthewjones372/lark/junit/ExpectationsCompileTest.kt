@@ -13,11 +13,12 @@ import java.io.File
 /** A test that checks nothing does not compile, under the compiler options this module builds with. */
 class ExpectationsCompileTest {
 
-    private fun suiteOf(body: String) = """
+    private fun suiteOf(body: String, vararg imports: String) = """
         import io.github.matthewjones372.lark.Resource
         import io.github.matthewjones372.lark.junit.Suite
         import io.github.matthewjones372.lark.junit.expect
         import io.github.matthewjones372.lark.resource
+        ${imports.joinToString("\n") { "import $it" }}
 
         object Fixture : Suite<Int>() {
             override val shared: Resource<Int> = resource { 1 }
@@ -59,5 +60,29 @@ class ExpectationsCompileTest {
 
         exit shouldBe ExitCode.COMPILATION_ERROR
         reported shouldContain "Unused return value of 'and'."
+    }
+
+    @Test
+    fun `a dropped shouldBe does not compile`(@TempDir workspace: File) {
+        val source = suiteOf("one shouldBe 2; expect(true)", "io.github.matthewjones372.lark.junit.shouldBe")
+        val (exit, reported) = EmbeddedKotlin(workspace).compile(source)
+
+        exit shouldBe ExitCode.COMPILATION_ERROR
+        reported shouldContain "Unused return value of 'shouldBe'."
+    }
+
+    @Test
+    fun `a file importing both shouldBe's calls neither, until one is imported under another name`(
+        @TempDir workspace: File,
+    ) {
+        val both =
+            arrayOf("io.github.matthewjones372.lark.junit.shouldBe", "io.github.matthewjones372.lark.assert.shouldBe")
+        val (ambiguous, reported) = EmbeddedKotlin(workspace).compile(suiteOf("one shouldBe 1", *both))
+
+        ambiguous shouldBe ExitCode.COMPILATION_ERROR
+        reported.joinToString("\n") shouldContain "ambiguity"
+
+        val renamed = suiteOf("one shouldEqual 1; one shouldBe 1", both[0], "${both[1]} as shouldEqual")
+        EmbeddedKotlin(workspace).compile(renamed).first shouldBe ExitCode.OK
     }
 }

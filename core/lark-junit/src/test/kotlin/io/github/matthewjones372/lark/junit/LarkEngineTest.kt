@@ -176,8 +176,10 @@ class LarkEngineTest {
             "GatedSuite",
             "Lark",
             "LoggingSuite",
+            "MatchingSuite",
             "MeteredSuite",
             "MixedSuite",
+            "OrderSuite",
             "OrderedSuite",
             "SequentialSuite",
             "UnacquirableSuite",
@@ -257,15 +259,15 @@ class LarkEngineTest {
 
         val both = (failed as MultipleFailuresError).failures
         both.map { it::class } shouldBe listOf(AssertionFailedError::class, AssertionFailedError::class)
-        both.map { it.message.orEmpty().lines().last().trim() } shouldBe listOf(
-            "expect(two == 3) and",
+        both.map { it.message.orEmpty().lines().first() } shouldBe listOf(
+            "expect(two == 3)",
             "expect(two + two == 5)",
         )
         both.map { it.stackTrace.first().fileName } shouldBe listOf("Samples.kt", "Samples.kt")
         withClue("the second failure is on the line after the first") {
             both[1].stackTrace.first().lineNumber shouldBe both[0].stackTrace.first().lineNumber + 1
         }
-        failed.message.orEmpty() shouldContain "fails both"
+        failed.message.orEmpty() shouldContain "fails both: 2 of 2 expectations failed"
     }
 
     @Test
@@ -280,16 +282,32 @@ class LarkEngineTest {
             "fails either" to MultipleFailuresError::class,
             "fails a negated pass" to AssertionFailedError::class,
             "throws before it expects" to IllegalStateException::class,
+            "fails unexplained" to AssertionFailedError::class,
         )
     }
 
     @Test
-    fun `a single failed expectation is reported alone, quoting the line that expected it`() {
+    fun `a single failed expectation is reported alone, under a heading that counts the expectations`() {
         val failed = failuresOf(run(selectClass(ExpectingSuite::class.java)))
 
-        failed.getValue("fails one of two").message.orEmpty().lines().last().trim() shouldBe
-            "test(\"fails one of two\") { two -> expect(two == 2) and expect(two == 3) }"
+        failed.getValue("fails one of two").message.orEmpty().lines().take(2) shouldBe listOf(
+            "fails one of two: 1 of 2 expectations failed",
+            "expect(two == 3)",
+        )
         failed.getValue("fails a negated pass").message.orEmpty() shouldContain "!expect(two == 2)"
+    }
+
+    @Test
+    fun `an expect called without power-assert says it was false and quotes the line that called it`() {
+        val message = failuresOf(run(selectClass(ExpectingSuite::class.java))).getValue("fails unexplained").message
+
+        message.orEmpty().lines().take(3) shouldBe listOf(
+            "fails unexplained: 1 of 1 expectations failed",
+            "expected: true",
+            "but was:  false",
+        )
+        message.orEmpty().lines().last().trim() shouldBe
+            "private val unexplained: (Boolean) -> Expectations = ::expect"
     }
 
     @Test
