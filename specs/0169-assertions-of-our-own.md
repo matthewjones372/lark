@@ -81,18 +81,14 @@ grep -rl 'io.kotest' --include=*.kt --include=*.kts .   # empty
 
 ## Open questions
 
-1. **Should failures throw opentest4j's `AssertionFailedError`, so IDEs show
-   a side-by-side diff?** That puts `opentest4j` on `lark-assert`'s
-   classpath. JUnit brings it to every test classpath already.
-   Recommended: no for now. Use a plain `AssertionError` with a readable
-   message, and revisit if the diffs are missed.
-2. **Is the order 0168 then 0169, or interleaved?** Recommended: 0169's
-   first entry lands any time, since it touches nothing else. The test
-   migrations wait until 0168's `core-off-arrow`, so each test file is only
-   rewritten once.
-3. **Should `lark-assert` be published for users, or kept internal?**
-   Recommended: publish it. It costs nothing extra and gives `lark-test`
-   users a matching set.
-4. **Should data classes get a field-by-field diff in the `shouldBe`
-   message?** Recommended: not in the first entry. Print `toString()` on
-   both sides and add a diff later if it's needed.
+Answered (maintainer, 2026-10-23: the recommendations stand).
+
+1. ~~Should failures throw opentest4j's `AssertionFailedError`?~~ No for now.
+   A plain `AssertionError` with a readable message. Revisit if the IDE
+   diffs are missed.
+2. ~~Is the order 0168 then 0169, or interleaved?~~ The `lark-assert`
+   module can land at any time. The test migrations wait until each
+   module's 0168 entry has landed, so each test file is rewritten once.
+3. ~~Should `lark-assert` be published?~~ Yes.
+4. ~~Should `shouldBe` show a field-by-field diff for data classes?~~ Not in
+   the first entry. `toString()` on both sides for now.
