@@ -209,10 +209,10 @@ release is told how the scope ended:
 
 <!-- core-resources -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.ExitCase
 import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.resourceScope
 import io.github.matthewjones372.lark.use
@@ -276,10 +276,10 @@ an interrupt ends the schedule where it is and a test can skip the waiting.
 
 <!-- core-schedule -->
 ```kotlin
+import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.retry
 import io.github.matthewjones372.lark.retryRaise
 import io.github.matthewjones372.lark.timeout
@@ -339,12 +339,12 @@ one value. It is checked when it is built and applied as a whole on every call:
 
 <!-- core-policy -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.Bulkhead
 import io.github.matthewjones372.lark.CircuitBreaker
 import io.github.matthewjones372.lark.RateLimiter
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.guarded
 import io.github.matthewjones372.lark.policy
 import kotlin.time.Duration.Companion.milliseconds
@@ -480,10 +480,10 @@ pekko.actor.lark {
 
 <!-- core-pekko -->
 ```kotlin
+import io.github.matthewjones372.lark.await
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.await
 import io.github.matthewjones372.lark.parZip
 import io.github.matthewjones372.lark.pekko.larkDispatcher
 import org.apache.pekko.actor.ActorSystem
