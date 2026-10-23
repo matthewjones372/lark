@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -82,7 +83,7 @@ class RuntimeTest {
             log.ask(1.minutes) { Read(it) }
         }
 
-        seen shouldBe (1..1_000).toList().right().right()
+        seen shouldBeRight (1..1_000).toList().right()
     }
 
     @Test
@@ -114,14 +115,14 @@ class RuntimeTest {
     fun `an ask nobody answers times out`() {
         val answer = flock<Nothing, Any> { spawn("log", log()).ask(50.milliseconds) { Ignore(it) } }
 
-        answer shouldBe AskFailure.TimedOut.left().right()
+        answer shouldBeRight AskFailure.TimedOut.left()
     }
 
     @Test
     fun `an ask the actor stops on answers Stopped, without waiting out its time`() {
         val answer = flock<Nothing, Any> { spawn("log", log()).ask(10.minutes) { Quit(it) } }
 
-        answer shouldBe AskFailure.Stopped.left().right()
+        answer shouldBeRight AskFailure.Stopped.left()
     }
 
     @Test
@@ -132,7 +133,7 @@ class RuntimeTest {
             log.ask(10.minutes) { Read(it) }
         }
 
-        answer shouldBe AskFailure.Stopped.left().right()
+        answer shouldBeRight AskFailure.Stopped.left()
     }
 
     @Test
@@ -154,7 +155,7 @@ class RuntimeTest {
             senderAfter to full.ask(10.minutes) { Read(it) }
         }
 
-        answers shouldBe (AskFailure.Stopped.left() to listOf(1, 3).right()).right()
+        answers shouldBeRight (AskFailure.Stopped.left() to listOf(1, 3).right())
     }
 
     @Test
@@ -174,7 +175,7 @@ class RuntimeTest {
             waiting.join(java.time.Duration.ofMinutes(1))
         }
 
-        letGo shouldBe true.right()
+        letGo shouldBeRight true
         letters.toList() shouldContainExactlyInAnyOrder listOf(Add(1), Add(2))
     }
 }

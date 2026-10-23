@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark
 import arrow.core.left
 import arrow.core.raise.Raise
 import arrow.core.raise.either
+import io.github.matthewjones372.lark.assert.shouldBeLeft
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -149,6 +150,25 @@ class PolicyTest {
                 raise(Bad("declared"))
             }
         } shouldBe Bad("declared").left()
+
+        attempts.get() shouldBe 1
+    }
+
+    @Test
+    fun `a fail in a flock passes through every step uncounted, as a raise does`() {
+        val attempts = AtomicInteger()
+        val partner = policy("partner") {
+            deadline(1.seconds)
+            retry(Schedule.recurs(3))
+            attemptTimeout(1.seconds)
+        }
+
+        flock<Bad, Int> {
+            guarded(partner, ifRejected = { Bad("rejected") }) {
+                attempts.incrementAndGet()
+                fail(Bad("declared"))
+            }
+        } shouldBeLeft Bad("declared")
 
         attempts.get() shouldBe 1
     }

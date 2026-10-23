@@ -2,7 +2,8 @@ package io.github.matthewjones372.lark
 
 import arrow.core.left
 import arrow.core.raise.either
-import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
@@ -84,7 +85,7 @@ class ResourceTest {
             "returned"
         }
 
-        outcome shouldBe "returned".right()
+        outcome shouldBeRight "returned"
         val cancelled = exit.get().shouldBeInstanceOf<ExitCase.Cancelled>()
         withClue("interrupt is the only cancellation the JDK has, so Cancelled carries one") {
             cancelled.interrupt.shouldNotBeNull()
@@ -193,5 +194,20 @@ class ResourceTest {
         } shouldBe "used"
 
         exits shouldContainExactly listOf(ExitCase.Completed, ExitCase.Completed)
+    }
+
+    @Test
+    fun `a fail in a flock releases with Completed, as a raise does`() {
+        val exit = AtomicReference<ExitCase?>(null)
+
+        val failed = flock<Bad, Int> {
+            resourceScope {
+                install({ Held("held") }) { _, case -> exit.set(case) }
+                fail(Bad("declared"))
+            }
+        }
+
+        failed shouldBeLeft Bad("declared")
+        exit.get() shouldBe ExitCase.Completed
     }
 }

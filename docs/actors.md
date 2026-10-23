@@ -91,13 +91,13 @@ fun till() = behaviour<Till, Int>(0) { _, total, message ->
 }
 
 fun main() {
-    val total: Either<Nothing, Either<AskFailure, Int>> = flock {
+    val total = flock<Nothing, Either<AskFailure, Int>> {
         val till = spawn("till", till())
         till.tell(Ring(250))
         till.tell(Ring(120))
         till.ask(1.seconds) { Total(it) }
     }
-    println(total) // Either.Right(Either.Right(370))
+    println(total) // Right(value=Either.Right(370))
 }
 ```
 
@@ -455,7 +455,7 @@ fun account(id: String) = persistent<Account, Moved, Long>(
 )
 
 fun main() {
-    val balance: Either<Nothing, Either<AskFailure, Long>> = flock {
+    val balance = flock<Nothing, Either<AskFailure, Long>> {
         journal(InMemoryJournal())
         snapshots(InMemorySnapshots())
         val first = spawn("a-1", account("a-1"))
@@ -467,7 +467,7 @@ fun main() {
         val again = spawn("a-1-again", account("a-1"))
         again.ask(1.seconds) { Balance(it) }
     }
-    println(balance) // Either.Right(Either.Right(300))
+    println(balance) // Right(value=Either.Right(300))
 }
 ```
 

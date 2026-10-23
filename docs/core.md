@@ -68,7 +68,7 @@ fun users(ids: List<Int>): Either<Err, List<User>> = either { parMap(ids) { find
 fun quote(): Either<Long, Long> = raceN({ quoteFrom("primary") }, { quoteFrom("fallback") })
 
 // async and await, for forks the combinators do not shape.
-fun report(id: Int): Either<Err, Dashboard> = flock {
+fun report(id: Int) = flock<Err, Dashboard> {
     val user = async { findUser(id).bind() }
     val orders = async { ordersFor(id).bind() }
     Dashboard(user.await(), orders.await())
@@ -83,8 +83,9 @@ fun report(id: Int): Either<Err, Dashboard> = flock {
   concurrency against a shared resource, use a [`Bulkhead`](#policies) or
   [`mapPar`](stream.md#a-body-that-must-block) on a stream.
 - `flock { }` is the scope that `async` forks in. On its own it returns
-  `Either<E, A>`; inside an existing `Raise<E>` it returns `A` and a raise
-  propagates to the enclosing scope.
+  Lark's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
+  it returns `A` and a failure propagates to the enclosing scope. Arrow's
+  `raise` and `bind` work in it as well while spec 0168 moves Lark off Arrow.
 
 By default each fork is a new virtual thread. Every forking combinator also
 has an overload that takes the executor to fork on as its first argument, for
@@ -129,7 +130,6 @@ still running.
 
 <!-- core-cancel -->
 ```kotlin
-import arrow.core.Either
 import io.github.matthewjones372.lark.flock
 
 data class Credit(val hasCredit: Boolean)
@@ -142,7 +142,7 @@ fun buildReport(id: Int): String {
 fun creditFor(id: Int): Credit = Credit(hasCredit = id % 2 == 0)
 
 // Start the expensive work early, and stop it if the cheap check says it is not wanted.
-fun page(id: Int): Either<Nothing, String> = flock {
+fun page(id: Int) = flock<Nothing, String> {
     val report = async { buildReport(id) }
     if (creditFor(id).hasCredit) {
         report.await()

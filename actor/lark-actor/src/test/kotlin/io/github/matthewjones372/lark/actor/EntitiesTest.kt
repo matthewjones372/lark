@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.right
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.collections.shouldContainExactly
@@ -147,7 +148,8 @@ class EntitiesTest {
             }
         }
 
-        weights shouldBe Triple(listOf("bo stopped", "rex stopped"), ("rex" to 0).right(), ("bo" to 1).right()).right()
+        weights.getOrNull() shouldBe
+            Triple(listOf("bo stopped", "rex stopped"), ("rex" to 0).right(), ("bo" to 1).right())
     }
 
     @Test
@@ -179,7 +181,7 @@ class EntitiesTest {
             }
         }
 
-        seen shouldBe (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right()).right()
+        seen shouldBeRight (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right())
     }
 
     /** An entity whose first message holds its step until [open], then keeps every number it is told, in order. */

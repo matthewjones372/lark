@@ -2,6 +2,7 @@
 // NoOtherDependenciesTest asserts the runtime classpath is lark-stream-forks and lark-actor, and nothing else.
 
 dependencies {
+    testImplementation(project(":lark-assert"))
     api(project(":lark-stream-forks"))
     api(project(":lark-actor"))
 }

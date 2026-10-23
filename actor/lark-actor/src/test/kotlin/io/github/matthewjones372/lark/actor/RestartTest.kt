@@ -4,6 +4,7 @@ import arrow.core.left
 import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
@@ -111,7 +112,7 @@ class RestartTest {
             }
         }
 
-        stamped shouldBe listOf(2, 3).right().right()
+        stamped shouldBeRight listOf(2, 3).right()
     }
 
     @Test
@@ -122,6 +123,6 @@ class RestartTest {
             press.ask(1.minutes) { Stamped(it) }
         }
 
-        answer shouldBe AskFailure.Stopped.left().right()
+        answer shouldBeRight AskFailure.Stopped.left()
     }
 }

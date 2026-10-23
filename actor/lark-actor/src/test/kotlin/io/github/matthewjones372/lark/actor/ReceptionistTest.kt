@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -130,6 +131,6 @@ class ReceptionistTest {
             Triple(found == setOf(wicket), find(Wickets), usher.ask(1.minutes) { Sizes(it) })
         }
 
-        heard shouldBe Triple(true, emptySet<ActorRef<Wicket>>(), listOf(0, 1, 0).right()).right()
+        heard shouldBeRight Triple(true, emptySet<ActorRef<Wicket>>(), listOf(0, 1, 0).right())
     }
 }

@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor
 import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.withClue
@@ -194,7 +195,7 @@ class TimersTest {
             }
         }
 
-        heard shouldBe (emptyList<String>().right() to listOf("wake").right()).right()
+        heard shouldBeRight (emptyList<String>().right() to listOf("wake").right())
     }
 
     @Test
@@ -207,7 +208,7 @@ class TimersTest {
             alarm.heard()
         }
 
-        heard shouldBe listOf("second").right().right()
+        heard shouldBeRight listOf("second").right()
     }
 
     @Test
@@ -219,6 +220,6 @@ class TimersTest {
             alarm.ask(1.minutes) { Rung(1, it) }
         }
 
-        heard shouldBe listOf("sooner").right().right()
+        heard shouldBeRight listOf("sooner").right()
     }
 }

@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.left
-import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -44,11 +44,11 @@ class ParTest {
     fun `parZip combines three and four branches`() {
         flock<Bad, String> {
             parZip({ "a" }, { "b" }, { "c" }) { a, b, c -> a + b + c }
-        } shouldBe "abc".right()
+        } shouldBeRight "abc"
 
         flock<Bad, String> {
             parZip({ "a" }, { "b" }, { "c" }, { "d" }) { a, b, c, d -> a + b + c + d }
-        } shouldBe "abcd".right()
+        } shouldBeRight "abcd"
     }
 
     @Test
@@ -67,7 +67,7 @@ class ParTest {
         }
         val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
 
-        result shouldBe Bad("branch").left()
+        result shouldBeLeft Bad("branch")
         sleeper.wasInterrupted() shouldBe true
         withClue("the raise interrupts the sibling, so parZip cannot have waited out its sleep") {
             (elapsedMillis < PROMPT_MILLIS) shouldBe true
@@ -117,7 +117,7 @@ class ParTest {
         }
 
         withClue("start order, not finishing order, names the failure") {
-            result shouldBe Bad("first").left()
+            result shouldBeLeft Bad("first")
         }
     }
 
@@ -142,7 +142,7 @@ class ParTest {
         }
 
         withClue("an interrupt arrives as a throw, never as a raise, so this raise was the branch's own") {
-            result shouldBe Bad("first").left()
+            result shouldBeLeft Bad("first")
         }
     }
 
@@ -157,7 +157,7 @@ class ParTest {
             }
         }
 
-        doubled shouldBe listOf(2, 4, 6, 8).right()
+        doubled shouldBeRight listOf(2, 4, 6, 8)
     }
 
     @Test
@@ -171,7 +171,7 @@ class ParTest {
             }
         }
 
-        mapped shouldBe emptyList<Int>().right()
+        mapped shouldBeRight emptyList<Int>()
         ran.get() shouldBe false
     }
 
@@ -191,7 +191,7 @@ class ParTest {
             }
         }
 
-        result shouldBe Bad("element 2").left()
+        result shouldBeLeft Bad("element 2")
         sleeper.wasInterrupted() shouldBe true
         sleeper.isAlive() shouldBe false
     }
@@ -215,7 +215,7 @@ class ParTest {
             ) { _, _ -> 0 }
         }
 
-        result shouldBe Bad("branch").left()
+        result shouldBeLeft Bad("branch")
     }
 }
 

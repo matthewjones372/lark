@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.left
 import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -121,7 +122,7 @@ class WatchTest {
             lookout.ask(1.minutes) { Seen(it) }
         }
 
-        seen shouldBe 1.right().right()
+        seen shouldBeRight 1.right()
     }
 
     @Test
@@ -146,7 +147,7 @@ class WatchTest {
             worker.ask(1.minutes) { _: Reply<Unit> -> Leave }
         }
 
-        heard shouldBe AskFailure.Stopped.left().right()
+        heard shouldBeRight AskFailure.Stopped.left()
         stopping.get() shouldBe listOf("stopping")
     }
 
@@ -164,7 +165,7 @@ class WatchTest {
             lookout.ask(1.minutes) { Seen(it) }
         }
 
-        seen shouldBe 1.right().right()
+        seen shouldBeRight 1.right()
     }
 
     @Test

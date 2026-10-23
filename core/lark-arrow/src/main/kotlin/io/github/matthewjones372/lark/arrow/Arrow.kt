@@ -21,7 +21,7 @@ fun <A> NonEmptyList<A>.toArrow(): arrow.core.NonEmptyList<A> = arrow.core.NonEm
 fun <A> arrow.core.NonEmptyList<A>.toLark(): NonEmptyList<A> = nonEmptyListOf(head) + tail
 
 /** Runs Lark code inside an Arrow `Raise`: a [fail] in [block] raises its error here. */
-fun <E, A> Raise<E>.lark(block: context(Fail<E>) () -> A): A = attempt(block).fold({ raise(it) }, { it })
+fun <E, A> Raise<E>.lark(block: Fail<E>.() -> A): A = attempt(block).fold({ raise(it) }, { it })
 
 /** Runs Arrow code inside a Lark [Fail]: a raise in [block] fails with its error here. */
 context(_: Fail<E>)

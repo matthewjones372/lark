@@ -4,6 +4,7 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.raise.either
 import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -95,6 +96,6 @@ class RaiseTest {
             till.ask(1.minutes) { Count(it) }
         }
 
-        answer shouldBe AskFailure.Stopped.left().right()
+        answer shouldBeRight AskFailure.Stopped.left()
     }
 }

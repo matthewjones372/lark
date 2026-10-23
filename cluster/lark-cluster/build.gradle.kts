@@ -2,6 +2,7 @@
 // NoOtherDependenciesTest asserts the runtime classpath is lark-actor-remote and what it brings, and nothing else.
 
 dependencies {
+    testImplementation(project(":lark-assert"))
     api(project(":lark-actor-remote"))
 
     // A sharded persistent entity keeps its state across a move only on a journal every node reaches (spec 0072).

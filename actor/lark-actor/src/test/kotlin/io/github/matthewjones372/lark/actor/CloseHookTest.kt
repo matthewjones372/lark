@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -20,7 +20,7 @@ class CloseHookTest {
             val counted = behaviour<CountAsked, Int>(3) { _, count, asked -> stay().also { asked.reply(count) } }
             val counter = spawn("counter", counted)
             onClose { answered += counter.ask(1.minutes) { CountAsked(it) }.getOrNull()!! }
-        } shouldBe Unit.right()
+        } shouldBeRight Unit
 
         answered.toList() shouldBe listOf(3)
     }

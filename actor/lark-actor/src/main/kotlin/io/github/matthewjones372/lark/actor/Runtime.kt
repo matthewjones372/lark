@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.actor
 
 import arrow.core.Either
 import arrow.core.left
-import arrow.core.nonFatalOrThrow
 import arrow.core.raise.Raise
 import arrow.core.right
 import io.github.matthewjones372.lark.Carriers
@@ -15,6 +14,7 @@ import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.metricTags

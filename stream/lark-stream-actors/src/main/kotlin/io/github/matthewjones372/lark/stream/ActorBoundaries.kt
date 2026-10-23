@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
 import arrow.core.Either
-import arrow.core.nonFatalOrThrow
 import arrow.core.raise.either
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.actor.ActorRef
@@ -9,6 +8,7 @@ import io.github.matthewjones372.lark.actor.Behaviour
 import io.github.matthewjones372.lark.actor.Ctx
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 

@@ -5,6 +5,9 @@ import arrow.core.left
 import arrow.core.raise.Raise
 import arrow.core.raise.either
 import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.attempt
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -218,8 +221,8 @@ class RaiseParTest {
     }
 
     @Test
-    fun `flock inside either forks with async, and a raise surfaces at await as the Left`() {
-        val summed = either<Bad, Int> {
+    fun `flock inside attempt forks with async, and a fail surfaces at await as the Left`() {
+        val summed = attempt<Bad, Int> {
             flock {
                 val first = async { 20 }
                 val second = async { 22 }
@@ -227,13 +230,13 @@ class RaiseParTest {
             }
         }
 
-        summed shouldBe 42.right()
+        summed shouldBeRight 42
 
-        val raised = either<Bad, Int> {
-            flock { async<Int> { raise(Bad("forked")) }.await() }
+        val failed = attempt<Bad, Int> {
+            flock { async<Int> { fail(Bad("forked")) }.await() }
         }
 
-        raised shouldBe Bad("forked").left()
+        failed shouldBeLeft Bad("forked")
     }
 
     @Test

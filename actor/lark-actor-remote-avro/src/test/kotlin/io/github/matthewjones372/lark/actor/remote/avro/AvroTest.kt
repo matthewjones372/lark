@@ -15,6 +15,7 @@ import io.github.matthewjones372.lark.actor.remote.encode
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -109,7 +110,7 @@ class AvroTest {
                 desk.ask(1.minutes) { Price(Placed("o-1", 500), it) }
             }
 
-            answer shouldBe 600L.right().right()
+            answer shouldBeRight 600L.right()
         } finally {
             done.countDown()
             pricing.join()

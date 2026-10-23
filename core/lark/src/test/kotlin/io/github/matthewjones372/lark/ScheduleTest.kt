@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark
 import arrow.core.left
 import arrow.core.raise.either
 import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
@@ -256,7 +257,7 @@ class ScheduleTest {
             }
             started.await()
             "returned"
-        } shouldBe "returned".right()
+        } shouldBeRight "returned"
 
         withClue("the delay is waited on the calling thread, so an interrupt lands in it") {
             interrupted.get() shouldBe true

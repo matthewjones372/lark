@@ -4,18 +4,24 @@ import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 
 /** The scope a declared failure of type [E] leaves through; [attempt] opens one and answers with how it ended. */
-class Fail<in E> internal constructor(private val openedIn: String) {
+interface Fail<in E> {
+    /** Leaves the scope with [error], which its [attempt] answers on the left. */
+    fun fail(error: E): Nothing
+}
+
+/** The scope [attempt] opens: it fails only while open, and only its own attempt catches what it throws. */
+internal class Attempt<in E>(private val openedIn: String) : Fail<E> {
 
     @Volatile
     private var closed = false
 
-    internal fun failWith(error: E): Nothing {
+    override fun fail(error: E): Nothing {
         // A Fail that escaped its attempt, in a lambda or a fork still running, has nobody left to answer.
         check(!closed) { "fail was called on a scope opened in $openedIn after its attempt had returned" }
         throw Failed(error, this)
     }
 
-    internal fun close() {
+    fun close() {
         closed = true
     }
 }
@@ -27,13 +33,13 @@ class Fail<in E> internal constructor(private val openedIn: String) {
 internal class Failed(val error: Any?, val scope: Fail<*>) : Throwable(null, null, false, false)
 
 /** Runs [block], answering with its value on the right, or on the left with the error it failed with. */
-fun <E, A> attempt(block: context(Fail<E>) () -> A): Either<E, A> {
-    val scope = Fail<E>(block.javaClass.name)
+fun <E, A> attempt(block: Fail<E>.() -> A): Either<E, A> {
+    val scope = Attempt<E>(block.javaClass.name)
     return try {
-        Either.Right(block(scope))
+        Either.Right(scope.block())
     } catch (failed: Failed) {
         if (failed.scope !== scope) throw failed
-        // Only failWith on this same Fail<E> threw it, so the error is an E.
+        // Only fail on this same Attempt<E> threw it, so the error is an E.
         @Suppress("UNCHECKED_CAST")
         Either.Left(failed.error as E)
     } finally {
@@ -42,14 +48,13 @@ fun <E, A> attempt(block: context(Fail<E>) () -> A): Either<E, A> {
 }
 
 /** Runs [block], answering a failure with [recover] instead. */
-inline fun <E, A> recover(noinline block: context(Fail<E>) () -> A, recover: (E) -> A): A =
-    attempt(block).getOrElse(recover)
+inline fun <E, A> recover(noinline block: Fail<E>.() -> A, recover: (E) -> A): A = attempt(block).getOrElse(recover)
 
 context(scope: Fail<E>)
-fun <E> fail(error: E): Nothing = scope.failWith(error)
+fun <E> fail(error: E): Nothing = scope.fail(error)
 
 context(scope: Fail<E>)
-fun <E, A> Either<E, A>.bind(): A = fold({ scope.failWith(it) }, { it })
+fun <E, A> Either<E, A>.bind(): A = fold({ scope.fail(it) }, { it })
 
 @OptIn(ExperimentalContracts::class)
 context(scope: Fail<E>)

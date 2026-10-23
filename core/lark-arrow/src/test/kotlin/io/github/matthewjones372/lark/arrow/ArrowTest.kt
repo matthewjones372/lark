@@ -3,7 +3,6 @@ package io.github.matthewjones372.lark.arrow
 import arrow.core.raise.either
 import arrow.core.raise.ensure
 import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.fail
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.nonEmptyListOf
 import io.github.matthewjones372.lark.fail.right
