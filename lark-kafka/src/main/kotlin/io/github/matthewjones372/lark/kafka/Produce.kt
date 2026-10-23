@@ -2,7 +2,10 @@
 
 package io.github.matthewjones372.lark.kafka
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.map
+import io.github.matthewjones372.lark.fail.mapLeft
+import io.github.matthewjones372.lark.fail.onLeft
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.groupedWithin
 import io.github.matthewjones372.lark.stream.mapAsync
@@ -39,7 +42,7 @@ class Producer<K, V> internal constructor(
         val acked = CompletableFuture<Published>()
         val started = System.nanoTime()
         // A serializer that throws does so here rather than in the callback, and a full buffer waits here too.
-        Either.catch {
+        catching {
             client.send(record) { metadata, failed ->
                 meters.sent(record.topic(), started, metadata.takeIf { failed == null })
                 if (failed == null) acked.complete(metadata.published()) else acked.completeExceptionally(failed)
@@ -160,4 +163,4 @@ const val DEAD_LETTER_HEADER: String = "lark.dead-letter"
 private fun RecordMetadata.published() = Published(topic(), partition(), offset())
 
 private fun CompletableFuture<Published>.outcome(record: ProducerRecord<*, *>): Either<PublishFailed, Published> =
-    Either.catch { get() }.mapLeft { thrown -> PublishFailed(record, (thrown as? ExecutionException)?.cause ?: thrown) }
+    catching { get() }.mapLeft { thrown -> PublishFailed(record, (thrown as? ExecutionException)?.cause ?: thrown) }

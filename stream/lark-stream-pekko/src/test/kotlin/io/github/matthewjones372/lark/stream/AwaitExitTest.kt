@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.left
-import arrow.core.raise.either
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
@@ -29,12 +29,12 @@ class AwaitExitTest {
 
     @Test
     fun `Done is the value the run folded to`() {
-        either { awaitExit(completed(Exit.Done(7))) } shouldBe 7.right()
+        attempt { awaitExit(completed(Exit.Done(7))) } shouldBe 7.right()
     }
 
     @Test
     fun `Failed raises the error the run ended with`() {
-        either { awaitExit(completed(Exit.Failed(Declined(2)))) } shouldBe Declined(2).left()
+        attempt { awaitExit(completed(Exit.Failed(Declined(2)))) } shouldBe Declined(2).left()
     }
 
     @Test
@@ -42,7 +42,7 @@ class AwaitExitTest {
         val cause = IllegalStateException("no ledger")
 
         val thrown = shouldThrow<IllegalStateException> {
-            either { awaitExit(completed(Exit.Died(cause))) }
+            attempt { awaitExit(completed(Exit.Died(cause))) }
         }
 
         withClue("a defect is not a failure a Raise can name, so it stays a throw") {
@@ -53,7 +53,7 @@ class AwaitExitTest {
     /** The pipeline the spec draws: a run, folded where the handler that started it can read it. */
     @Test
     fun `a run awaited in a Raise gives back what it folded`() {
-        val counted = either<Declined, Int> {
+        val counted = attempt<Declined, Int> {
             awaitExit(
                 Stream.from(listOf(1, 2, 3))
                     .map { id -> "receipt-$id" }
@@ -67,10 +67,10 @@ class AwaitExitTest {
 
     @Test
     fun `a declared failure in the run raises where the run was awaited`() {
-        val counted = either<Declined, Int> {
+        val counted = attempt<Declined, Int> {
             awaitExit(
                 Stream.from(listOf(1, 2, 3))
-                    .mapPar(2) { id -> if (id == 2) raise(Declined(id)) else "receipt-$id" }
+                    .mapParOrFail<Declined, Int, String>(2) { id -> if (id == 2) fail(Declined(id)) else "receipt-$id" }
                     .runFold(0) { n, _ -> n + 1 }
                     .run(pekko.system),
             )

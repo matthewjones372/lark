@@ -111,7 +111,9 @@ path easy for anyone already on Arrow.
 - [ ] **`actor-off-arrow`** — `lark-actor`, `-journal-jdbc` and `-remote`
       move.
 - [ ] **`app-off-arrow`** — `lark-app`, `-typesafe` and `lark-bank` move.
-- [ ] **`kafka-off-arrow`** — `lark-kafka` and `lark-kafka-pekko` move.
+- [ ] **`kafka-off-arrow`** — `lark-kafka` and `lark-kafka-pekko` move. Folded into
+      `stream-off-arrow` (2026-10-23): their records' `Either`s flow through the stream
+      operators, so the two cannot move apart.
 - [ ] **`core-drops-arrow`** — the wrappers go, and `arrow-core` leaves
       `lark`'s build.
       Done when: `NoOtherDependenciesTest` allows only the JDK and the stdlib.

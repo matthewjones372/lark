@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.capturingMetrics
+import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks

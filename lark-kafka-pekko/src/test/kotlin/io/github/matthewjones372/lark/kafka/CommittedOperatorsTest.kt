@@ -95,7 +95,7 @@ class CommittedOperatorsTest {
             .mapConcatRecord { record ->
                 if (record.value() == "x") listOf(0) else listOf(1, 2, 3)
             }
-            .mapParRecordOrFail(1) { n -> if (n == 3) raise(Refused("y")) else n }
+            .mapParRecordOrFail(1) { n -> if (n == 3) fail(Refused("y")) else n }
             .runCommitting(committer)
             .run(pekko.system)
             .settled() shouldBe Exit.Failed(Refused("y"))

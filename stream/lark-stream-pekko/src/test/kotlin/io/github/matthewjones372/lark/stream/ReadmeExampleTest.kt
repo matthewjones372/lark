@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -162,10 +162,10 @@ class ReadmeExampleTest {
         val receipts = ConcurrentLinkedQueue<Receipt>()
         val receiptSink = Sink.foreach<Receipt> { receipt -> receipts.add(receipt) }
 
-        val settled: Either<IngestError, Done> = either {
+        val settled: Either<IngestError, Done> = attempt {
             awaitExit(
                 Stream.from(rows)
-                    .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
+                    .mapOrFail { row -> Customer(row.id, row.customer ?: fail(NoCustomer(row.id))) }
                     .mapAsync(4) { customer -> ledger.settle(customer) }
                     .divertLefts(to = declinedSink)
                     .runWith(receiptSink)

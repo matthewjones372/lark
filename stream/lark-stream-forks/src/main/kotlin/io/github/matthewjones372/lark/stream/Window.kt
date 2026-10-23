@@ -1,9 +1,10 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.VirtualThreads
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.VarHandle
 import java.util.concurrent.BlockingQueue
@@ -205,7 +206,7 @@ internal class InFlight<T>(on: Executor, private val body: () -> T) : Runnable {
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
 internal fun Node.MapPar.window(releases: Releases?): Pull {
-    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
     val executor = releases?.executorFor(on) ?: on
     val started = Ring(parallelism)
@@ -251,7 +252,7 @@ internal fun Node.MapPar.window(releases: Releases?): Pull {
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
 internal fun Node.MapPar.unorderedWindow(releases: Releases?): Pull {
-    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
     val executor = releases?.executorFor(on) ?: on
     val arrivals = Arrivals(parallelism)
@@ -304,7 +305,7 @@ internal fun Node.MapPar.unorderedWindow(releases: Releases?): Pull {
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
 internal fun Node.MapPar.keyedWindow(key: (Any) -> Any, releases: Releases?): Pull {
-    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val keyOf = guarded("mapParKeyed", at, key)
     val up = upstream.pull()
     val executor = releases?.executorFor(on) ?: on

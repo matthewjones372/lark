@@ -1,8 +1,9 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -71,7 +72,7 @@ class MapParTest {
         val seen = ConcurrentLinkedQueue<String>()
 
         val exit = Stream.from(listOf(1, 2, 3, 4))
-            .mapParOrFail(1) { id -> if (id == 2) raise(Declined(id)) else "receipt-$id" }
+            .mapParOrFail(1) { id -> if (id == 2) fail(Declined(id)) else "receipt-$id" }
             .map { receipt ->
                 seen.add(receipt)
                 receipt
@@ -250,7 +251,7 @@ class MapParTest {
     @Test
     fun `a raise in a mapParKeyed body arrives as Exit Failed, not wrapped`() {
         val exit = Stream.from(listOf(1, 2, 3, 4))
-            .mapParKeyed<Declined, Int, Int>(4, key = { it % 2 }) { id -> if (id == 3) raise(Declined(id)) else id }
+            .mapParKeyed<Declined, Int, Int>(4, key = { it % 2 }) { id -> if (id == 3) fail(Declined(id)) else id }
             .runCollect()
             .run(pekko.system)
             .settled()

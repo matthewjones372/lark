@@ -2,7 +2,7 @@
 
 package io.github.matthewjones372.lark.kafka
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.stream.Run
 import io.github.matthewjones372.lark.stream.SourceSeam
 import io.github.matthewjones372.lark.stream.Stream

@@ -1,19 +1,19 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.VirtualThreads
+import io.github.matthewjones372.lark.fail.Fail
 import java.util.concurrent.Executor
 
 /**
  * Up to [parallelism] element bodies run at once, each on a virtual thread of its own and in a
- * `Raise<E>`; the results keep the input's order, as [mapAsync]'s do.
+ * `Fail<E>`; the results keep the input's order, as [mapAsync]'s do.
  */
-fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B> =
+fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, f: Fail<E>.(A) -> B): Stream<E, B> =
     via(Pipe.mapPar(parallelism, VirtualThreads, f))
 
 /** The same, with every body run on [on]. */
-fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B> =
+fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Fail<E>.(A) -> B): Stream<E, B> =
     via(Pipe.mapPar(parallelism, on, f))
 
 /**
@@ -23,7 +23,7 @@ fun <E, A : Any, B : Any> Stream<E, A>.mapPar(parallelism: Int, on: Executor, f:
 fun <E, A : Any, B : Any> Stream<E, A>.mapParKeyed(
     parallelism: Int,
     key: (A) -> Any,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Stream<E, B> {
     require(parallelism > 0) { "mapParKeyed needs room for at least one body, and was given $parallelism" }
     return via(Pipe(Node.MapPar(Node.Hole, parallelism, VirtualThreads, f.erased(), buildSite(), key.erased())))
@@ -33,26 +33,26 @@ fun <E, A : Any, B : Any> Stream<E, A>.mapParKeyed(
  * As [mapPar], but each result passes on as soon as its body is done (spec 0170): a slow body holds back only
  * itself. Up to [parallelism] bodies at once, as ever.
  */
-fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B> =
+fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(parallelism: Int, f: Fail<E>.(A) -> B): Stream<E, B> =
     via(Pipe.mapParUnordered(parallelism, VirtualThreads, f))
 
 /** The same, with every body run on [on]. */
 fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(
     parallelism: Int,
     on: Executor,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Stream<E, B> = via(Pipe.mapParUnordered(parallelism, on, f))
 
 /** The starting form of [mapParUnordered]. */
 fun <E, A : Any, B : Any> Pipe.Companion.mapParUnordered(
     parallelism: Int,
     on: Executor = VirtualThreads,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Pipe<E, A, B> = Pipe(Node.MapPar(Node.Hole, parallelism, on, f.erased(), buildSite(), ordered = false))
 
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapParUnordered(
     parallelism: Int,
-    f: Raise<E>.(Out) -> Out2,
+    f: Fail<E>.(Out) -> Out2,
 ): Pipe<E, In, Out2> = via(Pipe.mapParUnordered(parallelism, VirtualThreads, f))
 
 /**
@@ -60,34 +60,34 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapParUnordered(
  * [Limit.max]. An adaptive limit finds that number itself, from how long the bodies take, and one shared limit
  * bounds every stream and call that draws on the same dependency together.
  */
-fun <E, A : Any, B : Any> Stream<E, A>.mapPar(limit: Limit, f: Raise<E>.(A) -> B): Stream<E, B> =
+fun <E, A : Any, B : Any> Stream<E, A>.mapPar(limit: Limit, f: Fail<E>.(A) -> B): Stream<E, B> =
     mapPar(limit.max) { a -> limit.withPermit { f(a) } }
 
 /** [mapParUnordered] under a [Limit], as [mapPar] is above. */
-fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(limit: Limit, f: Raise<E>.(A) -> B): Stream<E, B> =
+fun <E, A : Any, B : Any> Stream<E, A>.mapParUnordered(limit: Limit, f: Fail<E>.(A) -> B): Stream<E, B> =
     mapParUnordered(limit.max) { a -> limit.withPermit { f(a) } }
 
 /** The starting form: a pipe of bodies, each on a virtual thread of its own. */
-fun <E, A : Any, B : Any> Pipe.Companion.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
+fun <E, A : Any, B : Any> Pipe.Companion.mapPar(parallelism: Int, f: Fail<E>.(A) -> B): Pipe<E, A, B> =
     forked(parallelism, VirtualThreads, f)
 
 /** The same, with every body run on [on]. */
 fun <E, A : Any, B : Any> Pipe.Companion.mapPar(
     parallelism: Int,
     on: Executor,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Pipe<E, A, B> = forked(parallelism, on, f)
 
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapPar(
     parallelism: Int,
-    f: Raise<E>.(Out) -> Out2,
+    f: Fail<E>.(Out) -> Out2,
 ): Pipe<E, In, Out2> = via(Pipe.mapPar(parallelism, VirtualThreads, f))
 
 /** The same, with every body run on [on]. */
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapPar(
     parallelism: Int,
     on: Executor,
-    f: Raise<E>.(Out) -> Out2,
+    f: Fail<E>.(Out) -> Out2,
 ): Pipe<E, In, Out2> = via(Pipe.mapPar(parallelism, on, f))
 
 /**
@@ -100,7 +100,7 @@ fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapPar(
 // The two erase to one JVM signature, so one of them needs a name of its own down there. Kotlin
 // callers never see it.
 @JvmName("mapParOrFailDeclaring")
-fun <F, A : Any, B : Any> Stream<Nothing, A>.mapParOrFail(parallelism: Int, f: Raise<F>.(A) -> B): Stream<F, B> =
+fun <F, A : Any, B : Any> Stream<Nothing, A>.mapParOrFail(parallelism: Int, f: Fail<F>.(A) -> B): Stream<F, B> =
     via(Pipe.mapPar(parallelism, VirtualThreads, f))
 
 /** The same, with every body run on [on]. */
@@ -108,25 +108,25 @@ fun <F, A : Any, B : Any> Stream<Nothing, A>.mapParOrFail(parallelism: Int, f: R
 fun <F, A : Any, B : Any> Stream<Nothing, A>.mapParOrFail(
     parallelism: Int,
     on: Executor,
-    f: Raise<F>.(A) -> B,
+    f: Fail<F>.(A) -> B,
 ): Stream<F, B> = via(Pipe.mapPar(parallelism, on, f))
 
 /** As above, for a stream whose failure type is already named: [mapPar] under the name that says it may fail. */
-fun <E, A : Any, B : Any> Stream<E, A>.mapParOrFail(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B> =
+fun <E, A : Any, B : Any> Stream<E, A>.mapParOrFail(parallelism: Int, f: Fail<E>.(A) -> B): Stream<E, B> =
     mapPar(parallelism, f)
 
 /** The same, with every body run on [on]. */
 fun <E, A : Any, B : Any> Stream<E, A>.mapParOrFail(
     parallelism: Int,
     on: Executor,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Stream<E, B> = mapPar(parallelism, on, f)
 
 /** As the stream pair above, on a pipe that has yet to name a failure. */
 @JvmName("mapParOrFailPipeDeclaring")
 fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapParOrFail(
     parallelism: Int,
-    f: Raise<F>.(Out) -> Out2,
+    f: Fail<F>.(Out) -> Out2,
 ): Pipe<F, In, Out2> = via(Pipe.mapPar(parallelism, VirtualThreads, f))
 
 /** The same, with every body run on [on]. */
@@ -134,20 +134,20 @@ fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapParOrFail(
 fun <F, In, Out : Any, Out2 : Any> Pipe<Nothing, In, Out>.mapParOrFail(
     parallelism: Int,
     on: Executor,
-    f: Raise<F>.(Out) -> Out2,
+    f: Fail<F>.(Out) -> Out2,
 ): Pipe<F, In, Out2> = via(Pipe.mapPar(parallelism, on, f))
 
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapParOrFail(
     parallelism: Int,
-    f: Raise<E>.(Out) -> Out2,
+    f: Fail<E>.(Out) -> Out2,
 ): Pipe<E, In, Out2> = mapPar(parallelism, f)
 
 /** The same, with every body run on [on]. */
 fun <E, In, Out : Any, Out2 : Any> Pipe<E, In, Out>.mapParOrFail(
     parallelism: Int,
     on: Executor,
-    f: Raise<E>.(Out) -> Out2,
+    f: Fail<E>.(Out) -> Out2,
 ): Pipe<E, In, Out2> = mapPar(parallelism, on, f)
 
-private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Pipe<E, A, B> =
+private fun <E, A : Any, B : Any> forked(parallelism: Int, on: Executor, f: Fail<E>.(A) -> B): Pipe<E, A, B> =
     Pipe(Node.MapPar(Node.Hole, parallelism, on, f.erased(), buildSite()))

@@ -2,7 +2,7 @@
 
 package io.github.matthewjones372.lark.kafka
 
-import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.fail.Fail
 import io.github.matthewjones372.lark.stream.Failing
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.filter
@@ -43,7 +43,7 @@ fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapRecordOrFail(f: Failing<E>.
 
 fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParRecord(
     parallelism: Int,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Stream<E, Committed<B>> =
     mapPar(parallelism) { c: Committed<A> -> c.carrying(c.annotated { f(this, it) }) }
 
@@ -54,7 +54,7 @@ fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParRecord(
  */
 fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParPartitioned(
     parallelism: Int,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Stream<E, Committed<B>> =
     mapParKeyed(parallelism, key = { c: Committed<A> -> c.position.topic to c.position.partition }) { c ->
         c.carrying(c.annotated { f(this, it) })
@@ -63,13 +63,13 @@ fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParPartitioned(
 @JvmName("mapParRecordOrFailDeclaring")
 fun <F, A : Any, B : Any> Stream<Nothing, Committed<A>>.mapParRecordOrFail(
     parallelism: Int,
-    f: Raise<F>.(A) -> B,
+    f: Fail<F>.(A) -> B,
 ): Stream<F, Committed<B>> =
     mapParOrFail<F, Committed<A>, Committed<B>>(parallelism) { c -> c.carrying(c.annotated { f(this, it) }) }
 
 fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParRecordOrFail(
     parallelism: Int,
-    f: Raise<E>.(A) -> B,
+    f: Fail<E>.(A) -> B,
 ): Stream<E, Committed<B>> =
     mapParOrFail<E, Committed<A>, Committed<B>>(parallelism) { c -> c.carrying(c.annotated { f(this, it) }) }
 

@@ -90,7 +90,7 @@ val orders = listOf(Order(1, 1200), Order(2, 800), Order(3, 4500))
 // What happens to an order, and the failure it can end with. No backend is named here.
 val takings: Run<Unpriced, Long> =
     Stream.from(orders)
-        .mapOrFail { order -> order.pence ?: raise(Unpriced(order.id)) }
+        .mapOrFail { order -> order.pence ?: fail(Unpriced(order.id)) }
         .filter { pence -> pence >= 1000 }
         .runFold(0L) { total, pence -> total + pence }
 
@@ -167,16 +167,16 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A>` | a stream that emitted nothing fails with `error`, for `E : E2`; one that emitted is untouched |
 | **Element by element** | |
 | `Stream<E, A>.map(f: (A) -> B): Stream<E, B>` | `B` is bound to `Any`, so a nullable body does not compile |
-| `Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B>` | as `map`, with the body in a `Raise<E>`: `fail(e)`, `raise`, `bind` and `ensure` |
+| `Stream<E, A>.mapOrFail(f: Failing<E>.(A) -> B): Stream<E, B>` | as `map`, with the body in a `Fail<E>`: `fail(e)`, `bind` and `ensure` |
 | `Stream<E, A>.filter(predicate: (A) -> Boolean): Stream<E, A>` | the elements that match, the only place one is dropped on purpose |
 | `Stream<E, A>.mapAsync(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | a body that answers a stage: up to `parallelism` at once, in the input's order; a `null` completion dies |
-| `Stream<E, A>.mapPar(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Raise<E>`; `B : Any`, so no completion drops an element |
-| `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Raise<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
-| `Stream<E, A>.mapParKeyed(parallelism: Int, key: (A) -> Any, f: Raise<E>.(A) -> B): Stream<E, B>` | `mapPar` that keeps order only among elements with the same key: a slow body holds back its own key's results, not the others'. Forks and Pekko let keys pass each other; Actors and TestStreams keep full order, which keeps every key's too |
-| `Stream<E, A>.mapParUnordered(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, B>` | `mapPar` that keeps no order: each result passes on as soon as its body is done, so a slow body holds back only itself. `on` as above |
+| `Stream<E, A>.mapPar(parallelism: Int, f: Fail<E>.(A) -> B): Stream<E, B>` | a body that must block: one virtual thread per element in flight, in a `Fail<E>`; `B : Any`, so no completion drops an element |
+| `Stream<E, A>.mapPar(parallelism: Int, on: Executor, f: Fail<E>.(A) -> B): Stream<E, B>` | the same, with every body run on the executor it names |
+| `Stream<E, A>.mapParKeyed(parallelism: Int, key: (A) -> Any, f: Fail<E>.(A) -> B): Stream<E, B>` | `mapPar` that keeps order only among elements with the same key: a slow body holds back its own key's results, not the others'. Forks and Pekko let keys pass each other; Actors and TestStreams keep full order, which keeps every key's too |
+| `Stream<E, A>.mapParUnordered(parallelism: Int, f: Fail<E>.(A) -> B): Stream<E, B>` | `mapPar` that keeps no order: each result passes on as soon as its body is done, so a slow body holds back only itself. `on` as above |
 | `Stream<E, A>.mapAsyncUnordered(parallelism: Int, f: (A) -> CompletionStage<B>): Stream<E, B>` | `mapAsync` that keeps no order, Pekko's name: each result passes on as its stage completes |
-| `Stream<E, A>.mapPar(limit: Limit, f: Raise<E>.(A) -> B): Stream<E, B>` | `mapPar` under a shared [`Limit`](#a-limit-nobody-has-to-pick): as many bodies at once as the limit allows now, never more than its `max`. `mapParUnordered(limit)` likewise |
-| `Stream<E, A>.mapParOrFail(parallelism: Int, f: Raise<F>.(A) -> B): Stream<F, B>` | `mapPar` with the failure read out of the body, on a stream that has not named one; `mapOrFail`'s suffix, and `on` as above |
+| `Stream<E, A>.mapPar(limit: Limit, f: Fail<E>.(A) -> B): Stream<E, B>` | `mapPar` under a shared [`Limit`](#a-limit-nobody-has-to-pick): as many bodies at once as the limit allows now, never more than its `max`. `mapParUnordered(limit)` likewise |
+| `Stream<E, A>.mapParOrFail(parallelism: Int, f: Fail<F>.(A) -> B): Stream<F, B>` | `mapPar` with the failure read out of the body, on a stream that has not named one; `mapOrFail`'s suffix, and `on` as above |
 | `Stream<E, A>.mapConcat(f: (A) -> Iterable<B>): Stream<E, B>` | each element's own elements, in its order; one that answers with none emits none |
 | `Stream<E, A>.conflateWithSeed(seed: (A) -> S, aggregate: (S, A) -> S): Stream<E, S>` | a backlog collapsed while downstream is busy: `seed` starts the aggregate and `aggregate` folds each later element in |
 | `Stream<E, A>.filterNot(predicate: (A) -> Boolean): Stream<E, A>` | `filter`'s mirror, Pekko's own name |
@@ -218,7 +218,7 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Run<E, R>.start(backend: StreamBackend): Running<E, R>` | the same run with a handle: `exit` is what `run` answers, `stop()` ends it now as `Done` with what the sink has, and `close()` stops and waits. A source that drains, such as a Kafka consumer, is stopped by draining, so what it already sent still reaches the end |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | `run(PekkoStreams(system))` *(Pekko)* |
 | `Run<E, R>.start(system: ClassicActorSystemProvider): Running<E, R>` | `start(PekkoStreams(system))` *(Pekko)* |
-| `Raise<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Raise`: `Done` is the value, `Failed` raises, `Died` throws. In `lark-stream-pekko`, but it waits for a run on any backend |
+| `Fail<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Fail`: `Done` is the value, `Failed` fails, `Died` throws. In `lark-stream-pekko`, but it waits for a run on any backend |
 | **Pipes** | |
 | `Pipe.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out>` | the way in from Pekko's `Flow` *(Pekko)* |
 | `Pipe.identity(): Pipe<Nothing, A, A>` | the pipe that changes nothing, where a chain starts |
@@ -235,12 +235,13 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 `mapAsync` is for a body that answers a `CompletionStage`. `mapPar` is for one
 that cannot: a JDBC call, a blocking client, anything whose answer arrives by
 returning. Each element in flight gets a virtual thread of its own, at most
-`parallelism` at a time, and the body runs in the stream's `Raise<E>`, so
-`raise`, `bind` and `parZip` are all available in it:
+`parallelism` at a time, and the body runs in the stream's `Fail<E>`, so
+`fail`, `bind` and `parZip` are all available in it:
 
 <!-- mappar-example -->
 ```kotlin
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.mapParOrFail
@@ -271,7 +272,7 @@ reads the body.
 
 A blocked virtual thread parks and frees its carrier for another, so four
 elements in flight cost four virtual threads, not four platform threads. A
-raise is the stream's declared failure, anything thrown is `Died(cause)`, and a
+fail is the stream's declared failure, anything thrown is `Died(cause)`, and a
 body still running when the stream is torn down is interrupted where it
 blocked.
 
@@ -434,8 +435,8 @@ what those two entries are for.
 
 ## How a failure travels
 
-`fail(e)`, `raise(e)` or a `bind()` on a `Left` ends a stream with the `E` it
-names. In an element body, `Failing<E>` is an Arrow `Raise<E>`, so anything a
+`fail(e)` or a `bind()` on a `Left` ends a stream with the `E` it
+names. In an element body, `Failing<E>` is a Lark `Fail<E>`, so anything a
 Lark handler writes, `ensure`, `parZip`, a fork awaited, works there too.
 Every other throwable is a defect and arrives as `Exit.Died(cause)`.
 
@@ -578,7 +579,7 @@ before it can become a plain Pekko `Source`.
 A Kotlin service written directly against Pekko's `javadsl` has one error
 channel typed `Throwable` for the whole graph, and a `Supervision.Decider` set
 as an attribute some distance from the operator it governs. A team that keeps
-its failures in an Arrow `Either` puts one in every element, splits the stream
+its failures in an `Either` puts one in every element, splits the stream
 with `divertTo(sink, predicate)` and casts the survivors back. Two things can
 then drop an element without a trace, and Pekko documents both: a `mapAsync`
 whose `CompletionStage` completes with `null` is not passed downstream, and a
@@ -590,8 +591,10 @@ The same ingest written both ways, from shared fixtures:
 
 <!-- example-fixtures -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
+import io.github.matthewjones372.lark.fail.mapLeft
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.divertLefts
 import io.github.matthewjones372.lark.stream.from
@@ -632,7 +635,7 @@ Raw Pekko `Source`:
 val receipts: Source<Either<IngestError, Receipt>, NotUsed> =
     Source.from(rows)
         .map { row ->                                        // Source<Either<IngestError, Customer>, NotUsed>
-            either<IngestError, Customer> { Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
+            attempt<IngestError, Customer> { Customer(row.id, row.customer ?: fail(NoCustomer(row.id))) }
         }
         .mapAsync(4) { customer ->
             customer.fold(
@@ -652,7 +655,7 @@ With `lark-stream`:
 ```kotlin
 val receipts: Stream<IngestError, Receipt> =
     Stream.from(rows)
-        .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }   // a nullable body does not compile
+        .mapOrFail { row -> Customer(row.id, row.customer ?: fail(NoCustomer(row.id))) }   // a nullable body does not compile
         .mapAsync(4) { customer -> ledger.settle(customer) }                                // the same mapAsync, E already on the stream
         .divertLefts(to = declinedSink)                                                     // no predicate, no cast
 ```
@@ -678,8 +681,8 @@ turned back into an `Either` in the handler that started it:
 
 <!-- readme-example -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.awaitExit
 import io.github.matthewjones372.lark.stream.divertLefts
@@ -719,22 +722,22 @@ val rows = listOf(Row(1, "ada"), Row(2, "grace"), Row(3, null))
 val declinedSink = Sink.foreach<Declined> { declined -> println("declined ${declined.id}") }
 val receiptSink = Sink.foreach<Receipt> { receipt -> println("receipt ${receipt.id}") }
 
-val settled: Either<IngestError, Done> = either {
+val settled: Either<IngestError, Done> = attempt {
     awaitExit(
         Stream.from(rows)                                              // Stream<Nothing, Row>
             .mapOrFail { row ->                                        // Stream<IngestError, Customer>
-                Customer(row.id, row.customer ?: raise(NoCustomer(row.id)))
+                Customer(row.id, row.customer ?: fail(NoCustomer(row.id)))
             }
             .mapAsync(4) { customer -> ledger.settle(customer) }        // up to four stages at once, in order
             .divertLefts(to = declinedSink)                            // Stream<IngestError, Receipt>
             .runWith(receiptSink)                                      // Run<IngestError, Done>
             .run(system),                                              // CompletionStage<Exit<IngestError, Done>>
-    )                                                                  // Done → the value, Failed → raise, Died → throw
+    )                                                                  // Done → the value, Failed → fail, Died → throw
 }
 ```
 
-`awaitExit` waits for the run inside a `Raise`: `Done` is the value, `Failed`
-raises, and `Died` throws. It waits through `lark-pekko`'s
+`awaitExit` waits for the run inside a `Fail`: `Done` is the value, `Failed`
+fails, and `Died` throws. It waits through `lark-pekko`'s
 [`await`](core.md#running-forks-on-pekko), so an interrupt cancels the run
 rather than abandoning it.
 

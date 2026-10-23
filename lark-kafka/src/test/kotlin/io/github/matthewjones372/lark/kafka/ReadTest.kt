@@ -1,6 +1,8 @@
 package io.github.matthewjones372.lark.kafka
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.fold
+import io.github.matthewjones372.lark.fail.map
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.run

@@ -89,7 +89,7 @@ class UnorderedTest {
                 // 2's body has to be running before 3 fails, or there is nothing left to interrupt.
                 if (n == 3) {
                     sleeping.await(SETTLE_SECONDS, TimeUnit.SECONDS)
-                    raise(Odd(n))
+                    fail(Odd(n))
                 }
                 sleeping.countDown()
                 try {

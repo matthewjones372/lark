@@ -1,9 +1,10 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.raise.ensure
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.ensure
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.parZip
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -110,7 +111,7 @@ class RaiseInStreamTest {
     @Test
     fun `raise and fail are one call under two names`() {
         val raised = Stream.from(listOf(1))
-            .mapOrFail { id -> raise(NoCustomer(id)) }
+            .mapOrFail { id -> fail(NoCustomer(id)) }
             .runCollect()
             .run(pekko.system)
             .settled()

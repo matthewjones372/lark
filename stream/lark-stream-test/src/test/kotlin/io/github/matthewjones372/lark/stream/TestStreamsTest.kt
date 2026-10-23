@@ -42,7 +42,7 @@ class TestStreamsTest {
 
     @Test
     fun `a declared failure ends the run Failed, as on any backend`() {
-        val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) raise(Odd(it)) else it }.runCollect()
+        val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) fail(Odd(it)) else it }.runCollect()
             .run(TestStreams())
 
         exit.toCompletableFuture().join() shouldBe Exit.Failed(Odd(2))
@@ -76,7 +76,7 @@ class TestStreamsTest {
             .mapPar<Odd, Int, Int>(4) { n ->
                 most.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
                 inFlight.decrementAndGet()
-                if (n == 4) raise(Odd(n)) else n * 10
+                if (n == 4) fail(Odd(n)) else n * 10
             }
             .runCollect().start(TestStreams())
 

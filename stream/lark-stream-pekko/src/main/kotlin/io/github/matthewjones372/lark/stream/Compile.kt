@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.fold
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.KillSwitches
 import org.apache.pekko.stream.OverflowStrategy

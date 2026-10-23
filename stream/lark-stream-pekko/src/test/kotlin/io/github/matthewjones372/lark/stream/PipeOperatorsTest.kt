@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.Fail
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
@@ -50,7 +50,7 @@ class PipeOperatorsTest {
     private fun completed(n: Int): CompletionStage<Int> = CompletableFuture.completedFuture(n)
 
     /** The second element fails, so every twin below has both a value and a failure to answer for. */
-    private fun Raise<Declined>.failingAt(n: Int): Int = if (n == 2) raise(Declined(n)) else n
+    private fun Fail<Declined>.failingAt(n: Int): Int = if (n == 2) fail(Declined(n)) else n
 
     private fun recovering(declined: Declined): Stream<Nothing, Int> = Stream.from(listOf(declined.id * 100))
 
@@ -67,7 +67,7 @@ class PipeOperatorsTest {
     /** The spec's pipe: a customer named or the row's failure, the ledger asked, the declines diverted. */
     private fun settling(declines: Sink<Declined, *>): Pipe<IngestError, Row, Receipt> =
         Pipe.mapOrFail<IngestError, Row, Customer> { row ->
-            Customer(row.id, row.customer ?: raise(NoCustomer(row.id)))
+            Customer(row.id, row.customer ?: fail(NoCustomer(row.id)))
         }
             .mapPar(4) { customer -> settle(customer) }
             .divertLefts(to = declines)
