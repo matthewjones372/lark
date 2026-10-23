@@ -108,12 +108,16 @@ internal class InFlight<T>(on: Executor, body: () -> T) {
     }
 
     /** The body's answer, or what it threw, as it threw it. Interruptible, so that a stop wakes the loop. */
-    fun await(): T =
-        try {
+    fun await(): T {
+        // A body at the head of a wide window is usually moments from done; see [YIELDS_BEFORE_WAITING].
+        var yielded = 0
+        while (!answer.isDone && yielded++ < YIELDS_BEFORE_WAITING) Thread.yield()
+        return try {
             answer.get()
         } catch (wrapped: ExecutionException) {
             throw wrapped.cause ?: wrapped
         }
+    }
 
     /**
      * Interrupts the body if it is running, stops it running if it has not started, and waits for it to
@@ -151,10 +155,9 @@ internal fun Node.MapPar.window(releases: Releases?): Pull {
     val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
     val up = upstream.pull()
     val executor = releases?.executorFor(on) ?: on
-    val room = Semaphore(parallelism)
-    val started = LinkedBlockingQueue<Any>()
+    val started = Ring(parallelism)
     val fork = InFlight(releases?.on ?: VirtualThreads) {
-        Releases.within(releases) { feed(up, room, started) { a -> InFlight(executor) { body(a) } } }
+        Releases.within(releases) { feed(up, started) { a -> InFlight(executor) { body(a) } } }
     }
     // The fork first, so nothing is started behind the bodies being let go of.
     val cancelAll = {
@@ -165,7 +168,7 @@ internal fun Node.MapPar.window(releases: Releases?): Pull {
     var ended = false
     return Pull {
         if (ended) return@Pull null
-        when (val next = started.take()) {
+        when (val next = started.awaitHead()) {
             Fed.Done -> null.also { ended = true }
 
             is Fed.Threw -> throw next.thrown.also { ended = true }
@@ -176,12 +179,11 @@ internal fun Node.MapPar.window(releases: Releases?): Pull {
                 val answer = try {
                     head.await()
                 } catch (thrown: Throwable) {
-                    // The head is out of the queue by now, so it is let go of here, with the rest.
-                    head.cancel()
+                    // The head is still in the ring, so it is let go of with the rest.
                     cancelAll()
                     throw thrown
                 }
-                room.release()
+                started.poll()
                 answer.fold({ e -> cancelAll(); throw DeclaredFailure(e) }, { b -> b })
             }
         }

@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.VirtualThreads
-import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.Semaphore
 
 /** How the stream a feeding fork read ended: marked in its queue after the last thing it started. */
 internal sealed interface Fed {
@@ -81,28 +79,6 @@ internal fun feed(up: Pull, started: Ring, start: (Any) -> Any) {
         } catch (_: InterruptedException) {
             // The run let go while this waited for room: nobody reads the failure either.
         }
-    }
-}
-
-/**
- * Upstream's elements, each started by [start] once there is [room] for it and queued in order, then how
- * upstream ended. `offer` rather than `put`: the queue has no bound, and a put an interrupt cut short would
- * lose what was started, which then nothing would let go of.
- */
-// The catch is as wide as a pipeline: whatever upstream threw is the pull's to throw, after what came first.
-@Suppress("TooGenericExceptionCaught")
-internal fun feed(up: Pull, room: Semaphore, started: BlockingQueue<Any>, start: (Any) -> Any) {
-    try {
-        while (true) {
-            room.acquire()
-            val a = up.next() ?: break
-            started.offer(start(a))
-        }
-        started.offer(Fed.Done)
-    } catch (_: InterruptedException) {
-        // Let go of by the run: nothing reads what would have come next.
-    } catch (thrown: Throwable) {
-        started.offer(Fed.Threw(thrown))
     }
 }
 
