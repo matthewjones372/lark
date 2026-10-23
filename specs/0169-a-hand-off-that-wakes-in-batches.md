@@ -28,7 +28,7 @@ before it sleeps, and a producer is told about room only in chunks (prefetch, re
 
 ## Shape
 
-No new public API. One internal primitive, `Handoff<A>(capacity)`, used by `buffer` and by both windows:
+No new public API. One internal primitive, `Ring(capacity)`, used by `buffer` and by both windows:
 
 - One producer and one consumer.
 - `put` parks only when the ring is full. A parked producer is woken once `capacity / 4` slots are free, not one
@@ -49,9 +49,9 @@ cost in place, and that cost is what the profile shows. Recommended: the primiti
 
 ## Stack
 
-- [ ] **`handoff-ring`** — `Handoff` with its batching rule, end marker and interrupt behaviour, and unit tests.
+- [ ] **`handoff-ring`** — `Ring` with its batching rule, end marker and interrupt behaviour, and unit tests.
       Done when: its tests pass, including a producer interrupted while parked on a full ring.
-- [ ] **`buffer-on-handoff`** — `buffer` on Forks moves to `Handoff`.
+- [ ] **`buffer-on-handoff`** — `buffer` on Forks moves to `Ring`.
       Done when: `lark-stream-parity` is green and a new hand-off row in `lark-stream-benchmarks` is at least 5×
       faster than today's baseline.
 - [ ] **`mapasync-on-handoff`** — the `mapAsync` window uses slots and batched room.
