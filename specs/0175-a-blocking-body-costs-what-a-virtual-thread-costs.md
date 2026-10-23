@@ -45,7 +45,8 @@ what Lark adds around it.
 
 ## Stack
 
-- [ ] **`spec-0175-mappar-cpu`** — the profile, the floor, and the bookkeeping cuts that measure.
+- [x] **`spec-0175-mappar-cpu`** ([#508](https://github.com/matthewjones372/lark/pull/508)) — the profile, the floor,
+      and the bookkeeping cuts that measure.
       Done when: blocking-vs-reactive's `lark` rows on `backpressure`, `fanout-10k` and `inflight-100k` (shared
       and native) are no worse in CPU or allocation, `MapParBenchmark` and `EnrichThroughputBenchmark` pass the
       gate, and the PR says how much of the gap to Reactor is the virtual thread's and how much is Lark's.
