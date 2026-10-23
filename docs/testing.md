@@ -143,8 +143,8 @@ suite is a Kotlin `object` extending `Suite<R>`, which the `lark` engine finds
 with no annotation. Its `shared` resource is acquired once, handed to every
 test, and released after the last; if acquiring throws, each test fails with
 that throw, and what was installed before it is released. A test is registered
-from `init` with `test(name) { shared -> … }` and returns `Expectations`, built
-with `expect`.
+from `init` with `test(name) { shared -> … }` and returns
+[`Expectations`](#expectations).
 
 - **Concurrency:** each test is a fork on a virtual thread, at most the
   suite's `Limit` at once, `Limit.fixed(availableProcessors)` by default.
@@ -204,6 +204,108 @@ object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {
         }
         test("an unlisted pet has no status") { shop -> expect(shop.status("Mrs Peel") == null) }
         test("one pet is listed", alone) { shop -> expect(shop.count() == 1) }   // after the tests above
+    }
+}
+```
+
+## Expectations
+
+A suite's test returns what its checks found as a value, `Expectations`, so a
+failed check does not hide the ones after it, and a test that checks nothing
+does not compile: a body that returns `Unit` is not `Expectations`.
+`expect(condition)` is the one check every other is built from. `a and b`
+keeps both sides' failures, `a or b` passes if either side does, and `!a`
+passes if `a` failed. One failure is reported alone, and several as one
+`MultipleFailuresError`.
+
+Built with JetBrains' power-assert plugin, a failed `expect` draws each value
+under the expression, then the test's file and line:
+
+```
+an order is saved once: 1 of 2 expectations failed
+expect(db.count() == 1)
+       |  |       |
+       |  2       false
+       Database(orders=2)
+at OrderSuite.kt:32
+```
+
+Without the plugin, it quotes the source line instead. A diagram carries no
+expected and actual for IntelliJ's diff, so `lark-junit` also has `shouldBe`,
+`shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
+and carry both. Infix calls share one precedence and group to the left, so
+`a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
+parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
+whose matchers throw and return the value; a file importing both can call
+neither. A throwing check, Kotest's or `lark-assert`'s, is still allowed in a
+test: it stops the test, which is reported as an error.
+
+<!-- testing-junit-expect -->
+```kotlin
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.shouldBeLeft
+import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.resource
+
+data class NotFound(val id: String)
+
+class Database {
+    private val orders = mutableListOf<String>()
+
+    fun save(order: String) {
+        orders += order
+    }
+
+    fun count(): Int = orders.size
+
+    fun find(id: String): Either<NotFound, String> =
+        orders.firstOrNull { it == id }?.let { Either.Right(it) } ?: Either.Left(NotFound(id))
+
+    override fun toString(): String = "Database(orders=${orders.size})"
+}
+
+object OrderSuite : Suite<Database>(concurrent = false) {
+    override val shared: Resource<Database> = resource { Database() }
+
+    init {
+        test("an order is saved once") { db ->
+            repeat(2) { db.save("order-1") }
+            expect(db.count() == 1) and (db.find("order-1") shouldBeRight "order-1")
+        }
+        test("an order never saved is not found") { db ->
+            (db.find("order-9") shouldBeLeft NotFound("order-9")) and !expect(db.count() == 0)
+        }
+    }
+}
+```
+
+The build needs the plugin, with `expect` in its functions, on the test
+source set. `Expectations` is marked for Kotlin's return-value checker, which
+reports a dropped one only under `-Xreturn-value-checker=check`, and fails the
+build only with `allWarningsAsErrors`. Without the flag, a test written
+`expect(a); expect(b)` compiles, and the first expectation is lost.
+
+```kotlin
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
+plugins {
+    kotlin("jvm") version "2.4.10"
+    kotlin("plugin.power-assert") version "2.4.10"
+}
+
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
+powerAssert {
+    functions.add("io.github.matthewjones372.lark.junit.expect")
+    includedSourceSets.add("test")
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xreturn-value-checker=check")
+        allWarningsAsErrors = true
     }
 }
 ```
