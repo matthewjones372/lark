@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import arrow.core.right
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.flock

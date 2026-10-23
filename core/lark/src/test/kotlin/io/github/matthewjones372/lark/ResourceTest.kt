@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark
 
 import arrow.core.left
 import arrow.core.raise.either
-import arrow.core.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly

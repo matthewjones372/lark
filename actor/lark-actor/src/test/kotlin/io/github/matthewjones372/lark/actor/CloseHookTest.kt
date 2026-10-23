@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test

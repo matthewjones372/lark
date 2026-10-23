@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream.actors
 
-import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.stream.Actors
