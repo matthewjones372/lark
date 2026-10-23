@@ -113,7 +113,9 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     /** Adds [element] after [awaitRoom] said there was room: it never waits, and an interrupt cannot lose it. */
     fun offer(element: Any) {
         val t = tail
-        check(t - head < capacity) { "offer without room" }
+        // Against the last head awaitRoom saw, not the live one: reading the consumer's index on every element
+        // would pull its cache line across for each put, which is the cost the cached copy exists to avoid.
+        check(t - headSeen < capacity) { "offer without room" }
         slots[slot(t)] = element
         TAIL.setRelease(this, t + 1)
         VarHandle.fullFence()
@@ -124,7 +126,15 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     }
 
     /** Waits while the ring is empty. Throws [InterruptedException] if interrupted, whether it had to wait or not. */
-    fun take(): Any = awaitHead().also { poll() }
+    fun take(): Any {
+        if (Thread.interrupted()) throw InterruptedException()
+        var yielded = 0
+        while (true) {
+            poll()?.let { return it }
+            // A yield lets a producer on the same carrier run, and is far cheaper than a park and an unpark.
+            if (yielded++ < YIELDS_BEFORE_PARKING) Thread.yield() else parkUntilNotEmpty()
+        }
+    }
 
     /** The next element, left in the ring and so still counted against its capacity, waiting while there is none. */
     fun awaitHead(): Any {
