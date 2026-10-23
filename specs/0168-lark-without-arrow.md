@@ -100,6 +100,13 @@ path easy for anyone already on Arrow.
       `parMapOrAccumulate`, with wrappers. Split by arity if it runs past the
       cap.
 - [ ] **`structured-on-fail`** — `lark-structured`.
+- [ ] **`policy-on-fail`** — `retry`, `retryRaise`, `guarded`, `Guard`,
+      `raceN` and `timeout` take a `Fail`, and `raceN` and `Schedule.andThen`
+      answer with Lark's `Either`. `flock-on-fail` moved only how these treat a
+      failure; the modules below call them, so they move first (added
+      2026-10-23).
+      Done when: core's tests and the guide examples pass with none of these
+      taking a `Raise`.
 - [ ] **`stream-off-arrow`** — the four `stream/` modules move.
 - [ ] **`actor-off-arrow`** — `lark-actor`, `-journal-jdbc` and `-remote`
       move.

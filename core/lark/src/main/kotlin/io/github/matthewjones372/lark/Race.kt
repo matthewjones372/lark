@@ -1,24 +1,24 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.raise.Raise
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import java.util.concurrent.Executor
 
 /**
  * Runs both branches on forks of their own and answers with the first to return; the losers are interrupted
  * and their outcomes dropped, and a branch that fails first loses the race for everyone.
  */
-fun <E, A, B> Raise<E>.raceN(fa: Raise<E>.() -> A, fb: Raise<E>.() -> B): Either<A, B> = raceN(VirtualThreads, fa, fb)
+fun <E, A, B> Fail<E>.raceN(fa: Fail<E>.() -> A, fb: Fail<E>.() -> B): Either<A, B> = raceN(VirtualThreads, fa, fb)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B> Raise<E>.raceN(
+fun <E, A, B> Fail<E>.raceN(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
 ): Either<A, B> {
-    val flight = Flight(asFail(), on)
+    val flight = Flight(this, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     flight.settleFirst()
@@ -26,20 +26,20 @@ fun <E, A, B> Raise<E>.raceN(
 }
 
 /** Three branches, the winner on the side it was given. */
-fun <E, A, B, C> Raise<E>.raceN(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
+fun <E, A, B, C> Fail<E>.raceN(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
 ): Either<A, Either<B, C>> = raceN(VirtualThreads, fa, fb, fc)
 
 /** The same, with every fork run on [on]. */
-fun <E, A, B, C> Raise<E>.raceN(
+fun <E, A, B, C> Fail<E>.raceN(
     on: Executor,
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
 ): Either<A, Either<B, C>> {
-    val flight = Flight(asFail(), on)
+    val flight = Flight(this, on)
     val a = flight.fork(fa)
     val b = flight.fork(fb)
     val c = flight.fork(fc)
@@ -51,7 +51,7 @@ fun <E, A, B, C> Raise<E>.raceN(
     }
 }
 
-/** The same race for code outside any `Raise`, with plain branches. */
+/** The same race for code outside any `Fail`, with plain branches. */
 fun <A, B> raceN(fa: () -> A, fb: () -> B): Either<A, B> = raceN(VirtualThreads, fa, fb)
 
 /** The same, with every fork run on [on]. */

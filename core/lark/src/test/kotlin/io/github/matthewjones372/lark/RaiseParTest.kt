@@ -1,12 +1,11 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.raise.either
-import arrow.core.right
 import io.github.matthewjones372.lark.assert.shouldBeLeft
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -17,7 +16,7 @@ class RaiseParTest {
     @Test
     fun `raceN takes a Raise receiver`() {
         val loser = Sleeper()
-        either<Bad, Either<String, Int>> {
+        attempt<Bad, Either<String, Int>> {
             raceN(
                 { loser.losingWith("lost") },
                 {
@@ -29,7 +28,7 @@ class RaiseParTest {
 
         val second = Sleeper()
         val third = Sleeper()
-        either<Bad, Either<String, Either<Int, Boolean>>> {
+        attempt<Bad, Either<String, Either<Int, Boolean>>> {
             raceN(
                 {
                     second.awaitStart()
