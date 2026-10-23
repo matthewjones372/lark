@@ -43,6 +43,31 @@ object OrderSuite : Suite<Database>(limit = Limit.fixed(8)) {
 
 ## Why this shape
 
+The same suite in JUnit Jupiter today, and what the engine changes:
+
+```kotlin
+@Execution(ExecutionMode.CONCURRENT)   // plus junit.jupiter.execution.parallel.enabled=true
+class OrderTest {
+    companion object {
+        lateinit var db: Database
+        @JvmStatic @BeforeAll fun start() { db = Database.start() }
+        @JvmStatic @AfterAll fun stop() { db.close() }
+    }
+    @Test fun `an order is saved once`() { db.save(order) }
+    @Test @Isolated fun `reads the thread`() { check(Thread.currentThread().isVirtual) }
+}
+```
+
+| | JUnit Jupiter | `lark-junit` |
+|---|---|---|
+| Threads | a `ForkJoinPool` of platform threads | a fork per test, on a virtual thread |
+| Cap | one global `parallelism` property | a `Limit` per suite, fixed or adaptive |
+| Shared resource | a `lateinit` static, set in `@BeforeAll` | a `Resource`, handed to each test |
+| Acquire fails | the class fails, and its tests aren't run | every test fails with that cause |
+| Partial release | written by hand in `@AfterAll` | in reverse order, by `resourceScope` |
+| Clock, logger, metrics | process-wide, shared by every concurrent test | a `LarkLocal` binding per fork |
+| Logs | interleaved on stdout, pass or fail | per test, and only on failure |
+
 A `TestEngine` runs a suite's tests as forks and still reports each one as an ordinary JUnit test. A
 Jupiter extension can't, because it would rely on Jupiter's own parallel mode, which uses platform
 threads and can't hand a fork a resource. Running tests concurrently only inside a suite, never across
