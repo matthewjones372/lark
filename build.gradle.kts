@@ -78,6 +78,7 @@ val moduleDescriptions = mapOf(
     "lark-arrow" to "Lark's Either, NonEmptyList and Fail to and from Arrow's, for a codebase already on Arrow.",
     "lark-assert" to "Assertions for tests of lark code: Either matchers that say which side they found.",
     "lark-test" to "For tests of a lark service: eventually on lark's clock, and a test that reads as a story.",
+    "lark-junit" to "Lark's tests on the JUnit Platform: a suite is an object, its tests share one resource.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",

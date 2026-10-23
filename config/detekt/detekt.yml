@@ -70,7 +70,8 @@ exceptions:
     # and the breaker's own countsAsFailure decide whether it was a failure.
     # Matchers.kt is the eleventh: shouldThrow is asked whether a block threw a
     # given type, so it has to catch whatever the block threw to say what it was.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Story.kt', '**/Policy.kt', '**/Matchers.kt']
+    # LarkEngine.kt is the twelfth: whatever a test threw is that test's result.
+    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Story.kt', '**/Policy.kt', '**/Matchers.kt', '**/LarkEngine.kt']
   SwallowedException:
     excludes: ['**/test/**']
 

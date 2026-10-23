@@ -54,6 +54,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-stream-actors`: the `lark-actor` backend.
 - `lark-stream-test`: `TestStreams` and `TestClock`.
 - `lark-test`: `story`, `eventually`.
+- `lark-junit`: `Suite` objects run by a JUnit Platform engine.
 - `lark-app`: the graph, `LarkApp`, `closingOf`, probes, `testApp`.
 - `lark-app-typesafe`: `config`, `secret`, `choosing`, `overridingConfig`.
 - `lark-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.

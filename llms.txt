@@ -46,6 +46,8 @@ Facts worth having before anything else:
 - `lark-stream-test`: `TestStreams` and `TestClock`, every stage on the calling
   thread and time the test moves.
 - `lark-test`: `story` (Given, When, Then), `eventually(within)`.
+- `lark-junit`: a JUnit Platform engine; a `Suite` object's tests share one
+  `Resource`, and Gradle and the IDE report them as Jupiter's.
 - `lark-app`: an application as a value: `single`, `singleOf`, `closingOf`,
   `boundTo`, `overriding`, `subgraph`, probes, health, `testApp`, `LarkApp`,
   `awaitShutdown`.

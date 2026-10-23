@@ -133,6 +133,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's | `lark` | `arrow-core` 2.1.2 | yes |
 | `lark-assert` | `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, failing at the test's own line | `lark` | `opentest4j` 1.3.0 | yes |
 | `lark-test` | `story` and `eventually` ([guide](testing.md#stories-and-waiting)) | `lark` | none | yes |
+| `lark-junit` | `Suite` objects whose tests share one `Resource`, run by a JUnit Platform engine | `lark` | `junit-platform-engine` 6.1.3 | yes |
 
 ### Example
 
