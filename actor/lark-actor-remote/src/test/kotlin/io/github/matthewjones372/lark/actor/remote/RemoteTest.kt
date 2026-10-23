@@ -143,7 +143,7 @@ class RemoteTest {
             }
         }
 
-        charted shouldBe 75.right().right()
+        charted.getOrNull() shouldBe 75.right()
     }
 
     @Test
@@ -180,7 +180,7 @@ class RemoteTest {
             Triple(charted, hospital.letters.toList(), earlier)
         }
 
-        charted shouldBe 0.right().right()
+        charted.getOrNull() shouldBe 0.right()
         letters shouldContainExactly listOf(DeadLetter(earlier, Admit(50), DeadLetter.Why.NoSuchActor))
     }
 
@@ -229,7 +229,7 @@ class RemoteTest {
             }
         }
 
-        heard shouldBe listOf("Terminated").right().right()
+        heard.getOrNull() shouldBe listOf("Terminated").right()
     }
 
     @Test
@@ -248,7 +248,7 @@ class RemoteTest {
             }
         }
 
-        heard shouldBe 0.right().right()
+        heard.getOrNull() shouldBe 0.right()
     }
 
     @Test
@@ -274,7 +274,7 @@ class RemoteTest {
             watched.await()
         }
 
-        ended.map { it.javaClass.simpleName } shouldBe "Terminated".right()
+        ended.getOrNull()?.javaClass?.simpleName shouldBe "Terminated"
     }
 }
 
