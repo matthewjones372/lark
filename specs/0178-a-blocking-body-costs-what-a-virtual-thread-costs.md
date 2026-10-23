@@ -1,4 +1,4 @@
-# 0175 — A blocking body costs what a virtual thread costs
+# 0178 — A blocking body costs what a virtual thread costs
 
 ## Problem
 

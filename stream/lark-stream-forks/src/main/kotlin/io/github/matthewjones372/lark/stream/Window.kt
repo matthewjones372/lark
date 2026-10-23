@@ -83,7 +83,7 @@ internal class Releases(val on: Executor, val clock: Clock) {
 /**
  * One body on its own thread: its answer, and a way to interrupt it and wait until it has stopped.
  *
- * One object rather than a future, a latch and a lock around them (spec 0175), since a window makes one for every
+ * One object rather than a future, a latch and a lock around them (spec 0178), since a window makes one for every
  * element. Whatever waits for the body (the pull in [await], the run in [cancel], an action left by [whenDone]) is
  * pushed onto [state], and the body, once stopped, swaps in [STOPPED] and wakes or runs everything it took. A waiter
  * pushes itself and then parks only while [state] is not [STOPPED], and the push and the swap are atomic on the
