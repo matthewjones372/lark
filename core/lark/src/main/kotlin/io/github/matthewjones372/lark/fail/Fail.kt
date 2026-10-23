@@ -9,8 +9,13 @@ interface Fail<in E> {
     fun fail(error: E): Nothing
 }
 
-/** The scope [attempt] opens: it fails only while open, and only its own attempt catches what it throws. */
+/**
+ * The scope [attempt] opens: it fails only while open and only on the thread that opened it, and only its own
+ * attempt catches what it throws.
+ */
 internal class Attempt<in E>(private val openedIn: String) : Fail<E> {
+
+    private val owner = Thread.currentThread()
 
     @Volatile
     private var closed = false
@@ -18,6 +23,11 @@ internal class Attempt<in E>(private val openedIn: String) : Fail<E> {
     override fun fail(error: E): Nothing {
         // A Fail that escaped its attempt, in a lambda or a fork still running, has nobody left to answer.
         check(!closed) { "fail was called on a scope opened in $openedIn after its attempt had returned" }
+        // Thrown on another thread, the failure would end that thread rather than the attempt. A fork fails
+        // into a scope of its own, which its combinator then surfaces here.
+        check(Thread.currentThread() === owner) {
+            "fail was called on a scope opened in $openedIn from ${Thread.currentThread()}, a thread it did not fork"
+        }
         throw Failed(error, this)
     }
 

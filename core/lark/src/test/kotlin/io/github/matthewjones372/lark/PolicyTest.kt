@@ -155,7 +155,7 @@ class PolicyTest {
     }
 
     @Test
-    fun `a fail in a flock passes through every step uncounted, as a raise does`() {
+    fun `a raise in a flock passes through every step uncounted`() {
         val attempts = AtomicInteger()
         val partner = policy("partner") {
             deadline(1.seconds)
@@ -166,7 +166,9 @@ class PolicyTest {
         flock<Bad, Int> {
             guarded(partner, ifRejected = { Bad("rejected") }) {
                 attempts.incrementAndGet()
-                fail(Bad("declared"))
+                // The block's own raise: a bare fail would reach for the flock's scope, from the thread the
+                // attempt timeout forked, and be refused.
+                raise(Bad("declared"))
             }
         } shouldBeLeft Bad("declared")
 
