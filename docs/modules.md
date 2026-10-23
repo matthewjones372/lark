@@ -131,7 +131,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-micrometer` | metrics into a Micrometer registry ([guide](observability.md#metrics)) | `lark` | `micrometer-core` 1.12.0 | yes |
 | `lark-otel` | OpenTelemetry context across forks, and spans ([guide](observability.md#traces)) | `lark` | `opentelemetry-api` 1.51.0 | yes |
 | `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's | `lark` | `arrow-core` 2.1.2 | yes |
-| `lark-assert` | `shouldBeRight` and `shouldBeLeft` for Lark's `Either` | `lark` | none | yes |
+| `lark-assert` | `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, failing at the test's own line | `lark` | `opentest4j` 1.3.0 | yes |
 | `lark-test` | `story` and `eventually` ([guide](testing.md#stories-and-waiting)) | `lark` | none | yes |
 
 ### Example

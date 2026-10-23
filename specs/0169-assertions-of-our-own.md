@@ -22,8 +22,20 @@ Lark has its own assertions, and the build drops Kotest.
 
 ## Shape
 
-A new module, `core/lark-assert`, depends on `lark` and the Kotlin stdlib and
-nothing else. It needs `lark` for `Either` (maintainer, 2026-10-23). It provides infix checks that fail with an `AssertionError` whose
+A new module, `core/lark-assert`, depends on `lark`, opentest4j and the Kotlin
+stdlib and nothing else. It needs `lark` for `Either`, and opentest4j so that
+IDEs can compare expected and actual (maintainer, 2026-10-23).
+
+A failure names what was expected, what was found, the test's file and line,
+and that line's source. Its stack starts at the test's own frame, so the line
+that a runner or an IDE names first is the check that failed:
+
+```
+expected: Right(value=42)
+but was:  Left(value=Bad(why=broken))
+at FlockTest.kt:322
+    bound shouldBeRight 42
+``` It provides infix checks that fail with an `AssertionError` whose
 message gives the expected value, the actual value and the clue:
 
 ```kotlin
@@ -98,9 +110,9 @@ grep -rl 'io.kotest' --include=*.kt --include=*.kts .   # empty
 
 Answered (maintainer, 2026-10-23: the recommendations stand).
 
-1. ~~Should failures throw opentest4j's `AssertionFailedError`?~~ No for now.
-   A plain `AssertionError` with a readable message. Revisit if the IDE
-   diffs are missed.
+1. ~~Should failures throw opentest4j's `AssertionFailedError`?~~ Revised
+   (2026-10-23): yes. Failures carry expected and actual for IDEs to compare,
+   plus the test's location and source line.
 2. ~~Is the order 0168 then 0169, or interleaved?~~ The `lark-assert`
    module can land at any time. The test migrations wait until each
    module's 0168 entry has landed, so each test file is rewritten once.

@@ -1,7 +1,9 @@
-// Lark's own assertions (spec 0169). It depends on lark, for Either, and on nothing else: a failed check is an
-// AssertionError, which every test runner reports. NoOtherDependenciesTest asserts that.
+// Lark's own assertions (spec 0169). It depends on lark, for Either, and on opentest4j, whose
+// AssertionFailedError carries expected and actual for an IDE to compare; JUnit puts it on every test classpath
+// already. Nothing else, which NoOtherDependenciesTest asserts.
 dependencies {
     api(project(":lark"))
+    api("org.opentest4j:opentest4j:1.3.0")
 }
 
 tasks.test {
