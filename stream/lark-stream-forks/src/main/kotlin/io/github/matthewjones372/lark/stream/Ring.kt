@@ -86,9 +86,13 @@ internal open class RingPadAfterHead : RingHead() {
 internal class Ring(private val capacity: Int) : RingPadAfterHead() {
     init {
         require(capacity >= 1) { "a ring needs room for at least one element, not $capacity" }
+        require(capacity <= MAX_CAPACITY) { "a ring holds at most $MAX_CAPACITY elements, not $capacity" }
     }
 
-    private val slots = arrayOfNulls<Any>(capacity)
+    // A power of two, so finding a slot is a mask rather than a division on every element; the indices still
+    // let no more than [capacity] of them be in use.
+    private val slots = arrayOfNulls<Any>(Integer.highestOneBit(capacity - 1).shl(1).coerceAtLeast(1))
+    private val slotMask = slots.size - 1L
 
     // A quarter of the ring, but never so much that a wide window idles: with 10,000 calls in flight, waiting
     // for 2,500 to finish before starting more costs a quarter of the concurrency the caller asked for.
@@ -98,7 +102,7 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
 
     @Volatile private var parkedConsumer: Thread? = null
 
-    private fun slot(index: Long) = (index % capacity).toInt()
+    private fun slot(index: Long) = (index and slotMask).toInt()
 
     /** Waits while the ring is full. Throws [InterruptedException] if interrupted, whether it had to wait or not. */
     fun put(element: Any) {
@@ -198,6 +202,7 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
         const val BATCHES = 4
         const val MAX_BATCH = 64
         const val YIELDS_BEFORE_PARKING = 4
+        const val MAX_CAPACITY = 1 shl 30
 
         val TAIL: VarHandle =
             MethodHandles.lookup().findVarHandle(RingTail::class.java, "tail", Long::class.javaPrimitiveType)
