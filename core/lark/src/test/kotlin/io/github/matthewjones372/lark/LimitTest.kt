@@ -27,21 +27,21 @@ class LimitTest {
 
     @Test
     fun `an adaptive limit climbs to what the dependency can take, and stops a little above it`() {
-        val limit = settle(Vegas(initial = 20, min = 1, max = 5_000), 20, capacity = { 400 }, steps = 5_000)
+        val limit = settle(Vegas(initial = 20, min = 1, max = 5_000), 20, capacity = { 400 }, steps = 50_000)
 
-        withClue("settled at $limit for a capacity of 400") { (limit in 400..460) shouldBe true }
+        withClue("settled at $limit for a capacity of 400") { (limit in 400..440) shouldBe true }
     }
 
     @Test
-    fun `an adaptive limit follows the dependency down when its capacity halves`() {
+    fun `an adaptive limit follows the dependency down within a few windows when its capacity halves`() {
         val vegas = Vegas(initial = 20, min = 1, max = 5_000)
         var capacity = 400
-        settle(vegas, 20, { capacity }, steps = 5_000)
+        val before = settle(vegas, 20, { capacity }, steps = 50_000)
         capacity = 200
 
-        val limit = settle(vegas, 430, { capacity }, steps = 5_000)
+        val limit = settle(vegas, before, { capacity }, steps = 2_000)
 
-        withClue("settled at $limit for a capacity of 200") { (limit in 200..250) shouldBe true }
+        withClue("settled at $limit for a capacity of 200") { (limit in 200..230) shouldBe true }
     }
 
     @Test
@@ -64,7 +64,7 @@ class LimitTest {
     fun `an adaptive limit never leaves its bounds`() {
         val vegas = Vegas(initial = 10, min = 5, max = 50)
 
-        settle(vegas, 10, capacity = { 1_000 }, steps = 1_000) shouldBe 50
+        settle(vegas, 10, capacity = { 1_000 }, steps = 5_000) shouldBe 50
         repeat(100) { vegas.sample(BASE_NANOS, inFlight = 50, dropped = true) }
         vegas.sample(BASE_NANOS, inFlight = 5, dropped = true) shouldBe 5
     }
