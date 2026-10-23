@@ -61,7 +61,7 @@ class ParTest {
                 { sleeper.body() },
                 {
                     sleeper.awaitStart()
-                    raise(Bad("branch"))
+                    fail(Bad("branch"))
                 },
             ) { _, _ -> 0 }
         }
@@ -105,13 +105,13 @@ class ParTest {
             parZip(
                 {
                     firstPastBlocking.countDown()
-                    raise(Bad("first"))
+                    fail(Bad("first"))
                 },
                 {
                     // The branch that raises second waits for the first to be past every blocking call, so
                     // the interrupt this raise sends it cannot land in place of its raise.
                     firstPastBlocking.await()
-                    raise(Bad("second"))
+                    fail(Bad("second"))
                 },
             ) { _, _ -> 0 }
         }
@@ -132,11 +132,11 @@ class ParTest {
                     // Parked until the second branch's raise has cancelled this one: a park answers an interrupt
                     // without throwing, so the raise below lands after the cancel, every time.
                     while (!Thread.currentThread().isInterrupted) LockSupport.parkNanos(PARK_NANOS)
-                    raise(Bad("first"))
+                    fail(Bad("first"))
                 },
                 {
                     firstStarted.await()
-                    raise(Bad("second"))
+                    fail(Bad("second"))
                 },
             ) { _, _ -> 0 }
         }
@@ -186,7 +186,7 @@ class ParTest {
                     element
                 } else {
                     sleeper.awaitStart()
-                    raise(Bad("element $element"))
+                    fail(Bad("element $element"))
                 }
             }
         }
@@ -210,7 +210,7 @@ class ParTest {
                 },
                 {
                     started.await()
-                    raise(Bad("branch"))
+                    fail(Bad("branch"))
                 },
             ) { _, _ -> 0 }
         }
