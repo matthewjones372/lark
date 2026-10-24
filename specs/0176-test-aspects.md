@@ -57,14 +57,14 @@ production code they test.
 
 Builds on 0174's `spec-0174-concurrency`.
 
-- [ ] **`spec-0176-aspects`** — `Aspect`, `+`, test and suite parameters, and `ignore`, `tag` and
+- [x] **`spec-0176-aspects`** ([#514](https://github.com/matthewjones372/lark/pull/514)) — `Aspect`, `+`, test and suite parameters, and `ignore`, `tag` and
       `alone`. The last one replaces 0174's `alone = true`.
       Done when: Gradle's `includeTags` selects a tagged test, an ignored test shows as skipped in the
       JUnit XML, and an `alone` test sees no other test running.
-- [ ] **`spec-0176-timing`** — `timeout`, `flaky` and `nonFlaky`.
+- [x] **`spec-0176-timing`** ([#515](https://github.com/matthewjones372/lark/pull/515)) — `timeout`, `flaky` and `nonFlaky`.
       Done when: `flaky(3)` passes a test that fails twice and records 3 attempts. `nonFlaky(50)` fails a
       test that fails one run in 10, and names that run. `timeout` interrupts a sleeping body.
-- [ ] **`spec-0176-docs`** — the aspects table in `docs/testing.md`, with a compiled example.
+- [x] **`spec-0176-docs`** ([#518](https://github.com/matthewjones372/lark/pull/518)) — the aspects table in `docs/testing.md`, with a compiled example.
       Done when: the guide test compiles the example.
 
 ## Acceptance

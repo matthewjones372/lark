@@ -59,16 +59,16 @@ So a fork the story opens sees the same title and capture.
 
 ## Stack
 
-- [ ] **`spec-0180-story-locals`** — `lark-test`: the story's title and transcript sink become
+- [x] **`spec-0180-story-locals`** ([#532](https://github.com/matthewjones372/lark/pull/532)) — `lark-test`: the story's title and transcript sink become
       `LarkLocal`s whose defaults behave exactly as today.
       Done when: the existing `story` tests pass unchanged, and a test that binds both sees its title
       and transcript go where it bound them.
-- [ ] **`spec-0180-story-in-suites`** — `lark-junit` depends on `lark-test`, binds both locals for each
+- [x] **`spec-0180-story-in-suites`** ([#533](https://github.com/matthewjones372/lark/pull/533)) — `lark-junit` depends on `lark-test`, binds both locals for each
       test, and adds the `story` overload that returns `Expectations`.
       Done when, inside a suite: an untitled story is titled with its test's name; a passing story
       prints nothing; a failing story's transcript is in the test's `logs` entry; two failing
       `Then`s joined with `and` are both reported.
-- [ ] **`spec-0180-docs`** — `docs/testing.md`: stories in a suite, with a compiled
+- [x] **`spec-0180-docs`** ([#534](https://github.com/matthewjones372/lark/pull/534)) — `docs/testing.md`: stories in a suite, with a compiled
       `<!-- testing-junit-story -->` example.
       Done when: `CoreGuideTest` compiles it.
 

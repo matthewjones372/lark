@@ -202,7 +202,9 @@ subprojects {
     }
 
     tasks.withType<Test>().configureEach {
-        useJUnitPlatform()
+        // `-PincludeTags=io,db` runs only the tests tagged so: Jupiter's @Tag and lark-junit's tag() alike.
+        val included = providers.gradleProperty("includeTags").orNull?.split(',')?.filter { it.isNotBlank() }
+        useJUnitPlatform { included?.let { includeTags(*it.toTypedArray()) } }
 
         systemProperty("junit.jupiter.execution.timeout.default", "60s")
     }
