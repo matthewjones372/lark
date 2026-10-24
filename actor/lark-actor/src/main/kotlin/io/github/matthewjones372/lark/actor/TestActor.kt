@@ -624,7 +624,7 @@ class TestActor<M : Any, S, E> internal constructor(
     @Suppress("TooGenericExceptionCaught")
     private inline fun supervised(body: Fail<E>.() -> Next<S>): Next<S>? =
         try {
-            boundary.guarded(body) { error -> failed(Failure.Raised(error)) }
+            boundary.guarded(body) { error -> failed(Failure.Declared(error)) }
         } catch (thrown: Throwable) {
             failed(Failure.Thrown(thrown.nonFatalOrThrow()))
             if (run.get().supervision == null) throw thrown

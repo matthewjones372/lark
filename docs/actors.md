@@ -119,7 +119,7 @@ Either way, the actor's `restart` schedule decides. While the schedule
 continues, the actor starts again from its initial state after the schedule's
 delay, with the messages still in its mailbox. Once the schedule is done, or if
 there is none, the actor stops. The schedule is `lark`'s `Schedule`, the same
-one a retry takes, and it sees each failure as a `Failure.Raised` or a
+one a retry takes, and it sees each failure as a `Failure.Declared` or a
 `Failure.Thrown`.
 
 Signals are what happens to an actor rather than what is sent to it:

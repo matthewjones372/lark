@@ -69,7 +69,7 @@ against; the library's own transitive dependencies come with it.
 
 | Module | For | Lark deps | Adds | Published |
 |---|---|---|---|---|
-| `lark` | forks, errors, resources, schedules, policies, context, logs, metrics, `await` on any future ([guide](core.md)) | none | `arrow-core` 2.1.2 | yes |
+| `lark` | forks, errors, resources, schedules, policies, context, logs, metrics, `await` on any future ([guide](core.md)) | none | nothing | yes |
 | `lark-pekko` | a Pekko dispatcher as the executor; `await` on Pekko's Scala futures ([guide](core.md#running-forks-on-pekko)) | `lark` | `pekko-actor` 1.2.1 | yes |
 | `lark-structured` | `parZip`, `parMap`, `raceN`, `timeout` on the JDK's `StructuredTaskScope` (preview in JDK 27) | `lark` | none | no |
 

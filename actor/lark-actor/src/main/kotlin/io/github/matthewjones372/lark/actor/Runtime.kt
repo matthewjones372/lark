@@ -1007,7 +1007,7 @@ private class Cell<M : Any, S, E>(
     @Suppress("TooGenericExceptionCaught")
     private inline fun supervised(body: Fail<E>.() -> Next<S>): Next<S> =
         try {
-            boundary.guarded(body) { error -> failed(Failure.Raised(error), null) }
+            boundary.guarded(body) { error -> failed(Failure.Declared(error), null) }
         } catch (thrown: Throwable) {
             failed(Failure.Thrown(thrown.nonFatalOrThrow()), thrown)
         }

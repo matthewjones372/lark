@@ -1,14 +1,14 @@
 # Core: concurrency, errors and resources
 
 `lark` is the module everything else builds on. It provides structured
-concurrency on virtual threads, typed errors through Arrow's `Raise`, resource
+concurrency on virtual threads, typed errors through Lark's own `Fail`, resource
 safety, schedules, timeouts and call policies, and the context that forks
 inherit. Everything on this page is in the package
 `io.github.matthewjones372.lark`.
 
 ```kotlin
 dependencies {
-    // brings arrow-core and nothing else
+    // brings nothing but the Kotlin standard library
     implementation("io.github.matthewjones372:lark:0.10.1")
 }
 ```
@@ -85,8 +85,7 @@ fun report(id: Int) = flock<Err, Dashboard> {
   [`mapPar`](stream.md#a-body-that-must-block) on a stream.
 - `flock { }` is the scope that `async` forks in. On its own it returns
   Lark's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
-  it returns `A` and a failure propagates to the enclosing scope. Arrow's
-  `raise` and `bind` work in it as well while spec 0168 moves Lark off Arrow.
+  it returns `A` and a failure propagates to the enclosing scope.
 
 By default each fork is a new virtual thread. Every forking combinator also
 has an overload that takes the executor to fork on as its first argument, for
@@ -110,12 +109,12 @@ property everything else on this page relies on: when `parZip`, `flock` or
 `timeout` returns, normally or by raising or throwing, none of its work is
 still running.
 
-- **The first failure stops the rest.** When a branch raises or throws, its
+- **The first failure stops the rest.** When a branch fails or throws, its
   siblings are interrupted and joined, and the combinator answers with that
   failure. If several branches fail on their own, the one started first wins;
   an exception thrown only because a branch was interrupted is not reported.
 - **Unawaited forks still count.** A `Deferred` that nobody awaits is joined
-  when its `flock` closes, and if it raised, the raise becomes the block's
+  when its `flock` closes, and if it failed, the failure becomes the block's
   `Left`. If it threw, the exception is rethrown.
 - **Cancellation is interruption.** The JDK has no other cancellation, so a
   cancelled branch stops at its next interruptible blocking call: a sleep, a
@@ -123,7 +122,7 @@ still running.
   blocking runs on until it reaches one.
 - **`cancel()` stops one fork.** `deferred.cancel()` interrupts that fork and
   returns once it has ended. A cancelled fork's outcome counts as handled, so
-  the scope does not answer with it even if it raised before the interrupt
+  the scope does not answer with it even if it failed before the interrupt
   arrived. If its body swallowed the interrupt and returned a value, `await()`
   after `cancel()` returns that value.
 - **The interrupt flag does not leak.** A fork clears the flag as its body
@@ -154,8 +153,9 @@ fun page(id: Int) = flock<Nothing, String> {
 }
 ```
 
-A `Raise` scope never crosses a thread on its own. The combinators carry a
-branch's raise back to the scope that started it, but work handed to some
+A `Fail` scope never crosses a thread on its own: a `fail` from a thread the
+scope did not fork is refused. The combinators carry a branch's failure back
+to the scope that started it, but work handed to some
 other thread, such as a callback, should answer with an `Either` that the
 handler binds.
 
@@ -281,7 +281,7 @@ import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.retry
-import io.github.matthewjones372.lark.retryRaise
+import io.github.matthewjones372.lark.retrying
 import io.github.matthewjones372.lark.timeout
 import io.github.matthewjones372.lark.timeoutOrNull
 import kotlin.time.Duration.Companion.milliseconds
@@ -306,7 +306,7 @@ val patiently = Schedule.spaced<Throwable>(20.milliseconds) zipLeft Schedule.upT
 fun drained(): Unit = patiently.retry { check(pending() == 0L) }
 
 // Retrying a declared error: the last failure is the Left.
-fun row(id: Int): Either<Unavailable, String> = Schedule.recurs<Unavailable>(5).retryRaise { findRow(id).bind() }
+fun row(id: Int): Either<Unavailable, String> = Schedule.recurs<Unavailable>(5).retrying { findRow(id).bind() }
 
 fun quote(id: Int): Either<Unavailable, String> = attempt {
     timeout(2.seconds) { findRow(id).bind() }                       // throws TimeoutException
@@ -609,9 +609,9 @@ that thread, so code in it keeps the log annotations and span the fork had. A
 lark cancel interrupts the thread, which cancels the coroutine. Log lines the
 library writes on threads of its own go without lark's annotations.
 
-Don't `raise` inside the block. There, Arrow's raise is a
-`CancellationException`, and the coroutine takes it as a cancellation. Get the
-value out first, then raise.
+Don't `fail` inside the block. A coroutine can resume on a thread of its own,
+and a `fail` from a thread the scope did not fork is refused. Get the value
+out first, then fail.
 
 ### Be called from coroutines
 
