@@ -15,7 +15,11 @@ import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.shouldNotBeSameInstanceAs
+import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.tag
 import io.github.matthewjones372.lark.logInfo
@@ -307,5 +311,25 @@ object ThrowingSuite : Suite<Int>() {
             shouldThrow<IllegalStateException>({ error("three") }) { thrown -> thrown.message shouldBe "two" }
         }
         test("rethrows an interrupt") { _ -> shouldThrow<IllegalStateException> { throw InterruptedException("stop") } }
+    }
+}
+
+/** Spec 0190's contains and same-instance matchers. */
+object ContainingSuite : Suite<List<String>>() {
+    override val shared: Resource<List<String>> = resource { listOf("one", "two") }
+
+    init {
+        test("passes every matcher") { words ->
+            (words shouldContain "two") and (words shouldNotContain "three") and
+                (words.first() shouldContain "ne") and (words.first() shouldNotContain "w") and
+                (words shouldBeSameInstanceAs words) and (words shouldNotBeSameInstanceAs words.toList())
+        }
+        test("fails a string shouldContain") { words -> words.first() shouldContain "w" }
+        test("fails a null string") { _ -> null shouldContain "w" }
+        test("fails a string shouldNotContain") { words -> words.first() shouldNotContain "n" }
+        test("fails a collection shouldContain") { words -> words shouldContain "three" }
+        test("fails a collection shouldNotContain") { words -> words shouldNotContain "one" }
+        test("fails shouldBeSameInstanceAs") { words -> words shouldBeSameInstanceAs words.toList() }
+        test("fails shouldNotBeSameInstanceAs") { words -> words shouldNotBeSameInstanceAs words }
     }
 }

@@ -72,6 +72,36 @@ infix fun <E, A> Either<E, A>.shouldBeRight(expected: A): Expectations = this sh
 /** Holds if this is a [Either.Left] holding [expected]. */
 infix fun <E, A> Either<E, A>.shouldBeLeft(expected: E): Expectations = this shouldBe Either.Left(expected)
 
+/** Holds if this string contains [part]; fails as lark-assert's `shouldContain` does, carrying the string. */
+infix fun String?.shouldContain(part: String): Expectations =
+    if (this != null &&
+        part in this
+    ) passed(1) else mismatchedHere(null, this?.let(::quoted), "a string containing ${quoted(part)}")
+
+/** Holds if this string does not contain [part]. */
+infix fun String?.shouldNotContain(part: String): Expectations =
+    if (this != null &&
+        part !in this
+    ) passed(1) else mismatchedHere(null, this?.let(::quoted), "a string without ${quoted(part)}")
+
+/** Holds if [element] is among this collection's elements; fails carrying the elements. */
+infix fun <T> Iterable<T>.shouldContain(element: T): Expectations =
+    if (element in this) passed(1) else mismatchedHere(null, toList(), "a collection containing $element")
+
+/** Holds if [element] is not among this collection's elements. */
+infix fun <T> Iterable<T>.shouldNotContain(element: T): Expectations =
+    if (element !in this) passed(1) else mismatchedHere(null, toList(), "a collection without $element")
+
+/** Holds if this is the very object [expected] is, not only an equal one. */
+infix fun <A> A.shouldBeSameInstanceAs(expected: A): Expectations =
+    if (this === expected) passed(1) else mismatchedHere(null, identified(this), identified(expected))
+
+/** Holds if this is not the very object [unexpected] is, though it may equal it. */
+infix fun <A> A.shouldNotBeSameInstanceAs(unexpected: A): Expectations =
+    if (this !==
+        unexpected
+    ) passed(1) else mismatchedHere(null, identified(this), "anything but ${identified(unexpected)}")
+
 /** Holds if [block] throws a [T]; fails, naming this line, if it throws nothing or something else. */
 inline fun <reified T : Throwable> shouldThrow(block: () -> Any?): Expectations = shouldThrow<T>(block) { threw() }
 
@@ -103,6 +133,12 @@ internal fun notThrown(wanted: String, thrown: Throwable?): Expectations =
     mismatchedHere(null, thrown ?: "nothing thrown", wanted, thrown)
 
 private fun passed(checked: Int) = Expectations(emptyList(), checked)
+
+private fun quoted(text: String) = "\"$text\""
+
+/** A value with its identity, for a check that two are or are not the same object. */
+private fun identified(value: Any?): String =
+    value?.let { "$it @${Integer.toHexString(System.identityHashCode(it))}" } ?: "null"
 
 /** The same failure, with [heading] above its message and the same expected and actual. */
 private fun AssertionFailedError.headed(heading: String): AssertionFailedError {
