@@ -16,6 +16,7 @@ dependencies {
 
     testImplementation(testFixtures(project(":lark-actor")))
     testImplementation("org.liquibase:liquibase-core:4.32.0")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

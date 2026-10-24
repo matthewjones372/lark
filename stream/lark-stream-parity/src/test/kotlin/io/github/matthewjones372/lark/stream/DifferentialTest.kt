@@ -1,8 +1,6 @@
 package io.github.matthewjones372.lark.stream
 
-import io.kotest.assertions.assertSoftly
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
 import org.apache.pekko.actor.ActorSystem
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
@@ -42,10 +40,21 @@ class DifferentialTest {
             else -> this
         }
 
-    private fun <R : Any> agree(what: String, run: () -> Run<*, R>) {
+    /** The cases of one test that some backend answered differently from Pekko. */
+    private class Disagreements {
+        val found = mutableListOf<String>()
+    }
+
+    /** Runs every case in [cases] and then fails once, naming each that disagreed, rather than at the first. */
+    private fun everyCase(cases: Disagreements.() -> Unit) {
+        Disagreements().apply(cases).found.shouldBeEmpty()
+    }
+
+    private fun <R : Any> Disagreements.agree(what: String, run: () -> Run<*, R>) {
         val expected = run().on(pekko).comparable()
         others.forEach { backend ->
-            withClue("$what on ${backend.key}") { run().on(backend).comparable() shouldBe expected }
+            val answer = run().on(backend).comparable()
+            if (answer != expected) found += "$what on ${backend.key}: expected $expected but was $answer"
         }
     }
 
@@ -58,7 +67,7 @@ class DifferentialTest {
 
     @Test
     fun `sliding answers as Pekko's does, for every window, step and length`() {
-        assertSoftly {
+        everyCase {
             for (n in 1..4) {
                 for (step in 1..6) {
                     for (length in 0..13) {
@@ -73,7 +82,7 @@ class DifferentialTest {
 
     @Test
     fun `interleave answers as Pekko's does, for every segment and both lengths`() {
-        assertSoftly {
+        everyCase {
             for (segment in 1..3) {
                 for (left in 0..7) {
                     for (right in 0..7) {
@@ -88,7 +97,7 @@ class DifferentialTest {
 
     @Test
     fun `mapAsync answers as Pekko's does, in order, whatever order its stages complete in`() {
-        assertSoftly {
+        everyCase {
             for (parallelism in 1..4) {
                 for (length in 0..10) {
                     agree("mapAsync($parallelism) over $length") {
@@ -101,7 +110,7 @@ class DifferentialTest {
 
     @Test
     fun `mapAsync dies as Pekko's does, on a stage that fails and on one that completes with null`() {
-        assertSoftly {
+        everyCase {
             for (at in 1..4) {
                 agree("mapAsync failing at $at") {
                     Stream.from(1..5).mapAsync(2) { n ->

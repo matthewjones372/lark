@@ -10,10 +10,10 @@ import io.github.matthewjones372.lark.actor.StateCodec
 import io.github.matthewjones372.lark.actor.every
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.testActors
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.start
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap

@@ -10,10 +10,10 @@ import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.onStart
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldContainExactly
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger

@@ -4,11 +4,11 @@ import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.Histogram
 import io.github.matthewjones372.lark.Metrics
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.doubles.shouldBeGreaterThan
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThan
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.withClue
 import org.apache.pekko.actor.ActorSystem
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.DynamicTest

@@ -3,8 +3,8 @@ package io.github.matthewjones372.lark.actor.journal.jdbc
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalContract
 import io.github.matthewjones372.lark.actor.PersistenceId
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.string.shouldContain
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldThrow
 import org.junit.jupiter.api.Test
 import java.sql.SQLException
 

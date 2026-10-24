@@ -2,14 +2,14 @@ package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours

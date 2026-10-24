@@ -6,10 +6,10 @@ import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.PruneContract
 import io.github.matthewjones372.lark.actor.Slices
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.clock
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 import javax.sql.DataSource

@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.stream
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.ints.shouldBeLessThanOrEqual
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThan
+import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.assert.withClue
 import org.apache.pekko.actor.ActorSystem
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.DynamicTest

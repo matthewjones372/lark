@@ -1,11 +1,11 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.LogLevel
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldHaveSize
 import io.github.matthewjones372.lark.capturingLogs
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.longs.shouldBeLessThan
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit

@@ -1,12 +1,12 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotContainKey
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
-import io.kotest.matchers.maps.shouldContain
-import io.kotest.matchers.maps.shouldNotContainKey
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap

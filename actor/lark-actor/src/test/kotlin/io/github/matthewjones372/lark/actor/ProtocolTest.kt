@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
 import org.junit.jupiter.api.Test
 
 internal sealed interface Plain

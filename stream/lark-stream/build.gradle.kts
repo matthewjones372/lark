@@ -4,6 +4,7 @@
 
 dependencies {
     api(project(":lark"))
+    testImplementation(project(":lark-assert"))
 }
 
 // Read at configuration time: a provider that reached for the project at

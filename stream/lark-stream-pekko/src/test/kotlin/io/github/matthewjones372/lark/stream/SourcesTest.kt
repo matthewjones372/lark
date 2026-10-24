@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThanOrEqual
+import io.github.matthewjones372.lark.assert.withClue
 import org.apache.pekko.NotUsed
 import org.apache.pekko.actor.Cancellable
 import org.apache.pekko.stream.BoundedSourceQueue
@@ -57,7 +57,7 @@ class SourcesTest {
 
         exit shouldBe Exit.Done("poll")
         withClue("the first element cannot arrive before the delay the call named") {
-            (System.nanoTime() - started).nanoseconds shouldBeGreaterThanOrEqualTo after
+            (System.nanoTime() - started).nanoseconds shouldBeGreaterThanOrEqual after
         }
     }
 

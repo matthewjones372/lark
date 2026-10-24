@@ -2,18 +2,18 @@ package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.logger
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.comparables.shouldBeLessThan
-import io.kotest.matchers.ints.shouldBeLessThanOrEqual
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.nio.ByteBuffer
 import java.sql.SQLException

@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
 import io.github.matthewjones372.lark.actor.PersistenceId
-import io.kotest.matchers.collections.shouldContainOnly
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainOnly
 import org.junit.jupiter.api.Test
 import javax.sql.DataSource
 

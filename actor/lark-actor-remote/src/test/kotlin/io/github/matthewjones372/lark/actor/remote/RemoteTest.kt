@@ -17,11 +17,11 @@ import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.actor.unhandled
 import io.github.matthewjones372.lark.actor.watch
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.assert.shouldContainExactly
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
