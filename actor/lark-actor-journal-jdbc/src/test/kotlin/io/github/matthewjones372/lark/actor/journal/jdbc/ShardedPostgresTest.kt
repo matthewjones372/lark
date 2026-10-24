@@ -14,11 +14,11 @@ import io.github.matthewjones372.lark.actor.journal
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.snapshots
 import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
 private val shardedCents = object : EventCodec<Int> {

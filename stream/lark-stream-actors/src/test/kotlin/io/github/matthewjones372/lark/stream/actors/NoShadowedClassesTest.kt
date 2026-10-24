@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream.actors
 
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.stream.Actors
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
 import org.junit.jupiter.api.Test
 import java.io.File
 

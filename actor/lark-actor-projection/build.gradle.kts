@@ -7,6 +7,7 @@ dependencies {
 
     // The backend the tests run projections on.
     testImplementation(project(":lark-stream-forks"))
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

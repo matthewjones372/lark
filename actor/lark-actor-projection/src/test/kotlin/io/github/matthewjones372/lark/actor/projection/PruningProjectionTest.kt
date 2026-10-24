@@ -9,9 +9,9 @@ import io.github.matthewjones372.lark.actor.StateCodec
 import io.github.matthewjones372.lark.actor.every
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.testActors
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.start
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit

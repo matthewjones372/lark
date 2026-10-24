@@ -1,7 +1,10 @@
 package io.github.matthewjones372.lark.stream.actors
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.assert.shouldThrow
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.stream.Actors
 import io.github.matthewjones372.lark.stream.Exit
@@ -26,9 +29,6 @@ import io.github.matthewjones372.lark.stream.runFold
 import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
 import io.github.matthewjones372.lark.stream.tick
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CyclicBarrier

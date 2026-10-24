@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import io.kotest.matchers.ints.shouldBeLessThanOrEqual
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 import java.util.concurrent.CountDownLatch

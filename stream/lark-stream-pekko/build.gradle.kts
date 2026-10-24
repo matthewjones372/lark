@@ -31,6 +31,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
     // The README's example starts one description on every backend, and is compiled against them.
     testImplementation(project(":lark-stream-test"))
+    testImplementation(project(":lark-assert"))
 }
 
 // Read at configuration time: a provider that reached for the project at

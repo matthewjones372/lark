@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.actor.remote.kotlinx
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.withClue
 import lark.kotlinx.TillOuterClass
 import org.junit.jupiter.api.Test
 import java.io.File

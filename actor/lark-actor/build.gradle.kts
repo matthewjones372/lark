@@ -1,4 +1,4 @@
-// An actor as a value and a step, on lark and the Arrow that arrives with it, and nothing else.
+// An actor as a value and a step, on lark and nothing else.
 // NoOtherDependenciesTest asserts exactly that, on the classpath a consumer gets.
 
 plugins {
@@ -11,7 +11,7 @@ dependencies {
     api(project(":lark"))
 
     testFixturesApi("org.junit.jupiter:junit-jupiter-api:6.1.3")
-    testFixturesImplementation("io.kotest:kotest-assertions-core:6.2.4")
+    testFixturesImplementation(project(":lark-assert"))
 
     // ActorsGuideTest compiles the examples out of docs/actors.md (spec 0089).
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")

@@ -13,6 +13,8 @@ import io.github.matthewjones372.lark.actor.delivered
 import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.testActors
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.stream.Exit
@@ -21,8 +23,6 @@ import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
