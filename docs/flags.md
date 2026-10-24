@@ -55,6 +55,44 @@ fun why(customer: String): FlagEvaluationDetails<Int> =
   boolean, int, long and double attribute, each arriving as the type it was.
   Structures, lists and instants stay behind.
 
+## Flags of other types
+
+A timeout, a cut-over time, a mode or a small structure is declared as the
+type the code wants, and decoded once, beside the key and the default:
+
+<!-- flags-types -->
+```kotlin
+import dev.openfeature.sdk.Value
+import io.github.matthewjones372.lark.openfeature.Flag
+import java.time.Instant
+import kotlin.time.Duration.Companion.seconds
+
+enum class Checkout { Classic, Express }
+
+data class Window(val from: Int, val to: Int)
+
+object CheckoutFlags {
+    val maxBasket = Flag.long("checkout.max-basket", default = 50L)
+    val registryTimeout = Flag.duration("checkout.registry-timeout", default = 2.seconds)
+    val newRulesFrom = Flag.instant("checkout.new-rules-from", default = Instant.MAX)
+    val checkout = Flag.enum("checkout.mode", default = Checkout.Classic)
+    val window = Flag.of("checkout.window", default = Window(0, 24)) { value: Value ->
+        value.asStructure().let { Window(it.getValue("from").asInteger(), it.getValue("to").asInteger()) }
+    }
+}
+```
+
+| Factory | The provider holds | Decoded by |
+|---|---|---|
+| `Flag.long` | an integer | the SDK |
+| `Flag.duration` | a string such as `"5s"`, `"1m 30s"` or `"PT5S"` | `Duration.parse` |
+| `Flag.instant` | an ISO-8601 string | `Instant.parse` |
+| `Flag.enum` | a string naming a constant exactly | `enumValueOf` |
+| `Flag.of` | an object | the function you pass |
+
+A value that will not decode answers the default, with `PARSE_ERROR` and the
+reason in `details()`, and is warned about and counted like any other fall-back.
+
 ## What gets counted
 
 Every evaluation is counted under `openfeature.evaluations`, tagged `flag`,
