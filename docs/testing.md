@@ -237,7 +237,12 @@ at OrderSuite.kt:32
 Without the plugin, it quotes the source line instead. A diagram carries no
 expected and actual for IntelliJ's diff, so `lark-junit` also has `shouldBe`,
 `shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
-and carry both. Infix calls share one precedence and group to the left, so
+and carry both. Beside them are `shouldContain` and `shouldNotContain`, for a
+string or a collection, and `shouldBeSameInstanceAs` and
+`shouldNotBeSameInstanceAs`. `shouldThrow<T>(block)` holds when `block`
+throws a `T`; `shouldThrow<T>(block) { e -> … }` then checks what it threw. A
+different exception fails the test with that exception as its cause, and an
+interrupt or cancellation goes on up, so a `timeout` still stops the test. Infix calls share one precedence and group to the left, so
 `a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
 parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
 whose matchers throw and return the value; a file importing both can call
@@ -252,6 +257,8 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.resource
 
 data class NotFound(val id: String)
@@ -260,6 +267,7 @@ class Database {
     private val orders = mutableListOf<String>()
 
     fun save(order: String) {
+        require(order.isNotBlank()) { "an order needs an id" }
         orders += order
     }
 
@@ -281,6 +289,9 @@ object OrderSuite : Suite<Database>(concurrent = false) {
         }
         test("an order never saved is not found") { db ->
             (db.find("order-9") shouldBeLeft NotFound("order-9")) and !expect(db.count() == 0)
+        }
+        test("an order without an id is refused") { db ->
+            shouldThrow<IllegalArgumentException>({ db.save("") }) { refusal -> refusal.message shouldContain "an id" }
         }
     }
 }

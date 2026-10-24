@@ -64,13 +64,13 @@ The matchers use the same names as lark-assert's, so a module moves by changing 
 
 ## Stack
 
-- [ ] **`spec-0190-throws`** — `shouldThrow`, in both forms, with fatal throwables passed through.
+- [x] **`spec-0190-throws`** ([#556](https://github.com/matthewjones372/lark/pull/556)) — `shouldThrow`, in both forms, with fatal throwables passed through.
       Done when: tests cover a matching throw, a missing throw, a wrong type (carried as the cause), an
       interrupt that is rethrown, and a second lambda that doesn't run on a failure. Kover stays at 90%.
-- [ ] **`spec-0190-contains`** — `shouldContain` and `shouldNotContain` for strings and iterables,
+- [x] **`spec-0190-contains`** ([#557](https://github.com/matthewjones372/lark/pull/557)) — `shouldContain` and `shouldNotContain` for strings and iterables,
       and `shouldBeSameInstanceAs` and `shouldNotBeSameInstanceAs`.
       Done when: each matcher's failure carries the actual value, and names the test's line.
-- [ ] **`spec-0190-pilot-tidy`** — `lark-pekko`'s suites use the new matchers in place of the
+- [x] **`spec-0190-pilot-tidy`** ([#558](https://github.com/matthewjones372/lark/pull/558)) — `lark-pekko`'s suites use the new matchers in place of the
       `try`/`catch` and `in` workarounds. `docs/testing.md` lists the matchers.
       Done when: `:lark-pekko:test` still reports the same 6 tests passing, and the guide test compiles
       the example.
