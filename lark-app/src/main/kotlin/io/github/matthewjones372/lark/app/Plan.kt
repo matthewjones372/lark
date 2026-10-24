@@ -1,11 +1,13 @@
 package io.github.matthewjones372.lark.app
 
-import arrow.core.Either
-import arrow.core.NonEmptyList
-import arrow.core.left
-import arrow.core.nonEmptyListOf
-import arrow.core.right
-import arrow.core.toNonEmptyListOrNull
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.NonEmptyList
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.map
+import io.github.matthewjones372.lark.fail.mapLeft
+import io.github.matthewjones372.lark.fail.nonEmptyListOf
+import io.github.matthewjones372.lark.fail.right
+import io.github.matthewjones372.lark.fail.toNonEmptyListOrNull
 import kotlin.reflect.KType
 
 /** Why a graph cannot be built. */

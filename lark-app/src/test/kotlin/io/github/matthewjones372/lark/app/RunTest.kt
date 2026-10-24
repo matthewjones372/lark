@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.app
 
-import arrow.core.Either
-import arrow.core.nonEmptyListOf
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.nonEmptyListOf
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
