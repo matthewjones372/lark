@@ -456,14 +456,63 @@ private fun Node.ZipWith.zipWith(): Pull {
 
 /** A fused run as one pull: the steps are calls in a loop, and an element a filter drops pulls the next. */
 private fun Node.Fused.fusedLoop(): Pull {
-    val bodies = steps.map { it.body() }.toTypedArray()
+    val links = steps.map { it.link() }.toTypedArray()
     val up = upstream.pull()
     return Pull {
         var value: Any? = null
-        while (value == null) value = bodies.through(up.next() ?: return@Pull null)
+        while (value == null) {
+            value = up.next() ?: return@Pull null
+            var i = 0
+            while (value != null && i < links.size) value = links[i++].apply(value)
+        }
         value
     }
 }
+
+/**
+ * A fused step as the loop calls it: the next value, or `null` where a filter dropped the element. Each kind is a
+ * class of its own and calls the caller's body from its own line, where [guarded] would call every body the library
+ * runs from one: there the JIT sees too many bodies to inline any of them, and here it sees the bodies of one kind.
+ */
+private sealed class Link {
+    abstract fun apply(a: Any): Any?
+
+    class Mapped(private val f: (Any) -> Any, private val at: String) : Link() {
+        override fun apply(a: Any): Any? = guarding("map", at, a) { f(a) }
+    }
+
+    class Failable(private val f: Failing<Any?>.(Any) -> Any, private val at: String) : Link() {
+        private val scope = Failing<Any?>()
+
+        override fun apply(a: Any): Any? = guarding("mapOrFail", at, a) { scope.f(a) }
+    }
+
+    class Kept(
+        private val predicate: (Any) -> Boolean,
+        private val keep: Boolean,
+        private val operator: String,
+        private val at: String,
+    ) : Link() {
+        override fun apply(a: Any): Any? = a.takeIf { guarding(operator, at, a) { predicate(a) } == keep }
+    }
+}
+
+private fun Step.link(): Link =
+    when (this) {
+        is Step.Map -> Link.Mapped(f, at)
+        is Step.MapOrFail -> Link.Failable(f, at)
+        is Step.Filter -> Link.Kept(predicate, keep, operator, at)
+    }
+
+/** What [guarded] does, written in at the call, so the call to [f] is the caller's own call site. */
+// The catch is as wide as guarded's: a defect is everything the caller did not declare.
+@Suppress("TooGenericExceptionCaught")
+private inline fun <B> guarding(operator: String, at: String, a: Any, f: () -> B): B =
+    try {
+        f()
+    } catch (thrown: Throwable) {
+        throw thrown.describedBy(operator, a, at)
+    }
 
 /** A probe on the pulling thread: entering `next` ends a wait, and returning an element starts one. */
 private fun Node.Probed.probed(): Pull {
