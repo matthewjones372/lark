@@ -14,7 +14,8 @@ sleep.
 | waiting for something to become true | `eventually(within) { }` | `lark-test` |
 | tests that share a resource and run concurrently | `object … : Suite<R>()` | `lark-junit` |
 | a story as a suite's test, returning its expectations | `story { }` | `lark-junit` |
-| part of an application, with fakes | `testApp(module.subgraph<Root>().overriding(…)) { }` | `lark-app` |
+| one class | its constructor, with fakes as arguments | nothing |
+| several nodes together, one faked | `testApp(module.subgraph<Root>().overriding(…)) { }` | `lark-app` |
 | configuration for one test | `overridingConfig("key = value")` | `lark-app-typesafe` |
 | a stream on a clock the test moves | `TestStreams(clock)` and `emitted()` | `lark-stream-test` |
 | actors stepped on the calling thread | `behaviour.test()`, `testActors { }` | `lark-actor` |
@@ -445,7 +446,8 @@ root, and releases the graph however the block ends. `subgraph<Root>()` keeps
 only the nodes the root is reached through, and `overriding` replaces a node,
 refusing a key the graph does not already have so that a typo cannot leave the
 real node running. See [Testing an application](app.md#testing) and the
-[cookbook](cookbook.md#test-one-thing-not-everything).
+[cookbook](cookbook.md#test-the-wiring-not-one-class). A test of one class
+needs none of this: it calls the class's constructor.
 
 ## Streams
 

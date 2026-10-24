@@ -12,8 +12,9 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 /**
- * The complete examples in `docs/core.md`, `docs/observability.md`, `docs/testing.md` and the README's suite, each
- * compiled on its own: this module's test classpath holds the core, lark-pekko and lark-junit, which is all they use.
+ * The complete examples in `docs/core.md`, `docs/observability.md`, `docs/testing.md`, `docs/arrow.md` and the
+ * README's suite, each compiled on its own: this module's test classpath holds the core, lark-pekko, lark-junit and
+ * lark-arrow, which is all they use.
  */
 class CoreGuideTest {
 
@@ -22,6 +23,7 @@ class CoreGuideTest {
             "docs/core.md" to "core",
             "docs/observability.md" to "observability",
             "docs/testing.md" to "testing",
+            "docs/arrow.md" to "arrow",
             "README.md" to "readme",
         )
 

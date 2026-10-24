@@ -71,7 +71,9 @@ class PgUserRepo(private val pool: Pool) : UserRepo {
     override fun find(id: Long) = "user-$id"
 }
 
-class RegisterUser(private val users: UserRepo)
+class RegisterUser(private val users: UserRepo) {
+    fun register(id: Long): String? = users.find(id)
+}
 
 class HttpServer(private val config: HttpConfig, private val register: RegisterUser) {
     fun start() = Unit
@@ -326,7 +328,10 @@ val routed: Module = probed + single { health: HealthRegistry -> Routes(health) 
 
 `critical = false` on a probe degrades readiness rather than downing it.
 
-## Test one thing, not everything
+## Test the wiring, not one class
+
+A test of one class calls its constructor, with its collaborators as
+arguments. The graph never appears, so a wiring change cannot break it:
 
 <!-- cookbook -->
 ```kotlin
@@ -334,17 +339,29 @@ class InMemoryUsers : UserRepo {
     override fun find(id: Long) = "fake-$id"
 }
 
-fun aTest() {
-    val underTest = app.subgraph<RegisterUser>()
-        .overriding(single<UserRepo> { InMemoryUsers() })
+fun oneClass() = check(RegisterUser(InMemoryUsers()).register(1) == "fake-1")
+```
 
-    testApp(underTest) { register: RegisterUser -> register }
+The graph is for a claim that holds only with the nodes together: start and
+release order, readiness, a fake replacing one node among real ones. Here the
+real server and domain nodes run over a faked repository and a fixed port:
+
+<!-- cookbook -->
+```kotlin
+fun theWiring() {
+    val underTest = app
+        .overriding(single<UserRepo> { InMemoryUsers() } + single<HttpConfig> { HttpConfig(port = 0) })
+        .subgraph<HttpServer>()
+
+    testApp(underTest) { server: HttpServer -> server.start() }
 }
 ```
 
-`subgraph` keeps only what its root is reached through. `overriding` refuses a
-key the graph does not already hold, so a fake cannot sit beside the real node
-while the real one runs. `testApp` releases the graph however the block ends.
+`overriding` refuses a key the graph does not already hold, so a fake cannot
+sit beside the real node while the real one runs. `subgraph` then keeps only
+what its root is reached through: with the repository and the port replaced,
+that leaves out the pool and the environment. `testApp` releases the graph
+however the block ends.
 
 ## Check the graph without running it
 
@@ -767,7 +784,8 @@ as a node.
 | readiness | `.probe(name, timeout, attempts, interval) { … }` |
 | `/ready` and `/live` | a node taking `HealthRegistry` |
 | a fake in a test | `.overriding(single<T> { … })`, never plain `plus` |
-| a smaller test | `.subgraph<Root>()` and `testApp(module) { root: Root -> … }` |
+| a test of one class | its constructor, with fakes as arguments |
+| a test of the wiring | `.subgraph<Root>()` and `testApp(module) { root: Root -> … }` |
 | configuration | `config<Settings>("section") { … }` |
 | a password or token | `secret("path")` |
 | a setting that picks a module | `choice<Settings, Provided> { … }` |

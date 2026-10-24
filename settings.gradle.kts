@@ -52,6 +52,7 @@ module("app", "lark-app-cluster")
 
 module("integrations", "lark-pekko")
 module("integrations", "lark-otel")
+module("integrations", "lark-openfeature")
 module("integrations", "lark-slf4j")
 module("integrations", "lark-micrometer")
 module("integrations", "lark-kafka")

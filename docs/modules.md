@@ -130,6 +130,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-slf4j` | log lines through SLF4J, annotations in the MDC ([guide](observability.md#logs)) | `lark` | `slf4j-api` 1.7.36 | yes |
 | `lark-micrometer` | metrics into a Micrometer registry ([guide](observability.md#metrics)) | `lark` | `micrometer-core` 1.12.0 | yes |
 | `lark-otel` | OpenTelemetry context across forks, and spans ([guide](observability.md#traces)) | `lark` | `opentelemetry-api` 1.51.0 | yes |
+| `lark-openfeature` | OpenFeature's evaluation context across forks and actor messages: `evaluatedFor`, `useLark()` | `lark` | `dev.openfeature:sdk` 1.23.0, `slf4j-api` | yes |
 | `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's | `lark` | `arrow-core` 2.1.2 | yes |
 | `lark-assert` | `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, failing at the test's own line | `lark` | `opentest4j` 1.3.0 | yes |
 | `lark-test` | `story` and `eventually` ([guide](testing.md#stories-and-waiting)) | `lark` | none | yes |

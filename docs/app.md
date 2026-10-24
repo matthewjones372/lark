@@ -230,18 +230,31 @@ is running.
 
 ## Testing
 
+A test of one class calls its constructor; a test whose claim spans wiring
+uses the graph.
+
 ```kotlin
 import io.github.matthewjones372.lark.app.overriding
 import io.github.matthewjones372.lark.app.subgraph
 import io.github.matthewjones372.lark.app.testApp
 
-testApp(app.subgraph<RegisterUser>().overriding(single<UserRepo> { InMemoryUsers() })) { register: RegisterUser ->
-    register.register("ada") shouldBe Registered("ada")
+// One class, its collaborators as arguments.
+RegisterUser(InMemoryUsers()).register("ada") shouldBe Registered("ada")
+
+// A claim about the wiring: the real nodes, one faked, released however the block ends.
+testApp(app.subgraph<Checkout>().overriding(single<Payments> { DecliningPayments() })) { checkout: Checkout ->
+    checkout.order(basket) shouldBe Declined
 }
 ```
 
+The constructor is the narrowest seam a class has, and a test through it
+breaks only when the class does. The graph is for claims that hold only with
+the nodes together: start and release order, readiness, a use case across an
+actor, a pool and a migration, a fake replacing one node among real ones.
+The [cookbook](cookbook.md#test-the-wiring-not-one-class) has both, compiled.
+
 - **`subgraph<Root>()`** keeps only the nodes the root is reached through, so
-  a test of one use case starts a few nodes rather than a broker and a server.
+  a test of the wiring starts a few nodes rather than a broker and a server.
 - **`overriding`** replaces nodes, and refuses a key the graph does not already
   hold. Plain `plus` would add the fake beside the real node and leave the real
   one running: a green test that faked nothing.

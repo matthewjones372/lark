@@ -16,6 +16,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     // For the testing guide's suites, which compile against lark-junit.
     testImplementation(project(":lark-junit"))
+    // For the migration page's examples, which convert to and from Arrow.
+    testImplementation(project(":lark-arrow"))
 }
 
 // The serialization plugin, handed to the embedded compiler as a reader's build applies it, so a
@@ -37,6 +39,7 @@ val documentedRecipes = files(
     rootProject.layout.projectDirectory.file("docs/core.md"),
     rootProject.layout.projectDirectory.file("docs/observability.md"),
     rootProject.layout.projectDirectory.file("docs/testing.md"),
+    rootProject.layout.projectDirectory.file("docs/arrow.md"),
     rootProject.layout.projectDirectory.file("README.md"),
 )
 
