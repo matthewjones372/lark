@@ -7,8 +7,14 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Semaphore
 import java.util.concurrent.locks.LockSupport
 
-/** How many elements an input of a merge may hold before it waits for the reader, or a flatMapMerge's between them. */
+/** How many elements the inputs of a flatMapMerge, or of a merge on a test's clock, may hold between them. */
 private const val ROOM = 16
+
+/**
+ * How many elements each input of a merge may hold before it waits for the reader: as much as `buffer(64)`, since a
+ * ring wakes its producer a quarter of its room at a time, and at 16 a producer waited for every fourth element.
+ */
+private const val INPUT_ROOM = 64
 
 /** What an input puts after its last element, or in place of the rest when it failed. */
 private sealed interface Signal {
@@ -144,7 +150,7 @@ private class Confluence(private val queue: ArrayBlockingQueue<Any>) {
 internal fun Node.Merge.merged(releases: Releases?): Pull {
     val on = releases?.on ?: VirtualThreads
     val inputs = listOf(upstream.pull(), other.pull())
-    val rings = Array(inputs.size) { Ring(ROOM) }
+    val rings = Array(inputs.size) { Ring(INPUT_ROOM) }
     inputs.forEachIndexed { i, up -> releases?.add(InFlight(on) { feed(up, rings[i], releases) }::cancel) }
     val reading = InTurn(rings)
     return Pull { reading.next() }
