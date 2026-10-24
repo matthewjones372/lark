@@ -167,6 +167,18 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
         return if (h >= tailSeen && h >= tail.also { tailSeen = it }) null else slots[slot(h)]
     }
 
+    /** Whether the ring is empty, against the producer's live index: for a consumer about to park. */
+    fun isEmpty(): Boolean = head >= tail
+
+    /**
+     * For a consumer reading several rings, which parks on all of them at once: names it as parked on this one, or
+     * clears the name with `null`. The caller fences after naming itself and looks again before parking, as [take]
+     * does.
+     */
+    fun nameConsumer(consumer: Thread?) {
+        parkedConsumer = consumer
+    }
+
     private fun parkUntilRoom(t: Long) {
         parkedProducer = Thread.currentThread()
         VarHandle.fullFence()
