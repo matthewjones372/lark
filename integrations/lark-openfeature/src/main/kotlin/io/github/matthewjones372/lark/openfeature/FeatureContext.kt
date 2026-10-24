@@ -45,7 +45,11 @@ private fun valueOf(name: String, value: Any): Value = try {
     throw IllegalArgumentException("attribute $name is a $type, which a Value cannot hold", unsupported)
 }
 
-/** Keeps the SDK's transaction context in [featureContext], for every client in this JVM. Call once, in `main`. */
+/**
+ * Keeps the SDK's transaction context in [featureContext] and adds [LarkFeatureHook], for every client in
+ * this JVM. Call it in `main`; a second call adds nothing.
+ */
 fun OpenFeatureAPI.useLark() {
     transactionContextPropagator = LarkTransactionContextPropagator()
+    if (hooks.none { it === LarkFeatureHook }) addHooks(LarkFeatureHook)
 }
