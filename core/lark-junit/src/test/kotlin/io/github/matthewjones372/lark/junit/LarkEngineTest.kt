@@ -190,6 +190,7 @@ class LarkEngineTest {
             "CountedSuite",
             "ExpectingSuite",
             "FailingSiblingSuite",
+            "GappedSuite",
             "GatedSuite",
             "IgnoringSuite",
             "Lark",
