@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.app
 
+import io.github.matthewjones372.lark.fail.fold
 import kotlin.reflect.KType
 
 /** Whether a finding stops a build. */

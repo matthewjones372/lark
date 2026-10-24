@@ -1,15 +1,15 @@
 package io.github.matthewjones372.lark.app
 
-import arrow.core.Either
-import arrow.core.NonEmptyList
-import arrow.core.raise.Raise
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.ExitCase
 import io.github.matthewjones372.lark.ResourceScope
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.NonEmptyList
 import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.fold
+import io.github.matthewjones372.lark.fail.mapLeft
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.resourceScope
 import java.util.concurrent.CancellationException
@@ -42,7 +42,7 @@ sealed class StartupError {
 /**
  * What a recipe is handed: somewhere to install a release, and a way to decline.
  *
- * Not also a `Raise<StartupError>`: `ResourceScope.bind` takes a `Resource<A>` and `Raise.bind` a
+ * Not also a `Fail<StartupError>`: `ResourceScope.bind` takes a `Resource<A>` and `Raise.bind` a
  * function too, and the two erase to one JVM signature.
  */
 interface Wiring : ResourceScope {
@@ -65,9 +65,9 @@ inline fun <reified A : Any, B> Module.use(noinline block: (A) -> B): Either<Sta
     }
 
 @PublishedApi
-internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError, B> = either {
+internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError, B> = attempt {
     validate().mapLeft { faults -> StartupError.Unwireable(faults, nodes.keys) }.bind()
-    if (!nodes.containsKey(root)) raise(StartupError.NoSuchNode(root))
+    if (!nodes.containsKey(root)) fail(StartupError.NoSuchNode(root))
 
     val health = HealthRegistry(probes)
     // The order nodes were built in, layer by layer: a choice's branch is only known once its setting is built.
@@ -79,10 +79,10 @@ internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError
         onRelease { exit -> releases.release(order.toList(), exit) }
         val starts = Starts()
         val built = build(this@use, releases, starts, health, order)
-        starts.run(order.toList(), this@either)
+        starts.run(order.toList(), this@attempt)
         probes.filter { it.asked == Asked.WhenStarted }.forEach { probe ->
             val answer = answers(probe, built.getValue(probe.key))
-            if (answer is Answer.No) raise(StartupError.Unready(probe.key, probe.name, answer.cause))
+            if (answer is Answer.No) fail(StartupError.Unready(probe.key, probe.name, answer.cause))
         }
         health.running()
         block(built.getValue(root))
@@ -93,7 +93,7 @@ internal fun <B> Module.use(root: KType, block: (Any) -> B): Either<StartupError
  * A layer at a time: every node whose dependencies are built. A choice whose dependencies are built is expanded
  * first, its branch taking its place, and the layers are worked out again with the branch in them.
  */
-private fun Raise<StartupError>.build(
+private fun Fail<StartupError>.build(
     start: Module,
     releases: Releases,
     starts: Starts,
@@ -106,7 +106,7 @@ private fun Raise<StartupError>.build(
         val remaining = module.nodes.values.filter { it.key !in built }
         if (remaining.isEmpty()) {
             module.pending.keys.firstOrNull()?.let { key ->
-                raise(StartupError.Refused(key, "it was overridden, and no chosen branch provides it"))
+                fail(StartupError.Refused(key, "it was overridden, and no chosen branch provides it"))
             }
             return built
         }
@@ -115,7 +115,7 @@ private fun Raise<StartupError>.build(
         when {
             choices.isNotEmpty() -> module = choices.fold(module) { m, choice -> expanded(m, choice, built, health) }
 
-            nodes.isEmpty() -> raise(
+            nodes.isEmpty() -> fail(
                 StartupError.Refused(
                     remaining.first().key,
                     "a chosen branch left ${remaining.joinToString { labelOf(it.key) }} needing each other",
@@ -138,7 +138,7 @@ private fun Raise<StartupError>.build(
                         health.started(key, value)
                         key to value
                     }
-                }.fold({ raise(it) }, { it })
+                }.fold({ fail(it) }, { it })
                 order += layer
             }
         }
@@ -150,7 +150,7 @@ private fun Raise<StartupError>.build(
  * key, so what a test overrode stays overridden; a branch that does not provide the choice's key, or needs what
  * nothing builds, refuses the start under that key.
  */
-private fun Raise<StartupError>.expanded(
+private fun Fail<StartupError>.expanded(
     module: Module,
     choice: Node,
     built: Map<KType, Any>,
@@ -158,7 +158,7 @@ private fun Raise<StartupError>.expanded(
 ): Module {
     val key = choice.key
     val branch = checkNotNull(choice.choice).pick(choice.dependencies.map(built::getValue))
-    if (key !in branch.nodes) raise(StartupError.Refused(key, "the branch chosen for it does not provide it"))
+    if (key !in branch.nodes) fail(StartupError.Refused(key, "the branch chosen for it does not provide it"))
     // What a test overrode wins: a node already in the graph, or one waiting for a branch to bring its key.
     val added = branch.nodes.filterKeys { it == key || it !in module.nodes }
         .mapValues { (brought, node) -> module.pending[brought] ?: node }
@@ -166,7 +166,7 @@ private fun Raise<StartupError>.expanded(
         .filterNot { it in module.nodes || it in added || it in runtimeProvided }
         .distinct()
     if (missing.isNotEmpty()) {
-        raise(
+        fail(
             StartupError.Refused(
                 key,
                 "the branch chosen for it needs ${missing.joinToString(transform = ::labelOf)}, and nothing builds it",
@@ -255,29 +255,30 @@ private class Starts {
     }
 
     /** Runs every hook, in [order]; one that throws ends the start, naming its node, as a refusal does. */
-    fun run(order: List<KType>, raise: Raise<StartupError>) {
+    fun run(order: List<KType>, failing: Fail<StartupError>) {
         val hooks = lock.withLock {
             ran = true
             order.flatMap { key -> byKey[key].orEmpty().map { key to it } }
         }
         running = true
         try {
-            hooks.forEach { (key, started) -> runHook(key, started, raise) }
+            hooks.forEach { (key, started) -> runHook(key, started, failing) }
         } finally {
             running = false
         }
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private fun runHook(key: KType, started: () -> Unit, raise: Raise<StartupError>) {
+    private fun runHook(key: KType, started: () -> Unit, failing: Fail<StartupError>) {
         try {
             started()
         } catch (refused: Refusal) {
-            raise.raise(StartupError.Refused(refused.key, refused.reason))
+            failing.fail(StartupError.Refused(refused.key, refused.reason))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (thrown: Exception) {
-            raise.raise(StartupError.Refused(key, "its onStarted threw ${thrown::class.simpleName}: ${thrown.message}"))
+            val why = "its onStarted threw ${thrown::class.simpleName}: ${thrown.message}"
+            failing.fail(StartupError.Refused(key, why))
         }
     }
 }
