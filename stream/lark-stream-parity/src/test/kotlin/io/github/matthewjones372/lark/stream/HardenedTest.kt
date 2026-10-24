@@ -120,6 +120,36 @@ class HardenedTest {
     }
 
     @Test
+    fun `a merge ends once both inputs have, with each input's elements in its own order`() {
+        every { counted, backend ->
+            val exit = Stream.from(1..5_000).merge(Stream.from(1..3_000).map { -it }).runCollect()
+                .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+            val merged = exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+            merged.filter { it > 0 } shouldBe (1..5_000).toList()
+            merged.filter { it < 0 } shouldBe (1..3_000).map { -it }
+            counted.leftRunning() shouldBe 0
+        }
+    }
+
+    @Test
+    fun `a failing input ends a merge Failed, and lets go of the other`() {
+        every { counted, backend ->
+            val failing: Stream<ParityTest.Odd, Int> = Stream.from(1..10).mapOrFail {
+                if (it ==
+                    10
+                ) fail(ParityTest.Odd(it)) else it
+            }
+
+            val exit = failing.merge(Stream.from(naturals).map { -it }).runCollect()
+                .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+            exit shouldBe Exit.Failed(ParityTest.Odd(10))
+            counted.leftRunning() shouldBe 0
+        }
+    }
+
+    @Test
     fun `flatMapMerge never runs more inner streams at once than its breadth`() {
         every { counted, backend ->
             val running = AtomicInteger()
