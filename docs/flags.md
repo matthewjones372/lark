@@ -17,6 +17,13 @@ Call `OpenFeatureAPI.getInstance().useLark()` once, in `main`, before setting a
 provider. It keeps the SDK's evaluation context where forks and messages can
 see it, and adds the hook that counts evaluations.
 
+In a `lark-app` graph, `lark-app-openfeature`'s `openFeature { provider }` does
+this for you. The provider is a node keyed by `Client`, set before any node
+that takes one is built. A provider whose init throws refuses the start, the
+graph reports not ready while the provider is in error or stale, and release
+shuts the SDK down. `Flag.value()` reads the same provider. One graph per JVM
+can hold it, and a second is refused.
+
 ## Declaring and reading a flag
 
 <!-- flags-declare -->

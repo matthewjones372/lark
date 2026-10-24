@@ -275,6 +275,7 @@ Each integration is a separate module that makes something a node:
 | `lark-app-typesafe` | `config<T>("section") { … }`, a HOCON section read into a type, with every fault in a bad file reported at once; `secret(path)`; where each setting came from | [Configuration](cookbook.md#configuration-a-module-owns) |
 | `lark-app-kotlinx` | `config<T>("section")`, the section read from `T`'s own `@Serializable` properties, every fault at once | [Configuration](cookbook.md#configuration-a-module-owns) |
 | `lark-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
+| `lark-app-openfeature` | `openFeature { provider }`, an OpenFeature provider set before anything reads a flag, keyed by `Client`, ready while the provider is, and shut down on release | [Feature flags](flags.md) |
 | `lark-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
 | `lark-app-actor` | `actors()`, a `lark-actor` flock that lives as long as the application, and `actor("name") { … }`, keyed by Lark's `ActorRef<M>` | [Lark actor](cookbook.md#spawn-a-lark-actor) |
 | `lark-app-cluster` | `cluster("path")`, a cluster membership joined as a HOCON section describes | [Joined from config](cluster.md#joined-from-config) |
@@ -356,7 +357,8 @@ knows:
 - `single`, `singleOf`, `closingOf` and `choice`;
 - `lark-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
   `configFromResource` and `configFromFile`; `lark-app-kotlinx`'s `config`;
-  `lark-app-liquibase`'s `migrations`; `lark-app-pekko`'s `actor`;
+  `lark-app-liquibase`'s `migrations`; `lark-app-openfeature`'s `openFeature`;
+  `lark-app-pekko`'s `actor`;
   `lark-app-actor`'s `actors` and `actor`;
 - `plus`, `overriding`, `overridingConfig`, `boundTo` and `probe`;
 - references to `val`s and single-expression functions in the same

@@ -59,6 +59,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-app-typesafe`: `config`, `secret`, `choosing`, `overridingConfig`.
 - `lark-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.
 - `lark-app-liquibase`: `migrations` and `Migrated`.
+- `lark-app-openfeature`: `openFeature { provider }`, a flag provider as a node.
 - `lark-app-pekko`: a Pekko typed actor as a node.
 - `lark-app-actor`: a `lark-actor` flock and actors as nodes.
 - `lark-app-cluster`: a cluster membership as a node.
