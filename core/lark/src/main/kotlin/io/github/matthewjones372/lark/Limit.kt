@@ -35,7 +35,7 @@ class Limit private constructor(
      * answer, so a lookup that answers "not found" is not taken for overload.
      */
     fun <A> withPermit(block: () -> A): A {
-        acquire()
+        val found = acquire()
         val started = System.nanoTime()
         var outcome = Outcome.FAILED
         try {
@@ -50,22 +50,23 @@ class Limit private constructor(
             outcome = Outcome.UNMEASURED
             throw failed
         } finally {
-            release(System.nanoTime() - started, outcome)
+            release(System.nanoTime() - started, found, outcome)
         }
     }
 
-    private fun acquire() = lock.withLock {
+    /** Waits for room, and answers how many calls are inside with this one. */
+    private fun acquire(): Int = lock.withLock {
         while (using >= allowed) room.await()
         using++
         publish()
+        using
     }
 
-    private fun release(tookNanos: Long, outcome: Outcome) = lock.withLock {
-        val inside = using
+    private fun release(tookNanos: Long, found: Int, outcome: Outcome) = lock.withLock {
         using--
         val before = allowed
         if (adapting != null && outcome != Outcome.UNMEASURED) {
-            allowed = adapting.sample(tookNanos, inside, dropped = outcome == Outcome.FAILED)
+            allowed = adapting.sample(tookNanos, found, dropped = outcome == Outcome.FAILED)
         }
         if (allowed > before) room.signalAll() else room.signal()
         publish()

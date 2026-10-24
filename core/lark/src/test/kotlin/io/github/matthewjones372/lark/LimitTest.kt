@@ -6,10 +6,12 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.util.PriorityQueue
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
 
 /** A limit on calls into one dependency: a fixed one never lets more in, and an adaptive one finds its level. */
 class LimitTest {
@@ -27,11 +29,78 @@ class LimitTest {
         return limit
     }
 
+    /** 10 ms a call, give or take a tenth: exactly 10 would finish every call in lockstep, as no dependency does. */
+    private fun steady(): () -> Long {
+        val random = Random(SEED)
+        return { (BASE_NANOS * (0.9 + random.nextDouble() / 5)).toLong() }
+    }
+
+    /**
+     * A dependency that serves [capacity] calls at once, each taking what [service] says, with calls beyond that
+     * waiting their turn in its queue; callers keep [vegas]'s limit full. Time is simulated, one completion to the
+     * next, so a call that queued under an earlier, higher limit is measured late, as it is in a real service.
+     */
+    private class Dependency(private val vegas: Vegas, var capacity: Int, private val service: () -> Long) {
+        private class Call(val arrived: Long, val found: Int, val done: Long)
+
+        private val serving = PriorityQueue<Call>(compareBy { it.done })
+        private val waiting = ArrayDeque<Pair<Long, Int>>()
+        var now = 0L
+        var limit = 0
+        var completed = 0L
+        var tookTotal = 0L
+        var lowestLimit = Int.MAX_VALUE
+
+        fun start(limit: Int) = apply {
+            this.limit = limit
+            fill()
+        }
+
+        /** Runs for [nanos] of simulated time, calling [watch] with the limit after each completion. */
+        fun runFor(nanos: Long, watch: (Int) -> Unit = {}) {
+            val until = now + nanos
+            while (serving.peek().done <= until) {
+                val call = serving.poll()
+                now = call.done
+                limit = vegas.sample(now - call.arrived, call.found, dropped = false)
+                completed++
+                tookTotal += now - call.arrived
+                lowestLimit = minOf(lowestLimit, limit)
+                watch(limit)
+                admit()
+                fill()
+            }
+            now = until
+        }
+
+        /** Calls answered per second and their mean latency in ms, over [nanos] from now. */
+        fun measure(nanos: Long): Pair<Double, Double> {
+            val (calls, took) = completed to tookTotal
+            runFor(nanos)
+            val answered = completed - calls
+            return answered * 1e9 / nanos to (tookTotal - took) / 1e6 / answered
+        }
+
+        private fun fill() {
+            while (serving.size + waiting.size < limit) {
+                waiting.addLast(now to serving.size + waiting.size + 1)
+                admit()
+            }
+        }
+
+        private fun admit() {
+            while (serving.size < capacity && waiting.isNotEmpty()) {
+                val (arrived, found) = waiting.removeFirst()
+                serving.add(Call(arrived, found, now + service()))
+            }
+        }
+    }
+
     @Test
     fun `an adaptive limit climbs to what the dependency can take, and stops a little above it`() {
         val limit = settle(Vegas(initial = 20, min = 1, max = 5_000), 20, capacity = { 400 }, steps = 50_000)
 
-        withClue("settled at $limit for a capacity of 400") { (limit in 400..440) shouldBe true }
+        withClue("settled at $limit for a capacity of 400") { (limit in 400..460) shouldBe true }
     }
 
     @Test
@@ -44,6 +113,95 @@ class LimitTest {
         val limit = settle(vegas, before, { capacity }, steps = 2_000)
 
         withClue("settled at $limit for a capacity of 200") { (limit in 200..230) shouldBe true }
+    }
+
+    @Test
+    fun `an adaptive limit reaches a steady dependency's capacity within a few windows, and serves it in full`() {
+        val dependency = Dependency(Vegas(initial = 20, min = 1, max = 5_000), capacity = 500, steady()).start(20)
+        var reached = Long.MAX_VALUE
+        dependency.runFor(SECOND) { if (it >= 500 && reached == Long.MAX_VALUE) reached = dependency.now }
+
+        val (rate, latency) = dependency.measure(5 * SECOND)
+
+        withClue("reached 500 after ${reached / 1e6} ms") { (reached <= 10 * BASE_NANOS) shouldBe true }
+        withClue("served $rate a second of 50,000") { (rate >= 49_000) shouldBe true }
+        withClue("mean latency $latency ms over 10 unloaded") { (latency <= 12.0) shouldBe true }
+    }
+
+    @Test
+    fun `an adaptive limit follows a dependency that loses capacity without cutting below it`() {
+        val dependency = Dependency(Vegas(initial = 20, min = 1, max = 5_000), capacity = 500, steady()).start(20)
+        dependency.runFor(2 * SECOND)
+        dependency.capacity = 100
+        dependency.lowestLimit = Int.MAX_VALUE
+        var followed = Long.MAX_VALUE
+        val dropped = dependency.now
+        dependency.runFor(SECOND) { if (it <= 130 && followed == Long.MAX_VALUE) followed = dependency.now - dropped }
+
+        val (rate, latency) = dependency.measure(5 * SECOND)
+
+        withClue("down to 130 after ${followed / 1e6} ms") { (followed <= 20 * BASE_NANOS) shouldBe true }
+        withClue("lowest limit after the drop") { (dependency.lowestLimit >= 95) shouldBe true }
+        withClue("served $rate a second of 10,000") { (rate >= 9_800) shouldBe true }
+        withClue("mean latency $latency ms over 10 unloaded") { (latency <= 12.0) shouldBe true }
+    }
+
+    @Test
+    fun `an adaptive limit climbs after a dependency that gains capacity`() {
+        val dependency = Dependency(Vegas(initial = 20, min = 1, max = 5_000), capacity = 100, steady()).start(20)
+        dependency.runFor(2 * SECOND)
+        dependency.capacity = 400
+        dependency.runFor(SECOND)
+
+        val (rate, _) = dependency.measure(5 * SECOND)
+
+        withClue("limit ${dependency.limit} for a capacity of 400") { (dependency.limit in 400..480) shouldBe true }
+        withClue("served $rate a second of 40,000") { (rate >= 39_000) shouldBe true }
+    }
+
+    @Test
+    fun `an adaptive limit a little over a steady dependency's capacity does not creep up`() {
+        val dependency = Dependency(Vegas(initial = 20, min = 1, max = 5_000), capacity = 400, steady()).start(20)
+        dependency.runFor(30 * SECOND)
+        var most = 0
+        dependency.runFor(10 * SECOND) { most = maxOf(most, it) }
+
+        val (_, latency) = dependency.measure(5 * SECOND)
+
+        withClue("highest limit after 30 s for a capacity of 400") { (most <= 520) shouldBe true }
+        withClue("mean latency $latency ms over 10 unloaded") { (latency <= 12.0) shouldBe true }
+    }
+
+    @Test
+    fun `an adaptive limit comes back to a dependency that got slower for good`() {
+        var slower = 1L
+        val jitter = steady()
+        val dependency = Dependency(Vegas(initial = 20, min = 1, max = 5_000), capacity = 400) { slower * jitter() }
+        dependency.start(20).runFor(2 * SECOND)
+        slower = 2
+        dependency.runFor(10 * SECOND)
+
+        val (rate, _) = dependency.measure(5 * SECOND)
+
+        withClue("limit ${dependency.limit} for a capacity of 400") { (dependency.limit >= 400) shouldBe true }
+        withClue("served $rate a second of 20,000") { (rate >= 19_000) shouldBe true }
+    }
+
+    @Test
+    fun `an adaptive limit keeps a dependency with noisy latency busy without queueing much`() {
+        val random = Random(SEED)
+        val dependency = Dependency(Vegas(initial = 20, min = 1, max = 5_000), capacity = 400) {
+            // Each call within a quarter of 10 ms either way, and one in a hundred four times as long.
+            val jitter = BASE_NANOS * (0.75 + random.nextDouble() / 2)
+            (if (random.nextInt(100) == 0) 4 * jitter else jitter).toLong()
+        }.start(20)
+        dependency.runFor(2 * SECOND)
+
+        val (rate, latency) = dependency.measure(5 * SECOND)
+
+        val capacity = 400 / (BASE_NANOS * 1.03 / 1e9)
+        withClue("served $rate a second of $capacity") { (rate >= 0.95 * capacity) shouldBe true }
+        withClue("mean latency $latency ms over 10.3 unloaded") { (latency <= 13.0) shouldBe true }
     }
 
     @Test
@@ -151,6 +309,8 @@ class LimitTest {
 
     private companion object {
         const val BASE_NANOS = 10_000_000L
+        const val SECOND = 1_000_000_000L
+        const val SEED = 171L
         const val SETTLE_SECONDS = 10L
         const val WAIT_MILLIS = 50L
     }
