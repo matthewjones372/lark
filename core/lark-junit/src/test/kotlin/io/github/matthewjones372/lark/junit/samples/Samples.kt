@@ -16,6 +16,7 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.tag
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
@@ -278,5 +279,33 @@ object MatchingSuite : Suite<Int>() {
             (Either.Right(two) shouldBeRight 2) and (Either.Left(two) shouldBeLeft 2)
         }
         test("fails shouldBeRight") { two -> Either.Left(two) shouldBeRight 2 }
+    }
+}
+
+/** Spec 0190's shouldThrow: what a block threw, checked as a value. */
+object ThrowingSuite : Suite<Int>() {
+    override val shared: Resource<Int> = resource { 2 }
+
+    /** How many times a [shouldThrow]'s second lambda ran; it must not on a failed throw check. */
+    val thenRan = java.util.concurrent.atomic.AtomicInteger()
+
+    init {
+        test("passes a matching throw") { two -> shouldThrow<IllegalStateException> { check(two == 3) } }
+        test("passes a matching throw, then checks it") { two ->
+            shouldThrow<IllegalArgumentException>({ require(two == 3) { "not three" } }) { refusal ->
+                refusal.message shouldBe "not three"
+            }
+        }
+        test("fails a missing throw") { two -> shouldThrow<IllegalStateException> { two + 1 } }
+        test("fails a wrong type") { _ ->
+            shouldThrow<IllegalStateException>({ throw UnsupportedOperationException("other") }) {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
+        test("fails the second lambda's check") { _ ->
+            shouldThrow<IllegalStateException>({ error("three") }) { thrown -> thrown.message shouldBe "two" }
+        }
+        test("rethrows an interrupt") { _ -> shouldThrow<IllegalStateException> { throw InterruptedException("stop") } }
     }
 }

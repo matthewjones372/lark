@@ -6,6 +6,7 @@ import io.github.matthewjones372.lark.assert.FailureSeam
 import io.github.matthewjones372.lark.assert.failureAt
 import io.github.matthewjones372.lark.assert.mismatchAt
 import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.MultipleFailuresError
 
@@ -71,6 +72,36 @@ infix fun <E, A> Either<E, A>.shouldBeRight(expected: A): Expectations = this sh
 /** Holds if this is a [Either.Left] holding [expected]. */
 infix fun <E, A> Either<E, A>.shouldBeLeft(expected: E): Expectations = this shouldBe Either.Left(expected)
 
+/** Holds if [block] throws a [T]; fails, naming this line, if it throws nothing or something else. */
+inline fun <reified T : Throwable> shouldThrow(block: () -> Any?): Expectations = shouldThrow<T>(block) { threw() }
+
+/**
+ * Holds if [block] throws a [T] and [then], given what it threw, holds too. [then] runs only on a [T]. An interrupt,
+ * a cancellation or a VM error that is not a [T] goes on up, so the test stops as it would have without the check.
+ */
+inline fun <reified T : Throwable> shouldThrow(block: () -> Any?, then: (T) -> Expectations): Expectations {
+    @Suppress("TooGenericExceptionCaught") // catching everything is the point; nonFatalOrThrow sorts it
+    val thrown = try {
+        val _ = block()
+        null
+    } catch (caught: Throwable) {
+        caught
+    }
+    return when (thrown) {
+        is T -> threw() and then(thrown)
+        else -> notThrown("a ${T::class.qualifiedName} thrown", thrown?.nonFatalOrThrow())
+    }
+}
+
+/** The check [shouldThrow] passed. */
+@PublishedApi
+internal fun threw(): Expectations = passed(1)
+
+/** The check [shouldThrow] failed: nothing thrown, or [thrown], carried as the cause. */
+@PublishedApi
+internal fun notThrown(wanted: String, thrown: Throwable?): Expectations =
+    mismatchedHere(null, thrown ?: "nothing thrown", wanted, thrown)
+
 private fun passed(checked: Int) = Expectations(emptyList(), checked)
 
 /** The same failure, with [heading] above its message and the same expected and actual. */
@@ -91,5 +122,16 @@ private fun failedHere(message: String, quoting: Boolean = true): Expectations =
     Expectations(listOf(failureAt(message, skipping = { it.className in own }, quoting)), 1)
 
 @OptIn(FailureSeam::class)
-private fun mismatchedHere(expected: Any?, actual: Any?, expectedText: String? = null): Expectations =
-    Expectations(listOf(mismatchAt(expected, actual, skipping = { it.className in own }, expectedText)), 1)
+private fun mismatchedHere(
+    expected: Any?,
+    actual: Any?,
+    expectedText: String? = null,
+    cause: Throwable? = null,
+): Expectations = Expectations(
+    listOf(
+        mismatchAt(expected, actual, skipping = {
+            it.className in own
+        }, expectedText, cause),
+    ),
+    1,
+)
