@@ -15,6 +15,7 @@ import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.TestTag
 import org.junit.platform.engine.UniqueId
 import org.junit.platform.engine.discovery.ClassSelector
+import org.junit.platform.engine.discovery.UniqueIdSelector
 import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.engine.support.descriptor.AbstractTestDescriptor
 import org.junit.platform.engine.support.descriptor.ClassSource
@@ -149,6 +150,13 @@ private fun LogLine.rendered(): String =
 private fun isSuiteObject(type: Class<*>): Boolean = Suite::class.java.isAssignableFrom(type) &&
     type.declaredFields.any { it.name == "INSTANCE" && it.type == type && Modifier.isStatic(it.modifiers) }
 
+/** The class [name] names, or null where this classpath has none, as for an ID left from a renamed suite. */
+private fun loaded(name: String): Class<*>? = try {
+    Class.forName(name, false, Thread.currentThread().contextClassLoader)
+} catch (_: ClassNotFoundException) {
+    null
+}
+
 private object SuiteResolver : SelectorResolver {
     override fun resolve(selector: ClassSelector, context: SelectorResolver.Context): Resolution {
         val type = selector.getJavaClass()
@@ -156,6 +164,21 @@ private object SuiteResolver : SelectorResolver {
         return context.addToParent { parent -> Optional.of(SuiteDescriptor.of(parent.uniqueId, type)) }
             .map { Resolution.match(Match.exact(it)) }
             .orElse(Resolution.unresolved())
+    }
+
+    /** `[engine:lark]/[suite:…]` or `…/[test:…]`, which is how an IDE reruns a suite or one of its tests. */
+    override fun resolve(selector: UniqueIdSelector, context: SelectorResolver.Context): Resolution {
+        val segments = selector.uniqueId.segments
+        val type = segments.firstOrNull { it.type == "suite" }?.let { loaded(it.value) }
+            ?.takeIf(::isSuiteObject) ?: return Resolution.unresolved()
+        val test = segments.firstOrNull { it.type == "test" }?.value
+        return context.addToParent { parent ->
+            Optional.of(
+                SuiteDescriptor.of(parent.uniqueId, type).also { suite ->
+                    if (test != null) suite.children.filter { it.displayName != test }.forEach(suite::removeChild)
+                },
+            )
+        }.map { Resolution.match(Match.exact(it)) }.orElse(Resolution.unresolved())
     }
 }
 
