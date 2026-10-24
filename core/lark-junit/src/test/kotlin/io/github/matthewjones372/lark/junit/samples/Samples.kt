@@ -13,12 +13,20 @@ import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeEmpty
+import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
+import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeLeft
+import io.github.matthewjones372.lark.junit.shouldBeLessThan
+import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.shouldNotBeEmpty
+import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.shouldThrow
@@ -358,5 +366,35 @@ object CluedSuite : Suite<Any>() {
             }
         }
         test("fails a narrowed check") { two -> two.shouldBeInstanceOf<String> { it shouldBe "three" } }
+    }
+}
+
+/** Spec 0192's matchers: collections in any order, emptiness, null and comparisons, as values. */
+object GappedSuite : Suite<List<Int>>() {
+    override val shared: Resource<List<Int>> = resource { listOf(1, 2, 2, 3) }
+
+    /** How many times a [shouldNotBeNull]'s lambda ran; it must not on a null. */
+    val thenRan = AtomicInteger()
+
+    init {
+        test("passes every matcher") { xs ->
+            (xs shouldContainExactlyInAnyOrder listOf(2, 3, 1, 2)) and xs.shouldContainExactlyInAnyOrder(3, 2, 2, 1) and
+                emptyList<Int>().shouldBeEmpty() and xs.shouldNotBeEmpty() and
+                emptyMap<String, Int>().shouldBeEmpty() and mapOf("a" to 1).shouldNotBeEmpty() and
+                xs.firstOrNull().shouldNotBeNull { first -> first shouldBe 1 } and xs.shouldNotBeNull() and
+                (1 shouldBeLessThan 2) and (2 shouldBeLessThanOrEqual 2) and
+                (3 shouldBeGreaterThan 2) and (2 shouldBeGreaterThanOrEqual 2)
+        }
+        test("fails in any order") { xs -> xs shouldContainExactlyInAnyOrder listOf(1, 2, 3) }
+        test("fails shouldBeEmpty") { xs -> xs.shouldBeEmpty() }
+        test("fails shouldNotBeEmpty on a map") { _ -> emptyMap<String, Int>().shouldNotBeEmpty() }
+        test("fails shouldNotBeNull") { xs ->
+            xs.firstOrNull { it > 3 }.shouldNotBeNull {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
+        test("fails shouldBeLessThan") { _ -> 3 shouldBeLessThan 2 }
+        test("fails shouldBeGreaterThanOrEqual") { _ -> 1 shouldBeGreaterThanOrEqual 2 }
     }
 }
