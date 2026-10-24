@@ -113,6 +113,8 @@ val moduleDescriptions = mapOf(
         "lark-cluster on Kubernetes: seeds from the pods API, and a Lease to break an even split.",
     "lark-app-actor" to "lark-app on lark-actor: a flock is a node, and an actor is a node keyed by its protocol.",
     "lark-app-cluster" to "lark-app on lark-cluster: a cluster is a node, joined as a HOCON section says.",
+    "lark-openfeature" to
+        "lark on OpenFeature: who a flag is evaluated for, bound once and read in every fork and actor.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
