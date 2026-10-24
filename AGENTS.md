@@ -84,7 +84,7 @@ Work out which of these a change can break:
 ### Examples in the docs are compiled
 
 The guides' Kotlin fences are compiled by tests that read the Markdown:
-`ReadmeExampleTest` (README and `docs/stream.md`), `CoreGuideTest` and
+`ReadmeExampleSuite` (README and `docs/stream.md`), `CoreGuideTest` and
 `CookbookTest` (`docs/core.md`, `observability.md`, `testing.md`,
 `cookbook.md`), `ActorsGuideTest` and `GuideExampleTest`. A fence is found by
 the HTML comment above it, such as `<!-- core-policy -->`, so keep the marker

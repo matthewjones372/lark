@@ -62,7 +62,7 @@ Pekko Streams or needs Pekko's own sources and sinks.
 ## One description, several backends
 
 A pipeline that fails with `Unpriced` when an order has no price, run on three
-backends. `ReadmeExampleTest` compiles this against all three:
+backends. `ReadmeExampleSuite` compiles this against all three:
 
 <!-- backend-example -->
 ```kotlin
