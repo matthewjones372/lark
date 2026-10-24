@@ -75,7 +75,7 @@ startup: a `Module`, a `Stream` and a `Behaviour` are values that can be split
 across files, combined or filtered. Prefer a value to a function when adding a
 feature.
 
-Errors a caller was promised are values in the return type: a `Raise<E>`, an
+Errors a caller was promised are values in the return type: a `Fail<E>`, an
 `Either`, a stream's `E`. Throwing is for what nobody declared — a decode
 failure, a broken codec, a bug.
 
@@ -85,13 +85,13 @@ anywhere, test sources included, and detekt fails the build on one: it catches
 interrupts and bugs along with what was meant. Catch the exception you expect,
 by name.
 
-In a lark handler, `raise` is the only way to leave with a declared failure.
-A raise unwinds through the body as an exception, so a `catch` between it and
-the boundary eats it: `catch (t: Throwable)` belongs in the one function that
+In a lark handler, `fail` is the only way to leave with a declared failure.
+A fail unwinds through the body as a `Throwable`, so a `catch (t: Throwable)`
+between it and the boundary eats it: such a catch belongs in the one function that
 completes the stage from the virtual thread, and detekt permits it nowhere
 else.
 
-A `Raise` scope never crosses a thread. Work forked from a handler answers
+A `Fail` scope never crosses a thread. Work forked from a handler answers
 with an `Either`, and the handler binds it.
 
 Never add an `else` to a `when` over a sealed type. The missing branch is the
