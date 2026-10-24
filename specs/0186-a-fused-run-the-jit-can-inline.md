@@ -42,7 +42,7 @@ Recommended: the loop.
 
 ## Stack
 
-- [ ] **`cpu-chain-overhead`** — the links above, a test that a defect in each kind of fused step still names it,
+- [x] **`cpu-chain-overhead`** ([#528](https://github.com/matthewjones372/lark/pull/528)) — the links above, a test that a defect in each kind of fused step still names it,
       and the benchmark rows before and after.
       Done when: blocking-vs-reactive's `CpuChainBenchmark.lark` is within 1.2× of `reactor`, or the PR says what is
       left and why.
