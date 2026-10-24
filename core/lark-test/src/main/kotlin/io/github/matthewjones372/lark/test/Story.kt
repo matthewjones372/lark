@@ -216,4 +216,4 @@ private const val LARK = "io.github.matthewjones372.lark"
 // Not every class under lark's prefix: lark-test's own tests live there, and must point at themselves.
 private val ours = setOf("$LARK.test.StoryKt", "$LARK.test.Story", "$LARK.test.EventuallyKt")
 
-private val libraries = listOf("io.kotest.", "org.opentest4j.", "kotlin.", "java.", "jdk.", "sun.", "arrow.")
+private val libraries = listOf("$LARK.assert.", "org.opentest4j.", "kotlin.", "java.", "jdk.", "sun.", "arrow.")

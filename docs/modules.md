@@ -132,7 +132,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-otel` | OpenTelemetry context across forks, and spans ([guide](observability.md#traces)) | `lark` | `opentelemetry-api` 1.51.0 | yes |
 | `lark-openfeature` | OpenFeature's evaluation context across forks and actor messages: `evaluatedFor`, `useLark()`, `Flag` ([guide](flags.md)) | `lark` | `dev.openfeature:sdk` 1.23.0, `slf4j-api` | yes |
 | `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's | `lark` | `arrow-core` 2.1.2 | yes |
-| `lark-assert` | `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, failing at the test's own line | `lark` | `opentest4j` 1.3.0 | yes |
+| `lark-assert` | checks for tests, failing at the test's own line: `shouldBe`, `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, the string, collection and map matchers, and `withClue` ([guide](testing.md#assertions)) | `lark` | `opentest4j` 1.3.0 | yes |
 | `lark-test` | `story` and `eventually` ([guide](testing.md#stories-and-waiting)) | `lark` | none | yes |
 | `lark-junit` | `Suite` objects whose tests share one `Resource` and return `Expectations`, run by a JUnit Platform engine | `lark`, `lark-assert`, `lark-test` | `junit-platform-engine` 6.1.3 | yes |
 
