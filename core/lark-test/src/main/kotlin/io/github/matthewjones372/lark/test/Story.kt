@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.test
 
+import io.github.matthewjones372.lark.LarkLocal
+import io.github.matthewjones372.lark.larkLocal
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
@@ -13,17 +15,38 @@ import kotlin.time.Duration.Companion.seconds
  * `never` or `NO_COLOR`. A Gradle test worker does not see the shell's environment; the
  * `io.github.matthewjones372.lark.wiring` plugin hands these on to every test task, `-Plark.test.colour` included.
  */
-fun story(title: String = callingTest(), block: Story.() -> Unit) {
+@OptIn(StorySeam::class)
+fun story(title: String = storyTitle.get() ?: callingTest(), block: Story.() -> Unit) {
     val story = Story()
     try {
         story.block()
     } catch (failure: Throwable) {
-        println(story.told(title, Colour.wanted))
+        story.tell(title)
         // Led by the failing step's own frame, so the first line a test runner links to is the assertion.
         throw StoryFailed(story.told(title, colour = false), failure)
             .apply { stackTrace = failure.fromTheTest().toTypedArray().ifEmpty { stackTrace } }
     }
-    println(story.told(title, Colour.wanted))
+    story.tell(title)
+}
+
+/** A seam for lark's own modules that run stories, such as a test engine that names and captures each test. */
+@RequiresOptIn("A seam for lark's own modules that run stories.")
+@Retention(AnnotationRetention.BINARY)
+@Target(AnnotationTarget.PROPERTY)
+annotation class StorySeam
+
+/** The title of a story told without one; unbound, the calling test's name. */
+@StorySeam
+val storyTitle: LarkLocal<String?> = larkLocal { null }
+
+/** Where a story's transcript goes, uncoloured, when it ends; unbound, stdout, coloured as [story] says. */
+@StorySeam
+val storyTranscript: LarkLocal<((String) -> Unit)?> = larkLocal { null }
+
+@OptIn(StorySeam::class)
+private fun Story.tell(title: String) {
+    val sink = storyTranscript.get()
+    if (sink == null) println(told(title, Colour.wanted)) else sink(told(title, colour = false))
 }
 
 /** A story that failed: the message is the transcript up to the failing step, and the cause what it threw. */
