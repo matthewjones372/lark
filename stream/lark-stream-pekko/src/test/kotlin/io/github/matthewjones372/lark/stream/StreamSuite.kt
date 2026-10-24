@@ -132,7 +132,7 @@ object StreamSuite : Suite<PekkoSystem>() {
             val doubled = (probe.expectNext() shouldBe 2) and
                 (probe.expectNext() shouldBe 4) and
                 (probe.expectNext() shouldBe 6)
-            // lark-junit has no matcher for a stream's completion: the probe's own check throws, as before.
+            // Pekko's probe checks completion itself, and throws if the stream did not complete, as before.
             probe.expectComplete()
             doubled
         }

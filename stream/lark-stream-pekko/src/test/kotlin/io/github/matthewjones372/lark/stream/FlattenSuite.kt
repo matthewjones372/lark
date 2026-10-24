@@ -5,6 +5,7 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.withClue
 import java.util.concurrent.CompletionStage
 
@@ -47,9 +48,8 @@ object FlattenSuite : Suite<PekkoSystem>() {
         test("flatMapMerge answers every element, breadth deciding only the order") { pekko ->
             val merged = Stream.from(listOf(1, 3, 4)).flatMapMerge(4) { page(it) }.collected(pekko)
 
-            // lark-junit has no shouldContainExactlyInAnyOrder: sorted, the two lists are the same multiset.
             merged.shouldBeInstanceOf<Exit.Done<List<String>>> { done ->
-                done.value.sorted() shouldBe listOf("1-a", "1-b", "3-a", "3-b", "4-a", "4-b")
+                done.value shouldContainExactlyInAnyOrder listOf("1-a", "1-b", "3-a", "3-b", "4-a", "4-b")
             }
         }
 

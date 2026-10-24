@@ -5,6 +5,7 @@ import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.Fail
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.stream.javadsl.Sink
 import java.util.concurrent.CompletableFuture
@@ -87,8 +88,7 @@ object PipeOperatorsSuite : Suite<PekkoSystem>() {
                 withClue("the diverted branch is a branch of its own and can outlive the run that fed it") {
                     bothDeclines.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
                 } and
-                // lark-junit has no shouldContainExactlyInAnyOrder: sorted by id, the two lists are the same multiset.
-                (declines.toList().sortedBy { it.id } shouldBe listOf(Declined(2), Declined(4)))
+                (declines.toList() shouldContainExactlyInAnyOrder listOf(Declined(2), Declined(4)))
         }
 
         test("the failure a pipe declares is the one the stream it is spliced into ends with") { pekko ->

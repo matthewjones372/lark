@@ -3,10 +3,11 @@ package io.github.matthewjones372.lark.stream
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.actor.testkit.typed.javadsl.LoggingTestKit
 import java.io.File
@@ -79,9 +80,8 @@ object DefectSuite : Suite<PekkoSystem>(concurrent = false) {
     /** The build hands the root over, so the file read here is the one this suite was compiled from. */
     private fun source(): Pair<File?, Expectations> {
         val root = System.getProperty("lark.stream.repoRoot")
-        // lark-junit has no shouldNotBeNull.
         val handed = withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream-pekko/build.gradle.kts") {
-            expect(root != null)
+            root.shouldNotBeNull()
         }
         val file = root?.let {
             File(it, "stream/lark-stream-pekko/src/test/kotlin/io/github/matthewjones372/lark/stream/DefectSuite.kt")
@@ -96,8 +96,7 @@ object DefectSuite : Suite<PekkoSystem>(concurrent = false) {
     private fun siteOf(marker: String): Pair<String, Expectations> {
         val (file, handed) = source()
         val index = file?.readLines()?.indexOfFirst { line -> line.trimEnd().endsWith(marker) } ?: -1
-        // lark-junit has no shouldBeGreaterThan.
-        val found = withClue("no line of ${file?.name} ends with `$marker`") { expect(index > -1) }
+        val found = withClue("no line of ${file?.name} ends with `$marker`") { index shouldBeGreaterThan -1 }
         return "${file?.name}:${index + 1}" to (handed and found)
     }
 
