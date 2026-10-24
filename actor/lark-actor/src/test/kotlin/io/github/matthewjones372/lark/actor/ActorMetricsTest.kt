@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
 /** Fails once when told to. */

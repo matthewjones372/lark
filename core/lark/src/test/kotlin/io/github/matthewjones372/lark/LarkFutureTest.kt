@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark
 
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch

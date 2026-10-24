@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark
 
-import io.kotest.matchers.nulls.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean

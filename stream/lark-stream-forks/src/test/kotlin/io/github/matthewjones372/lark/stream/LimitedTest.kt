@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Limit
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger

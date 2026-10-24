@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.stream
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import org.apache.pekko.actor.ActorSystem
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.DynamicTest

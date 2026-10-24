@@ -4,9 +4,9 @@ import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.shouldContainExactly
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.comparables.shouldBeLessThan
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch

@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.DynamicContainer
 import org.junit.jupiter.api.DynamicContainer.dynamicContainer
 import org.junit.jupiter.api.DynamicTest.dynamicTest

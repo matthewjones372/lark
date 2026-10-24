@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
 import io.github.matthewjones372.lark.junit.samples.IgnoringSuite
 import io.github.matthewjones372.lark.junit.samples.MixedSuite
 import io.github.matthewjones372.lark.junit.samples.UnacquirableSuite
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass

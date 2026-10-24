@@ -1,13 +1,13 @@
 package io.github.matthewjones372.lark
 
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldThrow
 import io.github.matthewjones372.lark.fail.Fail
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.left
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList

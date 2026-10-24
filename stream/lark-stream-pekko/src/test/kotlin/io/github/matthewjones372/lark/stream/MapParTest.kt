@@ -1,14 +1,14 @@
 package io.github.matthewjones372.lark.stream
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.assertions.withClue
-import io.kotest.matchers.comparables.shouldBeLessThan
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
-import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.apache.pekko.stream.javadsl.Sink
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension

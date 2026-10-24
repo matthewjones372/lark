@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.Either
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import org.apache.pekko.Done
 import org.apache.pekko.stream.javadsl.Sink
 import org.junit.jupiter.api.Test

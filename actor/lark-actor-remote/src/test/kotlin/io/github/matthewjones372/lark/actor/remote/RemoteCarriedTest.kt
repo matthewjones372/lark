@@ -6,11 +6,11 @@ import io.github.matthewjones372.lark.actor.ask
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture

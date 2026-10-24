@@ -52,4 +52,11 @@ class StringsTest {
         failure { "shard-253/o-1" shouldMatch "shard-\\d+" } shouldBe
             listOf("expected: a string matching /shard-\\d+/", "but was:  \"shard-253/o-1\"")
     }
+
+    @Test
+    fun `shouldContain with a pattern needs a match only somewhere in the string`() {
+        ("map  Stage.kt:12" shouldContain Regex("""Stage\.kt:\d+""")) shouldBe "map  Stage.kt:12"
+        failure { "map  Stage.kt" shouldContain Regex("""Stage\.kt:\d+""") } shouldBe
+            listOf("expected: a string containing a match for /Stage\\.kt:\\d+/", "but was:  \"map  Stage.kt\"")
+    }
 }

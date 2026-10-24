@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark
 
 import io.github.matthewjones372.lark.CircuitBreaker.State
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.Fail
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.concurrent.CountDownLatch

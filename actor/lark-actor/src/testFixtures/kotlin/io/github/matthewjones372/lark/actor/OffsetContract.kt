@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
-import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeNull
 import org.junit.jupiter.api.Test
 
 /** What every [OffsetStore] does, as tests a store's own test class inherits: it answers [store], an empty one. */

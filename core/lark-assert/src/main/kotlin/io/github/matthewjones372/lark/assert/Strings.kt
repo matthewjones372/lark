@@ -25,6 +25,10 @@ infix fun String?.shouldMatch(pattern: String): String = shouldMatch(Regex(patte
 infix fun String?.shouldMatch(pattern: Regex): String =
     checked("a string matching /${pattern.pattern}/") { pattern.matches(it) }
 
+/** Asserts some part of this string matches [pattern], and returns it. */
+infix fun String?.shouldContain(pattern: Regex): String =
+    checked("a string containing a match for /${pattern.pattern}/") { pattern.containsMatchIn(it) }
+
 private inline fun String?.checked(wanted: String, holds: (String) -> Boolean): String {
     if (this == null || !holds(this)) mismatch(expected = null, actual = this?.let(::quoted), expectedText = wanted)
     return this

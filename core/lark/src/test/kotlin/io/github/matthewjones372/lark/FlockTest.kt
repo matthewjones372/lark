@@ -1,19 +1,19 @@
 package io.github.matthewjones372.lark
 
 import io.github.matthewjones372.lark.Start.Lazy
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.assert.shouldBeLeft
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.assert.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.shouldNotBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.ensure
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeSameInstanceAs
-import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.SynchronousQueue

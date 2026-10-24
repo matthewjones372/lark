@@ -4,6 +4,7 @@
 
 dependencies {
     api(project(":lark"))
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

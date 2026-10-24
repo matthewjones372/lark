@@ -18,6 +18,8 @@ dependencies {
     testImplementation(project(":lark-junit"))
     // For the migration page's examples, which convert to and from Arrow.
     testImplementation(project(":lark-arrow"))
+    // For the flags guide, which declares and reads flags over the OpenFeature SDK.
+    testImplementation(project(":lark-openfeature"))
 }
 
 // The serialization plugin, handed to the embedded compiler as a reader's build applies it, so a
@@ -40,6 +42,7 @@ val documentedRecipes = files(
     rootProject.layout.projectDirectory.file("docs/observability.md"),
     rootProject.layout.projectDirectory.file("docs/testing.md"),
     rootProject.layout.projectDirectory.file("docs/arrow.md"),
+    rootProject.layout.projectDirectory.file("docs/flags.md"),
     rootProject.layout.projectDirectory.file("README.md"),
 )
 

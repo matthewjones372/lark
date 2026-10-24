@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldThrow
 import org.junit.jupiter.api.Test
 
 /** A till's takings: version 1 kept the pence alone; version 2 keeps the currency too. */

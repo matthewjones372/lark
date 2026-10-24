@@ -3,6 +3,7 @@
 
 dependencies {
     api(project(":lark-stream"))
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

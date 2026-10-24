@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.comparables.shouldBeLessThan
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.shouldContainExactly
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import java.io.DataInputStream

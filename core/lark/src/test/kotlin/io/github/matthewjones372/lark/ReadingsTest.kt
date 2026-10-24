@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark
 
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
 import org.junit.jupiter.api.Test
 
 /** Spec 0109: what was written through lark reads back through lark. */

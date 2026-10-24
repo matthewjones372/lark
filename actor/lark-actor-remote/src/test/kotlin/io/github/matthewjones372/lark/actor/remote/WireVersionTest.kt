@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import java.io.BufferedInputStream

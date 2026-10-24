@@ -6,11 +6,11 @@ import io.github.matthewjones372.lark.actor.Confirmed
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.protocolFaults
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldThrow
 import org.junit.jupiter.api.Test
 
 private sealed interface Clinic

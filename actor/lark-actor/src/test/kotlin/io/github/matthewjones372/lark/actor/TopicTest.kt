@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue

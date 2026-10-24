@@ -2,12 +2,12 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.pekko.actor.ActorSystem
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.DynamicContainer

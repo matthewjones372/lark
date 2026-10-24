@@ -1,13 +1,13 @@
 package io.github.matthewjones372.lark.stream
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.ensure
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.parZip
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import java.util.concurrent.CompletionStage

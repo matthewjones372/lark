@@ -1,5 +1,9 @@
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
+import io.github.matthewjones372.lark.assert.shouldStartWith
 import io.github.matthewjones372.lark.junit.samples.IgnoringSuite
 import io.github.matthewjones372.lark.junit.samples.MixedSuite
 import io.github.matthewjones372.lark.junit.samples.PartlyTaggedSuite
@@ -7,10 +11,6 @@ import io.github.matthewjones372.lark.junit.samples.TaggedSuite
 import io.github.matthewjones372.lark.junit.samples.TimingSuite
 import io.github.matthewjones372.lark.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.lark.junit.samples.WrappedSuite
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.Filter
 import org.junit.platform.engine.TestExecutionResult

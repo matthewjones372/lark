@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark
 
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.maps.shouldContainExactly
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldHaveSize
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 

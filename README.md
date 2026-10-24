@@ -393,6 +393,8 @@ test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
 - [Observability](docs/observability.md): logs, metrics and traces.
 - [Testing](docs/testing.md): the test utilities in one place, and
   `lark-junit` suites.
+- [Feature flags](docs/flags.md): OpenFeature flags declared once, and read
+  for the request in every fork and actor.
 
 **Writing code with an agent.** [`llms.txt`](llms.txt) summarises what Lark
 ships and which call to use for a task. In Claude Code, the Lark plugin loads

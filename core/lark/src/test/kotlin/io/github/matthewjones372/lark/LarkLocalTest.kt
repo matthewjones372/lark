@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
