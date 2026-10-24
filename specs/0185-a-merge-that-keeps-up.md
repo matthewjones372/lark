@@ -1,4 +1,4 @@
-# 0181 — A merge that keeps up
+# 0185 — A merge that keeps up
 
 ## Problem
 
@@ -22,7 +22,7 @@ unparking a virtual thread for nearly every element (`ForkJoinPool.signalWork`, 
 
 No API change. Inside `Merged.kt` and `Ring.kt`:
 
-- Each input of a `merge` puts into a `Ring` of its own, with its end or failure behind its last element.
+- Each input of a `merge` puts into a `Ring` of 64 of its own, with its end or failure behind its last element.
 - The reader takes from the rings in turn, one element each while more than one has some, so a busy input cannot
   starve a slow one. It drops a ring from its turns once that ring's end marker has been read.
 - The reader parks only when every ring is empty. The rings share one place where it names itself, so whichever
@@ -44,7 +44,7 @@ Recommended: a ring per input, with the other two measured as probes and reporte
 
 ## Stack
 
-- [ ] **`merge-on-a-ring`** — the rings, the reader's turns and shared park, a test that fails if a wake is lost,
+- [x] **`merge-on-a-ring`** — the rings, the reader's turns and shared park, a test that fails if a wake is lost,
       and the benchmark row before and after each change.
       Done when: `HandOffBenchmark.mergeForks` is within 2× of `bufferForks`, or the PR says what is left and why.
 
@@ -57,9 +57,11 @@ bench/lark-stream-benchmarks/gate.sh origin/main "HandOffBenchmark|MapParBenchma
 
 ## Open questions
 
-- **How much room does each input get?** Today the two share 16. Recommended: 16 each, the same per input, and
-  measure 64; a reader taking in turns empties a ring no faster than half its pace.
-- **Should the reader take a batch from one ring before moving on?** Recommended: no, one each, unless measuring
-  shows a batch is much faster; one each is the fairness this spec promises.
-- **Is within 2× of `bufferForks` the bar?** Recommended: yes. `merge` has two producers to one reader, so it
-  cannot be cheaper than `buffer`.
+- **How much room does each input get?** Today the two share 16. Answered by measuring: 64 each, as much as the
+  benchmark's `buffer(64)`. At 16 each a ring wakes its producer every fourth element, and `mergeForks` read about
+  155 ns per element; at 64, about 90; at 256, about 70. 256 lets a merge hold 512 elements, which a stream of large
+  elements would feel, so 64 is the recommendation.
+- **Should the reader take a batch from one ring before moving on?** Answered: no. Sixteen at a time read about 12%
+  faster (70 against 80), which does not buy back one-each fairness.
+- **Is within 2× of `bufferForks` the bar?** Answered: yes, and it is met: run side by side, the two rows read
+  within about 1.3× of each other.

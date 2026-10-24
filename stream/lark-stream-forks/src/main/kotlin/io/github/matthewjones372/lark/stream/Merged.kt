@@ -145,7 +145,7 @@ private class Confluence(private val queue: ArrayBlockingQueue<Any>) {
 
 /**
  * Both streams at once, each drained on a fork of its own into a [Ring] of its own, and read a ring at a time in
- * turn (spec 0181). It ends once both have, and fails as soon as the reader comes to either's failure.
+ * turn (spec 0185). It ends once both have, and fails as soon as the reader comes to either's failure.
  */
 internal fun Node.Merge.merged(releases: Releases?): Pull {
     val on = releases?.on ?: VirtualThreads

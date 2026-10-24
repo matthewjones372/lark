@@ -172,7 +172,8 @@ internal class Ring(private val capacity: Int) : RingPadAfterHead() {
 
     /**
      * For a consumer reading several rings, which parks on all of them at once: names it as parked on this one, or
-     * clears the name with `null`. The caller fences after naming itself and looks again before parking, as [take] does.
+     * clears the name with `null`. The caller fences after naming itself and looks again before parking, as [take]
+     * does.
      */
     fun nameConsumer(consumer: Thread?) {
         parkedConsumer = consumer
