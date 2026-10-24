@@ -68,7 +68,7 @@ val checkerRepo: Provider<Directory> = rootProject.layout.buildDirectory.dir("re
 tasks.test {
     inputs.files(larkAppUnderTest).withPropertyName("larkAppUnderTest")
     val reader = rootProject.file(
-        "lark-app-compiler/src/main/kotlin/io/github/matthewjones372/lark/app/compiler/Reader.kt",
+        "app/lark-app-compiler/src/main/kotlin/io/github/matthewjones372/lark/app/compiler/Reader.kt",
     )
     inputs.file(reader).withPropertyName("reader")
     // Both halves, resolved by a TestKit build the way a consumer's build resolves them. Injecting

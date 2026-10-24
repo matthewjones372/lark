@@ -147,6 +147,9 @@ coroutine dispatcher.
 
 ## Modules
 
+Each module sits in its family's folder: `core/`, `stream/`, `actor/`, `cluster/`, `app/`,
+`integrations/`, with the benchmarks in `bench/` and an example service in `examples/`.
+
 The main modules, all under the group `io.github.matthewjones372`. The
 [module guide](docs/modules.md) lists every module, what each one adds to
 your classpath, and which are unpublished.
