@@ -17,22 +17,34 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(StorySeam::class)
 fun story(title: String = storyTitle.get() ?: callingTest(), block: Story.() -> Unit) {
-    val story = Story()
-    try {
-        story.block()
+    Story().telling(title, block)
+}
+
+/**
+ * [story], for checks that are values: a step whose value [failed] finds a failure in is marked failed, and the
+ * story goes on.
+ */
+@StorySeam
+fun <A> tellStory(title: String, failed: (Any?) -> Throwable?, block: Story.() -> A): A =
+    Story(failed).telling(title, block)
+
+private fun <A> Story.telling(title: String, block: Story.() -> A): A {
+    val answer = try {
+        block()
     } catch (failure: Throwable) {
-        story.tell(title)
+        tell(title)
         // Led by the failing step's own frame, so the first line a test runner links to is the assertion.
-        throw StoryFailed(story.told(title, colour = false), failure)
+        throw StoryFailed(told(title, colour = false), failure)
             .apply { stackTrace = failure.fromTheTest().toTypedArray().ifEmpty { stackTrace } }
     }
-    story.tell(title)
+    tell(title)
+    return answer
 }
 
 /** A seam for lark's own modules that run stories, such as a test engine that names and captures each test. */
 @RequiresOptIn("A seam for lark's own modules that run stories.")
 @Retention(AnnotationRetention.BINARY)
-@Target(AnnotationTarget.PROPERTY)
+@Target(AnnotationTarget.PROPERTY, AnnotationTarget.FUNCTION)
 annotation class StorySeam
 
 /** The title of a story told without one; unbound, the calling test's name. */
@@ -54,7 +66,7 @@ class StoryFailed(transcript: String, cause: Throwable) : AssertionError(transcr
 
 // Given, When and Then are capitalised because `when` is a keyword, and the five read as one set.
 @Suppress("FunctionNaming", "ktlint:standard:function-naming")
-class Story internal constructor() {
+class Story internal constructor(private val failedBy: (Any?) -> Throwable? = { null }) {
 
     private val steps = mutableListOf<Step>()
     private var depth = 0
@@ -98,17 +110,24 @@ class Story internal constructor() {
         val started = System.nanoTime()
         depth++
         try {
-            return block().also { step.outcome = Outcome.Passed }
+            return block().also { answer ->
+                step.outcome = failedBy(answer)?.let { failed(step, it) } ?: Outcome.Passed
+            }
         } catch (failure: Throwable) {
-            // Only the innermost step that saw this failure tells it; the steps around it are marked failed.
-            val seen = steps.any { it !== step && (it.outcome as? Outcome.Failed)?.failure === failure }
-            step.outcome = Outcome.Failed(failure, told = !seen)
+            step.outcome = failed(step, failure)
             throw failure
         } finally {
             depth--
             step.took = (System.nanoTime() - started).nanoseconds
         }
     }
+
+    /** Only the innermost step that saw [failure] tells it; the steps around it are marked failed. */
+    private fun failed(step: Step, failure: Throwable): Outcome.Failed =
+        Outcome.Failed(
+            failure,
+            told = steps.none { it !== step && (it.outcome as? Outcome.Failed)?.failure === failure },
+        )
 
     internal fun told(title: String, colour: Boolean): String {
         val ink = Ink(colour)

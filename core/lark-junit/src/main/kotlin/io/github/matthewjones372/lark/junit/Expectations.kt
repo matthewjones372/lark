@@ -18,6 +18,15 @@ class Expectations internal constructor(
     private val checked: Int,
 ) {
 
+    /** The one failure, or all of them as one error; a story marks a step failed with it. */
+    internal val failure: Throwable? by lazy {
+        when (failures.size) {
+            0 -> null
+            1 -> failures.single()
+            else -> MultipleFailuresError(null, failures).also { it.stackTrace = failures.first().stackTrace }
+        }
+    }
+
     /** Both sides' failures, so neither hides the other's. */
     infix fun and(other: Expectations): Expectations = Expectations(failures + other.failures, checked + other.checked)
 

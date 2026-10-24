@@ -2,7 +2,8 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 // Lark's tests on the JUnit Platform (spec 0174): a TestEngine that runs Suite objects, so Gradle, the IDE and
 // CI read the results as they read Jupiter's. It depends on lark, lark-assert for how a failed expectation is
-// reported (spec 0175), and junit-platform-engine, and nothing else, which NoOtherDependenciesTest asserts.
+// reported (spec 0175), lark-test for the stories a suite tells (spec 0180), and junit-platform-engine, and nothing
+// else, which NoOtherDependenciesTest asserts.
 plugins {
     kotlin("plugin.power-assert")
 }
@@ -10,6 +11,7 @@ plugins {
 dependencies {
     api(project(":lark"))
     implementation(project(":lark-assert"))
+    api(project(":lark-test"))
     implementation("org.junit.platform:junit-platform-engine:6.1.3")
 
     testImplementation("org.junit.platform:junit-platform-testkit")

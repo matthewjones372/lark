@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.test
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
@@ -73,5 +74,41 @@ class StoryLocalsTest {
         }
 
         told.single() shouldBe "Story: from the opener"
+    }
+
+    @Test
+    fun `a step whose value is a failure is marked failed and tells it, and the story goes on`() {
+        val told = CopyOnWriteArrayList<String>()
+        val wrong = AssertionError("expected: 3")
+
+        val answered = storyTranscript.locally({ told += it }) {
+            tellStory("judged", failed = { (it as? String)?.let { _ -> wrong } }) {
+                Then("it is three") { "two" }
+                And("it goes on") { 4 }
+            }
+        }
+
+        answered shouldBe 4
+        val lines = told.single().lines()
+        lines[1] shouldContain "✗ Then it is three"
+        lines[2].trim() shouldBe "expected: 3"
+        lines.last() shouldContain "✓ And it goes on"
+    }
+
+    @Test
+    fun `a failure found in a nested step's value is told once, under the innermost step`() {
+        val told = CopyOnWriteArrayList<String>()
+        val wrong = AssertionError("expected: 3")
+
+        storyTranscript.locally({ told += it }) {
+            tellStory("nested", failed = { (it as? String)?.let { _ -> wrong } }) {
+                Then("the outer") { And("the inner") { "two" } }
+            }
+        }
+
+        val lines = told.single().lines()
+        lines[1] shouldContain "✗ Then the outer"
+        lines[2] shouldContain "✗ And the inner"
+        lines.count { "expected: 3" in it } shouldBe 1
     }
 }
