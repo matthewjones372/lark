@@ -28,6 +28,7 @@ import org.junit.platform.engine.DiscoverySelector
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage
+import org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId
 import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.testkit.engine.EngineExecutionResults
 import org.junit.platform.testkit.engine.EngineTestKit
@@ -65,6 +66,21 @@ class LarkEngineTest {
 
         started.testDescriptor.uniqueId.toString() shouldBe
             "[engine:lark]/[suite:${MixedSuite::class.java.name}]/[test:passes]"
+    }
+
+    @Test
+    fun `a test selected by its unique ID runs alone, as an IDE reruns one`() {
+        val id = "[engine:lark]/[suite:${MixedSuite::class.java.name}]/[test:fails an assertion]"
+
+        run(selectUniqueId(id)).testEvents().started().names() shouldBe listOf("fails an assertion")
+    }
+
+    @Test
+    fun `a suite selected by its unique ID runs all its tests`() {
+        val events = run(selectUniqueId("[engine:lark]/[suite:${MixedSuite::class.java.name}]")).testEvents()
+
+        events.started().names() shouldContainExactlyInAnyOrder
+            listOf("passes", "fails an assertion", "throws something else")
     }
 
     @Test
@@ -184,6 +200,7 @@ class LarkEngineTest {
             "OrderedSuite",
             "PartlyTaggedSuite",
             "SequentialSuite",
+            "StorySuite",
             "TaggedSuite",
             "TimingSuite",
             "UnacquirableSuite",

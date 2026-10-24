@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.test
 
+import io.github.matthewjones372.lark.LarkLocal
+import io.github.matthewjones372.lark.larkLocal
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
@@ -13,17 +15,50 @@ import kotlin.time.Duration.Companion.seconds
  * `never` or `NO_COLOR`. A Gradle test worker does not see the shell's environment; the
  * `io.github.matthewjones372.lark.wiring` plugin hands these on to every test task, `-Plark.test.colour` included.
  */
-fun story(title: String = callingTest(), block: Story.() -> Unit) {
-    val story = Story()
-    try {
-        story.block()
+@OptIn(StorySeam::class)
+fun story(title: String = storyTitle.get() ?: callingTest(), block: Story.() -> Unit) {
+    Story().telling(title, block)
+}
+
+/**
+ * [story], for checks that are values: a step whose value [failed] finds a failure in is marked failed, and the
+ * story goes on.
+ */
+@StorySeam
+fun <A> tellStory(title: String, failed: (Any?) -> Throwable?, block: Story.() -> A): A =
+    Story(failed).telling(title, block)
+
+private fun <A> Story.telling(title: String, block: Story.() -> A): A {
+    val answer = try {
+        block()
     } catch (failure: Throwable) {
-        println(story.told(title, Colour.wanted))
+        tell(title)
         // Led by the failing step's own frame, so the first line a test runner links to is the assertion.
-        throw StoryFailed(story.told(title, colour = false), failure)
+        throw StoryFailed(told(title, colour = false), failure)
             .apply { stackTrace = failure.fromTheTest().toTypedArray().ifEmpty { stackTrace } }
     }
-    println(story.told(title, Colour.wanted))
+    tell(title)
+    return answer
+}
+
+/** A seam for lark's own modules that run stories, such as a test engine that names and captures each test. */
+@RequiresOptIn("A seam for lark's own modules that run stories.")
+@Retention(AnnotationRetention.BINARY)
+@Target(AnnotationTarget.PROPERTY, AnnotationTarget.FUNCTION)
+annotation class StorySeam
+
+/** The title of a story told without one; unbound, the calling test's name. */
+@StorySeam
+val storyTitle: LarkLocal<String?> = larkLocal { null }
+
+/** Where a story's transcript goes, uncoloured, when it ends; unbound, stdout, coloured as [story] says. */
+@StorySeam
+val storyTranscript: LarkLocal<((String) -> Unit)?> = larkLocal { null }
+
+@OptIn(StorySeam::class)
+private fun Story.tell(title: String) {
+    val sink = storyTranscript.get()
+    if (sink == null) println(told(title, Colour.wanted)) else sink(told(title, colour = false))
 }
 
 /** A story that failed: the message is the transcript up to the failing step, and the cause what it threw. */
@@ -31,7 +66,7 @@ class StoryFailed(transcript: String, cause: Throwable) : AssertionError(transcr
 
 // Given, When and Then are capitalised because `when` is a keyword, and the five read as one set.
 @Suppress("FunctionNaming", "ktlint:standard:function-naming")
-class Story internal constructor() {
+class Story internal constructor(private val failedBy: (Any?) -> Throwable? = { null }) {
 
     private val steps = mutableListOf<Step>()
     private var depth = 0
@@ -75,17 +110,24 @@ class Story internal constructor() {
         val started = System.nanoTime()
         depth++
         try {
-            return block().also { step.outcome = Outcome.Passed }
+            return block().also { answer ->
+                step.outcome = failedBy(answer)?.let { failed(step, it) } ?: Outcome.Passed
+            }
         } catch (failure: Throwable) {
-            // Only the innermost step that saw this failure tells it; the steps around it are marked failed.
-            val seen = steps.any { it !== step && (it.outcome as? Outcome.Failed)?.failure === failure }
-            step.outcome = Outcome.Failed(failure, told = !seen)
+            step.outcome = failed(step, failure)
             throw failure
         } finally {
             depth--
             step.took = (System.nanoTime() - started).nanoseconds
         }
     }
+
+    /** Only the innermost step that saw [failure] tells it; the steps around it are marked failed. */
+    private fun failed(step: Step, failure: Throwable): Outcome.Failed =
+        Outcome.Failed(
+            failure,
+            told = steps.none { it !== step && (it.outcome as? Outcome.Failed)?.failure === failure },
+        )
 
     internal fun told(title: String, colour: Boolean): String {
         val ink = Ink(colour)

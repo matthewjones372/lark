@@ -18,7 +18,7 @@ A node is a function, and a module is an ordinary Kotlin expression.
 
 ```kotlin
 dependencies {
-    // brings lark, and through it arrow-core
+    // brings lark, and through it nothing else
     implementation("io.github.matthewjones372:lark-app:0.10.1")
 }
 ```

@@ -2,6 +2,7 @@ package io.github.matthewjones372.lark.app.pekko
 
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -54,6 +55,11 @@ class CoreGuideTest {
             }
             marked.forEach { (marker, source) -> withClue("$path $marker") { errors(source).shouldBeEmpty() } }
         }
+    }
+
+    @Test
+    fun `the testing guide tells a story in a suite`() {
+        fences("docs/testing.md", "testing").keys shouldContain "testing-junit-story"
     }
 
     @Test

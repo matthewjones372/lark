@@ -10,8 +10,8 @@
 
 Lark is a set of Kotlin libraries for writing services on the JDK's virtual
 threads, with ordinary blocking code and no coroutines. Its core gives you
-structured concurrency, resource safety, retries and timeouts, using Arrow's
-`Raise` and `Either` for typed errors. Further modules build on that core:
+structured concurrency, resource safety, retries and timeouts, with typed
+errors in Lark's own `Fail` and `Either`. Further modules build on that core:
 an application wired as a checked dependency graph, typed streams, actors,
 persistence, clustering, Kafka, and integrations for logging, metrics and
 tracing.
@@ -37,19 +37,21 @@ and carries no context. Lark adds:
 - **Structured concurrency.** Forks belong to a scope. A scope returns only
   after every fork it started has ended, and the first failure interrupts the
   rest.
-- **Typed errors across forks.** A branch can `raise` a declared error from
-  Arrow's `Raise`, and the combinator returns it as the scope's `Left`.
-  Code already inside `either { }` needs no new scope from Lark.
+- **Typed errors across forks.** A branch can `fail` with a declared error,
+  and the combinator returns it as the scope's `Left`. A failure never
+  crosses a thread on its own, and `catch (e: Exception)` cannot swallow it.
 - **Resources and policies.** Acquire and release in reverse order on every
   exit path, and retry, time out, break or limit calls with composable values.
 - **Context that crosses forks.** Log annotations, metric tags, trace context
   and the clock are inherited by every fork, so a correlation id or a test
   clock reaches the branches of a `parMap`.
 
-The core is written against Arrow's `Raise` and the JDK, and depends only on
-`arrow-core`. Its combinators have the same names and shapes as
+The core depends on the JDK and the Kotlin standard library, and nothing
+else. Its combinators have the same names and shapes as
 `arrow-fx-coroutines`, so moving a function across usually means removing
-`suspend` and changing an import.
+`suspend`, writing `attempt` for `either` and `fail` for `raise`, and changing
+an import. [Coming from Arrow](docs/arrow.md) has the rest, and
+`lark-arrow` converts between the two for code that keeps both.
 
 ## A first look
 
@@ -57,17 +59,17 @@ Two blocking lookups run at the same time on virtual threads, inside a
 time limit, with a typed error:
 
 ```kotlin
-fun summary(id: UserId): Either<SummaryError, Summary> = either {
+fun summary(id: UserId): Either<SummaryError, Summary> = attempt {
     timeout(2.seconds) {
         parZip(
-            { users.find(id) ?: raise(UserNotFound(id)) },   // blocking JDBC call
+            { users.find(id) ?: fail(UserNotFound(id)) },    // blocking JDBC call
             { orders.recent(id) },                          // blocking HTTP call
         ) { user, recent -> Summary(user, recent) }
     }
 }
 ```
 
-If the user is missing, that branch raises, the orders call is interrupted,
+If the user is missing, that branch fails, the orders call is interrupted,
 and `summary` returns `Left(UserNotFound(id))`. If either call throws, the
 other is interrupted and the exception propagates. If two seconds pass,
 both are interrupted and `timeout` throws `TimeoutException`. In every case
@@ -123,7 +125,7 @@ to Gradle, the IDE and CI as JUnit does.
 
 ```mermaid
 graph BT
-    arrow[arrow-core] --> lark
+    lark --> larkarrow[lark-arrow]
     lark --> app[lark-app]
     lark --> stream[lark-stream]
     lark --> actor[lark-actor]
@@ -154,7 +156,8 @@ your classpath, and which are unpublished.
 
 | Module | Use it for | Adds |
 |---|---|---|
-| `lark` | forks, errors, resources, schedules, policies, context, logs and metrics ([guide](docs/core.md)) | `arrow-core` |
+| `lark` | forks, errors, resources, schedules, policies, context, logs and metrics ([guide](docs/core.md)) | nothing |
+| `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's ([guide](docs/arrow.md)) | `arrow-core` |
 | `lark-app` | an application as a checked dependency graph ([guide](docs/app.md)) | nothing |
 | `lark-stream` | `Stream<E, A>` as a description ([guide](docs/stream.md)) | nothing |
 | `lark-stream-forks` | the stream backend on a virtual thread | nothing |
@@ -265,7 +268,35 @@ and how to use a snapshot or a local build.
 
 ## Tests that run together
 
-`lark-junit` is a JUnit Platform engine, so its suites run beside JUnit
+`lark-junit` is optional. Lark is a library, so a plain JUnit Jupiter test can
+call it directly, with `TestClock`, `capturingLogs`, `story`, `eventually` and
+`lark-assert`'s matchers, and nothing here needs changing.
+
+`lark-junit` is for the suites where Jupiter gets in the way:
+
+- **Speed.** A suite's tests run concurrently, each on its own virtual thread,
+  under a `Limit` you choose for that suite. Jupiter's parallel mode is one
+  global switch over a pool of platform threads.
+- **One expensive resource, shared safely.** A database or a cluster is a
+  `Resource`, acquired once, handed to every test, and released in reverse
+  order. If acquiring it fails, each test fails with the cause. In Jupiter it
+  is a `lateinit` static set in `@BeforeAll` and cleaned up by hand.
+- **Isolation.** The clock, logger and metrics are bound for each test, so
+  concurrent tests can't see each other's. In Jupiter they are process-wide.
+- **Output you can read.** A test's logs are printed only if it fails.
+  Every failed check is reported, not just the first, and a failed `expect`
+  shows the value of each part of the expression.
+- **Tests that can't check nothing.** A test returns its checks as a value, so
+  one with no checks doesn't compile.
+- **Aspects.** `flaky`, `nonFlaky`, `timeout`, `tag` and `ignore` are values
+  you combine with `+`. `nonFlaky(50)` proves that a load-sensitive test is
+  stable.
+
+Stay on Jupiter for tests that need its extensions, such as parameterized
+tests, `@TempDir`, or a framework's own extension. The two engines run side by
+side in one `test` task.
+
+Because `lark-junit` is a JUnit Platform engine, its suites run beside JUnit
 Jupiter tests in the same `test` task, and Gradle's XML reports, the IDE and CI
 read the results unchanged.
 
@@ -395,6 +426,17 @@ toolchain support can download them.
 - [tweet-street](https://github.com/matthewjones372/tweet-street): a bank in
   four services on a three-node Lark cluster, with its journal in Postgres and
   its events on Kafka.
+
+## Credit
+
+Lark owes its error model and the shape of its combinators to
+[Arrow](https://arrow-kt.io). `Either`, `NonEmptyList` and `Fail` follow the
+types Arrow made familiar in Kotlin, and `parZip`, `parMap`, `raceN` and their
+`OrAccumulate` forms keep the names and shapes of `arrow-fx-coroutines`, so code
+moves between the two with little change. Lark's versions are written from
+scratch for blocking code on virtual threads rather than taken from Arrow.
+Anyone already using Arrow can keep it alongside: [`lark-arrow`](docs/arrow.md)
+converts between the two.
 
 ## Licence
 

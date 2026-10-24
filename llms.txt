@@ -2,7 +2,7 @@
 
 > Structured concurrency, resources, streams, actors and application wiring for
 > Kotlin on the JDK's virtual threads, with no coroutines and no second effect
-> system. Arrow's `Raise` and `Either` are the error model throughout.
+> system. Lark's own `Fail` and `Either` are the error model throughout.
 
 Facts worth having before anything else:
 
@@ -117,7 +117,7 @@ Facts worth having before anything else:
 | a log line, a counter, a timer | `logInfo`, `counter(…).increment()`, `timed(…) { … }` |
 | a value from a future | `future.await()` |
 | to hand back a future, or be called from coroutines | `larkFuture { … }`; a coroutine waits on it with kotlinx's `await` |
-| a coroutine library's answer | `runBlocking { … }`, with no `raise` inside |
+| a coroutine library's answer | `runBlocking { … }`, with no `fail` inside |
 | a fake in a test | `.overriding(single<T> { … })` |
 | a smaller test | `.subgraph<Root>()` and `testApp(module) { root -> … }` |
 | a test that waits for something | `eventually(within) { … }`, never `Thread.sleep` |

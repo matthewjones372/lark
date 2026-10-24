@@ -75,18 +75,18 @@ suites, keeps the per-class `ActorSystem` thread assertions reliable.
 
 ## Stack
 
-- [ ] **`spec-0174-engine`** — the module, `Suite`, `object` discovery and sequential runs, plus
+- [x] **`spec-0174-engine`** ([#501](https://github.com/matthewjones372/lark/pull/501)) — the module, `Suite`, `object` discovery and sequential runs, plus
       `NoOtherDependenciesTest`.
       Done when: a sample suite's pass, fail and error show up by name in Gradle's JUnit XML.
-- [ ] **`spec-0174-concurrency`** — tests run as forks under the suite's `Limit`. `alone = true` and
+- [x] **`spec-0174-concurrency`** ([#502](https://github.com/matthewjones372/lark/pull/502)) — tests run as forks under the suite's `Limit`. `alone = true` and
       `Suite(concurrent = false)` opt out.
       Done when: 8 latch-gated tests finish under `Limit.fixed(8)`, and run in order under `fixed(1)`.
-- [ ] **`spec-0174-shared`** — `shared: Resource<R>`, acquired once and released after the last test.
+- [x] **`spec-0174-shared`** ([#504](https://github.com/matthewjones372/lark/pull/504)) — `shared: Resource<R>`, acquired once and released after the last test.
       Done when: it is acquired once. If acquiring fails, every test fails with that cause, and what was
       already installed is released.
-- [ ] **`spec-0174-logs-on-failure`** — logs captured per test and shown only on failure.
+- [x] **`spec-0174-logs-on-failure`** ([#505](https://github.com/matthewjones372/lark/pull/505)) — logs captured per test and shown only on failure.
       Done when: a failing test's report entry holds its log lines, and a passing test's has none.
-- [ ] **`spec-0174-docs`** — a `docs/testing.md` section with a `<!-- junit-suite -->` example, and a
+- [x] **`spec-0174-docs`** ([#516](https://github.com/matthewjones372/lark/pull/516)) — a `docs/testing.md` section with a `<!-- junit-suite -->` example, and a
       row in `docs/modules.md`.
       Done when: the guide test compiles the example.
 

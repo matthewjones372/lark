@@ -60,14 +60,14 @@ would need no plugin, but they can't show subexpression values. A Lark compiler 
 
 Builds on 0174's `spec-0174-engine`.
 
-- [ ] **`spec-0175-expectations`** — `Expectations`, `expect`, `and`/`or`/`!`, the `(R) -> Expectations`
+- [x] **`spec-0175-expectations`** ([#510](https://github.com/matthewjones372/lark/pull/510)) — `Expectations`, `expect`, `and`/`or`/`!`, the `(R) -> Expectations`
       body, must-use, and reporting as `MultipleFailuresError`.
       Done when: two failing expectations are both reported, and a compile test shows that a `Unit` body
       and a dropped `expect` are both rejected.
-- [ ] **`spec-0175-power-assert`** — the power-assert plugin applied to `expect`, plus value-returning
+- [x] **`spec-0175-power-assert`** ([#512](https://github.com/matthewjones372/lark/pull/512)) — the power-assert plugin applied to `expect`, plus value-returning
       `shouldBe`-style matchers that carry expected and actual.
       Done when: a golden test matches the diagram above, and a failed `shouldBe` carries expected and actual.
-- [ ] **`spec-0175-docs`** — the `docs/testing.md` section shows the plugin setup and an `expect` example.
+- [x] **`spec-0175-docs`** ([#517](https://github.com/matthewjones372/lark/pull/517)) — the `docs/testing.md` section shows the plugin setup and an `expect` example.
       Done when: the guide test compiles the example.
 
 ## Acceptance

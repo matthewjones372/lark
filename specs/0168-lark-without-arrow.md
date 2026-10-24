@@ -120,6 +120,10 @@ path easy for anyone already on Arrow.
       Done when: `NoOtherDependenciesTest` allows only the JDK and the stdlib.
 - [ ] **`docs-off-arrow`** — the README, `docs/`, `llms.txt`, the SKILL and
       AGENTS.md move, with a migration page that points to `lark-arrow`.
+- [ ] **`either-catch`** — `Either.catch { }` in `lark.fail`, which keeps a
+      fatal throw and a `fail` going up through `nonFatalOrThrow`. `lark-kafka`
+      drops its own `catching` for it. Missed by the entries above (maintainer,
+      2026-10-24).
 
 The test migrations ride along with each entry and don't count toward the
 cap. The wrappers (maintainer, 2026-10-22) exist so that no entry has to

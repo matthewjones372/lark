@@ -9,6 +9,7 @@ import io.github.matthewjones372.lark.Resource
  * what it threw. Tests run as forks on virtual threads, at most [limit] at once; with [concurrent] false, each
  * runs alone. The suite's [aspects] wrap each test's.
  * Each test logs and measures into a capture of its own, and a failed test's log lines are reported with it.
+ * A [story] told without a title takes the test's name, and its transcript is one of those log lines.
  */
 abstract class Suite<R>(
     internal val limit: Limit = Limit.fixed(Runtime.getRuntime().availableProcessors()),

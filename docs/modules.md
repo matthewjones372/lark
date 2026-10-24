@@ -69,7 +69,7 @@ against; the library's own transitive dependencies come with it.
 
 | Module | For | Lark deps | Adds | Published |
 |---|---|---|---|---|
-| `lark` | forks, errors, resources, schedules, policies, context, logs, metrics, `await` on any future ([guide](core.md)) | none | `arrow-core` 2.1.2 | yes |
+| `lark` | forks, errors, resources, schedules, policies, context, logs, metrics, `await` on any future ([guide](core.md)) | none | nothing | yes |
 | `lark-pekko` | a Pekko dispatcher as the executor; `await` on Pekko's Scala futures ([guide](core.md#running-forks-on-pekko)) | `lark` | `pekko-actor` 1.2.1 | yes |
 | `lark-structured` | `parZip`, `parMap`, `raceN`, `timeout` on the JDK's `StructuredTaskScope` (preview in JDK 27) | `lark` | none | no |
 
@@ -133,7 +133,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's | `lark` | `arrow-core` 2.1.2 | yes |
 | `lark-assert` | `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, failing at the test's own line | `lark` | `opentest4j` 1.3.0 | yes |
 | `lark-test` | `story` and `eventually` ([guide](testing.md#stories-and-waiting)) | `lark` | none | yes |
-| `lark-junit` | `Suite` objects whose tests share one `Resource` and return `Expectations`, run by a JUnit Platform engine | `lark`, `lark-assert` | `junit-platform-engine` 6.1.3 | yes |
+| `lark-junit` | `Suite` objects whose tests share one `Resource` and return `Expectations`, run by a JUnit Platform engine | `lark`, `lark-assert`, `lark-test` | `junit-platform-engine` 6.1.3 | yes |
 
 ### Example
 

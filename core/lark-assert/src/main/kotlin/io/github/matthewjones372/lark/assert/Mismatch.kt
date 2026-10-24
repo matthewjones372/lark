@@ -52,9 +52,9 @@ fun mismatchAt(
 }
 
 /**
- * [failure] with [message], the line of the first frame not [skipping] and, if [quoting], that line's source, its
- * stack starting at that frame. That frame is the test's own when [skipping] matches every frame of the module
- * checking.
+ * [failure] with the clues in force, [message], the line of the first frame not [skipping] and, if [quoting], that
+ * line's source, its stack starting at that frame. That frame is the test's own when [skipping] matches every frame
+ * of the module checking.
  */
 @FailureSeam
 fun failureAt(
@@ -67,6 +67,7 @@ fun failureAt(
         frame.className == Thread::class.java.name || frame.className == SELF || skipping(frame)
     }
     val located = buildString {
+        cluesNow().forEach { append(it).append('\n') }
         append(message)
         frames.firstOrNull()?.let { site ->
             append("\nat ${site.fileName}:${site.lineNumber}")

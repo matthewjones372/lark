@@ -72,7 +72,7 @@ class DeliveredTest {
 
             till.send(TillStuck(Delivery("checkout", "till", 1, confirms)))
 
-            till.failure shouldBe Failure.Raised("stuck")
+            till.failure shouldBe Failure.Declared("stuck")
             confirmed.toList() shouldContainExactly emptyList()
         }
     }

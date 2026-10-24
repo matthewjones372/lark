@@ -116,6 +116,36 @@ class ForksTest {
     }
 
     @Test
+    fun `in a fused run a defect names the step that threw, its element and its line`() {
+        val fused = Stream.of(1, 2, 3).map { it + 1 }
+
+        val steps = listOf(
+            "map" to fused.map { n -> check(n < 3) { "too big" }; n },
+            "filter" to fused.filter { n -> check(n < 3) { "too big" }; true },
+            "filterNot" to fused.filterNot { n -> check(n < 3) { "too big" }; false },
+            "mapOrFail" to fused.mapOrFail { n -> check(n < 3) { "too big" }; n },
+        )
+
+        steps.forEach { (operator, stream) ->
+            withClue(operator) {
+                val died = stream.collected().shouldBeInstanceOf<Exit.Died>()
+                died.cause.suppressed.single().message shouldContain "$operator died on 3, built at ForksTest.kt:"
+            }
+        }
+    }
+
+    @Test
+    fun `in a fused run a raise ends the run Failed, and a filter keeps what it is asked to`() {
+        val kept = Stream.of(1, 2, 3, 4, 5, 6).map { it * 3 }.filter { it % 2 == 0 }.filterNot { it == 12 }
+            .map { it + 1 }.collected()
+        val raised = Stream.of(1, 2, 3).map { it * 2 }.mapOrFail { if (it == 4) fail(Odd(it)) else it }
+            .map { it + 1 }.collected()
+
+        kept shouldBe Exit.Done(listOf(7, 19))
+        raised shouldBe Exit.Failed(Odd(4))
+    }
+
+    @Test
     fun `another backend's own value is refused by name before anything runs`() {
         val pulled = AtomicInteger()
         val elsewhere =

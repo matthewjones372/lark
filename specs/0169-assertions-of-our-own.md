@@ -85,10 +85,13 @@ is a few hundred lines, and it frees the build of a dependency.
       `flock-on-fail` needs it.
       Done when: each matcher has a passing and a failing test, and the
       failing test asserts the message.
-- [ ] **`spec-0169-lark-assert`** — the rest of the checks, with their
-      tests, plus its `NoOtherDependenciesTest`.
-      Done when: every check has a passing and a failing test, and the
-      failing test asserts the message.
+- [ ] **`spec-0169-lark-assert-values`** — `shouldNotBe`, the null, type and
+      identity checks, `withClue`, the comparisons and the string matchers.
+- [ ] **`spec-0169-lark-assert-collections`** — the collection and map
+      matchers. Split from one `spec-0169-lark-assert` entry (maintainer,
+      2026-10-24), as the two run past the cap together.
+      Done when, for both: every check has a passing and a failing test, and
+      the failing test asserts the message.
 - [ ] **`spec-0169-core-tests`** — `core/` tests move to `lark-assert`.
 - [ ] **`spec-0169-stream-actor-tests`** — `stream/` and `actor/` tests
       move.

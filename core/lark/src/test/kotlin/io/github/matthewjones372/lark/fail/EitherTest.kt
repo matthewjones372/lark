@@ -1,7 +1,10 @@
 package io.github.matthewjones372.lark.fail
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CancellationException
 
 class EitherTest {
 
@@ -51,5 +54,18 @@ class EitherTest {
     fun `swap and merge`() {
         right.swap() shouldBe 1.left()
         "same".left().merge() shouldBe "same"
+    }
+
+    @Test
+    fun `catch answers with what the block returned, or what it threw`() {
+        Either.catch { 1 } shouldBe 1.right()
+        val boom = IllegalStateException("boom")
+        (Either.catch { throw boom }.leftOrNull()) shouldBeSameInstanceAs boom
+    }
+
+    @Test
+    fun `catch lets a fatal throw and a fail go on up`() {
+        shouldThrow<CancellationException> { Either.catch { throw CancellationException("stop") } }
+        attempt<String, Int> { Either.catch { fail("declared") }.getOrElse { 0 } } shouldBe "declared".left()
     }
 }

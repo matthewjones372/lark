@@ -57,7 +57,7 @@ class RaiseTest {
         till.send(Sell(5))
 
         till.stopped shouldBe true
-        till.failure shouldBe Failure.Raised(OutOfStock)
+        till.failure shouldBe Failure.Declared(OutOfStock)
     }
 
     @Test
@@ -66,7 +66,7 @@ class RaiseTest {
 
         till.send(Settle(OutOfStock.left()))
 
-        till.failure shouldBe Failure.Raised(OutOfStock)
+        till.failure shouldBe Failure.Declared(OutOfStock)
     }
 
     @Test

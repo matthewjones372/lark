@@ -52,6 +52,6 @@ fun <E, Output, A> Fail<E>.retry(schedule: Schedule<E, Output>, action: Fail<E>.
 }
 
 /** The same retry with a boundary of its own, so the last failure is the `Left` rather than the caller's. */
-fun <E, A, Output> Schedule<E, Output>.retryRaise(action: Fail<E>.() -> A): Either<E, A> = attempt {
-    retry(this@retryRaise, action)
+fun <E, A, Output> Schedule<E, Output>.retrying(action: Fail<E>.() -> A): Either<E, A> = attempt {
+    retry(this@retrying, action)
 }
