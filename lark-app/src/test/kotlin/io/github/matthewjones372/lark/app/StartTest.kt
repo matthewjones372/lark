@@ -7,7 +7,9 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.reflect.typeOf
 
@@ -68,6 +70,40 @@ class StartTest {
         error.shouldBeInstanceOf<StartupError.Refused>().reason shouldBe "the port is already taken"
         withClue("what was acquired before the refusal is given back") {
             released shouldContainExactly listOf("leaf")
+        }
+    }
+
+    @Test
+    fun `a node that installs and then refuses has what it installed given back`() {
+        val released = mutableListOf<String>()
+        val module = single<Root> {
+            install({ Leaf() }) { _, _ -> released += "own" }
+            refuse("the provider did not start")
+        }
+
+        module.use { _: Root -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused>()
+
+        withClue("the refusing node's own release ran, though the node was never built") {
+            released shouldContainExactly listOf("own")
+        }
+    }
+
+    @Test
+    fun `a sibling built in the layer that refused is given back too, before the layers below it`() {
+        val order = Collections.synchronizedList(mutableListOf<String>())
+        val leftInstalled = CountDownLatch(1)
+        val module = single<Leaf> { install({ Leaf() }) { _, _ -> order += "leaf" } } +
+            single { _: Leaf -> install({ Left() }) { _, _ -> order += "left" }.also { leftInstalled.countDown() } } +
+            single<Right, Leaf> {
+                // Refuses only once Left, in the same layer, has installed: the release a layer-wide skip would lose.
+                leftInstalled.await()
+                refuse("no")
+            }
+
+        module.use { _: Left -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused>()
+
+        withClue("Left built beside the refusing Right and needs Leaf, so it is given back first") {
+            order shouldContainExactly listOf("left", "leaf")
         }
     }
 
