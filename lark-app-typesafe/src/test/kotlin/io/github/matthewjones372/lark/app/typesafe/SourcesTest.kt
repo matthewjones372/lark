@@ -3,8 +3,8 @@ package io.github.matthewjones372.lark.app.typesafe
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.use
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds

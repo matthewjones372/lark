@@ -7,6 +7,8 @@ import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
 import io.github.matthewjones372.lark.cluster.Cluster
 import io.github.matthewjones372.lark.cluster.Discovery
 import io.github.matthewjones372.lark.cluster.Gossiping
@@ -14,8 +16,6 @@ import io.github.matthewjones372.lark.cluster.MemberEvent
 import io.github.matthewjones372.lark.cluster.Status
 import io.github.matthewjones372.lark.cluster.cluster
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.comparables.shouldBeLessThan
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue

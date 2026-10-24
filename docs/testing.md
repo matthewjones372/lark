@@ -117,8 +117,8 @@ dependencies {
 ```
 
 ```kotlin
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.test.story
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 

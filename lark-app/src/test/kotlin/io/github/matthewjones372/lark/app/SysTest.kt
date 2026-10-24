@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.app
 
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
 import org.junit.jupiter.api.Test
 
 private class Port(val number: Int)

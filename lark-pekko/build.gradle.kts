@@ -20,6 +20,7 @@ dependencies {
     api("org.apache.pekko:pekko-actor_$scalaBinary:$pekkoVersion")
 
     testImplementation(project(":lark-junit"))
+    testImplementation(project(":lark-assert"))
 }
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)

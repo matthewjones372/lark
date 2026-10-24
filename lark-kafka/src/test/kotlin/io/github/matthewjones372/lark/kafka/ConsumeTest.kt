@@ -1,6 +1,15 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThan
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.shouldContainAll
+import io.github.matthewjones372.lark.assert.shouldNotBe
+import io.github.matthewjones372.lark.assert.shouldNotBeEmpty
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.metricTagged
@@ -12,16 +21,6 @@ import io.github.matthewjones372.lark.stream.restartOnDefect
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
-import io.kotest.matchers.doubles.shouldBeLessThan
-import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.ints.shouldBeLessThan
-import io.kotest.matchers.maps.shouldContainAll
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.errors.SerializationException
 import org.apache.kafka.common.serialization.Deserializer

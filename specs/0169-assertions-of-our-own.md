@@ -97,6 +97,9 @@ is a few hundred lines, and it frees the build of a dependency.
       move.
 - [ ] **`spec-0169-app-kafka-tests`** — the remaining modules' tests move,
       and Kotest leaves the root build.
+      `lark-app-gradle` and `lark-app-compiler` stay at 21 for their main code,
+      but their tests compile and run on 25 to use `lark-assert` (maintainer,
+      2026-10-24).
       Done when: `grep -r io.kotest` finds nothing outside the docs.
 - [ ] **`spec-0169-docs`** — `docs/testing.md`, `docs/actors.md`, AGENTS.md
       and the frame filter in `Story.kt` move.

@@ -3,10 +3,10 @@ package io.github.matthewjones372.lark.app
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Logger
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldHaveSize
 import io.github.matthewjones372.lark.logger
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.sql.SQLException
 import kotlin.time.Duration.Companion.minutes

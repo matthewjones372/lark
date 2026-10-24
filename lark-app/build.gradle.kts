@@ -1,5 +1,6 @@
 dependencies {
     api(project(":lark"))
+    testImplementation(project(":lark-assert"))
 }
 
 val repoRoot = rootProject.projectDir.absolutePath

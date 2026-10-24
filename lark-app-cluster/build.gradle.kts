@@ -6,6 +6,7 @@ dependencies {
     api(project(":lark-app-actor"))
     api(project(":lark-app-typesafe"))
     api(project(":lark-cluster"))
+    testImplementation(project(":lark-assert"))
 }
 
 // Read at configuration time, so the configuration cache survives it.
