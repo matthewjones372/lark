@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.app
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.fold
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
