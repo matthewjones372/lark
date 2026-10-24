@@ -17,7 +17,7 @@ virtual threads, so its core depends on nothing but the Kotlin standard library.
 | `ensure`, `ensureNotNull`, `bind`, `recover` | the same names, from `io.github.matthewjones372.lark.fail` |
 | `arrow.core.Either`, `NonEmptyList` | `io.github.matthewjones372.lark.fail.Either`, `NonEmptyList` |
 | `Option<A>` | `A?` |
-| `Either.catch { }` | a `try`, with `nonFatalOrThrow()` on what it caught |
+| `Either.catch { }` | the same, from `io.github.matthewjones372.lark.fail` |
 | `parZip`, `parMap`, `raceN`, `parZipOrAccumulate`, `parMapOrAccumulate` | the same names in `io.github.matthewjones372.lark`, without `suspend` |
 
 ```kotlin
