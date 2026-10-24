@@ -6,8 +6,10 @@ import io.github.matthewjones372.lark.assert.FailureSeam
 import io.github.matthewjones372.lark.assert.failureAt
 import io.github.matthewjones372.lark.assert.mismatchAt
 import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.MultipleFailuresError
+import io.github.matthewjones372.lark.assert.withClue as clued
 
 /**
  * What a test's checks found, as a value: every failure is kept, and none is thrown until the test has returned.
@@ -71,7 +73,91 @@ infix fun <E, A> Either<E, A>.shouldBeRight(expected: A): Expectations = this sh
 /** Holds if this is a [Either.Left] holding [expected]. */
 infix fun <E, A> Either<E, A>.shouldBeLeft(expected: E): Expectations = this shouldBe Either.Left(expected)
 
+/** Holds if this string contains [part]; fails as lark-assert's `shouldContain` does, carrying the string. */
+infix fun String?.shouldContain(part: String): Expectations =
+    if (this != null &&
+        part in this
+    ) passed(1) else mismatchedHere(null, this?.let(::quoted), "a string containing ${quoted(part)}")
+
+/** Holds if this string does not contain [part]. */
+infix fun String?.shouldNotContain(part: String): Expectations =
+    if (this != null &&
+        part !in this
+    ) passed(1) else mismatchedHere(null, this?.let(::quoted), "a string without ${quoted(part)}")
+
+/** Holds if [element] is among this collection's elements; fails carrying the elements. */
+infix fun <T> Iterable<T>.shouldContain(element: T): Expectations =
+    if (element in this) passed(1) else mismatchedHere(null, toList(), "a collection containing $element")
+
+/** Holds if [element] is not among this collection's elements. */
+infix fun <T> Iterable<T>.shouldNotContain(element: T): Expectations =
+    if (element !in this) passed(1) else mismatchedHere(null, toList(), "a collection without $element")
+
+/** Holds if this is the very object [expected] is, not only an equal one. */
+infix fun <A> A.shouldBeSameInstanceAs(expected: A): Expectations =
+    if (this === expected) passed(1) else mismatchedHere(null, identified(this), identified(expected))
+
+/** Holds if this is not the very object [unexpected] is, though it may equal it. */
+infix fun <A> A.shouldNotBeSameInstanceAs(unexpected: A): Expectations =
+    if (this !==
+        unexpected
+    ) passed(1) else mismatchedHere(null, identified(this), "anything but ${identified(unexpected)}")
+
+/** Holds if [block] throws a [T]; fails, naming this line, if it throws nothing or something else. */
+inline fun <reified T : Throwable> shouldThrow(block: () -> Any?): Expectations = shouldThrow<T>(block) { held() }
+
+/**
+ * Holds if [block] throws a [T] and [then], given what it threw, holds too. [then] runs only on a [T]. An interrupt,
+ * a cancellation or a VM error that is not a [T] goes on up, so the test stops as it would have without the check.
+ */
+inline fun <reified T : Throwable> shouldThrow(block: () -> Any?, then: (T) -> Expectations): Expectations {
+    @Suppress("TooGenericExceptionCaught") // catching everything is the point; nonFatalOrThrow sorts it
+    val thrown = try {
+        val _ = block()
+        null
+    } catch (caught: Throwable) {
+        caught
+    }
+    return when (thrown) {
+        is T -> held() and then(thrown)
+        else -> notThrown("a ${T::class.qualifiedName} thrown", thrown?.nonFatalOrThrow())
+    }
+}
+
+/**
+ * Holds if this is a [T] and [then], given it as one, holds too. [then] runs only on a [T]; a miss names the type
+ * wanted and the value found, with its type.
+ */
+inline fun <reified T> Any?.shouldBeInstanceOf(then: (T) -> Expectations): Expectations =
+    if (this is T) held() and then(this) else notInstance("an instance of ${T::class.qualifiedName}", this)
+
+/** Holds if this is a [T]. */
+inline fun <reified T> Any?.shouldBeInstanceOf(): Expectations = shouldBeInstanceOf<T> { held() }
+
+/** [block]'s expectations, each failure in it saying [clue] first. Blocks nest, the outermost clue first. */
+fun withClue(clue: Any?, block: () -> Expectations): Expectations = clued(clue, block)
+
+/** A check that passed, for [shouldThrow] and [shouldBeInstanceOf]. */
+@PublishedApi
+internal fun held(): Expectations = passed(1)
+
+/** The check [shouldBeInstanceOf] failed on [value]. */
+@PublishedApi
+internal fun notInstance(wanted: String, value: Any?): Expectations =
+    mismatchedHere(null, value?.let { "$it of ${it::class.qualifiedName}" } ?: "null", wanted)
+
+/** The check [shouldThrow] failed: nothing thrown, or [thrown], carried as the cause. */
+@PublishedApi
+internal fun notThrown(wanted: String, thrown: Throwable?): Expectations =
+    mismatchedHere(null, thrown ?: "nothing thrown", wanted, thrown)
+
 private fun passed(checked: Int) = Expectations(emptyList(), checked)
+
+private fun quoted(text: String) = "\"$text\""
+
+/** A value with its identity, for a check that two are or are not the same object. */
+private fun identified(value: Any?): String =
+    value?.let { "$it @${Integer.toHexString(System.identityHashCode(it))}" } ?: "null"
 
 /** The same failure, with [heading] above its message and the same expected and actual. */
 private fun AssertionFailedError.headed(heading: String): AssertionFailedError {
@@ -91,5 +177,16 @@ private fun failedHere(message: String, quoting: Boolean = true): Expectations =
     Expectations(listOf(failureAt(message, skipping = { it.className in own }, quoting)), 1)
 
 @OptIn(FailureSeam::class)
-private fun mismatchedHere(expected: Any?, actual: Any?, expectedText: String? = null): Expectations =
-    Expectations(listOf(mismatchAt(expected, actual, skipping = { it.className in own }, expectedText)), 1)
+private fun mismatchedHere(
+    expected: Any?,
+    actual: Any?,
+    expectedText: String? = null,
+    cause: Throwable? = null,
+): Expectations = Expectations(
+    listOf(
+        mismatchAt(expected, actual, skipping = {
+            it.className in own
+        }, expectedText, cause),
+    ),
+    1,
+)

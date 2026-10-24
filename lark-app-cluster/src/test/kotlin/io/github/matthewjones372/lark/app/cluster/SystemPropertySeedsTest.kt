@@ -3,8 +3,8 @@ package io.github.matthewjones372.lark.app.cluster
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.app.typesafe.reading
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.nulls.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
 import org.junit.jupiter.api.Test
 import java.util.Properties
 

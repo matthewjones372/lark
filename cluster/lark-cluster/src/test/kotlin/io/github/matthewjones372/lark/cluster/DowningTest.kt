@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds

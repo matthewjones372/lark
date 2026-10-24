@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.string.shouldContain
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty

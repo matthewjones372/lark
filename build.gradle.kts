@@ -198,10 +198,6 @@ subprojects {
     dependencies {
         "testImplementation"(kotlin("test"))
         "testImplementation"("org.junit.jupiter:junit-jupiter:6.1.3")
-        // Assertions only. The tests still run on the JUnit platform — kotest
-        // is here for its matchers and for the failure messages they produce,
-        // not as a second test framework.
-        "testImplementation"("io.kotest:kotest-assertions-core:6.2.4")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
 

@@ -117,8 +117,8 @@ dependencies {
 ```
 
 ```kotlin
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.test.story
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
@@ -237,7 +237,12 @@ at OrderSuite.kt:32
 Without the plugin, it quotes the source line instead. A diagram carries no
 expected and actual for IntelliJ's diff, so `lark-junit` also has `shouldBe`,
 `shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
-and carry both. Infix calls share one precedence and group to the left, so
+and carry both. Beside them are `shouldContain` and `shouldNotContain`, for a
+string or a collection, and `shouldBeSameInstanceAs` and
+`shouldNotBeSameInstanceAs`. `shouldThrow<T>(block)` holds when `block`
+throws a `T`; `shouldThrow<T>(block) { e -> … }` then checks what it threw. A
+different exception fails the test with that exception as its cause, and an
+interrupt or cancellation goes on up, so a `timeout` still stops the test. Infix calls share one precedence and group to the left, so
 `a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
 parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
 whose matchers throw and return the value; a file importing both can call
@@ -252,6 +257,8 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.resource
 
 data class NotFound(val id: String)
@@ -260,6 +267,7 @@ class Database {
     private val orders = mutableListOf<String>()
 
     fun save(order: String) {
+        require(order.isNotBlank()) { "an order needs an id" }
         orders += order
     }
 
@@ -281,6 +289,9 @@ object OrderSuite : Suite<Database>(concurrent = false) {
         }
         test("an order never saved is not found") { db ->
             (db.find("order-9") shouldBeLeft NotFound("order-9")) and !expect(db.count() == 0)
+        }
+        test("an order without an id is refused") { db ->
+            shouldThrow<IllegalArgumentException>({ db.save("") }) { refusal -> refusal.message shouldContain "an id" }
         }
     }
 }
@@ -480,7 +491,7 @@ duplicated, delayed and crashed messages. See
 ## Lark's own documentation tests
 
 The guides' examples are compiled against the library by tests that read the
-Markdown files: `ReadmeExampleTest`, `CoreGuideTest`, `CookbookTest`,
+Markdown files: `ReadmeExampleSuite`, `CoreGuideTest`, `CookbookTest`,
 `ActorsGuideTest` and `GuideExampleTest`. A fence marked with an HTML comment
 such as `<!-- actors-actor -->` is extracted, compiled, and in some cases run,
 so a stale example fails the build.

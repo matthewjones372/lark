@@ -13,6 +13,7 @@ dependencies {
     testImplementation("io.opentelemetry:opentelemetry-sdk:$otelVersion")
     // Actors to send to, for the trace carried across a message (spec 0122).
     testImplementation(project(":lark-actor"))
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

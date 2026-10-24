@@ -14,6 +14,7 @@ dependencies {
 
     // An API server in the test JVM that keeps what it is sent, so a test lists and updates as a cluster would.
     testImplementation("io.fabric8:kubernetes-server-mock:$fabric8Version")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

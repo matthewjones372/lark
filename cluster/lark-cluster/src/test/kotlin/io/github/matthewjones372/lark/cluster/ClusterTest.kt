@@ -10,11 +10,11 @@ import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.watch
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.flock
-import io.kotest.assertions.withClue
-import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
-import io.kotest.matchers.comparables.shouldBeLessThan
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -231,7 +231,7 @@ class ClusterTest {
             val started = TimeSource.Monotonic.markNow()
             nodes.first().close()
 
-            started.elapsedNow() shouldBeGreaterThanOrEqualTo 2.seconds
+            started.elapsedNow() shouldBeGreaterThanOrEqual 2.seconds
             started.elapsedNow() shouldBeLessThan 10.seconds
         } finally {
             nodes.forEach(Running::close)

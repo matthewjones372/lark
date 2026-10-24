@@ -1,6 +1,14 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 // lark-stream on Pekko Streams: the backend that compiles a description to Pekko's stages, and the
 // operators that take a Pekko Source, Flow or Sink. NoOtherDependenciesTest asserts what it brings, on
 // the classpath a consumer actually gets.
+
+// The suites that own an actor system are lark-junit suites (spec 0191): a failed `expect` draws its values.
+plugins {
+    kotlin("plugin.power-assert")
+}
 
 // Pekko publishes one artifact per Scala binary version, so the two spellings
 // are a single coordinate and live beside each other rather than in
@@ -17,7 +25,7 @@ dependencies {
     api(platform("org.apache.pekko:pekko-bom_$scalaBinary:$pekkoVersion"))
     api("org.apache.pekko:pekko-stream_$scalaBinary")
 
-    // The actor system a contract test runs on, owned by a JUnit 5 extension.
+    // The actor system a suite runs on: Pekko's ActorTestKit, owned by the suite's shared Resource.
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary")
     // LoggingTestKit reads log events back through an appender of logback's own, so the
     // binding has to be the real one. Test scope only, which NoOtherDependenciesTest keeps
@@ -32,6 +40,18 @@ dependencies {
     // The README's example starts one description on every backend, and is compiled against them.
     testImplementation(project(":lark-stream-test"))
     testImplementation(project(":lark-assert"))
+    testImplementation(project(":lark-junit"))
+}
+
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
+powerAssert {
+    functions.add("io.github.matthewjones372.lark.junit.expect")
+    includedSourceSets.add("test")
+}
+
+// A suite's dropped Expectations is reported only under this flag; the main sources are not lark-junit's.
+tasks.named<KotlinCompile>("compileTestKotlin") {
+    compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
 }
 
 // Read at configuration time: a provider that reached for the project at
@@ -53,7 +73,7 @@ tasks.test {
     // read files Gradle knows nothing about, and a violation would ride green
     // builds until `--rerun-tasks`.
     inputs.files(judgedSources).withPropertyName("judgedSources")
-    // ReadmeExampleTest compiles the example out of docs/stream.md and holds the
+    // ReadmeExampleSuite compiles the example out of docs/stream.md and holds the
     // README's copy of it to the same text, so an edit to either page is a change
     // to what this task tests: without this the example would ride a cached green
     // until something else in the module moved.

@@ -5,9 +5,9 @@ import io.github.matthewjones372.lark.actor.ask
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.flock
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.trace.SdkTracerProvider

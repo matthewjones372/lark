@@ -224,9 +224,16 @@ private class Releases {
         lock.withLock { byKey.getOrPut(key) { mutableListOf() }.add(release) }
     }
 
-    /** Reverse topological, so a node is given back only after everything that needed it. */
+    /**
+     * Reverse topological, so a node is given back only after everything that needed it. A node of the layer that
+     * failed is not in [order], but may have installed before it or a sibling refused: it goes first, since nothing
+     * that was built depends on it.
+     */
     fun release(order: List<KType>, exit: ExitCase) {
-        val installed = lock.withLock { order.reversed().flatMap { byKey[it].orEmpty().reversed() } }
+        val installed = lock.withLock {
+            val unfinished = byKey.keys - order.toSet()
+            (unfinished + order.reversed()).flatMap { byKey[it].orEmpty().reversed() }
+        }
         val failures = installed.mapNotNull { release -> thrownBy(release, exit) }
         failures.firstOrNull()?.let { first ->
             failures.drop(1).forEach(first::addSuppressed)

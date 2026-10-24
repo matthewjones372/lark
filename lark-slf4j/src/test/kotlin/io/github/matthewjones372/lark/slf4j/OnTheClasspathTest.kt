@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.slf4j
 
 import io.github.matthewjones372.lark.Logger
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.logger
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.util.ServiceLoader
 

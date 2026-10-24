@@ -88,9 +88,6 @@ Answered (maintainer, 2026-10-23).
 4. ~~Can the engine get expected and actual from power-assert for IntelliJ's diff?~~ No structured API:
    it would add `kotlin-power-assert-runtime` to the runtime classpath (maintainer, 2026-10-23: use
    value-returning matchers built on lark-assert instead).
-
-Still open:
-
-5. **What does a user's build need when the return-value checker isn't on?** Recommend that the guide
-   gives the compiler flag next to the plugin, and says that without the flag a dropped expectation
-   compiles but is lost.
+5. ~~**What does a user's build need when the return-value checker isn't on?**~~ Answered by the guide:
+   `docs/testing.md` gives the compiler flag next to the plugin, and says that without the flag a
+   dropped expectation compiles but is lost.

@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.kafka
 
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension

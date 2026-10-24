@@ -1,13 +1,13 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.map
 import io.github.matthewjones372.lark.stream.mapOrFail
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runCollect
 import io.github.matthewjones372.lark.stream.take
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.pekko.Done

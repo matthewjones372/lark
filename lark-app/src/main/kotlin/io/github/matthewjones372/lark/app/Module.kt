@@ -75,11 +75,13 @@ private val qualifiers = Regex("""\b[a-z][A-Za-z0-9_]*(\.[a-z][A-Za-z0-9_]*)*\."
  *
  * This module depends on it nowhere else, and a report is no place to start: the name is still
  * right, and a build that prints "Pump (Kotlin reflection is not available) needs DataSource
- * (Kotlin reflection is not available)" has buried the sentence it came to say.
+ * (Kotlin reflection is not available)" has buried the sentence it came to say. Without it a nested
+ * class also renders by its JVM name, `Outer$Inner`, so the `$` goes back to the `.` its source wrote.
  */
 private val unavailable = Regex(""" \(Kotlin reflection is not available\)""")
 
-internal fun labelOf(key: KType): String = qualifiers.replace(unavailable.replace(key.toString(), ""), "")
+internal fun labelOf(key: KType): String =
+    qualifiers.replace(unavailable.replace(key.toString(), "").replace('$', '.'), "")
 
 internal fun idOf(key: KType): String = labelOf(key).replace(Regex("[^A-Za-z0-9]"), "_")
 

@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.app
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.nonEmptyListOf
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference

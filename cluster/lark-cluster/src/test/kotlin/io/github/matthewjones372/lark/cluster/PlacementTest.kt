@@ -1,12 +1,12 @@
 package io.github.matthewjones372.lark.cluster
 
 import io.github.matthewjones372.lark.actor.remote.Node
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.ints.shouldBeInRange
-import io.kotest.matchers.ints.shouldBeLessThanOrEqual
-import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldBeInRange
+import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldBeNull
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 
 private fun up(n: Int, status: Status = Status.Up) = Member(Node("n$n", "10.0.0.$n", 25520), n.toLong(), status, n)

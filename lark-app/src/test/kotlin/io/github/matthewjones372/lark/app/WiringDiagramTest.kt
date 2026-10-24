@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.app
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldNotBe
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.security.MessageDigest

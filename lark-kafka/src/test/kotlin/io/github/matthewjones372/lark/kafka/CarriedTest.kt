@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotContainKey
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.logInfo
-import io.kotest.matchers.maps.shouldContain
-import io.kotest.matchers.maps.shouldNotContainKey
-import io.kotest.matchers.shouldBe
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.record.TimestampType

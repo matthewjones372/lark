@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.app
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldMatch
-import io.kotest.matchers.string.shouldNotContain
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldMatch
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.shouldNotContain
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 
 private class Spanner

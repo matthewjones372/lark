@@ -5,9 +5,9 @@ import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.use
 import io.github.matthewjones372.lark.app.validate
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldHaveSize
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.Behavior

@@ -8,6 +8,7 @@ plugins {
 dependencies {
     api(project(":lark-app-typesafe"))
     api("org.jetbrains.kotlinx:kotlinx-serialization-core:1.11.0")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

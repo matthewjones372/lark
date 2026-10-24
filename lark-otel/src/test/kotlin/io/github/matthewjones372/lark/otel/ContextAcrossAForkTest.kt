@@ -1,12 +1,12 @@
 package io.github.matthewjones372.lark.otel
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldHaveSize
+import io.github.matthewjones372.lark.assert.shouldNotBeBlank
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.parMap
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldNotBeBlank
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.ContextStorage

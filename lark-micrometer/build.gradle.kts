@@ -10,6 +10,7 @@ val micrometerVersion = "1.12.0"
 dependencies {
     api(project(":lark"))
     api("io.micrometer:micrometer-core:$micrometerVersion")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

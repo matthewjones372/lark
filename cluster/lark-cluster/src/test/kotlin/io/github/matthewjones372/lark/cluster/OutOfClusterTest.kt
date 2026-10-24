@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.cluster
 
 import io.github.matthewjones372.lark.actor.remote.Node
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
 import org.junit.jupiter.api.Test
 
 class OutOfClusterTest {

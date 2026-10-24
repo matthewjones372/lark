@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.cluster
 
 import io.github.matthewjones372.lark.actor.remote.Node
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.doubles.shouldBeLessThanOrEqual
-import io.kotest.matchers.ints.shouldBeLessThanOrEqual
-import io.kotest.matchers.maps.shouldBeEmpty
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldHaveSize
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors

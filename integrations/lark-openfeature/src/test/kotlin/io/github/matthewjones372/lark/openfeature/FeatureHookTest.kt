@@ -7,12 +7,12 @@ import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.ProviderEvaluation
 import dev.openfeature.sdk.Value
 import io.github.matthewjones372.lark.LogLevel
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldHaveSize
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.capturingMetrics
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 
 /** A provider that is down: every evaluation throws. */
