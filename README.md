@@ -265,7 +265,35 @@ and how to use a snapshot or a local build.
 
 ## Tests that run together
 
-`lark-junit` is a JUnit Platform engine, so its suites run beside JUnit
+`lark-junit` is optional. Lark is a library, so a plain JUnit Jupiter test can
+call it directly, with `TestClock`, `capturingLogs`, `story`, `eventually` and
+`lark-assert`'s matchers, and nothing here needs changing.
+
+`lark-junit` is for the suites where Jupiter gets in the way:
+
+- **Speed.** A suite's tests run concurrently, each on its own virtual thread,
+  under a `Limit` you choose for that suite. Jupiter's parallel mode is one
+  global switch over a pool of platform threads.
+- **One expensive resource, shared safely.** A database or a cluster is a
+  `Resource`, acquired once, handed to every test, and released in reverse
+  order. If acquiring it fails, each test fails with the cause. In Jupiter it
+  is a `lateinit` static set in `@BeforeAll` and cleaned up by hand.
+- **Isolation.** The clock, logger and metrics are bound for each test, so
+  concurrent tests can't see each other's. In Jupiter they are process-wide.
+- **Output you can read.** A test's logs are printed only if it fails.
+  Every failed check is reported, not just the first, and a failed `expect`
+  shows the value of each part of the expression.
+- **Tests that can't check nothing.** A test returns its checks as a value, so
+  one with no checks doesn't compile.
+- **Aspects.** `flaky`, `nonFlaky`, `timeout`, `tag` and `ignore` are values
+  you combine with `+`. `nonFlaky(50)` proves that a load-sensitive test is
+  stable.
+
+Stay on Jupiter for tests that need its extensions, such as parameterized
+tests, `@TempDir`, or a framework's own extension. The two engines run side by
+side in one `test` task.
+
+Because `lark-junit` is a JUnit Platform engine, its suites run beside JUnit
 Jupiter tests in the same `test` task, and Gradle's XML reports, the IDE and CI
 read the results unchanged.
 
