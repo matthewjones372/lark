@@ -6,7 +6,7 @@ import java.io.File
 /** What this module may put on a consumer's classpath, stated as a test: lark and opentest4j, and nothing else. */
 class NoOtherDependenciesTest {
 
-    private val allowed = listOf("kotlin-stdlib", "annotations-", "arrow-", "lark", "opentest4j")
+    private val allowed = listOf("kotlin-stdlib", "annotations-", "lark", "opentest4j")
 
     @Test
     fun `the main runtime classpath is lark and opentest4j, and nothing else`() {

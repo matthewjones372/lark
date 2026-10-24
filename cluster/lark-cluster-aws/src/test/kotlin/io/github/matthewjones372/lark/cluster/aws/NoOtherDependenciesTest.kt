@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // The AWS SDK's three clients, the core they share, and the JDK HTTP client they run on.
         "servicediscovery-",

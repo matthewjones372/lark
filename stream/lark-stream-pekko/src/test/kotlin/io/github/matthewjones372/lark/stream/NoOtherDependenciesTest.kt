@@ -17,9 +17,8 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         // The description this module runs, the lark it is written in, and the
-        // lark-pekko whose `await` it waits through; Arrow arrives through lark.
+        // lark-pekko whose `await` it waits through.
         "lark",
         "lark-stream",
         "lark-pekko",

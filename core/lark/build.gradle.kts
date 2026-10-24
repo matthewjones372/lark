@@ -1,9 +1,9 @@
-// Arrow's Raise, forked and awaited on virtual threads. Arrow and the JDK and
-// nothing else, which is what NoOtherDependenciesTest asserts: a fork answers
-// with an Either, so nothing here needs to know what is being served.
+// Structured forks on virtual threads, failing through lark's own Fail. The JDK
+// and the Kotlin standard library and nothing else, which is what
+// NoOtherDependenciesTest asserts: a fork answers with an Either, so nothing
+// here needs to know what is being served.
 dependencies {
     testImplementation(project(":lark-assert"))
-    api("io.arrow-kt:arrow-core:2.1.2")
 
     // Test only: larkFuture's cancel has to reach lark from a coroutine awaiting it with kotlinx's own
     // await, and NoOtherDependenciesTest keeps it off the main runtime classpath.

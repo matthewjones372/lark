@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // The facade. No backend: a service brings the one it has already configured, and two on a
         // classpath is a warning at start-up and an arbitrary winner.
