@@ -9,7 +9,7 @@ import java.io.File
 /** What lark-actor-remote-protobuf may put on a service's classpath: lark-actor-remote's own, and Protobuf. */
 class NoOtherDependenciesTest {
 
-    private val allowed = listOf("kotlin-stdlib", "annotations-", "arrow-", "lark", "protobuf-java-")
+    private val allowed = listOf("kotlin-stdlib", "annotations-", "lark", "protobuf-java-")
 
     @Test
     fun `the main runtime classpath is lark-actor-remote and Protobuf, and nothing else`() {

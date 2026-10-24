@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.Fail
 import io.github.matthewjones372.lark.fail.attempt
@@ -15,11 +14,8 @@ import kotlin.concurrent.withLock
 /** Whether `async` forks where it is written, or waits until something asks for the value. */
 enum class Start { Eager, Lazy }
 
-/**
- * A [Fail] scope that owns every thread forked in it: no fork outlives the block that opened it. It is an
- * Arrow `Raise` as well until spec 0168 moves the rest of lark off Arrow, so both kinds of code run in it.
- */
-interface Flock<E> : Fail<E>, Raise<E> {
+/** A [Fail] scope that owns every thread forked in it: no fork outlives the block that opened it. */
+interface Flock<E> : Fail<E> {
     /** The executor this scope's forks run on when a call does not name another. */
     val on: Executor
 
@@ -76,9 +72,7 @@ private fun <E, T> capture(on: Executor, block: Flock<E>.() -> T): Outcome<E, T>
  * The owner the top-level combinators fork under: `Nothing` has no value, so nothing running inside one
  * can hand it an error to raise.
  */
-internal object Unraisable : Raise<Nothing>, Fail<Nothing> {
-    override fun raise(r: Nothing): Nothing = r
-
+internal object Unraisable : Fail<Nothing> {
     override fun fail(error: Nothing): Nothing = error
 }
 
@@ -121,8 +115,6 @@ private fun CountDownLatch.awaitFully() {
 private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : Flock<E> {
 
     override fun fail(error: E): Nothing = owner.fail(error)
-
-    override fun raise(r: E): Nothing = owner.fail(r)
 
     // Only the scope's own thread reaches this: a fork body is handed a nest of its own.
     private val forks = mutableListOf<Fork<E, *>>()

@@ -1,8 +1,9 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.left
-import arrow.core.raise.either
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -62,11 +63,11 @@ class AwaitTest {
 
     @Test
     fun `an Either awaited inside either raises where it is bound`() {
-        either<Bad, Int> {
+        attempt<Bad, Int> {
             CompletableFuture.completedFuture(21.right()).await().bind() * 2
         } shouldBe 42.right()
 
-        either<Bad, Int> {
+        attempt<Bad, Int> {
             CompletableFuture.completedFuture(Bad("upstream").left()).await().bind()
         } shouldBe Bad("upstream").left()
     }

@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // The fabric8 client, its model, and the JSON and YAML it reads them with.
         "kubernetes-",

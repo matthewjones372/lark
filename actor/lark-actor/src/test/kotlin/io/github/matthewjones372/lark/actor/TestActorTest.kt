@@ -1,8 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Option
-import arrow.core.none
-import arrow.core.some
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
@@ -12,6 +9,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
+import java.util.Optional
 import java.util.concurrent.atomic.AtomicReference
 
 private data class Pet(val id: String, val adopted: Boolean = false)
@@ -20,7 +18,7 @@ private sealed interface Shop
 
 private data class Arrived(val pet: Pet) : Shop
 
-private data class Find(val id: String, val reply: Reply<Option<Pet>>) : Shop
+private data class Find(val id: String, val reply: Reply<Optional<Pet>>) : Shop
 
 private data class Adopt(val id: String, val reply: Reply<Boolean>) : Shop
 
@@ -35,7 +33,7 @@ private fun shop(): Behaviour<Shop, Map<String, Pet>, Nothing> = behaviour(empty
         is Arrived -> become(shelf + (message.pet.id to message.pet))
 
         is Find -> {
-            message.reply(Option.fromNullable(shelf[message.id]))
+            message.reply(Optional.ofNullable(shelf[message.id]))
             stay()
         }
 
@@ -90,8 +88,8 @@ class TestActorTest {
         val actor = shop().test()
         actor.send(Arrived(rex))
 
-        actor.ask { Find("rex", it) } shouldBe rex.some().right()
-        actor.ask { Find("tom", it) } shouldBe none<Pet>().right()
+        actor.ask { Find("rex", it) } shouldBe Optional.of(rex).right()
+        actor.ask { Find("tom", it) } shouldBe Optional.empty<Pet>().right()
     }
 
     @Test
@@ -116,8 +114,8 @@ class TestActorTest {
     fun `a second reply fails where it is made, and stops the actor`() {
         val twice = behaviour<Shop, Unit>(Unit) { _, _, message ->
             if (message is Find) {
-                message.reply(none())
-                message.reply(none())
+                message.reply(Optional.empty())
+                message.reply(Optional.empty())
             }
             stay()
         }.test()

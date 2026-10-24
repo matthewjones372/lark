@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.left
-import arrow.core.raise.either
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -53,19 +53,19 @@ class TimeoutTest {
 
     @Test
     fun `a raise inside the block still raises`() {
-        either<Bad, Int> {
-            timeout(NEVER_ARRIVES) { raise(Bad("declared")) }
+        attempt<Bad, Int> {
+            timeout(NEVER_ARRIVES) { fail(Bad("declared")) }
         } shouldBe Bad("declared").left()
 
-        either<Bad, Int?> {
-            timeoutOrNull(NEVER_ARRIVES) { raise(Bad("declared")) }
+        attempt<Bad, Int?> {
+            timeoutOrNull(NEVER_ARRIVES) { fail(Bad("declared")) }
         } shouldBe Bad("declared").left()
 
-        either<Bad, Int> {
+        attempt<Bad, Int> {
             timeout(NEVER_ARRIVES) { 42 }
         } shouldBe 42.right()
 
-        either<Bad, Int?> {
+        attempt<Bad, Int?> {
             timeoutOrNull(NEVER_ARRIVES) { 42 }
         } shouldBe 42.right()
     }

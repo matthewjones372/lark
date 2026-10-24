@@ -8,14 +8,13 @@ import java.io.File
 
 /**
  * What lark-stream-test is allowed to put on a consumer's classpath, stated as a test: lark-stream-forks
- * and what it brings, which is lark-stream, lark, Arrow and the Kotlin standard library.
+ * and what it brings, which is lark-stream, lark and the Kotlin standard library.
  */
 class NoOtherDependenciesTest {
 
     private val allowed = listOf(
         Regex("""kotlin-stdlib.*"""),
         Regex("""annotations-.*"""),
-        Regex("""arrow-.*"""),
         Regex("""lark(-\d.*)?\.jar"""),
         Regex("""lark-stream(-\d.*)?\.jar"""),
         Regex("""lark-stream-forks(-\d.*)?\.jar"""),
