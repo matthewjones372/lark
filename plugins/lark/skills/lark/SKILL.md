@@ -65,6 +65,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-app-gradle`: the wiring plugin.
 - `lark-app-compiler`: the checker behind the wiring plugin.
 - `lark-otel`: traces across forks.
+- `lark-openfeature`: OpenFeature's evaluation context across forks and messages.
 - `lark-arrow`: Lark's types to and from Arrow's.
 - `lark-assert`: `shouldBeRight` and `shouldBeLeft` for tests.
 - `lark-slf4j`: log lines through SLF4J.

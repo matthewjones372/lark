@@ -69,6 +69,8 @@ Facts worth having before anything else:
   and warnings in the editor.
 - `lark-otel`: an OpenTelemetry `Context` that crosses a fork; on the classpath
   and nothing else.
+- `lark-openfeature`: `evaluatedFor(key, …) { }` and `useLark()`, so a flag read
+  in a fork or an actor handler answers for the request that started it.
 - `lark-arrow`: Lark's `Either`, `NonEmptyList` and `Fail` to and from
   Arrow's: `toArrow()`, `toLark()`, `lark { }` and `arrow { }`.
 - `lark-assert`: `shouldBeRight` and `shouldBeLeft` for Lark's `Either`; a failure
