@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import arrow.core.nonFatalOrThrow
 import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.LogLevel
@@ -21,6 +20,7 @@ import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.tagMetrics
 import io.github.matthewjones372.lark.actor.watch
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logger
 import java.io.ByteArrayOutputStream

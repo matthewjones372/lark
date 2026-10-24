@@ -12,6 +12,7 @@ sleep.
 | assertions on log lines or metrics | `capturingLogs { }`, `capturingMetrics { }` | `lark` |
 | a service test written as steps | `story { Given / When / Then }` | `lark-test` |
 | waiting for something to become true | `eventually(within) { }` | `lark-test` |
+| tests that share a resource and run concurrently | `object … : Suite<R>()` | `lark-junit` |
 | part of an application, with fakes | `testApp(module.subgraph<Root>().overriding(…)) { }` | `lark-app` |
 | configuration for one test | `overridingConfig("key = value")` | `lark-app-typesafe` |
 | a stream on a clock the test moves | `TestStreams(clock)` and `emitted()` | `lark-stream-test` |
@@ -134,6 +135,242 @@ class AdoptionTest {
 
 `lark-test` depends only on `lark`. It brings no assertion library; the
 example uses Kotest's matchers, but any assertion that throws works.
+
+## Suites
+
+`lark-junit` runs tests on the JUnit Platform with Lark's own concurrency. A
+suite is a Kotlin `object` extending `Suite<R>`, which the `lark` engine finds
+with no annotation. Its `shared` resource is acquired once, handed to every
+test, and released after the last; if acquiring throws, each test fails with
+that throw, and what was installed before it is released. A test is registered
+from `init` with `test(name) { shared -> … }` and returns
+[`Expectations`](#expectations).
+
+- **Concurrency:** each test is a fork on a virtual thread, at most the
+  suite's `Limit` at once, `Limit.fixed(availableProcessors)` by default.
+  Suites run one after another. A test given the [`alone`](#aspects) aspect
+  waits for those registered before it, and later ones wait for it;
+  `Suite(concurrent = false)` runs every test alone.
+- **Logs:** each test logs and measures into a capture of its own. A passing
+  test prints nothing. A failed test's lines are printed under its name and
+  published to the platform as a `logs` report entry.
+- **Reporting:** results go through the JUnit Platform, so Gradle's JUnit XML,
+  IntelliJ's test tree and CI read a suite as they read a Jupiter class, and
+  the two run side by side in one `test` task. A test's name is its display
+  name and its ID, so two tests in a suite cannot share one.
+
+```kotlin
+dependencies {
+    testImplementation("io.github.matthewjones372:lark-junit:0.10.1")
+}
+
+tasks.test { useJUnitPlatform() }
+```
+
+<!-- testing-junit-suite -->
+```kotlin
+import io.github.matthewjones372.lark.Limit
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.alone
+import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.logInfo
+import io.github.matthewjones372.lark.resource
+import java.util.concurrent.ConcurrentHashMap
+
+// Stands in for the service under test.
+class PetShop : AutoCloseable {
+    private val pets = ConcurrentHashMap<String, String>()
+
+    fun list(name: String) {
+        pets[name] = "available"
+    }
+
+    fun status(name: String): String? = pets[name]
+
+    fun count(): Int = pets.size
+
+    override fun close() = pets.clear()
+}
+
+object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {
+    override val shared: Resource<PetShop> = resource { install({ PetShop() }) { shop, _ -> shop.close() } }
+
+    init {
+        test("a listed pet is available") { shop ->
+            logInfo("listing Nibbles")                      // printed only if this test fails
+            shop.list("Nibbles")
+            expect(shop.status("Nibbles") == "available")
+        }
+        test("an unlisted pet has no status") { shop -> expect(shop.status("Mrs Peel") == null) }
+        test("one pet is listed", alone) { shop -> expect(shop.count() == 1) }   // after the tests above
+    }
+}
+```
+
+## Expectations
+
+A suite's test returns what its checks found as a value, `Expectations`, so a
+failed check does not hide the ones after it, and a test that checks nothing
+does not compile: a body that returns `Unit` is not `Expectations`.
+`expect(condition)` is the one check every other is built from. `a and b`
+keeps both sides' failures, `a or b` passes if either side does, and `!a`
+passes if `a` failed. One failure is reported alone, and several as one
+`MultipleFailuresError`.
+
+Built with JetBrains' power-assert plugin, a failed `expect` draws each value
+under the expression, then the test's file and line:
+
+```
+an order is saved once: 1 of 2 expectations failed
+expect(db.count() == 1)
+       |  |       |
+       |  2       false
+       Database(orders=2)
+at OrderSuite.kt:32
+```
+
+Without the plugin, it quotes the source line instead. A diagram carries no
+expected and actual for IntelliJ's diff, so `lark-junit` also has `shouldBe`,
+`shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
+and carry both. Infix calls share one precedence and group to the left, so
+`a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
+parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
+whose matchers throw and return the value; a file importing both can call
+neither. A throwing check, Kotest's or `lark-assert`'s, is still allowed in a
+test: it stops the test, which is reported as an error.
+
+<!-- testing-junit-expect -->
+```kotlin
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.shouldBeLeft
+import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.resource
+
+data class NotFound(val id: String)
+
+class Database {
+    private val orders = mutableListOf<String>()
+
+    fun save(order: String) {
+        orders += order
+    }
+
+    fun count(): Int = orders.size
+
+    fun find(id: String): Either<NotFound, String> =
+        orders.firstOrNull { it == id }?.let { Either.Right(it) } ?: Either.Left(NotFound(id))
+
+    override fun toString(): String = "Database(orders=${orders.size})"
+}
+
+object OrderSuite : Suite<Database>(concurrent = false) {
+    override val shared: Resource<Database> = resource { Database() }
+
+    init {
+        test("an order is saved once") { db ->
+            repeat(2) { db.save("order-1") }
+            expect(db.count() == 1) and (db.find("order-1") shouldBeRight "order-1")
+        }
+        test("an order never saved is not found") { db ->
+            (db.find("order-9") shouldBeLeft NotFound("order-9")) and !expect(db.count() == 0)
+        }
+    }
+}
+```
+
+The build needs the plugin, with `expect` in its functions, on the test
+source set. `Expectations` is marked for Kotlin's return-value checker, which
+reports a dropped one only under `-Xreturn-value-checker=check`, and fails the
+build only with `allWarningsAsErrors`. Without the flag, a test written
+`expect(a); expect(b)` compiles, and the first expectation is lost.
+
+```kotlin
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
+plugins {
+    kotlin("jvm") version "2.4.10"
+    kotlin("plugin.power-assert") version "2.4.10"
+}
+
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
+powerAssert {
+    functions.add("io.github.matthewjones372.lark.junit.expect")
+    includedSourceSets.add("test")
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xreturn-value-checker=check")
+        allWarningsAsErrors = true
+    }
+}
+```
+
+## Aspects
+
+An aspect says how a suite's test runs. It is given beside the test's name,
+`test(name, flaky(3)) { }`, or to the suite for each of its tests,
+`Suite(aspects = tag("io"))`. Aspects are known when the test is registered,
+so discovery reads tags and `ignore` without running anything.
+
+| Aspect | What it does | Reported as |
+|---|---|---|
+| `flaky(n)` | runs the test up to `n` times, until an attempt passes | passed if one does, with an `attempts` report entry such as `2 of 3`, given on failure too |
+| `nonFlaky(n)` | runs the test `n` times, and every run must pass | failed at the first failing run: `run 7 of 50 failed: …` |
+| `timeout(d)` | interrupts the test if it runs longer than `d`, on Lark's `timeout` | failed with a `TimeoutException`, `no answer within d` |
+| `ignore(why)` | does not run the test | skipped, with `why` |
+| `tag(name)` | a JUnit tag, which Gradle's `includeTags` and the IDE filter by | — |
+| `alone` | nothing else in the suite runs beside the test | — |
+
+`+` combines aspects, and the left one wraps the right one.
+`timeout(5.seconds) + flaky(3)` gives all three attempts five seconds
+together, and an attempt cut off by it is not retried;
+`flaky(3) + timeout(5.seconds)` gives each attempt five seconds, and retries
+one that runs out. A suite's aspects wrap each of its tests'. Tags add up, a
+test is `alone` if either side is, and an `ignore` on the left gives its reason
+before one on the right.
+
+<!-- testing-junit-aspects -->
+```kotlin
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.alone
+import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.flaky
+import io.github.matthewjones372.lark.junit.ignore
+import io.github.matthewjones372.lark.junit.nonFlaky
+import io.github.matthewjones372.lark.junit.tag
+import io.github.matthewjones372.lark.junit.timeout
+import io.github.matthewjones372.lark.resource
+import kotlin.time.Duration.Companion.seconds
+
+// Stands in for a connection to the service under test.
+class Wire {
+    fun roundTrip(frame: String): String = frame
+
+    fun reconnects(): Boolean = true
+}
+
+// Every test is tagged "io", and each runs within 30 seconds, retries and all.
+object WireSuite : Suite<Wire>(aspects = tag("io") + timeout(30.seconds)) {
+    override val shared: Resource<Wire> = resource { Wire() }
+
+    init {
+        test("frames survive a slow reader", nonFlaky(50) + alone) { wire ->
+            expect(wire.roundTrip("frame") == "frame")
+        }
+        test("reconnects after a reset", flaky(3) + timeout(5.seconds)) { wire -> expect(wire.reconnects()) }
+        test("speaks HTTP/3", ignore("no QUIC on CI")) { _ -> expect(false) }
+    }
+}
+```
+
+`tasks.test { useJUnitPlatform { includeTags("io") } }` then runs only the
+tagged tests, Jupiter's `@Tag`s among them.
 
 ## Applications
 

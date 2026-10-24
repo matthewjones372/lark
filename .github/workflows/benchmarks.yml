@@ -1,26 +1,37 @@
 name: benchmarks
 
-# The stream modules measured on the base branch and on the pull request, back to back on one runner, and
+# The stream modules measured on the base branch and on the pull request, in alternating rounds on one runner, and
 # red when a row got slower (bench/lark-stream-benchmarks/gate.sh). A committed number was measured on some other
 # machine, so the gate compares only what it measured itself.
+#
+# It takes half an hour, so it runs only on a pull request labelled `benchmarks`, on each push to it after
+# that, or from Run workflow.
 on:
   pull_request:
-    paths:
-      - "stream/lark-stream/**"
-      - "stream/lark-stream-pekko/**"
-      - "stream/lark-stream-forks/**"
-      - "bench/lark-stream-benchmarks/**"
+    types: [opened, reopened, synchronize, labeled]
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    inputs:
+      base:
+        description: "Branch to compare against; this branch itself measures the gate's own noise"
+        default: main
+      benchmarks:
+        description: "Only the benchmarks matching this JMH pattern; empty for all of them"
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   gate:
+    # Any other label added to a labelled pull request is not a reason to measure it again.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'benchmarks') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'benchmarks'))
+    # On the job, not the workflow: a skipped run must not cancel the one measuring.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: namespace-profile-mattjones372
     timeout-minutes: 60
 
@@ -38,7 +49,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Benchmarks on the base and on this change
-        run: bench/lark-stream-benchmarks/gate.sh "origin/${{ github.base_ref || 'main' }}"
+        # Inputs reach the script as variables, so nothing typed into Run workflow is read as shell.
+        env:
+          BASE: ${{ github.base_ref || inputs.base || 'main' }}
+          BENCHMARKS: ${{ inputs.benchmarks }}
+        run: bench/lark-stream-benchmarks/gate.sh "origin/$BASE" "$BENCHMARKS"
 
       # Where each benchmark's time went, drawn: the diagrams to read when the gate goes red.
       - name: Profile each benchmark's pipeline
@@ -53,6 +68,6 @@ jobs:
           name: jmh-compare
           path: |
             bench/lark-stream-benchmarks/build/jmh-compare.txt
-            bench/lark-stream-benchmarks/build/jmh-result.json
+            bench/lark-stream-benchmarks/build/rounds/
             bench/lark-stream-benchmarks/build/profiles/
           retention-days: 90

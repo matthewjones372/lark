@@ -93,6 +93,8 @@ private const val MAGIC = 0x4C41524B // "LARK"
 private const val VERSION = 2
 private const val FIRST_VERSION = 1
 
+private const val NANOS_PER_MILLI = 1_000_000L
+
 /** A frame larger than this is a stream out of step, not a message: the connection is dropped. */
 private const val MAX_FRAME = 16 shl 20
 
@@ -104,6 +106,10 @@ private const val MAX_FRAME = 16 shl 20
  * frames are dropped and reported. A dropped connection is retried with a backoff from [retryFrom] doubling to
  * [retryUpTo], on the clock the transport was made on. With [tls], every connection both ways is TLS, and a peer
  * that cannot complete its handshake is one that failed to connect.
+ *
+ * Closing stops taking frames, then gives each lane whose connection is up [drainWithin], in all, to write what it
+ * already holds, so a frame told just before close is not lost to it (spec 0166). What is left after that, and all
+ * that waits on a lane not connected, is dropped and reported.
  *
  * A peer is reached by name, and the JDK remembers a name that did not resolve for 10 seconds. A peer named before
  * its host exists, as a seed or a pod is, stays out of reach that long after it appears, unless the service sets
@@ -117,6 +123,7 @@ class Transport(
     private val retryFrom: Duration = 100.milliseconds,
     private val retryUpTo: Duration = 5.seconds,
     private val tls: Tls? = null,
+    private val drainWithin: Duration = 1.seconds,
 ) : AutoCloseable {
 
     /** This node in this life: a peer that sees another one under the same name knows it restarted. */
@@ -145,7 +152,9 @@ class Transport(
         if (!closed.compareAndSet(false, true)) return
         server.close()
         accepting?.join()
-        outbound.values.forEach(Outbound::close)
+        val until = System.nanoTime() + drainWithin.inWholeNanoseconds
+        outbound.values.forEach(Outbound::finish)
+        outbound.values.forEach { it.close(until) }
         inbound.forEach(Socket::close)
     }
 
@@ -195,11 +204,32 @@ class Transport(
         @Volatile
         private var socket: Socket? = null
 
+        // Whether the handshake is done and the writer is writing, and whether it is to stop once its queue is empty.
+        @Volatile
+        private var writing = false
+
+        @Volatile
+        private var finishing = false
+
         fun offer(frame: Frame) {
             if (!queue.offer(frame)) listener.dropped(peer, frame)
         }
 
-        fun close() {
+        /**
+         * Lets a writer that is connected write out what it holds and stop; any other is stopped now. One that is
+         * connected is woken by [end] on its queue rather than an interrupt: an interrupt during a virtual thread's
+         * socket write closes the socket, and the frame being written with it. A queue too full to take [end] has a
+         * writer still busy, which stops on finding it empty.
+         */
+        fun finish() {
+            finishing = true
+            if (writing) queue.offer(end) else writer.interrupt()
+        }
+
+        /** Waits for the writer until [until], by [System.nanoTime], then closes whatever is left. */
+        fun close(until: Long) {
+            val left = until - System.nanoTime()
+            if (left > 0) writer.join(left / NANOS_PER_MILLI + 1)
             socket?.close()
             writer.interrupt()
             writer.join()
@@ -244,6 +274,7 @@ class Transport(
                 val (answered, spoken) = shake(output, input)
                 tls?.check(socket, answered)
                 listener.connected(peer, lane)
+                writing = true
                 // The peer never writes after its hello: a read that returns is the connection ending.
                 val writer = Thread.currentThread()
                 val watch = Thread.ofVirtual().start {
@@ -261,6 +292,7 @@ class Transport(
                 } catch (_: InterruptedException) {
                     // The watch saw the connection end, or the transport is closing.
                 } finally {
+                    writing = false
                     listener.disconnected(peer, lane)
                     socket.close()
                     watch.join()
@@ -285,16 +317,25 @@ class Transport(
 
         private fun write(output: DataOutputStream, version: Int) {
             while (true) {
-                output.frame(queue.take(), version)
-                if (queue.isEmpty()) output.flush()
+                val next = queue.poll() ?: run {
+                    output.flush()
+                    // Frames can arrive during the flush, and finishing is set only after all of them have been
+                    // queued, so the queue is checked once more before stopping.
+                    if (finishing) queue.poll() ?: return else queue.take()
+                }
+                if (next === end) return output.flush()
+                output.frame(next, version)
             }
         }
 
         private fun drop() {
-            generateSequence { queue.poll() }.forEach { listener.dropped(peer, it) }
+            generateSequence { queue.poll() }.filter { it !== end }.forEach { listener.dropped(peer, it) }
         }
     }
 }
+
+/** Put on a lane's queue to wake its writer as the transport closes; never written. */
+private val end = Frame("", 0, ByteArray(0))
 
 /** A peer that closed on this node's offer without answering it: an older lark, which takes only version 1. */
 private class Refused(cause: EOFException) : IOException("the peer closed on the offer of wire version $VERSION", cause)

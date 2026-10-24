@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.structured
 
-import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.fail.Fail
 import java.util.concurrent.Callable
 import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.atomic.AtomicReference
@@ -34,7 +34,7 @@ internal class Tasks<E, R>(
             if (deadline == null) named else named.withTimeout(deadline.toJavaDuration())
         }
 
-    fun <T> fork(body: Raise<E>.() -> T): StructuredTaskScope.Subtask<Outcome<E, T>> {
+    fun <T> fork(body: Fail<E>.() -> T): StructuredTaskScope.Subtask<Outcome<E, T>> {
         forked += 1
         val branch = "$name/$forked"
         return scope.fork<Outcome<E, T>>(
@@ -52,11 +52,16 @@ internal class Tasks<E, R>(
 }
 
 private fun callerName(): String = stack.walk { frames ->
-    frames.filter { frame -> plumbing.none { frame.className.startsWith(it) } }
-        .findFirst()
-        .map(::describe)
-        .orElse("lark")
+    val outside = frames.filter { frame -> plumbing.none { frame.className.startsWith(it) } }.toList()
+    // The block given to `attempt` runs as a lambda of its own, called by `attempt`: the function that
+    // opened the attempt, beneath both, is the one that asked for the scope.
+    outside.filterIndexed { i, frame ->
+        !frame.inAttempt() &&
+            !(frame.methodName.contains("\$lambda\$") && outside.getOrNull(i + 1)?.inAttempt() == true)
+    }.firstOrNull()?.let(::describe) ?: "lark"
 }
+
+private fun StackWalker.StackFrame.inAttempt(): Boolean = className.startsWith("io.github.matthewjones372.lark.fail.")
 
 // A Kotlin lambda's frame is `invoke` on a class named after the function that wrote it.
 private fun describe(frame: StackWalker.StackFrame): String {

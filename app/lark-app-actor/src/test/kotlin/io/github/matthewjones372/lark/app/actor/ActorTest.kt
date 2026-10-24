@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app.actor
 
-import arrow.core.right
 import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.Histogram
@@ -16,6 +15,7 @@ import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.validate
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.metricTags
 import io.github.matthewjones372.lark.metrics
 import io.kotest.matchers.collections.shouldContainExactly

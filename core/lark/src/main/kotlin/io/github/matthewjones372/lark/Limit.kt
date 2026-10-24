@@ -1,0 +1,91 @@
+package io.github.matthewjones372.lark
+
+import java.util.concurrent.CancellationException
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+/**
+ * How many calls may be inside one dependency at once (spec 0171). [fixed] is a number somebody picked;
+ * [adaptive] finds its own from how long calls take, growing while they take no longer than they do unloaded
+ * and shrinking once they queue. One value shared by every caller of a dependency bounds them all together.
+ */
+class Limit private constructor(
+    val name: String,
+    initial: Int,
+    /** The most the limit will ever allow, and so the most a window built on it needs room for. */
+    val max: Int,
+    private val adapting: Vegas?,
+) {
+    private val lock = ReentrantLock()
+    private val room = lock.newCondition()
+    private var allowed = initial
+    private var using = 0
+
+    /** What the limit allows now. */
+    val current: Int get() = lock.withLock { allowed }
+
+    /** Calls inside the limit now. */
+    val inFlight: Int get() = lock.withLock { using }
+
+    /**
+     * Runs [block] once the limit has room for it, waiting until then. How long [block] took is what an adaptive
+     * limit learns from; a block that throws counts as a call the dependency failed, unless it was interrupted or
+     * cancelled, which says nothing about the dependency. A declared failure raised from inside a `Raise` is such
+     * a cancellation, so a lookup that answers "not found" is not taken for overload.
+     */
+    fun <A> withPermit(block: () -> A): A {
+        acquire()
+        val started = System.nanoTime()
+        var outcome = Outcome.FAILED
+        try {
+            return block().also { outcome = Outcome.ANSWERED }
+        } catch (stopped: InterruptedException) {
+            outcome = Outcome.UNMEASURED
+            throw stopped
+        } catch (cancelled: CancellationException) {
+            outcome = Outcome.UNMEASURED
+            throw cancelled
+        } finally {
+            release(System.nanoTime() - started, outcome)
+        }
+    }
+
+    private fun acquire() = lock.withLock {
+        while (using >= allowed) room.await()
+        using++
+        publish()
+    }
+
+    private fun release(tookNanos: Long, outcome: Outcome) = lock.withLock {
+        val inside = using
+        using--
+        val before = allowed
+        if (adapting != null && outcome != Outcome.UNMEASURED) {
+            allowed = adapting.sample(tookNanos, inside, dropped = outcome == Outcome.FAILED)
+        }
+        if (allowed > before) room.signalAll() else room.signal()
+        publish()
+    }
+
+    private fun publish() {
+        gauge("lark.limit.current", "name" to name).set(allowed.toDouble())
+        gauge("lark.limit.in_use", "name" to name).set(using.toDouble())
+    }
+
+    private enum class Outcome { ANSWERED, FAILED, UNMEASURED }
+
+    companion object {
+        /** Today's behaviour as a value: at most [n] at once, always. */
+        fun fixed(n: Int, name: String = "fixed"): Limit {
+            require(n >= 1) { "Limit \"$name\" must let at least one call in, not $n." }
+            return Limit(name, n, n, adapting = null)
+        }
+
+        /** Starts at [initial] and finds its own level between [min] and [max] from how long calls take. */
+        fun adaptive(name: String, initial: Int = 20, min: Int = 1, max: Int = 1_000): Limit {
+            require(min in 1..max) { "Limit \"$name\" needs 1 <= min <= max, not min $min and max $max." }
+            require(initial in min..max) { "Limit \"$name\" must start between $min and $max, not at $initial." }
+            return Limit(name, initial, max, Vegas(initial, min, max))
+        }
+    }
+}

@@ -2,6 +2,8 @@ plugins {
     kotlin("jvm") version "2.4.10" apply false
     // @Serializable classes: lark-actor-remote-kotlinx's tests, and the services that use it (spec 0093).
     kotlin("plugin.serialization") version "2.4.10" apply false
+    // A failed `expect` in lark-junit's suites draws its values (spec 0175).
+    kotlin("plugin.power-assert") version "2.4.10" apply false
     id("com.diffplug.spotless") version "8.10.0"
     id("dev.detekt") version "2.0.0-alpha.6" apply false
     id("org.jetbrains.kotlinx.kover") version "0.9.9"
@@ -75,7 +77,10 @@ val moduleDescriptions = mapOf(
     "lark-stream-forks" to "lark-stream on lark's own forks: a run is a pull loop on a virtual thread.",
     "lark-stream-actors" to "lark-stream on lark-actor: a run is an actor, pulling its loop a batch at a time.",
     "lark-stream-test" to "lark-stream for tests: every stage on the calling thread, on a clock the test owns.",
+    "lark-arrow" to "Lark's Either, NonEmptyList and Fail to and from Arrow's, for a codebase already on Arrow.",
+    "lark-assert" to "Assertions for tests of lark code: Either matchers that say which side they found.",
     "lark-test" to "For tests of a lark service: eventually on lark's clock, and a test that reads as a story.",
+    "lark-junit" to "Lark's tests on the JUnit Platform: a suite is an object, its tests share one resource.",
     "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
@@ -119,7 +124,7 @@ val gradlePluginModules = setOf("lark-app-gradle")
 val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
 
 // Measured, not tested: a benchmark has no assertions for a coverage floor to count.
-val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks")
+val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks", "lark-kafka-benchmarks")
 
 // Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
 // JDK 28 (JEP 543), and a release must not promise an API the JDK has not. lark-bank is an application

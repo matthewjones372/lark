@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.CircuitBreaker.State
+import io.github.matthewjones372.lark.fail.Fail
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -107,7 +107,7 @@ class CircuitBreakerTest {
     fun `a refusal from a guard inside the breaker is not counted`() {
         val breaker = CircuitBreaker("partner", maxFailures = 2, resetAfter = Schedule.spaced(1.seconds))
         val full = object : Guard {
-            override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A = throw Rejected.BulkheadFull("pool")
+            override fun <E, A> Fail<E>.guard(block: Fail<E>.() -> A): A = throw Rejected.BulkheadFull("pool")
         }
         val partner = policy("partner") {
             guard(breaker)

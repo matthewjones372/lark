@@ -1,8 +1,9 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.right
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
@@ -104,7 +105,7 @@ class LetGoTest {
             parent.childCount
         }
 
-        parent shouldBe 0.right()
+        parent shouldBeRight 0
     }
 
     @Test
@@ -114,7 +115,7 @@ class LetGoTest {
             actorCount
         }
 
-        held shouldBe 0.right()
+        held shouldBeRight 0
     }
 
     @Test
@@ -133,6 +134,6 @@ class LetGoTest {
             }
         }
 
-        seen shouldBe (1.right() to 1).right()
+        seen shouldBeRight (1.right() to 1)
     }
 }

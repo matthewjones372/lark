@@ -6,6 +6,7 @@ import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.ShardedJournal
 import io.github.matthewjones372.lark.actor.SliceElsewhere
 import io.github.matthewjones372.lark.actor.Slices
+import io.github.matthewjones372.lark.fail.onRight
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty

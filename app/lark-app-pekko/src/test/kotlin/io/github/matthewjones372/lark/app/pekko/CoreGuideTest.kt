@@ -11,13 +11,18 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 /**
- * The complete examples in `docs/core.md`, `docs/observability.md` and `docs/testing.md`, each compiled on its own:
- * this module's test classpath holds the core and lark-pekko, which is all those examples use.
+ * The complete examples in `docs/core.md`, `docs/observability.md`, `docs/testing.md` and the README's suite, each
+ * compiled on its own: this module's test classpath holds the core, lark-pekko and lark-junit, which is all they use.
  */
 class CoreGuideTest {
 
     private val pages =
-        listOf("docs/core.md" to "core", "docs/observability.md" to "observability", "docs/testing.md" to "testing")
+        listOf(
+            "docs/core.md" to "core",
+            "docs/observability.md" to "observability",
+            "docs/testing.md" to "testing",
+            "README.md" to "readme",
+        )
 
     @TempDir
     lateinit var workspace: File

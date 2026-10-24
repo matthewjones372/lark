@@ -1,8 +1,9 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.left
-import arrow.core.raise.Raise
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.assert.shouldBeLeft
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -36,7 +37,7 @@ internal class JumpingClock(private val forksWait: Boolean) : Clock {
 }
 
 private class Tracing(private val label: String, private val trace: MutableList<String>) : Guard {
-    override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A {
+    override fun <E, A> Fail<E>.guard(block: Fail<E>.() -> A): A {
         trace += label
         return block()
     }
@@ -135,7 +136,7 @@ class PolicyTest {
     }
 
     @Test
-    fun `a raise passes through every step uncounted`() {
+    fun `a fail under attempt passes through every step uncounted`() {
         val attempts = AtomicInteger()
         val partner = policy("partner") {
             deadline(1.seconds)
@@ -143,10 +144,10 @@ class PolicyTest {
             attemptTimeout(1.seconds)
         }
 
-        either<Bad, Int> {
+        attempt<Bad, Int> {
             guarded(partner, ifRejected = { Bad("rejected") }) {
                 attempts.incrementAndGet()
-                raise(Bad("declared"))
+                fail(Bad("declared"))
             }
         } shouldBe Bad("declared").left()
 
@@ -154,14 +155,33 @@ class PolicyTest {
     }
 
     @Test
+    fun `a fail in a flock passes through every step uncounted`() {
+        val attempts = AtomicInteger()
+        val partner = policy("partner") {
+            deadline(1.seconds)
+            retry(Schedule.recurs(3))
+            attemptTimeout(1.seconds)
+        }
+
+        flock<Bad, Int> {
+            guarded(partner, ifRejected = { Bad("rejected") }) {
+                attempts.incrementAndGet()
+                fail(Bad("declared"))
+            }
+        } shouldBeLeft Bad("declared")
+
+        attempts.get() shouldBe 1
+    }
+
+    @Test
     fun `guarded turns a rejection into the declared error`() {
         val refusing = object : Guard {
-            override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A =
+            override fun <E, A> Fail<E>.guard(block: Fail<E>.() -> A): A =
                 throw Rejected.RateLimited("partner", 2.seconds)
         }
         val partner = policy("partner") { guard(refusing) }
 
-        either<Bad, Int> {
+        attempt<Bad, Int> {
             guarded(partner, ifRejected = { Bad("${it.guard}: ${it.message}") }) { 42 }
         } shouldBe Bad("partner: partner has no token for 2s").left()
     }
@@ -196,7 +216,7 @@ class PolicyTest {
             val partner = policy("partner") {
                 guard(
                     object : Guard {
-                        override fun <E, A> Raise<E>.guard(block: Raise<E>.() -> A): A = throw refusal
+                        override fun <E, A> Fail<E>.guard(block: Fail<E>.() -> A): A = throw refusal
                     },
                 )
             }

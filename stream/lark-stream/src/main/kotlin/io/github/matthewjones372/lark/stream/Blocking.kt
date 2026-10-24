@@ -24,6 +24,22 @@ fun <R : Any, A : Any> Stream.Companion.blocking(
     Stream(Node.Blocking(open, next.erased(), wake.erased(), close.erased(), buildSite()))
 
 /**
+ * [blocking], with [ready] saying when the next [next] returns without blocking: a consumer's last poll still
+ * holding records, a cursor's fetched rows. A backend that hands each element to the stream across threads reads
+ * the ready ones along with the read before them and hands them over together, as Pekko does (spec 0154); one that
+ * reads on the stream's own thread has nothing to save and never asks. [ready] is asked between reads, by the
+ * thread that reads, so it sees what [next] left.
+ */
+fun <R : Any, A : Any> Stream.Companion.blocking(
+    open: () -> R,
+    next: (R) -> A?,
+    ready: (R) -> Boolean,
+    wake: (R) -> Unit,
+    close: (R) -> Unit,
+): Stream<Nothing, A> =
+    Stream(Node.Blocking(open, next.erased(), wake.erased(), close.erased(), buildSite(), ready.erased()))
+
+/**
  * One run's resource, for a backend: the rules [Stream.Companion.blocking] promises, kept in one place so
  * every backend keeps them the same way.
  */
@@ -53,6 +69,9 @@ class Opened internal constructor(private val node: Node.Blocking, private val r
             }
         }
     }
+
+    /** Whether the next [next] returns without blocking; never once the run was woken to stop or closed. */
+    fun ready(): Boolean = !woken.get() && !closed.get() && node.ready(resource)
 
     /** Tells a blocked [next] to return; a resource already closed is not asked. */
     fun wake() {

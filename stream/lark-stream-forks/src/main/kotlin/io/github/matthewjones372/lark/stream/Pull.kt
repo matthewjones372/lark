@@ -1,7 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.CompletionStage
@@ -133,8 +134,16 @@ internal fun Node.pull(): Pull =
         is Node.RestartOnDefect -> restarting(timeline())
 
         // On a test's clock one element at a time, in the order they came, which is the answer a test of
-        // timing wants; on Forks, a window of bodies in flight.
-        is Node.MapPar -> if (Turns.taking()) inOrder() else window(Releases.here())
+        // timing wants, and keeps every key's order too; on Forks, a window of bodies in flight.
+        is Node.MapPar -> {
+            val keyed = key
+            when {
+                Turns.taking() -> inOrder()
+                keyed != null -> keyedWindow(keyed, Releases.here())
+                ordered -> window(Releases.here())
+                else -> unorderedWindow(Releases.here())
+            }
+        }
 
         is Node.Buffer -> if (Turns.taking()) bufferedOnClock(Turns.here()) else buffered(Releases.here())
 
@@ -143,7 +152,11 @@ internal fun Node.pull(): Pull =
         is Node.Interleave -> interleave()
 
         // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them fed by a fork.
-        is Node.MapAsync -> if (Turns.taking()) awaiting(1) else fed(parallelism, Releases.here())
+        is Node.MapAsync -> when {
+            Turns.taking() -> awaiting(1)
+            ordered -> fed(parallelism, Releases.here())
+            else -> fedUnordered(Releases.here())
+        }
 
         is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Releases.here())
 
@@ -216,7 +229,7 @@ private fun Node.MapOrFail.mapOrFail(): Pull {
 
 /** A `mapPar` one element at a time, on the pulling thread: its raise is the stream's, as on Pekko. */
 private fun Node.MapPar.inOrder(): Pull {
-    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
     return Pull { up.next()?.let { a -> body(a).fold({ e -> throw DeclaredFailure(e) }, { b -> b }) } }
 }

@@ -54,6 +54,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-stream-actors`: the `lark-actor` backend.
 - `lark-stream-test`: `TestStreams` and `TestClock`.
 - `lark-test`: `story`, `eventually`.
+- `lark-junit`: `Suite` objects run by a JUnit Platform engine.
 - `lark-app`: the graph, `LarkApp`, `closingOf`, probes, `testApp`.
 - `lark-app-typesafe`: `config`, `secret`, `choosing`, `overridingConfig`.
 - `lark-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.
@@ -64,6 +65,8 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-app-gradle`: the wiring plugin.
 - `lark-app-compiler`: the checker behind the wiring plugin.
 - `lark-otel`: traces across forks.
+- `lark-arrow`: Lark's types to and from Arrow's.
+- `lark-assert`: `shouldBeRight` and `shouldBeLeft` for tests.
 - `lark-slf4j`: log lines through SLF4J.
 - `lark-micrometer`: metrics on Micrometer.
 - `lark-kafka`: Kafka as a `Stream`, commit after the work, dead letters, transactions.

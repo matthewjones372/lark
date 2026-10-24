@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import arrow.core.right
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
@@ -18,6 +17,8 @@ import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.actor.unhandled
 import io.github.matthewjones372.lark.actor.watch
+import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -143,7 +144,7 @@ class RemoteTest {
             }
         }
 
-        charted shouldBe 75.right().right()
+        charted shouldBeRight 75.right()
     }
 
     @Test
@@ -180,7 +181,7 @@ class RemoteTest {
             Triple(charted, hospital.letters.toList(), earlier)
         }
 
-        charted shouldBe 0.right().right()
+        charted shouldBeRight 0.right()
         letters shouldContainExactly listOf(DeadLetter(earlier, Admit(50), DeadLetter.Why.NoSuchActor))
     }
 
@@ -229,7 +230,7 @@ class RemoteTest {
             }
         }
 
-        heard shouldBe listOf("Terminated").right().right()
+        heard shouldBeRight listOf("Terminated").right()
     }
 
     @Test
@@ -248,7 +249,7 @@ class RemoteTest {
             }
         }
 
-        heard shouldBe 0.right().right()
+        heard shouldBeRight 0.right()
     }
 
     @Test
@@ -274,7 +275,7 @@ class RemoteTest {
             watched.await()
         }
 
-        ended.map { it.javaClass.simpleName } shouldBe "Terminated".right()
+        ended.shouldBeRight().javaClass.simpleName shouldBe "Terminated"
     }
 }
 

@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -48,13 +48,20 @@ class ReadmeExampleTest {
         /** The one that only the document carries, since the README sends the reader there for it. */
         private const val BLOCKING = "<!-- mappar-example -->"
 
+        /** The unordered window, which only the document shows (spec 0170). */
+        private const val UNORDERED = "<!-- unordered-example -->"
+
+        /** A stream under an adaptive limit (spec 0171). */
+        private const val LIMIT = "<!-- limit-example -->"
+
         /** One description, started on Pekko, Forks and TestStreams. */
         private const val BACKENDS = "<!-- backend-example -->"
 
         /** The README's complete program, on the core alone. */
         private const val QUICKSTART = "<!-- quickstart-example -->"
 
-        private val inTheDocument = listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING, BLOCKING, BACKENDS)
+        private val inTheDocument =
+            listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING, BLOCKING, UNORDERED, LIMIT, BACKENDS)
     }
 
     @TempDir
@@ -133,6 +140,16 @@ class ReadmeExampleTest {
         compiles(only(document(), BLOCKING))
     }
 
+    @Test
+    fun `the unordered window the document shows compiles`() {
+        compiles(only(document(), UNORDERED))
+    }
+
+    @Test
+    fun `the limited stream the document shows compiles`() {
+        compiles(only(document(), LIMIT))
+    }
+
     /** The same pipeline, line for line, run: what the document shows is compiled and also true. */
     @Test
     fun `the pipeline the document shows sends the receipts and diverts the declines`() {
@@ -145,10 +162,10 @@ class ReadmeExampleTest {
         val receipts = ConcurrentLinkedQueue<Receipt>()
         val receiptSink = Sink.foreach<Receipt> { receipt -> receipts.add(receipt) }
 
-        val settled: Either<IngestError, Done> = either {
+        val settled: Either<IngestError, Done> = attempt {
             awaitExit(
                 Stream.from(rows)
-                    .mapOrFail { row -> Customer(row.id, row.customer ?: raise(NoCustomer(row.id))) }
+                    .mapOrFail { row -> Customer(row.id, row.customer ?: fail(NoCustomer(row.id))) }
                     .mapAsync(4) { customer -> ledger.settle(customer) }
                     .divertLefts(to = declinedSink)
                     .runWith(receiptSink)

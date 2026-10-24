@@ -46,6 +46,8 @@ Facts worth having before anything else:
 - `lark-stream-test`: `TestStreams` and `TestClock`, every stage on the calling
   thread and time the test moves.
 - `lark-test`: `story` (Given, When, Then), `eventually(within)`.
+- `lark-junit`: a JUnit Platform engine; a `Suite` object's tests share one
+  `Resource`, and Gradle and the IDE report them as Jupiter's.
 - `lark-app`: an application as a value: `single`, `singleOf`, `closingOf`,
   `boundTo`, `overriding`, `subgraph`, probes, health, `testApp`, `LarkApp`,
   `awaitShutdown`.
@@ -67,6 +69,10 @@ Facts worth having before anything else:
   and warnings in the editor.
 - `lark-otel`: an OpenTelemetry `Context` that crosses a fork; on the classpath
   and nothing else.
+- `lark-arrow`: Lark's `Either`, `NonEmptyList` and `Fail` to and from
+  Arrow's: `toArrow()`, `toLark()`, `lark { }` and `arrow { }`.
+- `lark-assert`: `shouldBeRight` and `shouldBeLeft` for Lark's `Either`; a failure
+  names the test's line and its source.
 - `lark-slf4j`: lark's log lines through SLF4J, annotations in the MDC; on the
   classpath and nothing else.
 - `lark-micrometer`: lark's counters, gauges and timers on Micrometer's

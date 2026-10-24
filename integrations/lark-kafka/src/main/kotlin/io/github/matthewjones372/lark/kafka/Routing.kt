@@ -2,7 +2,9 @@
 
 package io.github.matthewjones372.lark.kafka
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.fold
+import io.github.matthewjones372.lark.fail.onLeft
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.mapConcat
 import io.github.matthewjones372.lark.stream.mapOrFail
@@ -20,4 +22,4 @@ fun <E, L : Any, R : Any> Stream<E, Committed<Either<L, R>>>.divertLefts(to: (L)
 
 /** The first `Left` ends the run as `Failed`, with what came before it committed. */
 fun <E, L : E, R : Any> Stream<E, Committed<Either<L, R>>>.absolve(): Stream<E, Committed<R>> =
-    mapOrFail<E, Committed<Either<L, R>>, Committed<R>> { c -> c.carrying(c.value.fold({ raise(it) }, { it })) }
+    mapOrFail<E, Committed<Either<L, R>>, Committed<R>> { c -> c.carrying(c.value.fold({ fail(it) }, { it })) }

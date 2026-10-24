@@ -1,5 +1,9 @@
 # 0139 — Lark on JDK 21
 
+> **Declined, 2026-10-22.** Lark stays on JDK 25 as toolchain and floor. Pinning
+> inside third-party libraries is the risk this spec could only report, not remove,
+> and JDK 25 removes it. No stack entry was built.
+
 ## Problem
 
 Every published module compiles for JDK 25 (`jvmToolchain(25)`), so a service on

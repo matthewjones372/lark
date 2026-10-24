@@ -153,7 +153,7 @@ private fun Node.measured(of: (Node) -> Instruments): Node {
         )
 
         is Node.MapPar -> Node.Probed(
-            Node.MapPar(child(upstream), parallelism, on, { a -> stage.timed { f(a) } }, at),
+            Node.MapPar(child(upstream), parallelism, on, { a -> stage.timed { f(a) } }, at, key, ordered),
             stage.probe(counts = true),
         )
 

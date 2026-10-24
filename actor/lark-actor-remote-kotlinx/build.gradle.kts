@@ -11,6 +11,7 @@ plugins {
 val protobufVersion = "4.36.2"
 
 dependencies {
+    testImplementation(project(":lark-assert"))
     api(project(":lark-actor-remote"))
     // Its protobuf format and schema generator are marked experimental: pinned to the version tested here.
     api("org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.11.0")

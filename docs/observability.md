@@ -116,6 +116,8 @@ installing `lark-micrometer` exports them with nothing more to write:
 - streams: `lark.stream.elements`, `lark.stream.busy` and
   `lark.stream.waiting` per stage, for a run started with
   [`measured`](stream.md#optimisation-rendering-and-profiling);
+- Kafka consumers and producers: `lark.kafka.*`, see
+  [Meters](kafka.md#meters);
 - actors, remoting, membership, sharding, reliable delivery and topics: see
   [Watching a cluster](cluster.md#watching).
 

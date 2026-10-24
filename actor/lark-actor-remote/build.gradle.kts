@@ -7,6 +7,7 @@ plugins {
 }
 
 dependencies {
+    testImplementation(project(":lark-assert"))
     api(project(":lark-actor"))
 }
 

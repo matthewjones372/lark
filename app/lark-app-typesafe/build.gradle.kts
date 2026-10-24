@@ -16,6 +16,8 @@ dependencies {
 val documentedReport = files(rootProject.layout.projectDirectory.file("docs/cookbook.md"))
 
 tasks.test {
+    // What LoadedLayersTest forces on top once -Dconfig.override_with_env_vars asks it to.
+    environment("CONFIG_FORCE_lark_layered_forced", "from-env")
     inputs.files(documentedReport).withPropertyName("documentedReport")
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")

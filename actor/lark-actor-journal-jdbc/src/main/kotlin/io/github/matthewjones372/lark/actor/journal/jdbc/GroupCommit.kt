@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import arrow.core.Either
 import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.PersistenceId
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.logDebug
 import java.sql.Connection
 import java.sql.SQLException

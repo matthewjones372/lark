@@ -1,8 +1,10 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.Either
 import arrow.core.raise.Raise
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
@@ -13,8 +15,11 @@ import kotlin.concurrent.withLock
 /** Whether `async` forks where it is written, or waits until something asks for the value. */
 enum class Start { Eager, Lazy }
 
-/** A `Raise` scope that owns every thread forked in it: no fork outlives the block that opened it. */
-interface Flock<E> : Raise<E> {
+/**
+ * A [Fail] scope that owns every thread forked in it: no fork outlives the block that opened it. It is an
+ * Arrow `Raise` as well until spec 0168 moves the rest of lark off Arrow, so both kinds of code run in it.
+ */
+interface Flock<E> : Fail<E>, Raise<E> {
     /** The executor this scope's forks run on when a call does not name another. */
     val on: Executor
 
@@ -37,13 +42,14 @@ interface Flock<E> : Raise<E> {
  * Opens a scope on the calling thread and closes it when [block] leaves — by return, raise or throw —
  * interrupting every fork still running and joining all of them before this returns.
  */
-fun <E, A> flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A): Either<E, A> = either { flock(on, block) }
+fun <E, A> flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A): Either<E, A> =
+    attempt { this.flock(on, block) }
 
 /**
- * The same scope inside a `Raise` already in hand, so `either { flock { async { } } }` needs no second
- * boundary; a fork still opens one of its own, because a `Raise` never crosses a thread.
+ * The same scope inside a [Fail] already in hand, so `attempt { flock { async { } } }` needs no second
+ * boundary; a fork still opens one of its own, because a scope never crosses a thread.
  */
-fun <E, A> Raise<E>.flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A): A {
+fun <E, A> Fail<E>.flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A): A {
     val nest = Nest(this, on)
     val value = try {
         nest.block()
@@ -51,7 +57,7 @@ fun <E, A> Raise<E>.flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A
         nest.close()
     }
     // Only reached on a return, so a fork nobody awaited still gets to fail its parent.
-    nest.unnoticedFailure()?.let { surface(it) }
+    nest.unnoticedFailure()?.let { nest.surface(it) }
     return value
 }
 
@@ -61,7 +67,7 @@ fun <E, A> Raise<E>.flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A
  */
 private fun <E, T> capture(on: Executor, block: Flock<E>.() -> T): Outcome<E, T> =
     try {
-        either { flock(on, block) }.fold({ Raised(it) }, { Returned(it) })
+        attempt { this.flock(on, block) }.fold({ Raised(it) }, { Returned(it) })
     } catch (t: Throwable) {
         Thrown(t)
     }
@@ -70,20 +76,22 @@ private fun <E, T> capture(on: Executor, block: Flock<E>.() -> T): Outcome<E, T>
  * The owner the top-level combinators fork under: `Nothing` has no value, so nothing running inside one
  * can hand it an error to raise.
  */
-internal object Unraisable : Raise<Nothing> {
+internal object Unraisable : Raise<Nothing>, Fail<Nothing> {
     override fun raise(r: Nothing): Nothing = r
+
+    override fun fail(error: Nothing): Nothing = error
 }
 
 /**
  * The owner an accumulating combinator forks under: it keeps its branches' errors and answers with all of
  * them at once, so no fork ever hands one back to be surfaced on its own.
  */
-internal object Uncollected : Raise<Any?> {
-    override fun raise(r: Any?): Nothing = error("an accumulated error is answered by its combinator")
+internal object Uncollected : Fail<Any?> {
+    override fun fail(error: Any?): Nothing = error("an accumulated error is answered by its combinator")
 }
 
-private fun <E> Raise<E>.surface(failure: Failure<E>): Nothing = when (failure) {
-    is Raised -> raise(failure.error)
+private fun <E> Fail<E>.surface(failure: Failure<E>): Nothing = when (failure) {
+    is Raised -> fail(failure.error)
     is Thrown -> throw failure.throwable
 }
 
@@ -110,7 +118,11 @@ private fun CountDownLatch.awaitFully() {
     if (interrupted) Thread.currentThread().interrupt()
 }
 
-private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Raise<E> by raise {
+private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : Flock<E> {
+
+    override fun fail(error: E): Nothing = owner.fail(error)
+
+    override fun raise(r: E): Nothing = owner.fail(r)
 
     // Only the scope's own thread reaches this: a fork body is handed a nest of its own.
     private val forks = mutableListOf<Fork<E, *>>()
@@ -164,12 +176,12 @@ private class Nest<E>(raise: Raise<E>, override val on: Executor) : Flock<E>, Ra
  * The forks a combinator owns rather than the scope: it opens them, waits on the calling thread, and does
  * not return until every one has ended, so none of them is left for the scope to notice at close.
  */
-internal class Flight<E>(private val owner: Raise<E>, private val on: Executor) {
+internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
 
     private val ended = Semaphore(0)
     private val forks = mutableListOf<Fork<E, *>>()
 
-    fun <T> fork(block: Raise<E>.() -> T): Fork<E, T> = Fork(owner, on, block, ended::release).also { forks += it }
+    fun <T> fork(block: Flock<E>.() -> T): Fork<E, T> = Fork(owner, on, block, ended::release).also { forks += it }
 
     /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
     fun settleAll() {
@@ -209,7 +221,7 @@ internal class Flight<E>(private val owner: Raise<E>, private val on: Executor) 
 }
 
 internal class Fork<E, T>(
-    private val owner: Raise<E>,
+    private val owner: Fail<E>,
     private val on: Executor,
     private val block: Flock<E>.() -> T,
     private val ended: () -> Unit = {},

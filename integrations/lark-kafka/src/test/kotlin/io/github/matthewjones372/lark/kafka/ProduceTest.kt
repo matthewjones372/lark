@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.PekkoStreams
@@ -9,6 +10,7 @@ import io.github.matthewjones372.lark.stream.of
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runCollect
 import io.github.matthewjones372.lark.stream.take
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -24,7 +26,9 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /** One description of a producer, run on whichever backend the run names, against one broker. */
 class ProduceTest {
@@ -136,19 +140,24 @@ class ProduceTest {
             String(data).also { if (it == "bad") throw SerializationException("unreadable") }
         }
 
-        Kafka.producer(producerProperties(), ByteArraySerializer(), ByteArraySerializer()).use { bytes ->
-            Kafka.consume(
-                consumerProperties("letters-$on"),
-                Topic(input),
-                key = Decoder.string(),
-                value = Decoder(strict) { false },
-            )
-                .divertLefts(bytes.deadLetters(dead))
-                .take(2)
-                .runCommitting()
-                .run(backend(on))
-                .settled() shouldBe Exit.Done(2L)
+        val captured = capturingMetrics { captured ->
+            Kafka.producer(producerProperties(), ByteArraySerializer(), ByteArraySerializer()).use { bytes ->
+                Kafka.consume(
+                    consumerProperties("letters-$on"),
+                    Topic(input),
+                    key = Decoder.string(),
+                    value = Decoder(strict) { false },
+                )
+                    .divertLefts(bytes.deadLetters(dead))
+                    .take(2)
+                    .runCommitting()
+                    .run(backend(on))
+                    .settled() shouldBe Exit.Done(2L)
+            }
+            captured
         }
+        captured.counter("lark.kafka.dead.letters") shouldBe 1.0
+        captured.tags("lark.kafka.dead.letters")["topic"] shouldBe input
 
         val letter = kafka.read(dead.name, 1).single()
         letter.value() shouldBe "bad"
@@ -160,13 +169,96 @@ class ProduceTest {
     }
 
     @Test
+    fun `publishAll answers each record in order, and omits what came after one the producer gave up on`() {
+        val topic = Topic("published-all")
+        val big = "x".repeat(MAX_REQUEST_BYTES * 2)
+
+        val outcomes = strings().use { producer ->
+            producer.publishAll(listOf("a", "b", big, "d").map { value -> topic.record(value, value) })
+        }
+
+        outcomes.take(2).map { it.getOrNull() } shouldBe
+            listOf(Published(topic.name, 0, 0L), Published(topic.name, 0, 1L))
+        val (failed, omitted) = outcomes.drop(2).map { it.leftOrNull()!! }
+        failed.cause.shouldBeInstanceOf<RecordTooLargeException>()
+        withClue("the record after the failure is not sent, and says which failure stopped it") {
+            omitted.record.value() shouldBe "d"
+            omitted.cause.shouldBeInstanceOf<PublishOmitted>().cause shouldBe failed.cause
+        }
+        kafka.read(topic.name, 2).map { it.value() } shouldBe listOf("a", "b")
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `a batch whose write fails ends on absolve, with only what came before the failure committed`(on: String) {
+        val input = "batch-failing-in-$on"
+        val output = Topic("batch-failing-out-$on")
+        kafka.send(input, "1", "2", "x".repeat(MAX_REQUEST_BYTES * 2), "4", "5")
+
+        val exit = strings().use { producer ->
+            consumed("batch-failing-$on", input)
+                .mapRecord { record -> record.value() }
+                .publishBatch(producer, batch = 5, within = 10.seconds) { value -> output.record(value, value) }
+                .absolve()
+                .runCommitting()
+                .run(backend(on))
+                .settled()
+        }
+
+        exit.shouldBeInstanceOf<Exit.Failed<PublishFailed>>().error.cause.shouldBeInstanceOf<RecordTooLargeException>()
+        kafka.read(output.name, 2).map { it.value() } shouldBe listOf("1", "2")
+        kafka.committed("batch-failing-$on", input) shouldBe 2L
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["Forks", "Pekko"])
+    fun `divertLefts hands on a batch's failed and omitted records, and the next batch commits past them`(on: String) {
+        val input = "batch-diverted-in-$on"
+        kafka.send(input, "1", "2", "x".repeat(MAX_REQUEST_BYTES * 2), "4", "5", "6")
+        val lefts = ConcurrentLinkedQueue<PublishFailed>()
+
+        strings().use { producer ->
+            consumed("batch-diverted-$on", input)
+                .mapRecord { record -> record.value() }
+                .publishBatch(producer, batch = 5, within = 1.seconds) { value ->
+                    Topic("batch-diverted-out-$on").record(value, value)
+                }
+                .divertLefts(lefts::add)
+                .take(3)
+                .runCommitting()
+                .run(backend(on))
+                .settled() shouldBe Exit.Done(3L)
+        }
+
+        lefts.map { it.record.value() to it.cause::class } shouldBe listOf(
+            "x".repeat(MAX_REQUEST_BYTES * 2) to RecordTooLargeException::class,
+            "4" to PublishOmitted::class,
+            "5" to PublishOmitted::class,
+        )
+        withClue("a Left commits with the next Right on its partition, here the second batch's one record") {
+            kafka.committed("batch-diverted-$on", input) shouldBe 6L
+        }
+    }
+
+    @Test
     fun `publish answers where the record went, or why the producer gave up on it`() {
         val topic = Topic("published")
 
-        strings().use { producer ->
-            producer.publish(topic.record("k", "v")).getOrNull() shouldBe Published(topic.name, 0, 0L)
-            producer.publish(topic.record("k", "x".repeat(MAX_REQUEST_BYTES * 2))).leftOrNull()!!
-                .cause.shouldBeInstanceOf<RecordTooLargeException>()
+        val captured = capturingMetrics { captured ->
+            strings().use { producer ->
+                producer.publish(topic.record("k", "v")).getOrNull() shouldBe Published(topic.name, 0, 0L)
+                producer.publish(topic.record("k", "x".repeat(MAX_REQUEST_BYTES * 2))).leftOrNull()!!
+                    .cause.shouldBeInstanceOf<RecordTooLargeException>()
+            }
+            captured
         }
+
+        captured.counter("lark.kafka.producer.records") shouldBe 1.0
+        withClue("the acknowledged record's key and value") {
+            captured.counter("lark.kafka.producer.bytes") shouldBe 2.0
+        }
+        captured.counter("lark.kafka.producer.failures") shouldBe 1.0
+        captured.histogram("lark.kafka.producer.ack").size shouldBe 1
+        captured.tags("lark.kafka.producer.records")["topic"] shouldBe topic.name
     }
 }

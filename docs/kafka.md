@@ -15,6 +15,7 @@ backends and test support described there apply here too.
 |---|---|---|
 | `Kafka.consume(…)…runCommitting()` | once the record's element reaches the end of the stream | at least once: a crash or restart before the commit handles the record again |
 | `…publishRecord(producer) { … }.runCommitting()` | once the output is acknowledged by the broker, in order | at least once: an output can be written twice |
+| `…publishBatch(producer) { … }.absolve().runCommitting()` | once the output is acknowledged, up to the first that failed | at least once: the failed record and those after it are sent again |
 | `…transacted(producer) { … }` | in the same Kafka transaction as the outputs | exactly once for consumers reading with `isolation.level=read_committed`, with one caveat at the end of a run (see [Exactly once](#exactly-once-in-a-transaction)) |
 
 Handlers should be idempotent wherever the guarantee is at least once.
@@ -46,9 +47,17 @@ placing.start(PekkoStreams(system))     // the same description on Pekko Streams
 `Kafka.consume` is one `KafkaConsumer` per run, read through
 `Stream.blocking`, and it is in `lark-kafka`, which brings no backend at all.
 Only the thread that polls touches the consumer. It commits what
-`runCommitting()` marked handled before each poll, for the partitions it loses
-in a rebalance, and when the run ends, and a run's exit completes only after
-that last commit. A `stop()` wakes a poll that is waiting on a quiet topic.
+`runCommitting()` marked handled before each poll, without waiting for the
+broker's answer, so the poll is not held up by it. For the partitions it loses
+in a rebalance, and when the run ends, it waits, and a run's exit completes only
+after that last commit. A commit the broker refuses for good fails the run at
+the next poll, as a defect. The consumer then closes within a few round trips to its
+coordinator, enough for it to leave its group, rather than waiting up to
+`fetch.max.wait.ms` for a fetch the broker is holding, as `KafkaConsumer.close()`
+does by default. A handler slower than `max.poll.interval.ms` does not lose the
+group: once half that interval passes without a poll, the consumer pauses its
+partitions and polls anyway, reading nothing ahead, and resumes them when the
+stream asks for the next record. A `stop()` wakes a poll that is waiting on a quiet topic.
 
 `Kafka.subscribe` is Pekko's own Kafka connector, in `lark-kafka-pekko`: a
 backpressured prefetch, commits batched by its committer sink, and a `stop()`
@@ -73,7 +82,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 |---|---|---|
 | Runs on | Forks, Pekko, TestStreams | Pekko |
 | Ends on | `runCommitting(): Run<E, Long>`, the count of elements | `runCommitting(settings): Run<E, Done>` |
-| Commits | on the polling thread, before each poll and on close | through the connector's committer sink, in batches |
+| Commits | on the polling thread: sent before each poll without waiting, waited for on a rebalance and on close | through the connector's committer sink, in batches |
 | `mapParRecord`, `divertLefts` | yes, on Forks as a window of bodies in flight | yes |
 | `restartOnDefect` | yes, on every backend; a restart closes the failed consumer before it opens the next | yes |
 
@@ -86,14 +95,43 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 | `Kafka.read(properties, topic, partition, key, value, from, until)` | one partition, assigned rather than subscribed, so no rebalance can take it away; `from` is `Committed`, `Earliest`, `Latest` or an `Offset`, and `until` is `Never` or `EndAtStart`. With no `group.id`, nothing is committed |
 | `Kafka.subscribe(settings, vararg topics)` and its `Decoder` form | the same two, through Pekko's connector |
 | `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | lark-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside lark-stream's would be ambiguous |
+| `groupedRecord(n, within)` | up to `n` records, or what came within `within`, as one `Committed<List<A>>`; see [Reading in batches](#reading-in-batches) |
+| `mapParPartitioned(parallelism) { value -> }` | `mapParRecord` in order only within each partition, through `mapParKeyed`: a slow record holds back only its own partition's later records. Each partition's offsets still commit in order. On Forks and Pekko; Actors and TestStreams keep full order |
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
 | `absolve()` | the first `Left` ends the run `Failed` |
 | `publishTo(producer) { a -> record }`, `publishRecord(producer) { value -> record }` | each element sent, and passed on in order once the broker has it; see below |
+| `publishBatch(producer) { value -> record }` | each batch sent through `producer.publishAll`, and each record passed on as `Committed<Either<PublishFailed, A>>`; see [What happens when a write in a batch fails](#what-happens-when-a-write-in-a-batch-fails) |
 | `transacted(producer) { value -> records }`, `runTransactionally(...)` | each batch's outputs and offsets in one transaction; see *Exactly once* |
 | `runCommitting()` / `runCommitting(settings)` | the run, committing each offset once its record's element reaches the end; `runCollect`, `runFold` and `runWith` over `Committed` do not compile, and each source's records end on their own one |
 
 Every body runs with `kafka.topic`, `kafka.partition` and `kafka.offset` on
 its log lines.
+
+## Reading in batches
+
+`groupedRecord` hands a body a list of records, for work that is cheaper in
+bulk, such as one insert for many rows:
+
+```kotlin
+import io.github.matthewjones372.lark.kafka.groupedRecord
+import kotlin.time.Duration.Companion.milliseconds
+
+Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), value = StringDeserializer())
+    .groupedRecord(500, 100.milliseconds)
+    .mapRecord { records -> db.insertAll(records.map { it.value() }) }
+    .runCommitting()
+```
+
+- **A batch commits as a whole.** It reaches `runCommitting` as one element,
+  every record in it is marked handled, and each partition's offset moves to
+  the last of its records in the batch.
+  It works the same through `Kafka.subscribe` and `runCommitting(settings)`,
+  and inside `transacted`.
+- **A record still expanding** under `mapConcatRecord` when a batch ends is
+  committed with the batch its last element lands in.
+- **A batch's body has no `kafka.*` annotations** on its lines, and runs
+  outside any record's trace, since its records may each come from a
+  different one.
 
 ## Writing to Kafka
 
@@ -136,6 +174,43 @@ Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value 
   bytes and headers, plus `lark.dead-letter.topic`, `.partition`, `.offset`,
   `.part` and `.cause`. It returns once the letter is acknowledged, so the bad
   record is never committed past a letter that was not written.
+
+## What happens when a write in a batch fails
+
+`publishRecord` fails the stream when the producer gives up on a record.
+`publishBatch` hands the outcome to the stream instead, one per record, so
+what comes after picks what to do:
+
+```kotlin
+import io.github.matthewjones372.lark.kafka.absolve
+import io.github.matthewjones372.lark.kafka.publishBatch
+
+Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), value = carts)
+    .mapRecord { cart -> cart.value().checkout() }
+    .publishBatch(orders) { order -> Topic("orders").record(order.id, order) }
+    .absolve()                          // or .divertLefts { failed -> ... }
+    .runCommitting()
+```
+
+- **A batch is up to 500 records, or what came within 100 ms**, sent by
+  `producer.publishAll(records)`. Each record is handed to the producer
+  without waiting on the one before, and one batch is in flight at a time.
+- **Once a record fails, the rest of its batch is not sent.** Each comes back
+  `PublishFailed` with a `PublishOmitted` cause, whose own cause is the first
+  failure, so the outputs keep their order. A record already handed to the
+  producer when the failure is seen keeps its own outcome, and may be
+  written. In practice omission is for a failure `send` sees at once, such as
+  a record too large or a serializer that throws; one the broker answers
+  later usually arrives after the whole batch was handed over.
+- **Offsets move up to the first failure.** Each record reaches
+  `runCommitting` on its own, in order. `absolve()` ends the run `Failed`
+  with the `PublishFailed`, and only the records before it are committed: a
+  restart sends the failed record and everything after it again.
+- **`divertLefts` goes on past it**, to dead-letter or to skip. The failed
+  and omitted records are handed to its function, and their offsets commit
+  with the next record written on their partition.
+- **The producer has already retried** what it could, for up to
+  `delivery.timeout.ms`, so a `Left` is final.
 
 ## Exactly once, in a transaction
 
@@ -181,6 +256,35 @@ Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), va
   transaction is committed with the group id alone, which the broker accepts
   without a generation check, so if the group rebalances at that moment a new
   owner may read the last batch again.
+
+## Meters
+
+`Kafka.consume`, the producers and `runTransactionally` record through lark's
+metrics API, so installing `lark-micrometer` exports them, and with no backend
+bound they cost nothing measurable (`larkForks` against `larkForksMetered` in
+`lark-kafka-benchmarks`). A consumer records to the metrics in scope, with the
+`metricTagged` tags bound, where it is described; a producer where it is
+opened. Every meter carries `group` (consumers) and `client`; a consumer whose
+properties name no `client.id` is given one, `lark-consumer-<group>-<n>`, so two
+consumers of one group in one process keep their own gauges. A producer's `client`
+is empty where its properties name none. Durations are in seconds.
+
+| Meter | Kind | Tags | Recorded |
+|---|---|---|---|
+| `lark.kafka.consumer.records`, `.bytes` | counter | `topic`, `partition` | each poll |
+| `lark.kafka.consumer.lag` | gauge | `topic`, `partition` | after each poll, from the client's last fetch; 0 once the partition is lost |
+| `lark.kafka.consumer.latency` | histogram | `topic`, `partition` | when a record is marked handled: now less its timestamp |
+| `lark.kafka.consumer.in.flight` | gauge | | records handed to the stream and not yet handled, at each poll |
+| `lark.kafka.consumer.poll`, `.commit`, `.close` | timer | | around each; `commit` is the commit a rebalance or close waits for |
+| `lark.kafka.consumer.commit.failures` | counter | | a commit the broker refused |
+| `lark.kafka.consumer.rebalances` | counter | `kind`: `assigned` or `revoked` | each rebalance |
+| `lark.kafka.consumer.assigned`, `.paused` | gauge | | the partitions owned, and those paused while the stream is slow |
+| `lark.kafka.producer.records`, `.bytes`, `.failures` | counter | `topic` | each acknowledgement, or each record given up on |
+| `lark.kafka.producer.ack` | timer | `topic` | send to acknowledgement |
+| `lark.kafka.dead.letters` | counter | `topic` read from | each `deadLetters` write |
+| `lark.kafka.transactions`, `.aborts` | timer, counter | | each `runTransactionally` commit, and each abort |
+
+`Kafka.read` records none yet.
 
 ## A registry that is down is not a bad record
 

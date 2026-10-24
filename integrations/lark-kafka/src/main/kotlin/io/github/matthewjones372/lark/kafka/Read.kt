@@ -2,7 +2,7 @@
 
 package io.github.matthewjones372.lark.kafka
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.blocking
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -57,6 +57,7 @@ fun <K, V> Kafka.read(
     return Stream.blocking(
         open = { Assigned(properties, TopicPartition(topic.name, partition), key, value, from, until, pollTimeout) },
         next = { read -> read.next() },
+        ready = { read -> read.ready() },
         wake = { read -> read.wake() },
         close = { read -> read.close() },
     )
@@ -112,7 +113,7 @@ private class Assigned<K, V>(
     fun next(): Committed<ConsumerRecord<K, V>>? {
         while (!polled.hasNext()) {
             if (end != null && consumer.position(partition) >= end) return null
-            commits.commit()
+            commits.commitAsync()
             val limit = end ?: Long.MAX_VALUE
             polled = consumer.poll(pollTimeout.toJavaDuration()).records(partition).filter { it.offset() < limit }
                 .iterator()
@@ -120,6 +121,9 @@ private class Assigned<K, V>(
         }
         return commits.carrying(polled.next())
     }
+
+    /** Whether the last poll still holds a record, so [next] returns without polling. */
+    fun ready() = polled.hasNext()
 
     fun wake() = consumer.wakeup()
 

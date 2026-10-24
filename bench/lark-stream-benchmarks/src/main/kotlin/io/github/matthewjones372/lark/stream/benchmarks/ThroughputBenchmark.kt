@@ -44,7 +44,7 @@ internal fun ingest(lines: List<String>): Run<Unparsed, Int> =
     Stream.from(lines)
         .map { line -> line.split(',') }
         .mapOrFail { fields ->
-            Payment(fields[0].toInt(), fields[1].toLongOrNull() ?: raise(Unparsed(fields.joinToString(","))))
+            Payment(fields[0].toInt(), fields[1].toLongOrNull() ?: fail(Unparsed(fields.joinToString(","))))
         }
         .filter { payment -> payment.pence > 0 }
         .map { payment -> payment.copy(pence = payment.pence * 2) }

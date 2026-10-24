@@ -1,8 +1,8 @@
 # lark-stream-benchmarks
 
 What today's `lark-stream` costs, measured by JMH. This is the baseline that spec
-[0046](../specs/0046-a-stream-described-once.md) must match and
-[0047](../specs/0047-a-stream-the-compiler-sees-whole.md) must beat.
+[0046](../../specs/0046-a-stream-described-once.md) must match and
+[0047](../../specs/0047-a-stream-the-compiler-sees-whole.md) must beat.
 
 ```bash
 ./gradlew :lark-stream-benchmarks:jmh                                    # all of it, about 3 minutes
@@ -110,7 +110,7 @@ were already calls in one loop, so fusing changes nothing measurable there.
 
 ## Actors beside Forks and Pekko, 2026-09-26
 
-After spec [0066](../specs/0066-a-stream-on-actors.md): every benchmark gains an `actors` row, run on `Actors` over
+After spec [0066](../../specs/0066-a-stream-on-actors.md): every benchmark gains an `actors` row, run on `Actors` over
 a flock held open for the trial, and two benchmarks are new. `ManyRunsBenchmark` starts a thousand ten-element runs
 at once and awaits them all; `HandOffBenchmark` is `merge` of two halves and `buffer(64)`, the operators that hand
 elements from one thread to another. JDK 21.0.10 on a 4 vCPU Intel Xeon @ 2.80GHz shared cloud container, 2 forks
@@ -140,7 +140,7 @@ What the rows say:
   an actor and a cell each, 1.5 KB against Forks' 0.9 KB, and every one queues for the same four runners.
 - **`groupedWithin` was slow on both, and not because of either backend.** Its feed handed each element over on its
   own with two parks and two wakes, 24–25 µs an element against Pekko's 184 ns. Spec
-  [0067](../specs/0067-a-grouped-within-that-keeps-up.md) queues a group at a time on real time, and the `forks` row
+  [0067](../../specs/0067-a-grouped-within-that-keeps-up.md) queues a group at a time on real time, and the `forks` row
   is 317 ± 33 ns against 178 ± 14 ns for the Pekko row, measured together afterwards.
 - **Both lark backends beat Pekko on every row they share with it**, except `groupedWithin`, which is within
   twice Pekko's after 0067.
@@ -152,10 +152,22 @@ bench/lark-stream-benchmarks/gate.sh origin/main                  # every row, t
 bench/lark-stream-benchmarks/gate.sh HEAD "ChainBenchmark"         # uncommitted changes against the last commit
 ```
 
-`gate.sh` runs the benchmarks on the ref in a worktree and then on this checkout, on the same machine
-one after the other, and `jmhCompare` fails when a row is both more than 10% slower (`-Ptolerance` to
-change it) and outside both error bars. The `benchmarks` workflow runs it on every pull request that
-touches a stream module and keeps each run's table as an artifact.
+`gate.sh` runs the benchmarks on the ref and on this checkout, each from a worktree of its own. A round
+runs every benchmark once on each side, one fork each, the two sides of a benchmark back to back and which
+goes first alternating (`GATE_ROUNDS`, 3 by default). `jmhCompare` pairs the rounds and fails when a row's
+median round is more than 10% slower (`-Ptolerance` to change it) and all rounds but one are more than 5%
+slower. Slower is a time per operation that rose, or for a `Throughput` row a score that fell. A row found
+slower is measured again on its own for as many rounds more, and fails only if it is still slower over all of
+them: one fork far off its others no longer fails the gate. The first table is kept as `rounds/first-compare.txt`.
+`gate-tolerance.properties` gives a row the gate failed on identical code a tolerance of its own:
+`MapParBenchmark`, `HandOffBenchmark` and `ManyRunsBenchmark.actors` rows may be 50% slower, since their forks
+disagree by more than any 10% could hold.
+
+A runner that slows down for a minute slows both sides of the benchmarks it measured in that minute, where
+measuring one side's suite and then the other's put the slow minute on one side and read it as a regression.
+JMH's error bars are left out of the decision: they measure one run's iterations, not that drift.
+The `benchmarks` workflow runs it on a pull request labelled
+`benchmarks`, again on each push to it, or from Run workflow, and keeps each run's table as an artifact.
 
 The committed numbers above are records, not thresholds: they were measured on one machine, and a gate
 against them on another would be measuring the machine.

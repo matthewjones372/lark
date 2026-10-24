@@ -16,6 +16,9 @@ fun module(group: String, name: String) {
 
 module("core", "lark")
 module("core", "lark-test")
+module("core", "lark-arrow")
+module("core", "lark-assert")
+module("core", "lark-junit")
 module("core", "lark-structured")
 
 module("stream", "lark-stream")
@@ -56,5 +59,6 @@ module("integrations", "lark-kafka-pekko")
 
 module("bench", "lark-stream-benchmarks")
 module("bench", "lark-actor-benchmarks")
+module("bench", "lark-kafka-benchmarks")
 
 module("examples", "lark-bank")

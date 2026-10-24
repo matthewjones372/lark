@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.fold
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeoutException
 import kotlin.time.Duration
@@ -10,29 +11,29 @@ import kotlin.time.Duration
  * answer in time ends at its next interruptible call and this throws. The sleeper is a fork like the block,
  * and runs where it does.
  */
-fun <E, A> Raise<E>.timeout(duration: Duration, block: Raise<E>.() -> A): A = timeout(VirtualThreads, duration, block)
+fun <E, A> Fail<E>.timeout(duration: Duration, block: Fail<E>.() -> A): A = timeout(VirtualThreads, duration, block)
 
 /** The same, with every fork run on [on]. */
-fun <E, A> Raise<E>.timeout(on: Executor, duration: Duration, block: Raise<E>.() -> A): A =
+fun <E, A> Fail<E>.timeout(on: Executor, duration: Duration, block: Fail<E>.() -> A): A =
     raceN(on, block) { duration.sleepOff() }
         .fold({ it }, { throw TimeoutException("no answer within $duration") })
 
 /** The same race, answering with null rather than throwing when the sleeper wins. */
-fun <E, A> Raise<E>.timeoutOrNull(duration: Duration, block: Raise<E>.() -> A): A? =
+fun <E, A> Fail<E>.timeoutOrNull(duration: Duration, block: Fail<E>.() -> A): A? =
     timeoutOrNull(VirtualThreads, duration, block)
 
 /** The same, with every fork run on [on]. */
-fun <E, A> Raise<E>.timeoutOrNull(on: Executor, duration: Duration, block: Raise<E>.() -> A): A? =
+fun <E, A> Fail<E>.timeoutOrNull(on: Executor, duration: Duration, block: Fail<E>.() -> A): A? =
     raceN(on, block) { duration.sleepOff() }.fold({ it }, { null })
 
-/** The same, for code outside any `Raise`. */
+/** The same, for code outside any `Fail`. */
 fun <A> timeout(duration: Duration, block: () -> A): A = timeout(VirtualThreads, duration, block)
 
 /** The same, with every fork run on [on]. */
 fun <A> timeout(on: Executor, duration: Duration, block: () -> A): A =
     Unraisable.timeout(on, duration) { block() }
 
-/** The same, for code outside any `Raise`. */
+/** The same, for code outside any `Fail`. */
 fun <A> timeoutOrNull(duration: Duration, block: () -> A): A? = timeoutOrNull(VirtualThreads, duration, block)
 
 /** The same, with every fork run on [on]. */

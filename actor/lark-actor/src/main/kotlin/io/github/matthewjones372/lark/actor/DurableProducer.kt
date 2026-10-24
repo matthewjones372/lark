@@ -1,11 +1,12 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.raise.Raise
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
@@ -202,16 +203,16 @@ private fun <M : Any, S, E> Behaviour<M, S, E>.onThrow(failed: (M?, Exception) -
     )
 }
 
-/** What [body] returns or raises; what it throws is told to [failed] and thrown on. */
+/** What [body] returns or fails with; what it throws is told to [failed] and thrown on. */
 // A journal may throw anything, and whatever it threw goes on to supervision unchanged.
 @Suppress("TooGenericExceptionCaught")
-private inline fun <M : Any, S, E> Raise<E>.told(
+private inline fun <M : Any, S, E> Fail<E>.told(
     failed: (M?, Exception) -> Unit,
     message: M?,
-    body: Raise<E>.() -> Next<S>,
+    crossinline body: Fail<E>.() -> Next<S>,
 ): Next<S> =
     try {
-        either<E, Next<S>> { body(this) }
+        attempt<E, Next<S>> { body(this) }
     } catch (thrown: Exception) {
         failed(message, thrown)
         throw thrown

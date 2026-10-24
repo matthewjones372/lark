@@ -232,8 +232,8 @@ class DoesNotCompileTest {
         val errors = compiles(
             """
             $preamble
-            val named = Stream.from(rows).mapParOrFail(2) { row -> row.customer ?: raise(NoCustomer(row.id)) }
-            val piped = Pipe.identity<Row>().mapParOrFail(2) { row -> row.customer ?: raise(NoCustomer(row.id)) }
+            val named = Stream.from(rows).mapParOrFail(2) { row -> row.customer ?: fail(NoCustomer(row.id)) }
+            val piped = Pipe.identity<Row>().mapParOrFail(2) { row -> row.customer ?: fail(NoCustomer(row.id)) }
             val declared: Stream<NoCustomer, String> = named
             val pipeDeclared: Pipe<NoCustomer, Row, String> = piped
             """.trimIndent(),

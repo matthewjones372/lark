@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.app.typesafe
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigResolveOptions
+import java.lang.ref.WeakReference
 
 /** One document in the stack, under the name a reader knows it by. */
 class Layer internal constructor(val name: String, val config: Config)
@@ -16,25 +17,82 @@ class Layer internal constructor(val name: String, val config: Config)
  */
 class Layered internal constructor(val layers: List<Layer>) {
 
-    /** The merge, resolved once over the whole stack, because a substitution may cross a layer. */
+    /**
+     * The merge, resolved once over the whole stack, because a substitution may cross a layer. It
+     * remembers these layers, so a section read from it can report what each setting overrode.
+     */
     val config: Config by lazy {
-        layers.map { it.config }.reduceOrNull { above, below -> above.withFallback(below) }
-            ?.resolve()
-            ?: ConfigFactory.empty()
+        val merged = layers.map { it.config }.reduceOrNull { above, below -> above.withFallback(below) }
+        (merged?.resolve() ?: ConfigFactory.empty()).also { remember(it, this) }
     }
 }
 
 /**
- * What a service reads at start-up, as layers rather than as the merge of them.
+ * Each merge [Layered.config] has handed out, beside the stack it came from.
+ *
+ * A section depends on `Config` alone, so one written by hand still starts; the layers ride beside the
+ * merge for the report rather than as a second node it would have to require. Beside it, not wrapped
+ * round it: `withFallback` casts its argument to Typesafe's own `Config`, so a wrapper breaks the first
+ * merge it is handed to. Found by identity, because Typesafe's `equals` ignores origins and two stacks
+ * can merge to equal documents. Both held weakly: a single layer with nothing to resolve is its own
+ * merge, so a strong hold on either would keep the other.
+ */
+private class Merge(config: Config, layered: Layered) {
+    val config = WeakReference(config)
+    val layered = WeakReference(layered)
+}
+
+private val merges = mutableListOf<Merge>()
+
+private fun remember(config: Config, layered: Layered) = synchronized(merges) {
+    merges.removeAll { it.config.get() == null }
+    merges += Merge(config, layered)
+}
+
+/** The stack this merge came from, or null for a `Config` written by hand. */
+internal fun Config.layeredOrNull(): Layered? =
+    synchronized(merges) { merges.lastOrNull { it.config.get() === this }?.layered?.get() }
+
+/**
+ * What `ConfigFactory.load()` reads, as layers rather than as the merge of them, in its order: the
+ * `CONFIG_FORCE_` variables when `-Dconfig.override_with_env_vars` asks for them, system properties,
+ * the application layer, and the reference.
  *
  * Not `defaultReference()`, which merges system properties into the reference before handing it
  * over: a report built on that says `reference.conf` holds a value that came from `-D`.
  */
-fun layeredConfig(): Layered = layeredConfigOf(
-    "system properties" to ConfigFactory.defaultOverrides(),
-    "application.conf" to ConfigFactory.parseResources("application.conf"),
-    "reference.conf" to ConfigFactory.parseResources("reference.conf"),
+fun layeredConfig(): Layered = Layered(
+    listOfNotNull(environmentOverrides(), "system properties" to ConfigFactory.systemProperties())
+        .plus(application())
+        .plus("reference.conf" to ConfigFactory.defaultReferenceUnresolved())
+        .map { (name, config) -> Layer(name, config) },
 )
+
+/** `defaultOverrides()` merges these into the system properties, which would credit `-D` with an env var. */
+private fun environmentOverrides(): Pair<String, Config>? =
+    if (System.getProperty("config.override_with_env_vars").toBoolean()) {
+        "environment overrides" to ConfigFactory.systemEnvironmentOverrides()
+    } else {
+        null
+    }
+
+/**
+ * `defaultApplication()`, split where it merges: a strategy or a `config.file`, `.resource` or `.url`
+ * replaces the whole layer, and otherwise `application.conf` beats `.json`, which beats `.properties`.
+ */
+private fun application(): List<Pair<String, Config>> {
+    val strategy = System.getProperty("config.strategy")
+    val replacement = REPLACEMENTS.firstNotNullOfOrNull { System.getProperty(it) }
+    return when {
+        strategy != null -> listOf(strategy to ConfigFactory.defaultApplication())
+        replacement != null -> listOf(replacement to ConfigFactory.parseApplicationReplacement().get())
+        else -> APPLICATION.map { name -> name to ConfigFactory.parseResources(name) }
+    }
+}
+
+private val REPLACEMENTS = listOf("config.resource", "config.file", "config.url")
+
+private val APPLICATION = listOf("application.conf", "application.json", "application.properties")
 
 /** The stack written out, for a test that would rather not have three files. Highest precedence first. */
 fun layeredConfigOf(vararg layers: Pair<String, Config>): Layered =
@@ -69,10 +127,14 @@ private fun List<Layer>.beaten(origin: Origin, secrets: Secrets): Overridden? =
         .drop(1)
         .firstOrNull()
         ?.let { layer ->
-            val value = layer.config.getValue(origin.path)
+            // A null beaten is still a value beaten, and getValue throws on one rather than return it.
+            val value = layer.config.takeUnless { it.getIsNull(origin.path) }?.getValue(origin.path)
             // Masked by the winner's own verdict: a report that hides the new password and prints the
             // old one has published a secret that is probably still in use somewhere.
-            Overridden(if (secrets.redacts(origin.path)) MASK else value.rendered(), value.origin().where())
+            Overridden(
+                if (secrets.redacts(origin.path)) MASK else value?.rendered() ?: "null",
+                value?.origin()?.where() ?: layer.name,
+            )
         }
 
 private const val GRAFT = "lark-layered-origins"

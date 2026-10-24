@@ -68,7 +68,6 @@ build codecs from classes you already have instead:
 
 <!-- cluster-remote -->
 ```kotlin
-import arrow.core.Either
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.AskFailure
@@ -84,6 +83,7 @@ import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.fail.Either
 import kotlin.time.Duration.Companion.seconds
 
 sealed interface Stock
@@ -402,7 +402,7 @@ A persistent behaviour is remembered by its events. A command answers an
 effect: `persist` writes events to the flock's journal and then applies them,
 `none` writes nothing, and `then` runs once they are written. On start, and on
 every move, the entity replays its events before its first command. Two writers for
-one entity cannot both succeed: the second append is a conflict, raised as the
+one entity cannot both succeed: the second append is a conflict, which becomes the
 entity's failure for its supervision to decide.
 
 For a cluster the journal must be one every node reaches. `JdbcJournal` keeps
@@ -630,7 +630,6 @@ such as a payment, send it reliably:
 
 <!-- cluster-reliable -->
 ```kotlin
-import arrow.core.Either
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
@@ -644,6 +643,7 @@ import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.delivery
 import io.github.matthewjones372.lark.cluster.Cluster
 import io.github.matthewjones372.lark.cluster.sharding
+import io.github.matthewjones372.lark.fail.Either
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -707,10 +707,10 @@ down" from "unavailable" by matching on `NotSent`:
 
 <!-- cluster-reliable-answers -->
 ```kotlin
-import arrow.core.Either
 import io.github.matthewjones372.lark.actor.Full
 import io.github.matthewjones372.lark.actor.NotSent
 import io.github.matthewjones372.lark.actor.Unwritten
+import io.github.matthewjones372.lark.fail.Either
 
 /** The HTTP status a checkout answers for a payment it sent, or did not. */
 fun status(sent: Either<NotSent, Unit>): Int = when (sent) {

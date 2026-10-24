@@ -34,7 +34,7 @@ private fun manager(log: AtomicReference<List<String>>) = behaviour<Shift, Unit,
 
         Shut -> stop()
 
-        Trip -> raise("tripped")
+        Trip -> fail("tripped")
     }
 }.onSignal { _, _, signal ->
     if (signal == Signal.Stopping) log.updateAndGet { it + "manager" }

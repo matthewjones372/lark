@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.raise.Raise
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.logError
 
 /**
@@ -159,7 +160,7 @@ fun <M : Any, Ev, S> persistent(
 ): Behaviour<M, Remembered<S>, JournalConflict> {
     require(batch > 0) { "a batch of $batch commands decides none" }
     val effects = Effects<Ev, S>()
-    val steps: (Raise<JournalConflict>.(Ctx<M>, Remembered<S>, List<M>) -> Batched<Remembered<S>>)? =
+    val steps: (Fail<JournalConflict>.(Ctx<M>, Remembered<S>, List<M>) -> Batched<Remembered<S>>)? =
         if (batch == 1) {
             null
         } else {
@@ -280,7 +281,7 @@ private class Deciding<M : Any, Ev, S>(
  * A batch of [messages] decided in turn, each against the state the one before left, and every event and delivery
  * mark among them written in one append; then each `then` runs, in order, with the state its own command left.
  */
-private fun <M : Any, Ev, S> Raise<JournalConflict>.decided(
+private fun <M : Any, Ev, S> Fail<JournalConflict>.decided(
     id: PersistenceId,
     snapshots: Snapshotting<S>?,
     deciding: Deciding<M, Ev, S>,

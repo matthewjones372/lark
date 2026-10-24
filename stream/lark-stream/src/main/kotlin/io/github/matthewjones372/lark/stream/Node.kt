@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Logger
 import io.github.matthewjones372.lark.ScheduleStep
@@ -34,13 +33,14 @@ sealed interface Node {
 
     class FromStage(val stage: CompletionStage<*>, val onNull: () -> Throwable) : StreamOnly
 
-    /** A resource opened per run and read by blocking: [Stream.Companion.blocking]'s four functions, erased. */
+    /** A resource opened per run and read by blocking: [Stream.Companion.blocking]'s functions, erased. */
     class Blocking(
         val open: () -> Any,
         val next: (Any) -> Any?,
         val wake: (Any) -> Unit,
         val close: (Any) -> Unit,
         val at: String,
+        val ready: (Any) -> Boolean = { false },
     ) : StreamOnly
 
     class Fail(val error: Any?) : StreamOnly
@@ -156,6 +156,8 @@ sealed interface Node {
         val parallelism: Int,
         val f: (Any) -> CompletionStage<Any>,
         val at: String,
+        /** False passes each answer on as it completes (spec 0170); a backend may still keep order. */
+        val ordered: Boolean = true,
     ) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }
@@ -208,8 +210,12 @@ sealed interface Node {
         override val upstream: Node,
         val parallelism: Int,
         val on: Executor,
-        val f: Raise<Any?>.(Any) -> Any,
+        val f: io.github.matthewjones372.lark.fail.Fail<Any?>.(Any) -> Any,
         val at: String,
+        /** Null keeps the input's order; otherwise only elements with the same key keep theirs. */
+        val key: ((Any) -> Any)? = null,
+        /** False passes each answer on as it completes (spec 0170); a backend may still keep order. */
+        val ordered: Boolean = true,
     ) : Unary {
         override fun on(upstream: Node) = copy(upstream = upstream)
     }

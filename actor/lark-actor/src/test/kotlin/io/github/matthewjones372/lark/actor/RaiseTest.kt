@@ -1,9 +1,11 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.raise.either
-import arrow.core.right
+import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -28,12 +30,12 @@ private data object Explode : Till
 /** Stock that raises [OutOfStock] rather than going below zero, and answers a failed `Try` without failing. */
 private fun till(stock: Int) = behaviour<Till, Int, OutOfStock>(stock) { _, left, message ->
     when (message) {
-        is Sell -> if (message.count > left) raise(OutOfStock) else become(left - message.count)
+        is Sell -> if (message.count > left) fail(OutOfStock) else become(left - message.count)
 
         is Settle -> become(left - message.owed.bind())
 
         is Try -> {
-            val attempt = either { if (message.count > left) raise(OutOfStock) else left - message.count }
+            val attempt = attempt { if (message.count > left) fail(OutOfStock) else left - message.count }
             become(attempt.getOrNull() ?: left)
         }
 
@@ -95,6 +97,6 @@ class RaiseTest {
             till.ask(1.minutes) { Count(it) }
         }
 
-        answer shouldBe AskFailure.Stopped.left().right()
+        answer shouldBeRight AskFailure.Stopped.left()
     }
 }

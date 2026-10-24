@@ -1,10 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.nonFatalOrThrow
-import arrow.core.raise.Raise
-import arrow.core.right
 import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Counter
@@ -15,6 +10,11 @@ import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.clock
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.nonFatalOrThrow
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.metricTags
@@ -480,7 +480,7 @@ private class Cell<M : Any, S, E>(
 
     @Volatile
     private var state: S = behaviour.initial
-    private val boundary = StepRaise<E>()
+    private val boundary = StepFail<E>()
 
     // Where the restart schedule has got to; it moves on with each failure.
     @Volatile
@@ -948,7 +948,7 @@ private class Cell<M : Any, S, E>(
 
     /** [first] and the plain messages waiting behind it, at most [most], as one run through [steps]. */
     @Suppress("UNCHECKED_CAST")
-    private fun ran(steps: Raise<E>.(Ctx<M>, S, List<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
+    private fun ran(steps: Fail<E>.(Ctx<M>, S, List<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
         val run = ArrayList<Any>(most)
         run += bare(first)
         while (run.size < most && isPlain(peek())) run += bare(checkNotNull(poll()))
@@ -1005,7 +1005,7 @@ private class Cell<M : Any, S, E>(
     /** A step or a signal's handler, its raise and its throw handed to supervision. Inline: nothing is allocated. */
     // A throw is the actor's failure, handed to its schedule like a raise; only a fatal one is not.
     @Suppress("TooGenericExceptionCaught")
-    private inline fun supervised(body: Raise<E>.() -> Next<S>): Next<S> =
+    private inline fun supervised(body: Fail<E>.() -> Next<S>): Next<S> =
         try {
             boundary.guarded(body) { error -> failed(Failure.Raised(error), null) }
         } catch (thrown: Throwable) {

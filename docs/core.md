@@ -29,13 +29,14 @@ are compiled by `CoreGuideTest`.
 ## Forking
 
 The combinators have the same names and shapes as `arrow-fx-coroutines`.
-Inside an `either { }` (or any `Raise<E>`), a branch can `bind()` an `Either`
-or `raise` an error, and the first raise becomes the block's `Left`:
+Inside an `attempt { }` (or any `Fail<E>`), a branch can `bind()` an `Either`
+or `fail` with an error, and the first failure becomes the block's `Left`:
 
 <!-- core-forking -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.parZip
@@ -57,18 +58,18 @@ fun ordersFor(id: Int): Either<Err, List<Order>> = Either.Right(listOf(Order(1))
 fun quoteFrom(source: String): Long = source.length.toLong()
 
 // Two branches at once; up to nine are supported.
-fun dashboard(id: Int): Either<Err, Dashboard> = either {
+fun dashboard(id: Int): Either<Err, Dashboard> = attempt {
     parZip({ findUser(id).bind() }, { ordersFor(id).bind() }) { user, orders -> Dashboard(user, orders) }
 }
 
 // One fork per element, answered in the input's order.
-fun users(ids: List<Int>): Either<Err, List<User>> = either { parMap(ids) { findUser(it).bind() } }
+fun users(ids: List<Int>): Either<Err, List<User>> = attempt { parMap(ids) { findUser(it).bind() } }
 
 // The first branch to answer wins, and the loser is interrupted. Left is the first branch, Right the second.
 fun quote(): Either<Long, Long> = raceN({ quoteFrom("primary") }, { quoteFrom("fallback") })
 
 // async and await, for forks the combinators do not shape.
-fun report(id: Int): Either<Err, Dashboard> = flock {
+fun report(id: Int) = flock<Err, Dashboard> {
     val user = async { findUser(id).bind() }
     val orders = async { ordersFor(id).bind() }
     Dashboard(user.await(), orders.await())
@@ -77,14 +78,15 @@ fun report(id: Int): Either<Err, Dashboard> = flock {
 
 - `parZip` takes two to nine branches. `raceN` takes two or three; with three
   it answers `Either<A, Either<B, C>>`.
-- Outside a `Raise`, `parZip`, `parMap` and `raceN` take plain `() -> A`
+- Outside a `Fail`, `parZip`, `parMap` and `raceN` take plain `() -> A`
   branches and return the combined value.
 - `parMap` starts one fork per element and has no concurrency limit. To cap
   concurrency against a shared resource, use a [`Bulkhead`](#policies) or
   [`mapPar`](stream.md#a-body-that-must-block) on a stream.
 - `flock { }` is the scope that `async` forks in. On its own it returns
-  `Either<E, A>`; inside an existing `Raise<E>` it returns `A` and a raise
-  propagates to the enclosing scope.
+  Lark's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
+  it returns `A` and a failure propagates to the enclosing scope. Arrow's
+  `raise` and `bind` work in it as well while spec 0168 moves Lark off Arrow.
 
 By default each fork is a new virtual thread. Every forking combinator also
 has an overload that takes the executor to fork on as its first argument, for
@@ -129,7 +131,6 @@ still running.
 
 <!-- core-cancel -->
 ```kotlin
-import arrow.core.Either
 import io.github.matthewjones372.lark.flock
 
 data class Credit(val hasCredit: Boolean)
@@ -142,7 +143,7 @@ fun buildReport(id: Int): String {
 fun creditFor(id: Int): Credit = Credit(hasCredit = id % 2 == 0)
 
 // Start the expensive work early, and stop it if the cheap check says it is not wanted.
-fun page(id: Int): Either<Nothing, String> = flock {
+fun page(id: Int) = flock<Nothing, String> {
     val report = async { buildReport(id) }
     if (creditFor(id).hasCredit) {
         report.await()
@@ -161,14 +162,16 @@ handler binds.
 ## Collecting every error
 
 `parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion
-and return all the raises instead of only the first, which suits validation:
+and return all the failures instead of only the first, which suits validation:
 
 <!-- core-accumulate -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.NonEmptyList
-import arrow.core.raise.either
-import arrow.core.raise.ensure
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.NonEmptyList
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.ensure
+import io.github.matthewjones372.lark.fail.mapLeft
 import io.github.matthewjones372.lark.parMapOrAccumulate
 import io.github.matthewjones372.lark.parZipOrAccumulate
 
@@ -178,20 +181,20 @@ data class Account(val name: String, val email: String)
 
 data class Invalid(val field: String)
 
-fun validate(form: Form): Either<NonEmptyList<Invalid>, Account> = either {
+fun validate(form: Form): Either<NonEmptyList<Invalid>, Account> = attempt {
     parZipOrAccumulate(
         { form.name.also { ensure(it.isNotBlank()) { Invalid("name") } } },
         { form.email.also { ensure('@' in it) { Invalid("email") } } },
     ) { name, email -> Account(name, email) }
 }
 
-fun validateAll(forms: List<Form>): Either<NonEmptyList<Invalid>, List<Account>> = either {
+fun validateAll(forms: List<Form>): Either<NonEmptyList<Invalid>, List<Account>> = attempt {
     parMapOrAccumulate(forms) { form -> validate(form).mapLeft { it.first() }.bind() }
 }
 ```
 
 - Errors are returned in branch order (or the input's order), whichever branch
-  raised first.
+  failed first.
 - Each function also has a form taking `combine: (E, E) -> E` as its first
   argument, for a scope with a single error type that knows how to merge two.
 - A thrown exception is not accumulated. It interrupts the other branches, as
@@ -200,16 +203,16 @@ fun validateAll(forms: List<Form>): Either<NonEmptyList<Invalid>, List<Account>>
 ## Resources
 
 `resourceScope { }` runs a block with resources acquired inside it and releases
-them in reverse order when the block exits, whether by returning, raising,
+them in reverse order when the block exits, whether by returning, failing,
 throwing or being interrupted. `install` takes an acquire and a release, and the
 release is told how the scope ended:
 
 <!-- core-resources -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.ExitCase
 import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.resourceScope
 import io.github.matthewjones372.lark.use
@@ -233,11 +236,11 @@ val connection: Resource<Connection> = resource {
     }
 }
 
-fun report(id: Int): Either<NotFound, String> = either {
+fun report(id: Int): Either<NotFound, String> = attempt {
     resourceScope {
         val db = connection.bind()                                  // released when this scope ends
         val out = install({ StringBuilder() }) { _, _ -> }
-        val rows = db.rows(id).ifEmpty { raise(NotFound(id)) }      // a raise releases both, in reverse
+        val rows = db.rows(id).ifEmpty { fail(NotFound(id)) }       // a fail releases both, in reverse
         out.append(rows.joinToString()).toString()
     }
 }
@@ -250,11 +253,11 @@ fun rows(id: Int): List<String> = connection use { it.rows(id) }
 
 | Case | When |
 |---|---|
-| `ExitCase.Completed` | the block returned, or raised |
+| `ExitCase.Completed` | the block returned, or failed |
 | `ExitCase.Failure(failure)` | the block threw |
 | `ExitCase.Cancelled(interrupt)` | the block was interrupted; it carries the `InterruptedException` |
 
-A raise releases with `Completed`: it is a declared answer, and the `either`
+A fail releases with `Completed`: it is a declared answer, and the `attempt`
 it leaves through returns a value. Every release runs even if an earlier one
 throws. A release that throws when nothing else failed becomes the exception
 the caller sees; one that throws after another failure is added to it as
@@ -273,9 +276,10 @@ an interrupt ends the schedule where it is and a test can skip the waiting.
 
 <!-- core-schedule -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.retry
 import io.github.matthewjones372.lark.retryRaise
 import io.github.matthewjones372.lark.timeout
@@ -301,14 +305,14 @@ val patiently = Schedule.spaced<Throwable>(20.milliseconds) zipLeft Schedule.upT
 
 fun drained(): Unit = patiently.retry { check(pending() == 0L) }
 
-// Retrying a declared error: the last raise is the Left.
+// Retrying a declared error: the last failure is the Left.
 fun row(id: Int): Either<Unavailable, String> = Schedule.recurs<Unavailable>(5).retryRaise { findRow(id).bind() }
 
-fun quote(id: Int): Either<Unavailable, String> = either {
+fun quote(id: Int): Either<Unavailable, String> = attempt {
     timeout(2.seconds) { findRow(id).bind() }                       // throws TimeoutException
 }
 
-fun maybeQuote(id: Int): Either<Unavailable, String?> = either {
+fun maybeQuote(id: Int): Either<Unavailable, String?> = attempt {
     timeoutOrNull(2.seconds) { findRow(id).bind() }                 // null instead
 }
 ```
@@ -317,7 +321,7 @@ Builders: `recurs`, `spaced`, `upTo`, `exponential`, `linear`, `fibonacci`,
 `forever`, `identity`, `doWhile`, `doUntil` and `collect`. Combinators: `and`,
 `andThen`, `zipLeft` and `zipRight` (all infix), `or` (with explicit functions
 to combine the outputs and the delays), `map`, `fold`, `delayed` and
-`jittered`. Inside a `Raise`, `retry(schedule) { }` retries raises rather than
+`jittered`. Inside a `Fail`, `retry(schedule) { }` retries failures rather than
 throws.
 
 `timeout` runs its block on a fork and races it against a sleeper. A block that
@@ -335,12 +339,12 @@ one value. It is checked when it is built and applied as a whole on every call:
 
 <!-- core-policy -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.Bulkhead
 import io.github.matthewjones372.lark.CircuitBreaker
 import io.github.matthewjones372.lark.RateLimiter
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.guarded
 import io.github.matthewjones372.lark.policy
 import kotlin.time.Duration.Companion.milliseconds
@@ -367,7 +371,7 @@ class Partner(private val call: (String) -> String) {
     fun quote(id: String): String = partner { call(id) }
 
     // A refusal by any guard, as a declared error rather than an exception.
-    fun quoted(id: String): Either<String, String> = either {
+    fun quoted(id: String): Either<String, String> = attempt {
         guarded(partner, ifRejected = { "${it.guard} refused: ${it.message}" }) { call(id) }
     }
 }
@@ -381,14 +385,14 @@ built, not on the first call. Each step is optional.
 - **`deadline(total)`** is one time budget for the whole call, retries
   included. Retrying stops before a delay the budget cannot cover, and each
   attempt is limited to the shorter of its own timeout and what is left.
-- **`retry(schedule)`** retries what the call throws. A `raise` is the call's
+- **`retry(schedule)`** retries what the call throws. A `fail` is the call's
   own answer: it passes through every step and is not retried.
 - **A `CircuitBreaker`** opens after `maxFailures` failures in a row and then
   refuses every call with `Rejected.CircuitOpen` (carrying `retryAt`) without
   making it. Once the next delay of its `resetAfter` schedule has passed, one
   trial call goes through. If it succeeds the breaker closes and the schedule
   starts again; if it fails the breaker reopens for the schedule's next delay.
-  A timeout inside the breaker counts as a failure; a raise never does.
+  A timeout inside the breaker counts as a failure; a fail never does.
 - **A `RateLimiter`** is a token bucket refilled at `rate` every `per`, holding
   at most `burst`. A call without a token reserves the next one and waits for
   it, so callers are served in arrival order. A call that would wait longer
@@ -402,7 +406,7 @@ built, not on the first call. Each step is optional.
 - **`attemptTimeout(each)`** limits each attempt.
 
 Called as `partner { … }`, a refusal throws its `Rejected`, which is a
-`RuntimeException`. `guarded(policy, ifRejected) { }` turns it into a raise.
+`RuntimeException`. `guarded(policy, ifRejected) { }` turns it into a fail.
 
 Each guard records metrics through lark's [metrics](observability.md#metrics):
 
@@ -476,9 +480,10 @@ pekko.actor.lark {
 
 <!-- core-pekko -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.await
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.parZip
 import io.github.matthewjones372.lark.pekko.larkDispatcher
 import org.apache.pekko.actor.ActorSystem
@@ -491,7 +496,7 @@ fun price(id: Int): CompletionStage<Long> = CompletableFuture.completedFuture(10
 
 fun stock(id: Int): Either<Missing, Int> = Either.Right(3)
 
-fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = either {
+fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = attempt {
     val lark = system.larkDispatcher()   // pekko.actor.lark; larkDispatcher("other") for another
     parZip(on = lark, { price(id).await() }, { stock(id).bind() }) { p, s -> p to s }
 }

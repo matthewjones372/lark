@@ -1,9 +1,11 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.withClue
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -27,6 +29,8 @@ class MapParTest {
 
         /** Long enough that a machine under load does not fail a claim about interruption. */
         private const val GENEROUS_SECONDS = 30L
+
+        private const val SLOW_MILLIS = 500L
     }
 
     private data class Declined(val id: Int)
@@ -68,7 +72,7 @@ class MapParTest {
         val seen = ConcurrentLinkedQueue<String>()
 
         val exit = Stream.from(listOf(1, 2, 3, 4))
-            .mapParOrFail(1) { id -> if (id == 2) raise(Declined(id)) else "receipt-$id" }
+            .mapParOrFail(1) { id -> if (id == 2) fail(Declined(id)) else "receipt-$id" }
             .map { receipt ->
                 seen.add(receipt)
                 receipt
@@ -205,5 +209,84 @@ class MapParTest {
         withClue("every body still running when the stream ended was interrupted where it blocked") {
             interrupted.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
         }
+    }
+
+    @Test
+    fun `under mapParKeyed a slow element on one key does not hold back another key's results`() {
+        val arrived = ConcurrentLinkedQueue<Int>()
+
+        val exit = Stream.from(0..9)
+            .mapParKeyed(8, key = { it % 2 }) { n ->
+                if (n == 0) Thread.sleep(SLOW_MILLIS)
+                n
+            }
+            .map { n -> n.also(arrived::add) }
+            .runCollect()
+            .run(pekko.system)
+            .settled()
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.sorted() shouldBe (0..9).toList()
+        withClue("every odd result arrived ahead of the even one that slept, and each key in order: $arrived") {
+            arrived.filter { it % 2 == 1 } shouldBe listOf(1, 3, 5, 7, 9)
+            arrived.filter { it % 2 == 0 } shouldBe listOf(0, 2, 4, 6, 8)
+            arrived.indexOf(9) shouldBeLessThan arrived.indexOf(0)
+        }
+    }
+
+    @Test
+    fun `under mapParKeyed every key's results keep their order`() {
+        val delays = List(400) { n -> (n * 7 % 4).toLong() }
+
+        val exit = Stream.from(0 until 400)
+            .mapParKeyed(16, key = { it % 7 }) { n -> n.also { Thread.sleep(delays[n]) } }
+            .runCollect()
+            .run(pekko.system)
+            .settled()
+
+        val results = exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        results.sorted() shouldBe (0 until 400).toList()
+        results.groupBy { it % 7 } shouldBe (0 until 400).groupBy { it % 7 }
+    }
+
+    @Test
+    fun `a raise in a mapParKeyed body arrives as Exit Failed, not wrapped`() {
+        val exit = Stream.from(listOf(1, 2, 3, 4))
+            .mapParKeyed<Declined, Int, Int>(4, key = { it % 2 }) { id -> if (id == 3) fail(Declined(id)) else id }
+            .runCollect()
+            .run(pekko.system)
+            .settled()
+
+        exit shouldBe Exit.Failed(Declined(3))
+    }
+
+    @Test
+    fun `a throw in a mapParKeyed body arrives as Exit Died carrying the same throwable`() {
+        val thrown = IllegalStateException("no ledger")
+
+        val exit = Stream.from(listOf(1, 2))
+            .mapParKeyed(2, key = { it }) { id -> if (id == 2) throw thrown else id }
+            .runCollect()
+            .run(pekko.system)
+            .settled()
+
+        exit.shouldBeInstanceOf<Exit.Died>().cause shouldBeSameInstanceAs thrown
+    }
+
+    @Test
+    fun `a throw in a later mapParKeyed body ends the run while an earlier one with its key still runs`() {
+        val thrown = IllegalStateException("no ledger")
+        val never = CountDownLatch(1)
+
+        val exit = Stream.from(listOf(1, 2))
+            .mapParKeyed(2, key = { "same" }) { id ->
+                if (id == 1) never.await(1, TimeUnit.MINUTES)
+                if (id == 2) throw thrown else id
+            }
+            .runCollect()
+            .run(pekko.system)
+            .toCompletableFuture()
+            .get(GENEROUS_SECONDS, TimeUnit.SECONDS)
+
+        exit.shouldBeInstanceOf<Exit.Died>().cause shouldBeSameInstanceAs thrown
     }
 }

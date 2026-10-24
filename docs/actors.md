@@ -57,7 +57,6 @@ and a step that tells a full mailbox fails. `ask` sends a message carrying a
 
 <!-- actors-actor -->
 ```kotlin
-import arrow.core.Either
 import io.github.matthewjones372.lark.actor.AskFailure
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
@@ -67,6 +66,7 @@ import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.actor.unhandled
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.flock
 import kotlin.time.Duration.Companion.seconds
 
@@ -91,13 +91,13 @@ fun till() = behaviour<Till, Int>(0) { _, total, message ->
 }
 
 fun main() {
-    val total: Either<Nothing, Either<AskFailure, Int>> = flock {
+    val total = flock<Nothing, Either<AskFailure, Int>> {
         val till = spawn("till", till())
         till.tell(Ring(250))
         till.tell(Ring(120))
         till.ask(1.seconds) { Total(it) }
     }
-    println(total) // Either.Right(Either.Right(370))
+    println(total) // Right(value=Right(value=370))
 }
 ```
 
@@ -109,9 +109,9 @@ actor.
 
 A step fails in one of two ways:
 
-- **It raises** a failure it declared. A behaviour names its failure type as
-  its third type parameter, `behaviour<M, S, E>`, and its step raises with
-  Arrow's `raise`. A behaviour that never raises is a
+- **It fails** with a failure it declared. A behaviour names its failure type
+  as its third type parameter, `behaviour<M, S, E>`, and its step fails with
+  `fail`. A behaviour that never fails is a
   `Behaviour<M, S, Nothing>`.
 - **It throws**, for what nobody declared: a bug, or a dependency that broke.
 
@@ -162,7 +162,7 @@ data class BadPrice(val sku: String, val pence: Int)
 fun prices() = behaviour<Feed, Map<String, Int>, BadPrice>(emptyMap()) { _, prices, message ->
     when (message) {
         is Price -> {
-            if (message.pence < 0) raise(BadPrice(message.sku, message.pence))
+            if (message.pence < 0) fail(BadPrice(message.sku, message.pence))
             become(prices + (message.sku to message.pence))
         }
 
@@ -188,8 +188,8 @@ fun feeds() = behaviour<Pair<String, Feed>, Map<String, ActorRef<Feed>>>(emptyMa
 fun Flock<Nothing>.untilStopped(feed: ActorRef<Feed>): Signal.Terminated = watch(feed).await()
 ```
 
-A raise that belongs to an `either { }` inside the step is that `either`'s,
-and never mistaken for the actor's own, so a step can use Arrow as it would
+A failure that belongs to an `attempt { }` inside the step is that `attempt`'s,
+and never mistaken for the actor's own, so a step can use `attempt` as it would
 anywhere else.
 
 ## Time
@@ -377,7 +377,7 @@ an effect instead of a next state:
 On start, and after every restart, the actor replays its events before its
 first command. Its state is a `Remembered`: the value the events built and the
 number of the last one. An append that finds another writer has got there first
-is raised as a `JournalConflict`, so supervision decides.
+fails as a `JournalConflict`, so supervision decides.
 
 With `persistent(…, batch = n)`, up to `n` commands already waiting in the
 mailbox are handled together and their events written in one append, which
@@ -392,7 +392,6 @@ are the [cluster guide](cluster.md#state-that-survives)'s.
 
 <!-- actors-persistent -->
 ```kotlin
-import arrow.core.Either
 import io.github.matthewjones372.lark.actor.AskFailure
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.InMemoryJournal
@@ -407,6 +406,7 @@ import io.github.matthewjones372.lark.actor.persistent
 import io.github.matthewjones372.lark.actor.snapshots
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stop
+import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.flock
 import java.nio.ByteBuffer
 import kotlin.time.Duration.Companion.seconds
@@ -455,7 +455,7 @@ fun account(id: String) = persistent<Account, Moved, Long>(
 )
 
 fun main() {
-    val balance: Either<Nothing, Either<AskFailure, Long>> = flock {
+    val balance = flock<Nothing, Either<AskFailure, Long>> {
         journal(InMemoryJournal())
         snapshots(InMemorySnapshots())
         val first = spawn("a-1", account("a-1"))
@@ -467,7 +467,7 @@ fun main() {
         val again = spawn("a-1-again", account("a-1"))
         again.ask(1.seconds) { Balance(it) }
     }
-    println(balance) // Either.Right(Either.Right(300))
+    println(balance) // Right(value=Right(value=300))
 }
 ```
 
@@ -572,7 +572,6 @@ The tests below are run by the build, as well as compiled, so each passes.
 
 <!-- actors-testing -->
 ```kotlin
-import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Failure
@@ -584,6 +583,7 @@ import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.actor.test
 import io.github.matthewjones372.lark.actor.testActors
 import io.github.matthewjones372.lark.actor.unhandled
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.milliseconds
@@ -599,7 +599,7 @@ data class Refund(val pence: Int) : Till
 
 fun till() = behaviour<Till, Int, String>(0) { _, total, message ->
     when (message) {
-        is Ring -> if (message.pence > 0) become(total + message.pence) else raise("rang ${message.pence}")
+        is Ring -> if (message.pence > 0) become(total + message.pence) else fail("rang ${message.pence}")
         is Total -> stay().also { message.reply(total) }
         is Refund -> unhandled()
     }

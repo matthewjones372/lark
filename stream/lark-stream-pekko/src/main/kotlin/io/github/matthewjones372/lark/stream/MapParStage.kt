@@ -1,7 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.fold
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Flow
 import java.util.concurrent.CompletableFuture
@@ -17,14 +18,25 @@ internal fun Node.MapPar.mapParStage(): Flow<Any, *, NotUsed> {
     // The raise is folded into an Either inside the guard, so that the guard is the one place
     // deciding what a defect says: a declared failure comes back as a `Left` the stage is failed
     // with, and everything else picks up the three facts on its way out.
-    val body = guarded("mapPar", at) { a: Any -> either { f(a) } }
+    val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     // What is in flight belongs to the run rather than to the description, which can be
     // materialised again while an earlier run of it is still going.
     return Flow.fromMaterializer<Any, Any, NotUsed> { _, _ ->
         val bodies = Bodies(on)
         // Pekko's own mapAsync rather than this library's: a body answers with a `B : Any`, so
         // there is no null completion to guard, and `mapPar` is the operator a defect names.
-        Flow.create<Any>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
+        val started = key?.let { keyed ->
+            val keyOf = guarded("mapParKeyed", at, keyed)
+            val tails = Tails()
+            Flow.create<Any>()
+                .mapAsyncUnordered(parallelism) { a -> tails.behind(keyOf(a), bodies.start { body(a) }) }
+                .map(Passed::released)
+        } ?: if (ordered) {
+            Flow.create<Any>().mapAsync(parallelism) { a -> bodies.start { body(a) } }
+        } else {
+            Flow.create<Any>().mapAsyncUnordered(parallelism) { a -> bodies.start { body(a) } }
+        }
+        started
             .watchTermination { mat, ended ->
                 // Pekko never cancels the stage a mapAsync is waiting on, so this is where a body
                 // learns that the stream which asked for its element has gone.
@@ -56,6 +68,43 @@ private class Bodies(private val on: Executor) {
     }
 
     fun tearDown() = running.forEach { it.cancel() }
+}
+
+/** Each key's newest element in one run, dropped once it is released while still the newest. */
+private class Tails {
+
+    private val newest = ConcurrentHashMap<Any, CompletableFuture<Unit>>()
+
+    /**
+     * [stage]'s outcome, once the element before it with [key] has been released: emitted, not just completed.
+     * `mapAsyncUnordered` passes on a stage already complete when it arrives ahead of one whose callback is
+     * still queued, so completion alone would let a key's elements overtake each other. A failure does not wait
+     * for its turn, as none does in `mapAsync`. Completed by hand
+     * rather than composed, so that what a body failed with reaches the stream as it was thrown, not wrapped.
+     */
+    fun behind(key: Any, stage: CompletionStage<Any>): CompletionStage<Passed> {
+        val passed = CompletableFuture<Passed>()
+        val released = CompletableFuture<Unit>()
+        val before = newest.put(key, released) ?: CompletableFuture.completedFuture(Unit)
+        val release: () -> Unit = {
+            released.complete(Unit)
+            newest.remove(key, released)
+        }
+        // A failure ends the stream at once, as `mapAsync`'s does; only a result waits for the key's turn.
+        stage.whenComplete { b, failed ->
+            if (failed != null) {
+                passed.completeExceptionally(failed)
+            } else {
+                before.whenComplete { _, _ -> passed.complete(Passed(b, release)) }
+            }
+        }
+        return passed
+    }
+}
+
+/** A keyed body's result on its way out of `mapAsyncUnordered`, which lets the next one with its key go. */
+private class Passed(private val value: Any, private val release: () -> Unit) {
+    fun released(): Any = value.also { release() }
 }
 
 /**

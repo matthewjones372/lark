@@ -2,6 +2,7 @@
 // and for an ask whose request is one. NoOtherDependenciesTest asserts the runtime classpath.
 
 dependencies {
+    testImplementation(project(":lark-assert"))
     api(project(":lark-actor-remote"))
     api("com.google.protobuf:protobuf-java:4.36.2")
 }

@@ -1,10 +1,9 @@
 package io.github.matthewjones372.lark.cluster
 
-import arrow.core.right
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.time.Duration
@@ -44,6 +43,6 @@ class ViewOrderTest {
             !wokeEarly && viewerDone.get()
         }
 
-        wokeAfterViewer shouldBe true.right()
+        wokeAfterViewer shouldBeRight true
     }
 }

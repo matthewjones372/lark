@@ -1,24 +1,34 @@
 package io.github.matthewjones372.lark.stream
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 /** A run on lark's own forks: one pull loop, on one virtual thread, and the same exits Pekko answers with. */
 class ForksTest {
+
+    private companion object {
+        const val SLOW_MILLIS = 500L
+        const val SEED = 156
+    }
 
     @Test
     fun `on real time, a window closes with what it held while upstream is blocked, and a full group goes at once`() {
@@ -61,7 +71,7 @@ class ForksTest {
 
     @Test
     fun `a raise in an element body ends the run Failed with what it raised`() {
-        val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) raise(Odd(it)) else it }.collected()
+        val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) fail(Odd(it)) else it }.collected()
 
         exit shouldBe Exit.Failed(Odd(2))
     }
@@ -149,7 +159,7 @@ class ForksTest {
 
     @Test
     fun `the failure operators replace, recover and name as Pekko's do`() {
-        val failing = Stream.of(1, 2).mapOrFail { if (it == 2) raise(Odd(it)) else it }
+        val failing = Stream.of(1, 2).mapOrFail { if (it == 2) fail(Odd(it)) else it }
 
         failing.either().collected() shouldBe Exit.Done(listOf(1.right(), Odd(2).left()))
         failing.catchAll { Stream.of(9) }.collected() shouldBe Exit.Done(listOf(1, 9))
@@ -206,7 +216,7 @@ class ForksTest {
             .mapPar<Odd, Int, Int>(8) { n ->
                 if (n == 1) {
                     Thread.sleep(50)
-                    raise(Odd(n))
+                    fail(Odd(n))
                 }
                 try {
                     Thread.sleep(60_000)
@@ -241,7 +251,10 @@ class ForksTest {
             .take(3)
             .collected()
 
-        exit shouldBe Exit.Done(listOf(1, 2, 3))
+        // 1 and 3 share a key and keep their order; 2 has its own, and may pass either.
+        val taken = exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        taken.sorted() shouldBe listOf(1, 2, 3)
+        taken.filter { it % 2 == 1 } shouldBe listOf(1, 3)
         running.get() shouldBe 0
     }
 
@@ -251,6 +264,111 @@ class ForksTest {
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
         (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain "mapPar"
+    }
+
+    @Test
+    fun `mapParKeyed refuses a parallelism with no room for a body, rather than waiting for one`() {
+        shouldThrow<IllegalArgumentException> { Stream.of(1).mapParKeyed(0, key = { it }) { n -> n } }
+    }
+
+    @Test
+    fun `under mapParKeyed a slow element on one key does not hold back another key's results`() {
+        val arrived = ConcurrentLinkedQueue<Int>()
+
+        val exit = Stream.from(0..9)
+            .mapParKeyed(8, key = { it % 2 }) { n ->
+                if (n == 0) Thread.sleep(SLOW_MILLIS)
+                n
+            }
+            .map { n -> n.also(arrived::add) }
+            .collected()
+
+        exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.sorted() shouldBe (0..9).toList()
+        withClue("every odd result arrived ahead of the even one that slept, in order: $arrived") {
+            arrived.filter { it % 2 == 1 } shouldContainExactly listOf(1, 3, 5, 7, 9)
+            arrived.indexOf(9) shouldBeLessThan arrived.indexOf(0)
+        }
+    }
+
+    @Test
+    fun `under mapParKeyed every key's results keep their order`() {
+        val random = Random(SEED)
+        val delays = List(400) { random.nextLong(3) }
+
+        val exit = Stream.from(0 until 400)
+            .mapParKeyed(16, key = { it % 7 }) { n ->
+                Thread.sleep(delays[n])
+                n
+            }
+            .collected()
+
+        val results = exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        results.sorted() shouldBe (0 until 400).toList()
+        results.groupBy { it % 7 } shouldBe (0 until 400).groupBy { it % 7 }
+    }
+
+    @Test
+    fun `a raise in one mapParKeyed body ends the run Failed, and interrupts the bodies still running`() {
+        val interrupted = AtomicInteger()
+
+        val exit = Stream.from(1..8)
+            .mapParKeyed<Odd, Int, Int>(8, key = { it }) { n ->
+                if (n == 1) {
+                    Thread.sleep(50)
+                    fail(Odd(n))
+                }
+                try {
+                    Thread.sleep(60_000)
+                } catch (stopped: InterruptedException) {
+                    interrupted.incrementAndGet()
+                    throw stopped
+                }
+                n
+            }
+            .collected()
+
+        exit shouldBe Exit.Failed(Odd(1))
+        interrupted.get() shouldBe 7
+    }
+
+    @Test
+    fun `a mapParKeyed body that throws is the defect the run dies with, naming mapPar`() {
+        val exit = Stream.of(1, 2).mapParKeyed(2, key = { it }) { n -> check(n != 2) { "two" }; n }.collected()
+
+        val died = exit.shouldBeInstanceOf<Exit.Died>()
+        (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain "mapPar"
+    }
+
+    @Test
+    fun `under mapParKeyed a key that throws is the defect the run dies with, after what came before it`() {
+        val exit = Stream.of(1, 2, 3).mapParKeyed(2, key = { n -> check(n != 3) { "no key" }; n }) { it }.collected()
+
+        val died = exit.shouldBeInstanceOf<Exit.Died>()
+        (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain "no key"
+    }
+
+    @Test
+    fun `take after mapParKeyed ends the run, and no body is left running behind it`() {
+        val running = AtomicInteger()
+
+        val exit = Stream.from(naturals)
+            .mapParKeyed(4, key = { it % 2 }) { n ->
+                running.incrementAndGet()
+                try {
+                    if (n > 3) Thread.sleep(60_000)
+                } finally {
+                    running.decrementAndGet()
+                }
+                n
+            }
+            .take(3)
+            .collected()
+
+        // 1 and 3 share a key and keep their order; 2 has its own, and may pass either.
+        val taken = exit.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        taken.sorted() shouldBe listOf(1, 2, 3)
+        taken.filter { it % 2 == 1 } shouldBe listOf(1, 3)
+        running.get() shouldBe 0
     }
 
     @Test

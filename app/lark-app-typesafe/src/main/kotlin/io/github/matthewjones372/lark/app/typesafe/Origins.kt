@@ -27,11 +27,11 @@ data class Overridden(val value: String, val where: String)
 class Origins internal constructor(private val settings: List<Origin>) : List<Origin> by settings {
 
     /** The settings in the words the reader needs, or an empty string for a document with none. */
-    fun report(): String = when {
-        settings.isEmpty() -> ""
+    fun report(): String = report("lark-app configuration")
 
-        else -> (listOf("lark-app configuration", "") + settings.flatMap { it.lines(widest()) })
-            .joinToString("\n")
+    internal fun report(heading: String): String = when {
+        settings.isEmpty() -> ""
+        else -> (listOf(heading, "") + settings.flatMap { it.lines(widest()) }).joinToString("\n")
     }
 
     private fun widest(): Int = settings.maxOf { it.path.length }

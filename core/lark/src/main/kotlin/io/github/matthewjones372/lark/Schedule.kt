@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
 import io.github.matthewjones372.lark.Schedule.Decision.Continue
 import io.github.matthewjones372.lark.Schedule.Decision.Done
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.Duration

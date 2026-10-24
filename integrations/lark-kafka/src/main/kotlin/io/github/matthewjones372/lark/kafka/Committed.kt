@@ -38,12 +38,34 @@ interface Handle {
     fun <T> withGroup(send: (ConsumerGroupMetadata?) -> T): T = send(null)
 }
 
+/**
+ * The handle of a batch from [groupedRecord], which marks each of its [records] handled with its source's own
+ * handle: what a module that commits them unpacks. A record still expanding has no handle, and commits later.
+ */
+@KafkaSpi
+class Batched(records: List<Committed<*>>) : Handle {
+    val records: List<Committed<*>> = records.flatMap { it.records() }.filter { it.handle != null }
+
+    override fun handled() = records.forEach { it.handle?.handled() }
+
+    override fun <T> withGroup(send: (ConsumerGroupMetadata?) -> T): T =
+        records.firstOrNull()?.handle?.withGroup(send) ?: send(null)
+}
+
+/** The records this element commits, each with its source's own handle: a batch's, or the element itself. */
+@KafkaSpi
+fun Committed<*>.records(): List<Committed<*>> = (handle as? Batched)?.records ?: listOf(this)
+
 internal fun <B : Any> Committed<*>.carrying(value: B): Committed<B> = Committed(value, position, handle)
 
-/** [f] on the value, with the record's position on every line it writes. */
+/** [f] on the value, with the record's position on every line it writes; a batch's lines carry none. */
 internal fun <A : Any, B> Committed<A>.annotated(f: (A) -> B): B =
-    logAnnotated(
-        "kafka.topic" to position.topic,
-        "kafka.partition" to position.partition.toString(),
-        "kafka.offset" to position.offset.toString(),
-    ) { f(value) }
+    if (handle is Batched) {
+        f(value)
+    } else {
+        logAnnotated(
+            "kafka.topic" to position.topic,
+            "kafka.partition" to position.partition.toString(),
+            "kafka.offset" to position.offset.toString(),
+        ) { f(value) }
+    }

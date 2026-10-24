@@ -14,6 +14,8 @@ dependencies {
     testImplementation(project(":lark-app-kotlinx"))
     // For the core guide's coroutine examples, which compile against kotlinx's own `await`.
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    // For the testing guide's suites, which compile against lark-junit.
+    testImplementation(project(":lark-junit"))
 }
 
 // The serialization plugin, handed to the embedded compiler as a reader's build applies it, so a
@@ -35,6 +37,7 @@ val documentedRecipes = files(
     rootProject.layout.projectDirectory.file("docs/core.md"),
     rootProject.layout.projectDirectory.file("docs/observability.md"),
     rootProject.layout.projectDirectory.file("docs/testing.md"),
+    rootProject.layout.projectDirectory.file("README.md"),
 )
 
 tasks.test {

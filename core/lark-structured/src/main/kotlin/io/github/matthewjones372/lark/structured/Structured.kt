@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.structured
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.raise.Raise
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import java.util.concurrent.StructuredTaskScope
 import java.util.concurrent.TimeoutException
 import kotlin.time.Duration
@@ -12,7 +12,7 @@ import kotlin.time.Duration
 // StructuredTaskScope opened for that one call. Importing these instead of lark's is the whole switch.
 
 /** Runs both branches at once and combines their values; the first to fail cancels the other and is the answer. */
-fun <E, A, B, C> Raise<E>.parZip(fa: Raise<E>.() -> A, fb: Raise<E>.() -> B, f: (A, B) -> C): C =
+fun <E, A, B, C> Fail<E>.parZip(fa: Fail<E>.() -> A, fb: Fail<E>.() -> B, f: (A, B) -> C): C =
     Tasks<E, Failure<E>?>(FirstFailure()).use { tasks ->
         val a = tasks.fork(fa)
         val b = tasks.fork(fb)
@@ -21,10 +21,10 @@ fun <E, A, B, C> Raise<E>.parZip(fa: Raise<E>.() -> A, fb: Raise<E>.() -> B, f: 
     }
 
 /** The same for three branches. */
-fun <E, A, B, C, D> Raise<E>.parZip(
-    fa: Raise<E>.() -> A,
-    fb: Raise<E>.() -> B,
-    fc: Raise<E>.() -> C,
+fun <E, A, B, C, D> Fail<E>.parZip(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
     f: (A, B, C) -> D,
 ): D = Tasks<E, Failure<E>?>(FirstFailure()).use { tasks ->
     val a = tasks.fork(fa)
@@ -35,7 +35,7 @@ fun <E, A, B, C, D> Raise<E>.parZip(
 }
 
 /** Runs [f] over every element at once and answers in the iterable's order; the first to fail is the answer. */
-fun <E, A, B> Raise<E>.parMap(iterable: Iterable<A>, f: Raise<E>.(A) -> B): List<B> =
+fun <E, A, B> Fail<E>.parMap(iterable: Iterable<A>, f: Fail<E>.(A) -> B): List<B> =
     Tasks<E, Failure<E>?>(FirstFailure()).use { tasks ->
         val subtasks = iterable.map { element -> tasks.fork { f(element) } }
         tasks.join()?.let { surface(it) }
@@ -46,7 +46,7 @@ fun <E, A, B> Raise<E>.parMap(iterable: Iterable<A>, f: Raise<E>.(A) -> B): List
  * Runs both branches at once and answers with the first to finish, on the side it was given; the loser is
  * cancelled. A branch that fails first loses the race for everyone.
  */
-fun <E, A, B> Raise<E>.raceN(fa: Raise<E>.() -> A, fb: Raise<E>.() -> B): Either<A, B> =
+fun <E, A, B> Fail<E>.raceN(fa: Fail<E>.() -> A, fb: Fail<E>.() -> B): Either<A, B> =
     Tasks<E, StructuredTaskScope.Subtask<*>?>(FirstToFinish()).use { tasks ->
         val a = tasks.fork(fa)
         val b = tasks.fork(fb)
@@ -54,24 +54,24 @@ fun <E, A, B> Raise<E>.raceN(fa: Raise<E>.() -> A, fb: Raise<E>.() -> B): Either
         if (winner === a) valueOf(a).left() else valueOf(b).right()
     }
 
-/** Runs [block] with a deadline of [duration]: past it, the block is cancelled and [onTimeout] is raised. */
-fun <E, A> Raise<E>.timeout(duration: Duration, onTimeout: () -> E, block: Raise<E>.() -> A): A =
-    withDeadline(duration, block) { raise(onTimeout()) }
+/** Runs [block] with a deadline of [duration]: past it, the block is cancelled and [onTimeout] is the failure. */
+fun <E, A> Fail<E>.timeout(duration: Duration, onTimeout: () -> E, block: Fail<E>.() -> A): A =
+    withDeadline(duration, block) { fail(onTimeout()) }
 
 /** The same, throwing `TimeoutException` past the deadline, as lark's `timeout` does. */
-fun <E, A> Raise<E>.timeout(duration: Duration, block: Raise<E>.() -> A): A =
+fun <E, A> Fail<E>.timeout(duration: Duration, block: Fail<E>.() -> A): A =
     withDeadline(duration, block) { throw TimeoutException("no answer within $duration") }
 
 /** The same, answering null past the deadline. */
-fun <E, A> Raise<E>.timeoutOrNull(duration: Duration, block: Raise<E>.() -> A): A? =
+fun <E, A> Fail<E>.timeoutOrNull(duration: Duration, block: Fail<E>.() -> A): A? =
     Tasks<E, Boolean>(Expiry(), duration).use { tasks ->
         val answer = tasks.fork(block)
         if (tasks.join() && !answer.hasAnswered()) null else valueOf(answer)
     }
 
-private inline fun <E, A> Raise<E>.withDeadline(
+private inline fun <E, A> Fail<E>.withDeadline(
     duration: Duration,
-    noinline block: Raise<E>.() -> A,
+    noinline block: Fail<E>.() -> A,
     expired: () -> Nothing,
 ): A = Tasks<E, Boolean>(Expiry(), duration).use { tasks ->
     val answer = tasks.fork(block)

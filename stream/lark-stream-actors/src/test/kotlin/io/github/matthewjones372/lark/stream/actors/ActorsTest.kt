@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream.actors
 
-import arrow.core.right
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.stream.Actors
 import io.github.matthewjones372.lark.stream.Exit
@@ -52,7 +52,7 @@ class ActorsTest {
                 .run(Actors(this, batch = 7)).toCompletableFuture().join()
         }
 
-        exit shouldBe Exit.Done((1..1_000).map { it * 2 }.filter { it % 3 == 0 }.sum()).right()
+        exit shouldBeRight Exit.Done((1..1_000).map { it * 2 }.filter { it % 3 == 0 }.sum())
     }
 
     @Test
@@ -82,7 +82,7 @@ class ActorsTest {
             short to actors.running
         }
 
-        answer shouldBe (Exit.Done(listOf(1, 2, 3)) to 0).right()
+        answer shouldBeRight (Exit.Done(listOf(1, 2, 3)) to 0)
     }
 
     @Test
@@ -105,7 +105,7 @@ class ActorsTest {
             running.exit.toCompletableFuture().join() to actors.running
         }
 
-        answer shouldBe (Exit.Done(listOf(1, 2)) to 0).right()
+        answer shouldBeRight (Exit.Done(listOf(1, 2)) to 0)
     }
 
     @Test
@@ -123,7 +123,7 @@ class ActorsTest {
             }.runCollect().run(Actors(this)).toCompletableFuture().join()
         }
 
-        exit shouldBe Exit.Done((1..9).map { it * 10 }).right()
+        exit shouldBeRight Exit.Done((1..9).map { it * 10 })
         most.get() shouldBe 3
     }
 
@@ -132,7 +132,7 @@ class ActorsTest {
         val exits = flock<Nothing, Pair<Any, Any>> {
             val actors = Actors(this)
             val numbers: Stream<String, Int> = Stream.from(1..10)
-            val failed = numbers.mapPar(2) { if (it == 4) raise("four") else it }.runCollect()
+            val failed = numbers.mapPar(2) { if (it == 4) fail("four") else it }.runCollect()
                 .run(actors).toCompletableFuture().join()
             val died = Stream.from(1..10).mapPar(2) { check(it < 4) { "too big" } }.runCollect()
                 .run(actors).toCompletableFuture().join()
@@ -233,11 +233,11 @@ class ActorsTest {
             Triple(ticks, groups, restarted)
         }
 
-        exits shouldBe Triple(
+        exits shouldBeRight Triple(
             Exit.Done(listOf("tick", "tick", "tick")),
             Exit.Done(listOf(listOf(1, 2), listOf(3, 4), listOf(5))),
             Exit.Done(listOf(1)),
-        ).right()
+        )
     }
 
     @Test

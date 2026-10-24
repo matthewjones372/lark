@@ -3,6 +3,7 @@ package io.github.matthewjones372.lark.actor.benchmarks
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.lark.actor.awaitIdle
 import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.flock
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.javadsl.Adapter
