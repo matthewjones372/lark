@@ -2,8 +2,8 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.NotUsed
 import org.apache.pekko.actor.Cancellable
@@ -51,8 +51,7 @@ object SourcesSuite : Suite<PekkoSystem>() {
 
             (exit shouldBe Exit.Done("poll")) and
                 withClue("the first element cannot arrive before the delay the call named") {
-                    // lark-junit has no shouldBeGreaterThanOrEqual.
-                    expect((System.nanoTime() - started).nanoseconds >= after)
+                    (System.nanoTime() - started).nanoseconds shouldBeGreaterThanOrEqual after
                 }
         }
 

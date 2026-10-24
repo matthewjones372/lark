@@ -5,6 +5,7 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.withClue
 import java.util.concurrent.CompletionStage
 
@@ -32,9 +33,8 @@ object FaninSuite : Suite<PekkoSystem>() {
             val merged: Stream<FeedError, Int> = http.merge(kafka)
 
             withClue("no mapLeft on either side, and no Either in the element") {
-                // lark-junit has no shouldContainExactlyInAnyOrder: sorted, the two lists are the same multiset.
                 merged.collected(pekko).shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
-                    done.value.sorted() shouldBe listOf(1, 2, 3, 4)
+                    done.value shouldContainExactlyInAnyOrder listOf(1, 2, 3, 4)
                 }
             }
         }
@@ -50,9 +50,8 @@ object FaninSuite : Suite<PekkoSystem>() {
         test("mergeAll takes as many as there are") { pekko ->
             val merged: Stream<FeedError, Int> = http.mergeAll(kafka, Stream.from(listOf(5)))
 
-            // lark-junit has no shouldContainExactlyInAnyOrder: sorted, the two lists are the same multiset.
             merged.collected(pekko).shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
-                done.value.sorted() shouldBe listOf(1, 2, 3, 4, 5)
+                done.value shouldContainExactlyInAnyOrder listOf(1, 2, 3, 4, 5)
             }
         }
 

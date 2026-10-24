@@ -6,9 +6,9 @@ import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
+import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.stream.javadsl.Sink
@@ -213,8 +213,7 @@ object MapParSuite : Suite<PekkoSystem>() {
                 withClue("every odd result arrived ahead of the even one that slept, and each key in order: $arrived") {
                     (arrived.filter { it % 2 == 1 } shouldBe listOf(1, 3, 5, 7, 9)) and
                         (arrived.filter { it % 2 == 0 } shouldBe listOf(0, 2, 4, 6, 8)) and
-                        // lark-junit has no shouldBeLessThan.
-                        expect(arrived.indexOf(9) < arrived.indexOf(0))
+                        (arrived.indexOf(9) shouldBeLessThan arrived.indexOf(0))
                 }
         }
 

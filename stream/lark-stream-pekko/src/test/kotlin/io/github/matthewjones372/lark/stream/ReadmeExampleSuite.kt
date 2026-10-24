@@ -7,14 +7,15 @@ import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.shouldBeEmpty
+import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.junit.withTempDirectory
 import org.apache.pekko.Done
 import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.stream.javadsl.Sink
 import org.jetbrains.kotlin.cli.common.ExitCode
 import java.io.File
-import java.nio.file.Files
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -64,11 +65,9 @@ object ReadmeExampleSuite : Suite<PekkoSystem>() {
     /** The build hands the root over, so the pages read here are the ones the repository ships. */
     private fun page(name: String, then: (File) -> Expectations): Expectations {
         val root: String? = System.getProperty("lark.stream.repoRoot")
-        // lark-junit has no shouldNotBeNull: shouldNotBe null is the same check.
-        val handed = withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream-pekko/build.gradle.kts") {
-            root shouldNotBe null
+        return withClue("the build must pass -Dlark.stream.repoRoot; see lark-stream-pekko/build.gradle.kts") {
+            root.shouldNotBeNull { path -> then(File(path, name)) }
         }
-        return root?.let { handed and then(File(it, name)) } ?: handed
     }
 
     private fun document(then: (File) -> Expectations): Expectations = page("docs/stream.md", then)
@@ -91,16 +90,12 @@ object ReadmeExampleSuite : Suite<PekkoSystem>() {
 
     /** Compiled in a workspace of its own, as `@TempDir` gave each test, and removed after. */
     private fun compiles(source: String): Expectations {
-        val workspace = Files.createTempDirectory("lark-stream-readme").toFile()
-        val (exit, errors) = try {
-            EmbeddedKotlin(workspace).compile(source)
-        } finally {
-            workspace.deleteRecursively()
+        val (exit, errors) = withTempDirectory("lark-stream-readme") { workspace ->
+            EmbeddedKotlin(workspace.toFile()).compile(source)
         }
 
-        // lark-junit has no shouldBeEmpty: shouldBe emptyList() is the same check.
         return withClue(errors.joinToString("\n")) {
-            (errors shouldBe emptyList()) and (exit shouldBe ExitCode.OK)
+            errors.shouldBeEmpty() and (exit shouldBe ExitCode.OK)
         }
     }
 

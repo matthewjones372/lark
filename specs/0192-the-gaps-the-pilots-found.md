@@ -64,14 +64,14 @@ For the directory, a function beats a `Resource`. A `Resource` would be shared a
 
 ## Stack
 
-- [ ] **`spec-0192-matchers`** — `Matchers.kt` with the matchers above, moved and new.
+- [x] **`spec-0192-matchers`** ([#575](https://github.com/matthewjones372/lark/pull/575)) — `Matchers.kt` with the matchers above, moved and new.
       Done when: each matcher's pass and failure is tested, and a failure names the test's line and
       carries the actual value.
-- [ ] **`spec-0192-tempdir-and-docs`** — `withTempDirectory`, the "State in a suite" section, and the
+- [x] **`spec-0192-tempdir-and-docs`** ([#576](https://github.com/matthewjones372/lark/pull/576)) — `withTempDirectory`, the "State in a suite" section, and the
       new matchers in `docs/testing.md`'s matcher list.
       Done when: a test shows the directory deleted after both a pass and a throw, and the guide test
       compiles the docs.
-- [ ] **`spec-0192-use`** — `lark-stream-pekko`'s 10 workarounds, and `ReadmeExampleSuite`'s
+- [x] **`spec-0192-use`** ([#577](https://github.com/matthewjones372/lark/pull/577)) — `lark-stream-pekko`'s 10 workarounds, and `ReadmeExampleSuite`'s
       hand-made directories, replaced with the new matchers and `withTempDirectory`.
       `StreamSuite`'s comment on the probe says that Pekko's check throws, not that a matcher is missing.
       Done when: `:lark-stream-pekko:test` reports the same 192 tests, all passing, and no comment
