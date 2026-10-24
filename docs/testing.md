@@ -13,6 +13,7 @@ sleep.
 | a service test written as steps | `story { Given / When / Then }` | `lark-test` |
 | waiting for something to become true | `eventually(within) { }` | `lark-test` |
 | tests that share a resource and run concurrently | `object … : Suite<R>()` | `lark-junit` |
+| a story as a suite's test, returning its expectations | `story { }` | `lark-junit` |
 | part of an application, with fakes | `testApp(module.subgraph<Root>().overriding(…)) { }` | `lark-app` |
 | configuration for one test | `overridingConfig("key = value")` | `lark-app-typesafe` |
 | a stream on a clock the test moves | `TestStreams(clock)` and `emitted()` | `lark-stream-test` |
@@ -135,6 +136,8 @@ class AdoptionTest {
 
 `lark-test` depends only on `lark`. It brings no assertion library; the
 example uses Kotest's matchers, but any assertion that throws works.
+In a suite, a story returns its expectations instead: see
+[Stories in a suite](#stories-in-a-suite).
 
 ## Suites
 
@@ -306,6 +309,69 @@ kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xreturn-value-checker=check")
         allWarningsAsErrors = true
+    }
+}
+```
+
+## Stories in a suite
+
+`lark-junit` has a `story` of its own, for a suite's test: its block returns
+`Expectations`, and so does the story. A step returns what its block does, so
+`Then("…") { a shouldBe b }` is `Expectations`, and joins the next step with
+`and`. A step whose expectations failed is marked `✗` and the story goes on,
+so every failed `Then` is reported; a step that throws still ends the story
+with a `StoryFailed`.
+
+- **Title:** an untitled story takes its test's name.
+- **Transcript:** it is one of the test's [log lines](#suites), so a passing
+  test prints nothing, and a failed test's transcript is printed and published
+  with the rest of its `logs`. Outside a suite, `lark-test`'s `story` prints to
+  stdout as before.
+- **Imports:** import `story` from `lark-junit`, which brings `lark-test` with
+  it. `lark-test`'s `story` returns `Unit`; a file importing both can call
+  neither until one is imported under another name.
+
+The return-value checker does not catch a `Then` on a line of its own: the
+steps are `lark-test`'s, generic over what their block returns, so their
+results are not marked for it. Join every `Then` with `and`, or end the story
+with it.
+
+<!-- testing-junit-story -->
+```kotlin
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.story
+import io.github.matthewjones372.lark.resource
+import java.util.concurrent.ConcurrentHashMap
+
+// Stands in for the service under test.
+class Orders {
+    private val saved = ConcurrentHashMap.newKeySet<String>()
+
+    fun clear() = saved.clear()
+
+    fun save(order: String) {
+        saved += order
+    }
+
+    fun count(): Int = saved.size
+
+    fun find(order: String): String? = order.takeIf { it in saved }
+}
+
+object OrderStorySuite : Suite<Orders>(concurrent = false) {
+    override val shared: Resource<Orders> = resource { Orders() }
+
+    init {
+        test("an order is saved once") { orders ->
+            story {                                                  // titled "an order is saved once"
+                Given("no orders") { orders.clear() }
+                When("the order is saved twice") { repeat(2) { orders.save("order-1") } }
+                Then("it is stored once") { orders.count() shouldBe 1 } and
+                    Then("it can be found") { orders.find("order-1") shouldBe "order-1" }
+            }
+        }
     }
 }
 ```
