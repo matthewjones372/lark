@@ -70,22 +70,23 @@ unreported, in nearly every file.
 
 ## Stack
 
-- [ ] **`spec-0191-clues`** — `withClue` and `shouldBeInstanceOf` in `lark-junit`, as values.
+- [x] **`spec-0191-clues`** ([#560](https://github.com/matthewjones372/lark/pull/560)) — `withClue` and `shouldBeInstanceOf` in `lark-junit`, as values.
       Done when: tests show the clue above a failure, and a narrowed check that doesn't run on a miss.
-- [ ] **`spec-0191-system`** — `pekkoSystem`, the test build's `lark-junit` plugin setup, and
+- [x] **`spec-0191-system`** ([#561](https://github.com/matthewjones372/lark/pull/561)) — `pekkoSystem`, the test build's `lark-junit` plugin setup, and
       `ExitGuard`, `MapError`, `Bounds`, `Flatten`, `Hooked` and `Builders` moved.
       Done when: those suites report the same test names, all passing, under `lark`.
-- [ ] **`spec-0191-batch-2`** — `Fanin`, `OrFailIfEmpty`, `Running` and `Sources`.
-- [ ] **`spec-0191-batch-3`** — `AwaitExit`, `Pipe`, `Batching` and `Restart`.
-- [ ] **`spec-0191-batch-4`** — `FromStage`, `BlockingOnPekko` and `RaiseInStream`.
-- [ ] **`spec-0191-batch-5`** — `RunWith` and `Stream`.
-- [ ] **`spec-0191-sequential`** — `Defect` and `RestartDelay`, each with `concurrent = false`.
-- [ ] **`spec-0191-readme`** — `ReadmeExample`.
-- [ ] **`spec-0191-mappar`** — `MapPar`.
-- [ ] **`spec-0191-pipe-operators`** — `PipeOperators`.
-- [ ] **`spec-0191-operators`** — `Operators`, and `PekkoActorSystem` deleted.
+- [x] **`spec-0191-batch-2`** ([#562](https://github.com/matthewjones372/lark/pull/562)) — `Fanin`, `OrFailIfEmpty`, `Running` and `Sources`.
+- [x] **`spec-0191-batch-3`** ([#564](https://github.com/matthewjones372/lark/pull/564)) — `AwaitExit`, `Pipe`, `Batching` and `Restart`.
+- [x] **`spec-0191-batch-4`** ([#563](https://github.com/matthewjones372/lark/pull/563)) — `FromStage`, `BlockingOnPekko` and `RaiseInStream`.
+- [x] **`spec-0191-batch-5`** ([#565](https://github.com/matthewjones372/lark/pull/565)) — `RunWith` and `Stream`.
+- [x] **`spec-0191-sequential`** ([#569](https://github.com/matthewjones372/lark/pull/569)) — `Defect` and `RestartDelay`, each with `concurrent = false`.
+- [x] **`spec-0191-readme`** ([#566](https://github.com/matthewjones372/lark/pull/566)) — `ReadmeExample`.
+- [x] **`spec-0191-mappar`** ([#568](https://github.com/matthewjones372/lark/pull/568)) — `MapPar`.
+- [x] **`spec-0191-pipe-operators`** ([#570](https://github.com/matthewjones372/lark/pull/570)) — `PipeOperators`.
+- [x] **`spec-0191-operators`** ([#567](https://github.com/matthewjones372/lark/pull/567)) — `Operators`. `PekkoActorSystem` was deleted after the
+      last batch, in [#571](https://github.com/matthewjones372/lark/pull/571).
       Done when (each batch): the moved suites report the same test names, all passing, under `lark`.
-- [ ] **`spec-0191-result`** — a `## Result` section in this spec. It gives:
+- [x] **`spec-0191-result`** — a `## Result` section in this spec. It gives:
       - `:lark-stream-pekko:test`'s wall time before and after, as the median of 5 warm runs;
       - the test-case total from the JUnit XML;
       - every `alone` or `concurrent = false` added, and why;
@@ -99,6 +100,63 @@ unreported, in nearly every file.
 ./gradlew spotlessApply && ./gradlew build
 ./gradlew :lark-stream-pekko:test   # 192 tests: 171 on the lark engine, 21 on Jupiter
 ```
+
+## Result
+
+Measured on 2026-10-24, on a 4-core container, as `./gradlew :lark-stream-pekko:test --rerun --profile`.
+Each side had one warm-up and then 5 runs: before on `61e8aa44`, the commit before any suite moved, and
+after on `main` with #571. Medians:
+
+| | Before (Jupiter) | After (171 on `lark`) |
+|---|---|---|
+| `:lark-stream-pekko:test` task (profile) | 34.26 s | 30.67 s |
+| Whole command | 36.70 s | 33.64 s |
+| Test-case total, all 192 (JUnit XML) | 27.50 s | 69.70 s |
+
+Task runs: 33.17, 33.29, 35.17, 34.53, 34.26 s before; 30.44, 31.64, 30.71, 29.74, 30.67 s after.
+
+- **The case total is not a time to compare.** Concurrent tests overlap, so their times add up past the
+  task's. Most of the 69.70 s is `ReadmeExampleSuite`: its nine in-JVM compiles now run at once and slow
+  each other down, to 57.86 s summed against 5.04 s before. `DoesNotCompileTest`, still on Jupiter, fell
+  from 17.25 s to 5.62 s, because it no longer pays to warm the compiler. The task time is the measure: it
+  is 3.6 s (10%) shorter.
+- **The actor systems were never the cost.** Before, the two compiler classes took 22.29 s of case time
+  (`DoesNotCompileTest` 17.25 s, `ReadmeExampleTest` 5.04 s). The other 170 moved tests took 5.10 s
+  between them. Sharing one system across the module could only save part of the second number.
+- **Lines:** 52 files, +3197 / -3327 in the module, most of it `*Test.kt` renamed to `*Suite.kt`.
+- **Sequential suites:** `DefectSuite` and `RestartDelaySuite`, each with `concurrent = false`, for the
+  reasons in Shape. No test needed `alone`. `MapParSuite`, the most timing-sensitive, also passed three
+  further runs on a loaded machine.
+- **Matchers still missing in `lark-junit`, and what stood in:**
+  - `shouldContainExactlyInAnyOrder` (4): `.sorted()` and `shouldBe`.
+  - `shouldNotBeNull` (2): `shouldNotBe null`, or `expect(x != null)`.
+  - `shouldBeEmpty` (1): `shouldBe emptyList()`.
+  - The comparisons `shouldBeLessThan`, `shouldBeGreaterThan` and `shouldBeGreaterThanOrEqual` (3):
+    `expect(a < b)` and the like.
+- **Surprises:**
+  - **State in a suite is shared.** Jupiter makes a class instance per test, but a suite is one `object`.
+    `DefectTest` kept an exception in a field. Once it was a suite, every test attached its own "died on …"
+    note to the same exception, and three tests failed until each test made a fresh one. Any class that
+    keeps mutable state in fields has the same trap, and the guide doesn't say so yet.
+  - **`@TempDir` has no equivalent.** `ReadmeExampleSuite` now makes and deletes a directory for each
+    compile.
+  - **Pekko's own testkit still throws.** `TestSink` probes and `LoggingTestKit.expect` stay as they are,
+    so a failure there is reported as an error, not a failure. A probe's `expectNextN` returns a Scala
+    `Seq`, which needs `CollectionConverters.asJava` before a `shouldBe` against a Kotlin list.
+  - **A test with steps reads differently.** A check before the step under test, such as a latch await,
+    becomes a `val` joined with `and` at the end. A failed `expect` no longer stops the test, so a check
+    the next line depends on needs `shouldBeInstanceOf { … }` or `shouldThrow { … }` to guard it.
+- **Recommendation: move the rest of the repo, module by module.** Neither pilot met a test that
+  couldn't move, and nothing beyond the two expected suites needed to run alone. The time saved is
+  modest, a tenth here. The case for moving is the one in spec 0174: shared resources, per-test logs and
+  checks as values.
+  - First, one small PR for the missing matchers above, and a section in `docs/testing.md` on state in
+    a suite object.
+  - **No module-wide resource for now.** Here the actor systems cost little against the compilers. If a
+    later module starts something slow per class, such as a broker or a database container, revisit it
+    then.
+  - The compiler-heavy suites may run faster with fewer compiles at once: a `Limit.fixed(2)` on
+    `ReadmeExampleSuite` is worth measuring.
 
 ## Open questions
 
