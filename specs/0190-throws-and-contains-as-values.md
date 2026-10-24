@@ -84,9 +84,9 @@ The matchers use the same names as lark-assert's, so a module moves by changing 
 
 ## Open questions
 
-1. **Should a wrong exception type be a failure or an error?** Recommend a failure, with the actual
-   throwable as its cause. A test that expected a throw and got a different one checked something and
-   found it wrong.
+1. ~~**Should a wrong exception type be a failure or an error?**~~ Answered (maintainer, 2026-10-24): a
+   failure, with the actual throwable as its cause. A test that expected a throw and got a different one
+   checked something and found it wrong.
 2. **Should `shouldBeSameInstanceAs` be in this spec?** The pilot needed it twice. Recommend yes,
    since each matcher is 2 lines.
 3. **A test that imports both lark-assert's and lark-junit's `shouldThrow` gets an ambiguous call. Is
