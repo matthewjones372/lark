@@ -2,8 +2,9 @@ package io.github.matthewjones372.lark.pekko
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.resource
 import org.apache.pekko.dispatch.Futures
 import scala.concurrent.Future
@@ -18,14 +19,10 @@ object AwaitSuite : Suite<Unit>() {
             val boom = Boom()
             // Pekko's Java API for a failed future: `Future.failed` is an instance method of the trait too,
             // so the companion's has no static forwarder for Kotlin to call.
-            val thrown = try {
-                Futures.failed<Int>(boom).await()
-                null
-            } catch (failed: Boom) {
-                failed
-            }
-
-            (Future.successful(42).await() shouldBe 42) and expect(thrown === boom)
+            (Future.successful(42).await() shouldBe 42) and
+                shouldThrow<Boom>({ Futures.failed<Int>(boom).await() }) { thrown ->
+                    thrown shouldBeSameInstanceAs boom
+                }
         }
     }
 }

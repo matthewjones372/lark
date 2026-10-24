@@ -5,6 +5,9 @@ import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.parZip
 import io.github.matthewjones372.lark.resource
 import org.apache.pekko.ConfigurationException
@@ -60,36 +63,25 @@ object LarkDispatcherSuite : Suite<ActorSystem>() {
                 { Thread.currentThread().name },
             ) { first, second -> first to second }
 
-            (names.first shouldBe names.second) and expect("one-thread" in names.first)
+            (names.first shouldBe names.second) and (names.first shouldContain "one-thread")
         }
 
         test("a fork-join-executor dispatcher is refused, and the message names the config key") { system ->
-            val refused = try {
-                system.larkDispatcher("pooled")
-                null
-            } catch (refusal: IllegalArgumentException) {
-                refusal
+            shouldThrow<IllegalArgumentException>({ system.larkDispatcher("pooled") }) { refusal ->
+                (refusal.message shouldContain "pekko.actor.pooled.executor") and
+                    (refusal.message shouldContain "virtual-thread-executor") and
+                    (refusal.message shouldContain "PinnedDispatcher")
             }
-            val message = refused?.message.orEmpty()
-
-            expect("pekko.actor.pooled.executor" in message) and
-                expect("virtual-thread-executor" in message) and
-                expect("PinnedDispatcher" in message)
         }
 
         test("the id defaults to lark") { system ->
-            expect(system.larkDispatcher() === system.larkDispatcher("lark"))
+            system.larkDispatcher() shouldBeSameInstanceAs system.larkDispatcher("lark")
         }
 
         test("an id nobody configured leaves as Pekko's own error") { system ->
-            val missing = try {
-                system.larkDispatcher("absent")
-                null
-            } catch (unconfigured: ConfigurationException) {
-                unconfigured
+            shouldThrow<ConfigurationException>({ system.larkDispatcher("absent") }) { unconfigured ->
+                unconfigured.message shouldContain "pekko.actor.absent"
             }
-
-            expect("pekko.actor.absent" in missing?.message.orEmpty())
         }
     }
 }
