@@ -6,6 +6,7 @@ dependencies {
 
     // Actors to send to, for the context carried across a message.
     testImplementation(project(":lark-actor"))
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

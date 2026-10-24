@@ -8,6 +8,7 @@ dependencies {
 
     // A real Postgres, in a container.
     testImplementation(testFixtures(project(":lark-actor-journal-jdbc")))
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

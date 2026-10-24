@@ -4,10 +4,10 @@ import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.typesafe.configOf
 import io.github.matthewjones372.lark.app.use
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.types.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
 import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.Test
 

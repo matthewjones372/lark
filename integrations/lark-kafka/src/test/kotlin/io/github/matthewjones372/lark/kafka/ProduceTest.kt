@@ -1,5 +1,8 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
@@ -10,9 +13,6 @@ import io.github.matthewjones372.lark.stream.of
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runCollect
 import io.github.matthewjones372.lark.stream.take
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.errors.RecordTooLargeException

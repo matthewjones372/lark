@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.cluster
 
 import io.github.matthewjones372.lark.actor.remote.Node
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldContainExactly
 import org.junit.jupiter.api.Test
 
 private fun member(n: Int, status: Status = Status.Up, uid: Long = n.toLong()) =

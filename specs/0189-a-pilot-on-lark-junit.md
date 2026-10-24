@@ -77,15 +77,49 @@ difference in the result comes from the framework, not from different checks.
 ./gradlew :lark-pekko:test   # 7 tests: 6 on the lark engine, 1 on Jupiter
 ```
 
+## Result
+
+Measured on 2026-10-24, on a 4-core container with JDK 25 tests, as `./gradlew :lark-pekko:test --rerun-tasks
+--profile` after one warm-up: 5 runs before (`origin/main`) and 5 after (`spec-0189-pilot`). Medians:
+
+| | Before (Jupiter) | After (`lark`) |
+|---|---|---|
+| `:lark-pekko:test` task (profile) | 6.32 s | 4.72 s |
+| Whole command | 14.26 s | 12.14 s |
+| Test-case total, all 7 (JUnit XML) | 2.41 s | 1.34 s |
+| `:lark-pekko:compileTestKotlin` | 0.66 s | 0.56 s |
+
+Runs: task 6.91, 6.75, 6.06, 6.28, 6.32 s before; 4.72, 4.92, 4.65, 5.18, 4.70 s after.
+Most of the case-total drop is the first dispatcher test: 0.82 s on Jupiter, 0.08 s on `lark`. Creating
+the `ActorSystem` falls outside the test cases on both engines, so the task time is the fairer measure.
+
+- **Lines:** test sources +126 / -115 (two files rewritten); `lark-pekko/build.gradle.kts` +21.
+- **Missing in `lark-junit`, and what stood in:**
+  - `shouldContain` (4 checks): `expect("…" in message)`.
+  - `shouldBeSameInstanceAs` (2): `expect(a === b)`.
+  - `shouldThrow` (3): a `try { …; null } catch (e: Expected) { e }` that leaves the exception as a value,
+    then `expect` on it. Each takes 5 lines where `shouldThrow` took 1.
+  - `withClue` (1): `expect(cond) { "clue" }`. Power-assert prints the clue above the diagram, but the
+    diagram also quotes the clue's lambda.
+- **No `alone`:** all five dispatcher tests ran concurrently, the default, in 13 runs with no failure.
+- **Surprises:**
+  - Release works: the system has terminated when the suite ends (checked once, by hand).
+  - Jupiter names a test `name()`, and `lark` names it `name`, so before and after XML match only once
+    the `()` is stripped.
+  - A test name that fits in a backticked `fun` is too long for `test("…") {` at 120 columns, so one
+    call wraps.
+  - Power-assert and the return-value checker cost no measurable compile time here.
+- **Recommendation: not yet for the whole repo; go for `lark-stream-pekko` as the next pilot.** Nothing
+  blocked this one, and the task ran faster. But every module leans on Kotest's `shouldThrow` and
+  `shouldContain`. `lark-junit` should add first a `shouldThrow` that returns `Expectations` and hands
+  over the exception, then `shouldContain` for strings and collections.
+
 ## Open questions
 
-1. **Is `lark-pekko` the right pilot?** It has one `ActorSystem` and six tests, so there's little
-   for a shared resource or concurrency to speed up. `lark-stream-pekko`, with 25 test files that
-   create an `ActorSystem`, is where those would pay. Recommend keeping `lark-pekko` as decided, as a
-   cheap first step that shows the friction. The result names `lark-stream-pekko` as the next pilot
-   if it goes well.
-2. **What should fill the missing value matchers in the pilot?** Recommend `expect(...)` with
-   power-assert, so every check stays a value, and listing each gap in the result.
-3. **Should the dispatcher tests run concurrently?** They only read which thread a fork ran on, and
-   don't count threads. Recommend running them concurrently, the default. If one turns out to be
-   load-sensitive, it gets `alone`, and that goes in the result.
+1. ~~**Is `lark-pekko` the right pilot?**~~ Answered: keep it, as recommended, as a cheap first step
+   that shows the friction. `lark-stream-pekko`, with 25 test files that create an `ActorSystem`, is
+   the next pilot; see Result.
+2. ~~**What should fill the missing value matchers in the pilot?**~~ Answered: `expect(...)` with
+   power-assert, so every check stays a value. Each gap is listed in Result.
+3. ~~**Should the dispatcher tests run concurrently?**~~ Answered: yes, the default. None turned out
+   load-sensitive, so none has `alone`.

@@ -5,9 +5,9 @@ package io.github.matthewjones372.lark.junit
 import io.github.matthewjones372.lark.assert.FailureSeam
 import io.github.matthewjones372.lark.assert.failureAt
 import io.github.matthewjones372.lark.assert.mismatchAt
-import io.github.matthewjones372.lark.fail.Either
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.MultipleFailuresError
+import io.github.matthewjones372.lark.assert.withClue as clued
 
 /**
  * What a test's checks found, as a value: every failure is kept, and none is thrown until the test has returned.
@@ -57,21 +57,14 @@ fun expect(condition: Boolean): Expectations =
 fun expect(condition: Boolean, message: () -> String): Expectations =
     if (condition) passed(1) else failedHere(message().trim(), quoting = false)
 
-/** Holds if this equals [expected]; fails as lark-assert's `shouldBe` does, carrying both for an IDE's diff. */
-infix fun <A> A.shouldBe(expected: A): Expectations =
-    if (this == expected) passed(1) else mismatchedHere(expected, this)
+/** [block]'s expectations, each failure in it saying [clue] first. Blocks nest, the outermost clue first. */
+fun withClue(clue: Any?, block: () -> Expectations): Expectations = clued(clue, block)
 
-/** Holds if this does not equal [unexpected]. */
-infix fun <A> A.shouldNotBe(unexpected: A): Expectations =
-    if (this != unexpected) passed(1) else mismatchedHere(null, this, "not $unexpected")
+/** A check that passed, for the matchers that take a lambda. */
+@PublishedApi
+internal fun held(): Expectations = passed(1)
 
-/** Holds if this is a [Either.Right] holding [expected]. */
-infix fun <E, A> Either<E, A>.shouldBeRight(expected: A): Expectations = this shouldBe Either.Right(expected)
-
-/** Holds if this is a [Either.Left] holding [expected]. */
-infix fun <E, A> Either<E, A>.shouldBeLeft(expected: E): Expectations = this shouldBe Either.Left(expected)
-
-private fun passed(checked: Int) = Expectations(emptyList(), checked)
+internal fun passed(checked: Int) = Expectations(emptyList(), checked)
 
 /** The same failure, with [heading] above its message and the same expected and actual. */
 private fun AssertionFailedError.headed(heading: String): AssertionFailedError {
@@ -83,13 +76,28 @@ private fun AssertionFailedError.headed(heading: String): AssertionFailedError {
     return headed.also { it.stackTrace = stackTrace }
 }
 
-// This file's own frames, so a failure's first frame is the test's.
-private val own = setOf(Expectations::class.java.name, Expectations::class.java.name + "Kt")
+// This module's frames that build a failure, so a failure's first frame is the test's.
+private val own = setOf(
+    Expectations::class.java.name,
+    Expectations::class.java.name + "Kt",
+    Expectations::class.java.packageName + ".MatchersKt",
+)
 
 @OptIn(FailureSeam::class)
-private fun failedHere(message: String, quoting: Boolean = true): Expectations =
+internal fun failedHere(message: String, quoting: Boolean = true): Expectations =
     Expectations(listOf(failureAt(message, skipping = { it.className in own }, quoting)), 1)
 
 @OptIn(FailureSeam::class)
-private fun mismatchedHere(expected: Any?, actual: Any?, expectedText: String? = null): Expectations =
-    Expectations(listOf(mismatchAt(expected, actual, skipping = { it.className in own }, expectedText)), 1)
+internal fun mismatchedHere(
+    expected: Any?,
+    actual: Any?,
+    expectedText: String? = null,
+    cause: Throwable? = null,
+): Expectations = Expectations(
+    listOf(
+        mismatchAt(expected, actual, skipping = {
+            it.className in own
+        }, expectedText, cause),
+    ),
+    1,
+)

@@ -58,6 +58,8 @@ Facts worth having before anything else:
   `config<Settings>("section")` with no block.
 - `lark-app-liquibase`: a changelog as a node (`migrations`); readers take a
   `Migrated`.
+- `lark-app-openfeature`: `openFeature { provider }`, the provider as a node; a
+  `Client` node and `Flag.value()` read it, and readiness follows it.
 - `lark-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
 - `lark-app-actor`: a `lark-actor` flock as a node, and an actor as a node.
 - `lark-app-cluster`: a `lark-cluster` membership as a node, joined as a HOCON

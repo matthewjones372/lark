@@ -42,6 +42,7 @@ module("cluster", "lark-cluster-aws")
 
 module("app", "lark-app")
 module("app", "lark-app-pekko")
+module("app", "lark-app-openfeature")
 module("app", "lark-app-liquibase")
 module("app", "lark-app-typesafe")
 module("app", "lark-app-kotlinx")

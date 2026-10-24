@@ -7,8 +7,8 @@ import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.flock
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch

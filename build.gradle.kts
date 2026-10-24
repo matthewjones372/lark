@@ -115,6 +115,8 @@ val moduleDescriptions = mapOf(
     "lark-app-cluster" to "lark-app on lark-cluster: a cluster is a node, joined as a HOCON section says.",
     "lark-openfeature" to
         "lark on OpenFeature: who a flag is evaluated for, bound once and read in every fork and actor.",
+    "lark-app-openfeature" to
+        "lark-app on OpenFeature: the provider is a node, set before any flag is read and shut down on release.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
@@ -196,10 +198,6 @@ subprojects {
     dependencies {
         "testImplementation"(kotlin("test"))
         "testImplementation"("org.junit.jupiter:junit-jupiter:6.1.3")
-        // Assertions only. The tests still run on the JUnit platform — kotest
-        // is here for its matchers and for the failure messages they produce,
-        // not as a second test framework.
-        "testImplementation"("io.kotest:kotest-assertions-core:6.2.4")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
 

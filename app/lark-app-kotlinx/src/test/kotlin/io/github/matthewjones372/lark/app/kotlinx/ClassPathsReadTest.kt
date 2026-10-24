@@ -3,9 +3,9 @@ package io.github.matthewjones372.lark.app.kotlinx
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.lark.app.typesafe.PathRead
 import io.github.matthewjones372.lark.app.typesafe.reading
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.withClue
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Test

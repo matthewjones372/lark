@@ -3,9 +3,9 @@ package io.github.matthewjones372.lark.openfeature
 import dev.openfeature.sdk.ErrorCode
 import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.providers.memory.InMemoryProvider
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.parZip
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import dev.openfeature.sdk.providers.memory.Flag as MemoryFlag
 

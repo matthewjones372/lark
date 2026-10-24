@@ -13,10 +13,25 @@ import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeEmpty
+import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
+import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
+import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeLeft
+import io.github.matthewjones372.lark.junit.shouldBeLessThan
+import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.shouldNotBeEmpty
+import io.github.matthewjones372.lark.junit.shouldNotBeNull
+import io.github.matthewjones372.lark.junit.shouldNotBeSameInstanceAs
+import io.github.matthewjones372.lark.junit.shouldNotContain
+import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.tag
+import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
 import io.github.matthewjones372.lark.readings
@@ -278,5 +293,108 @@ object MatchingSuite : Suite<Int>() {
             (Either.Right(two) shouldBeRight 2) and (Either.Left(two) shouldBeLeft 2)
         }
         test("fails shouldBeRight") { two -> Either.Left(two) shouldBeRight 2 }
+    }
+}
+
+/** Spec 0190's shouldThrow: what a block threw, checked as a value. */
+object ThrowingSuite : Suite<Int>() {
+    override val shared: Resource<Int> = resource { 2 }
+
+    /** How many times a [shouldThrow]'s second lambda ran; it must not on a failed throw check. */
+    val thenRan = java.util.concurrent.atomic.AtomicInteger()
+
+    init {
+        test("passes a matching throw") { two -> shouldThrow<IllegalStateException> { check(two == 3) } }
+        test("passes a matching throw, then checks it") { two ->
+            shouldThrow<IllegalArgumentException>({ require(two == 3) { "not three" } }) { refusal ->
+                refusal.message shouldBe "not three"
+            }
+        }
+        test("fails a missing throw") { two -> shouldThrow<IllegalStateException> { two + 1 } }
+        test("fails a wrong type") { _ ->
+            shouldThrow<IllegalStateException>({ throw UnsupportedOperationException("other") }) {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
+        test("fails the second lambda's check") { _ ->
+            shouldThrow<IllegalStateException>({ error("three") }) { thrown -> thrown.message shouldBe "two" }
+        }
+        test("rethrows an interrupt") { _ -> shouldThrow<IllegalStateException> { throw InterruptedException("stop") } }
+    }
+}
+
+/** Spec 0190's contains and same-instance matchers. */
+object ContainingSuite : Suite<List<String>>() {
+    override val shared: Resource<List<String>> = resource { listOf("one", "two") }
+
+    init {
+        test("passes every matcher") { words ->
+            (words shouldContain "two") and (words shouldNotContain "three") and
+                (words.first() shouldContain "ne") and (words.first() shouldNotContain "w") and
+                (words shouldBeSameInstanceAs words) and (words shouldNotBeSameInstanceAs words.toList())
+        }
+        test("fails a string shouldContain") { words -> words.first() shouldContain "w" }
+        test("fails a null string") { _ -> null shouldContain "w" }
+        test("fails a string shouldNotContain") { words -> words.first() shouldNotContain "n" }
+        test("fails a collection shouldContain") { words -> words shouldContain "three" }
+        test("fails a collection shouldNotContain") { words -> words shouldNotContain "one" }
+        test("fails shouldBeSameInstanceAs") { words -> words shouldBeSameInstanceAs words.toList() }
+        test("fails shouldNotBeSameInstanceAs") { words -> words shouldNotBeSameInstanceAs words }
+    }
+}
+
+/** Spec 0191's clue and narrowing, as values. */
+object CluedSuite : Suite<Any>() {
+    override val shared: Resource<Any> = resource { "two" }
+
+    /** How many times a [shouldBeInstanceOf]'s lambda ran; it must not on a miss. */
+    val thenRan = AtomicInteger()
+
+    init {
+        test("passes a narrowed check") { two -> two.shouldBeInstanceOf<String> { it shouldBe "two" } }
+        test("fails under a clue") { two ->
+            withClue("the outer clue") { withClue("the inner clue") { two shouldBe 3 } }
+        }
+        test("fails one of two under a clue") { two ->
+            withClue("only once") { (two shouldBe "two") and (two shouldBe 3) }
+        }
+        test("fails a narrowing") { two ->
+            two.shouldBeInstanceOf<Int> {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
+        test("fails a narrowed check") { two -> two.shouldBeInstanceOf<String> { it shouldBe "three" } }
+    }
+}
+
+/** Spec 0192's matchers: collections in any order, emptiness, null and comparisons, as values. */
+object GappedSuite : Suite<List<Int>>() {
+    override val shared: Resource<List<Int>> = resource { listOf(1, 2, 2, 3) }
+
+    /** How many times a [shouldNotBeNull]'s lambda ran; it must not on a null. */
+    val thenRan = AtomicInteger()
+
+    init {
+        test("passes every matcher") { xs ->
+            (xs shouldContainExactlyInAnyOrder listOf(2, 3, 1, 2)) and xs.shouldContainExactlyInAnyOrder(3, 2, 2, 1) and
+                emptyList<Int>().shouldBeEmpty() and xs.shouldNotBeEmpty() and
+                emptyMap<String, Int>().shouldBeEmpty() and mapOf("a" to 1).shouldNotBeEmpty() and
+                xs.firstOrNull().shouldNotBeNull { first -> first shouldBe 1 } and xs.shouldNotBeNull() and
+                (1 shouldBeLessThan 2) and (2 shouldBeLessThanOrEqual 2) and
+                (3 shouldBeGreaterThan 2) and (2 shouldBeGreaterThanOrEqual 2)
+        }
+        test("fails in any order") { xs -> xs shouldContainExactlyInAnyOrder listOf(1, 2, 3) }
+        test("fails shouldBeEmpty") { xs -> xs.shouldBeEmpty() }
+        test("fails shouldNotBeEmpty on a map") { _ -> emptyMap<String, Int>().shouldNotBeEmpty() }
+        test("fails shouldNotBeNull") { xs ->
+            xs.firstOrNull { it > 3 }.shouldNotBeNull {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
+        test("fails shouldBeLessThan") { _ -> 3 shouldBeLessThan 2 }
+        test("fails shouldBeGreaterThanOrEqual") { _ -> 1 shouldBeGreaterThanOrEqual 2 }
     }
 }

@@ -1,6 +1,9 @@
 package io.github.matthewjones372.lark.micrometer
 
 import io.github.matthewjones372.lark.Reading
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.counter
 import io.github.matthewjones372.lark.gauge
 import io.github.matthewjones372.lark.histogram
@@ -9,9 +12,6 @@ import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.metrics
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.readings
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import io.micrometer.core.instrument.Meter
 import io.micrometer.core.instrument.config.MeterFilter
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig

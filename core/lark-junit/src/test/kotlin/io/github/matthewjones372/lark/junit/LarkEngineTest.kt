@@ -185,9 +185,12 @@ class LarkEngineTest {
 
         suites.sorted() shouldBe listOf(
             "AloneSuite",
+            "CluedSuite",
+            "ContainingSuite",
             "CountedSuite",
             "ExpectingSuite",
             "FailingSiblingSuite",
+            "GappedSuite",
             "GatedSuite",
             "IgnoringSuite",
             "Lark",
@@ -201,6 +204,7 @@ class LarkEngineTest {
             "SequentialSuite",
             "StorySuite",
             "TaggedSuite",
+            "ThrowingSuite",
             "TimingSuite",
             "UnacquirableSuite",
             "UnreleasableSuite",

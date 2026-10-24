@@ -7,11 +7,11 @@ import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.actor.events
 import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.lark.actor.remote.Node
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.onLeft
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.CopyOnWriteArrayList

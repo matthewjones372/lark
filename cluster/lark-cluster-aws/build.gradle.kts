@@ -14,6 +14,7 @@ dependencies {
         }
     }
     runtimeOnly("software.amazon.awssdk:url-connection-client:$awsVersion")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

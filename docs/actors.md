@@ -583,8 +583,8 @@ import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.actor.test
 import io.github.matthewjones372.lark.actor.testActors
 import io.github.matthewjones372.lark.actor.unhandled
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes

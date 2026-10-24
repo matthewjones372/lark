@@ -9,12 +9,12 @@ import io.github.matthewjones372.lark.app.actor.actors
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.typesafe.configOf
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThan
 import io.github.matthewjones372.lark.cluster.Cluster
 import io.github.matthewjones372.lark.cluster.Sharded
 import io.github.matthewjones372.lark.cluster.Status
 import io.github.matthewjones372.lark.cluster.sharding
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue

@@ -18,6 +18,7 @@ dependencies {
     testImplementation(project(":lark-junit"))
     // For the migration page's examples, which convert to and from Arrow.
     testImplementation(project(":lark-arrow"))
+    testImplementation(project(":lark-assert"))
     // For the flags guide, which declares and reads flags over the OpenFeature SDK.
     testImplementation(project(":lark-openfeature"))
 }

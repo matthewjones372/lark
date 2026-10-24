@@ -292,6 +292,8 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
 
+        called == OPEN_FEATURE -> node(OPENFEATURE_CLIENT, emptyList(), at)
+
         // A source provides its Layered and the merge of it, which is the Config: reaching one reaches both.
         called in SOURCES -> node(TYPESAFE_CONFIG, listOf(LAYERED), at) + node(LAYERED, emptyList(), at)
 
@@ -365,6 +367,7 @@ private val CONFIGS = setOf(
 
 private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
 private val MIGRATIONS = extension("liquibase", "migrations")
+private val OPEN_FEATURE = extension("openfeature", "openFeature")
 
 /**
  * The factories lark ships whose bodies are not in the source being compiled.
@@ -391,3 +394,4 @@ private const val TYPESAFE_CONFIG = "com.typesafe.config.Config"
 private const val LAYERED = "$APP.typesafe.Layered"
 private const val DATA_SOURCE = "javax.sql.DataSource"
 private const val MIGRATED = "$APP.liquibase.Migrated"
+private const val OPENFEATURE_CLIENT = "dev.openfeature.sdk.Client"
