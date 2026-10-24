@@ -3,6 +3,8 @@
 dependencies {
     api(project(":lark-app"))
     api(project(":lark-openfeature"))
+
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

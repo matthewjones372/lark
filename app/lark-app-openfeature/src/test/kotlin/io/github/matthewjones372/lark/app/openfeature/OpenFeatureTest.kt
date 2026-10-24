@@ -14,13 +14,13 @@ import io.github.matthewjones372.lark.app.HealthRegistry
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.use
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.openfeature.Flag
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 
 /** A provider that answers every flag with `true`, and can be made to fail its init or go stale. */
