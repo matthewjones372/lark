@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.left
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.PriorityQueue

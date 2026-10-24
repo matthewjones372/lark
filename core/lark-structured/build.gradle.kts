@@ -3,6 +3,7 @@
 // built and tested, but not published (see `unpublished` in the root build).
 dependencies {
     api(project(":lark"))
+    testImplementation(project(":lark-assert"))
 }
 
 kotlin {

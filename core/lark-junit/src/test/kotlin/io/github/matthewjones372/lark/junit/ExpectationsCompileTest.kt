@@ -1,10 +1,9 @@
 package io.github.matthewjones372.lark.junit
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.withClue
 import org.jetbrains.kotlin.cli.common.ExitCode
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir

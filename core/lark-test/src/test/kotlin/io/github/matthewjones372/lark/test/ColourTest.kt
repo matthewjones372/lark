@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.test
 
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldNotContain
-import io.kotest.matchers.string.shouldStartWith
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotContain
+import io.github.matthewjones372.lark.assert.shouldStartWith
+import io.github.matthewjones372.lark.assert.shouldThrow
 import org.junit.jupiter.api.Test
 
 class ColourTest {

@@ -1,11 +1,11 @@
 package io.github.matthewjones372.lark
 
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
-import io.kotest.matchers.comparables.shouldBeLessThan
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
@@ -34,7 +34,7 @@ class ClockTest {
         withClue("the same schedule on the wall clock waits more than a minute") {
             elapsed shouldBeLessThan 1.seconds
         }
-        attempts.get() shouldBeGreaterThanOrEqualTo 2
+        attempts.get() shouldBeGreaterThanOrEqual 2
     }
 
     @Test
@@ -57,8 +57,8 @@ class ClockTest {
 
         val elapsed = measureTime { SystemClock.sleep(20.milliseconds) }
 
-        SystemClock.now() shouldBeGreaterThanOrEqualTo before
-        elapsed shouldBeGreaterThanOrEqualTo 20.milliseconds
+        SystemClock.now() shouldBeGreaterThanOrEqual before
+        elapsed shouldBeGreaterThanOrEqual 20.milliseconds
     }
 
     @Test

@@ -1,12 +1,11 @@
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotContain
 import io.github.matthewjones372.lark.junit.samples.StorySuite
 import io.github.matthewjones372.lark.test.StoryFailed
-import io.kotest.matchers.collections.shouldNotContain
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldNotContain
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass

@@ -2,11 +2,11 @@ package io.github.matthewjones372.lark.arrow
 
 import arrow.core.raise.either
 import arrow.core.raise.ensure
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.nonEmptyListOf
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import arrow.core.left as arrowLeft
 import arrow.core.nonEmptyListOf as arrowNonEmptyListOf

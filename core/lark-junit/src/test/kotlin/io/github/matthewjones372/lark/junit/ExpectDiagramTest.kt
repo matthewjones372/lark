@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.junit.samples.OrderSuite
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
