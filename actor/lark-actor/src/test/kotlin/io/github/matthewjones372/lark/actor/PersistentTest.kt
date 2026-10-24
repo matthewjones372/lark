@@ -128,7 +128,7 @@ class PersistentTest {
             first.send(Eat(50))
             second.send(Eat(10))
 
-            second.failure shouldBe Failure.Raised(JournalConflict(houndOf("rex"), expected = 0, actual = 1))
+            second.failure shouldBe Failure.Declared(JournalConflict(houndOf("rex"), expected = 0, actual = 1))
             journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50))
         }
     }

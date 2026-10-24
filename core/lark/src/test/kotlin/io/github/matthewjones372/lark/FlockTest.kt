@@ -1,11 +1,11 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.raise.ensure
 import io.github.matthewjones372.lark.Start.Lazy
 import io.github.matthewjones372.lark.assert.shouldBeLeft
 import io.github.matthewjones372.lark.assert.shouldBeRight
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.bind
+import io.github.matthewjones372.lark.fail.ensure
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
@@ -41,7 +41,7 @@ class FlockTest {
         val afterTheAwait = AtomicBoolean(false)
 
         val result = flock<Bad, Int> {
-            val forked = async<Int> { raise(Bad("forked")) }
+            val forked = async<Int> { fail(Bad("forked")) }
             val value = forked.await()
             afterTheAwait.set(true)
             value
@@ -144,7 +144,7 @@ class FlockTest {
     @Test
     fun `a fork cancelled after it raised does not fail the block`() {
         val result = flock<Bad, String> {
-            val fork = async<Int> { raise(Bad("forked")) }
+            val fork = async<Int> { fail(Bad("forked")) }
             fork.cancel()
             "returned"
         }
@@ -193,11 +193,11 @@ class FlockTest {
     @Test
     fun `a lazy fork nobody awaits cannot fail the block, where the eager form would`() {
         val lazily = flock<Bad, String> {
-            async<Int>(start = Lazy) { raise(Bad("never asked for")) }
+            async<Int>(start = Lazy) { fail(Bad("never asked for")) }
             "returned"
         }
         val eagerly = flock<Bad, String> {
-            async<Int> { raise(Bad("forked")) }
+            async<Int> { fail(Bad("forked")) }
             "returned"
         }
 
@@ -235,7 +235,7 @@ class FlockTest {
     @Test
     fun `a fork that raised and was never awaited becomes the block's Left`() {
         val result = flock<Bad, String> {
-            async { raise(Bad("orphan")) }
+            async { fail(Bad("orphan")) }
             "returned anyway"
         }
 
@@ -266,12 +266,12 @@ class FlockTest {
                 // The fork started first fails last, so finishing order would answer "second".
                 secondStarted.await()
                 bothAtTheRaise.countDown()
-                raise(Bad("first"))
+                fail(Bad("first"))
             }
             async<Nothing> {
                 secondStarted.countDown()
                 bothAtTheRaise.countDown()
-                raise(Bad("second"))
+                fail(Bad("second"))
             }
             bothAtTheRaise.await()
             "returned anyway"
@@ -306,7 +306,7 @@ class FlockTest {
         val result = flock<Bad, String> {
             async { sleeper.body() }
             sleeper.awaitStart()
-            raise(Bad("caller"))
+            fail(Bad("caller"))
         }
 
         result shouldBeLeft Bad("caller")

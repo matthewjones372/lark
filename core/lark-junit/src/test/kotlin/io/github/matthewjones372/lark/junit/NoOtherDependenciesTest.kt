@@ -10,7 +10,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "junit-platform-engine",
         "junit-platform-commons",
         "opentest4j",

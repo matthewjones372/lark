@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.app
 
-import arrow.core.getOrElse
+import io.github.matthewjones372.lark.fail.getOrElse
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 

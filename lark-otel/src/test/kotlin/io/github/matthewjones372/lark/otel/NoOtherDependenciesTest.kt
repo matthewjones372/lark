@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // The API and the context it defines. No SDK: a service brings its own,
         // with the exporter and the agent it has chosen.

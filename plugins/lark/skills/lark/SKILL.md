@@ -6,7 +6,7 @@ description: Use whenever code depends on lark (io.github.matthewjones372:lark* 
 # lark
 
 lark is structured concurrency, resources, streams, actors and application wiring
-on the JDK's virtual threads, with Arrow's `Raise` and `Either` as the error model.
+on the JDK's virtual threads, with Lark's own `Fail` and `Either` as the error model.
 Blocking is fine everywhere: every fork is a virtual thread, so there is no
 `suspend`, no dispatcher and no `CompletableFuture` to reach for.
 
@@ -34,7 +34,7 @@ Before writing any of the code below, use the lark call beside it.
 | `Thread.sleep` in a test | `eventually(within) { … }` from `lark-test` |
 | a test of something on a timer | `TestStreams` and `TestClock` from `lark-stream-test` |
 | a fake swapped in by hand | `.overriding(single<T> { … })`, and `.subgraph<Root>()` for a smaller graph |
-| `runCatching` | catch the exception you expect, by name, or `raise` a declared failure |
+| `runCatching` | catch the exception you expect, by name, or `fail` with a declared failure |
 
 Apply the wiring plugin, `id("io.github.matthewjones372.lark.wiring")`. It checks
 every graph as it compiles and warns on four of these by name:

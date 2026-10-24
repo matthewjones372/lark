@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // The registry interface, and what micrometer-core itself brings.
         "micrometer-core",

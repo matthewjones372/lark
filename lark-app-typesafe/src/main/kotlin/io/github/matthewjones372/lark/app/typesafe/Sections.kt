@@ -1,15 +1,15 @@
 package io.github.matthewjones372.lark.app.typesafe
 
-import arrow.core.Either
-import arrow.core.NonEmptyList
-import arrow.core.left
-import arrow.core.right
-import arrow.core.toNonEmptyListOrNull
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigException
 import com.typesafe.config.ConfigUtil
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.single
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.NonEmptyList
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
+import io.github.matthewjones372.lark.fail.toNonEmptyListOrNull
 import kotlin.time.Duration
 import kotlin.time.toKotlinDuration
 

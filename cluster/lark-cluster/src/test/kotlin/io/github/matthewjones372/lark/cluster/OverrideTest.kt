@@ -30,7 +30,8 @@ class OverrideTest {
                 .filter { (_, of) -> before.getValue(of.first()) != target.name }.maxBy { it.value.size }
             leader.cluster.move("tally", shard, target.cluster.self)
 
-            val during = (1..10).flatMap { round -> moving.map { nodes[round % 3].tally(it) } }
+            // An ask can be lost while its shard moves, so one asked during the move may not be answered at all.
+            val during = (1..10).flatMap { round -> moving.mapNotNull { nodes[round % 3].tryTally(it) } }
             withClue("asked during the move, only the old owner or the new answers") {
                 (during.toSet() - setOf(before.getValue(moving.first()), target.name)).shouldBeEmpty()
             }

@@ -216,7 +216,7 @@ fun <M : Any, S> behaviour(
 
 /** Why an actor stopped other than by answering `stop()`: a failure it declared, or a throw nobody declared. */
 sealed interface Failure<out E> {
-    data class Raised<out E>(val error: E) : Failure<E>
+    data class Declared<out E>(val error: E) : Failure<E>
 
     data class Thrown(val throwable: Throwable) : Failure<Nothing>
 }

@@ -9,7 +9,7 @@ import java.io.File
 /** What this module may put on a consumer's classpath, stated as a test. */
 class NoOtherDependenciesTest {
 
-    private val allowed = listOf("kotlin-stdlib", "annotations-", "arrow-", "lark", "config-")
+    private val allowed = listOf("kotlin-stdlib", "annotations-", "lark", "config-")
 
     @Test
     fun `the main runtime classpath is lark-app and Typesafe Config, and nothing else`() {
