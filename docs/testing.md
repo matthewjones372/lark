@@ -212,6 +212,20 @@ object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {
 }
 ```
 
+### State in a suite
+
+A suite is one `object`, so its properties are shared by every test in it, and
+by tests running at the same time. Jupiter makes a new instance of the class
+for each test, so a field there starts fresh each time; in a suite it does
+not. A value a test changes, such as a counter, a list it adds to or an
+exception it attaches notes to, belongs inside the test, or in a function the
+test calls to make a fresh one. Put what the tests share on purpose in
+`shared`.
+
+A test that needs a directory of its own, as Jupiter's `@TempDir` gives one,
+calls `withTempDirectory { dir -> … }`. The directory is new and empty, and
+it is deleted with everything in it once the block returns or throws.
+
 ## Expectations
 
 A suite's test returns what its checks found as a value, `Expectations`, so a
@@ -238,8 +252,12 @@ Without the plugin, it quotes the source line instead. A diagram carries no
 expected and actual for IntelliJ's diff, so `lark-junit` also has `shouldBe`,
 `shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
 and carry both. Beside them are `shouldContain` and `shouldNotContain`, for a
-string or a collection, and `shouldBeSameInstanceAs` and
-`shouldNotBeSameInstanceAs`. `shouldThrow<T>(block)` holds when `block`
+string or a collection, `shouldContainExactlyInAnyOrder`, `shouldBeEmpty` and
+`shouldNotBeEmpty`, the comparisons `shouldBeLessThan`, `shouldBeLessThanOrEqual`,
+`shouldBeGreaterThan` and `shouldBeGreaterThanOrEqual`, and
+`shouldBeSameInstanceAs` and `shouldNotBeSameInstanceAs`. Two take a lambda
+that runs only when they hold: `x.shouldNotBeNull { a -> … }` checks the
+value, and `x.shouldBeInstanceOf<T> { t -> … }` checks it as a `T`. `shouldThrow<T>(block)` holds when `block`
 throws a `T`; `shouldThrow<T>(block) { e -> … }` then checks what it threw. A
 different exception fails the test with that exception as its cause, and an
 interrupt or cancellation goes on up, so a `timeout` still stops the test. Infix calls share one precedence and group to the left, so
