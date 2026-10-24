@@ -13,6 +13,7 @@ import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
@@ -22,6 +23,7 @@ import io.github.matthewjones372.lark.junit.shouldNotBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.tag
+import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
 import io.github.matthewjones372.lark.readings
@@ -331,5 +333,30 @@ object ContainingSuite : Suite<List<String>>() {
         test("fails a collection shouldNotContain") { words -> words shouldNotContain "one" }
         test("fails shouldBeSameInstanceAs") { words -> words shouldBeSameInstanceAs words.toList() }
         test("fails shouldNotBeSameInstanceAs") { words -> words shouldNotBeSameInstanceAs words }
+    }
+}
+
+/** Spec 0191's clue and narrowing, as values. */
+object CluedSuite : Suite<Any>() {
+    override val shared: Resource<Any> = resource { "two" }
+
+    /** How many times a [shouldBeInstanceOf]'s lambda ran; it must not on a miss. */
+    val thenRan = AtomicInteger()
+
+    init {
+        test("passes a narrowed check") { two -> two.shouldBeInstanceOf<String> { it shouldBe "two" } }
+        test("fails under a clue") { two ->
+            withClue("the outer clue") { withClue("the inner clue") { two shouldBe 3 } }
+        }
+        test("fails one of two under a clue") { two ->
+            withClue("only once") { (two shouldBe "two") and (two shouldBe 3) }
+        }
+        test("fails a narrowing") { two ->
+            two.shouldBeInstanceOf<Int> {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
+        test("fails a narrowed check") { two -> two.shouldBeInstanceOf<String> { it shouldBe "three" } }
     }
 }

@@ -9,6 +9,7 @@ import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.MultipleFailuresError
+import io.github.matthewjones372.lark.assert.withClue as clued
 
 /**
  * What a test's checks found, as a value: every failure is kept, and none is thrown until the test has returned.
@@ -103,7 +104,7 @@ infix fun <A> A.shouldNotBeSameInstanceAs(unexpected: A): Expectations =
     ) passed(1) else mismatchedHere(null, identified(this), "anything but ${identified(unexpected)}")
 
 /** Holds if [block] throws a [T]; fails, naming this line, if it throws nothing or something else. */
-inline fun <reified T : Throwable> shouldThrow(block: () -> Any?): Expectations = shouldThrow<T>(block) { threw() }
+inline fun <reified T : Throwable> shouldThrow(block: () -> Any?): Expectations = shouldThrow<T>(block) { held() }
 
 /**
  * Holds if [block] throws a [T] and [then], given what it threw, holds too. [then] runs only on a [T]. An interrupt,
@@ -118,14 +119,32 @@ inline fun <reified T : Throwable> shouldThrow(block: () -> Any?, then: (T) -> E
         caught
     }
     return when (thrown) {
-        is T -> threw() and then(thrown)
+        is T -> held() and then(thrown)
         else -> notThrown("a ${T::class.qualifiedName} thrown", thrown?.nonFatalOrThrow())
     }
 }
 
-/** The check [shouldThrow] passed. */
+/**
+ * Holds if this is a [T] and [then], given it as one, holds too. [then] runs only on a [T]; a miss names the type
+ * wanted and the value found, with its type.
+ */
+inline fun <reified T> Any?.shouldBeInstanceOf(then: (T) -> Expectations): Expectations =
+    if (this is T) held() and then(this) else notInstance("an instance of ${T::class.qualifiedName}", this)
+
+/** Holds if this is a [T]. */
+inline fun <reified T> Any?.shouldBeInstanceOf(): Expectations = shouldBeInstanceOf<T> { held() }
+
+/** [block]'s expectations, each failure in it saying [clue] first. Blocks nest, the outermost clue first. */
+fun withClue(clue: Any?, block: () -> Expectations): Expectations = clued(clue, block)
+
+/** A check that passed, for [shouldThrow] and [shouldBeInstanceOf]. */
 @PublishedApi
-internal fun threw(): Expectations = passed(1)
+internal fun held(): Expectations = passed(1)
+
+/** The check [shouldBeInstanceOf] failed on [value]. */
+@PublishedApi
+internal fun notInstance(wanted: String, value: Any?): Expectations =
+    mismatchedHere(null, value?.let { "$it of ${it::class.qualifiedName}" } ?: "null", wanted)
 
 /** The check [shouldThrow] failed: nothing thrown, or [thrown], carried as the cause. */
 @PublishedApi

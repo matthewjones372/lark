@@ -102,12 +102,11 @@ unreported, in nearly every file.
 
 ## Open questions
 
-1. **Add `withClue` and `shouldBeInstanceOf` to `lark-junit` first, or keep lark-assert's throwing
-   versions in the suites?** Recommend adding them first, for the reason above.
-2. **One actor system per suite, as today, or one for the whole module?** Recommend one per suite for
-   this pilot, with the module-wide question answered by the result.
-3. **Which suites start out sequential?** Recommend only `DefectTest` and `RestartDelayTest`, for the
-   reasons in Shape. Any other gets `alone` only after it fails under load, and is listed.
-4. **Do the four classes without an actor system stay on Jupiter?** Recommend yes. They gain nothing
-   from a shared resource. `DoesNotCompileTest` runs the compiler in the test JVM and already needs a
-   2 GB heap, so running its 13 tests concurrently could exhaust it.
+Answered (maintainer, 2026-10-24): each as recommended.
+
+1. ~~Add `withClue` and `shouldBeInstanceOf` to `lark-junit` first?~~ Yes, first.
+2. ~~One actor system per suite, or one for the whole module?~~ One per suite for this pilot. The
+   result answers the module-wide question.
+3. ~~Which suites start out sequential?~~ Only `DefectTest` and `RestartDelayTest`. Any other gets
+   `alone` only after it fails under load, and is listed.
+4. ~~Do the four classes without an actor system stay on Jupiter?~~ Yes.
