@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.openfeature
 
+import dev.openfeature.sdk.ErrorCode
 import dev.openfeature.sdk.FlagEvaluationDetails
 import dev.openfeature.sdk.Hook
 import dev.openfeature.sdk.HookContext
@@ -25,7 +26,12 @@ object LarkFeatureHook : Hook<Any> {
             "reason" to details.reason.orEmpty(),
         ).increment()
         val code = details.errorCode ?: return
-        logWarn("flag $flag answered with its default: $code ${details.errorMessage.orEmpty()}".trimEnd())
-        counter("openfeature.errors", "flag" to flag, "code" to code.name).increment()
+        fellBack(flag, code, details.errorMessage)
     }
+}
+
+/** A flag that answered its default: one warning naming it and [code], and one `openfeature.errors` reading. */
+internal fun fellBack(flag: String, code: ErrorCode, message: String?) {
+    logWarn("flag $flag answered with its default: $code ${message.orEmpty()}".trimEnd())
+    counter("openfeature.errors", "flag" to flag, "code" to code.name).increment()
 }
