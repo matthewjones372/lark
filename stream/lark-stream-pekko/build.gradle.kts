@@ -25,7 +25,7 @@ dependencies {
     api(platform("org.apache.pekko:pekko-bom_$scalaBinary:$pekkoVersion"))
     api("org.apache.pekko:pekko-stream_$scalaBinary")
 
-    // The actor system a contract test runs on, owned by a JUnit 5 extension.
+    // The actor system a suite runs on: Pekko's ActorTestKit, owned by the suite's shared Resource.
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary")
     // LoggingTestKit reads log events back through an appender of logback's own, so the
     // binding has to be the real one. Test scope only, which NoOtherDependenciesTest keeps
@@ -73,7 +73,7 @@ tasks.test {
     // read files Gradle knows nothing about, and a violation would ride green
     // builds until `--rerun-tasks`.
     inputs.files(judgedSources).withPropertyName("judgedSources")
-    // ReadmeExampleTest compiles the example out of docs/stream.md and holds the
+    // ReadmeExampleSuite compiles the example out of docs/stream.md and holds the
     // README's copy of it to the same text, so an edit to either page is a change
     // to what this task tests: without this the example would ride a cached green
     // until something else in the module moved.
