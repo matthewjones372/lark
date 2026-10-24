@@ -16,6 +16,20 @@ sealed interface Either<out E, out A> {
     fun leftOrNull(): E? = (this as? Left)?.value
 
     fun swap(): Either<A, E> = fold({ Right(it) }, { Left(it) })
+
+    companion object {
+        /**
+         * What [block] returned, or on the left what it threw that a caller may handle. Anything fatal, and a
+         * [fail] on its way out of its block, goes on up: see [nonFatalOrThrow].
+         */
+        @Suppress("TooGenericExceptionCaught") // catching everything is the point; nonFatalOrThrow sorts it
+        inline fun <A> catch(block: () -> A): Either<Throwable, A> =
+            try {
+                Right(block())
+            } catch (thrown: Throwable) {
+                Left(thrown.nonFatalOrThrow())
+            }
+    }
 }
 
 inline fun <E, A, B> Either<E, A>.fold(ifLeft: (E) -> B, ifRight: (A) -> B): B = when (this) {

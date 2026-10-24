@@ -42,7 +42,7 @@ class Producer<K, V> internal constructor(
         val acked = CompletableFuture<Published>()
         val started = System.nanoTime()
         // A serializer that throws does so here rather than in the callback, and a full buffer waits here too.
-        catching {
+        Either.catch {
             client.send(record) { metadata, failed ->
                 meters.sent(record.topic(), started, metadata.takeIf { failed == null })
                 if (failed == null) acked.complete(metadata.published()) else acked.completeExceptionally(failed)
@@ -163,4 +163,4 @@ const val DEAD_LETTER_HEADER: String = "lark.dead-letter"
 private fun RecordMetadata.published() = Published(topic(), partition(), offset())
 
 private fun CompletableFuture<Published>.outcome(record: ProducerRecord<*, *>): Either<PublishFailed, Published> =
-    catching { get() }.mapLeft { thrown -> PublishFailed(record, (thrown as? ExecutionException)?.cause ?: thrown) }
+    Either.catch { get() }.mapLeft { thrown -> PublishFailed(record, (thrown as? ExecutionException)?.cause ?: thrown) }

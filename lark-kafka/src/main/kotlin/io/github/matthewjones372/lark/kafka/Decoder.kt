@@ -23,7 +23,7 @@ class Decoder<out A>(deserializer: Deserializer<out A>, private val transient: (
         part: DecodeError.Part,
     ): Either<DecodeError, A> {
         val bytes = if (part == DecodeError.Part.Key) record.key() else record.value()
-        return catching { read(record.topic(), record.headers(), bytes) }
+        return Either.catch { read(record.topic(), record.headers(), bytes) }
             .mapLeft { thrown -> if (transient(thrown)) throw thrown else DecodeError(record, part, thrown) }
     }
 
