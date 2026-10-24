@@ -9,7 +9,7 @@ import java.io.File
 /** lark and the JDK: the module's whole point is that the JDK now has what it needs. */
 class NoOtherDependenciesTest {
 
-    private val allowed = listOf("lark", "kotlin-stdlib", "annotations-", "arrow-")
+    private val allowed = listOf("lark", "kotlin-stdlib", "annotations-")
 
     @Test
     fun `the main runtime classpath is lark, and nothing else`() {

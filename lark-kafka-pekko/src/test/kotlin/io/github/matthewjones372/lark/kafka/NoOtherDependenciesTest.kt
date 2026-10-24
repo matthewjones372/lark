@@ -16,7 +16,6 @@ class NoOtherDependenciesTest {
         // lark-stream and everything it is allowed.
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         "pekko-",
         "scala-library",

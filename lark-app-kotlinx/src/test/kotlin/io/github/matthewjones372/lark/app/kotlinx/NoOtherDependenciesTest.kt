@@ -10,7 +10,7 @@ import java.io.File
 class NoOtherDependenciesTest {
 
     private val allowed =
-        listOf("kotlin-stdlib", "annotations-", "arrow-", "lark", "config-", "kotlinx-serialization-")
+        listOf("kotlin-stdlib", "annotations-", "lark", "config-", "kotlinx-serialization-")
 
     @Test
     fun `the main runtime classpath is lark-app-typesafe and kotlinx serialization, and nothing else`() {

@@ -8,7 +8,7 @@ import java.io.File
 
 /**
  * What this module is allowed to put on a consumer's classpath, stated as a
- * test: lark and Arrow, and pekko-actor with what it brings. No HTTP library,
+ * test: lark, and pekko-actor with what it brings. No HTTP library,
  * no JSON library, no coroutines.
  */
 class NoOtherDependenciesTest {
@@ -16,7 +16,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         "pekko-actor",
         // What pekko-actor brings with it: the Scala runtime it is written in

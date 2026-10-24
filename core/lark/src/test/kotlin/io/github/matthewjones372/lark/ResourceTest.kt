@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark
 
-import arrow.core.left
-import arrow.core.raise.either
 import io.github.matthewjones372.lark.assert.shouldBeLeft
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
@@ -97,14 +97,14 @@ class ResourceTest {
         val exit = AtomicReference<ExitCase?>(null)
         val released = mutableListOf<String>()
 
-        val raised = either<Bad, Int> {
+        val raised = attempt<Bad, Int> {
             resourceScope {
                 install({ Held("outer") }) { held, case ->
                     released += held.name
                     exit.set(case)
                 }
                 install({ Held("inner") }) { held, _ -> released += held.name }
-                raise(Bad("declared"))
+                fail(Bad("declared"))
             }
         }
 

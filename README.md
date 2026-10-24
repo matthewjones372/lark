@@ -202,7 +202,7 @@ long-term-support release with the fix.
 kotlin { jvmToolchain(25) }
 
 dependencies {
-    // brings arrow-core and nothing else
+    // brings nothing but the Kotlin standard library
     implementation("io.github.matthewjones372:lark:0.10.1")
 }
 ```
@@ -211,8 +211,8 @@ A complete program, with every import it uses:
 
 <!-- quickstart-example -->
 ```kotlin
-import arrow.core.Either
-import arrow.core.raise.either
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.parZip
 import io.github.matthewjones372.lark.timeout
 import kotlin.time.Duration.Companion.seconds
@@ -236,18 +236,18 @@ fun recentOrders(id: Int): List<Order> {
     return listOf(Order(7, 1200))
 }
 
-fun summary(id: Int): Either<UserNotFound, Summary> = either {
+fun summary(id: Int): Either<UserNotFound, Summary> = attempt {
     timeout(2.seconds) {
         parZip(
-            { findUser(id) ?: raise(UserNotFound(id)) },
+            { findUser(id) ?: fail(UserNotFound(id)) },
             { recentOrders(id) },
         ) { user, orders -> Summary(user, orders) }
     }
 }
 
 fun main() {
-    println(summary(1)) // Either.Right(Summary(user=User(id=1, name=Ada), orders=[Order(id=7, pence=1200)]))
-    println(summary(2)) // Either.Left(UserNotFound(id=2))
+    println(summary(1)) // Right(value=Summary(user=User(id=1, name=Ada), orders=[Order(id=7, pence=1200)]))
+    println(summary(2)) // Left(value=UserNotFound(id=2))
 }
 ```
 

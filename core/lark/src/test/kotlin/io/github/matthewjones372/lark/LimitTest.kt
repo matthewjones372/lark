@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark
 
+import io.github.matthewjones372.lark.fail.attempt
+import io.github.matthewjones372.lark.fail.left
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -123,6 +125,17 @@ class LimitTest {
             // A declared failure, which says nothing about the dependency.
         }
         limit.current shouldBe 90
+        limit.inFlight shouldBe 0
+    }
+
+    @Test
+    fun `a fail passing through a permit is the call's answer, not a failure the limit learns from`() {
+        val limit = Limit.adaptive("db", initial = 100, max = 1_000)
+
+        val answered = attempt<String, Int> { limit.withPermit { fail("not found") } }
+
+        answered shouldBe "not found".left()
+        limit.current shouldBe 100
         limit.inFlight shouldBe 0
     }
 

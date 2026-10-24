@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         Regex("""kotlin-stdlib.*"""),
         Regex("""annotations-.*"""),
-        Regex("""arrow-.*"""),
         Regex("""lark(-\d.*)?\.jar"""),
     )
 

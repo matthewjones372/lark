@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark
 
+import io.github.matthewjones372.lark.fail.Failed
 import java.util.concurrent.CancellationException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -30,8 +31,8 @@ class Limit private constructor(
     /**
      * Runs [block] once the limit has room for it, waiting until then. How long [block] took is what an adaptive
      * limit learns from; a block that throws counts as a call the dependency failed, unless it was interrupted or
-     * cancelled, which says nothing about the dependency. A declared failure raised from inside a `Raise` is such
-     * a cancellation, so a lookup that answers "not found" is not taken for overload.
+     * cancelled, which says nothing about the dependency. Nor does a `fail` passing through: it is the call's own
+     * answer, so a lookup that answers "not found" is not taken for overload.
      */
     fun <A> withPermit(block: () -> A): A {
         acquire()
@@ -45,6 +46,9 @@ class Limit private constructor(
         } catch (cancelled: CancellationException) {
             outcome = Outcome.UNMEASURED
             throw cancelled
+        } catch (failed: Failed) {
+            outcome = Outcome.UNMEASURED
+            throw failed
         } finally {
             release(System.nanoTime() - started, outcome)
         }
