@@ -135,3 +135,4 @@ Facts worth having before anything else:
 - [Application cookbook](https://github.com/matthewjones372/lark/blob/main/docs/cookbook.md): one recipe per task, most compiled by a test.
 - [Streams](https://github.com/matthewjones372/lark/blob/main/docs/stream.md), [Kafka](https://github.com/matthewjones372/lark/blob/main/docs/kafka.md), [Actors](https://github.com/matthewjones372/lark/blob/main/docs/actors.md), [Remoting and clusters](https://github.com/matthewjones372/lark/blob/main/docs/cluster.md).
 - [Observability](https://github.com/matthewjones372/lark/blob/main/docs/observability.md) and [Testing](https://github.com/matthewjones372/lark/blob/main/docs/testing.md).
+- [Feature flags](https://github.com/matthewjones372/lark/blob/main/docs/flags.md): `Flag`, `evaluatedFor`, `featureClient`.
