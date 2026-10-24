@@ -1,6 +1,11 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotBeEmpty
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
@@ -13,11 +18,6 @@ import io.github.matthewjones372.lark.stream.restartOnDefect
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.runFold
 import io.github.matthewjones372.lark.stream.take
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.errors.SerializationException

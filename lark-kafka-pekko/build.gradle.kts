@@ -18,6 +18,7 @@ dependencies {
     testImplementation("io.github.embeddedkafka:embedded-kafka_$scalaBinary:4.3.1")
     // The compiler, so that which overload a call resolves to, and what does not compile, are tests.
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

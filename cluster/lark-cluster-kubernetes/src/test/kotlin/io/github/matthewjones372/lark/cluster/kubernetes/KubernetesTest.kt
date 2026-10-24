@@ -6,12 +6,12 @@ import io.fabric8.kubernetes.client.KubernetesClient
 import io.fabric8.kubernetes.client.KubernetesClientBuilder
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient
 import io.github.matthewjones372.lark.actor.remote.Node
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldThrow
 import io.github.matthewjones372.lark.cluster.Joins
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.net.ServerSocket

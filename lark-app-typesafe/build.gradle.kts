@@ -10,6 +10,7 @@ dependencies {
     // the compiler's, which a test outside the compiler has to bring.
     testImplementation(project(":lark-app-compiler"))
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:${rootProject.extra["larkKotlinVersion"]}")
+    testImplementation(project(":lark-assert"))
 }
 
 // The page ReportedTest holds to what the report answers, declared so editing it re-runs the test.

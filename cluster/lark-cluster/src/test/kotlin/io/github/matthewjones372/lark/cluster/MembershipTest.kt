@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 

@@ -10,6 +10,7 @@ val scalaBinary = "2.13"
 dependencies {
     api(project(":lark"))
     api("org.apache.pekko:pekko-actor_$scalaBinary:$pekkoVersion")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

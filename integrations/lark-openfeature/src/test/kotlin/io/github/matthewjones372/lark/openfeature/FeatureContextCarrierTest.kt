@@ -3,9 +3,9 @@ package io.github.matthewjones372.lark.openfeature
 import dev.openfeature.sdk.ImmutableContext
 import dev.openfeature.sdk.ImmutableStructure
 import dev.openfeature.sdk.Value
-import io.kotest.assertions.withClue
-import io.kotest.matchers.maps.shouldBeEmpty
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 
 /** What crosses a message: the targeting key and every scalar attribute, each as the type it was. */

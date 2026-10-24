@@ -21,6 +21,7 @@ dependencies {
     // A claim about a backend asserted against a fake backend is a claim about
     // the fake, so the tests run against the one most services use.
     testImplementation("ch.qos.logback:logback-classic:1.5.20")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

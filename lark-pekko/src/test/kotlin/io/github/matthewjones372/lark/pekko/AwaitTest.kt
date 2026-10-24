@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.pekko
 
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldThrow
 import org.apache.pekko.dispatch.Futures
 import org.junit.jupiter.api.Test
 import scala.concurrent.Future

@@ -1,5 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldThrow
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.fail.map
@@ -7,8 +9,6 @@ import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.take
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.Deserializer
 import org.apache.kafka.common.serialization.StringDeserializer

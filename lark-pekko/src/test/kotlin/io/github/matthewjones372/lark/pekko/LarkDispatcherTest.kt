@@ -1,12 +1,12 @@
 package io.github.matthewjones372.lark.pekko
 
 import com.typesafe.config.ConfigFactory
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.parZip
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.apache.pekko.ConfigurationException
 import org.apache.pekko.actor.ActorSystem
 import org.junit.jupiter.api.AfterAll

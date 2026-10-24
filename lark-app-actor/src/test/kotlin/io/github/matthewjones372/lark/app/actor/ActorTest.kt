@@ -15,13 +15,13 @@ import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.validate
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldHaveSize
+import io.github.matthewjones372.lark.assert.shouldNotBeNull
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.metricTags
 import io.github.matthewjones372.lark.metrics
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes

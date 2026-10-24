@@ -1,8 +1,8 @@
 package io.github.matthewjones372.lark.kafka
 
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldThrow
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord

@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.app.pekko
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeEmpty
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.withClue
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.actor.typed.Behavior

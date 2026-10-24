@@ -2,6 +2,11 @@
 
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
+import io.github.matthewjones372.lark.assert.shouldContainKey
+import io.github.matthewjones372.lark.assert.shouldNotContainKey
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.stream.Exit
@@ -9,11 +14,6 @@ import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.TestStreams
 import io.github.matthewjones372.lark.stream.from
 import io.github.matthewjones372.lark.stream.run
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import io.kotest.matchers.maps.shouldContainKey
-import io.kotest.matchers.maps.shouldNotContainKey
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.hours

@@ -4,7 +4,7 @@ import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.choice
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
 import org.junit.jupiter.api.Test
 
 /** A choice reads its setting from the graph's own Config, so overriding one key flips it (spec 0136). */

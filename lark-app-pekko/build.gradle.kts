@@ -18,6 +18,7 @@ dependencies {
     testImplementation(project(":lark-junit"))
     // For the migration page's examples, which convert to and from Arrow.
     testImplementation(project(":lark-arrow"))
+    testImplementation(project(":lark-assert"))
 }
 
 // The serialization plugin, handed to the embedded compiler as a reader's build applies it, so a

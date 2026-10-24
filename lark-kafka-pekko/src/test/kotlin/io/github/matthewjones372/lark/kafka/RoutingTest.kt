@@ -1,13 +1,13 @@
 package io.github.matthewjones372.lark.kafka
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.run
 import io.github.matthewjones372.lark.stream.start
 import io.github.matthewjones372.lark.stream.take
-import io.kotest.assertions.withClue
-import io.kotest.matchers.longs.shouldBeLessThanOrEqual
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.errors.SerializationException
 import org.apache.kafka.common.serialization.ByteArrayDeserializer

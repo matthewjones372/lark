@@ -6,6 +6,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeNull
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logDebug
 import io.github.matthewjones372.lark.logError
@@ -13,9 +16,6 @@ import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.logWarn
 import io.github.matthewjones372.lark.logger
 import io.github.matthewjones372.lark.parMap
-import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
