@@ -1,12 +1,20 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.VirtualThreads
+import java.lang.invoke.VarHandle
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Semaphore
+import java.util.concurrent.locks.LockSupport
 
-/** How many elements the inputs of a merge may hold between them before each waits for the reader. */
+/** How many elements the inputs of a flatMapMerge, or of a merge on a test's clock, may hold between them. */
 private const val ROOM = 16
+
+/**
+ * How many elements each input of a merge may hold before it waits for the reader: as much as `buffer(64)`, since a
+ * ring wakes its producer a quarter of its room at a time, and at 16 a producer waited for every fourth element.
+ */
+private const val INPUT_ROOM = 64
 
 /** What an input puts after its last element, or in place of the rest when it failed. */
 private sealed interface Signal {
@@ -40,6 +48,82 @@ private fun feed(up: Pull, into: ArrayBlockingQueue<Any>, releases: Releases?) {
     }
 }
 
+/** [up] drained into [into] on the thread this runs on, and its end or failure after its last element. */
+// The catch is as wide as a pipeline, as above.
+@Suppress("TooGenericExceptionCaught")
+private fun feed(up: Pull, into: Ring, releases: Releases?) {
+    try {
+        Releases.within(releases) {
+            while (true) into.put(up.next() ?: break)
+        }
+        into.put(Signal.Finished)
+    } catch (_: InterruptedException) {
+        // Let go of by the run: nothing reads what would have come next.
+    } catch (thrown: Throwable) {
+        try {
+            into.put(Signal.Threw(thrown))
+        } catch (_: InterruptedException) {
+            // Let go of by the run while waiting for room: nobody reads the failure either.
+        }
+    }
+}
+
+/**
+ * Reads one ring of each input, an element from each in turn, so an input that keeps its ring full cannot starve
+ * one that does not. It drops a ring once its end has been read, and parks only once every ring is empty.
+ *
+ * It parks on all the rings at once: named on each, a fence, then one more look at all of them. Each producer
+ * fences between publishing an element and looking for the name, as it does for a ring's own consumer, so either
+ * this sees the element or the producer sees the name and wakes it.
+ */
+internal class InTurn(private val rings: Array<Ring>) {
+    private var open = rings.size
+    private var turn = 0
+
+    fun next(): Any? {
+        if (Thread.interrupted()) throw InterruptedException()
+        var yielded = 0
+        while (open > 0) {
+            var looked = 0
+            while (looked < open) {
+                val at = turn
+                turn = if (at + 1 < open) at + 1 else 0
+                val taken = rings[at].poll()
+                when {
+                    taken == null -> looked++
+                    taken === Signal.Finished -> ended(at).also { looked = 0 }
+                    taken is Signal.Threw -> throw taken.thrown
+                    else -> return taken
+                }
+            }
+            if (open == 0) break
+            // A yield lets a producer on the same carrier run, and is far cheaper than a park and an unpark.
+            if (yielded++ < YIELDS_BEFORE_PARKING) Thread.yield() else parkUntilAnyNotEmpty()
+        }
+        return null
+    }
+
+    /** Drops the ring at [at] from the turns: the last open ring takes its place. */
+    private fun ended(at: Int) {
+        open--
+        rings[at] = rings[open]
+        turn = if (at < open) at else 0
+    }
+
+    private fun parkUntilAnyNotEmpty() {
+        val me = Thread.currentThread()
+        for (i in 0 until open) rings[i].nameConsumer(me)
+        VarHandle.fullFence()
+        if ((0 until open).all { rings[it].isEmpty() }) LockSupport.park(this)
+        for (i in 0 until open) rings[i].nameConsumer(null)
+        if (Thread.interrupted()) throw InterruptedException()
+    }
+
+    private companion object {
+        const val YIELDS_BEFORE_PARKING = 4
+    }
+}
+
 /** Reads what the inputs put, in the order they put it, until [ended] says every input is done. */
 private class Confluence(private val queue: ArrayBlockingQueue<Any>) {
     var open = 0
@@ -60,15 +144,15 @@ private class Confluence(private val queue: ArrayBlockingQueue<Any>) {
 }
 
 /**
- * Both streams at once, each drained on a fork of its own into one bounded queue, and read in the order
- * their elements arrived. It ends once both have, and fails as soon as either does.
+ * Both streams at once, each drained on a fork of its own into a [Ring] of its own, and read a ring at a time in
+ * turn (spec 0185). It ends once both have, and fails as soon as the reader comes to either's failure.
  */
 internal fun Node.Merge.merged(releases: Releases?): Pull {
-    val queue = ArrayBlockingQueue<Any>(ROOM)
     val on = releases?.on ?: VirtualThreads
     val inputs = listOf(upstream.pull(), other.pull())
-    inputs.forEach { up -> releases?.add(InFlight(on) { feed(up, queue, releases) }::cancel) }
-    val reading = Confluence(queue).apply { open = inputs.size }
+    val rings = Array(inputs.size) { Ring(INPUT_ROOM) }
+    inputs.forEachIndexed { i, up -> releases?.add(InFlight(on) { feed(up, rings[i], releases) }::cancel) }
+    val reading = InTurn(rings)
     return Pull { reading.next() }
 }
 

@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // Avro, and the JSON, compression and logging libraries it declares.
         "avro-",

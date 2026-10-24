@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.app
 
-import arrow.core.nonEmptyListOf
+import io.github.matthewjones372.lark.fail.nonEmptyListOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldNotBeNull

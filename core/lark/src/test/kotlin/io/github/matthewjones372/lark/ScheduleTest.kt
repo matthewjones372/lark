@@ -84,10 +84,10 @@ class ScheduleTest {
     }
 
     @Test
-    fun `retryRaise re-raises the last raise once the schedule is done`() {
+    fun `retrying re-raises the last raise once the schedule is done`() {
         val attempts = AtomicInteger(0)
 
-        val raised = Schedule.recurs<Bad>(2).retryRaise {
+        val raised = Schedule.recurs<Bad>(2).retrying {
             fail(Bad("attempt ${attempts.incrementAndGet()}"))
         }
 
@@ -96,10 +96,10 @@ class ScheduleTest {
     }
 
     @Test
-    fun `retryRaise returns the first success, and retry re-raises into the enclosing scope`() {
+    fun `retrying returns the first success, and retry re-raises into the enclosing scope`() {
         val attempts = AtomicInteger(0)
 
-        Schedule.recurs<Bad>(5).retryRaise {
+        Schedule.recurs<Bad>(5).retrying {
             if (attempts.incrementAndGet() < 2) fail(Bad("again")) else "answered"
         } shouldBe "answered".right()
 

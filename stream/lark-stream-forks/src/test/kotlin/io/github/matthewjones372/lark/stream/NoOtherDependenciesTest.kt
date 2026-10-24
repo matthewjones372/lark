@@ -8,20 +8,19 @@ import java.io.File
 
 /**
  * What lark-stream-forks is allowed to put on a consumer's classpath, stated as a test: lark-stream and
- * what it brings, which is lark, Arrow and the Kotlin standard library. A run on forks needs nothing else.
+ * what it brings, which is lark and the Kotlin standard library. A run on forks needs nothing else.
  */
 class NoOtherDependenciesTest {
 
     private val allowed = listOf(
         Regex("""kotlin-stdlib.*"""),
         Regex("""annotations-.*"""),
-        Regex("""arrow-.*"""),
         Regex("""lark(-\d.*)?\.jar"""),
         Regex("""lark-stream(-\d.*)?\.jar"""),
     )
 
     @Test
-    fun `the main runtime classpath is lark-stream, lark and arrow, and nothing else`() {
+    fun `the main runtime classpath is lark-stream and lark, and nothing else`() {
         val raw = System.getProperty("lark.stream.runtimeClasspath")
         withClue("the build must pass -Dlark.stream.runtimeClasspath; see lark-stream-forks/build.gradle.kts") {
             raw.shouldNotBeNull()
@@ -31,7 +30,7 @@ class NoOtherDependenciesTest {
             .filter { it.isNotBlank() }
             .filterNot { entry -> allowed.any { it.matches(entry) } }
 
-        withClue("lark-stream-forks must stay lark-stream, lark and arrow, but found: $unexpected") {
+        withClue("lark-stream-forks must stay lark-stream and lark, but found: $unexpected") {
             unexpected.shouldBeEmpty()
         }
     }

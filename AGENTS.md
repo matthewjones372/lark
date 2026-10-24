@@ -45,7 +45,7 @@ entry): [`docs/agents/stacking.md`](docs/agents/stacking.md).
 
 One Gradle module per capability, listed in `settings.gradle.kts`;
 [`docs/modules.md`](docs/modules.md) says what each is for. `lark` depends on
-`arrow-core` and on the JDK, and on nothing else: no HTTP library, no JSON
+the Kotlin standard library and on the JDK, and on nothing else: no HTTP library, no JSON
 library, no coroutines, and virtual threads come from `java.lang.Thread`. Every
 other module depends on the Lark modules it builds on and, at most, the one
 external library or SDK its name says it integrates: `lark-pekko` adds
@@ -122,7 +122,7 @@ would otherwise be unverified.
 | Gate | Fails when | Not the fix |
 |---|---|---|
 | detekt | any finding, or a source it cannot compile (`X.serializer()`: write `serializer<X>()`) | a suppression with no reason |
-| `NoOtherDependenciesTest` | anything but core and Arrow on the runtime classpath | widening the allow-list |
+| `NoOtherDependenciesTest` | anything but what the module is allowed on the runtime classpath | widening the allow-list |
 | Kover | line coverage under 90% | lowering the floor |
 
 Before saying it is done:

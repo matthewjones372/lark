@@ -743,7 +743,7 @@ rather than abandoning it.
 
 ## Dependencies
 
-`lark-stream` puts only the Kotlin standard library, `lark` and `arrow-core` on
+`lark-stream` puts only the Kotlin standard library and `lark` on
 a consumer's classpath: a description names no backend. `lark-stream-forks`
 and `lark-stream-test` add nothing beyond Lark modules, and
 `lark-stream-actors` adds `lark-actor`. `lark-stream-pekko` adds `lark-pekko`

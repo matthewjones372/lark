@@ -12,7 +12,6 @@ class NoOtherDependenciesTest {
     private val allowed = listOf(
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // Liquibase and what it brings. No driver and no DataSource: both are
         // the application's, and so is what they connect to.

@@ -10,10 +10,9 @@ import java.io.File
 class NoOtherDependenciesTest {
 
     private val allowed = listOf(
-        // lark-stream and what it is allowed: lark, the Kotlin standard library and Arrow.
+        // lark-stream and what it is allowed: lark and the Kotlin standard library.
         "kotlin-stdlib",
         "annotations-",
-        "arrow-",
         "lark",
         // The Kafka client, and the compression codecs and logging facade it declares.
         "kafka-clients-",

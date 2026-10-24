@@ -56,8 +56,8 @@ fun <A> resourceScope(block: ResourceScope.() -> A): A {
 infix fun <A, B> Resource<A>.use(block: (A) -> B): B = resourceScope { block(bind()) }
 
 /**
- * A raise unwinds as a `CancellationException` of Arrow's own, and a fail as lark's [Failed], and neither is
- * an interrupt or a failure: the boundary it leaves through answers its caller with a value rather than a throw.
+ * A fail unwinds as lark's [Failed], and a cancellation as a `CancellationException`, and neither is an
+ * interrupt or a failure: the boundary it leaves through answers its caller with a value rather than a throw.
  */
 private fun exitCaseOf(failure: Throwable): ExitCase = when (failure) {
     is InterruptedException -> ExitCase.Cancelled(failure)

@@ -76,7 +76,7 @@ class RestartTest {
 
         press.stopped shouldBe true
         press.restarts shouldBe 1
-        press.failure shouldBe Failure.Raised(Jammed)
+        press.failure shouldBe Failure.Declared(Jammed)
     }
 
     @Test
