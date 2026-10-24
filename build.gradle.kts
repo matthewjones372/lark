@@ -115,6 +115,8 @@ val moduleDescriptions = mapOf(
     "lark-app-cluster" to "lark-app on lark-cluster: a cluster is a node, joined as a HOCON section says.",
     "lark-openfeature" to
         "lark on OpenFeature: who a flag is evaluated for, bound once and read in every fork and actor.",
+    "lark-app-openfeature" to
+        "lark-app on OpenFeature: the provider is a node, set before any flag is read and shut down on release.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
