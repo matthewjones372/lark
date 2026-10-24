@@ -1,14 +1,15 @@
 package io.github.matthewjones372.lark.test
 
 import io.github.matthewjones372.lark.TestClock
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
+import io.github.matthewjones372.lark.assert.shouldBeSameInstanceAs
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldNotContain
+import io.github.matthewjones372.lark.assert.shouldStartWith
+import io.github.matthewjones372.lark.assert.shouldThrow
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldNotContain
-import io.kotest.matchers.types.shouldBeInstanceOf
-import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -41,9 +42,10 @@ class StoryTest {
         lines[1] shouldContain "✓ Given a shop"
         lines[2] shouldContain "✓ When Ada adopts Nibbles"
         lines[3] shouldContain "✗ Then Nibbles is hers"
-        lines[4] shouldContain "expected:<Ada> but was:<Bea>"
+        lines[4] shouldContain "expected: Ada"
+        lines[5] shouldContain "but was:  Bea"
         failed.message!! shouldNotContain "never reached"
-        failed.cause!!.message shouldContain "expected:<Ada> but was:<Bea>"
+        failed.cause!!.message shouldStartWith "expected: Ada\nbut was:  Bea"
     }
 
     @Test

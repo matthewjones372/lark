@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.junit
 
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.TestTag
 import java.util.concurrent.CopyOnWriteArrayList

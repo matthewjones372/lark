@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.structured
 
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 
 class ScopedValueTest {

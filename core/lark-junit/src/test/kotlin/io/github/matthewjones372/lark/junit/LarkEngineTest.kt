@@ -1,6 +1,13 @@
 package io.github.matthewjones372.lark.junit
 
 import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContain
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
+import io.github.matthewjones372.lark.assert.shouldNotContain
+import io.github.matthewjones372.lark.assert.shouldThrow
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.junit.samples.AloneSuite
 import io.github.matthewjones372.lark.junit.samples.CountedSuite
 import io.github.matthewjones372.lark.junit.samples.ExpectingSuite
@@ -15,14 +22,6 @@ import io.github.matthewjones372.lark.junit.samples.SequentialSuite
 import io.github.matthewjones372.lark.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.lark.junit.samples.UnreleasableSuite
 import io.github.matthewjones372.lark.resource
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
-import io.kotest.matchers.collections.shouldNotContain
-import io.kotest.matchers.maps.shouldContainExactly
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
-import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.DiscoverySelector
 import org.junit.platform.engine.TestExecutionResult

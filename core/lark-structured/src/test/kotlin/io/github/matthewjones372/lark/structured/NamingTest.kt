@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.structured
 
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldEndWith
+import io.github.matthewjones372.lark.assert.shouldStartWith
 import io.github.matthewjones372.lark.fail.attempt
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldEndWith
-import io.kotest.matchers.string.shouldStartWith
 import org.junit.jupiter.api.Test
 
 class NamingTest {

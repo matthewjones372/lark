@@ -1,10 +1,10 @@
 package io.github.matthewjones372.lark.structured
 
 import com.sun.management.HotSpotDiagnosticMXBean
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldContainAll
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.attempt
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainAll
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.lang.management.ManagementFactory
 import java.nio.file.Files

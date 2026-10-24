@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark
 
-import io.kotest.assertions.withClue
-import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
-import io.kotest.matchers.doubles.shouldBeLessThan
-import io.kotest.matchers.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBe
+import io.github.matthewjones372.lark.assert.shouldBeGreaterThanOrEqual
+import io.github.matthewjones372.lark.assert.shouldBeLessThan
+import io.github.matthewjones372.lark.assert.withClue
 import org.junit.jupiter.api.Test
 
 /** A tag bound for a block, and what a fork underneath it measures. */

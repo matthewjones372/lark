@@ -3,6 +3,7 @@
 dependencies {
     api(project(":lark"))
     api("io.arrow-kt:arrow-core:2.1.2")
+    testImplementation(project(":lark-assert"))
 }
 
 tasks.test {

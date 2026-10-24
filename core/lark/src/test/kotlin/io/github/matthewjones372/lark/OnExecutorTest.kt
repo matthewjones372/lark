@@ -1,11 +1,11 @@
 package io.github.matthewjones372.lark
 
+import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.assert.shouldContainExactly
+import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.right
-import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
