@@ -1,4 +1,4 @@
-# 0180 — Stories in suites
+# 0186 — Stories in suites
 
 ## Problem
 
@@ -58,6 +58,9 @@ Binding through `LarkLocal`s is how the clock, logger and metrics already reach 
 So a fork the story opens sees the same title and capture.
 
 ## Stack
+
+Drafted and built as 0180, which the OpenFeature specs also took; renumbered 0186. The branch names keep
+the number they were built under.
 
 - [x] **`spec-0180-story-locals`** ([#532](https://github.com/matthewjones372/lark/pull/532)) — `lark-test`: the story's title and transcript sink become
       `LarkLocal`s whose defaults behave exactly as today.

@@ -78,7 +78,7 @@ class StoryCompileTest {
         reported shouldContain "Unused return value of 'story'."
     }
 
-    // Spec 0180's second question: Story's generic Then is a member, so it wins over any Then lark-junit adds.
+    // Spec 0186's second question: Story's generic Then is a member, so it wins over any Then lark-junit adds.
     @Test
     fun `a dropped then still compiles`(@TempDir workspace: File) {
         val source = suiteOf(
