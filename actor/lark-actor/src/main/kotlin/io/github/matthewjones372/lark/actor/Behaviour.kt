@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.raise.Raise
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.fail.Fail
 import kotlin.time.Duration
 
 /** Where an actor lives. A ref is named by one, so that a ref can later name an actor on another node. */
@@ -146,23 +146,23 @@ fun unhandled(): Next<Nothing> = Next.Unhandled
  */
 class Behaviour<M : Any, S, out E> internal constructor(
     val initial: S,
-    val step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+    val step: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
     /** How it takes a [Signal]; with none, a signal changes nothing. */
-    val signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)?,
+    val signal: (Fail<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)?,
     /** What it does before its first message, and again after each restart: a step with no message. */
-    val start: (Raise<E>.(ctx: Ctx<M>, state: S) -> Next<S>)?,
+    val start: (Fail<E>.(ctx: Ctx<M>, state: S) -> Next<S>)?,
     /**
      * A step over a run of the plain messages already waiting, up to [batch] of them (spec 0086). With none, or a
      * batch of 1, each message has a [step] of its own. Signals, timers and replayed messages always do.
      */
-    internal val steps: (Raise<E>.(ctx: Ctx<M>, state: S, messages: List<M>) -> Batched<S>)?,
+    internal val steps: (Fail<E>.(ctx: Ctx<M>, state: S, messages: List<M>) -> Batched<S>)?,
     internal val batch: Int,
 ) {
     constructor(
         initial: S,
-        step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
-        signal: (Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
-        start: (Raise<E>.(ctx: Ctx<M>, state: S) -> Next<S>)? = null,
+        step: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+        signal: (Fail<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
+        start: (Fail<E>.(ctx: Ctx<M>, state: S) -> Next<S>)? = null,
     ) : this(initial, step, signal, start, null, 1)
 }
 
@@ -174,7 +174,7 @@ internal class Batched<out S>(val next: Next<S>, val unhandled: List<Any>, val u
 
 /** This behaviour, taking signals with [handler]. */
 fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
-    handler: Raise<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>,
+    handler: Fail<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>,
 ): Behaviour<M, S, E> = Behaviour(initial, step, handler, start, steps, batch)
 
 /**
@@ -205,13 +205,13 @@ fun <M : Any, S, E> Behaviour<M, S, E>.onStart(handler: (ctx: Ctx<M>) -> Unit): 
 @JvmName("raising")
 fun <M : Any, S, E> behaviour(
     initial: S,
-    step: Raise<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+    step: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
 ): Behaviour<M, S, E> = Behaviour(initial, step)
 
 /** A behaviour that never raises, so nothing has to name a failure type it does not have. */
 fun <M : Any, S> behaviour(
     initial: S,
-    step: Raise<Nothing>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+    step: Fail<Nothing>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
 ): Behaviour<M, S, Nothing> = Behaviour(initial, step)
 
 /** Why an actor stopped other than by answering `stop()`: a failure it declared, or a throw nobody declared. */
@@ -222,14 +222,14 @@ sealed interface Failure<out E> {
 }
 
 /**
- * The one boundary a step's `raise` unwinds to. Each actor has its own, and a raise carries it, so that a raise
- * belonging to an `either` inside the step is that `either`'s and never mistaken for the actor's.
+ * The one boundary a step's `fail` unwinds to. Each actor has its own, and a failure carries it, so that a failure
+ * belonging to an `attempt` inside the step is that `attempt`'s and never mistaken for the actor's.
  */
-internal class StepRaise<E> : Raise<E> {
-    override fun raise(r: E): Nothing = throw Raised(r, this)
+internal class StepFail<E> : Fail<E> {
+    override fun fail(error: E): Nothing = throw Raised(error, this)
 
-    /** What [step] returned, or [raised] of what it raised here. Inline, so a step allocates nothing. */
-    inline fun <A> guarded(step: Raise<E>.() -> A, raised: (E) -> A): A =
+    /** What [step] returned, or [raised] of what it failed with here. Inline, so a step allocates nothing. */
+    inline fun <A> guarded(step: Fail<E>.() -> A, raised: (E) -> A): A =
         try {
             step(this)
         } catch (failure: Raised) {
@@ -239,8 +239,8 @@ internal class StepRaise<E> : Raise<E> {
         }
 }
 
-/** Carries a raise to its [StepRaise]; no stack trace, since it is control flow, not a fault. */
-internal class Raised(val error: Any?, val by: StepRaise<*>) : RuntimeException(null, null, false, false)
+/** Carries a failure to its [StepFail]; no stack trace, since it is control flow, not a fault. */
+internal class Raised(val error: Any?, val by: StepFail<*>) : RuntimeException(null, null, false, false)
 
 /**
  * A protocol by name, which actors register under and are found by, as refs of that protocol. One id names one

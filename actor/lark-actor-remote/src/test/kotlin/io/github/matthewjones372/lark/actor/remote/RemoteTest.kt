@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import arrow.core.right
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
@@ -19,6 +18,7 @@ import io.github.matthewjones372.lark.actor.stop
 import io.github.matthewjones372.lark.actor.unhandled
 import io.github.matthewjones372.lark.actor.watch
 import io.github.matthewjones372.lark.assert.shouldBeRight
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe

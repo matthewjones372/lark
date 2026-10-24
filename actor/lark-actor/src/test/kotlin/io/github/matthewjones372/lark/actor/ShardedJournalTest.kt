@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
+import io.github.matthewjones372.lark.fail.Either
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty

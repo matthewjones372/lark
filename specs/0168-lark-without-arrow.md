@@ -110,7 +110,8 @@ path easy for anyone already on Arrow.
 - [ ] **`stream-off-arrow`** — the four `stream/` modules move.
 - [ ] **`actor-off-arrow`** — `lark-actor`, `-journal-jdbc` and `-remote`
       move.
-- [ ] **`app-off-arrow`** — `lark-app`, `-typesafe` and `lark-bank` move.
+- [ ] **`app-off-arrow`** — `lark-app`, `-typesafe` and `lark-bank` move. `lark-bank`
+      moved with `actor-off-arrow` (2026-10-23), since it reads the actors' answers.
 - [ ] **`kafka-off-arrow`** — `lark-kafka` and `lark-kafka-pekko` move. Folded into
       `stream-off-arrow` (2026-10-23): their records' `Either`s flow through the stream
       operators, so the two cannot move apart.

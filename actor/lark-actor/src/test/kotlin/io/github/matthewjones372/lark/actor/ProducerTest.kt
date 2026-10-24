@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.left
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly

@@ -1,11 +1,12 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
 import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Flock
 import io.github.matthewjones372.lark.Gauge
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.fold
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.logWarn
 import java.util.UUID

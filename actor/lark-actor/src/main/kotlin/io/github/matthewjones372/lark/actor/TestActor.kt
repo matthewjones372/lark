@@ -1,13 +1,13 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.raise.Raise
-import arrow.core.right
 import io.github.matthewjones372.lark.Clock
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.ScheduleStep
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.Fail
+import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.nonFatalOrThrow
+import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.fixedClock
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -321,7 +321,7 @@ class TestActor<M : Any, S, E> internal constructor(
 
     private val run =
         AtomicReference(Run<M, S, E>(behaviour.initial, false, emptyList(), null, restart?.step, emptyList()))
-    private val boundary = StepRaise<E>()
+    private val boundary = StepFail<E>()
     private val asks = AtomicLong()
 
     private val ctx = object : Ctx<M>, DeadLetters {
@@ -622,7 +622,7 @@ class TestActor<M : Any, S, E> internal constructor(
      * With no schedule a throw reaches the test.
      */
     @Suppress("TooGenericExceptionCaught")
-    private inline fun supervised(body: Raise<E>.() -> Next<S>): Next<S>? =
+    private inline fun supervised(body: Fail<E>.() -> Next<S>): Next<S>? =
         try {
             boundary.guarded(body) { error -> failed(Failure.Raised(error)) }
         } catch (thrown: Throwable) {

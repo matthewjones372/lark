@@ -1,6 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.right
+import io.github.matthewjones372.lark.fail.right
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain

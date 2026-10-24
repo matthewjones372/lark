@@ -1,9 +1,9 @@
 package io.github.matthewjones372.lark.actor
 
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
 import io.github.matthewjones372.lark.Carriers
+import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.lark.fail.left
+import io.github.matthewjones372.lark.fail.right
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.locks.ReentrantLock
