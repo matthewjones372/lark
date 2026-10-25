@@ -83,7 +83,7 @@ with an explicit list.
 
 ## Stack
 
-- [ ] **`spec-0195-flag-rejects`**: `Flag.rejects(Value)` for every factory in
+- [x] **`spec-0195-flag-rejects`** (#599): `Flag.rejects(Value)` for every factory in
       `lark-openfeature`, with tests per factory. Each test has one value that
       decodes and one that doesn't.
       Done when: `rejects` is null exactly when `value()` on a provider holding

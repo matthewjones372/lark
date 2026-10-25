@@ -16,16 +16,20 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
+import io.github.matthewjones372.lark.junit.shouldBeInRange
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.junit.shouldBeNull
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainAll
+import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.shouldContainKey
+import io.github.matthewjones372.lark.junit.shouldHaveSize
 import io.github.matthewjones372.lark.junit.shouldNotBe
 import io.github.matthewjones372.lark.junit.shouldNotBeEmpty
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
@@ -376,8 +380,11 @@ object CluedSuite : Suite<Any>() {
 object GappedSuite : Suite<List<Int>>() {
     override val shared: Resource<List<Int>> = resource { listOf(1, 2, 2, 3) }
 
-    /** How many times a [shouldNotBeNull]'s lambda ran; it must not on a null. */
+    /** How many times a narrowing matcher's lambda ran on a miss; it must not. */
     val thenRan = AtomicInteger()
+
+    private val right: Either<String, Int> = Either.Right(1)
+    private val left: Either<String, Int> = Either.Left("no")
 
     init {
         test("passes every matcher") { xs ->
@@ -388,7 +395,11 @@ object GappedSuite : Suite<List<Int>>() {
                 (1 shouldBeLessThan 2) and (2 shouldBeLessThanOrEqual 2) and
                 (3 shouldBeGreaterThan 2) and (2 shouldBeGreaterThanOrEqual 2) and
                 (xs shouldContainAll listOf(3, 1)) and (mapOf("a" to 1) shouldContainKey "a") and
-                (mapOf("a" to 1) shouldNotContainKey "b") and (mapOf("a" to 1) shouldContain ("a" to 1))
+                (mapOf("a" to 1) shouldNotContainKey "b") and (mapOf("a" to 1) shouldContain ("a" to 1)) and
+                (xs shouldContainExactly listOf(1, 2, 2, 3)) and xs.shouldContainExactly(1, 2, 2, 3) and
+                (xs shouldHaveSize 4) and null.shouldBeNull() and (2 shouldBeInRange 1..3) and
+                (mapOf("a" to 1, "b" to 2) shouldContainAll mapOf("b" to 2)) and
+                right.shouldBeRight { n -> n shouldBe 1 } and left.shouldBeLeft { e -> e shouldBe "no" }
         }
         test("fails in any order") { xs -> xs shouldContainExactlyInAnyOrder listOf(1, 2, 3) }
         test("fails shouldBeEmpty") { xs -> xs.shouldBeEmpty() }
@@ -405,5 +416,22 @@ object GappedSuite : Suite<List<Int>>() {
         test("fails shouldContainKey") { _ -> mapOf("a" to 1) shouldContainKey "b" }
         test("fails shouldNotContainKey") { _ -> mapOf("a" to 1) shouldNotContainKey "a" }
         test("fails shouldContain on a map") { _ -> mapOf("a" to 1) shouldContain ("a" to 2) }
+        test("fails shouldContainExactly") { xs -> xs shouldContainExactly listOf(1, 2, 3) }
+        test("fails shouldHaveSize") { xs -> xs shouldHaveSize 3 }
+        test("fails shouldBeNull") { xs -> xs.firstOrNull().shouldBeNull() }
+        test("fails shouldBeInRange") { _ -> 4 shouldBeInRange 1..3 }
+        test("fails shouldContainAll on a map") { _ -> mapOf("a" to 1) shouldContainAll mapOf("a" to 1, "b" to 2) }
+        test("fails shouldBeRight") { _ ->
+            left.shouldBeRight {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
+        test("fails shouldBeLeft") { _ ->
+            right.shouldBeLeft {
+                thenRan.incrementAndGet()
+                expect(true)
+            }
+        }
     }
 }

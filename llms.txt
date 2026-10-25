@@ -62,6 +62,7 @@ Facts worth having before anything else:
   `Client` node and `Flag.value()` read it, and readiness follows it.
 - `lark-app-openfeature-flagd`: `flagdFlags("flags")`, flags in flagd's schema
   as a HOCON section, evaluated in-process; brings gRPC and netty.
+  `flagdFlags("flags", declared)` also checks every variant against its declared `Flag` at start.
 - `lark-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
 - `lark-app-actor`: a `lark-actor` flock as a node, and an actor as a node.
 - `lark-app-cluster`: a `lark-cluster` membership as a node, joined as a HOCON
