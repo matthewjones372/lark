@@ -1,9 +1,12 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.withClue
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Expectations
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -74,44 +77,47 @@ private fun sink(total: AtomicInteger) = behaviour<Int, Unit>(Unit) { _, _, n ->
     stay()
 }
 
-class ParityTest {
+object ParitySuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
     private val runtimes = listOf(threads, testScope)
 
-    private fun <A> onEvery(expected: A, scenario: Actors.() -> A) = runtimes.forEach { runtime ->
-        withClue("on $runtime") { runtime.run(scenario) shouldBe expected }
+    private fun <A> onEvery(expected: A, scenario: Actors.() -> A): Expectations = runtimes
+        .map { runtime -> withClue("on $runtime") { runtime.run(scenario) shouldBe expected } }
+        .reduce(Expectations::and)
+
+    init {
+        test("a ball bounced between two actors is counted every time before awaitIdle returns") { _ ->
+            onEvery(10_001) {
+                val seen = AtomicInteger()
+                val left = spawn("left", paddle(seen))
+                val right = spawn("right", paddle(seen))
+                left.tell(Ball(10_000, right))
+                awaitIdle()
+                seen.get()
+            }
+        }
+
+        test("a message relayed through three actors arrives having visited each in order") { _ ->
+            onEvery(listOf("a", "b", "c")) {
+                val arrived = AtomicReference<List<String>>(emptyList())
+                val c = spawn("c", relay("c", null, arrived))
+                val b = spawn("b", relay("b", c, arrived))
+                val a = spawn("a", relay("a", b, arrived))
+                a.tell(Hop(emptyList()))
+                awaitIdle()
+                arrived.get()
+            }
+        }
+
+        test("ten senders into one sink are all summed before awaitIdle returns") { _ ->
+            onEvery(10 * (1..90).sum()) {
+                val total = AtomicInteger()
+                val sink = spawn("sink", sink(total))
+                (1..10).map { spawn("sender-$it", sender(sink, 90)) }.forEach { it.tell(Go) }
+                awaitIdle()
+                total.get()
+            }
+        }
     }
-
-    @Test
-    fun `a ball bounced between two actors is counted every time before awaitIdle returns`() =
-        onEvery(10_001) {
-            val seen = AtomicInteger()
-            val left = spawn("left", paddle(seen))
-            val right = spawn("right", paddle(seen))
-            left.tell(Ball(10_000, right))
-            awaitIdle()
-            seen.get()
-        }
-
-    @Test
-    fun `a message relayed through three actors arrives having visited each in order`() =
-        onEvery(listOf("a", "b", "c")) {
-            val arrived = AtomicReference<List<String>>(emptyList())
-            val c = spawn("c", relay("c", null, arrived))
-            val b = spawn("b", relay("b", c, arrived))
-            val a = spawn("a", relay("a", b, arrived))
-            a.tell(Hop(emptyList()))
-            awaitIdle()
-            arrived.get()
-        }
-
-    @Test
-    fun `ten senders into one sink are all summed before awaitIdle returns`() =
-        onEvery(10 * (1..90).sum()) {
-            val total = AtomicInteger()
-            val sink = spawn("sink", sink(total))
-            (1..10).map { spawn("sender-$it", sender(sink, 90)) }.forEach { it.tell(Go) }
-            awaitIdle()
-            total.get()
-        }
 }
