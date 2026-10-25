@@ -57,7 +57,7 @@ with the frame.
 
 ## Stack
 
-- [ ] **`spec-0119-points-at-its-line`** — the frame under the failing step,
+- [x] **`spec-0119-points-at-its-line`** ([#326](https://github.com/matthewjones372/lark/pull/326)) — the frame under the failing step,
       and `StoryFailed`'s stack trace led by it.
       Done when: a story failing on a `shouldBe` in a test throws a
       `StoryFailed` whose first stack frame is in that test's file at the

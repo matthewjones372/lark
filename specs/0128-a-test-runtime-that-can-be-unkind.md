@@ -48,11 +48,11 @@ replay. FoundationDB's and TigerBeetle's deterministic simulation are the model,
 
 ## Stack
 
-- [ ] **`seeded-order`** — `Ordering.seeded`, per-sender order kept, `trace`. Done when: a test shows two seeds
+- [x] **`seeded-order`** ([#358](https://github.com/matthewjones372/lark/pull/358)) — `Ordering.seeded`, per-sender order kept, `trace`. Done when: a test shows two seeds
       give different legal interleavings and one seed always the same.
-- [ ] **`message-faults`** — drop, duplicate, delay for tells and replies. Done when: a retrying requester under
+- [x] **`message-faults`** ([#358](https://github.com/matthewjones372/lark/pull/358)) — drop, duplicate, delay for tells and replies. Done when: a retrying requester under
       `drop = 0.5` still completes, and the trace shows each fault.
-- [ ] **`crash-recover`** — `crash(actor)` and crash by probability, recovery from journal and snapshots. Done when:
+- [x] **`crash-recover`** ([#358](https://github.com/matthewjones372/lark/pull/358)) — `crash(actor)` and crash by probability, recovery from journal and snapshots. Done when:
       a persistent actor crashed between two persists recovers the first event's state and nothing more.
 
 ## Acceptance

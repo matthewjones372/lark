@@ -46,7 +46,7 @@ because nothing reads it.
 
 ## Stack
 
-- [ ] **`spec-0049-render`**: `render()` as text and as Mermaid, in `lark-stream`.
+- [x] **`spec-0049-render`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `render()` as text and as Mermaid, in `lark-stream`.
       Done when: a golden-file test holds the rendering of the four 0046 baseline
       pipelines, and the Mermaid output parses.
 

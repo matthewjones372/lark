@@ -49,11 +49,11 @@ stays, for a `run` that is overridden and parks on the wrong thing.
 
 ## Stack
 
-- [ ] **`spec-0135-run-default`**: `run` open with `awaitShutdown()` as its
+- [x] **`spec-0135-run-default`** ([#393](https://github.com/matthewjones372/lark/pull/393)): `run` open with `awaitShutdown()` as its
       default, `LarkApp`'s KDoc, and a test that a `LarkApp` without `run`
       starts, parks, and releases its graph when `Shutdown.request()` is called.
       Done when: `./gradlew :lark-app:build` passes with the new test.
-- [ ] **`spec-0135-docs`**: the README, `docs/app.md` and the cookbook's "Run
+- [x] **`spec-0135-docs`** ([#394](https://github.com/matthewjones372/lark/pull/394)): the README, `docs/app.md` and the cookbook's "Run
       it" drop the `run` that only waits.
       Done when: `CookbookTest` compiles every changed recipe.
 

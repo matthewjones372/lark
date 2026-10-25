@@ -69,12 +69,12 @@ case, leaves the obvious call broken.
 
 ## Stack
 
-- [ ] **`spec-0043-mappar-or-fail`**: `mapParOrFail` pair on `Stream` and
+- [x] **`spec-0043-mappar-or-fail`** ([#88](https://github.com/matthewjones372/lark/pull/88)): `mapParOrFail` pair on `Stream` and
       `Pipe`, `mapPar` single-signature, docs table and example updated.
       Done when: a compile test holds that `Stream<Nothing, A>.mapPar` with a
       body that never raises compiles to `Stream<Nothing, B>`, and that
       `mapParOrFail` on the same stream infers `F` from a `raise`.
-- [ ] **`spec-0043-grouped-within-duration`**: `groupedWithin` on
+- [x] **`spec-0043-grouped-within-duration`** ([#88](https://github.com/matthewjones372/lark/pull/88)): `groupedWithin` on
       `kotlin.time.Duration`.
       Done when: `BatchingTest` passes with a `kotlin.time.Duration`.
 

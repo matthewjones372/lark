@@ -64,7 +64,7 @@ fork has nothing to wait on. Recommended: the compare-and-set version.
 
 ## Stack
 
-- [ ] **`spec-0037-jdk25`** — toolchain 25, CI matrix `25` only, badge and README.
+- [x] **`spec-0037-jdk25`** ([#306](https://github.com/matthewjones372/lark/pull/306)) — toolchain 25, CI matrix `25` only, badge and README.
       Done when: `./gradlew build` is green on 25, and the README says why 25.
 - [ ] **`spec-0037-states`** — `Fork` on `State`, same behaviour.
       Done when: every test in `lark` passes unedited, and no `ReentrantLock` or

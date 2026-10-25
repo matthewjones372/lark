@@ -55,12 +55,12 @@ order spec 0110 checks.
 
 ## Stack
 
-- [ ] **`spec-0113-ratelimiter`** — `RateLimiter`, `tryAcquire`, `refund`, `cost`, its `Step`, and its runner row, in
+- [x] **`spec-0113-ratelimiter`** ([#336](https://github.com/matthewjones372/lark/pull/336)) — `RateLimiter`, `tryAcquire`, `refund`, `cost`, its `Step`, and its runner row, in
       `lark`.
       Done when: on a `TestClock`, `burst` calls pass at once, the next waits exactly `per / rate`, a wait past
       `maxWait` is rejected with the right `retryAfter` and leaves the bucket unchanged, and concurrent callers are
       served in reservation order, and a policy rejects at once when `retryAfter` exceeds its remaining budget.
-- [ ] **`spec-0113-ratelimiter-metrics`** — the counter and histogram, plus a cookbook section "Stay under someone
+- [x] **`spec-0113-ratelimiter-metrics`** ([#337](https://github.com/matthewjones372/lark/pull/337)) — the counter and histogram, plus a cookbook section "Stay under someone
       else's quota".
       Done when: `capturingMetrics` reads back each outcome and the waits by name.
 

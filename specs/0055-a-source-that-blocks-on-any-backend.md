@@ -66,11 +66,11 @@ problems `wake` settles once.
 
 ## Stack
 
-- [ ] **`spec-0055-blocking-node`**: `Stream.blocking`, `Node.Blocking`,
+- [x] **`spec-0055-blocking-node`** ([#90](https://github.com/matthewjones372/lark/pull/90)): `Stream.blocking`, `Node.Blocking`,
       render and `canFail`, and Forks and TestStreams running it.
       Done when: on Forks, a `stop()` while `next` is blocked returns, the
       run ends `Done`, and `close` ran once.
-- [ ] **`spec-0055-blocking-pekko`**: the Pekko compile on the blocking-IO
+- [x] **`spec-0055-blocking-pekko`** ([#90](https://github.com/matthewjones372/lark/pull/90)): the Pekko compile on the blocking-IO
       dispatcher, with `wake` on the kill switch.
       Done when: the parity suite runs the same `blocking` description on
       Pekko, Forks and TestStreams with the same answer.

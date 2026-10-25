@@ -64,15 +64,15 @@ that closes them by hand rather than nodes the graph closes.
 
 ## Stack
 
-- [ ] **`spec-0136-choice`**: `choice` in `lark-app`, built and released as above,
+- [x] **`spec-0136-choice`** ([#396](https://github.com/matthewjones372/lark/pull/396)): `choice` in `lark-app`, built and released as above,
       with tests for both branches, a branch that does not provide what it
       declared, and release order.
       Done when: `./gradlew :lark-app:build` passes with the new tests.
-- [ ] **`spec-0136-overriding`**: `overriding` and `overridingConfig` reach a
+- [x] **`spec-0136-overriding`** ([#397](https://github.com/matthewjones372/lark/pull/397)): `overriding` and `overridingConfig` reach a
       chosen branch, with tests.
       Done when: a test flips a choice with `overridingConfig` and replaces a
       branch's node with `overriding`.
-- [ ] **`spec-0136-checker-docs`**: the compiler checker reads `choice` as a
+- [x] **`spec-0136-checker-docs`** ([#398](https://github.com/matthewjones372/lark/pull/398)): the compiler checker reads `choice` as a
       node providing its keys, `render` draws it, and the cookbook's "A setting
       that picks a module" leads with `choice`.
       Done when: a TestKit graph with a `choice` compiles without

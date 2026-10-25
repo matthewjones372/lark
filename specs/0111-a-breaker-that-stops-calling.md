@@ -56,12 +56,12 @@ gives the same effect, and the breaker counts the `TimeoutException` as a failur
 
 ## Stack
 
-- [ ] **`spec-0111-breaker`** — `CircuitBreaker`, `State` and `countsAsFailure`, its `Step`, and its runner row, in
+- [x] **`spec-0111-breaker`** ([#317](https://github.com/matthewjones372/lark/pull/317)) — `CircuitBreaker`, `State` and `countsAsFailure`, its `Step`, and its runner row, in
       `lark`.
       Done when: on a `TestClock`, the breaker goes closed → open → half-open → closed and half-open → open, with
       exactly one trial let through under concurrent callers on virtual threads, an inner `Rejected` is not
       counted, and a policy waits for half-open only when `retryAt` falls within its deadline.
-- [ ] **`spec-0111-breaker-metrics`** — the gauge and counter, plus a cookbook section "Stop calling something
+- [x] **`spec-0111-breaker-metrics`** ([#318](https://github.com/matthewjones372/lark/pull/318)) — the gauge and counter, plus a cookbook section "Stop calling something
       that is down".
       Done when: `capturingMetrics` reads back each state and outcome by name.
 

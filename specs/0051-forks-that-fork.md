@@ -55,13 +55,13 @@ single producer and consumer need only a bounded queue.
 
 ## Stack
 
-- [ ] **`spec-0051-mappar`**: Forks runs `mapPar` with a window of `n`.
+- [x] **`spec-0051-mappar`** ([#95](https://github.com/matthewjones372/lark/pull/95)): Forks runs `mapPar` with a window of `n`.
       Done when:
       - `mapPar(8)` keeps input order with never more than 8 bodies at once;
       - a failure in one body interrupts the rest and the run ends `Failed`;
       - the parity `mapPar` case runs on Forks;
       - `MapParBenchmark` has a Forks row beside Pekko's 8.7 µs.
-- [ ] **`spec-0051-buffer`**: `Node.Buffer` and a core `buffer(size)`, on all
+- [x] **`spec-0051-buffer`** ([#96](https://github.com/matthewjones372/lark/pull/96)): `Node.Buffer` and a core `buffer(size)`, on all
       three backends.
       Done when:
       - upstream runs ahead by at most `size` on each backend;

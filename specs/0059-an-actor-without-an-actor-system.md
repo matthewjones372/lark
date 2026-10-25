@@ -116,7 +116,7 @@ Recommended: the context.
       counts activations rather than messages, a single-reader mailbox, and
       `throughput` 64. Done when: `tell` 1→1 and N→1 are no slower than
       Pekko's on the same run.
-- [ ] **`spec-0059-linger`** — a linger before parking, after an activation
+- [x] **`spec-0059-linger`** ([#116](https://github.com/matthewjones372/lark/pull/116)) — a linger before parking, after an activation
       that told another actor, and a fan-out benchmark to show what it costs.
       Done when: ping-pong is no slower than Pekko's at p50 and p99, and
       fan-out is no slower than without the linger.

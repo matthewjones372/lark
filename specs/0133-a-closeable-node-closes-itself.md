@@ -47,11 +47,11 @@ node's type once it is a `Module`; recommend the function.
 
 ## Stack
 
-- [ ] **`spec-0133-closing-of`**: `closingOf` for zero to nine dependencies in
+- [x] **`spec-0133-closing-of`** ([#381](https://github.com/matthewjones372/lark/pull/381)): `closingOf` for zero to nine dependencies in
       `lark-app`, the `.api` dump, and tests that a node built by it is closed
       on release, in reverse order, and that a throwing `close` is reported.
       Done when: `./gradlew :lark-app:build` passes with the new tests.
-- [ ] **`spec-0133-docs`**: the cookbook's `singleOf(::Hikari, Hikari::close)`
+- [x] **`spec-0133-docs`** ([#382](https://github.com/matthewjones372/lark/pull/382)): the cookbook's `singleOf(::Hikari, Hikari::close)`
       and the other `close` releases in `docs/` become `closingOf`, and the
       reference table at the end of the cookbook gains a row.
       Done when: `CookbookTest` compiles every changed recipe.

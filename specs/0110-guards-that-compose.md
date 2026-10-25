@@ -69,12 +69,12 @@ Nothing. 0111–0113 each depend on this one. Each guard's PR adds its `Step` an
 
 ## Stack
 
-- [ ] **`spec-0110-policy`** — `Policy`, `Step`, the `policy { }` builder and its order check, `Rejected`,
+- [x] **`spec-0110-policy`** ([#315](https://github.com/matthewjones372/lark/pull/315)) — `Policy`, `Step`, the `policy { }` builder and its order check, `Rejected`,
       `guarded`, and a runner for `deadline`, `retry`, `attemptTimeout` and `Custom`, in `lark`.
       Done when: a policy built in the wrong order throws naming the expected order; on a `TestClock`, retry stops
       before a delay that would overrun the deadline, each attempt is cut to the remaining budget, and a raise
       passes through uncounted.
-- [ ] **`spec-0110-policy-metrics`** — `lark.policy.calls`, plus a cookbook section "Guard a call to something
+- [x] **`spec-0110-policy-metrics`** ([#316](https://github.com/matthewjones372/lark/pull/316)) — `lark.policy.calls`, plus a cookbook section "Guard a call to something
       unreliable".
       Done when: `capturingMetrics` reads back each outcome and `refused_by` by name.
 

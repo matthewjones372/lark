@@ -79,13 +79,13 @@ never written. A function run in the stream is ordered with it.
 
 ## Stack
 
-- [ ] **`spec-0054-decode-in-stream`**: `Decoder`, `DecodeError`, the bytes
+- [x] **`spec-0054-decode-in-stream`** ([#90](https://github.com/matthewjones372/lark/pull/90)): `Decoder`, `DecodeError`, the bytes
       form of `subscribe`.
       Done when: a record whose deserializer throws `SerializationException`
       is a `Left` with its offset and raw bytes, and one whose cause is an
       `IOException` ends the run `Died`. After `restartOnDefect`, that record
       is read again.
-- [ ] **`spec-0054-committed-either`**: `divertLefts` and `absolve` over
+- [x] **`spec-0054-committed-either`** ([#90](https://github.com/matthewjones372/lark/pull/90)): `divertLefts` and `absolve` over
       `Committed<Either<L, R>>`.
       Done when: a diverted record is committed only after its function
       returns, and a function that throws leaves the record uncommitted.

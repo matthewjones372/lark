@@ -61,13 +61,13 @@ that lark does not have.
 
 ## Stack
 
-- [ ] **`spec-0047-fuse`**: the pass, the `Fused` node, and its Pekko stage.
+- [x] **`spec-0047-fuse`** ([#91](https://github.com/matthewjones372/lark/pull/91)): the pass, the `Fused` node, and its Pekko stage.
       Done when: the `map`/`filter` baseline row from 0046 is at least 30% faster, and
       `DefectTest` passes unchanged.
-- [ ] **`spec-0047-collapse`**: the collapse and no-failure rules, and `explain()`.
+- [x] **`spec-0047-collapse`** ([#91](https://github.com/matthewjones372/lark/pull/91)): the collapse and no-failure rules, and `explain()`.
       Done when: `explain()` shows each rule firing on a pipeline built to trigger it,
       and a rule that does not apply leaves the tree identical.
-- [ ] **`spec-0047-gate`**: a JMH comparison in CI. Every baseline row must be at least
+- [x] **`spec-0047-gate`** ([#91](https://github.com/matthewjones372/lark/pull/91)): a JMH comparison in CI. Every baseline row must be at least
       as fast as the committed number.
       Done when: a deliberately slowed stage turns the build red.
 

@@ -61,7 +61,7 @@ not a failure, and the value the sink has is the value there is.
 
 ## Stack
 
-- [ ] **`spec-0044-running`**: `Running`, `Run.start`, the kill switch in
+- [x] **`spec-0044-running`** ([#88](https://github.com/matthewjones372/lark/pull/88)): `Running`, `Run.start`, the kill switch in
       `Run`'s graph, and the docs table row.
       Done when: a tick stream started and stopped ends `Done` well before its
       next tick, `runCollect` stopped answers what it had, and `close()`

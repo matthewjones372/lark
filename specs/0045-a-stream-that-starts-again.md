@@ -58,7 +58,7 @@ leave the `E` in the type as a lie.
 
 ## Stack
 
-- [ ] **`spec-0045-restart-on-defect`**: `Stream.restartOnDefect`, the warn
+- [x] **`spec-0045-restart-on-defect`** ([#88](https://github.com/matthewjones372/lark/pull/88)): `Stream.restartOnDefect`, the warn
       line, the docs table row.
       Done when: a stream whose first run throws on its third element and
       whose second does not ends `Done` with both runs' elements; a declared
