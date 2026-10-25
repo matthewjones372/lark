@@ -20,11 +20,21 @@ class Aspect internal constructor(
     internal val ignored: String? = null,
     internal val alone: Boolean = false,
     private val arounds: List<Around> = emptyList(),
+    internal val timed: Boolean = false,
 ) {
 
     /** Both sides' tags, `alone` if either is, and ignored for the outer side's reason before the inner's. */
-    operator fun plus(inner: Aspect): Aspect =
-        Aspect(tags + inner.tags, ignored ?: inner.ignored, alone || inner.alone, arounds + inner.arounds)
+    operator fun plus(inner: Aspect): Aspect = Aspect(
+        tags + inner.tags,
+        ignored ?: inner.ignored,
+        alone || inner.alone,
+        arounds + inner.arounds,
+        timed || inner.timed,
+    )
+
+    /** These aspects as they are if they give a timeout or there is no [fallback], else inside [fallback]'s. */
+    internal fun timedOrWithin(fallback: Duration?): Aspect =
+        if (fallback == null || timed) this else timeout(fallback) + this
 
     /** Runs [test] inside every around, the leftmost outermost, handing each [report]. */
     internal fun run(report: (key: String, value: String) -> Unit = { _, _ -> }, test: () -> Unit) =
@@ -79,5 +89,9 @@ fun nonFlaky(runs: Int): Aspect {
     }
 }
 
-/** Fails the test if it runs longer than [duration], interrupting it; the failure names [duration]. */
-fun timeout(duration: Duration): Aspect = Aspect.around { test -> timeout(duration, test) }
+/**
+ * Fails the test if it runs longer than [duration], interrupting it; the failure names [duration]. A test or suite
+ * that gives its own timeout is not also held to the build's default, `lark.junit.timeout.default`.
+ */
+fun timeout(duration: Duration): Aspect =
+    Aspect(arounds = listOf { _, test -> timeout(duration, test) }, timed = true)

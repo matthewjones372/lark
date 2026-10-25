@@ -29,6 +29,13 @@ import java.util.Optional
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.time.Duration
+
+/**
+ * The configuration parameter, or system property, that gives every test with no timeout of its own one, as
+ * `junit.jupiter.execution.timeout.default` does for Jupiter: a Kotlin duration such as `60s` or `10m`.
+ */
+internal const val DEFAULT_TIMEOUT = "lark.junit.timeout.default"
 
 /** Runs every [Suite] object the platform's selectors reach, one suite at a time and its tests as forks. */
 class LarkEngine : TestEngine {
@@ -42,11 +49,20 @@ class LarkEngine : TestEngine {
         val listener = request.engineExecutionListener
         val engine = request.rootTestDescriptor
         listener.executionStarted(engine)
-        engine.children.filterIsInstance<SuiteDescriptor>().forEach { run(it.suite, it, listener) }
+        val fallback = request.configurationParameters.get(DEFAULT_TIMEOUT).map { value ->
+            requireNotNull(Duration.parseOrNull(value.trim())) { "$DEFAULT_TIMEOUT is $value, which is not a duration" }
+        }.orElse(null)
+        engine.children.filterIsInstance<SuiteDescriptor>().forEach { run(it.suite, it, listener, fallback) }
         listener.executionFinished(engine, TestExecutionResult.successful())
     }
 
-    private fun <R> run(suite: Suite<R>, descriptor: SuiteDescriptor, listener: EngineExecutionListener) {
+    /** Runs [suite]; a test with no timeout of its own, nor its suite's, is held to [fallback] if there is one. */
+    private fun <R> run(
+        suite: Suite<R>,
+        descriptor: SuiteDescriptor,
+        listener: EngineExecutionListener,
+        fallback: Duration?,
+    ) {
         listener.executionStarted(descriptor)
         val tests = suite.tests
         val report = Report(listener)
@@ -62,6 +78,7 @@ class LarkEngine : TestEngine {
                     val running = mutableListOf<Deferred<Unit>>()
                     cases.forEach { test ->
                         val registered = tests.getValue(test.displayName)
+                        val aspects = registered.aspects.timedOrWithin(fallback)
                         if (registered.aspects.alone) running.awaitAll()
                         val started = CountDownLatch(1)
                         running += async {
@@ -72,7 +89,7 @@ class LarkEngine : TestEngine {
                                     tellingStories(test.displayName) {
                                         capturingMetrics {
                                             outcomeOf {
-                                                registered.aspects.run({ k, v -> report.entry(test, k, v) }) {
+                                                aspects.run({ k, v -> report.entry(test, k, v) }) {
                                                     registered.body(shared).verify(test.displayName)
                                                 }
                                             }

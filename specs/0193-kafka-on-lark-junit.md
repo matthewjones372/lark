@@ -56,6 +56,11 @@ the fixes in it carry over rather than being relearned.
 
 ## Stack
 
+- [ ] **`spec-0193-default-timeout`** — `lark-junit` reads `lark.junit.timeout.default` and holds each test
+      with no `timeout` of its own, or its suite's, to it. The root build sets it to 60 seconds, as it sets
+      Jupiter's `junit.jupiter.execution.timeout.default`. Found while drafting this spec: the suites that
+      0189 and 0191 moved have run with no timeout since.
+      Done when: a test past the default fails naming it, and one with its own longer timeout passes.
 - [ ] **`spec-0193-kafka-kit`** — in `lark-kafka`: `kafkaBroker()`, `kafkaKit()`, the build's
       `lark-junit` setup, and `KafkaBrokerSuite`, `PartitionsSuite`, `CarriedSuite`, `GroupedRecordSuite`
       and `KeeperSuite`.

@@ -188,6 +188,7 @@ class LarkEngineTest {
             "CluedSuite",
             "ContainingSuite",
             "CountedSuite",
+            "DefaultTimeoutSuite",
             "ExpectingSuite",
             "FailingSiblingSuite",
             "GappedSuite",
