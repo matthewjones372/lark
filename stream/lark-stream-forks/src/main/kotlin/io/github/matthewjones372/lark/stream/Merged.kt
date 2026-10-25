@@ -33,9 +33,9 @@ private sealed interface Signal {
 /** [up] drained into [into] on the thread this runs on, and its end or failure after its last element. */
 // The catch is as wide as a pipeline: whatever an input threw is the reader's to throw.
 @Suppress("TooGenericExceptionCaught")
-private fun feed(up: Pull, into: ArrayBlockingQueue<Any>, bound: Bound) {
+private fun feed(up: Pull, into: ArrayBlockingQueue<Any>) {
     try {
-        bound.within { generateSequence { up.next() }.forEach(into::put) }
+        generateSequence { up.next() }.forEach(into::put)
         into.put(Signal.Finished)
     } catch (_: InterruptedException) {
         // Let go of by the run: nothing reads what would have come next.
@@ -51,11 +51,9 @@ private fun feed(up: Pull, into: ArrayBlockingQueue<Any>, bound: Bound) {
 /** [up] drained into [into] on the thread this runs on, and its end or failure after its last element. */
 // The catch is as wide as a pipeline, as above.
 @Suppress("TooGenericExceptionCaught")
-private fun feed(up: Pull, into: Ring, bound: Bound) {
+private fun feed(up: Pull, into: Ring) {
     try {
-        bound.within {
-            while (true) into.put(up.next() ?: break)
-        }
+        while (true) into.put(up.next() ?: break)
         into.put(Signal.Finished)
     } catch (_: InterruptedException) {
         // Let go of by the run: nothing reads what would have come next.
@@ -148,11 +146,11 @@ private class Confluence(private val queue: ArrayBlockingQueue<Any>) {
  * turn (spec 0185). It ends once both have, and fails as soon as the reader comes to either's failure.
  */
 context(ctx: PullContext)
-internal fun Node.Merge.merged(bound: Bound): Pull {
-    val on = bound.releases?.on ?: VirtualThreads
+internal fun Node.Merge.merged(): Pull {
+    val on = ctx.releases?.on ?: VirtualThreads
     val inputs = listOf(upstream.pull(), other.pull())
     val rings = Array(inputs.size) { Ring(INPUT_ROOM) }
-    inputs.forEachIndexed { i, up -> bound.releases?.add(InFlight(on) { feed(up, rings[i], bound) }::cancel) }
+    inputs.forEachIndexed { i, up -> ctx.releases?.add(InFlight(on) { feed(up, rings[i]) }::cancel) }
     val reading = InTurn(rings)
     return Pull { reading.next() }
 }
@@ -165,24 +163,22 @@ internal fun Node.Merge.merged(bound: Bound): Pull {
 // The catch is as wide as a pipeline: whatever the outer stream or a build threw is the reader's.
 @Suppress("TooGenericExceptionCaught")
 context(ctx: PullContext)
-internal fun Node.FlatMap.merged(breadth: Int, bound: Bound): Pull {
+internal fun Node.FlatMap.merged(breadth: Int): Pull {
     val build = guarded("flatMapMerge", at, f)
     val up = upstream.pull()
     val queue = ArrayBlockingQueue<Any>(ROOM)
-    val on = bound.releases?.on ?: VirtualThreads
+    val on = ctx.releases?.on ?: VirtualThreads
     val room = Semaphore(breadth)
     val inners = ConcurrentLinkedQueue<InFlight<Unit>>()
     val outer = InFlight(on) {
         try {
-            bound.within {
-                generateSequence { up.next() }.forEach { a ->
-                    room.acquire()
-                    val inner = build(a).node.optimised().pull()
-                    queue.put(Signal.Started)
-                    inners += InFlight(on) {
-                        feed(inner, queue, bound)
-                        room.release()
-                    }
+            generateSequence { up.next() }.forEach { a ->
+                room.acquire()
+                val inner = build(a).node.optimised().pull()
+                queue.put(Signal.Started)
+                inners += InFlight(on) {
+                    feed(inner, queue)
+                    room.release()
                 }
             }
             queue.put(Signal.OuterDone)
@@ -196,7 +192,7 @@ internal fun Node.FlatMap.merged(breadth: Int, bound: Bound): Pull {
             }
         }
     }
-    bound.releases?.add {
+    ctx.releases?.add {
         outer.cancel()
         generateSequence { inners.poll() }.forEach(InFlight<Unit>::cancel)
     }

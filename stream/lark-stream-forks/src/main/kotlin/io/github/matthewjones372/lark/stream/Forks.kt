@@ -57,7 +57,7 @@ class ForksOnClock(private val time: TestClock, name: String) : StreamBackend {
     override val key: BackendKey = BackendKey(name)
 
     @StreamSpi
-    override fun runs(node: Node): Boolean = node.pullsOnClock()
+    override fun runs(node: Node): Boolean = node.pulls()
 
     @StreamSpi
     override fun <E, R : Any> materialise(run: Run<E, R>): Running<E, R> {

@@ -61,9 +61,6 @@ internal class PullContext(
     /** The turns of a run on a test's clock, for a node that only pulls on one. */
     val clockTurns: Turns get() = checkNotNull(turns) { "a node with time in it was pulled off a test's clock" }
 
-    /** What a fork of this run binds on its own thread. */
-    val bound: Bound get() = Bound(releases, resources)
-
     /** The same run, with [scope] for the blocking sources the pulls built under it open: one restart's attempt. */
     fun within(scope: Resources): PullContext = PullContext(turns, releases, scope, boundaries)
 
@@ -87,9 +84,6 @@ internal fun Node.pulls(): Boolean =
         is Node.Native, is Node.Stage, Node.Hole,
         -> false
     }
-
-/** What a pull runs on a test's clock: since spec 0052, everything it runs on Forks. */
-internal fun Node.pullsOnClock(): Boolean = pulls()
 
 /**
  * The pull a node describes. `start` has refused every node its backend cannot run before this is reached.
@@ -168,13 +162,13 @@ internal fun Node.pull(): Pull =
             val keyed = key
             when {
                 ctx.onClock -> inOrder()
-                keyed != null -> keyedWindow(keyed, ctx.bound)
-                ordered -> window(ctx.bound)
-                else -> unorderedWindow(ctx.bound)
+                keyed != null -> keyedWindow(keyed)
+                ordered -> window()
+                else -> unorderedWindow()
             }
         }
 
-        is Node.Buffer -> if (ctx.onClock) bufferedOnClock(ctx.clockTurns) else buffered(ctx.bound)
+        is Node.Buffer -> if (ctx.onClock) bufferedOnClock(ctx.clockTurns) else buffered()
 
         is Node.Sliding -> sliding()
 
@@ -183,13 +177,13 @@ internal fun Node.pull(): Pull =
         // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them fed by a fork.
         is Node.MapAsync -> when {
             ctx.onClock -> awaiting(1)
-            ordered -> fed(parallelism, ctx.bound)
-            else -> fedUnordered(ctx.bound)
+            ordered -> fed(parallelism)
+            else -> fedUnordered()
         }
 
-        is Node.Merge -> if (ctx.onClock) mergedOnClock(ctx.clockTurns) else merged(ctx.bound)
+        is Node.Merge -> if (ctx.onClock) mergedOnClock(ctx.clockTurns) else merged()
 
-        is Node.Conflate -> if (ctx.onClock) conflatedOnClock(ctx.clockTurns) else conflated(ctx.bound)
+        is Node.Conflate -> if (ctx.onClock) conflatedOnClock(ctx.clockTurns) else conflated()
 
         is Node.Native, is Node.Stage, Node.Hole,
         -> error("$operator reached the Forks runner, which start refuses it before")
@@ -462,7 +456,7 @@ private fun Node.FlatMap.flatMapped(breadth: Int?): Pull =
     when {
         breadth == null -> flatMapConcat()
         ctx.onClock -> mergedOnClock(breadth, ctx.clockTurns)
-        else -> merged(breadth, ctx.bound)
+        else -> merged(breadth)
     }
 
 context(ctx: PullContext)

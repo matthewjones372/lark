@@ -77,7 +77,7 @@ interface hidden, so I recommend the parameter.
 
 ## Stack
 
-- [ ] **`spec-0152-context`**: `PullContext`, built by both runs and passed to
+- [x] **`spec-0152-context`** ([#617](https://github.com/matthewjones372/lark/pull/617)): `PullContext`, built by both runs and passed to
       every `pull`. The ThreadLocals are still set but no longer read.
       Done when: lark-stream-forks, lark-stream-actors and parity tests pass,
       and `Pull.kt` has no `here()` or `taking()` call.
