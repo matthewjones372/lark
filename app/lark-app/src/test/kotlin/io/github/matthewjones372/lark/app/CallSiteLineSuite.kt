@@ -1,0 +1,50 @@
+package io.github.matthewjones372.lark.app
+
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldNotBeNull
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.resource
+import java.io.File
+
+private class Widget
+private class Cog
+
+/**
+ * The line numbers below are load-bearing: `single` is inline, so the line the JVM reports for the
+ * frame is a synthetic one past the end of this file, and the whole point of reading the SMAP is
+ * that a site names a line somebody can open. Adding a line above one of these breaks the test,
+ * which is the test working.
+ */
+object CallSiteLineSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
+
+    private const val DECLARED_ON_LINE = 25
+
+    private val module = single { _: Widget -> Cog() }
+
+    init {
+        test("a site names the line the recipe was written on, not the line the JVM reports") { _ ->
+            module.nodes.values.single().site.shouldNotBeNull { site ->
+                site shouldBe "io/github/matthewjones372/lark/app/CallSiteLineSuite.kt:$DECLARED_ON_LINE"
+            }
+        }
+
+        test("a line past the end of the file would be one nobody could open") { _ ->
+            module.nodes.values.single().site.shouldNotBeNull { site ->
+                val line = site.substringAfterLast(':').toInt()
+
+                withClue("this file is shorter than the synthetic lines the inliner emits") {
+                    (line <= lines()) shouldBe true
+                }
+            }
+        }
+    }
+
+    // The repository root, which the build already hands every test in this module.
+    private fun lines(): Int =
+        File(System.getProperty("lark.app.repoRoot"), "app/lark-app/src/test/kotlin/$SOURCE").readLines().size
+}
+
+private const val SOURCE = "io/github/matthewjones372/lark/app/CallSiteLineSuite.kt"
