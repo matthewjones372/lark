@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.minutes
@@ -64,11 +62,9 @@ private class ReadCounting(private val inner: Journal = InMemoryJournal()) : Jou
 }
 
 /** Spec 0198: a persistent actor started assuming it is new reads its journal only when that guess is wrong. */
-object AssumingNewSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object AssumingNewSuite : Suite() {
     init {
-        test("a new entity's first command persists without a read, and its start hooks see the empty state") { _ ->
+        test("a new entity's first command persists without a read, and its start hooks see the empty state") {
             val journal = ReadCounting()
             val log = ConcurrentLinkedQueue<String>()
             val total = testActors(journal = journal) {
@@ -83,7 +79,7 @@ object AssumingNewSuite : Suite<Unit>() {
                 (log.toList() shouldContainExactly listOf("started at 0", "added 5 to make 5", "added 2 to make 7"))
         }
 
-        test("an entity that existed recovers once its first append conflicts, and decides that command again") { _ ->
+        test("an entity that existed recovers once its first append conflicts, and decides that command again") {
             val journal = ReadCounting()
             journal.append(tallyOf("ada"), 0, listOf(tallyCodec.encode(40)))
             val log = ConcurrentLinkedQueue<String>()
@@ -100,7 +96,7 @@ object AssumingNewSuite : Suite<Unit>() {
                 (log.toList() shouldContainExactly listOf("started at 0", "started at 40", "added 2 to make 42"))
         }
 
-        test("a first command that persists nothing is answered from the recovered state, not the empty one") { _ ->
+        test("a first command that persists nothing is answered from the recovered state, not the empty one") {
             val journal = ReadCounting()
             journal.append(tallyOf("ada"), 0, listOf(tallyCodec.encode(40)))
             val log = ConcurrentLinkedQueue<String>()
@@ -113,7 +109,7 @@ object AssumingNewSuite : Suite<Unit>() {
                 (log.toList() shouldContainExactly listOf("started at 0", "started at 40"))
         }
 
-        test("recovering, the default, reads the journal before the first command as before") { _ ->
+        test("recovering, the default, reads the journal before the first command as before") {
             val journal = ReadCounting()
             val log = ConcurrentLinkedQueue<String>()
             testActors(journal = journal) {
@@ -124,7 +120,7 @@ object AssumingNewSuite : Suite<Unit>() {
             journal.reads.get() shouldBe 1
         }
 
-        test("on threads, a new entity reads nothing, and one that existed ends where its events say") { _ ->
+        test("on threads, a new entity reads nothing, and one that existed ends where its events say") {
             val journal = ReadCounting()
             journal.append(tallyOf("old"), 0, listOf(tallyCodec.encode(40)))
             val log = ConcurrentLinkedQueue<String>()
