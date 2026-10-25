@@ -42,8 +42,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       # The gates first. A release that has not passed them is a release nobody
-      # can withdraw.
-      - run: ./gradlew build
+      # can withdraw. Two workers, as build.yml runs them: with every module's tests
+      # at once, the cluster tests' timeouts fire and the daemon runs out of memory,
+      # which is how v0.10.1 and v0.11.0 failed where main's build had passed.
+      - run: ./gradlew build --max-workers=2 --stacktrace
 
       # The last non-blank line's last word: `currentVersion` prints a banner too, and a
       # multi-line value is one GITHUB_OUTPUT refuses rather than truncates.
