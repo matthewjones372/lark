@@ -62,7 +62,7 @@ wiring they do not test.
 
 ## Stack
 
-- [ ] **`spec-0179-docs`**: the rule and both examples in `docs/app.md`, the
+- [x] **`spec-0179-docs`** ([#539](https://github.com/matthewjones372/lark/pull/539)): the rule and both examples in `docs/app.md`, the
       cookbook and `docs/testing.md`.
       Done when: `CookbookTest` and `ReadmeExampleTest` compile the new
       fences, and no doc shows `subgraph` around a single-dependency class.

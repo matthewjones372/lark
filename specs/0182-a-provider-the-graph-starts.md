@@ -46,7 +46,7 @@ flags. Recommended: the component.
 
 ## Stack
 
-- [ ] **`spec-0182-component`** — `lark-app-openfeature`, `openFeature`,
+- [x] **`spec-0182-component`** ([#552](https://github.com/matthewjones372/lark/pull/552)) — `lark-app-openfeature`, `openFeature`,
       the `Client` node, readiness, release, and the dependency test.
       Done when: a graph whose provider fails init refuses to start, one
       whose provider goes `STALE` reports not ready, and release shuts the

@@ -60,12 +60,12 @@ Lark did not hand out. Recommended: the propagator.
 
 ## Stack
 
-- [ ] **`spec-0180-context`** — the module, `featureContext`, the propagator,
+- [x] **`spec-0180-context`** ([#540](https://github.com/matthewjones372/lark/pull/540)) — the module, `featureContext`, the propagator,
       `evaluatedFor`, `useLark()` setting the propagator, and the dependency
       test.
       Done when: a flag targeted at one key answers for that key inside a
       `parZip` branch and an actor handler, and for nobody outside the block.
-- [ ] **`spec-0180-hook`** — `LarkFeatureHook`, added by `useLark()`.
+- [x] **`spec-0180-hook`** ([#541](https://github.com/matthewjones372/lark/pull/541)) — `LarkFeatureHook`, added by `useLark()`.
       Done when: an evaluation against a failing provider writes one warning
       and one `openfeature.errors` reading under `TestMetrics`, and still
       returns the default.

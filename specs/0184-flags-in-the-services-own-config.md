@@ -54,7 +54,7 @@ language. Recommended: flagd's schema.
 
 ## Stack
 
-- [ ] **`spec-0184-flagd`** — `lark-app-openfeature-flagd`, `flagdFlags`,
+- [x] **`spec-0184-flagd`** ([#585](https://github.com/matthewjones372/lark/pull/585)) — `lark-app-openfeature-flagd`, `flagdFlags`,
       the dependency test.
       Done when: a targeted flag in HOCON answers per `evaluatedFor` key, and
       a section flagd rejects refuses the start naming the flag and file.
