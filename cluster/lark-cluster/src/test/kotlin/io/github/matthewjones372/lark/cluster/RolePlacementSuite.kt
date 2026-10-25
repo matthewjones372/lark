@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
@@ -11,9 +12,11 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -75,42 +78,47 @@ private class RoleNode(val name: String, port: Int, seeds: Discovery, roles: Set
     }
 }
 
-class RolePlacementTest {
+object RolePlacementSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `entities and a singleton run only on members with the role, reached from all, and wait while none is up`() {
-        val ports = List(5) { somePort() }
-        val seeds = Discovery.static(*ports.take(4).map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val ledger = setOf("ledger")
-        val offices = mutableListOf(
-            RoleNode("o1", ports[0], seeds, ledger),
-            RoleNode("o2", ports[1], seeds, setOf("web")),
-            RoleNode("o3", ports[2], seeds, ledger),
-            RoleNode("o4", ports[3], seeds, setOf("web")),
-        )
-        try {
-            offices.forEach { o ->
-                o.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 4 } shouldBe true
+    init {
+        test(
+            "entities and a singleton run only on members with the role, reached from all, and wait while none is up",
+        ) { _ ->
+            val ports = List(5) { somePort() }
+            val seeds = Discovery.static(*ports.take(4).map { Node("", "127.0.0.1", it) }.toTypedArray())
+            val ledger = setOf("ledger")
+            val offices = mutableListOf(
+                RoleNode("o1", ports[0], seeds, ledger),
+                RoleNode("o2", ports[1], seeds, setOf("web")),
+                RoleNode("o3", ports[2], seeds, ledger),
+                RoleNode("o4", ports[3], seeds, setOf("web")),
+            )
+            try {
+                val up = offices.forAll { o ->
+                    o.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 4 } shouldBe true
+                }
+
+                val answers = (0 until 500).map { offices[it % 4].where("l-$it") }
+                val onLedgers = answers.toSet() shouldBe setOf("o1", "o3")
+                val view = offices[1].cluster.view
+                val older = view.members.filter { "ledger" in it.roles }.minBy { it.upNumber }.node.name
+                val onOlder = offices.forAll { it.clock() shouldBe older }
+
+                val (o1, o2, o3, o4) = offices
+                listOf(o1, o3).forEach { it.close() }
+                val gone = listOf(o2, o4).forAll { o ->
+                    o.cluster.await(1.minutes) { v -> v.members.none { "ledger" in it.roles } } shouldBe true
+                }
+                val waiting = CompletableFuture.supplyAsync { o2.where("l-1") }
+                offices += RoleNode("o5", ports[4], seeds, ledger)
+
+                up and onLedgers and onOlder and gone and
+                    (waiting.get(1, TimeUnit.MINUTES) shouldBe "o5") and
+                    (o4.clock() shouldBe "o5")
+            } finally {
+                offices.forEach(RoleNode::close)
             }
-
-            val answers = (0 until 500).map { offices[it % 4].where("l-$it") }
-            answers.toSet() shouldBe setOf("o1", "o3")
-            val view = offices[1].cluster.view
-            val older = view.members.filter { "ledger" in it.roles }.minBy { it.upNumber }.node.name
-            offices.forEach { it.clock() shouldBe older }
-
-            val (o1, o2, o3, o4) = offices
-            listOf(o1, o3).forEach { it.close() }
-            listOf(o2, o4).forEach { o ->
-                o.cluster.await(1.minutes) { v -> v.members.none { "ledger" in it.roles } } shouldBe true
-            }
-            val waiting = CompletableFuture.supplyAsync { o2.where("l-1") }
-            offices += RoleNode("o5", ports[4], seeds, ledger)
-
-            waiting.get(1, TimeUnit.MINUTES) shouldBe "o5"
-            o4.clock() shouldBe "o5"
-        } finally {
-            offices.forEach(RoleNode::close)
         }
     }
 }

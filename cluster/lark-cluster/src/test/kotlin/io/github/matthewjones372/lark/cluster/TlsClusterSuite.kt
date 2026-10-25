@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
 import io.github.matthewjones372.lark.actor.behaviour
@@ -12,11 +13,13 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldContainExactlyInAnyOrder
-import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -73,37 +76,44 @@ private class Office(val name: String, port: Int, seeds: Discovery, tls: Tls) : 
     }
 }
 
-class TlsClusterTest {
+object TlsClusterSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `three nodes form a cluster and shard over TLS, and one another CA signed never joins`() {
-        val ports = List(4) { portFree() }
-        val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val offices = (1..3).map { Office("n$it", ports[it - 1], seeds, TestCertificates.tls("n$it")) }
-        val opened = offices.toMutableList()
-        try {
-            offices.forEach { office ->
-                val up = office.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 }
-                withClue("${office.name} sees 3 Up") { up shouldBe true }
-            }
-            val shard = Placement.shardOf("d-7", Sharding.SHARDS)
-            val owner = Placement.owner("desk", shard, offices.first().cluster.view.members)?.name
+    init {
+        test("three nodes form a cluster and shard over TLS, and one another CA signed never joins") { _ ->
+            val ports = List(4) { portFree() }
+            val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
+            val offices = (1..3).map { Office("n$it", ports[it - 1], seeds, TestCertificates.tls("n$it")) }
+            val opened = offices.toMutableList()
+            try {
+                val formed = offices.forAll { office ->
+                    val up = office.cluster.await(1.minutes) { view ->
+                        view.members.count { it.status == Status.Up } == 3
+                    }
+                    withClue("${office.name} sees 3 Up") { up shouldBe true }
+                }
+                val shard = Placement.shardOf("d-7", Sharding.SHARDS)
+                val owner = Placement.owner("desk", shard, offices.first().cluster.view.members)?.name
 
-            offices.map { it.desks.entity("d-7").ask<Desk, String>(1.minutes) { reply -> Desk(reply) } }
-                .forEach { answered -> answered.getOrNull() shouldBe owner }
+                val sharded = offices
+                    .map { it.desks.entity("d-7").ask<Desk, String>(1.minutes) { reply -> Desk(reply) } }
+                    .forAll { answered -> answered.getOrNull() shouldBe owner }
 
-            val stranger = Office("n4", ports[3], seeds, TestCertificates.tls("n4", ca = "other-ca")).also {
-                opened +=
-                    it
+                val stranger = Office("n4", ports[3], seeds, TestCertificates.tls("n4", ca = "other-ca")).also {
+                    opened +=
+                        it
+                }
+                // Long enough for a node the cluster trusted to have joined several times over, at this gossip's pace.
+                val joined = stranger.cluster.await(3.seconds) { view -> view.members.size > 1 }
+                formed and sharded and
+                    withClue("n4, signed by another CA, joined") { joined shouldBe false } and
+                    offices.forAll { office ->
+                        office.cluster.view.members.map { it.node.name } shouldContainExactlyInAnyOrder
+                            listOf("n1", "n2", "n3")
+                    }
+            } finally {
+                opened.forEach(Office::close)
             }
-            // Long enough for a node the cluster trusted to have joined several times over, at this gossip's pace.
-            val joined = stranger.cluster.await(3.seconds) { view -> view.members.size > 1 }
-            withClue("n4, signed by another CA, joined") { joined shouldBe false }
-            offices.forEach { office ->
-                office.cluster.view.members.map { it.node.name } shouldContainExactlyInAnyOrder listOf("n1", "n2", "n3")
-            }
-        } finally {
-            opened.forEach(Office::close)
         }
     }
 }

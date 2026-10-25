@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.PersistenceId
@@ -21,12 +22,14 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.snapshots
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldNotBe
-import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -144,47 +147,56 @@ private class Shop(val name: String, port: Int, seeds: Discovery, journal: Journ
     }
 }
 
-class RememberedTest {
+object RememberedSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `a sharded persistent entity answers from its next owner with every event it had, from its snapshot`() {
-        val database = sharedDatabase()
-        val journal = Reads(JdbcJournal(database))
-        val snapshots = JdbcSnapshots(database)
-        val ports = List(3) { freePort() }
-        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val shops = ports.mapIndexed { i, port -> Shop("s${i + 1}", port, seeds, journal, snapshots) }
-        try {
-            shops.forEach { shop ->
-                val up = shop.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 }
-                withClue("${shop.name} sees 3 Up") { up shouldBe true }
-            }
-            val shard = Placement.shardOf("j-1", Sharding.SHARDS)
-            val owner = checkNotNull(Placement.owner("jar", shard, shops.first().cluster.view.members)).name
-            val stays = shops.filter { it.name != owner }
-            val jar = stays.first().jars.entity("j-1")
+    init {
+        test(
+            "a sharded persistent entity answers from its next owner with every event it had, from its snapshot",
+        ) { _ ->
+            val database = sharedDatabase()
+            val journal = Reads(JdbcJournal(database))
+            val snapshots = JdbcSnapshots(database)
+            val ports = List(3) { freePort() }
+            val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+            val shops = ports.mapIndexed { i, port -> Shop("s${i + 1}", port, seeds, journal, snapshots) }
+            try {
+                val formed = shops.forAll { shop ->
+                    val up = shop.cluster.await(1.minutes) { view ->
+                        view.members.count { it.status == Status.Up } == 3
+                    }
+                    withClue("${shop.name} sees 3 Up") { up shouldBe true }
+                }
+                val shard = Placement.shardOf("j-1", Sharding.SHARDS)
+                val owner = checkNotNull(Placement.owner("jar", shard, shops.first().cluster.view.members)).name
+                val stays = shops.filter { it.name != owner }
+                val jar = stays.first().jars.entity("j-1")
 
-            (1..10).forEach { put ->
-                jar.ask<Jar, Int>(1.minutes) { Put(put, it) } shouldBe (put * (put + 1) / 2).right()
-            }
-            jar.ask<Jar, String>(1.minutes) { Count(it) } shouldBe "$owner:55".right()
+                val put = (1..10).forAll { put ->
+                    jar.ask<Jar, Int>(1.minutes) { Put(put, it) } shouldBe (put * (put + 1) / 2).right()
+                }
+                val counted = jar.ask<Jar, String>(1.minutes) { Count(it) } shouldBe "$owner:55".right()
 
-            shops.single { it.name == owner }.cluster.leave()
-            stays.forEach { shop ->
-                shop.cluster.await(1.minutes) { view -> view.members.none { it.node.name == owner } } shouldBe true
-            }
+                shops.single { it.name == owner }.cluster.leave()
+                val gone = stays.forAll { shop ->
+                    shop.cluster.await(1.minutes) { view -> view.members.none { it.node.name == owner } } shouldBe true
+                }
 
-            journal.from.clear()
-            val counted = jar.ask<Jar, String>(1.minutes) { Count(it) }.getOrNull()
-            withClue("the jar answers from another node, with all 55 pence") {
-                counted?.substringBefore(':') shouldNotBe owner
-                counted?.substringAfter(':') shouldBe "55"
+                journal.from.clear()
+                val recounted = jar.ask<Jar, String>(1.minutes) { Count(it) }.getOrNull()
+                val moved = withClue("the jar answers from another node, with all 55 pence") {
+                    (recounted?.substringBefore(':') shouldNotBe owner) and
+                        (recounted?.substringAfter(':') shouldBe "55")
+                }
+                val recovered = withClue(
+                    "the next owner recovers from the snapshot at the eighth coin, and reads the two after it",
+                ) {
+                    journal.from.toList() shouldBe listOf(9L)
+                }
+                formed and put and counted and gone and moved and recovered
+            } finally {
+                shops.forEach(Shop::close)
             }
-            withClue("the next owner recovers from the snapshot at the eighth coin, and reads the two after it") {
-                journal.from.toList() shouldBe listOf(9L)
-            }
-        } finally {
-            shops.forEach(Shop::close)
         }
     }
 }
