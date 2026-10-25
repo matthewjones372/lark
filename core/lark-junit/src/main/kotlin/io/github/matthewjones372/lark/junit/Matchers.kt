@@ -5,18 +5,23 @@ package io.github.matthewjones372.lark.junit
 
 import io.github.matthewjones372.lark.assert.FailureSeam
 import io.github.matthewjones372.lark.assert.Miss
+import io.github.matthewjones372.lark.assert.blank
 import io.github.matthewjones372.lark.assert.equal
 import io.github.matthewjones372.lark.assert.holding
 import io.github.matthewjones372.lark.assert.missing
+import io.github.matthewjones372.lark.assert.noMatchFor
 import io.github.matthewjones372.lark.assert.notAtLeast
 import io.github.matthewjones372.lark.assert.notAtMost
+import io.github.matthewjones372.lark.assert.notEndingWith
 import io.github.matthewjones372.lark.assert.notEqual
 import io.github.matthewjones372.lark.assert.notGreaterThan
 import io.github.matthewjones372.lark.assert.notIn
 import io.github.matthewjones372.lark.assert.notInstanceOf
 import io.github.matthewjones372.lark.assert.notLessThan
+import io.github.matthewjones372.lark.assert.notMatching
 import io.github.matthewjones372.lark.assert.notNull
 import io.github.matthewjones372.lark.assert.notSameAs
+import io.github.matthewjones372.lark.assert.notStartingWith
 import io.github.matthewjones372.lark.assert.notThrown
 import io.github.matthewjones372.lark.assert.sameAs
 import io.github.matthewjones372.lark.assert.wasNull
@@ -54,6 +59,24 @@ infix fun String?.shouldContain(part: String): Expectations = verdict(missing(pa
 
 /** Holds if this string does not contain [part]. */
 infix fun String?.shouldNotContain(part: String): Expectations = verdict(holding(part))
+
+/** Holds if this string starts with [prefix]. */
+infix fun String?.shouldStartWith(prefix: String): Expectations = verdict(notStartingWith(prefix))
+
+/** Holds if this string ends with [suffix]. */
+infix fun String?.shouldEndWith(suffix: String): Expectations = verdict(notEndingWith(suffix))
+
+/** Holds if this string has something in it besides whitespace. */
+fun String?.shouldNotBeBlank(): Expectations = verdict(blank())
+
+/** Holds if the whole of this string matches [pattern]. */
+infix fun String?.shouldMatch(pattern: String): Expectations = shouldMatch(Regex(pattern))
+
+/** Holds if the whole of this string matches [pattern]. */
+infix fun String?.shouldMatch(pattern: Regex): Expectations = verdict(notMatching(pattern))
+
+/** Holds if some part of this string matches [pattern]. */
+infix fun String?.shouldContain(pattern: Regex): Expectations = verdict(noMatchFor(pattern))
 
 /** Holds if this is the very object [expected] is, not only an equal one. */
 infix fun <A> A.shouldBeSameInstanceAs(expected: A): Expectations = verdict(notSameAs(expected))

@@ -44,6 +44,13 @@ class GappedMatchersTest {
             "fails shouldContainAll on a map",
             "fails shouldBeRight",
             "fails shouldBeLeft",
+            "fails shouldContainOnly",
+            "fails shouldContainExactly on a map",
+            "fails shouldStartWith",
+            "fails shouldEndWith",
+            "fails shouldNotBeBlank",
+            "fails shouldMatch",
+            "fails shouldContain a match",
         )
     }
 
@@ -68,6 +75,14 @@ class GappedMatchersTest {
                 listOf("expected: all of {a=1, b=2}", "but was:  {a=1}, missing {b=2}"),
             "fails shouldBeRight" to listOf("expected: a Right", "but was:  Left(value=no)"),
             "fails shouldBeLeft" to listOf("expected: a Left", "but was:  Right(value=1)"),
+            "fails shouldContainOnly" to listOf("expected: only and all of [1, 2]", "but was:  [1, 2, 2, 3]"),
+            "fails shouldContainExactly on a map" to listOf("expected: {a=2}", "but was:  {a=1}"),
+            "fails shouldStartWith" to listOf("expected: a string starting with \"junit\"", "but was:  \"lark-junit\""),
+            "fails shouldEndWith" to listOf("expected: a string ending with \"lark\"", "but was:  \"lark-junit\""),
+            "fails shouldNotBeBlank" to listOf("expected: a string that is not blank", "but was:  \" \""),
+            "fails shouldMatch" to listOf("expected: a string matching /lark/", "but was:  \"lark-junit\""),
+            "fails shouldContain a match" to
+                listOf("expected: a string containing a match for /\\d/", "but was:  \"lark-junit\""),
         )
         failures.values.forEach { lines -> lines[2] shouldMatch Regex("at Samples\\.kt:\\d+") }
     }
