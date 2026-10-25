@@ -127,6 +127,31 @@ class Effects<Ev, S> internal constructor() {
     fun stop(): Effect<Ev, S> = Effect(emptyList(), Next.Stop, null)
 }
 
+/** How a persistent actor begins: by reading its journal, or by guessing it has none (spec 0198). */
+class Start private constructor(internal val guessing: Boolean) {
+    companion object {
+        /** Reads the journal before the first command: every restart begins this way. */
+        val recovering = Start(false)
+
+        /**
+         * Reads nothing on the actor's first start, which begins at `empty`; its start hooks run with that. The first
+         * command shows whether the guess was right: if it persists and the append, expecting nothing before it, is
+         * accepted, the entity was new. If the append conflicts, or the command persists nothing, the actor restarts
+         * without asking its supervision, recovers, and is handed the same command again. For an entity created just
+         * before its first command, such as a saga with a fresh id.
+         */
+        val assumingNew = Start(true)
+    }
+}
+
+/** A guess of [Start.assumingNew] shown wrong: the actor's runtime restarts it and hands it the command again. */
+internal object WrongGuess : Throwable(null, null, false, false)
+
+/** A context that knows whether its actor's start follows a restart, which no guess may skip. */
+internal interface Restartable {
+    val restarted: Boolean
+}
+
 /**
  * A behaviour remembered by its events. On start, and after every restart, it replays its events from its flock's
  * journal through [event] before its first command. A command answers an [Effect]: `persist` writes its events on the
@@ -143,6 +168,9 @@ class Effects<Ev, S> internal constructor() {
  * the actor remembers it across restarts and moves, as a snapshot does; one that persists nothing is remembered until
  * the actor stops, and handled again after that, where it changes nothing the journal holds. One its step stashes is
  * not remembered until it is handled once put back.
+ *
+ * With [start] of [Start.assumingNew], an actor's first start reads nothing until its first command shows whether it
+ * is new.
  */
 fun <M : Any, Ev, S> persistent(
     id: PersistenceId,
@@ -157,8 +185,11 @@ fun <M : Any, Ev, S> persistent(
      * after the append, in order; a conflict fails the whole batch.
      */
     batch: Int = 1,
+    start: Start = Start.recovering,
 ): Behaviour<M, Remembered<S>, JournalConflict> {
     require(batch > 0) { "a batch of $batch commands decides none" }
+    require(batch == 1 || !start.guessing) { "a batch of $batch commands cannot start assuming new yet" }
+    val initial = Remembered(empty, 0)
     val effects = Effects<Ev, S>()
     val steps: (Fail<JournalConflict>.(Ctx<M>, Remembered<S>, Run<M>) -> Batched<Remembered<S>>)? =
         if (batch == 1) {
@@ -171,7 +202,7 @@ fun <M : Any, Ev, S> persistent(
             }
         }
     return Behaviour<M, Remembered<S>, JournalConflict>(
-        initial = Remembered(empty, 0),
+        initial = initial,
         step = { ctx, remembered, message ->
             val offered = (message as? Delivered)?.delivery
             if (remembered.handled(offered)) {
@@ -181,17 +212,12 @@ fun <M : Any, Ev, S> persistent(
                 val effect = effects.command(stashing, remembered.value, message)
                 // A command stashed is handled when it is put back: until then its delivery is not remembered.
                 val delivery = offered?.takeUnless { stashing.kept(message) }
+                // Still on a guess that the journal is empty: an answer from it is only safe once an append proves it.
+                val guessed = start.guessing && remembered === initial
+                if (guessed && effect.events.isEmpty()) throw WrongGuess
                 val after = when {
-                    effect.events.isNotEmpty() -> {
-                        val written = effect.events.map(codec::encode) + listOfNotNull(delivery?.let(::mark))
-                        val sequence = ctx.journal.append(id, remembered.sequence, written).bind()
-                        val value = effect.events.fold(remembered.value, event)
-                        Remembered(value, sequence, remembered.delivered.after(delivery)).also { reached ->
-                            if (snapshots != null) {
-                                ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
-                            }
-                        }
-                    }
+                    effect.events.isNotEmpty() ->
+                        written(id, codec, event, snapshots, ctx, remembered, effect.events, delivery, guessed)
 
                     delivery != null -> remembered.copy(delivered = remembered.delivered.after(delivery))
 
@@ -201,11 +227,39 @@ fun <M : Any, Ev, S> persistent(
                 effect.next ?: if (after === remembered) Next.Stay else Next.Become(after)
             }
         },
-        start = { ctx, _ -> Next.Become(recovered(id, empty, codec, event, snapshots, ctx)) },
+        start = { ctx, _ -> begun(start, ctx) { recovered(id, empty, codec, event, snapshots, ctx) } },
         signal = null,
         steps = steps,
         batch = batch,
     )
+}
+
+/** Nothing read, on a first start that guesses the entity is new; what [recover] reads, on every other. */
+private inline fun <S> begun(start: Start, ctx: Ctx<*>, recover: () -> S): Next<S> =
+    if (start.guessing && (ctx as? Restartable)?.restarted == false) Next.Stay else Next.Become(recover())
+
+/**
+ * [events] and the mark of [delivery] appended after [remembered], and the state they reach, saved as a snapshot when
+ * it is due. On a [guessed] state, a conflict is the guess shown wrong rather than a failure.
+ */
+private fun <M : Any, Ev, S> Fail<JournalConflict>.written(
+    id: PersistenceId,
+    codec: EventCodec<Ev>,
+    event: (state: S, event: Ev) -> S,
+    snapshots: Snapshotting<S>?,
+    ctx: Ctx<M>,
+    remembered: Remembered<S>,
+    events: List<Ev>,
+    delivery: Delivery?,
+    guessed: Boolean,
+): Remembered<S> {
+    val written = events.map(codec::encode) + listOfNotNull(delivery?.let(::mark))
+    val appended = ctx.journal.append(id, remembered.sequence, written)
+    if (guessed && appended.isLeft()) throw WrongGuess
+    val value = events.fold(remembered.value, event)
+    return Remembered(value, appended.bind(), remembered.delivered.after(delivery)).also { reached ->
+        if (snapshots != null) ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
+    }
 }
 
 /** The newest snapshot, if any, and every event after it folded in: where a start and a restart begin. */

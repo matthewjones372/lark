@@ -324,8 +324,13 @@ class TestActor<M : Any, S, E> internal constructor(
     private val boundary = StepFail<E>()
     private val asks = AtomicLong()
 
-    private val ctx = object : Ctx<M>, DeadLetters {
+    // Whether the start to come follows a restart, a failure's or a wrong guess's (spec 0198); a crash's does not.
+    private val restarted = AtomicBoolean(false)
+
+    private val ctx = object : Ctx<M>, DeadLetters, Restartable {
         override val self = this@TestActor
+
+        override val restarted get() = this@TestActor.restarted.get()
 
         override fun deadLetter(letter: DeadLetter) = scope.dead(letter)
 
@@ -488,7 +493,11 @@ class TestActor<M : Any, S, E> internal constructor(
     private fun dead(message: Any, why: DeadLetter.Why) = scope.dead(DeadLetter(address, message, why))
 
     private fun stepped(message: M) {
-        val next = supervised { behaviour.step(this, ctx, state, message) } ?: return
+        val next = try {
+            supervised { behaviour.step(this, ctx, state, message) }
+        } catch (_: WrongGuess) {
+            return guessedWrong(message)
+        } ?: return
         if (next === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled)
         run.updateAndGet { after(it, next, message) }
         settled(next)
@@ -524,9 +533,28 @@ class TestActor<M : Any, S, E> internal constructor(
         if (timer.key !== ReceiveTimeoutKey) heard()
     }
 
+    /**
+     * A start that guessed the entity was new, shown wrong by its first command: restarts as a failure would, without
+     * asking supervision or counting a restart, and puts [message] back to be handled first once the start has run.
+     */
+    private fun guessedWrong(message: M) {
+        stopChildren()
+        letGo()
+        run.updateAndGet { it.copy(state = behaviour.initial) }
+        restarted.set(true)
+        starting.set(behaviour.start != null)
+        stashed.set(
+            Stash(stashCapacity, address.path).apply {
+                keep(message)
+                unstashAll()
+            },
+        )
+    }
+
     /** Handles every message put back from the stash, before anything else on the queue reaches this actor. */
     private tailrec fun replayed() {
         if (stopped) return
+        if (starting.get()) started()
         val message = stashed.get()?.next() ?: return
         @Suppress("UNCHECKED_CAST")
         stepped(message as M)
@@ -585,6 +613,7 @@ class TestActor<M : Any, S, E> internal constructor(
         stopChildren()
         letGo()
         run.updateAndGet { it.copy(state = behaviour.initial) }
+        restarted.set(true)
         started()
         if (stopped) ended()
     }
@@ -596,6 +625,7 @@ class TestActor<M : Any, S, E> internal constructor(
         stopChildren()
         letGo()
         starting.set(false)
+        restarted.set(false)
         run.updateAndGet { it.copy(state = behaviour.initial) }
         down.set(true)
     }
@@ -625,6 +655,8 @@ class TestActor<M : Any, S, E> internal constructor(
     private inline fun supervised(body: Fail<E>.() -> Next<S>): Next<S>? =
         try {
             boundary.guarded(body) { error -> failed(Failure.Declared(error)) }
+        } catch (wrong: WrongGuess) {
+            throw wrong
         } catch (thrown: Throwable) {
             failed(Failure.Thrown(thrown.nonFatalOrThrow()))
             if (run.get().supervision == null) throw thrown
@@ -682,6 +714,7 @@ class TestActor<M : Any, S, E> internal constructor(
                 run.updateAndGet {
                     it.copy(state = behaviour.initial, supervision = decision.step, delays = it.delays + decision.delay)
                 }
+                restarted.set(true)
                 starting.set(behaviour.start != null)
                 Next.Stay
             }
