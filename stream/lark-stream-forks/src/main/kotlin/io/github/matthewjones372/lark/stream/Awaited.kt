@@ -33,19 +33,17 @@ private class Started(val element: Any, val stage: CompletableFuture<Any?>)
  * capacity is the window, and the fork is woken for room a batch at a time rather than once per answer.
  */
 context(ctx: PullContext)
-internal fun Node.MapAsync.fed(window: Int, bound: Bound): Pull {
+internal fun Node.MapAsync.fed(window: Int): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()
     val started = Ring(window)
-    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
-        bound.within {
-            feed(up, started) { a ->
-                @Suppress("UNCHECKED_CAST")
-                Started(a, (start(a) as CompletionStage<Any?>).toCompletableFuture())
-            }
+    val fork = InFlight(ctx.releases?.on ?: VirtualThreads) {
+        feed(up, started) { a ->
+            @Suppress("UNCHECKED_CAST")
+            Started(a, (start(a) as CompletionStage<Any?>).toCompletableFuture())
         }
     }
-    bound.releases?.add(fork::cancel)
+    ctx.releases?.add(fork::cancel)
     var ended = false
     return Pull {
         if (ended) return@Pull null
@@ -88,20 +86,18 @@ internal fun feed(up: Pull, started: Ring, start: (Any) -> Any) {
  * in [Arrivals] for the pull, from whichever thread completed it, so nothing waits on the oldest.
  */
 context(ctx: PullContext)
-internal fun Node.MapAsync.fedUnordered(bound: Bound): Pull {
+internal fun Node.MapAsync.fedUnordered(): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()
     val arrivals = Arrivals(parallelism)
-    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
-        bound.within {
-            feedUnordered(up, arrivals) { a ->
-                @Suppress("UNCHECKED_CAST")
-                val stage = (start(a) as CompletionStage<Any?>).toCompletableFuture()
-                stage.whenComplete { _, _ -> arrivals.arrive(Started(a, stage)) }
-            }
+    val fork = InFlight(ctx.releases?.on ?: VirtualThreads) {
+        feedUnordered(up, arrivals) { a ->
+            @Suppress("UNCHECKED_CAST")
+            val stage = (start(a) as CompletionStage<Any?>).toCompletableFuture()
+            stage.whenComplete { _, _ -> arrivals.arrive(Started(a, stage)) }
         }
     }
-    bound.releases?.add(fork::cancel)
+    ctx.releases?.add(fork::cancel)
     var ended = false
     return Pull {
         if (ended) return@Pull null

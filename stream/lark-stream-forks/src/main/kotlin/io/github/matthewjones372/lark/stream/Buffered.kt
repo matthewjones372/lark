@@ -17,14 +17,12 @@ private sealed interface Ended {
 // The catch is as wide as a pipeline: whatever upstream threw is the pull's to throw, in order.
 @Suppress("TooGenericExceptionCaught")
 context(ctx: PullContext)
-internal fun Node.Buffer.buffered(bound: Bound): Pull {
+internal fun Node.Buffer.buffered(): Pull {
     val up = upstream.pull()
     val queue = Ring(size)
-    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
+    val fork = InFlight(ctx.releases?.on ?: VirtualThreads) {
         try {
-            bound.within {
-                up.into(queue)
-            }
+            up.into(queue)
         } catch (_: InterruptedException) {
             // Let go of by the run: nothing reads what would have come next.
         } catch (thrown: Throwable) {
@@ -37,7 +35,7 @@ internal fun Node.Buffer.buffered(bound: Bound): Pull {
             }
         }
     }
-    bound.releases?.add(fork::cancel)
+    ctx.releases?.add(fork::cancel)
     var ended = false
     return Pull {
         if (ended) {
