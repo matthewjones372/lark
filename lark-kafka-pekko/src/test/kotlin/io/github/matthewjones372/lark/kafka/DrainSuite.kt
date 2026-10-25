@@ -1,0 +1,60 @@
+package io.github.matthewjones372.lark.kafka
+
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.stream.Exit
+import io.github.matthewjones372.lark.stream.start
+import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.serialization.StringDeserializer
+import org.apache.pekko.Done
+import org.apache.pekko.kafka.CommitterSettings
+import org.apache.pekko.kafka.ConsumerSettings
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+
+/** A committing run stopped drains: the consumer stops fetching, and what is in flight finishes and commits. */
+object DrainSuite : Suite<KafkaKit>() {
+    override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-drain-test")
+
+    private const val GENEROUS_SECONDS = 60L
+
+    init {
+        test(
+            "a stop while a body is running still commits that body's record, and close waits for the commit",
+        ) { kit ->
+            kit.broker.send("slow", "1", "2")
+            val second = CountDownLatch(1)
+            val release = CountDownLatch(1)
+
+            val running = Kafka.subscribe(
+                ConsumerSettings.create(kit.system, StringDeserializer(), StringDeserializer())
+                    .withBootstrapServers(kit.broker.bootstrap)
+                    .withGroupId("draining")
+                    .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"),
+                Topic("slow"),
+            )
+                .mapParRecord(1) { record ->
+                    if (record.value() == "2") {
+                        second.countDown()
+                        release.await(GENEROUS_SECONDS, TimeUnit.SECONDS)
+                    }
+                    record.value()
+                }
+                .runCommitting(CommitterSettings.create(kit.system))
+                .start(kit.system)
+            val reached = second.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+
+            running.stop()
+            release.countDown()
+            running.close()
+
+            val exited = running.exit.toCompletableFuture().getNow(null) shouldBe Exit.Done(Done.getInstance())
+            reached and exited and
+                withClue("the kill switch would have dropped record 2 between the stages; a drain commits it") {
+                    kit.broker.committed("draining", "slow") shouldBe 2L
+                }
+        }
+    }
+}
