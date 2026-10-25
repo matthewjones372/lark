@@ -444,8 +444,12 @@ private class Cell<M : Any, S, E>(
     private val guardian: Guardian,
     restart: Schedule<Failure<E>, *>?,
     private val parent: Cell<*, *, *>?,
-) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation, DeadLetters {
+) : Mailbox(), ActorRef<M>, Ctx<M>, Timers<M>, Fired, Activation, DeadLetters, Restartable {
     override val self: ActorRef<M> get() = this
+
+    // Whether the start to come follows a restart, a failure's or a wrong guess's (spec 0198).
+    override var restarted = false
+        private set
 
     override fun deadLetter(letter: DeadLetter) = guardian.dead(letter)
 
@@ -972,11 +976,32 @@ private class Cell<M : Any, S, E>(
         item != null && item !== Started && item !is Listed && item !is Signalled && item !is Timer
 
     /** One message through `step`, inside what it carried from its sender. */
+    private fun stepped(item: Any): Next<S> =
+        try {
+            if (item is Carried) Carriers.within(item.carried) { step(item.message) } else step(item)
+        } catch (_: WrongGuess) {
+            guessedWrong(item)
+        }
+
     @Suppress("UNCHECKED_CAST")
-    private fun stepped(item: Any): Next<S> {
-        if (item is Carried) return Carriers.within(item.carried) { stepped(item.message) }
-        return supervised { behaviour.step(this, this@Cell, state, item as M) }
-            .also { if (it === Next.Unhandled) dead(item, DeadLetter.Why.Unhandled) }
+    private fun step(message: Any): Next<S> = supervised { behaviour.step(this, this@Cell, state, message as M) }
+        .also { if (it === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled) }
+
+    /**
+     * A start that guessed the entity was new, shown wrong by its first command: restarts as a failure would, without
+     * asking supervision or counting a restart, and puts [item] back to be handled first once the start has run.
+     */
+    private fun guessedWrong(item: Any): Next<S> {
+        stopChildren()
+        letGo()
+        state = behaviour.initial
+        restarted = true
+        starting = behaviour.start != null
+        stashed = Stash(stashCapacity, address.path).apply {
+            keep(item)
+            unstashAll()
+        }
+        return Next.Stay
     }
 
     /**
@@ -992,6 +1017,7 @@ private class Cell<M : Any, S, E>(
                 guardian.clock.sleep(decision.delay)
                 state = behaviour.initial
                 supervision = decision.step
+                restarted = true
                 starting = behaviour.start != null
                 Next.Stay
             }
@@ -1008,6 +1034,8 @@ private class Cell<M : Any, S, E>(
     private inline fun supervised(body: Fail<E>.() -> Next<S>): Next<S> =
         try {
             boundary.guarded(body) { error -> failed(Failure.Declared(error), null) }
+        } catch (wrong: WrongGuess) {
+            throw wrong
         } catch (thrown: Throwable) {
             failed(Failure.Thrown(thrown.nonFatalOrThrow()), thrown)
         }
