@@ -26,7 +26,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.resource
-import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -88,8 +87,6 @@ private fun ward() = behaviour<Ward, Admitted>(0 to emptyList()) { _, (grams, fo
         is Follow -> become(grams to following + message.to)
     }
 }
-
-private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
 /** The second node, as a test sees it: where it listens, its ward, its dead letters, and a way to stop the ward. */
 private class Hospital(val port: Int, val ward: Address, val letters: ConcurrentLinkedQueue<DeadLetter>) {
