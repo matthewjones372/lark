@@ -43,6 +43,11 @@ entry): [`docs/agents/stacking.md`](docs/agents/stacking.md).
 
 ## Layout
 
+Modules are grouped by family into `core/`, `stream/`, `actor/`, `cluster/`, `app/`,
+`integrations/`, `bench/` and `examples/` (spec 0139). A module keeps its flat Gradle path,
+`:lark-stream` rather than `:stream:lark-stream`; `settings.gradle.kts` says which folder it is in.
+A new module goes in its family's folder and gets a `module(...)` line there.
+
 One Gradle module per capability, listed in `settings.gradle.kts`;
 [`docs/modules.md`](docs/modules.md) says what each is for. `lark` depends on
 the Kotlin standard library and on the JDK, and on nothing else: no HTTP library, no JSON

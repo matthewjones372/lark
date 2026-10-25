@@ -60,18 +60,13 @@ internal fun Wiring.started(provider: Wiring.() -> FeatureProvider): Client {
     holder.compareAndExchange(null, holding)?.let { held ->
         refuse("OpenFeature is already installed in this JVM, by $held")
     }
-    val api = OpenFeatureAPI.getInstance()
+    // Installed before the provider starts: a start that refuses or throws from here still gives OpenFeature back.
+    val api = install({ OpenFeatureAPI.getInstance() }) { held, _ -> given(held) }
     api.useLark()
-    var started = false
     try {
         api.setProviderAndWait(provider())
-        started = true
     } catch (failed: OpenFeatureError) {
         refuse("the OpenFeature provider did not start: ${failed.message}")
-    } finally {
-        // Given back here, however the start failed: lark-app runs only the releases of nodes that were built.
-        if (!started) given(api)
     }
-    install({ api }) { held, _ -> given(held) }
     return api.client
 }
