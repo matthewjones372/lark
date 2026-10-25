@@ -18,7 +18,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.metrics
 import io.github.matthewjones372.lark.resource
-import java.net.ServerSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -60,8 +59,6 @@ private class TaggedMetrics : Metrics {
     }
 }
 
-private fun openPort(): Int = ServerSocket(0).use { it.localPort }
-
 object RemoteMetricsSuite : Suite<Unit>() {
     override val shared: Resource<Unit> = resource { }
 
@@ -69,8 +66,8 @@ object RemoteMetricsSuite : Suite<Unit>() {
         test(
             "frames are counted each way per peer, and a peer that goes reads 0 and counts what was dropped for it",
         ) { _ ->
-            val herePort = openPort()
-            val therePort = openPort()
+            val herePort = freePort()
+            val therePort = freePort()
             val here = TaggedMetrics()
             val there = TaggedMetrics()
             val heard = CountDownLatch(10)

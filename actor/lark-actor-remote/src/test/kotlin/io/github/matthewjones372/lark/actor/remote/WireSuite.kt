@@ -18,7 +18,6 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 /** A port nothing is listening on yet: bound and let go, so a node can be named before it listens. */
-private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
 private fun node(name: String) = Node(name, "127.0.0.1", freePort())
 
