@@ -73,6 +73,16 @@ object BlockingOnPekkoSuite : Suite<PekkoSystem>() {
             waited and (running.exit.settled() shouldBe Exit.Done(listOf(1, 2))) and (queue.closed.get() shouldBe 1)
         }
 
+        test("a stop wakes a source blocked inside flatMapMerge, and closes it once (spec 0150)") { pekko ->
+            val queue = Queue(1)
+            val running = Stream.of(0).flatMapMerge(2) { blocking(queue) }.runCollect().start(pekko.system)
+            val waited = queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+
+            running.stop()
+
+            waited and running.exit.settled().shouldBeInstanceOf<Exit.Done<*>>() and (queue.closed.get() shouldBe 1)
+        }
+
         test("a take that is satisfied closes the resource it stopped reading") { pekko ->
             val queue = Queue(1, 2, 3)
 

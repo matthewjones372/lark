@@ -16,12 +16,12 @@ private sealed interface Ended {
  */
 // The catch is as wide as a pipeline: whatever upstream threw is the pull's to throw, in order.
 @Suppress("TooGenericExceptionCaught")
-internal fun Node.Buffer.buffered(releases: Releases?): Pull {
+internal fun Node.Buffer.buffered(bound: Bound): Pull {
     val up = upstream.pull()
     val queue = Ring(size)
-    val fork = InFlight(releases?.on ?: VirtualThreads) {
+    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
         try {
-            Releases.within(releases) {
+            bound.within {
                 up.into(queue)
             }
         } catch (_: InterruptedException) {
@@ -36,7 +36,7 @@ internal fun Node.Buffer.buffered(releases: Releases?): Pull {
             }
         }
     }
-    releases?.add(fork::cancel)
+    bound.releases?.add(fork::cancel)
     var ended = false
     return Pull {
         if (ended) {

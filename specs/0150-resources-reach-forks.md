@@ -81,10 +81,9 @@ that refactor.
 
 ## Open questions
 
-1. Does the Pekko backend have the same gap? It runs `Stream.blocking` through
-   its own operator, not `Resources`. I recommend checking that in this
-   entry's tests: run the same scenarios in `DifferentialTest`.
-2. Should a pull built with no `Resources` at all fail loudly instead of
-   leaking silently? That would mean `checkNotNull` in `blocking`. I recommend
-   yes, once both backends bind it everywhere. Missing `Resources` would then
-   always be a bug, and failing loudly would have caught this one.
+Answered (maintainer, 2026-10-25: the recommendations stand).
+
+1. ~~Does the Pekko backend have the same gap?~~ No: `BlockingOnPekkoSuite` stops a source blocked inside
+   `flatMapMerge` and finds it woken and closed once, with no change to Pekko.
+2. ~~Should a pull built with no `Resources` fail loudly?~~ Yes, but in spec 0152, once the context is passed in
+   and no pull reads `Resources` from its thread.
