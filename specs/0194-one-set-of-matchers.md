@@ -71,7 +71,7 @@ Recommended: the `Miss` seam.
       Done when: every 0169 message test passes unchanged.
 - [x] **`spec-0193-miss-collections`** ([#597](https://github.com/matthewjones372/lark/pull/597)) — the same for strings, collections and maps.
       Done when: as above.
-- [ ] **`spec-0193-junit-on-miss`** — `lark-junit`'s `Matchers.kt` is rebuilt on the checks with
+- [x] **`spec-0193-junit-on-miss`** ([#602](https://github.com/matthewjones372/lark/pull/602)) — `lark-junit`'s `Matchers.kt` is rebuilt on the checks with
       `verdict`, `shouldNotBe` takes `lark-assert`'s wording, and `MatchersTest` drops its copied
       wording assertions.
       Done when: `:lark-junit:test`, `:lark-pekko:test` and `:lark-stream-pekko:test` pass, and no
