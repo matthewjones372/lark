@@ -60,6 +60,8 @@ Facts worth having before anything else:
   `Migrated`.
 - `lark-app-openfeature`: `openFeature { provider }`, the provider as a node; a
   `Client` node and `Flag.value()` read it, and readiness follows it.
+- `lark-app-openfeature-flagd`: `flagdFlags("flags")`, flags in flagd's schema
+  as a HOCON section, evaluated in-process; brings gRPC and netty.
 - `lark-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
 - `lark-app-actor`: a `lark-actor` flock as a node, and an actor as a node.
 - `lark-app-cluster`: a `lark-cluster` membership as a node, joined as a HOCON
@@ -75,8 +77,9 @@ Facts worth having before anything else:
   in a fork or an actor handler answers for the request that started it.
 - `lark-arrow`: Lark's `Either`, `NonEmptyList` and `Fail` to and from
   Arrow's: `toArrow()`, `toLark()`, `lark { }` and `arrow { }`.
-- `lark-assert`: `shouldBeRight` and `shouldBeLeft` for Lark's `Either`; a failure
-  names the test's line and its source.
+- `lark-assert`: checks for tests: `shouldBe`, `shouldBeRight` and `shouldBeLeft`
+  for Lark's `Either`, the string, collection and map matchers, and `withClue`; a
+  failure names the test's line and its source.
 - `lark-slf4j`: lark's log lines through SLF4J, annotations in the MDC; on the
   classpath and nothing else.
 - `lark-micrometer`: lark's counters, gauges and timers on Micrometer's

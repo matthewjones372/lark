@@ -77,7 +77,7 @@ between the route, the document, the test client and the generated client, and
 a test written afterwards asserts what the implementation does rather than what
 the description promised.
 
-Test names are sentences in backticks. Kotest matchers, JUnit 5, `withClue`
+Test names are sentences in backticks. `lark-assert` matchers, JUnit 5, `withClue`
 where a bare boolean would not explain itself.
 
 Work out which of these a change can break:

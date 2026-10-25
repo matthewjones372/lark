@@ -6,6 +6,7 @@ import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.ProviderState
 import dev.openfeature.sdk.exceptions.OpenFeatureError
 import io.github.matthewjones372.lark.app.Module
+import io.github.matthewjones372.lark.app.Wiring
 import io.github.matthewjones372.lark.app.probe
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.openfeature.useLark
@@ -36,25 +37,41 @@ private fun given(api: OpenFeatureAPI) {
  * `Flag.value()` reads the same provider, since `featureClient` defaults to the default domain's client.
  */
 fun openFeature(provider: () -> FeatureProvider): Module =
-    single<Client> {
-        val holding = "a graph started at ${Instant.now()} on ${Thread.currentThread()}"
-        holder.compareAndExchange(null, holding)?.let { held ->
-            refuse("OpenFeature is already installed in this JVM, by $held")
-        }
-        val api = OpenFeatureAPI.getInstance()
-        api.useLark()
-        var started = false
-        try {
-            api.setProviderAndWait(provider())
-            started = true
-        } catch (failed: OpenFeatureError) {
-            refuse("the OpenFeature provider did not start: ${failed.message}")
-        } finally {
-            // Given back here, however the start failed: lark-app runs only the releases of nodes that were built.
-            if (!started) given(api)
-        }
-        install({ api }) { held, _ -> given(held) }
-        api.client
-    }.probe<Client>("openfeature", timeout = 1.seconds) { client ->
-        client.providerState != ProviderState.ERROR && client.providerState != ProviderState.STALE
+    single<Client> { started { provider() } }.probe<Client>("openfeature", timeout = 1.seconds, ask = ready)
+
+/**
+ * [openFeature], with a provider built from [D], a node the graph already holds, such as its `Config`. The provider
+ * is built on the recipe's own [Wiring], so it can refuse the start with a reason of its own.
+ */
+inline fun <reified D : Any> openFeature(noinline provider: Wiring.(D) -> FeatureProvider): Module =
+    single<Client, D> { dependency -> started { provider(dependency) } }
+        .probe<Client>("openfeature", timeout = 1.seconds, ask = ready)
+
+/** Ready unless the provider is in error or stale. */
+@PublishedApi
+internal val ready: (Client) -> Boolean = { client ->
+    client.providerState != ProviderState.ERROR && client.providerState != ProviderState.STALE
+}
+
+/** Sets [provider] once this graph holds OpenFeature, and installs its shutdown. */
+@PublishedApi
+internal fun Wiring.started(provider: Wiring.() -> FeatureProvider): Client {
+    val holding = "a graph started at ${Instant.now()} on ${Thread.currentThread()}"
+    holder.compareAndExchange(null, holding)?.let { held ->
+        refuse("OpenFeature is already installed in this JVM, by $held")
     }
+    val api = OpenFeatureAPI.getInstance()
+    api.useLark()
+    var started = false
+    try {
+        api.setProviderAndWait(provider())
+        started = true
+    } catch (failed: OpenFeatureError) {
+        refuse("the OpenFeature provider did not start: ${failed.message}")
+    } finally {
+        // Given back here, however the start failed: lark-app runs only the releases of nodes that were built.
+        if (!started) given(api)
+    }
+    install({ api }) { held, _ -> given(held) }
+    return api.client
+}

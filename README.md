@@ -329,7 +329,7 @@ import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 
 // Stands in for a database: started once for the suite, closed after its last test.
-class Inventory : AutoCloseable {
+class Inventory {
     private val stock = ConcurrentHashMap<String, Int>()
 
     fun add(item: String, count: Int) {
@@ -338,7 +338,7 @@ class Inventory : AutoCloseable {
 
     fun count(item: String): Int = stock[item] ?: 0
 
-    override fun close() = stock.clear()
+    fun close() = stock.clear()
 }
 
 object InventorySuite : Suite<Inventory>(limit = Limit.fixed(8), aspects = tag("db")) {

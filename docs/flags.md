@@ -24,6 +24,30 @@ graph reports not ready while the provider is in error or stale, and release
 shuts the SDK down. `Flag.value()` reads the same provider. One graph per JVM
 can hold it, and a second is refused.
 
+## Flags in the service's config
+
+`lark-app-openfeature-flagd`'s `flagdFlags("flags")` reads the flags from a
+section of the service's own HOCON, in [flagd's schema](https://flagd.dev/reference/flag-definitions/),
+and evaluates them in-process. HOCON is a superset of JSON, so a flagd
+definition is already a valid section, targeting included:
+
+```hocon
+flags {
+  "adoption.per-customer-limit" {
+    state = ENABLED
+    variants { standard = 3, raised = 5 }
+    defaultVariant = standard
+    targeting { "if" = [{ "==" = [{ "var" = "targetingKey" }, "ada"] }, "raised", "standard"] }
+  }
+}
+```
+
+The targeting key is the one `evaluatedFor` binds. A section flagd rejects
+refuses the start, naming the flag and the file it came from, and a test
+overrides the section like any other setting. A change is a redeploy. The
+module brings flagd's gRPC client with it, so a service on another provider
+never carries it.
+
 ## Declaring and reading a flag
 
 <!-- flags-declare -->
@@ -61,6 +85,44 @@ fun why(customer: String): FlagEvaluationDetails<Int> =
 - A message sent to an actor carries the targeting key and every string,
   boolean, int, long and double attribute, each arriving as the type it was.
   Structures, lists and instants stay behind.
+
+## Flags of other types
+
+A timeout, a cut-over time, a mode or a small structure is declared as the
+type the code wants, and decoded once, beside the key and the default:
+
+<!-- flags-types -->
+```kotlin
+import dev.openfeature.sdk.Value
+import io.github.matthewjones372.lark.openfeature.Flag
+import java.time.Instant
+import kotlin.time.Duration.Companion.seconds
+
+enum class Checkout { Classic, Express }
+
+data class Window(val from: Int, val to: Int)
+
+object CheckoutFlags {
+    val maxBasket = Flag.long("checkout.max-basket", default = 50L)
+    val registryTimeout = Flag.duration("checkout.registry-timeout", default = 2.seconds)
+    val newRulesFrom = Flag.instant("checkout.new-rules-from", default = Instant.MAX)
+    val checkout = Flag.enum("checkout.mode", default = Checkout.Classic)
+    val window = Flag.of("checkout.window", default = Window(0, 24)) { value: Value ->
+        value.asStructure().let { Window(it.getValue("from").asInteger(), it.getValue("to").asInteger()) }
+    }
+}
+```
+
+| Factory | The provider holds | Decoded by |
+|---|---|---|
+| `Flag.long` | an integer | the SDK |
+| `Flag.duration` | a string such as `"5s"`, `"1m 30s"` or `"PT5S"` | `Duration.parse` |
+| `Flag.instant` | an ISO-8601 string | `Instant.parse` |
+| `Flag.enum` | a string naming a constant exactly | `enumValueOf` |
+| `Flag.of` | an object | the function you pass |
+
+A value that will not decode answers the default, with `PARSE_ERROR` and the
+reason in `details()`, and is warned about and counted like any other fall-back.
 
 ## What gets counted
 

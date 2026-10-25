@@ -82,6 +82,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-app-kotlinx` | a HOCON section read from its `@Serializable` class ([cookbook](cookbook.md#configuration-a-module-owns)) | `lark-app-typesafe` | `kotlinx-serialization-core` 1.11.0 | yes |
 | `lark-app-liquibase` | a changelog as a node that readers of the database depend on ([cookbook](cookbook.md#run-migrations-as-a-step)) | `lark-app` | `liquibase-core` 4.32.0 | yes |
 | `lark-app-openfeature` | an OpenFeature provider as a node, keyed by `Client`, in readiness and shut down on release ([guide](flags.md)) | `lark-app`, `lark-openfeature` | none | yes |
+| `lark-app-openfeature-flagd` | flags in flagd's schema as a section of the service's HOCON, evaluated in-process ([guide](flags.md#flags-in-the-services-config)) | `lark-app-openfeature`, `lark-app-typesafe` | `dev.openfeature.contrib.providers:flagd` 0.15.0, with gRPC and netty | yes |
 | `lark-app-pekko` | a Pekko typed actor as a node ([cookbook](cookbook.md#spawn-a-pekko-actor)) | `lark-app`, `lark-pekko` | `pekko-actor-typed` 1.2.1 | yes |
 | `lark-app-actor` | a `lark-actor` flock and actors as nodes ([cookbook](cookbook.md#spawn-a-lark-actor)) | `lark-app`, `lark-actor` | none | yes |
 | `lark-app-cluster` | a cluster membership as a node, joined from HOCON ([guide](cluster.md#joined-from-config)) | `lark-app-actor`, `lark-app-typesafe`, `lark-cluster` | none beyond Typesafe Config | yes |
@@ -133,7 +134,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-otel` | OpenTelemetry context across forks, and spans ([guide](observability.md#traces)) | `lark` | `opentelemetry-api` 1.51.0 | yes |
 | `lark-openfeature` | OpenFeature's evaluation context across forks and actor messages: `evaluatedFor`, `useLark()`, `Flag` ([guide](flags.md)) | `lark` | `dev.openfeature:sdk` 1.23.0, `slf4j-api` | yes |
 | `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's | `lark` | `arrow-core` 2.1.2 | yes |
-| `lark-assert` | `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, failing at the test's own line | `lark` | `opentest4j` 1.3.0 | yes |
+| `lark-assert` | checks for tests, failing at the test's own line: `shouldBe`, `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, the string, collection and map matchers, and `withClue` ([guide](testing.md#assertions)) | `lark` | `opentest4j` 1.3.0 | yes |
 | `lark-test` | `story` and `eventually` ([guide](testing.md#stories-and-waiting)) | `lark` | none | yes |
 | `lark-junit` | `Suite` objects whose tests share one `Resource` and return `Expectations`, run by a JUnit Platform engine | `lark`, `lark-assert`, `lark-test` | `junit-platform-engine` 6.1.3 | yes |
 
