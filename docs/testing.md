@@ -243,6 +243,89 @@ object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {
 }
 ```
 
+### More than one resource
+
+A suite has one `shared` resource, but it can hold several things. Write each
+as its own `Resource`, and build the suite's from them in one `resource { }`
+block, where `.bind()` acquires each one. They are released in reverse order,
+and if one fails to start, those already started are released. Something a
+single test needs fresh is acquired in that test, with `use`, and released
+when the test ends.
+
+<!-- testing-junit-resources -->
+```kotlin
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.lark.use
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+
+// Stand in for a database and a broker: each started once for the suite, closed after its last test.
+class Orders {
+    private val saved = ConcurrentHashMap<String, Int>()
+
+    fun save(id: String, count: Int) {
+        saved[id] = count
+    }
+
+    fun count(id: String): Int = saved[id] ?: 0
+
+    fun close() = saved.clear()
+}
+
+class Broker {
+    private val sent = CopyOnWriteArrayList<String>()
+
+    fun publish(event: String) {
+        sent += event
+    }
+
+    fun published(prefix: String): List<String> = sent.filter { it.startsWith(prefix) }
+
+    fun close() = sent.clear()
+}
+
+// A recorder each test gets fresh: what one test saw, and nothing another test did.
+class Recorder {
+    val seen = CopyOnWriteArrayList<String>()
+
+    fun close() = seen.clear()
+}
+
+// Each piece is its own Resource, so a suite that needs one alone can take just that one.
+fun orders(): Resource<Orders> = resource { install({ Orders() }) { db, _ -> db.close() } }
+
+fun broker(): Resource<Broker> = resource { install({ Broker() }) { broker, _ -> broker.close() } }
+
+fun recorder(): Resource<Recorder> = resource { install({ Recorder() }) { recorder, _ -> recorder.close() } }
+
+class Shop(val orders: Orders, val broker: Broker)
+
+object ShopSuite : Suite<Shop>() {
+    // Acquired in order and released in reverse: the broker, then the orders. If the broker fails to start,
+    // the orders already started are released, and every test fails with the broker's error.
+    override val shared: Resource<Shop> = resource { Shop(orders().bind(), broker().bind()) }
+
+    init {
+        test("an order is saved and published once") { shop ->
+            shop.orders.save("order-1", 2)
+            shop.broker.publish("order-1:placed")
+            (shop.orders.count("order-1") shouldBe 2) and
+                (shop.broker.published("order-1") shouldBe listOf("order-1:placed"))
+        }
+        test("a test that needs its own resource acquires it, and it is released when the test ends") { shop ->
+            recorder().use { recorder ->
+                shop.broker.publish("order-2:placed")
+                recorder.seen += "order-2:placed"
+                recorder.seen.toList() shouldBe shop.broker.published("order-2")
+            }
+        }
+    }
+}
+```
+
 ### State in a suite
 
 A suite is one `object`, so its properties are shared by every test in it, and
