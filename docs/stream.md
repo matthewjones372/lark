@@ -543,6 +543,10 @@ map          Pipelines.kt:16  67% · 20.0 µs busy · 3.0 µs waiting · 100000 
 filter       Pipelines.kt:17  3% · 1.0 µs busy · 3.0 µs waiting · 50000 out
 ```
 
+One profiler can measure several pipelines. It keeps each apart, and
+`profiler.profile("ingest")` names the one to show. Asked for `profile()` with
+no name, it refuses once it has seen more than one, rather than sum them.
+
 ## Time a test owns
 
 `tick`, `groupedWithin`, `restartOnDefect` and `mapPar` wait on time or on
