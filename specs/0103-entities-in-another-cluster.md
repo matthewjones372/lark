@@ -2,10 +2,10 @@
 
 ## Problem
 
-A service that runs in two datacentres, each taking writes, cannot use one Lark cluster across both. Membership
+A service that runs in two datacentres, each taking writes, cannot use one Surefold cluster across both. Membership
 over a WAN is slow to converge, and a split between two sites is an even split, which `keepMajority` cannot
 decide without a third site (spec 0069 left multi-datacentre work out for this reason). So each site runs a
-cluster of its own. What is missing is a way for one cluster to reach the other's sharded entities. lark-bank
+cluster of its own. What is missing is a way for one cluster to reach the other's sharded entities. surefold-bank
 needs it for active/active: each account lives in one region, and a transfer between regions must credit an
 account the other cluster owns. Today the only way would be the service calling itself over HTTP.
 
@@ -49,7 +49,7 @@ southAccounts.entity("south-acc-7").ask<AccountMessage, AccountAnswer>(3.seconds
   requirement as within one cluster, just across two networks.
 - **TLS across clusters:** `Tls.check` requires a peer's certificate to name it, so both clusters' certificates
   are issued by a CA each trusts, which in practice means a CA they share.
-- **Meters:** `lark.federation.sent{cluster}`, `lark.federation.unreachable{cluster}`.
+- **Meters:** `surefold.federation.sent{cluster}`, `surefold.federation.unreachable{cluster}`.
 
 ## Why this shape
 
@@ -78,7 +78,7 @@ one that needs no witness.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor-remote:check :lark-cluster:check
+./gradlew :surefold-actor-remote:check :surefold-cluster:check
 ```
 
 ## Open questions

@@ -6,7 +6,7 @@ The JDBC journal's feed reads by `ordering`, which an append takes when it inser
 missing `ordering` it waited `gapTimeout` (10 s) and then read past, taking the gap for an append that rolled back.
 An append whose writer was merely slow to commit, a JVM paused mid-transaction or a pool starved during a database
 failover, was then read past too, and when it committed the feed never went back for it: every read model following
-the journal missed the event for good. lark-bank's Docker chaos run found it. bank-2, frozen for 20 s with a
+the journal missed the event for good. surefold-bank's Docker chaos run found it. bank-2, frozen for 20 s with a
 transfer's last event inserted and not committed, committed it after the feed had passed its gap; the transfer read
 model kept that transfer `Debited` for ever, though the journal and the money were right.
 
@@ -47,7 +47,7 @@ would never need even the horizon, but changes what an offset is for every reade
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor-journal-jdbc:check :lark-actor-projection:check :lark-cluster:check
+./gradlew :surefold-actor-journal-jdbc:check :surefold-actor-projection:check :surefold-cluster:check
 ```
 
 ## Open questions

@@ -6,7 +6,7 @@ A client library that hands out records by blocking — a Kafka consumer's
 `poll`, a JDBC cursor, a queue's `take` — has no backend-neutral way in. Every
 core builder is a value already in hand (`from`, `single`, `fromStage`), and
 the only source that can hold something open is `Stream.hooked` in
-`lark-stream-pekko` (0053), which only Pekko runs.
+`surefold-stream-pekko` (0053), which only Pekko runs.
 
 On Forks, `Stream.from(iterable)` over a blocking iterator runs fine but can
 never be cleaned up. A run's `stop()` sets a flag that is read between
@@ -21,7 +21,7 @@ quiet topic never returns, so `stop()` never lands.
 - **No async source.** `fromStage` covers one value; a callback-driven
   source is a later spec.
 - **No Pekko-only features in the core.** `Stream.hooked` stays in
-  `lark-stream-pekko` for sources that are Pekko `Source`s already.
+  `surefold-stream-pekko` for sources that are Pekko `Source`s already.
 
 ## Shape
 
@@ -37,7 +37,7 @@ val lines: Stream<Nothing, String> =
 lines.runFold(0) { n, _ -> n + 1 }.run(Forks())               // or PekkoStreams(system), or TestStreams(clock)
 ```
 
-- `Stream.blocking(open, next, wake, close)` in `lark-stream`, a new
+- `Stream.blocking(open, next, wake, close)` in `surefold-stream`, a new
   `Node.Blocking`. `open` runs once per run, `next` is called only by the one
   thread that pulls it, and `close` runs exactly once after the last `next`.
 - `wake` is how `stop()` reaches a `next` that is blocked. It may be called

@@ -1,10 +1,10 @@
 # Application cookbook
 
-Recipes for [`lark-app`](app.md), in roughly the order a service needs them.
+Recipes for [`surefold-app`](app.md), in roughly the order a service needs them.
 Each Kotlin fence marked for it is compiled by `CookbookTest`, together with
 the fixtures below, so a recipe that stops matching the library fails the
 build. Of the configuration fences only the class form is compiled, and the
-`lark-app-liquibase` fences are not, because that module is not on its
+`surefold-app-liquibase` fences are not, because that module is not on its
 classpath.
 
 [Applications](app.md) explains how the graph behaves; this page shows how to
@@ -12,8 +12,8 @@ write each piece.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app:0.10.1")
-    implementation("io.github.matthewjones372:lark-app-pekko:0.10.1")  // Pekko actors only
+    implementation("io.github.matthewjones372:surefold-app:0.10.1")
+    implementation("io.github.matthewjones372:surefold-app-pekko:0.10.1")  // Pekko actors only
 }
 ```
 
@@ -23,29 +23,29 @@ The types the recipes are written against:
 ```kotlin
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.ExitCase
-import io.github.matthewjones372.lark.app.HealthRegistry
-import io.github.matthewjones372.lark.app.LarkApp
-import io.github.matthewjones372.lark.app.Module
-import io.github.matthewjones372.lark.app.RealSys
-import io.github.matthewjones372.lark.app.Sys
-import io.github.matthewjones372.lark.app.boundTo
-import io.github.matthewjones372.lark.app.closingOf
-import io.github.matthewjones372.lark.app.findings
-import io.github.matthewjones372.lark.app.kotlinx.Naming
-import io.github.matthewjones372.lark.app.kotlinx.Secret
-import io.github.matthewjones372.lark.app.kotlinx.config
-import io.github.matthewjones372.lark.app.overriding
-import io.github.matthewjones372.lark.app.pekko.actor
-import io.github.matthewjones372.lark.app.probe
-import io.github.matthewjones372.lark.app.render
-import io.github.matthewjones372.lark.app.report
-import io.github.matthewjones372.lark.app.runApp
-import io.github.matthewjones372.lark.app.single
-import io.github.matthewjones372.lark.app.singleOf
-import io.github.matthewjones372.lark.app.subgraph
-import io.github.matthewjones372.lark.app.testApp
-import io.github.matthewjones372.lark.app.validate
+import io.github.matthewjones372.surefold.ExitCase
+import io.github.matthewjones372.surefold.app.HealthRegistry
+import io.github.matthewjones372.surefold.app.Module
+import io.github.matthewjones372.surefold.app.RealSys
+import io.github.matthewjones372.surefold.app.SurefoldApp
+import io.github.matthewjones372.surefold.app.Sys
+import io.github.matthewjones372.surefold.app.boundTo
+import io.github.matthewjones372.surefold.app.closingOf
+import io.github.matthewjones372.surefold.app.findings
+import io.github.matthewjones372.surefold.app.kotlinx.Naming
+import io.github.matthewjones372.surefold.app.kotlinx.Secret
+import io.github.matthewjones372.surefold.app.kotlinx.config
+import io.github.matthewjones372.surefold.app.overriding
+import io.github.matthewjones372.surefold.app.pekko.actor
+import io.github.matthewjones372.surefold.app.probe
+import io.github.matthewjones372.surefold.app.render
+import io.github.matthewjones372.surefold.app.report
+import io.github.matthewjones372.surefold.app.runApp
+import io.github.matthewjones372.surefold.app.single
+import io.github.matthewjones372.surefold.app.singleOf
+import io.github.matthewjones372.surefold.app.subgraph
+import io.github.matthewjones372.surefold.app.testApp
+import io.github.matthewjones372.surefold.app.validate
 import kotlinx.serialization.Serializable
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.ActorRef
@@ -201,12 +201,12 @@ override, so where two modules provide the same key, the right-hand node wins.
 
 ## Run it
 
-An application declared as a `LarkApp` names the node it starts from, which
+An application declared as a `SurefoldApp` names the node it starts from, which
 lets the build check it without running `main`:
 
 <!-- cookbook -->
 ```kotlin
-object TheApp : LarkApp<HttpServer>() {
+object TheApp : SurefoldApp<HttpServer>() {
     override val module: Module = app
 }
 
@@ -217,7 +217,7 @@ With no `run` of its own, `TheApp` parks until the process is asked to stop,
 then releases the graph. *Unreleased: in 0.10.1, write
 `override fun AppScope.run(root: HttpServer) = awaitShutdown()`.*
 
-The same without a `LarkApp`, with the root's work written inline:
+The same without a `SurefoldApp`, with the root's work written inline:
 
 <!-- cookbook -->
 ```kotlin
@@ -377,7 +377,7 @@ fun everyFault(): String = TheApp.module.findings(TheApp.root).report()
 `findings` answers with every error and warning:
 
 ```
-lark-app wiring
+surefold-app wiring
 
 ❯ error: missing Pool
 ❯     for PgUserRepo         Wiring.kt:42
@@ -389,7 +389,7 @@ lark-app wiring
 ❯ warning: nothing reaches Metrics          Telemetry.kt:9
 ```
 
-Applying the `io.github.matthewjones372.lark.wiring` Gradle plugin runs this on
+Applying the `io.github.matthewjones372.surefold.wiring` Gradle plugin runs this on
 every build and draws each graph; see
 [Checking the graph in the build](app.md#checking-the-graph-in-the-build).
 
@@ -445,9 +445,9 @@ requests.
 
 ## Configuration a module owns
 
-`lark-app-typesafe` makes a HOCON section a node, read by the module that
-needs it. `lark-app-kotlinx` reads it from a `@Serializable` class, each
-property a path named after it. *Unreleased: `lark-app-kotlinx` is on `main`
+`surefold-app-typesafe` makes a HOCON section a node, read by the module that
+needs it. `surefold-app-kotlinx` reads it from a `@Serializable` class, each
+property a path named after it. *Unreleased: `surefold-app-kotlinx` is on `main`
 and not in 0.10.1, so its coordinate is the [snapshot](modules.md#requirements-and-coordinates).*
 
 ```kotlin
@@ -456,7 +456,7 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-kotlinx:0.10.2-SNAPSHOT")
+    implementation("io.github.matthewjones372:surefold-app-kotlinx:0.10.2-SNAPSHOT")
 }
 ```
 
@@ -489,14 +489,14 @@ substitution, merging, `getDuration` and `getMemorySize` all still work.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-typesafe:0.10.1")
+    implementation("io.github.matthewjones372:surefold-app-typesafe:0.10.1")
 }
 ```
 
 ```kotlin
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.app.typesafe.config
+import io.github.matthewjones372.surefold.app.typesafe.config
 
 data class DbSettings(val url: String, val poolSize: Int, val idle: kotlin.time.Duration)
 
@@ -518,14 +518,14 @@ section, so adding one does not mean editing a root configuration type.
 ### Where a setting came from
 
 Each section logs what it read as the graph starts, before anything is built
-on it, to the `lark-app` logger at `INFO`. There is nothing to wire: a service
+on it, to the `surefold-app` logger at `INFO`. There is nothing to wire: a service
 whose `main` is `runApp(Petshop)` prints one block per section, and the
 logger's level is how to turn it off. `config<Settings>("petshop") { … }` that
 read `port`, `db.pool` and `secret("db.password")` logs:
 
 <!-- cookbook-section-report -->
 ```
-lark-app configuration: petshop
+surefold-app configuration: petshop
 
 petshop.port         9090          application.conf:2
                      overrides 8080 at reference.conf:2
@@ -546,15 +546,15 @@ A hierarchy of files resolves to one document. `origins()` says which file each
 value came from and what it overrode:
 
 ```kotlin
-import io.github.matthewjones372.lark.app.typesafe.layeredConfig
-import io.github.matthewjones372.lark.app.typesafe.origins
+import io.github.matthewjones372.surefold.app.typesafe.layeredConfig
+import io.github.matthewjones372.surefold.app.typesafe.origins
 
 layeredConfig().origins().report()
 ```
 
 <!-- cookbook-config-report -->
 ```
-lark-app configuration
+surefold-app configuration
 
 petshop.arrivalsEvery  30s           reference.conf:4
 petshop.db.password    ●●●●●●        application.conf:5
@@ -579,7 +579,7 @@ the graph beside the `Config` it merges to. `config.origins()` on an already mer
 paths:
 
 ```kotlin
-import io.github.matthewjones372.lark.app.typesafe.Secrets
+import io.github.matthewjones372.surefold.app.typesafe.Secrets
 
 config.origins(Secrets.default.and("petshop.db.url")).report()   // jdbc:…//user:pass@host
 ```
@@ -589,7 +589,7 @@ through `toString` and gives its value only to `reveal()`, so a log line or an
 exception message cannot leak it:
 
 ```kotlin
-import io.github.matthewjones372.lark.app.typesafe.Secret
+import io.github.matthewjones372.surefold.app.typesafe.Secret
 
 data class Credentials(val url: Secret, val poolSize: Int)
 
@@ -606,10 +606,10 @@ value to it.
 ### Configuration in a test
 
 ```kotlin
-import io.github.matthewjones372.lark.app.typesafe.configFromResource
-import io.github.matthewjones372.lark.app.typesafe.configOf
-import io.github.matthewjones372.lark.app.typesafe.loadedConfig
-import io.github.matthewjones372.lark.app.typesafe.overridingConfig
+import io.github.matthewjones372.surefold.app.typesafe.configFromResource
+import io.github.matthewjones372.surefold.app.typesafe.configOf
+import io.github.matthewjones372.surefold.app.typesafe.loadedConfig
+import io.github.matthewjones372.surefold.app.typesafe.overridingConfig
 
 loadedConfig()                              // what the service reads: application.conf and its reference
 configFromResource("test.conf")             // a file beside the test
@@ -630,17 +630,17 @@ than being silently ignored.
 ### A setting that picks a module
 
 A setting such as `useCache` does not configure a repository; it chooses
-between two. Lark builds every node in a graph, so the branch not taken must
+between two. Surefold builds every node in a graph, so the branch not taken must
 not be in it.
 
 `choice` is a node that depends on the setting and provides what every branch
-provides. Its value is the module Lark builds into the graph once the setting
+provides. Its value is the module Surefold builds into the graph once the setting
 is built. *Unreleased: `choice` is on `main` and not in 0.10.1.*
 
 ```kotlin
-import io.github.matthewjones372.lark.app.choice
-import io.github.matthewjones372.lark.app.typesafe.config
-import io.github.matthewjones372.lark.app.typesafe.loadedConfig
+import io.github.matthewjones372.surefold.app.choice
+import io.github.matthewjones372.surefold.app.typesafe.config
+import io.github.matthewjones372.surefold.app.typesafe.loadedConfig
 
 data class RepoSettings(val useCache: Boolean, val ttl: kotlin.time.Duration)
 
@@ -648,7 +648,7 @@ val choosing: Module =
     config<RepoSettings>("repo") { RepoSettings(boolean("useCache"), duration("ttl")) } +
         choice<RepoSettings, UserRepo> { repo -> if (repo.useCache) cachingRepo else plainRepo }
 
-object Shop : LarkApp<UserRepo>() {
+object Shop : SurefoldApp<UserRepo>() {
     override val module = loadedConfig() + choosing
 }
 ```
@@ -673,19 +673,19 @@ val carts: Module = when (settings.getString("cartStore")) {
 
 ## Run migrations as a step
 
-`lark-app-liquibase` makes a changelog a node. Anything that reads the
+`surefold-app-liquibase` makes a changelog a node. Anything that reads the
 database takes a `Migrated`, which turns "after the migrations" into an edge
 the graph enforces and `render()` draws:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-app-liquibase:0.10.1")
+    implementation("io.github.matthewjones372:surefold-app-liquibase:0.10.1")
 }
 ```
 
 ```kotlin
-import io.github.matthewjones372.lark.app.liquibase.Migrated
-import io.github.matthewjones372.lark.app.liquibase.migrations
+import io.github.matthewjones372.surefold.app.liquibase.Migrated
+import io.github.matthewjones372.surefold.app.liquibase.migrations
 
 val database: Module =
     closingOf { cfg: DbConfig -> HikariDataSource(cfg) }.boundTo<DataSource>() +
@@ -700,7 +700,7 @@ migration used is returned to the pool before the node finishes.
 
 ## Spawn a Pekko actor
 
-`lark-app-pekko` makes a Pekko typed actor a node keyed by the `ActorRef<T>`
+`surefold-app-pekko` makes a Pekko typed actor a node keyed by the `ActorRef<T>`
 of its protocol. It needs a classic `ActorSystem` node:
 
 <!-- cookbook-pekko -->
@@ -735,7 +735,7 @@ what it held before the nodes it depends on are released.
 Asking an actor, and why the reply type is bound to `Any`:
 
 ```kotlin
-import io.github.matthewjones372.lark.app.pekko.ask
+import io.github.matthewjones372.surefold.app.pekko.ask
 
 fun find(ref: ActorRef<Shop>, system: ActorSystem, id: PetId): Option<Pet> =
     ref.ask(system, 3.seconds) { replyTo -> Find(id, replyTo) }
@@ -746,16 +746,16 @@ Pekko refuses a `null` message, so an actor that answers "no such pet" with
 Kotlin nor the typed protocol stops it. Binding the reply to `Any` does:
 absence has to be modelled as an `Option`, a sealed reply or an empty list.
 
-## Spawn a Lark actor
+## Spawn a Surefold actor
 
-`lark-app-actor` does the same for [`lark-actor`](actors.md). `actors()` is a
+`surefold-app-actor` does the same for [`surefold-actor`](actors.md). `actors()` is a
 node providing `Actors`, a flock that lives as long as the application, and
-`actor` spawns a behaviour in it, keyed by Lark's own `ActorRef<M>`:
+`actor` spawns a behaviour in it, keyed by Surefold's own `ActorRef<M>`:
 
 ```kotlin
-import io.github.matthewjones372.lark.actor.ActorRef
-import io.github.matthewjones372.lark.app.actor.actor
-import io.github.matthewjones372.lark.app.actor.actors
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.app.actor.actor
+import io.github.matthewjones372.surefold.app.actor.actors
 
 val tills: Module =
     actors() +
@@ -780,7 +780,7 @@ as a node.
 | a start that can decline | `refuse("why")` |
 | two of one type | a `@JvmInline value class` wrapper |
 | more than nine dependencies | group them into a node of their own |
-| `main` | `object App : LarkApp<Root>()` and `exitProcess(runApp(App).code)` |
+| `main` | `object App : SurefoldApp<Root>()` and `exitProcess(runApp(App).code)` |
 | readiness | `.probe(name, timeout, attempts, interval) { … }` |
 | `/ready` and `/live` | a node taking `HealthRegistry` |
 | a fake in a test | `.overriding(single<T> { … })`, never plain `plus` |
@@ -790,7 +790,7 @@ as a node.
 | a password or token | `secret("path")` |
 | a setting that picks a module | `choice<Settings, Provided> { … }` |
 | migrations before anything reads | `migrations("db/changelog.xml")`, then take a `Migrated` |
-| an actor | `actor("name") { … }` from `lark-app-pekko` or `lark-app-actor` |
+| an actor | `actor("name") { … }` from `surefold-app-pekko` or `surefold-app-actor` |
 | the wiring in review | `render()` against a golden file |
 
 Retries, timeouts, circuit breakers, rate limiters and bulkheads are in

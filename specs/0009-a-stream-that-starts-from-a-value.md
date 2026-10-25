@@ -14,7 +14,7 @@ can against that.
 
 ## Not doing
 
-- **No inspection of a raw `Source`.** One built elsewhere is opaque; lark
+- **No inspection of a raw `Source`.** One built elsewhere is opaque; surefold
   cannot tell a source built from `null` from one with no rows.
 - **No emptiness failure by default.** An empty stream is the normal outcome
   of most pipelines; making it loud is a decision the caller states.
@@ -30,7 +30,7 @@ Stream.of(a, b, c)
 val one: Stream<Missing, Customer> =
     lookup(id)?.let { Stream.single(it) } ?: Stream.fail(Missing(id))     // absence is a failure with a name
 
-Stream.from(source).orFailIfEmpty(Missing(id))                            // a source lark did not build: zero elements → Failed(Missing)
+Stream.from(source).orFailIfEmpty(Missing(id))                            // a source surefold did not build: zero elements → Failed(Missing)
 
 Stream.fromStage(stage)                                                    // Stream<Nothing, A>: a null completion is Died(NullPointerException), never Done with nothing
 Stream.fromStage(stage, ifNull = Missing(id))                              // Stream<Missing, A>: a null completion is Failed(Missing(id))
@@ -58,11 +58,11 @@ Stream.fromStage(stage, ifNull = Missing(id))                              // St
   emptiness (`Source.completionStage`, `Source.fromCompletionStage`,
   `Source.future`, `Source.from(Optional)`, `Source.fromJavaStream` over
   `Stream.ofNullable`, `Source.fromIterator` over an `Optional`), since the
-  one thing lark cannot reach is code that never enters it.
+  one thing surefold cannot reach is code that never enters it.
 
 ## Why this shape
 
-Compile time where lark builds the stream, an opt-in word where it does not,
+Compile time where surefold builds the stream, an opt-in word where it does not,
 and a paste-in lint for the code that never arrives: that is the whole of
 what a library can do about a value that was `null` before it got there. The
 alternative — `orFailIfEmpty` by default with an `allowEmpty()` escape — makes

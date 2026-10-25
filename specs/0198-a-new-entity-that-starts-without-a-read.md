@@ -3,9 +3,9 @@
 ## Problem
 
 A persistent behaviour reads its journal before its first command, every time it starts. For an entity that is
-born, does a few steps and is done, such as lark-bank's transfer saga, that read always comes back empty: the
+born, does a few steps and is done, such as surefold-bank's transfer saga, that read always comes back empty: the
 transfer's id was numbered a moment ago. Under load it is one database round trip on every transfer, on the same
-pool the appends wait on. lark-bank spec 0031 (`fresh-entity`) wants it gone; today the only workaround is keeping
+pool the appends wait on. surefold-bank spec 0031 (`fresh-entity`) wants it gone; today the only workaround is keeping
 the saga's state outside the journal, which loses replay.
 
 ## Not doing
@@ -68,7 +68,7 @@ sharding's envelope. Recommended: the behaviour option.
 ## Open questions
 
 1. ~~Should `onStart` wait for the real state?~~ Answered by building (2026-10-25): a hook is wrapped around the
-   start from outside (`onStart`, or lark-bank's own `onRecovered`), so `persistent` cannot hold it back until its
+   start from outside (`onStart`, or surefold-bank's own `onRecovered`), so `persistent` cannot hold it back until its
    first command without changing how `Behaviour` composes a start. Instead hooks run with `empty`, and a wrong guess
    restarts the actor so they run again with the recovered state. What a hook did with `empty` is undone by the
    restart, except a message it sent elsewhere.

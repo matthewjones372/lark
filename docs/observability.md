@@ -1,6 +1,6 @@
 # Observability: logs, metrics and traces
 
-Logging and metrics calls are part of the core `lark` module, so library and
+Logging and metrics calls are part of the core `surefold` module, so library and
 service code can write a log line or count something without taking a logger
 or a registry as a dependency. Where the output goes is decided by what is on
 the classpath:
@@ -8,18 +8,18 @@ the classpath:
 | Module | Sends | Adds |
 |---|---|---|
 | none | log lines to stderr; metrics nowhere | nothing |
-| `lark-slf4j` | log lines to SLF4J, annotations in the MDC | `slf4j-api` |
-| `lark-micrometer` | metrics to a Micrometer `MeterRegistry` | `micrometer-core` |
-| `lark-otel` | OpenTelemetry context across forks, and spans | `opentelemetry-api` |
+| `surefold-slf4j` | log lines to SLF4J, annotations in the MDC | `slf4j-api` |
+| `surefold-micrometer` | metrics to a Micrometer `MeterRegistry` | `micrometer-core` |
+| `surefold-otel` | OpenTelemetry context across forks, and spans | `opentelemetry-api` |
 
 Each integration registers itself through `ServiceLoader`, so adding the
 dependency is the whole setup.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-slf4j:0.10.1")
-    implementation("io.github.matthewjones372:lark-micrometer:0.10.1")
-    implementation("io.github.matthewjones372:lark-otel:0.10.1")
+    implementation("io.github.matthewjones372:surefold-slf4j:0.10.1")
+    implementation("io.github.matthewjones372:surefold-micrometer:0.10.1")
+    implementation("io.github.matthewjones372:surefold-otel:0.10.1")
 }
 ```
 
@@ -36,10 +36,10 @@ running when the line was written.
 
 <!-- observability-logs -->
 ```kotlin
-import io.github.matthewjones372.lark.logAnnotated
-import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.logSpan
-import io.github.matthewjones372.lark.parMap
+import io.github.matthewjones372.surefold.logAnnotated
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.logSpan
+import io.github.matthewjones372.surefold.parMap
 
 fun register(id: String, items: List<Int>): List<Unit> =
     logAnnotated("correlation_id" to id) {
@@ -50,12 +50,12 @@ fun register(id: String, items: List<Int>): List<Unit> =
 ```
 
 An MDC entry does not survive a fork, because it lives in a `ThreadLocal`.
-Annotations do, because they are bound in a [`LarkLocal`](core.md#what-a-fork-inherits).
+Annotations do, because they are bound in a [`SurefoldLocal`](core.md#what-a-fork-inherits).
 
-**With `lark-slf4j`,** each line goes to the SLF4J logger named after the
+**With `surefold-slf4j`,** each line goes to the SLF4J logger named after the
 top-level class that wrote it, so `%logger` names that class and a backend can
-set levels per package. A line with no class goes to the logger `lark`. Bind
-`Slf4jLogger("lark")` to send every line to one logger instead. Annotations
+set levels per package. A line with no class goes to the logger `surefold`. Bind
+`Slf4jLogger("surefold")` to send every line to one logger instead. Annotations
 are put in the MDC for the call and restored afterwards, so
 `%X{correlation_id}`, a JSON encoder and a log search can read them as fields.
 The module compiles against `slf4j-api` 1.7 and works with 2.x.
@@ -72,11 +72,11 @@ front and no node takes a registry:
 
 <!-- observability-metrics -->
 ```kotlin
-import io.github.matthewjones372.lark.counter
-import io.github.matthewjones372.lark.gauge
-import io.github.matthewjones372.lark.increment
-import io.github.matthewjones372.lark.metricTagged
-import io.github.matthewjones372.lark.timed
+import io.github.matthewjones372.surefold.counter
+import io.github.matthewjones372.surefold.gauge
+import io.github.matthewjones372.surefold.increment
+import io.github.matthewjones372.surefold.metricTagged
+import io.github.matthewjones372.surefold.timed
 
 class Adoptions(private val waiting: MutableList<String>) {
     fun adopt(name: String): String = timed("petshop.adopt.duration.seconds") {
@@ -103,37 +103,37 @@ class Adoptions(private val waiting: MutableList<String>) {
   service that wants to show its own numbers.
 - With no backend bound, measurements are recorded nowhere, at no cost.
 
-**With `lark-micrometer`,** measurements go to Micrometer's global registry,
+**With `surefold-micrometer`,** measurements go to Micrometer's global registry,
 which is where Spring and the OpenTelemetry bridge put theirs. Bind
 `MicrometerMetrics(registry)` with `metrics.locally(…) { }` to use another.
 
-### Lark's own metrics
+### Surefold's own metrics
 
-Lark's modules record through the same API, under names starting `lark.`, so
-installing `lark-micrometer` exports them with nothing more to write:
+Surefold's modules record through the same API, under names starting `surefold.`, so
+installing `surefold-micrometer` exports them with nothing more to write:
 
 - policies, breakers, bulkheads and rate limiters: see [Policies](core.md#policies);
-- streams: `lark.stream.elements`, `lark.stream.busy` and
-  `lark.stream.waiting` per stage, for a run started with
+- streams: `surefold.stream.elements`, `surefold.stream.busy` and
+  `surefold.stream.waiting` per stage, for a run started with
   [`measured`](stream.md#optimisation-rendering-and-profiling);
-- Kafka consumers and producers: `lark.kafka.*`, see
+- Kafka consumers and producers: `surefold.kafka.*`, see
   [Meters](kafka.md#meters);
 - actors, remoting, membership, sharding, reliable delivery and topics: see
   [Watching a cluster](cluster.md#watching).
 
 ## Traces
 
-`lark-otel` keeps OpenTelemetry's `Context` in a `LarkLocal`, so a span opened
+`surefold-otel` keeps OpenTelemetry's `Context` in a `SurefoldLocal`, so a span opened
 before a `parMap` is the parent of the spans each branch opens. It registers a
 `ContextStorageProvider` for the whole JVM, so every library that uses
 OpenTelemetry's context, such as an instrumented HTTP client, reads and writes
 the same context. That process-wide effect is why it is a separate module.
 
 ```kotlin
-import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.otel.span
-import io.github.matthewjones372.lark.otel.tracedSpan
-import io.github.matthewjones372.lark.parMap
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.otel.span
+import io.github.matthewjones372.surefold.otel.tracedSpan
+import io.github.matthewjones372.surefold.parMap
 import io.opentelemetry.api.trace.Tracer
 
 fun pricing(tracer: Tracer, orders: List<Order>): List<Price> =
@@ -151,15 +151,15 @@ log lines.
 
 ### Across messages, events and records
 
-Log annotations and, with `lark-otel`, the trace context travel further than
+Log annotations and, with `surefold-otel`, the trace context travel further than
 forks:
 
 - **Actor messages.** A `tell` or `ask` carries the sender's context to the
-  step that handles it, on the same node or, through `lark-actor-remote`, on
+  step that handles it, on the same node or, through `surefold-actor-remote`, on
   another.
 - **Journal events.** Events written to the in-memory or JDBC journal keep the
   context as metadata, available to read models as `Followed.metadata`.
-- **Kafka records.** This one is explicit. `lark-kafka` provides
+- **Kafka records.** This one is explicit. `surefold-kafka` provides
   `ProducerRecord.carrying(Carriers.capture())` to write the current context
   into a record's headers, and `ConsumerRecord.within { }` to restore it while
   the record is handled. Each

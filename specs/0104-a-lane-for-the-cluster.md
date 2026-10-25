@@ -5,14 +5,14 @@
 Each node sends to a peer through one bounded queue (`room`, 8,192 frames) and one TCP connection. The cluster's
 own traffic uses the same queue as everything else: SWIM probes and acks, gossip, watches and `Terminated`. Under
 load, a probe waits behind thousands of envelopes, so its ack comes back late, and a healthy node is suspected.
-If the queue is full, the probe is dropped outright. lark-bank hit this at 300 transfers a second: acks arrived
+If the queue is full, the probe is dropped outright. surefold-bank hit this at 300 transfers a second: acks arrived
 late, the failure detector downed healthy nodes, and they restarted in a loop. The workaround was slower probing
 (`probeEvery = 3s`, `ackWithin = 2s`), which also makes a real failure slower to notice. Pekko's Artery keeps its
 control stream apart from ordinary messages for exactly this reason.
 
 ## Not doing
 
-- **A lane for large messages.** Nothing in Lark sends frames big enough to need one yet.
+- **A lane for large messages.** Nothing in Surefold sends frames big enough to need one yet.
 - **UDP or any transport other than TCP.**
 - **Priorities among ordinary messages.** Every envelope stays first in, first out.
 
@@ -25,7 +25,7 @@ Two connections per peer, each with its own queue and writer:
 - **Data:** everything else, exactly as today.
 
 ```kotlin
-node.expose(clusterActor, StepCodec, lane = Lane.Control)   // lark-cluster does this for its own actor
+node.expose(clusterActor, StepCodec, lane = Lane.Control)   // surefold-cluster does this for its own actor
 node.expose(region, wire)                                     // Lane.Data by default
 ```
 
@@ -36,9 +36,9 @@ node.expose(region, wire)                                     // Lane.Data by de
   unreachable, because membership only looks at the control lane.
 - **The cluster's actor runs first.** A lane gets a probe to its node at once, but the ack still has to wait for
   the cluster actor's turn, and under load a node's runners have thousands of entities queued. So an actor spawned
-  with `urgent = true` has its activations taken before any other; lark-cluster spawns its own actor so. This is
+  with `urgent = true` has its activations taken before any other; surefold-cluster spawns its own actor so. This is
   Pekko's separate cluster dispatcher, without a second pool of threads.
-- Meters: the existing `lark.remote.*` counters gain a `lane` tag.
+- Meters: the existing `surefold.remote.*` counters gain a `lane` tag.
 
 **What the bank's run found.** With lanes and the urgent actor in place, the bank still lost bank-2 once per run.
 The load was not the cause: bank-2 was downed seconds after it joined, before the load started. bank-1 names
@@ -71,7 +71,7 @@ one connection, is simpler and removes most of the queueing delay, but not the h
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:check :lark-actor-remote:check :lark-cluster:check
+./gradlew :surefold-actor:check :surefold-actor-remote:check :surefold-cluster:check
 ```
 
 ## Settled

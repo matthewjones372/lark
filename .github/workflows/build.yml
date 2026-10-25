@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # 27 as well as the matrix JDK: lark-structured compiles against 27's StructuredTaskScope, and
+      # 27 as well as the matrix JDK: surefold-structured compiles against 27's StructuredTaskScope, and
       # Gradle finds an installed JDK before it downloads one. Its own download picks foojay's
       # Alpine build of 27, which does not run on this glibc runner. The last version listed is the
       # one JAVA_HOME points at, so Gradle itself still runs on the matrix JDK.

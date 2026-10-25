@@ -8,7 +8,7 @@ application becomes a function of a `Config`:
 
 ```kotlin
 fun petshopFrom(conf: Config): Module = configOf(conf) + … + bus(conf) + web
-object Petshop : LarkApp<PelicanServer>() { override val module = petshopFrom(layeredConfig().config) }
+object Petshop : SurefoldApp<PelicanServer>() { override val module = petshopFrom(layeredConfig().config) }
 ```
 
 The document is passed twice, tests rebuild the app from a hand-written
@@ -26,7 +26,7 @@ the editor goes quiet on it. The cookbook teaches this shape.
 ## Shape
 
 `choice` is a node that depends on the setting, and whose value is a module
-lark builds into the graph once that setting is built:
+surefold builds into the graph once that setting is built:
 
 ```kotlin
 val bus: Module =
@@ -43,7 +43,7 @@ val petshop: Module = loadConfig() + infrastructure + shop + events + bus + web
 
 - **Validation before running** treats the choice as a node that provides
   `provides`, so the rest of the graph is checked as today.
-- **At start**, lark builds the choice's dependencies, calls it, validates the
+- **At start**, surefold builds the choice's dependencies, calls it, validates the
   branch against what it was declared to provide and what it needs, and builds
   it in dependency order with the rest. A branch that does not fit refuses the
   start, naming the branch.
@@ -51,7 +51,7 @@ val petshop: Module = loadConfig() + infrastructure + shop + events + bus + web
   with everything else.
 - **Tests** flip it with `overridingConfig("petshop.bus.kind = kafka")`, and
   `overriding` reaches a node the chosen branch provides.
-- **`render` and `larkWiring`** draw the choice as one node providing its keys.
+- **`render` and `surefoldWiring`** draw the choice as one node providing its keys.
 
 ## Why this shape
 
@@ -64,10 +64,10 @@ that closes them by hand rather than nodes the graph closes.
 
 ## Stack
 
-- [ ] **`spec-0136-choice`**: `choice` in `lark-app`, built and released as above,
+- [ ] **`spec-0136-choice`**: `choice` in `surefold-app`, built and released as above,
       with tests for both branches, a branch that does not provide what it
       declared, and release order.
-      Done when: `./gradlew :lark-app:build` passes with the new tests.
+      Done when: `./gradlew :surefold-app:build` passes with the new tests.
 - [ ] **`spec-0136-overriding`**: `overriding` and `overridingConfig` reach a
       chosen branch, with tests.
       Done when: a test flips a choice with `overridingConfig` and replaces a
@@ -76,12 +76,12 @@ that closes them by hand rather than nodes the graph closes.
       node providing its keys, `render` draws it, and the cookbook's "A setting
       that picks a module" leads with `choice`.
       Done when: a TestKit graph with a `choice` compiles without
-      `LARK_APP_UNREAD`, and `CookbookTest` compiles the recipe.
+      `SUREFOLD_APP_UNREAD`, and `CookbookTest` compiles the recipe.
 
 ## Acceptance
 
 ```bash
-./gradlew :lark-app:build :lark-app-gradle:test :lark-app-pekko:test
+./gradlew :surefold-app:build :surefold-app-gradle:test :surefold-app-pekko:test
 ```
 
 ## Open questions
@@ -89,8 +89,8 @@ that closes them by hand rather than nodes the graph closes.
 1. **`provides` as `typeOf` values, or as a type parameter** (`choice<BusSettings,
    EventBus> { … }`)? Recommend the type parameter for one key, `provides` for
    more.
-2. **Where `choice` lives:** `lark-app`, since it is about the graph, not about
-   HOCON. Recommend `lark-app`.
-3. **Does every branch get validated before running**, if lark is handed them
+2. **Where `choice` lives:** `surefold-app`, since it is about the graph, not about
+   HOCON. Recommend `surefold-app`.
+3. **Does every branch get validated before running**, if surefold is handed them
    all (`choice(inProcess = …, onKafka = …)`)? Recommend: not in this spec; a
    branch built from the setting's values cannot be listed in advance.

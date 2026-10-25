@@ -2,7 +2,7 @@
 
 ## Problem
 
-A `lark-actor` actor lives exactly as long as its flock, and its state lives
+A `surefold-actor` actor lives exactly as long as its flock, and its state lives
 exactly as long as it does. A service with a million pets cannot keep a
 million actors in memory, so it spawns one per pet on demand, keeps the refs
 in a map by hand, stops the idle ones by hand, and races every message against

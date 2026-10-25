@@ -2,7 +2,7 @@
 
 ## Problem
 
-`larkWiring` reports four kinds of fault. After
+`surefoldWiring` reports four kinds of fault. After
 [0030](0030-nothing-reaches-this-node.md) the compiler plugin reports two, and
 0030 says why not the rest: "cycles and duplicates stay the task's". They are
 the two the reader can most easily get wrong, not the two that matter least — a
@@ -30,11 +30,11 @@ apart.
 ## Shape
 
 ```kotlin
-object Petshop : LarkApp<PelicanServer>() {
+object Petshop : SurefoldApp<PelicanServer>() {
     override val module: Module =
         single<Shop> { Shop(orders()) } + single<Shop> { Shop(fake()) }
     //                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    //  lark-app: Shop is provided twice; this one wins over Wiring.kt:41
+    //  surefold-app: Shop is provided twice; this one wins over Wiring.kt:41
 }
 ```
 
@@ -59,7 +59,7 @@ contains. The repository's own `COMPOSED` test fixture is that `if`.
 So a branch union marks the keys it merged as alternatives, and neither check
 counts an alternative as a collision or as an edge into a ring. Where that is
 not enough to be sure, give up on the application — the rule 0027 set and 0030
-kept: `larkWiring` still fails the build, and a warning under correct code is
+kept: `surefoldWiring` still fails the build, and a warning under correct code is
 the one thing that teaches a reader to ignore the colour.
 
 The alternative is to read a choice as several graphs and check each. It is the
@@ -73,12 +73,12 @@ and outside one.
       ([#62](https://github.com/matthewjones372/lark/pull/62))
       — `Graph` gains shadows; `plus` records a collision, `overriding` and
         `overridingConfig` forgive their own, a branch union marks
-        alternatives. `LARK_APP_DUPLICATE`, a `WARNING` on the winning call.
+        alternatives. `SUREFOLD_APP_DUPLICATE`, a `WARNING` on the winning call.
       Done when: two `single<Pump>` in one chain warn on the second; the same
       pair under `overriding` does not; and `COMPOSED`'s `if` stays silent.
 - [x] **`spec-0031-a-cycle-while-you-type`**
       ([#63](https://github.com/matthewjones372/lark/pull/63))
-      — Kahn's over `needs`, ignoring alternative edges. `LARK_APP_CYCLE`, an
+      — Kahn's over `needs`, ignoring alternative edges. `SUREFOLD_APP_CYCLE`, an
         `ERROR` on one node of the ring, in `Diagnostics.kt`'s wording.
       Done when: two recipes that need each other fail `compileKotlin` naming
       both keys, and a graph the reader gave up on compiles clean.
@@ -104,5 +104,5 @@ and outside one.
    Recommend yes, a collision — it is one at runtime.
 4. **Give up, or stay silent per-key?** Where a key is provided both inside and
    outside a choice, recommend abandoning the whole application rather than
-   skipping that key: a half-checked graph is the thing 0027's `LARK_APP_UNREAD`
+   skipping that key: a half-checked graph is the thing 0027's `SUREFOLD_APP_UNREAD`
    exists to never be.

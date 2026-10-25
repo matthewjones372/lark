@@ -3,7 +3,7 @@
 ## Problem
 
 `docs/cluster.md` (0084) starts where a second node comes in, and says so. What
-comes before it has no page at all. The README's `lark-actor` row is one line
+comes before it has no page at all. The README's `surefold-actor` row is one line
 with benchmark numbers, and the rest lives in specs 0059–0067 and 0063, which
 argue for each design rather than teach it:
 
@@ -22,11 +22,11 @@ test for it" reconstructs it from those specs and the tests.
 
 - **The cluster.** `docs/cluster.md` covers it; this page links there at its
   end.
-- **Benchmarks.** `lark-actor-benchmarks/README.md` has the numbers and how
+- **Benchmarks.** `surefold-actor-benchmarks/README.md` has the numbers and how
   they were taken; this page links it once.
 - **Pekko migration.** A sentence where a choice differs from Pekko's, not a
   porting guide.
-- **Streams on actors.** `lark-stream-actors` is a backend, and
+- **Streams on actors.** `surefold-stream-actors` is a backend, and
   `docs/stream.md` owns backends.
 
 ## Shape
@@ -47,9 +47,9 @@ test for it" reconstructs it from those specs and the tests.
    letters, restarts recorded rather than waited out, `advance`.
 
 Every complete example is a fenced block marked `<!-- actors-… -->`.
-`ActorsGuideTest` in `lark-actor`'s tests compiles each one, as
+`ActorsGuideTest` in `surefold-actor`'s tests compiles each one, as
 `GuideExampleTest` does for the cluster guide. The testing section's examples
-are also run, since a test that is shown must pass. The README's `lark-actor`
+are also run, since a test that is shown must pass. The README's `surefold-actor`
 row and the cluster guide's opening link the page.
 
 ## Why this shape
@@ -77,14 +77,14 @@ need gossip. Recommended: a page of its own.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:test --tests '*ActorsGuideTest*'
+./gradlew :surefold-actor:test --tests '*ActorsGuideTest*'
 ```
 
 ## Open questions
 
 - **A page of its own, or one page with the cluster guide?** Recommended: its
   own, as above.
-- **Where does the compile test live?** Recommended: `lark-actor`'s tests,
+- **Where does the compile test live?** Recommended: `surefold-actor`'s tests,
   with the embedded compiler added in test scope. Nothing the page shows needs
   another module.
 - **Run the testing section's examples, or only compile them?** Recommended:
@@ -92,14 +92,14 @@ need gossip. Recommended: a page of its own.
   thing.
 
 Decided (2026-09-27): every open question goes as recommended. The actors
-guide is a page of its own; its compile test lives in `lark-actor`'s tests
+guide is a page of its own; its compile test lives in `surefold-actor`'s tests
 with the embedded compiler in test scope; and the testing section's examples
 are run as well as compiled.
 
 Decided while building `spec-0089-actors`:
 - **The embedded compiler.** `ActorsGuideTest` keeps a copy of the cluster
-  guide's `EmbeddedKotlin` in `lark-actor`'s tests rather than sharing one
-  through test fixtures, since `lark-actor`'s test fixtures are published and
+  guide's `EmbeddedKotlin` in `surefold-actor`'s tests rather than sharing one
+  through test fixtures, since `surefold-actor`'s test fixtures are published and
   would carry the compiler to every service that uses `JournalContract`.
 - **What the test checks.** Besides compiling each fence, it checks that every
   `<!-- actors-… -->` marker on the page is one it knows. A fence added
@@ -115,5 +115,5 @@ Decided while building `spec-0089-more`:
   that the example with one expectation changed to a false one fails when run.
 - **What the testing example covers.** Its till raises a declared failure
   rather than throwing, so the example can show `delays` holding each back-off.
-- **The links.** The README's `lark-actor` row and the cluster guide's opening
+- **The links.** The README's `surefold-actor` row and the cluster guide's opening
   now link the page, and the same test checks both links.

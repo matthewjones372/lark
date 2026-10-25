@@ -80,8 +80,8 @@ raise's.
 
 ## Open questions
 
-1. **Does `Sys` belong in `lark-app` or in `lark`?** Recommend `lark-app`: it
-   is a dependency a node takes, and `lark` has no notion of a node.
+1. **Does `Sys` belong in `surefold-app` or in `surefold`?** Recommend `surefold-app`: it
+   is a dependency a node takes, and `surefold` has no notion of a node.
 2. **Should `probe` also accept a `Schedule`?** Recommend not yet. `Schedule`
    answers with its own output rather than the last thing the action returned,
    so wiring it to "stop when true" reads worse than the count it replaces.

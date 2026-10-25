@@ -2,7 +2,7 @@
 
 ## Problem
 
-A test of a whole lark service, like the petshop's `EndToEndSpec`, is a story:
+A test of a whole surefold service, like the petshop's `EndToEndSpec`, is a story:
 a shop with pets, somebody adopts one, the outbox drains, `/stats` counts it.
 Today that story lives in comments and `withClue` strings, and the last part has
 to wait. Kotest's `eventually` is `suspend`, and the block of `use` and
@@ -19,14 +19,14 @@ questions are what it found.
 
 - A test framework. Tests stay JUnit `@Test` methods (or Kotest specs); this is a
   library called inside one.
-- `suspend`. Waiting blocks, on lark's `clock`.
+- `suspend`. Waiting blocks, on surefold's `clock`.
 - Colour. The console output here is plain text; [0116](0116-a-story-in-colour.md) colours it.
 - Gherkin, feature files, or a step registry. A step is a lambda at the call site.
 - Shared state between steps. A step returns a value, and the next step uses it.
 
 ## Shape
 
-A new module, `lark-test`, depending on `lark` and nothing else. A failed step
+A new module, `surefold-test`, depending on `surefold` and nothing else. A failed step
 is an `AssertionError`, so Kotest's matchers, or any others, work inside one
 without this module choosing them:
 
@@ -82,7 +82,7 @@ Values flowing out of steps keep the test as straight-line Kotlin: no context
 object, no `lateinit`, and the compiler checks what each step hands the next.
 The alternative is Kotest's `BehaviorSpec`, which already has Given/When/Then.
 But it is a whole framework with its own runner and lifecycle, the blocks
-cannot return values, and lark's tests and the petshop's run on JUnit.
+cannot return values, and surefold's tests and the petshop's run on JUnit.
 Recommended: the library. A transcript in the failure message rather than only
 on stdout is the part CI actually benefits from.
 
@@ -90,7 +90,7 @@ on stdout is the part CI actually benefits from.
 
 Depends on 0114's `spec-0114-up-to`.
 
-- [x] **`spec-0115-eventually`** (#321) — the `lark-test` module, `eventually`, and its
+- [x] **`spec-0115-eventually`** (#321) — the `surefold-test` module, `eventually`, and its
       `NoOtherDependenciesTest`.
       Done when: on a `TestClock`, a failing `eventually(5.seconds)` gives up
       once the clock has moved five seconds, and its message names the last
@@ -105,7 +105,7 @@ Depends on 0114's `spec-0114-up-to`.
 ## Acceptance
 
 ```bash
-./gradlew :lark-test:test
+./gradlew :surefold-test:test
 ./gradlew build
 ```
 
@@ -115,12 +115,12 @@ under Shape.
 ## Open questions
 
 - **Kotest on a consumer's classpath.** Decided while building: no Kotest at
-  all. The prototype needed neither Kotest nor coroutines, so `lark-test`
-  depends on `lark` alone, and its `NoOtherDependenciesTest` says so.
+  all. The prototype needed neither Kotest nor coroutines, so `surefold-test`
+  depends on `surefold` alone, and its `NoOtherDependenciesTest` says so.
 - **Where the console output goes.** Gradle hides a test's stdout unless
   `showStandardStreams` is on. Also publish each step as a JUnit `ReportEntry`?
   Recommended: stdout only; the transcript in the failure covers CI.
-- **lark's log lines during a step.** Indent them under the step they came from?
+- **surefold's log lines during a step.** Indent them under the step they came from?
   Recommended: not in this spec. It needs the `Logger` local, and is its own change.
 - **`story` as a wrapper, or steps usable bare?** Bare steps lose the header and
   the transcript. Recommended: `story { }` required.
@@ -128,7 +128,7 @@ under Shape.
   cannot work today: `Module.use` keeps the graph only inside its block, so the
   prototype's story sits inside `use` rather than starting the service as a
   step. Making it a step needs the story to own a `ResourceScope`, and
-  `lark-app` to start a graph into one. Recommended: a follow-up spec in
-  `lark-app`; this one works inside `use`.
+  `surefold-app` to start a graph into one. Recommended: a follow-up spec in
+  `surefold-app`; this one works inside `use`.
 - **Steps inside `eventually`.** Each try reruns the block, so a nested step is
   recorded once per try. Record only the last try's? Recommended: yes.

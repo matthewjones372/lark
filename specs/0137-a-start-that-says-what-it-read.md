@@ -3,16 +3,16 @@
 ## Problem
 
 The line worth having on every deploy is which settings the service started
-with and where each came from. `lark-app-typesafe` can say it
+with and where each came from. `surefold-app-typesafe` can say it
 (`layeredConfig().origins().report()`), but a service has to wire it by hand:
 hold the layers, cut each to its own section so the JVM's properties and every
 library's `reference.conf` stay out, and list the secrets a name match misses.
 Petshop's took a field, a function, a section filter and a mask list, inside
-its `LarkApp`.
+its `SurefoldApp`.
 
 ## Not doing
 
-- No logging on lark's part. `report()` answers text; the service logs it where
+- No logging on surefold's part. `report()` answers text; the service logs it where
   it wants.
 - No report of settings `application.conf` does not declare.
 - No change to how a section is read, and `loadedConfig()` stays as it is.
@@ -40,7 +40,7 @@ value came from and what it overrode. Values whose names say they are secrets
 masks one a name cannot catch:
 
 ```
-lark-app configuration
+surefold-app configuration
 
 petshop.bus.kind           in-process   application.conf:26
 petshop.database.password  ●●●●●●       application.conf:18
@@ -80,7 +80,7 @@ read as one where the graph is assembled.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app-typesafe:build :lark-app-pekko:test
+./gradlew :surefold-app-typesafe:build :surefold-app-pekko:test
 ```
 
 ## Open questions

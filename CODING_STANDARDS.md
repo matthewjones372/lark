@@ -85,7 +85,7 @@ anywhere, test sources included, and detekt fails the build on one: it catches
 interrupts and bugs along with what was meant. Catch the exception you expect,
 by name.
 
-In a lark handler, `fail` is the only way to leave with a declared failure.
+In a surefold handler, `fail` is the only way to leave with a declared failure.
 A fail unwinds through the body as a `Throwable`, so a `catch (t: Throwable)`
 between it and the boundary eats it: such a catch belongs in the one function that
 completes the stage from the virtual thread, and detekt permits it nowhere
@@ -103,4 +103,4 @@ file permitted one, each with its reason; a new file needs an entry and a
 reason, not a path added to get green.
 
 The handler chain carries `CompletionStage<Any?>`. `suspend` cannot appear
-anywhere in `lark` — `NoOtherDependenciesTest` would say so.
+anywhere in `surefold` — `NoOtherDependenciesTest` would say so.

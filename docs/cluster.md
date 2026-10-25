@@ -1,6 +1,6 @@
 # Remoting and clusters
 
-`lark-actor` runs actors in one process, which the
+`surefold-actor` runs actors in one process, which the
 [actors guide](actors.md) covers. This page is what comes after: a
 second node, then a cluster of them, then entities spread across it, state
 that survives a move, commands that must arrive, and topics. It is ordered the
@@ -9,15 +9,15 @@ way a service meets these things.
 Every complete example below is compiled against the library by
 `GuideExampleTest`, so what you read is what builds. Each is written as an
 extension on the flock your service already has, since where that flock comes
-from, `flock { }` or `lark-app-actor`'s `Actors.within`, is the service's
+from, `flock { }` or `surefold-app-actor`'s `Actors.within`, is the service's
 business.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor-remote:0.10.1")       // two nodes
-    implementation("io.github.matthewjones372:lark-cluster:0.10.1")            // membership, sharding, delivery, topics
-    implementation("io.github.matthewjones372:lark-actor-journal-jdbc:0.10.1") // a journal every node reaches
-    implementation("io.github.matthewjones372:lark-actor-projection:0.10.1")   // read models
+    implementation("io.github.matthewjones372:surefold-actor-remote:0.10.1")       // two nodes
+    implementation("io.github.matthewjones372:surefold-cluster:0.10.1")            // membership, sharding, delivery, topics
+    implementation("io.github.matthewjones372:surefold-actor-journal-jdbc:0.10.1") // a journal every node reaches
+    implementation("io.github.matthewjones372:surefold-actor-projection:0.10.1")   // read models
 }
 ```
 
@@ -56,34 +56,34 @@ field by field; a `Reply` or an `ActorRef` inside a message crosses as an
 address, so an ask made on one node is answered from another. Three modules
 build codecs from classes you already have instead:
 
-- `lark-actor-remote-protobuf`: a codec for a generated message, `oneOf` for a
+- `surefold-actor-remote-protobuf`: a codec for a generated message, `oneOf` for a
   protocol of several messages under fixed tags, and `asked` for an ask whose
   request is one.
-- `lark-actor-remote-avro`: a codec for a specific record in single-object
+- `surefold-actor-remote-avro`: a codec for a specific record in single-object
   encoding, read across its versions through a `SchemaStore`, and `asked`.
-- `lark-actor-remote-kotlinx`: codecs for messages, events and snapshot state
+- `surefold-actor-remote-kotlinx`: codecs for messages, events and snapshot state
   from `@Serializable` classes, in ProtoBuf by default, `oneOf`, `asked`, and
   `proto()` for the `.proto` schema the classes produce. kotlinx.serialization
   marks its ProtoBuf format experimental.
 
 <!-- cluster-remote -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.actor.Address
-import io.github.matthewjones372.lark.actor.AskFailure
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.ask
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.remote.Codecs
-import io.github.matthewjones372.lark.actor.remote.MessageCodec
-import io.github.matthewjones372.lark.actor.remote.Node
-import io.github.matthewjones372.lark.actor.remote.WireIn
-import io.github.matthewjones372.lark.actor.remote.WireOut
-import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.actor.Address
+import io.github.matthewjones372.surefold.actor.AskFailure
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.ask
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.remote.Codecs
+import io.github.matthewjones372.surefold.actor.remote.MessageCodec
+import io.github.matthewjones372.surefold.actor.remote.Node
+import io.github.matthewjones372.surefold.actor.remote.WireIn
+import io.github.matthewjones372.surefold.actor.remote.WireOut
+import io.github.matthewjones372.surefold.actor.remote.node
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.actor.stay
+import io.github.matthewjones372.surefold.fail.Either
 import kotlin.time.Duration.Companion.seconds
 
 sealed interface Stock
@@ -151,10 +151,10 @@ before it can send anything.
 
 <!-- cluster-tls -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.actor.remote.RemoteNode
-import io.github.matthewjones372.lark.actor.remote.Tls
-import io.github.matthewjones372.lark.actor.remote.node
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.actor.remote.RemoteNode
+import io.github.matthewjones372.surefold.actor.remote.Tls
+import io.github.matthewjones372.surefold.actor.remote.node
 import java.io.File
 import java.security.KeyStore
 
@@ -162,7 +162,7 @@ import java.security.KeyStore
 fun Flock<Nothing>.secured(password: CharArray): RemoteNode {
     fun store(path: String) =
         KeyStore.getInstance("PKCS12").apply { File(path).inputStream().use { load(it, password) } }
-    val tls = Tls.mutual(keys = store("/etc/lark/node.p12"), password = password, trusted = store("/etc/lark/ca.p12"))
+    val tls = Tls.mutual(keys = store("/etc/surefold/node.p12"), password = password, trusted = store("/etc/surefold/ca.p12"))
     return node("shop-1", 25520, host = "10.0.0.8", tls = tls)
 }
 ```
@@ -178,8 +178,8 @@ seed and nobody answers. Membership is agreed by gossip, with no coordinator.
 
 - **Seeds.** `Discovery.static` for a fixed list, `Discovery.dns` for every
   address a name resolves to, and `Discovery.srv` for SRV records.
-  `lark-cluster-kubernetes` finds seeds through the pods API, and
-  `lark-cluster-aws` through Cloud Map or ECS.
+  `surefold-cluster-kubernetes` finds seeds through the pods API, and
+  `surefold-cluster-aws` through Cloud Map or ECS.
 - **The view.** `cluster.view` is this node's current view: every member with
   its status, the ones some member cannot reach, and the leader. A member is
   `Joining`, `Up`, `Leaving`, `Down` or `Removed`.
@@ -201,17 +201,17 @@ seed and nobody answers. Membership is agreed by gossip, with no coordinator.
 
 <!-- cluster-membership -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.cluster.Cluster
-import io.github.matthewjones372.lark.cluster.Discovery
-import io.github.matthewjones372.lark.cluster.Downing
-import io.github.matthewjones372.lark.cluster.MemberEvent
-import io.github.matthewjones372.lark.cluster.cluster
-import io.github.matthewjones372.lark.logInfo
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.remote.node
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.actor.stay
+import io.github.matthewjones372.surefold.cluster.Cluster
+import io.github.matthewjones372.surefold.cluster.Discovery
+import io.github.matthewjones372.surefold.cluster.Downing
+import io.github.matthewjones372.surefold.cluster.MemberEvent
+import io.github.matthewjones372.surefold.cluster.cluster
+import io.github.matthewjones372.surefold.logInfo
 import kotlin.time.Duration.Companion.seconds
 
 /** A node of the shop's cluster, whose seeds are every address the headless service's name resolves to. */
@@ -242,10 +242,10 @@ too low will see live members as unreachable.
 
 ### Joined from config
 
-An application in `lark-app` need not assemble any of that. `lark-app-cluster`
+An application in `surefold-app` need not assemble any of that. `surefold-app-cluster`
 makes the cluster a node of the graph, joined as a HOCON section says. `join` names the
 backend, and the section of that name holds what it needs. The backend is
-found on the classpath, so add `lark-cluster-kubernetes` or `lark-cluster-aws`
+found on the classpath, so add `surefold-cluster-kubernetes` or `surefold-cluster-aws`
 to join through it. A name whose module is missing refuses the start, naming
 the module. The backend brings its own client and closes it once the node has
 left, and it chooses the downing that suits it: a lease on Kubernetes and AWS,
@@ -261,7 +261,7 @@ shop.cluster {
     host = ${?POD_IP}
     port = 25520
   }
-  # static, dns or srv from lark-cluster itself; kubernetes, ecs or cloudmap from their modules.
+  # static, dns or srv from surefold-cluster itself; kubernetes, ecs or cloudmap from their modules.
   join = "static"
   join = ${?CLUSTER_JOIN}
   static.seeds = ["127.0.0.1:25520"]
@@ -323,23 +323,23 @@ the others lack, and place by it.
 
 <!-- cluster-entities -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.actor.ActorRef
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.ask
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.remote.Codecs
-import io.github.matthewjones372.lark.actor.remote.MessageCodec
-import io.github.matthewjones372.lark.actor.remote.WireIn
-import io.github.matthewjones372.lark.actor.remote.WireOut
-import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.cluster.Discovery
-import io.github.matthewjones372.lark.cluster.Sharded
-import io.github.matthewjones372.lark.cluster.cluster
-import io.github.matthewjones372.lark.cluster.sharding
-import io.github.matthewjones372.lark.cluster.singleton
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.ask
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.remote.Codecs
+import io.github.matthewjones372.surefold.actor.remote.MessageCodec
+import io.github.matthewjones372.surefold.actor.remote.WireIn
+import io.github.matthewjones372.surefold.actor.remote.WireOut
+import io.github.matthewjones372.surefold.actor.remote.node
+import io.github.matthewjones372.surefold.actor.stay
+import io.github.matthewjones372.surefold.cluster.Discovery
+import io.github.matthewjones372.surefold.cluster.Sharded
+import io.github.matthewjones372.surefold.cluster.cluster
+import io.github.matthewjones372.surefold.cluster.sharding
+import io.github.matthewjones372.surefold.cluster.singleton
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -379,7 +379,7 @@ fun basket() = behaviour<Basket, List<String>>(emptyList()) { _, skus, message -
 /** Runs on every node of the shop: baskets on the nodes that serve them, one daily report in the whole cluster. */
 fun Flock<Nothing>.shopFloor(roles: Set<String>): Pair<Sharded<Basket>, ActorRef<Basket>> {
     val node = node("shop-1", 25520, host = "0.0.0.0")
-    val cluster = cluster(node, Discovery.srv("_lark._tcp.shop.internal"), roles = roles)
+    val cluster = cluster(node, Discovery.srv("_surefold._tcp.shop.internal"), roles = roles)
     val baskets = cluster.sharding("basket", BasketCodec, passivateAfter = 10.minutes, role = "baskets") { basket() }
     val report = cluster.singleton("daily-report", BasketCodec) { basket() }
     return baskets to report
@@ -407,8 +407,8 @@ entity's failure for its supervision to decide.
 
 For a cluster the journal must be one every node reaches. `JdbcJournal` keeps
 events in one table over the `DataSource` you give it, and ships its tables in
-the jar as a Liquibase changelog in formatted SQL, `lark/journal/jdbc/postgres.sql`,
-for your changelog to include (or `lark-app-liquibase`'s
+the jar as a Liquibase changelog in formatted SQL, `surefold/journal/jdbc/postgres.sql`,
+for your changelog to include (or `surefold-app-liquibase`'s
 `migrate` to run); nothing creates tables at start.
 
 - **Snapshots.** With `snapshots = every(100, codec)` the entity saves its state
@@ -418,7 +418,7 @@ for your changelog to include (or `lark-app-liquibase`'s
   deleted: `Prune.always`, or `Prune.after(offsets, "name", …)` to wait until
   every named read model has read them.
 - **Read models.** `Projection.follow` is every event of one kind, across
-  entities, in one order, as a stream on any lark-stream backend.
+  entities, in one order, as a stream on any surefold-stream backend.
   `runProjecting()` saves each event's offset once its work is done, so a read
   model started again goes on where it left off. Delivery is at least once:
   write handlers that are safe to repeat, keyed by the entity and the event's
@@ -426,28 +426,28 @@ for your changelog to include (or `lark-app-liquibase`'s
 
 <!-- cluster-persistent -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.PersistenceId
-import io.github.matthewjones372.lark.actor.Prune
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.StateCodec
-import io.github.matthewjones372.lark.actor.every
-import io.github.matthewjones372.lark.actor.journal
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcSnapshots
-import io.github.matthewjones372.lark.actor.persistent
-import io.github.matthewjones372.lark.actor.remote.Codecs
-import io.github.matthewjones372.lark.actor.remote.MessageCodec
-import io.github.matthewjones372.lark.actor.remote.WireIn
-import io.github.matthewjones372.lark.actor.remote.WireOut
-import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.actor.snapshots
-import io.github.matthewjones372.lark.cluster.Discovery
-import io.github.matthewjones372.lark.cluster.Sharded
-import io.github.matthewjones372.lark.cluster.cluster
-import io.github.matthewjones372.lark.cluster.sharding
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.actor.EventCodec
+import io.github.matthewjones372.surefold.actor.PersistenceId
+import io.github.matthewjones372.surefold.actor.Prune
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.StateCodec
+import io.github.matthewjones372.surefold.actor.every
+import io.github.matthewjones372.surefold.actor.journal
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcSnapshots
+import io.github.matthewjones372.surefold.actor.persistent
+import io.github.matthewjones372.surefold.actor.remote.Codecs
+import io.github.matthewjones372.surefold.actor.remote.MessageCodec
+import io.github.matthewjones372.surefold.actor.remote.WireIn
+import io.github.matthewjones372.surefold.actor.remote.WireOut
+import io.github.matthewjones372.surefold.actor.remote.node
+import io.github.matthewjones372.surefold.actor.snapshots
+import io.github.matthewjones372.surefold.cluster.Discovery
+import io.github.matthewjones372.surefold.cluster.Sharded
+import io.github.matthewjones372.surefold.cluster.cluster
+import io.github.matthewjones372.surefold.cluster.sharding
 import javax.sql.DataSource
 import kotlin.time.Duration.Companion.minutes
 
@@ -510,7 +510,7 @@ fun Flock<Nothing>.bank(database: DataSource): Sharded<Account> {
     journal(JdbcJournal(database))
     snapshots(JdbcSnapshots(database))
     val offsets = JdbcOffsets(database)
-    val cluster = cluster(node("bank-1", 25520, host = "0.0.0.0"), Discovery.srv("_lark._tcp.bank.internal"))
+    val cluster = cluster(node("bank-1", 25520, host = "0.0.0.0"), Discovery.srv("_surefold._tcp.bank.internal"))
     return cluster.sharding("account", AccountCodec, passivateAfter = 5.minutes) { id -> account(id, offsets) }
 }
 ```
@@ -520,15 +520,15 @@ by one node, a singleton being the natural place to start it.
 
 <!-- cluster-read-model -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
-import io.github.matthewjones372.lark.actor.projection.Projection
-import io.github.matthewjones372.lark.actor.projection.mapFollowed
-import io.github.matthewjones372.lark.actor.projection.runProjecting
-import io.github.matthewjones372.lark.stream.Forks
-import io.github.matthewjones372.lark.stream.Running
-import io.github.matthewjones372.lark.stream.start
+import io.github.matthewjones372.surefold.actor.EventCodec
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.surefold.actor.projection.Projection
+import io.github.matthewjones372.surefold.actor.projection.mapFollowed
+import io.github.matthewjones372.surefold.actor.projection.runProjecting
+import io.github.matthewjones372.surefold.stream.Forks
+import io.github.matthewjones372.surefold.stream.Running
+import io.github.matthewjones372.surefold.stream.start
 import javax.sql.DataSource
 
 object Deposits : EventCodec<Long> {
@@ -573,17 +573,17 @@ the journal by entity across several:
 
 <!-- cluster-sharded -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.ShardedJournal
-import io.github.matthewjones372.lark.actor.ShardedSnapshots
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcJournal
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcOffsets
-import io.github.matthewjones372.lark.actor.journal.jdbc.JdbcSnapshots
-import io.github.matthewjones372.lark.actor.projection.Projection
-import io.github.matthewjones372.lark.actor.projection.runProjecting
-import io.github.matthewjones372.lark.stream.Forks
-import io.github.matthewjones372.lark.stream.Running
-import io.github.matthewjones372.lark.stream.start
+import io.github.matthewjones372.surefold.actor.EventCodec
+import io.github.matthewjones372.surefold.actor.ShardedJournal
+import io.github.matthewjones372.surefold.actor.ShardedSnapshots
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcJournal
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcOffsets
+import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcSnapshots
+import io.github.matthewjones372.surefold.actor.projection.Projection
+import io.github.matthewjones372.surefold.actor.projection.runProjecting
+import io.github.matthewjones372.surefold.stream.Forks
+import io.github.matthewjones372.surefold.stream.Running
+import io.github.matthewjones372.surefold.stream.start
 import javax.sql.DataSource
 
 object Paid : EventCodec<Long> {
@@ -630,20 +630,20 @@ such as a payment, send it reliably:
 
 <!-- cluster-reliable -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.Delivered
-import io.github.matthewjones372.lark.actor.Delivery
-import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.NotSent
-import io.github.matthewjones372.lark.actor.PersistenceId
-import io.github.matthewjones372.lark.actor.delivered
-import io.github.matthewjones372.lark.actor.persistent
-import io.github.matthewjones372.lark.actor.remote.MessageCodec
-import io.github.matthewjones372.lark.actor.remote.WireIn
-import io.github.matthewjones372.lark.actor.remote.WireOut
-import io.github.matthewjones372.lark.actor.remote.delivery
-import io.github.matthewjones372.lark.cluster.Cluster
-import io.github.matthewjones372.lark.cluster.sharding
-import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.surefold.actor.Delivered
+import io.github.matthewjones372.surefold.actor.Delivery
+import io.github.matthewjones372.surefold.actor.EventCodec
+import io.github.matthewjones372.surefold.actor.NotSent
+import io.github.matthewjones372.surefold.actor.PersistenceId
+import io.github.matthewjones372.surefold.actor.delivered
+import io.github.matthewjones372.surefold.actor.persistent
+import io.github.matthewjones372.surefold.actor.remote.MessageCodec
+import io.github.matthewjones372.surefold.actor.remote.WireIn
+import io.github.matthewjones372.surefold.actor.remote.WireOut
+import io.github.matthewjones372.surefold.actor.remote.delivery
+import io.github.matthewjones372.surefold.cluster.Cluster
+import io.github.matthewjones372.surefold.cluster.sharding
+import io.github.matthewjones372.surefold.fail.Either
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -692,7 +692,7 @@ again under the same id sends what is still unconfirmed. Its commands implement
 `Delivered.redeliver`, usually as `copy(delivery = delivery)`. The journal
 keeps it under the node's life as well as the id, its name and `Cluster.uid`,
 so each restart of a node has an outbox of its own. A singleton,
-`lark-producers`, lists every such producer. When a life leaves the cluster,
+`surefold-producers`, lists every such producer. When a life leaves the cluster,
 the singleton starts that life's producers on its own node, and retires each
 once everything it kept is confirmed. A node that never comes back loses
 nothing it accepted.
@@ -707,10 +707,10 @@ down" from "unavailable" by matching on `NotSent`:
 
 <!-- cluster-reliable-answers -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.Full
-import io.github.matthewjones372.lark.actor.NotSent
-import io.github.matthewjones372.lark.actor.Unwritten
-import io.github.matthewjones372.lark.fail.Either
+import io.github.matthewjones372.surefold.actor.Full
+import io.github.matthewjones372.surefold.actor.NotSent
+import io.github.matthewjones372.surefold.actor.Unwritten
+import io.github.matthewjones372.surefold.fail.Either
 
 /** The HTTP status a checkout answers for a payment it sent, or did not. */
 fun status(sent: Either<NotSent, Unit>): Int = when (sent) {
@@ -738,22 +738,22 @@ downing it `stableAfter` later.
 that has something of its own to do after. A `leaveWithin` of zero leaves
 nothing, and the node goes as a crashed one does.
 
-In a `lark-app` application, start the cluster in the actors' flock with
+In a `surefold-app` application, start the cluster in the actors' flock with
 `Actors.within`, so that releasing the application on SIGTERM leaves the
 cluster before its actors stop. The same node answers `/ready` through a probe
 on `ready()`.
 
 <!-- cluster-operating -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.app.Module
-import io.github.matthewjones372.lark.app.actor.Actors
-import io.github.matthewjones372.lark.app.actor.actors
-import io.github.matthewjones372.lark.app.probe
-import io.github.matthewjones372.lark.app.single
-import io.github.matthewjones372.lark.cluster.Cluster
-import io.github.matthewjones372.lark.cluster.Discovery
-import io.github.matthewjones372.lark.cluster.cluster
+import io.github.matthewjones372.surefold.actor.remote.node
+import io.github.matthewjones372.surefold.app.Module
+import io.github.matthewjones372.surefold.app.actor.Actors
+import io.github.matthewjones372.surefold.app.actor.actors
+import io.github.matthewjones372.surefold.app.probe
+import io.github.matthewjones372.surefold.app.single
+import io.github.matthewjones372.surefold.cluster.Cluster
+import io.github.matthewjones372.surefold.cluster.Discovery
+import io.github.matthewjones372.surefold.cluster.cluster
 import kotlin.time.Duration.Companion.seconds
 
 /** The cluster as a node of the application: in the actors' flock, left on release, and ready once it is in. */
@@ -761,7 +761,7 @@ val clusterNode: Module = actors() +
     single { actors: Actors ->
         actors.within {
             val node = node("shop-1", 25520, host = "0.0.0.0")
-            cluster(node, Discovery.srv("_lark._tcp.shop.internal"), leaveWithin = 20.seconds)
+            cluster(node, Discovery.srv("_surefold._tcp.shop.internal"), leaveWithin = 20.seconds)
         }
     }.probe("cluster", timeout = 2.seconds) { cluster: Cluster -> cluster.ready() }
 ```
@@ -773,31 +773,31 @@ as crashed.
 
 ### Watching
 
-Every flock records through lark's `metrics`, so a service with
-`lark-micrometer` installed exports these with nothing more to write. Each
+Every flock records through surefold's `metrics`, so a service with
+`surefold-micrometer` installed exports these with nothing more to write. Each
 carries a `node` tag naming the node it was recorded on.
 
 | Metric | Kind | What it tells an operator |
 | --- | --- | --- |
-| `lark.actor.dead_letters{reason}` | counter | Messages to actors that had stopped, left unhandled, or for a node that could not be reached |
-| `lark.actor.restarts` | counter | Actors supervision restarted after a failure |
-| `lark.remote.frames{peer, direction}` | counter | Traffic to and from each peer |
-| `lark.remote.dropped{peer}` | counter | Frames for a peer that was down or whose queue was full |
-| `lark.remote.connected{peer}` | gauge | Whether this node's connection to a peer is up |
-| `lark.cluster.members{status}` | gauge | How many members this node sees in each status |
-| `lark.cluster.unreachable` | gauge | Members some member cannot reach: nothing moves on while this is above zero |
-| `lark.cluster.leader` | gauge | Whether this node leads |
-| `lark.cluster.downed` | counter | Members downed: a crash, or a partition decided |
-| `lark.sharding.shards{kind}` | gauge | Shards this node may run now |
-| `lark.sharding.entities{kind}` | gauge | Entities running here |
-| `lark.sharding.buffered{kind}` | gauge | Messages kept for a shard without an owner yet |
-| `lark.delivery.unconfirmed{producer}` | gauge | Commands a producer keeps and no entity has confirmed |
-| `lark.delivery.resent{producer}` | counter | Commands sent again: a move, a crash, or a lost confirmation |
-| `lark.delivery.full{producer}` | counter | Sends that gave up waiting for room |
-| `lark.delivery.unwritten{producer}` | counter | Durable sends refused because the journal threw |
-| `lark.topic.published{topic}` | counter | Messages published on this node |
-| `lark.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
-| `lark.topic.subscribers{topic}` | gauge | Subscribers on this node |
+| `surefold.actor.dead_letters{reason}` | counter | Messages to actors that had stopped, left unhandled, or for a node that could not be reached |
+| `surefold.actor.restarts` | counter | Actors supervision restarted after a failure |
+| `surefold.remote.frames{peer, direction}` | counter | Traffic to and from each peer |
+| `surefold.remote.dropped{peer}` | counter | Frames for a peer that was down or whose queue was full |
+| `surefold.remote.connected{peer}` | gauge | Whether this node's connection to a peer is up |
+| `surefold.cluster.members{status}` | gauge | How many members this node sees in each status |
+| `surefold.cluster.unreachable` | gauge | Members some member cannot reach: nothing moves on while this is above zero |
+| `surefold.cluster.leader` | gauge | Whether this node leads |
+| `surefold.cluster.downed` | counter | Members downed: a crash, or a partition decided |
+| `surefold.sharding.shards{kind}` | gauge | Shards this node may run now |
+| `surefold.sharding.entities{kind}` | gauge | Entities running here |
+| `surefold.sharding.buffered{kind}` | gauge | Messages kept for a shard without an owner yet |
+| `surefold.delivery.unconfirmed{producer}` | gauge | Commands a producer keeps and no entity has confirmed |
+| `surefold.delivery.resent{producer}` | counter | Commands sent again: a move, a crash, or a lost confirmation |
+| `surefold.delivery.full{producer}` | counter | Sends that gave up waiting for room |
+| `surefold.delivery.unwritten{producer}` | counter | Durable sends refused because the journal threw |
+| `surefold.topic.published{topic}` | counter | Messages published on this node |
+| `surefold.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
+| `surefold.topic.subscribers{topic}` | gauge | Subscribers on this node |
 
 Nothing counts each tell or times each step: a metric on the hottest path
 would cost what the actors are built to avoid.
@@ -814,16 +814,16 @@ same name and codec.
 
 <!-- cluster-topic -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.actor.Topic
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.remote.MessageCodec
-import io.github.matthewjones372.lark.actor.remote.WireIn
-import io.github.matthewjones372.lark.actor.remote.WireOut
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.cluster.Cluster
-import io.github.matthewjones372.lark.cluster.topic
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.actor.Topic
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.remote.MessageCodec
+import io.github.matthewjones372.surefold.actor.remote.WireIn
+import io.github.matthewjones372.surefold.actor.remote.WireOut
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.cluster.Cluster
+import io.github.matthewjones372.surefold.cluster.topic
 
 data class PriceChanged(val sku: String, val pence: Long)
 

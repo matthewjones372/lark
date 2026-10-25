@@ -1,7 +1,7 @@
 name: benchmarks
 
 # The stream modules measured on the base branch and on the pull request, in alternating rounds on one runner, and
-# red when a row got slower (bench/lark-stream-benchmarks/gate.sh). A committed number was measured on some other
+# red when a row got slower (bench/surefold-stream-benchmarks/gate.sh). A committed number was measured on some other
 # machine, so the gate compares only what it measured itself.
 #
 # It takes half an hour, so it runs only on a pull request labelled `benchmarks`, on each push to it after
@@ -53,12 +53,12 @@ jobs:
         env:
           BASE: ${{ github.base_ref || inputs.base || 'main' }}
           BENCHMARKS: ${{ inputs.benchmarks }}
-        run: bench/lark-stream-benchmarks/gate.sh "origin/$BASE" "$BENCHMARKS"
+        run: bench/surefold-stream-benchmarks/gate.sh "origin/$BASE" "$BENCHMARKS"
 
       # Where each benchmark's time went, drawn: the diagrams to read when the gate goes red.
       - name: Profile each benchmark's pipeline
         if: always()
-        run: ./gradlew --quiet :lark-stream-benchmarks:profiles
+        run: ./gradlew --quiet :surefold-stream-benchmarks:profiles
 
       # Every run's rows, so drift shows up in the history before it trips the gate.
       - name: Upload the comparison
@@ -67,7 +67,7 @@ jobs:
         with:
           name: jmh-compare
           path: |
-            bench/lark-stream-benchmarks/build/jmh-compare.txt
-            bench/lark-stream-benchmarks/build/rounds/
-            bench/lark-stream-benchmarks/build/profiles/
+            bench/surefold-stream-benchmarks/build/jmh-compare.txt
+            bench/surefold-stream-benchmarks/build/rounds/
+            bench/surefold-stream-benchmarks/build/profiles/
           retention-days: 90

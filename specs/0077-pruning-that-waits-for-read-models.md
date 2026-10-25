@@ -13,7 +13,7 @@ on.
 ## Not doing
 
 - **Discovering read models.** A behaviour names the read models it waits
-  for. lark does not keep a registry of every projection a service runs.
+  for. surefold does not keep a registry of every projection a service runs.
 - **Waiting for a read model that has never run.** A name with no saved offset
   holds pruning back entirely, which is the safe answer. Deleting a read
   model's offset is how a service stops waiting for it.
@@ -61,7 +61,7 @@ to keep consistent across nodes. Recommended: named on the behaviour.
       entirely, and once it catches up the next snapshot deletes the rest.
       ([#200](https://github.com/matthewjones372/lark/pull/200))
 - [x] **`spec-0077-follow`** — the two together. Done when: in
-      `lark-actor-projection`, a projection following a kind that prunes
+      `surefold-actor-projection`, a projection following a kind that prunes
       after it handles every one of 1,050 events.
       ([#201](https://github.com/matthewjones372/lark/pull/201))
 

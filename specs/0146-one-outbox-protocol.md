@@ -34,7 +34,7 @@ Room is where the copies part ways, and where the subtle bugs are:
 ## Shape
 
 ```kotlin
-// lark-actor, internal, pure: no actor, no semaphore, no clock
+// surefold-actor, internal, pure: no actor, no semaphore, no clock
 internal data class Outboxes<C>(val queues: Map<String, List<Kept<C>>>) {
     fun kept(to: String, sequence: Long, command: C): Pair<Outboxes<C>, Send<C>?>
     fun confirmed(to: String, sequence: Long): Pair<Outboxes<C>, Send<C>?>?  // null: not the head
@@ -89,7 +89,7 @@ room.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:test :lark-cluster:test
+./gradlew :surefold-actor:test :surefold-cluster:test
 ```
 
 ## Open questions

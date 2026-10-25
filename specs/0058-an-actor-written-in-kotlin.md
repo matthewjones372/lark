@@ -26,12 +26,12 @@ repository, has to be made into a `CompletionStage` by hand before
 - **No test kit.** Pekko's `BehaviorTestKit` already runs a behaviour
   synchronously, without a system.
 - **No backend-free actor description** (see Why this shape).
-- **No change to `actor<T>(…)` in `lark-app-pekko`** beyond the import of `ask`.
+- **No change to `actor<T>(…)` in `surefold-app-pekko`** beyond the import of `ask`.
 
 ## Shape
 
-A module, `lark-actor-pekko`, on `lark-pekko` and `pekko-actor-typed`. `ask`
-moves into it, and `lark-app-pekko` takes it as `api`.
+A module, `surefold-actor-pekko`, on `surefold-pekko` and `pekko-actor-typed`. `ask`
+moves into it, and `surefold-app-pekko` takes it as `api`.
 
 ```kotlin
 fun shop(state: State): Behavior<Shop> = receive { context, message ->   // receive<Shop>, reified
@@ -81,10 +81,10 @@ wanted, it should be its own spec after this one.
 
 ## Stack
 
-- [ ] **`spec-0058-module`** — `lark-actor-pekko`, `ask` moved into it, and its
+- [ ] **`spec-0058-module`** — `surefold-actor-pekko`, `ask` moved into it, and its
       `NoOtherDependenciesTest`.
-      Done when: `lark-app-pekko` builds against it unchanged, and the
-      dependency test names `lark-pekko` and `pekko-actor-typed` only.
+      Done when: `surefold-app-pekko` builds against it unchanged, and the
+      dependency test names `surefold-pekko` and `pekko-actor-typed` only.
 - [ ] **`spec-0058-receive`** — `receive`, `same`, `stopped` and `answer`, with
       `AskTest`'s ledger rewritten in them.
       Done when: a sealed protocol missing a branch fails to compile, and a
@@ -102,14 +102,14 @@ wanted, it should be its own spec after this one.
 
 ## Open questions
 
-1. **A new module, or these helpers inside `lark-app-pekko`?** Recommend a new
+1. **A new module, or these helpers inside `surefold-app-pekko`?** Recommend a new
    module. An actor written in Kotlin does not need the wiring graph, and
-   `lark-app-pekko` brings `lark-app` with it.
+   `surefold-app-pekko` brings `surefold-app` with it.
 2. **Should `ask` time out as a value?** Today it throws Pekko's
    `TimeoutException`. Recommend adding `Raise<AskTimedOut>.ask` beside it. A
    caller should expect a timeout, but existing callers should not have to
    change.
-3. **Should `pipeToSelf`'s block join an open lark `Flock`?** Recommend it
+3. **Should `pipeToSelf`'s block join an open surefold `Flock`?** Recommend it
    runs on its own. An actor has no scope to join, and an actor that stops while a
    block is still running drops the reply, which `pipeToSelf` already does.
 4. **Timers, stash and `Behaviors.withTimers`?** Recommend leaving them to

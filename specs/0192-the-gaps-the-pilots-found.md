@@ -2,11 +2,11 @@
 
 ## Problem
 
-Specs 0189 and 0191 moved 177 tests to `lark-junit`. Both recommend closing the gaps they hit before
+Specs 0189 and 0191 moved 177 tests to `surefold-junit`. Both recommend closing the gaps they hit before
 the rest of the repo moves:
 
 - **Missing matchers.** Each gap was written another way, with a comment naming the missing matcher.
-  The 10 workarounds in `lark-stream-pekko` use `expect(a < b)`, `.sorted() shouldBe …` or
+  The 10 workarounds in `surefold-stream-pekko` use `expect(a < b)`, `.sorted() shouldBe …` or
   `shouldNotBe null`. These show no expected and actual for the IDE, and they don't read as what they
   check.
   - `shouldContainExactlyInAnyOrder` (4);
@@ -21,7 +21,7 @@ the rest of the repo moves:
 
 ## Not doing
 
-- **No other lark-assert matchers.** `shouldStartWith`, `shouldHaveSize`, the map matchers and the
+- **No other surefold-assert matchers.** `shouldStartWith`, `shouldHaveSize`, the map matchers and the
   rest follow when a module needs them.
 - **No moving more modules.** That is its own spec.
 - **No change to how Pekko's testkit checks report.** Like any other throwing check, they stay errors.
@@ -30,17 +30,17 @@ the rest of the repo moves:
 
 ```kotlin
 test("both feeds arrive") { pekko -> merged.collected(pekko) shouldContainExactlyInAnyOrder listOf(1, 2, 3, 4) }
-test("the root is found") { _ -> findRoot().shouldNotBeNull { root -> root.name shouldBe "lark" } }
+test("the root is found") { _ -> findRoot().shouldNotBeNull { root -> root.name shouldBe "surefold" } }
 test("nothing is declined") { _ -> declines.shouldBeEmpty() }
 test("the first element waits") { _ -> elapsed shouldBeGreaterThanOrEqual after }
 test("it compiles") { _ -> withTempDirectory { dir -> compiles(source, into = dir) } }
 ```
 
-- **The matchers** sit in a new file, `lark-junit`'s `Matchers.kt`, and return `Expectations`. Each
-  one fails with the same wording as lark-assert's version, names the test's line, and carries the
+- **The matchers** sit in a new file, `surefold-junit`'s `Matchers.kt`, and return `Expectations`. Each
+  one fails with the same wording as surefold-assert's version, names the test's line, and carries the
   actual value.
   - `shouldContainExactlyInAnyOrder` takes an iterable, or `vararg` elements, and compares counts, as
-    lark-assert's does.
+    surefold-assert's does.
   - `shouldNotBeNull { a -> … }` narrows, as `shouldBeInstanceOf` does. Its lambda runs only on a
     value. A form with no lambda is included too.
   - `shouldBeEmpty` and `shouldNotBeEmpty` work on an `Iterable` and on a `Map`.
@@ -71,17 +71,17 @@ For the directory, a function beats a `Resource`. A `Resource` would be shared a
       new matchers in `docs/testing.md`'s matcher list.
       Done when: a test shows the directory deleted after both a pass and a throw, and the guide test
       compiles the docs.
-- [x] **`spec-0192-use`** ([#577](https://github.com/matthewjones372/lark/pull/577)) — `lark-stream-pekko`'s 10 workarounds, and `ReadmeExampleSuite`'s
+- [x] **`spec-0192-use`** ([#577](https://github.com/matthewjones372/lark/pull/577)) — `surefold-stream-pekko`'s 10 workarounds, and `ReadmeExampleSuite`'s
       hand-made directories, replaced with the new matchers and `withTempDirectory`.
       `StreamSuite`'s comment on the probe says that Pekko's check throws, not that a matcher is missing.
-      Done when: `:lark-stream-pekko:test` reports the same 192 tests, all passing, and no comment
+      Done when: `:surefold-stream-pekko:test` reports the same 192 tests, all passing, and no comment
       says a matcher is missing.
 
 ## Acceptance
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-grep -rn "lark-junit has no" stream lark-pekko   # nothing
+grep -rn "surefold-junit has no" stream surefold-pekko   # nothing
 ```
 
 ## Open questions

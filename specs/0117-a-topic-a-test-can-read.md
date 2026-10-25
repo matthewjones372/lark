@@ -21,7 +21,7 @@ did not mean to. And "nothing arrived" looks the same as "not yet".
 
 ## Shape
 
-A new module, `lark-kafka-test`, depending on `lark-kafka` (and so
+A new module, `surefold-kafka-test`, depending on `surefold-kafka` (and so
 `kafka-clients`) and nothing else:
 
 ```kotlin
@@ -69,7 +69,7 @@ repeats 0115. Recommended: snapshot here, wait there.
 ## Acceptance
 
 ```bash
-./gradlew :lark-kafka-test:test
+./gradlew :surefold-kafka-test:test
 ```
 
 Then the petshop's `KafkaBusSpec` loses its three poll loops and its `Admin`

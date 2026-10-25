@@ -4,7 +4,7 @@
 
 `async` starts its fork where it is written: `Fork`'s `init` calls `on.execute`
 at construction
-([Flock.kt:206](../lark/src/main/kotlin/io/github/matthewjones372/lark/Flock.kt)).
+([Flock.kt:206](../surefold/src/main/kotlin/io/github/matthewjones372/surefold/Flock.kt)).
 So a handler pays for every fork it opens, including the ones a later branch
 turns out not to want, and there is no spelling for "fork this only if I ask" —
 `Deferred` is `await()` and `cancel()`.
@@ -19,7 +19,7 @@ the use site means duplicating the call. `by lazy { }` is the usual answer and
 is wrong inside a `Raise` scope: a raise unwinds through the delegate as an
 exception, so Kotlin leaves it uninitialised and the next access re-runs the
 lookup, and it runs on the calling thread, so it gets no executor and no
-`LarkLocal` inheritance.
+`SurefoldLocal` inheritance.
 
 ## Not doing
 

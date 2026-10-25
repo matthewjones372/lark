@@ -2,7 +2,7 @@
 
 ## Problem
 
-A `lark-actor` actor cannot wait for anything but its next message. An adoption
+A `surefold-actor` actor cannot wait for anything but its next message. An adoption
 that lapses after a week, a reminder two days before, a connection that gives
 up if nothing is heard for thirty seconds: each needs a thread of its own that
 sleeps and then tells the actor, written by hand, cancelled by hand, and racing

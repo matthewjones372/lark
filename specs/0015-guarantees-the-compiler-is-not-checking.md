@@ -43,12 +43,12 @@ val report: Report = either { awaitExit(rows.runWith(reportSink).run(system)) }
 // Exit.Done(null), typed non-null, and the NPE lands somewhere else entirely.
 
 // After, the guard fromStage already has, at the other end:
-// [ERROR] lark-stream: run ended with null, built at ReportService.kt:88
+// [ERROR] surefold-stream: run ended with null, built at ReportService.kt:88
 ```
 
 - `M : Any` on `runWith`, `R : Any` on `runFold`, `A : Any` on `Exit.Done`,
   `R : Any` on `awaitExit`. Generics erase to `Object` either way, so
-  `lark-stream.api` does not move and no binary compatibility is spent.
+  `surefold-stream.api` does not move and no binary compatibility is spent.
 - The materialised stage through the private `checked()` already in
   `Stream.kt`, so a null exit is `Died(NullPointerException)` naming `run`,
   exactly as a null completion names `fromStage`.

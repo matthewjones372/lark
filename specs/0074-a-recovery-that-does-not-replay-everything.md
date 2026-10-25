@@ -53,9 +53,9 @@ flock<Nothing, Unit> {
   snapshot, or no store, it replays everything, as now.
 - **A failed save** does not fail the step: the events are already written,
   so the state is safe. It is logged, and the next multiple tries again.
-- **JDBC.** `JdbcSnapshots` in `lark-actor-journal-jdbc`, one row per id in a
-  `lark_snapshot` table, its DDL beside the journal's.
-- **Contract.** `SnapshotContract` in `lark-actor`'s test fixtures, run by the
+- **JDBC.** `JdbcSnapshots` in `surefold-actor-journal-jdbc`, one row per id in a
+  `surefold_snapshot` table, its DDL beside the journal's.
+- **Contract.** `SnapshotContract` in `surefold-actor`'s test fixtures, run by the
   in-memory store and the JDBC one, as 0072's journal contract is.
 
 ## Why this shape
@@ -107,7 +107,7 @@ does not fail the step; a store keeps only the latest snapshot per id; and
 snapshots are a store of their own, leaving `Journal` unchanged.
 
 Decided while building `spec-0074-store`: `Ctx.snapshots` is nullable with a
-default of null, so a `Ctx` written outside lark still compiles and takes no
+default of null, so a `Ctx` written outside surefold still compiles and takes no
 snapshots; `testActors` gives an in-memory store by default, as it does a
 journal. A store that keeps the last save rather than the newest fails the
 contract's replacement and race tests.
@@ -119,8 +119,8 @@ a multiple saves the state at the sequence number it reached, not at the
 multiple. A failed save is logged as an error with its cause; an interrupt is
 not a failed save, and still stops the step.
 
-Decided while building `spec-0074-jdbc`: `lark_snapshot` lives in the same DDL
-files as `lark_journal`. A save is one conditional update, `where seq_nr < ?`,
+Decided while building `spec-0074-jdbc`: `surefold_snapshot` lives in the same DDL
+files as `surefold_journal`. A save is one conditional update, `where seq_nr < ?`,
 and an insert when no row is there; a save that loses the insert to another
 runs the update again, so racing saves leave the newest without a lock. The
 moved-entity test snapshots every fourth coin, and the next owner reads the

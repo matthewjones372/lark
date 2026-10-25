@@ -21,12 +21,12 @@ exactly what a handoff that goes wrong would produce.
 - **Creating the table.** The module ships its DDL, and the service applies it
   with whatever it already migrates with. Nothing runs DDL at start.
 - **A connection pool, or a driver.** The `DataSource` is the service's, as in
-  `lark-app-liquibase`.
+  `surefold-app-liquibase`.
 
 ## Shape
 
 ```kotlin
-// lark-actor-journal-jdbc
+// surefold-actor-journal-jdbc
 flock<Nothing, Unit> {
     journal(JdbcJournal(dataSource))           // a table every node reaches
     val cluster = cluster(node("shop-1", 25520), seeds)
@@ -36,8 +36,8 @@ flock<Nothing, Unit> {
 ```
 
 ```sql
--- lark/journal/jdbc/postgres.sql, shipped in the jar beside h2.sql
-create table lark_journal (
+-- surefold/journal/jdbc/postgres.sql, shipped in the jar beside h2.sql
+create table surefold_journal (
     kind   varchar(255) not null,
     id     varchar(255) not null,
     seq_nr bigint       not null,
@@ -53,7 +53,7 @@ create table lark_journal (
 - **Read** selects one id's events in order, from a sequence number on.
 - **Failure.** A database that cannot answer throws from the step, as 0063
   says a journal does, and supervision decides.
-- **Contract.** A `JournalContract` suite in `lark-actor`'s test fixtures
+- **Contract.** A `JournalContract` suite in `surefold-actor`'s test fixtures
   states what every journal does: order, `from`, conflicts, copies of the
   bytes, and two threads racing on one id where exactly one wins. The
   in-memory journal and the JDBC one both run it.
@@ -66,17 +66,17 @@ writer, which is the normal case under sharding. The alternative is
 `select max(sequence) … for update` before each insert: it gives the same
 answer with a lock per append and dialect differences in how the lock is
 taken. Recommended: the primary key. A table shipped as DDL rather than
-created at start keeps lark out of the service's migrations.
+created at start keeps surefold out of the service's migrations.
 
 ## Stack
 
-- [x] **`spec-0072-contract`** — `JournalContract` in `lark-actor`'s test
+- [x] **`spec-0072-contract`** — `JournalContract` in `surefold-actor`'s test
       fixtures, run against `InMemoryJournal`. Done when: the suite passes,
       and an in-memory journal that lets both racing writers win fails it.
       ([#176](https://github.com/matthewjones372/lark/pull/176))
-- [x] **`spec-0072-jdbc`** — `lark-actor-journal-jdbc`: `JdbcJournal` and its
+- [x] **`spec-0072-jdbc`** — `surefold-actor-journal-jdbc`: `JdbcJournal` and its
       DDL, running the contract on H2 in test scope. Done when: the contract
-      passes, and the runtime classpath is `lark-actor` and the JDK alone.
+      passes, and the runtime classpath is `surefold-actor` and the JDK alone.
       ([#177](https://github.com/matthewjones372/lark/pull/177))
 - [x] **`spec-0072-moved`** — a sharded persistent entity keeps its state
       across a move. Done when: three nodes share one H2 database, an entity
@@ -101,16 +101,16 @@ created at start keeps lark out of the service's migrations.
 - **Which databases does CI prove?** Recommended: H2 only, since the SQL is
   plain inserts and selects; Postgres by Testcontainers can come when a user
   reports a dialect gap, as it needs Docker in CI.
-- **Where does the contract live?** Recommended: `lark-actor`'s test fixtures,
+- **Where does the contract live?** Recommended: `surefold-actor`'s test fixtures,
   so a service's own journal can run it too.
 
 Decided (2026-09-26): every open question goes as recommended. The primary key
 decides conflicts; the DDL ships as a resource per database, Postgres and H2,
 and nothing creates the table at start; CI proves H2 only; and the contract
-lives in `lark-actor`'s test fixtures.
+lives in `surefold-actor`'s test fixtures.
 
 Decided while building `spec-0072-contract`: the contract is an abstract JUnit
-class a journal's test extends, published as `lark-actor`'s test fixtures, and
+class a journal's test extends, published as `surefold-actor`'s test fixtures, and
 detekt reads test fixtures as it reads tests. A journal that lets two racing
 writers both succeed is made to do so every time, by a barrier between its read
 and its write, so the check that the contract catches it does not depend on
@@ -123,7 +123,7 @@ inserts nothing. A duplicate key is told by SQL state `23505`, which Postgres
 and H2 both give. Dropping the primary key from the H2 DDL fails the contract's
 race.
 
-Decided while building `spec-0072-moved`: nothing in `lark-cluster` changes. A
+Decided while building `spec-0072-moved`: nothing in `surefold-cluster` changes. A
 region's entities already take the flock's journal, so a shared one is all a
 move needs; the test proves it, and fails with each node on its own
 `InMemoryJournal`, where the moved entity answers from empty.
