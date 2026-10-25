@@ -9,21 +9,19 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringSerializer
-import org.junit.jupiter.api.extension.AfterAllCallback
-import org.junit.jupiter.api.extension.BeforeAllCallback
-import org.junit.jupiter.api.extension.ExtensionContext
 import java.net.BindException
 import java.net.ServerSocket
 import java.util.concurrent.TimeUnit
 
-/** A broker in the test JVM for one test class, started and stopped by JUnit 5 as the actor system is. */
-class KafkaBroker : BeforeAllCallback, AfterAllCallback {
+/** A broker in the test JVM for one suite, started and stopped as its [kafkaBroker] resource. */
+class KafkaBroker {
 
     private lateinit var kafka: EmbeddedK
 
     val bootstrap: String get() = "localhost:${kafka.config().kafkaPort()}"
 
-    override fun beforeAll(context: ExtensionContext) {
+    /** Starts the broker; what [kafkaBroker] acquires. */
+    fun start() {
         kafka = start(attempt = 1)
     }
 
@@ -50,7 +48,8 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     private fun bindFailed(t: Throwable): Boolean =
         generateSequence(t) { it.cause }.any { it is BindException }
 
-    override fun afterAll(context: ExtensionContext) = kafka.stop(true)
+    /** Stops the broker; what [kafkaBroker] releases. */
+    fun stop() = kafka.stop(true)
 
     fun send(topic: String, vararg values: String) {
         KafkaProducer(mapOf<String, Any>("bootstrap.servers" to bootstrap), StringSerializer(), StringSerializer())
