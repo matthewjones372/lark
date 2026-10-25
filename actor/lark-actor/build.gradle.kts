@@ -1,13 +1,19 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 // An actor as a value and a step, on lark and nothing else.
 // NoOtherDependenciesTest asserts exactly that, on the classpath a consumer gets.
 
 plugins {
     // JournalContract: the tests every journal runs, this module's own and any a service writes.
     `java-test-fixtures`
+    // The tests are lark-junit suites (spec 0196): a failed `expect` draws its values.
+    kotlin("plugin.power-assert")
 }
 
 dependencies {
     testImplementation(project(":lark-assert"))
+    testImplementation(project(":lark-junit"))
     api(project(":lark"))
 
     testFixturesApi("org.junit.jupiter:junit-jupiter-api:6.1.3")
@@ -15,6 +21,17 @@ dependencies {
 
     // ActorsGuideTest compiles the examples out of docs/actors.md (spec 0089).
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
+}
+
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
+powerAssert {
+    functions.add("io.github.matthewjones372.lark.junit.expect")
+    includedSourceSets.add("test")
+}
+
+// A suite's dropped Expectations is reported only under this flag; the main sources are not lark-junit's.
+tasks.named<KotlinCompile>("compileTestKotlin") {
+    compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
 }
 
 // Read at configuration time, so the configuration cache survives it.
