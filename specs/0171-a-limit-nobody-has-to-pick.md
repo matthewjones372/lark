@@ -68,7 +68,7 @@ A then B: B can follow as its own spec, with a default of `Limit.adaptive`.
 - [x] **`limit-in-streams`** ([#487](https://github.com/matthewjones372/lark/pull/487)) — `mapPar`, `mapAsync` and 0170's unordered operators accept a `Limit`; Forks
       resizes its window live.
       Done when: parity is green with `Limit.fixed`, and a Forks test shows the window resizing.
-- [ ] **`limit-in-core`** — `parMap(…, limit)` and `bulkhead(limit)`, with metrics.
+- [x] **`limit-in-core`** ([#657](https://github.com/matthewjones372/lark/pull/657)) — `parMap(…, limit)` and `bulkhead(limit)`, with metrics.
       Done when: the core tests pass and a `TestMeterRegistry` assertion reads the published limit.
 
 ## Acceptance
