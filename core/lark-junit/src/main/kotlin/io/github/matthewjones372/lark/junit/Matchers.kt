@@ -2,6 +2,10 @@
 
 package io.github.matthewjones372.lark.junit
 
+import io.github.matthewjones372.lark.assert.FailureSeam
+import io.github.matthewjones372.lark.assert.Miss
+import io.github.matthewjones372.lark.assert.notIn
+import io.github.matthewjones372.lark.assert.notNull
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.nonFatalOrThrow
 
@@ -21,6 +25,18 @@ infix fun <E, A> Either<E, A>.shouldBeRight(expected: A): Expectations = this sh
 /** Holds if this is a [Either.Left] holding [expected]. */
 infix fun <E, A> Either<E, A>.shouldBeLeft(expected: E): Expectations = this shouldBe Either.Left(expected)
 
+/** Holds if this is a [Either.Right] and [then], given its value, holds too. [then] runs only on a Right. */
+inline fun <E, A> Either<E, A>.shouldBeRight(then: (A) -> Expectations): Expectations = when (this) {
+    is Either.Right -> held() and then(value)
+    is Either.Left -> notEither(this, "a Right")
+}
+
+/** Holds if this is a [Either.Left] and [then], given its error, holds too. [then] runs only on a Left. */
+inline fun <E, A> Either<E, A>.shouldBeLeft(then: (E) -> Expectations): Expectations = when (this) {
+    is Either.Left -> held() and then(value)
+    is Either.Right -> notEither(this, "a Left")
+}
+
 /** Holds if this string contains [part]; fails as lark-assert's `shouldContain` does, carrying the string. */
 infix fun String?.shouldContain(part: String): Expectations =
     if (this != null &&
@@ -32,14 +48,6 @@ infix fun String?.shouldNotContain(part: String): Expectations =
     if (this != null &&
         part !in this
     ) passed(1) else mismatchedHere(null, this?.let(::quoted), "a string without ${quoted(part)}")
-
-/** Holds if [element] is among this collection's elements; fails carrying the elements. */
-infix fun <T> Iterable<T>.shouldContain(element: T): Expectations =
-    if (element in this) passed(1) else mismatchedHere(null, toList(), "a collection containing $element")
-
-/** Holds if [element] is not among this collection's elements. */
-infix fun <T> Iterable<T>.shouldNotContain(element: T): Expectations =
-    if (element !in this) passed(1) else mismatchedHere(null, toList(), "a collection without $element")
 
 /** Holds if this is the very object [expected] is, not only an equal one. */
 infix fun <A> A.shouldBeSameInstanceAs(expected: A): Expectations =
@@ -82,64 +90,16 @@ inline fun <reified T> Any?.shouldBeInstanceOf(then: (T) -> Expectations): Expec
 /** Holds if this is a [T]. */
 inline fun <reified T> Any?.shouldBeInstanceOf(): Expectations = shouldBeInstanceOf<T> { held() }
 
-/** Holds if this has exactly [elements], each as many times, in any order; fails carrying the elements found. */
-infix fun <T> Iterable<T>.shouldContainExactlyInAnyOrder(elements: Iterable<T>): Expectations =
-    if (counted(this) == counted(elements)) {
-        passed(1)
-    } else {
-        mismatchedHere(null, toList(), "${elements.toList()} in any order")
-    }
-
-/** Holds if this has exactly [elements], each as many times, in any order. */
-fun <T> Iterable<T>.shouldContainExactlyInAnyOrder(vararg elements: T): Expectations =
-    shouldContainExactlyInAnyOrder(elements.asList())
-
-/** Holds if this has no elements. */
-fun Iterable<*>.shouldBeEmpty(): Expectations = if (none()) passed(1) else mismatchedHere(null, toList(), "no elements")
-
-/** Holds if this has an element. */
-fun Iterable<*>.shouldNotBeEmpty(): Expectations =
-    if (any()) passed(1) else mismatchedHere(null, toList(), "at least one element")
-
-/** Holds if this has every one of [elements], in any order and among others; fails naming those missing. */
-infix fun <T> Iterable<T>.shouldContainAll(elements: Iterable<T>): Expectations {
-    val missing = elements.filterNot { it in this }
-    return if (missing.isEmpty()) {
-        passed(1)
-    } else {
-        mismatchedHere(null, "${toList()}, missing $missing", "all of ${elements.toList()}")
-    }
-}
-
-/** Holds if this has an entry for [key]; fails carrying the map. */
-infix fun <K> Map<K, *>.shouldContainKey(key: K): Expectations =
-    if (key in this) passed(1) else mismatchedHere(null, this, "a map with the key $key")
-
-/** Holds if this has no entry for [key]. */
-infix fun <K> Map<K, *>.shouldNotContainKey(key: K): Expectations =
-    if (key !in this) passed(1) else mismatchedHere(null, this, "a map without the key $key")
-
-/** Holds if this maps [entry]'s key to its value. */
-infix fun <K, V> Map<K, V>.shouldContain(entry: Pair<K, V>): Expectations =
-    if (containsKey(entry.first) && get(entry.first) == entry.second) {
-        passed(1)
-    } else {
-        mismatchedHere(null, this, "a map with ${entry.first}=${entry.second}")
-    }
-
-/** Holds if this has no entries. */
-fun Map<*, *>.shouldBeEmpty(): Expectations = if (isEmpty()) passed(1) else mismatchedHere(null, this, "no entries")
-
-/** Holds if this has an entry. */
-fun Map<*, *>.shouldNotBeEmpty(): Expectations =
-    if (isNotEmpty()) passed(1) else mismatchedHere(null, this, "at least one entry")
-
 /** Holds if this is not null and [then], given it, holds too. [then] runs only on a value. */
 inline fun <A : Any> A?.shouldNotBeNull(then: (A) -> Expectations): Expectations =
     if (this != null) held() and then(this) else wasNull()
 
 /** Holds if this is not null. */
 fun Any?.shouldNotBeNull(): Expectations = if (this != null) passed(1) else wasNull()
+
+/** Holds if this is null. */
+@OptIn(FailureSeam::class)
+fun Any?.shouldBeNull(): Expectations = verdict(notNull())
 
 /** Holds if this is less than [bound]. */
 infix fun <T : Comparable<T>> T.shouldBeLessThan(bound: T): Expectations = compared(this < bound, "less than $bound")
@@ -156,6 +116,14 @@ infix fun <T : Comparable<T>> T.shouldBeGreaterThan(bound: T): Expectations =
 infix fun <T : Comparable<T>> T.shouldBeGreaterThanOrEqual(bound: T): Expectations =
     compared(this >= bound, "at least $bound")
 
+/** Holds if this is in [range], its ends included. */
+@OptIn(FailureSeam::class)
+infix fun <T : Comparable<T>> T.shouldBeInRange(range: ClosedRange<T>): Expectations = verdict(notIn(range))
+
+/** The check [shouldBeRight] or [shouldBeLeft] found the other side, [either]. */
+@PublishedApi
+internal fun notEither(either: Either<*, *>, wanted: String): Expectations = mismatchedHere(null, either, wanted)
+
 /** The check [shouldNotBeNull] failed. */
 @PublishedApi
 internal fun wasNull(): Expectations = mismatchedHere(null, null, "a value, not null")
@@ -170,10 +138,13 @@ internal fun notInstance(wanted: String, value: Any?): Expectations =
 internal fun notThrown(wanted: String, thrown: Throwable?): Expectations =
     mismatchedHere(null, thrown ?: "nothing thrown", wanted, thrown)
 
+/** A shared lark-assert check's [miss] as an expectation at the test's line, or a pass when there is none. */
+@OptIn(FailureSeam::class)
+internal fun verdict(miss: Miss?): Expectations =
+    miss?.let { mismatchedHere(it.expected, it.actual, it.expectedText, it.cause) } ?: passed(1)
+
 private fun Any?.compared(holds: Boolean, wanted: String): Expectations =
     if (holds) passed(1) else mismatchedHere(null, this, wanted)
-
-private fun <T> counted(elements: Iterable<T>): Map<T, Int> = elements.groupingBy { it }.eachCount()
 
 private fun quoted(text: String) = "\"$text\""
 

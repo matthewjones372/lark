@@ -37,6 +37,13 @@ class GappedMatchersTest {
             "fails shouldContainKey",
             "fails shouldNotContainKey",
             "fails shouldContain on a map",
+            "fails shouldContainExactly",
+            "fails shouldHaveSize",
+            "fails shouldBeNull",
+            "fails shouldBeInRange",
+            "fails shouldContainAll on a map",
+            "fails shouldBeRight",
+            "fails shouldBeLeft",
         )
     }
 
@@ -53,13 +60,22 @@ class GappedMatchersTest {
             "fails shouldContainKey" to listOf("expected: a map with the key b", "but was:  {a=1}"),
             "fails shouldNotContainKey" to listOf("expected: a map without the key a", "but was:  {a=1}"),
             "fails shouldContain on a map" to listOf("expected: a map with a=2", "but was:  {a=1}"),
+            "fails shouldContainExactly" to listOf("expected: [1, 2, 3]", "but was:  [1, 2, 2, 3]"),
+            "fails shouldHaveSize" to listOf("expected: 3 elements", "but was:  4 in [1, 2, 2, 3]"),
+            "fails shouldBeNull" to listOf("expected: null", "but was:  1"),
+            "fails shouldBeInRange" to listOf("expected: in 1..3", "but was:  4"),
+            "fails shouldContainAll on a map" to
+                listOf("expected: all of {a=1, b=2}", "but was:  {a=1}, missing {b=2}"),
+            "fails shouldBeRight" to listOf("expected: a Right", "but was:  Left(value=no)"),
+            "fails shouldBeLeft" to listOf("expected: a Left", "but was:  Right(value=1)"),
         )
         failures.values.forEach { lines -> lines[2] shouldMatch Regex("at Samples\\.kt:\\d+") }
     }
 
     @Test
-    fun `a null does not run shouldNotBeNull's lambda`() {
-        failures.keys.contains("fails shouldNotBeNull") shouldBe true
+    fun `a miss does not run a narrowing matcher's lambda`() {
+        failures.keys.containsAll(listOf("fails shouldNotBeNull", "fails shouldBeRight", "fails shouldBeLeft")) shouldBe
+            true
         GappedSuite.thenRan.get() shouldBe 0
     }
 }
