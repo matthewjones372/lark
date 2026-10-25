@@ -59,6 +59,7 @@ module("integrations", "lark-slf4j")
 module("integrations", "lark-micrometer")
 module("integrations", "lark-kafka")
 module("integrations", "lark-kafka-pekko")
+module("integrations", "lark-kafka-test")
 
 module("bench", "lark-stream-benchmarks")
 module("bench", "lark-actor-benchmarks")

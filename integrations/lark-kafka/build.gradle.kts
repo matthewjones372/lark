@@ -24,8 +24,8 @@ dependencies {
     // A run on a test's clock, for operators whose records need no broker.
     testImplementation(project(":lark-stream-test"))
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary:$pekkoVersion")
-    // A broker in the test JVM, so the suite needs no Docker. Its kafka-clients matches the one above.
-    testImplementation("io.github.embeddedkafka:embedded-kafka_$scalaBinary:4.3.1")
+    // A broker in the test JVM, so the suite needs no Docker (spec 0161).
+    testImplementation(project(":lark-kafka-test"))
     // Runs a test that times out from inside a test, to see what its report says.
     testImplementation("org.junit.platform:junit-platform-testkit")
     // The broker's own log, errors only: a fatal fault is logged here before KafkaBroker turns its exit into a throw.

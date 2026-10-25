@@ -37,7 +37,7 @@ object KafkaBrokerSuite : Suite<KafkaBroker>() {
                     producer.commitTransaction()
                 }
 
-                val read = kafka.readAll("still-ending", "read_committed").map { it.value() }
+                val read = kafka.readAll(Topic("still-ending"), "read_committed").map { it.value() }
                 committing.join()
                 read shouldBe listOf("committed")
             }

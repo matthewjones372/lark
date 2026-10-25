@@ -60,7 +60,7 @@ object CommitBeforePollSuite : Suite<KafkaBroker>() {
     }
 
     private fun handled(kafka: KafkaBroker, topic: String): Pair<Recording, Commits> {
-        kafka.send(topic, "1", "2", "3")
+        kafka.send(Topic(topic), "1", "2", "3")
         val consumer = Recording(kafka.bootstrap, topic).also { it.subscribe(listOf(topic)) }
         val commits = Commits(consumer)
         consumer.polled(3).forEach { record -> commits.carrying(record).handle?.handled() }
@@ -79,7 +79,7 @@ object CommitBeforePollSuite : Suite<KafkaBroker>() {
             consumer.poll(Duration.ofMillis(100))
             commits.close()
             unwaited and withClue("the close committed what the async commit had sent, and waited for it") {
-                kafka.committed("sent-before-poll", "sent-before-poll") shouldBe 3L
+                kafka.committed("sent-before-poll", Topic("sent-before-poll")) shouldBe 3L
             }
         }
 
@@ -93,7 +93,7 @@ object CommitBeforePollSuite : Suite<KafkaBroker>() {
             val askedTwice = consumer.asked shouldBe listOf("async", "async")
 
             commits.close()
-            askedTwice and (kafka.committed("retried-before-poll", "retried-before-poll") shouldBe 3L)
+            askedTwice and (kafka.committed("retried-before-poll", Topic("retried-before-poll")) shouldBe 3L)
         }
 
         test("an async commit refused for good fails the next commit, on the polling thread") { kafka ->

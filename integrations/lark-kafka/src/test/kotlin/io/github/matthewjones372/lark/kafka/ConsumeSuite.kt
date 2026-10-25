@@ -49,8 +49,8 @@ object ConsumeSuite : Suite<KafkaKit>() {
         ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest",
     )
 
-    private fun strings(kit: KafkaKit, group: String, topic: String) =
-        Kafka.consume(properties(kit, group), Topic(topic), key = StringDeserializer(), value = StringDeserializer())
+    private fun strings(kit: KafkaKit, group: String, topic: Topic) =
+        Kafka.consume(properties(kit, group), topic, key = StringDeserializer(), value = StringDeserializer())
 
     private fun <E, R> CompletionStage<Exit<E, R>>.settled(): Exit<E, R> =
         toCompletableFuture().get(GENEROUS_SECONDS, TimeUnit.SECONDS)
@@ -63,7 +63,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             test(
                 "the records a run handles are committed by the time it ends, and the group starts after them [$on]",
             ) { kit ->
-                val topic = "orders-$on"
+                val topic = Topic("orders-$on")
                 kit.broker.send(topic, "1", "2", "3", "4", "5")
 
                 val first = strings(kit, "placing-$on", topic).take(5).runCommitting().run(kit.backend(on))
@@ -85,7 +85,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             }
 
             test("a batch over two partitions commits each one's last offset in it [$on]") { kit ->
-                val topic = "batched-$on"
+                val topic = Topic("batched-$on")
                 kit.broker.create(topic, partitions = 2)
                 kit.broker.sendTo(topic, 0, "a", "b", "c")
                 kit.broker.sendTo(topic, 1, "x", "y")
@@ -106,7 +106,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             }
 
             test("the next run in the group starts after the last batch committed [$on]") { kit ->
-                val topic = "batches-$on"
+                val topic = Topic("batches-$on")
                 kit.broker.send(topic, "1", "2", "3", "4", "5")
 
                 val first = strings(kit, "bulk-$on", topic).groupedRecord(3, 10.seconds).take(1).runCommitting()
@@ -127,7 +127,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             test(
                 "mapParRecord passes on what it handled while the topic is quiet, and all of it is committed [$on]",
             ) { kit ->
-                val topic = "in-parallel-$on"
+                val topic = Topic("in-parallel-$on")
                 kit.broker.send(topic, "1", "2", "3")
 
                 val exit = strings(kit, "handling-$on", topic)
@@ -143,7 +143,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             test(
                 "a stop while the consumer waits on a quiet topic wakes it, and what was handled is committed [$on]",
             ) { kit ->
-                val topic = "quiet-$on"
+                val topic = Topic("quiet-$on")
                 kit.broker.send(topic, "only")
                 val handled = CountDownLatch(1)
 
@@ -160,7 +160,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             }
 
             test("a record that fails to decode is a Left, and is still committed [$on]") { kit ->
-                val topic = "mixed-$on"
+                val topic = Topic("mixed-$on")
                 kit.broker.send(topic, "fine", "bad")
                 val strict = Deserializer { _, data: ByteArray ->
                     String(data).also { if (it == "bad") throw SerializationException("unreadable") }
@@ -169,7 +169,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
 
                 val exit = Kafka.consume(
                     properties(kit, "decoding-$on"),
-                    Topic(topic),
+                    topic,
                     key = Decoder.string(),
                     value = Decoder(strict) { false },
                 )
@@ -186,7 +186,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             }
 
             test("divertLefts hands a bad record on before anything after it is committed [$on]") { kit ->
-                val topic = "diverted-$on"
+                val topic = Topic("diverted-$on")
                 kit.broker.send(topic, "fine", "bad", "fine again")
                 val strict = Deserializer { _, data: ByteArray ->
                     String(data).also { if (it == "bad") throw SerializationException("unreadable") }
@@ -195,7 +195,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
 
                 val exit = Kafka.consume(
                     properties(kit, "diverting-$on"),
-                    Topic(topic),
+                    topic,
                     key = Decoder.string(),
                     value = Decoder(strict) { false },
                 )
@@ -211,7 +211,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             }
 
             test("a registry that is down restarts the consumer, which reads the same record again [$on]") { kit ->
-                val topic = "flaky-$on"
+                val topic = Topic("flaky-$on")
                 kit.broker.send(topic, "order")
                 val asked = AtomicInteger()
                 val registryOnce = Deserializer { _, data: ByteArray ->
@@ -222,7 +222,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
 
                 val exit = Kafka.consume(
                     properties(kit, "restarting-$on"),
-                    Topic(topic),
+                    topic,
                     key = Decoder.string(),
                     value = Decoder(registryOnce, down),
                 )
@@ -241,7 +241,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             test(
                 "mapParPartitioned lets a partition pass another's slow record, and keeps each one's order [$on]",
             ) { kit ->
-                val topic = "partitioned-$on"
+                val topic = Topic("partitioned-$on")
                 kit.broker.create(topic, partitions = 2)
                 kit.broker.sendTo(topic, 0, "slow", "after slow")
                 kit.broker.sendTo(topic, 1, "a", "b")
@@ -274,7 +274,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             test(
                 "a handler slower than the poll interval keeps its group, and each record is handled once [$on]",
             ) { kit ->
-                val topic = "slow-handler-$on"
+                val topic = Topic("slow-handler-$on")
                 kit.broker.send(topic, "1", "2", "3")
                 // A group that drops a member which has not polled for 1.5s; the first record takes 4s to handle.
                 val slow = properties(kit, "slow-$on") +
@@ -287,7 +287,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
                 val pollsAfter = AtomicInteger()
                 val pausedDuring = AtomicReference<Double?>()
                 val (exit, captured) = capturingMetrics { captured ->
-                    Kafka.consume(slow, Topic(topic), key = StringDeserializer(), value = StringDeserializer())
+                    Kafka.consume(slow, topic, key = StringDeserializer(), value = StringDeserializer())
                         .mapRecord { record ->
                             if (record.value() == "1") {
                                 pollsBefore.set(captured.histogram("lark.kafka.consumer.poll").size)
@@ -327,7 +327,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             test(
                 "a run records what it read, how long it polled, committed and closed, and what it owned [$on]",
             ) { kit ->
-                val topic = "metered-$on"
+                val topic = Topic("metered-$on")
                 kit.broker.send(topic, "one", "two", "three")
 
                 val inFlight = ConcurrentLinkedQueue<Double>()
@@ -351,7 +351,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
                 val expectedTags = mapOf(
                     "service" to "orders",
                     "group" to "metering-$on",
-                    "topic" to topic,
+                    "topic" to topic.name,
                     "partition" to "0",
                 )
                 val meters =
@@ -383,7 +383,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
             }
 
             test("two consumers in one group with no client id each keep their own meters [$on]") { kit ->
-                val topic = "shared-$on"
+                val topic = Topic("shared-$on")
                 kit.broker.send(topic, "1", "2")
                 fun clientOfOneRun() = capturingMetrics { captured ->
                     val exit = strings(kit, "sharing-$on", topic).take(1).runCommitting().run(kit.backend(on))
@@ -403,14 +403,14 @@ object ConsumeSuite : Suite<KafkaKit>() {
             test(
                 "lag reads what is left unread, then nothing, and latency how stale each handled record was [$on]",
             ) { kit ->
-                val topic = "lagging-$on"
+                val topic = Topic("lagging-$on")
                 kit.broker.send(topic, "1", "2", "3", "4", "5")
                 // One record a poll, so a poll leaves the rest fetched and unread.
                 val oneAtATime = properties(kit, "lagging-$on") + (ConsumerConfig.MAX_POLL_RECORDS_CONFIG to 1)
                 val lags = ConcurrentLinkedQueue<Double?>()
 
                 val (exit, captured) = capturingMetrics { captured ->
-                    Kafka.consume(oneAtATime, Topic(topic), key = StringDeserializer(), value = StringDeserializer())
+                    Kafka.consume(oneAtATime, topic, key = StringDeserializer(), value = StringDeserializer())
                         .mapRecord { lags.add(captured.gauge("lark.kafka.consumer.lag")) }
                         .take(5)
                         .runCommitting()
@@ -421,7 +421,7 @@ object ConsumeSuite : Suite<KafkaKit>() {
                 // Pekko's source reads ahead of the handler, so only the last record's reading is the same on both.
                 val firstLag = if (on == "Forks") lags.first() shouldBe 4.0 else expect(true)
                 val latencies = captured.histogram("lark.kafka.consumer.latency")
-                val lagTags = mapOf("topic" to topic, "partition" to "0")
+                val lagTags = mapOf("topic" to topic.name, "partition" to "0")
                 (exit shouldBe Exit.Done(5L)) and
                     firstLag and
                     (lags.last() shouldBe 0.0) and

@@ -37,13 +37,13 @@ object TransactSuite : Suite<KafkaKit>() {
     private const val COMMITTED = "read_committed"
     private const val EVERYTHING = "read_uncommitted"
 
-    private fun consumed(kafka: KafkaBroker, group: String, topic: String) = Kafka.consume(
+    private fun consumed(kafka: KafkaBroker, group: String, topic: Topic) = Kafka.consume(
         mapOf(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrap,
             ConsumerConfig.GROUP_ID_CONFIG to group,
             ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest",
         ),
-        Topic(topic),
+        topic,
         key = StringDeserializer(),
         value = StringDeserializer(),
     )
@@ -63,7 +63,7 @@ object TransactSuite : Suite<KafkaKit>() {
         backends.forEach { on ->
             test("a record's outputs and its offset are committed together [$on]") { kit ->
                 val kafka = kit.broker
-                val input = "carts-$on"
+                val input = Topic("carts-$on")
                 val output = Topic("orders-$on")
                 kafka.send(input, "1", "2", "3")
 
@@ -81,7 +81,7 @@ object TransactSuite : Suite<KafkaKit>() {
                 done and captured.histogram("lark.kafka.transactions").shouldNotBeEmpty() and
                     (captured.counter("lark.kafka.transactions.aborts") shouldBe 0.0) and
                     (
-                        kafka.readAll(output.name, COMMITTED).map { it.value() } shouldBe
+                        kafka.readAll(output, COMMITTED).map { it.value() } shouldBe
                             listOf("order 1", "order 2", "order 3")
                         ) and
                     withClue("the transaction committed the group's offsets; the consumer committed none of its own") {
@@ -93,7 +93,7 @@ object TransactSuite : Suite<KafkaKit>() {
         backends.forEach { on ->
             test("a transaction that fails is aborted, and neither its outputs nor its offsets are seen [$on]") { kit ->
                 val kafka = kit.broker
-                val input = "failing-carts-$on"
+                val input = Topic("failing-carts-$on")
                 val output = Topic("failing-orders-$on")
                 kafka.send(input, "1", "2", "boom")
                 val refusing = Serializer<String> { _, value ->
@@ -115,7 +115,7 @@ object TransactSuite : Suite<KafkaKit>() {
                 exit.shouldBeInstanceOf<Exit.Died>() and
                     (captured.counter("lark.kafka.transactions.aborts") shouldBe 1.0) and
                     withClue("the two records sent before the failure were aborted with it") {
-                        kafka.readAll(output.name, COMMITTED) shouldBe emptyList()
+                        kafka.readAll(output, COMMITTED) shouldBe emptyList()
                     } and
                     (kafka.committed("failing-$on", input) shouldBe null)
             }
@@ -142,15 +142,15 @@ object TransactSuite : Suite<KafkaKit>() {
                 (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain
                     "only records from Kafka.consume"
             } and withClue("both records reached the broker, in a transaction that was aborted") {
-                (kafka.readAll(output.name, EVERYTHING).map { it.value() } shouldBe listOf("1", "2")) and
-                    (kafka.readAll(output.name, COMMITTED) shouldBe emptyList())
+                (kafka.readAll(output, EVERYTHING).map { it.value() } shouldBe listOf("1", "2")) and
+                    (kafka.readAll(output, COMMITTED) shouldBe emptyList())
             }
         }
 
         backends.forEach { on ->
             test("a restart after an aborted transaction writes each record exactly once [$on]") { kit ->
                 val kafka = kit.broker
-                val input = "retried-carts-$on"
+                val input = Topic("retried-carts-$on")
                 val output = Topic("retried-orders-$on")
                 kafka.send(input, "1", "2", "3")
                 val attempts = AtomicInteger()
@@ -176,7 +176,7 @@ object TransactSuite : Suite<KafkaKit>() {
                 }
 
                 done and
-                    (kafka.readAll(output.name, COMMITTED).map { it.value() } shouldBe listOf("1", "2", "3")) and
+                    (kafka.readAll(output, COMMITTED).map { it.value() } shouldBe listOf("1", "2", "3")) and
                     (kafka.committed("retried-$on", input) shouldBe 3L)
             }
         }
