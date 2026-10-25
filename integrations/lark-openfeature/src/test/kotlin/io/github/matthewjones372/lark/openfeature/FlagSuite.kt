@@ -5,7 +5,7 @@ import dev.openfeature.sdk.ErrorCode
 import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.providers.memory.InMemoryProvider
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.parZip
@@ -25,7 +25,7 @@ private fun <A> one(value: A): MemoryFlag<A> =
     MemoryFlag.builder<A>().variant("on", value).defaultVariant("on").build()
 
 /** Spec 0181: a flag declared once, read with no client passed in. */
-object FlagSuite : Suite<Client>() {
+object FlagSuite : SharedSuite<Client>() {
     override val shared: Resource<Client> = resource {
         OpenFeatureAPI.getInstance().run {
             useLark()

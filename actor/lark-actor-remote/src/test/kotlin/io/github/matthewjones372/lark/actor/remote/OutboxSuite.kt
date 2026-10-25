@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Confirmed
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 
 /** A payment a durable producer can keep. */
 private data class Deposit(val pence: Long, override val delivery: Delivery) : Delivered {
@@ -60,13 +58,11 @@ private fun producerAt(incarnation: Long) = object : ActorRef<Confirmed> {
     override fun tell(message: Confirmed) = Unit
 }
 
-object OutboxSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object OutboxSuite : Suite() {
     init {
         test(
             "a kept command reads back with a blank delivery, and redelivered it is the original but for the delivery",
-        ) { _ ->
+        ) {
             val sent = Deposit(10, Delivery("checkout", "w-42", 7, producerAt(1)))
 
             val kept = depositCodec.outbox().decode(depositCodec.outbox().encode(sent))
@@ -77,7 +73,7 @@ object OutboxSuite : Suite<Unit>() {
                 (kept.redeliver(again) shouldBe Deposit(10, again))
         }
 
-        test("a command that cannot redeliver itself is refused, and says why") { _ ->
+        test("a command that cannot redeliver itself is refused, and says why") {
             val tip = Tip(5, Delivery("checkout", "w-42", 1, producerAt(1)))
 
             shouldThrow<UnsupportedOperationException>({ tipCodec.outbox().encode(tip) }) { e ->
@@ -85,7 +81,7 @@ object OutboxSuite : Suite<Unit>() {
             }
         }
 
-        test("a command that carries a reply is refused, since nothing would answer it after a crash") { _ ->
+        test("a command that carries a reply is refused, since nothing would answer it after a crash") {
             val reply = object : Reply<Long> {
                 override val address = Address("shop-1@10.0.0.7:25520", "/temp/ask-1", 1)
 

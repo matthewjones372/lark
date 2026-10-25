@@ -2,21 +2,17 @@ package io.github.matthewjones372.lark.arrow
 
 import arrow.core.raise.either
 import arrow.core.raise.ensure
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.nonEmptyListOf
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import arrow.core.left as arrowLeft
 import arrow.core.nonEmptyListOf as arrowNonEmptyListOf
 import arrow.core.right as arrowRight
 
-object ArrowSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ArrowSuite : Suite() {
     init {
         test("an Either keeps its side and value across the conversion and back") {
             (1.right().toArrow() shouldBe 1.arrowRight()) and

@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.Module
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.render
@@ -15,7 +14,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -32,9 +30,7 @@ private data class RepoConf(val useCache: Boolean, val ttl: Duration)
 private class Orders(val repo: Repo)
 
 /** A setting that does not configure a repository but chooses between two of them. */
-object ChoicesSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ChoicesSuite : Suite() {
     private fun repo(): Reading.() -> RepoConf = { RepoConf(boolean("useCache"), duration("ttl")) }
 
     private fun persistence(conf: Hocon, caching: Module, plain: Module): Module =
@@ -53,7 +49,7 @@ object ChoicesSuite : Suite<Unit>() {
         ConfigFactory.parseString("repo { useCache = $useCache, ttl = 5s }").resolve()
 
     init {
-        test("the setting picks which module the graph holds") { _ ->
+        test("the setting picks which module the graph holds") {
             val cached = hocon(useCache = true)
 
             val app = configOf(cached) + persistence(cached, caching(), plain())
@@ -61,7 +57,7 @@ object ChoicesSuite : Suite<Unit>() {
             testApp(app) { repo: Repo -> repo }.shouldBeInstanceOf<Caching> { it.ttl shouldBe 5.seconds }
         }
 
-        test("the module the setting did not pick is not in the graph at all") { _ ->
+        test("the module the setting did not pick is not in the graph at all") {
             val built = AtomicBoolean(false)
             val uncached = hocon(useCache = false)
 
@@ -73,7 +69,7 @@ object ChoicesSuite : Suite<Unit>() {
                 }
         }
 
-        test("the section the choice read is a node, so nothing reads the path twice") { _ ->
+        test("the section the choice read is a node, so nothing reads the path twice") {
             val cached = hocon(useCache = true)
 
             val app = configOf(cached) + persistence(cached, caching(), plain()) +
@@ -82,7 +78,7 @@ object ChoicesSuite : Suite<Unit>() {
             testApp(app) { orders: Orders -> orders.repo }.shouldBeInstanceOf<Caching> { it.ttl shouldBe 5.seconds }
         }
 
-        test("a section that will not read refuses the start, naming every fault") { _ ->
+        test("a section that will not read refuses the start, naming every fault") {
             val empty = ConfigFactory.parseString("repo {}").resolve()
 
             val app = configOf(empty) + persistence(empty, caching(), plain())
@@ -94,7 +90,7 @@ object ChoicesSuite : Suite<Unit>() {
             }
         }
 
-        test("a read that throws on a discarded value names the faults where the choice is written") { _ ->
+        test("a read that throws on a discarded value names the faults where the choice is written") {
             val empty = ConfigFactory.parseString("repo {}").resolve()
 
             shouldThrow<IllegalStateException>({
@@ -106,7 +102,7 @@ object ChoicesSuite : Suite<Unit>() {
             }
         }
 
-        test("a read that throws with no fault recorded throws its own exception, not an empty refusal") { _ ->
+        test("a read that throws with no fault recorded throws its own exception, not an empty refusal") {
             val cached = hocon(useCache = true)
 
             val off: Reading.() -> Unit = { require(!boolean("useCache")) { "caching is switched off here" } }
@@ -115,7 +111,7 @@ object ChoicesSuite : Suite<Unit>() {
             }
         }
 
-        test("the document the assembly read is the one the graph holds") { _ ->
+        test("the document the assembly read is the one the graph holds") {
             val cached = hocon(useCache = true)
 
             testApp(configOf(cached)) { held: Hocon -> held } shouldBe cached

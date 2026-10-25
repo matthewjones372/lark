@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 
 /** DNS as a test states it: a name's addresses and SRV records, and nothing for any other name. */
 private class Zone(
@@ -19,24 +17,22 @@ private class Zone(
     override fun services(name: String) = services[name].orEmpty()
 }
 
-object DiscoverySuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DiscoverySuite : Suite() {
     init {
-        test("static seeds are the nodes it was given") { _ ->
+        test("static seeds are the nodes it was given") {
             val one = Node("orders-1", "10.0.0.1", 25520)
 
             Discovery.static(one).seeds() shouldContainExactly listOf(one)
         }
 
-        test("a name's addresses are seeds at the port given, whichever node answers there") { _ ->
+        test("a name's addresses are seeds at the port given, whichever node answers there") {
             val zone = Zone(addresses = mapOf("orders.default.svc.cluster.local" to listOf("10.0.0.1", "10.0.0.2")))
 
             Discovery.dns("orders.default.svc.cluster.local", 25520, zone).seeds() shouldContainExactly
                 listOf(Node("", "10.0.0.1", 25520), Node("", "10.0.0.2", 25520))
         }
 
-        test("SRV records are seeds at their own ports, the lowest priority and then the heaviest first") { _ ->
+        test("SRV records are seeds at their own ports, the lowest priority and then the heaviest first") {
             val zone = Zone(
                 services = mapOf(
                     "_lark._tcp.orders.local" to listOf(
@@ -54,17 +50,17 @@ object DiscoverySuite : Suite<Unit>() {
             )
         }
 
-        test("a name that resolves to nothing is no seeds") { _ ->
+        test("a name that resolves to nothing is no seeds") {
             Discovery.dns("nowhere.invalid", 25520).seeds().shouldBeEmpty() and
                 Discovery.srv("_lark._tcp.nowhere.invalid").seeds().shouldBeEmpty()
         }
 
-        test("the JDK resolver finds localhost, and reads an SRV record as a zone file writes it") { _ ->
+        test("the JDK resolver finds localhost, and reads an SRV record as a zone file writes it") {
             (Resolver.Jdk.addresses("localhost") shouldContain "127.0.0.1") and
                 (Resolver.Jdk.parse("10 60 25520 a.orders.local.") shouldBe Service(10, 60, 25520, "a.orders.local."))
         }
 
-        test("a node found by host and port alone has an empty name, and reads back the same") { _ ->
+        test("a node found by host and port alone has an empty name, and reads back the same") {
             Node.parse("@10.0.0.1:25520") shouldBe Node("", "10.0.0.1", 25520)
         }
     }

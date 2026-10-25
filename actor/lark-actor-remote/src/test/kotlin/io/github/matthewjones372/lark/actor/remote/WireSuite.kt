@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.ServerSocket
@@ -47,11 +45,9 @@ private class Heard : Listener {
     fun take(count: Int): List<Pair<Node, Int>> = List(count) { checkNotNull(received.poll(1, TimeUnit.MINUTES)) }
 }
 
-object WireSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object WireSuite : Suite() {
     init {
-        test("frames cross between two nodes in the order each sent them, both ways") { _ ->
+        test("frames cross between two nodes in the order each sent them, both ways") {
             opening {
                 val one = node("one")
                 val two = node("two")
@@ -68,7 +64,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("a peer that goes and comes back is connected to again, and what is sent after arrives in order") { _ ->
+        test("a peer that goes and comes back is connected to again, and what is sent after arrives in order") {
             opening {
                 val one = node("one")
                 val two = node("two")
@@ -92,7 +88,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("what is sent to a peer nobody answers for is dropped, and said to be") { _ ->
+        test("what is sent to a peer nobody answers for is dropped, and said to be") {
             opening {
                 val heard = Heard().apply { droppedCount = CountDownLatch(3) }
                 val first = Transport(node("one"), heard, retryFrom = 1.milliseconds).closedAfter()
@@ -105,7 +101,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("while a peer has not yet answered, frames wait up to the room, and the rest are dropped at once") { _ ->
+        test("while a peer has not yet answered, frames wait up to the room, and the rest are dropped at once") {
             opening {
                 // Accepts and says nothing, so the handshake never finishes and every frame sent waits for it.
                 val silent = ServerSocket(0).closedAfter()
@@ -121,7 +117,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("a peer known only by host and port is whichever node answers there") { _ ->
+        test("a peer known only by host and port is whichever node answers there") {
             opening {
                 val two = node("two")
                 val heardByTwo = Heard()
@@ -134,7 +130,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("a peer that answers under another name than the one sent to is not connected to") { _ ->
+        test("a peer that answers under another name than the one sent to is not connected to") {
             opening {
                 val two = node("two")
                 Transport(two, Heard()).closedAfter().listen()
@@ -148,7 +144,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("what was sent to a connected peer just before close still reaches it") { _ ->
+        test("what was sent to a connected peer just before close still reaches it") {
             opening {
                 val one = node("one")
                 val two = node("two")
@@ -169,7 +165,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("a peer that stops reading holds a close no longer than its drain") { _ ->
+        test("a peer that stops reading holds a close no longer than its drain") {
             opening {
                 // Answers the handshake as "stuck", then reads nothing, so the sender's socket fills and its writes
                 // block.
@@ -207,7 +203,7 @@ object WireSuite : Suite<Unit>() {
             }
         }
 
-        test("a node names itself as name at host and port, and reads back the same") { _ ->
+        test("a node names itself as name at host and port, and reads back the same") {
             (Node.parse("shop-1@10.0.0.7:25520") shouldBe Node("shop-1", "10.0.0.7", 25520)) and
                 (Node("shop-1", "10.0.0.7", 25520).toString() shouldBe "shop-1@10.0.0.7:25520")
         }

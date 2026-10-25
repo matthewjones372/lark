@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.behaviour
@@ -17,7 +16,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -76,11 +74,9 @@ private class LedgerNode(name: String, port: Int, seeds: Discovery, roles: Set<S
 }
 
 /** Spec 0122: a message a region keeps for a shard with no owner yet is handled in its sender's context. */
-object KeptCarriedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object KeptCarriedSuite : Suite() {
     init {
-        test("a message kept until a member with the role joins is handled with what its sender had bound") { _ ->
+        test("a message kept until a member with the role joins is handled with what its sender had bound") {
             val ports = List(2) { ServerSocket(0).use { socket -> socket.localPort } }.sorted()
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes = mutableListOf(LedgerNode("front", ports[0], seeds, emptySet()))

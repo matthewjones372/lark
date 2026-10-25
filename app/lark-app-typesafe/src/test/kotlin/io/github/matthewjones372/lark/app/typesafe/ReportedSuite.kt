@@ -1,22 +1,18 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 
 /**
  * The report the cookbook prints, held to what the code answers. A sample of an output is worth
  * having in a page only while it is the output.
  */
-object ReportedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ReportedSuite : Suite() {
     private val stacked = layeredConfigOf(
         "application.conf" to ConfigFactory.parseResources("demo/application.conf"),
         "reference.conf" to ConfigFactory.parseResources("demo/reference.conf"),
@@ -40,11 +36,11 @@ object ReportedSuite : Suite<Unit>() {
     }
 
     init {
-        test("the cookbook prints the report this stack answers") { _ ->
+        test("the cookbook prints the report this stack answers") {
             printed { page -> stacked.origins().report() shouldBe page }
         }
 
-        test("the cookbook prints the block a section logs") { _ ->
+        test("the cookbook prints the block a section logs") {
             val read = stacked.config.sectionOf("petshop") {
                 int("port") to section("db") { int("pool") to secret("password") }
             }

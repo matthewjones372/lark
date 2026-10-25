@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.actor.actors
@@ -22,7 +21,6 @@ import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -56,11 +54,9 @@ private fun settings(name: String, port: Int, seeds: Discovery, released: () -> 
 )
 
 /** Spec 0096: a cluster as a node, joined as a HOCON section says. */
-object ClusteredSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ClusteredSuite : Suite() {
     init {
-        test("three nodes join from config alone, each ready once all three are up") { _ ->
+        test("three nodes join from config alone, each ready once all three are up") {
             val ports = List(3) { freePort() }
             val allUp = CountDownLatch(3)
             val done = CountDownLatch(1)
@@ -85,7 +81,7 @@ object ClusteredSuite : Suite<Unit>() {
             up and ready.mapNotNull { it.getNow(null) }.forAll { it }
         }
 
-        test("a backend not on the classpath refuses the start, naming the module to add") { _ ->
+        test("a backend not on the classpath refuses the start, naming the module to add") {
             val module =
                 configOf(hocon("a", freePort(), emptyList(), join = "kubernetes")) + actors() + cluster("lark.cluster")
             module.use { _: Cluster -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused> { refused ->
@@ -93,7 +89,7 @@ object ClusteredSuite : Suite<Unit>() {
             }
         }
 
-        test("a section missing what a node needs refuses the start, naming every fault") { _ ->
+        test("a section missing what a node needs refuses the start, naming every fault") {
             val module = configOf("lark.cluster { join = static }") + actors() + cluster("lark.cluster")
             module.use { _: Cluster -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused> { refused ->
                 // Typesafe Config's own words, one fault for the name and one for the port, both said at once.
@@ -102,7 +98,7 @@ object ClusteredSuite : Suite<Unit>() {
             }
         }
 
-        test("the joining is closed only after the node has left its cluster") { _ ->
+        test("the joining is closed only after the node has left its cluster") {
             val ports = List(2) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             var joined: Cluster? = null
@@ -136,7 +132,7 @@ object ClusteredSuite : Suite<Unit>() {
                 (statusAtClose shouldNotBe Status.Up)
         }
 
-        test("a node restarted at its address is not ended by its earlier life's downing") { _ ->
+        test("a node restarted at its address is not ended by its earlier life's downing") {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val done = CountDownLatch(1)

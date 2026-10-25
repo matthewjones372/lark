@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
@@ -10,16 +9,13 @@ import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.nio.file.Files
 
 /**
  * `layeredConfig()` is `ConfigFactory.load()` kept apart, so the two agree on the merge in every case
  * `load()` reads differently: a replacement file, the environment forced on top, and the other syntaxes.
  */
-object LoadedLayersSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LoadedLayersSuite : Suite() {
     /** Runs [body] with a way to set system properties, each cleared again once it returns. */
     private fun withProperties(body: (property: (name: String, value: String) -> Unit) -> Expectations): Expectations {
         val set = mutableListOf<String>()
@@ -38,7 +34,7 @@ object LoadedLayersSuite : Suite<Unit>() {
     private fun Layered.names() = layers.map { it.name }
 
     init {
-        test("with nothing set, the merge is what load reads") { _ ->
+        test("with nothing set, the merge is what load reads") {
             val layered = layeredConfig()
 
             val merged = layered.config shouldBe ConfigFactory.load()
@@ -51,7 +47,7 @@ object LoadedLayersSuite : Suite<Unit>() {
             )
         }
 
-        test("application properties are read below application conf") { _ ->
+        test("application properties are read below application conf") {
             val layered = layeredConfig()
 
             val holder = layered.layers.single { it.config.hasPath("lark.layered.properties") }
@@ -61,7 +57,7 @@ object LoadedLayersSuite : Suite<Unit>() {
 
         // Alone, as are the two after it: it sets system properties and clears ConfigFactory's caches, both
         // process-wide, and a test reading ConfigFactory.load() or layeredConfig() beside it sees them.
-        test("config file replaces the application files", alone) { _ ->
+        test("config file replaces the application files", alone) {
             withProperties { property ->
                 val file = Files.createTempFile("lark-layered", ".conf")
                 try {
@@ -82,7 +78,7 @@ object LoadedLayersSuite : Suite<Unit>() {
             }
         }
 
-        test("CONFIG_FORCE_ variables sit above system properties once asked for", alone) { _ ->
+        test("CONFIG_FORCE_ variables sit above system properties once asked for", alone) {
             withProperties { property ->
                 property("lark.layered.forced", "from-property")
                 property("config.override_with_env_vars", "true")
@@ -95,7 +91,7 @@ object LoadedLayersSuite : Suite<Unit>() {
             }
         }
 
-        test("CONFIG_FORCE_ variables are not read unless asked for", alone) { _ ->
+        test("CONFIG_FORCE_ variables are not read unless asked for", alone) {
             withProperties { property ->
                 property("lark.layered.forced", "from-property")
 
@@ -103,18 +99,18 @@ object LoadedLayersSuite : Suite<Unit>() {
             }
         }
 
-        test("loadedConfig provides the layers and their merge") { _ ->
+        test("loadedConfig provides the layers and their merge") {
             (testApp(loadedConfig()) { layered: Layered -> layered.names().last() } shouldBe "reference.conf") and
                 (testApp(loadedConfig()) { config: Config -> config } shouldBe ConfigFactory.load())
         }
 
-        test("a document written in the test is one layer") { _ ->
+        test("a document written in the test is one layer") {
             val layered = testApp(configOf("a = 1")) { layered: Layered -> layered }
 
             (layered.layers.size shouldBe 1) and (layered.config.getInt("a") shouldBe 1)
         }
 
-        test("overridingConfig puts its document on top of the layers") { _ ->
+        test("overridingConfig puts its document on top of the layers") {
             val base = layeredConfigOf("base" to ConfigFactory.parseString("a = 1, b = 2"))
             val app = configOf("a = 1, b = 2").overridingConfig("a = 3", fallback = base)
 

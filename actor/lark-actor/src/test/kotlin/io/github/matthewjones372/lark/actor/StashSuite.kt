@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.minutes
 
 private sealed interface Call
@@ -61,11 +59,9 @@ private fun phone() = behaviour<Line, Call>(Ringing) { ctx, call, message ->
     }
 }
 
-object StashSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object StashSuite : Suite() {
     init {
-        test("unstashed messages are handled before the mailbox, in the order kept") { _ ->
+        test("unstashed messages are handled before the mailbox, in the order kept") {
             val phone = phone().test()
             phone.send(Say(1))
             phone.send(Say(2))
@@ -75,7 +71,7 @@ object StashSuite : Suite<Unit>() {
             phone.state shouldBe Answered(listOf(1, 2, 99))
         }
 
-        test("stashing into a full stash fails the step") { _ ->
+        test("stashing into a full stash fails the step") {
             val phone = phone().test(stash = 2)
             phone.send(Say(1))
             phone.send(Say(2))
@@ -84,7 +80,7 @@ object StashSuite : Suite<Unit>() {
                 phone.failure.shouldBeInstanceOf<Failure.Thrown>()
         }
 
-        test("a restart drops the stash") { _ ->
+        test("a restart drops the stash") {
             val phone = phone().test(restart = Schedule.recurs(1))
             phone.send(Say(1))
             phone.send(Say(2))
@@ -95,7 +91,7 @@ object StashSuite : Suite<Unit>() {
             (phone.restarts shouldBe 1) and (phone.state shouldBe Answered(listOf(99)))
         }
 
-        test("on threads, unstashed messages are handled before the mailbox, in the order kept") { _ ->
+        test("on threads, unstashed messages are handled before the mailbox, in the order kept") {
             val heard = flock<Nothing, Any> {
                 val phone = spawn("phone", phone())
                 phone.tell(Say(1))
@@ -109,7 +105,7 @@ object StashSuite : Suite<Unit>() {
             heard shouldBeRight listOf(1, 2, 99).right()
         }
 
-        test("on threads, stashing into a full stash fails the step") { _ ->
+        test("on threads, stashing into a full stash fails the step") {
             val heard = flock<Nothing, Any> {
                 val phone = spawn("phone", phone(), stash = 2)
                 (1..3).forEach { phone.tell(Say(it)) }

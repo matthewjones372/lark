@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.app.flagd
 
 import dev.openfeature.sdk.Client
 import dev.openfeature.sdk.Value
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.typesafe.configOf
 import io.github.matthewjones372.lark.app.use
@@ -15,7 +14,6 @@ import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.openfeature.Flag
 import io.github.matthewjones372.lark.openfeature.evaluatedFor
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.seconds
 
 private enum class Checkout { Classic, Express }
@@ -54,11 +52,9 @@ private inline fun refusal(conf: String, declared: List<Flag<*>>, check: (String
 /** Spec 0195: the flags a service declares, checked against the section's variants before the provider starts. */
 // Every test starts flagd as the provider of OpenFeatureAPI, a process-wide singleton that one graph holds at a
 // time, so two at once refuse each other's start: run concurrently, three of the four failed.
-object DeclaredFlagsSuite : Suite<Unit>(concurrent = false) {
-    override val shared: Resource<Unit> = resource { }
-
+object DeclaredFlagsSuite : Suite(concurrent = false) {
     init {
-        test("a section that matches its declarations starts, and its flags answer as before") { _ ->
+        test("a section that matches its declarations starts, and its flags answer as before") {
             (configOf(matching) + flagdFlags("flags", Declared.all)).use { _: Client ->
                 listOf(
                     evaluatedFor("ada") { Declared.limit.value() },
@@ -76,7 +72,7 @@ object DeclaredFlagsSuite : Suite<Unit>(concurrent = false) {
 
         test(
             "a fractional Int, a constant that does not exist and a missing key are all named, with their lines",
-        ) { _ ->
+        ) {
             refusal(
                 """
                 flags {
@@ -107,7 +103,7 @@ object DeclaredFlagsSuite : Suite<Unit>(concurrent = false) {
 
         test(
             "a whole number too big for an Int is refused for a numeric flag, since flagd reads it as no number",
-        ) { _ ->
+        ) {
             val total = Flag.long("checkout.total", default = 1L)
             val section =
                 """flags { "checkout.total" { state = ENABLED, variants { big = 5000000000 }, defaultVariant = big } }"""
@@ -117,7 +113,7 @@ object DeclaredFlagsSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("without declarations nothing is checked beyond flagd's own schema") { _ ->
+        test("without declarations nothing is checked beyond flagd's own schema") {
             val graph = configOf(
                 """
                 flags {

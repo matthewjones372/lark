@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
@@ -12,7 +11,6 @@ import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
@@ -92,11 +90,9 @@ private fun alarm() = behaviour<Alarm, Bell>(Bell()) { ctx, bell, message ->
 
 private fun ActorRef<Alarm>.heard() = ask(1.minutes) { Heard(it) }
 
-object TimersSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object TimersSuite : Suite() {
     init {
-        test("a timer's message arrives once its delay has passed, and not before") { _ ->
+        test("a timer's message arrives once its delay has passed, and not before") {
             val alarm = alarm().test()
             alarm.send(Arm("wake", 5.seconds, "wake"))
 
@@ -112,7 +108,7 @@ object TimersSuite : Suite<Unit>() {
                 (alarm.pendingTimers shouldBe 0)
         }
 
-        test("what falls due is delivered in time order, however it was started") { _ ->
+        test("what falls due is delivered in time order, however it was started") {
             val alarm = alarm().test()
             alarm.send(Arm("late", 3.seconds, "late"))
             alarm.send(Arm("early", 1.seconds, "early"))
@@ -123,7 +119,7 @@ object TimersSuite : Suite<Unit>() {
             alarm.state.rung shouldContainExactly listOf("early", "middle", "late")
         }
 
-        test("starting a key that is running replaces it") { _ ->
+        test("starting a key that is running replaces it") {
             val alarm = alarm().test()
             alarm.send(Arm("wake", 5.seconds, "early"))
             alarm.send(Arm("wake", 10.seconds, "late"))
@@ -133,7 +129,7 @@ object TimersSuite : Suite<Unit>() {
             alarm.state.rung shouldContainExactly listOf("late")
         }
 
-        test("a cancelled timer's message never arrives") { _ ->
+        test("a cancelled timer's message never arrives") {
             val alarm = alarm().test()
             alarm.send(Arm("wake", 5.seconds, "wake"))
             alarm.send(Disarm("wake"))
@@ -143,7 +139,7 @@ object TimersSuite : Suite<Unit>() {
             alarm.state.rung.shouldBeEmpty() and (alarm.pendingTimers shouldBe 0)
         }
 
-        test("a cancelled or replaced timer's message never arrives, even one already in the mailbox") { _ ->
+        test("a cancelled or replaced timer's message never arrives, even one already in the mailbox") {
             val alarm = alarm().test()
 
             alarm.send(Flicker("now"))
@@ -152,7 +148,7 @@ object TimersSuite : Suite<Unit>() {
             alarm.state.rung shouldContainExactly listOf("second")
         }
 
-        test("a stop cancels every timer") { _ ->
+        test("a stop cancels every timer") {
             testActors {
                 val alarm = spawn("alarm", alarm())
                 alarm.send(Arm("wake", 5.seconds, "wake"))
@@ -163,7 +159,7 @@ object TimersSuite : Suite<Unit>() {
             }
         }
 
-        test("a restart cancels every timer") { _ ->
+        test("a restart cancels every timer") {
             val alarm = alarm().test(restart = Schedule.recurs(1))
             alarm.send(Arm("wake", 5.seconds, "wake"))
 
@@ -173,7 +169,7 @@ object TimersSuite : Suite<Unit>() {
             (alarm.restarts shouldBe 1) and alarm.state.rung.shouldBeEmpty()
         }
 
-        test("on threads, a timer falls due when the flock's clock moves, and a cancelled one never does") { _ ->
+        test("on threads, a timer falls due when the flock's clock moves, and a cancelled one never does") {
             val moving = TestClock()
             val heard = clock.locally(moving) {
                 flock<Nothing, Any> {
@@ -195,7 +191,7 @@ object TimersSuite : Suite<Unit>() {
 
         test(
             "on threads, a cancelled or replaced timer's message never arrives, even one already in the mailbox",
-        ) { _ ->
+        ) {
             val heard = flock<Nothing, Any> {
                 val alarm = spawn("alarm", alarm())
                 alarm.tell(Flicker("now"))
@@ -207,7 +203,7 @@ object TimersSuite : Suite<Unit>() {
             heard shouldBeRight listOf("second").right()
         }
 
-        test("on the wall clock, a sooner timer is not held behind a later one") { _ ->
+        test("on the wall clock, a sooner timer is not held behind a later one") {
             val heard = flock<Nothing, Any> {
                 val alarm = spawn("alarm", alarm())
                 alarm.tell(Arm("later", 1.hours, "later"))

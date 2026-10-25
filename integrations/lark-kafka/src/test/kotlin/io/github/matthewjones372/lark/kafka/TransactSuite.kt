@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.kafka
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.capturingMetrics
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.seconds
 
 /** A record's outputs and its offset in one transaction, on whichever backend the run names. */
-object TransactSuite : Suite<KafkaKit>() {
+object TransactSuite : SharedSuite<KafkaKit>() {
     override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-transact-test")
 
     private const val GENEROUS_SECONDS = 60L

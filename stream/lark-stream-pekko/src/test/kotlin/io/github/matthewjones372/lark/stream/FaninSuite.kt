@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -10,7 +10,7 @@ import io.github.matthewjones372.lark.junit.withClue
 import java.util.concurrent.CompletionStage
 
 /** Two feeds as one, and what their failure types do when they meet. */
-object FaninSuite : Suite<PekkoSystem>() {
+object FaninSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-fanin-test")
 
     private sealed interface FeedError

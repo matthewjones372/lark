@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import java.util.concurrent.TimeUnit
 
 /** A measured run's profile, drawn onto its diagram: the stage the time went to is the one marked hot. */
-object ProfileSuite : Suite<ActorSystem>() {
+object ProfileSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-profile-test")
 
     private const val SETTLE_SECONDS = 20L

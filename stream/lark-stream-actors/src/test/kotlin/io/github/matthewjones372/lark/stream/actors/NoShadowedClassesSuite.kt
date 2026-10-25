@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.stream.actors
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.stream.Actors
 import java.io.File
 
@@ -13,11 +11,9 @@ import java.io.File
  * still a class of the package: two of one name and the JVM loads whichever it finds first, which is how a merge on
  * Forks once reached this module's class. Every class compiled here must be the only one of its name.
  */
-object NoShadowedClassesSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object NoShadowedClassesSuite : Suite() {
     init {
-        test("no class of this module has the name of a class in another module of its package") { _ ->
+        test("no class of this module has the name of a class in another module of its package") {
             val here = File(Actors::class.java.protectionDomain.codeSource.location.toURI())
             val packagePath = Actors::class.java.packageName.replace('.', '/')
             val loader = Actors::class.java.classLoader

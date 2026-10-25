@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
 import io.github.matthewjones372.lark.junit.withClue
@@ -19,7 +19,7 @@ import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.toJavaDuration
 
 /** The way in from Pekko whatever a source materialises, and the ticker that needs no way in. */
-object SourcesSuite : Suite<PekkoSystem>() {
+object SourcesSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-sources-test")
 
     private val fast: Duration = 10.milliseconds

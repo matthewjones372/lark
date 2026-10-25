@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.actor.remote
 
 import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.DeadLetter
@@ -25,7 +24,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -131,11 +129,9 @@ private fun <A> withWardNode(block: (Hospital) -> A): A {
 
 private fun Flock<Nothing>.clinic() = node("clinic", freePort())
 
-object RemoteSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RemoteSuite : Suite() {
     init {
-        test("a message told to an actor on another node reaches it, and an ask comes back with its answer") { _ ->
+        test("a message told to an actor on another node reaches it, and an ask comes back with its answer") {
             val charted = withWardNode { hospital ->
                 flock<Nothing, Any> {
                     val ward =
@@ -149,7 +145,7 @@ object RemoteSuite : Suite<Unit>() {
             charted shouldBeRight 75.right()
         }
 
-        test("a ref inside a message crosses, and what is told to it comes back to the actor it names") { _ ->
+        test("a ref inside a message crosses, and what is told to it comes back to the actor it names") {
             val heard = ConcurrentLinkedQueue<String>()
             withWardNode { hospital ->
                 flock<Nothing, Unit> {
@@ -172,7 +168,7 @@ object RemoteSuite : Suite<Unit>() {
 
         test(
             "a message for an earlier incarnation at a path is a dead letter there, not a message for the actor now",
-        ) { _ ->
+        ) {
             val (charted, letters, earlier) = withWardNode { hospital ->
                 val earlier = hospital.ward.copy(incarnation = hospital.ward.incarnation + 1)
                 val charted = flock<Nothing, Any> {
@@ -187,7 +183,7 @@ object RemoteSuite : Suite<Unit>() {
                 (letters shouldContainExactly listOf(DeadLetter(earlier, Admit(50), DeadLetter.Why.NoSuchActor)))
         }
 
-        test("a message for a path no actor is at is a dead letter on the node it reached") { _ ->
+        test("a message for a path no actor is at is a dead letter on the node it reached") {
             val letters = withWardNode { hospital ->
                 val _ = flock<Nothing, Any> {
                     val node = clinic()
@@ -205,7 +201,7 @@ object RemoteSuite : Suite<Unit>() {
                 (wardCodec.decode((letters.single().message as UnreadMessage).bytes, noRefs) shouldBe Admit(5))
         }
 
-        test("a message told to a node nobody answers for is a dead letter here, with the message in it") { _ ->
+        test("a message told to a node nobody answers for is a dead letter here, with the message in it") {
             val letters = LinkedBlockingQueue<DeadLetter>()
             val nowhere = Address("nowhere@127.0.0.1:${freePort()}", "/user/ward", 0)
             flock<Nothing, Expectations> {
@@ -215,7 +211,7 @@ object RemoteSuite : Suite<Unit>() {
             }.shouldBeRight { it }
         }
 
-        test("an actor watching one on another node hears Terminated when it stops") { _ ->
+        test("an actor watching one on another node hears Terminated when it stops") {
             val heard = withWardNode { hospital ->
                 flock<Nothing, Any> {
                     val ward = clinic().remote(hospital.ward, wardCodec)
@@ -234,7 +230,7 @@ object RemoteSuite : Suite<Unit>() {
             heard shouldBeRight listOf("Terminated").right()
         }
 
-        test("a watch handed to a membership ends when it says the node is gone, while the actor still runs") { _ ->
+        test("a watch handed to a membership ends when it says the node is gone, while the actor still runs") {
             val heard = withWardNode { hospital ->
                 flock<Nothing, Any> {
                     val node = clinic()
@@ -252,7 +248,7 @@ object RemoteSuite : Suite<Unit>() {
             heard shouldBeRight 0.right()
         }
 
-        test("a watch on an actor whose node goes away ends once the node has been unreachable long enough") { _ ->
+        test("a watch on an actor whose node goes away ends once the node has been unreachable long enough") {
             val port = freePort()
             val ready = CountDownLatch(1)
             val gone = CountDownLatch(1)

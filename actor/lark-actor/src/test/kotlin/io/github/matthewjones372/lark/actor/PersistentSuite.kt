@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes
 
@@ -76,11 +74,9 @@ private fun hound(id: String, log: ConcurrentLinkedQueue<String> = ConcurrentLin
         },
     )
 
-object PersistentSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PersistentSuite : Suite() {
     init {
-        test("a command persists its events, the state is what they built, and then runs after both") { _ ->
+        test("a command persists its events, the state is what they built, and then runs after both") {
             val log = ConcurrentLinkedQueue<String>()
             testActors {
                 val rex = spawn("rex", hound("rex", log))
@@ -94,7 +90,7 @@ object PersistentSuite : Suite<Unit>() {
             }
         }
 
-        test("after a restart the state is what the journal holds") { _ ->
+        test("after a restart the state is what the journal holds") {
             testActors {
                 val rex = spawn("rex", hound("rex"))
                 rex.send(Eat(50))
@@ -107,7 +103,7 @@ object PersistentSuite : Suite<Unit>() {
             }
         }
 
-        test("a command that persists nothing writes nothing, and unhandled is unhandled") { _ ->
+        test("a command that persists nothing writes nothing, and unhandled is unhandled") {
             testActors {
                 val rex = spawn("rex", hound("rex"))
 
@@ -120,7 +116,7 @@ object PersistentSuite : Suite<Unit>() {
             }
         }
 
-        test("two writers for one id cannot both succeed, and the second fails with the conflict") { _ ->
+        test("two writers for one id cannot both succeed, and the second fails with the conflict") {
             testActors {
                 val first = spawn("first", hound("rex"))
                 val second = spawn("second", hound("rex"))
@@ -134,7 +130,7 @@ object PersistentSuite : Suite<Unit>() {
             }
         }
 
-        test("a conflict restarts the actor when its schedule says so, and it recovers what the other wrote") { _ ->
+        test("a conflict restarts the actor when its schedule says so, and it recovers what the other wrote") {
             testActors {
                 val first = spawn("first", hound("rex"))
                 val second = spawn("second", hound("rex"), restart = Schedule.recurs(1))
@@ -148,7 +144,7 @@ object PersistentSuite : Suite<Unit>() {
             }
         }
 
-        test("on threads, an entity passivated and started again comes back with the state its events built") { _ ->
+        test("on threads, an entity passivated and started again comes back with the state its events built") {
             val log = ConcurrentLinkedQueue<String>()
             val moving = TestClock()
             val journal = InMemoryJournal()
@@ -170,7 +166,7 @@ object PersistentSuite : Suite<Unit>() {
                 (journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25)))
         }
 
-        test("on threads, a conflict restarts the actor, and its start recovers what the other writer wrote") { _ ->
+        test("on threads, a conflict restarts the actor, and its start recovers what the other writer wrote") {
             val journal = InMemoryJournal()
             val weight = flock<Nothing, Any> {
                 journal(journal)

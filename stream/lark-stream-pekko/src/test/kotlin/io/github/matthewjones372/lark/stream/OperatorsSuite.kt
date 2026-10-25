@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -17,7 +17,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** What the asynchronous and splitting operators promise, asserted on a real system. */
-object OperatorsSuite : Suite<PekkoSystem>() {
+object OperatorsSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-operators-test")
 
     private data class Receipt(val id: Int)

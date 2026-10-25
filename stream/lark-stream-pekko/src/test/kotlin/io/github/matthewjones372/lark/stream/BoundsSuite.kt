@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -9,7 +9,7 @@ import io.github.matthewjones372.lark.junit.withClue
 import java.util.concurrent.CompletionStage
 
 /** What the bounding operators promise, asserted on a real system. */
-object BoundsSuite : Suite<PekkoSystem>() {
+object BoundsSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-bounds-test")
 
     private fun <E, R> CompletionStage<Exit<E, R>>.settled(): Exit<E, R> = toCompletableFuture().join()

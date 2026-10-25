@@ -1,18 +1,14 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration
 
 /** Spec 0086: a behaviour with `steps` is handed the plain messages already waiting, a run at a time. */
-object StepsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object StepsSuite : Suite() {
     /** Every run it is handed, and every message handed it alone, in the order they came. */
     private class Runs(
         val batch: Int,
@@ -48,7 +44,7 @@ object StepsSuite : Suite<Unit>() {
     }
 
     init {
-        test("the messages already waiting are handed over as one run, in order") { _ ->
+        test("the messages already waiting are handed over as one run, in order") {
             val runs = Runs(batch = 64)
             flock<Nothing, Unit> {
                 val actor = spawn("runs", runs.behaviour())
@@ -59,7 +55,7 @@ object StepsSuite : Suite<Unit>() {
             runs.seen shouldBe listOf(listOf(1, 2, 3))
         }
 
-        test("a run is no longer than the batch") { _ ->
+        test("a run is no longer than the batch") {
             val runs = Runs(batch = 2)
             flock<Nothing, Unit> {
                 val actor = spawn("runs", runs.behaviour())
@@ -70,7 +66,7 @@ object StepsSuite : Suite<Unit>() {
             runs.seen shouldBe listOf(listOf(1, 2), listOf(3, 4), listOf(5))
         }
 
-        test("a timer between messages ends the run, and is handled alone") { _ ->
+        test("a timer between messages ends the run, and is handled alone") {
             val runs = Runs(batch = 64, armed = CountDownLatch(1), told = CountDownLatch(1))
             flock<Nothing, Unit> {
                 val actor = spawn("runs", runs.behaviour())
@@ -86,7 +82,7 @@ object StepsSuite : Suite<Unit>() {
             runs.seen shouldBe listOf(listOf(1, 2), listOf(0), listOf(3, 4))
         }
 
-        test("a behaviour without steps still takes one message at a time") { _ ->
+        test("a behaviour without steps still takes one message at a time") {
             val seen = CopyOnWriteArrayList<Int>()
             val opened = CountDownLatch(1)
             val one = Behaviour<Int, Unit, Nothing>(
@@ -109,7 +105,7 @@ object StepsSuite : Suite<Unit>() {
             seen shouldBe listOf(1, 2, 3)
         }
 
-        test("what a run leaves unhandled or unrun becomes a dead letter") { _ ->
+        test("what a run leaves unhandled or unrun becomes a dead letter") {
             val letters = CopyOnWriteArrayList<DeadLetter>()
             val opened = CountDownLatch(1)
             val stopping = Behaviour<Int, Unit, Nothing>(

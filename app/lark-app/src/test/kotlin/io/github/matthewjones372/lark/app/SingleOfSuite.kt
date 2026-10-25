@@ -1,18 +1,14 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.reflect.typeOf
 
-object SingleOfSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SingleOfSuite : Suite() {
     private class Wiring
 
     private class Socket(val wiring: Wiring)
@@ -28,7 +24,7 @@ object SingleOfSuite : Suite<Unit>() {
     private class Whole(val reads: Reads)
 
     init {
-        test("a constructor names the key and the dependencies") { _ ->
+        test("a constructor names the key and the dependencies") {
             val app = singleOf(::Wiring) + singleOf(::Socket) + singleOf(::Reader)
 
             val reader = testApp(app) { reader: Reader -> reader }
@@ -38,7 +34,7 @@ object SingleOfSuite : Suite<Unit>() {
             }
         }
 
-        test("boundTo keys a node as the interface everything else asks for") { _ ->
+        test("boundTo keys a node as the interface everything else asks for") {
             val app = singleOf(::Wiring) + singleOf(::Socket) +
                 singleOf(::Reader).boundTo<Reads>() +
                 singleOf(::Whole)
@@ -46,7 +42,7 @@ object SingleOfSuite : Suite<Unit>() {
             testApp(app) { whole: Whole -> whole.reads.read() } shouldBe "read"
         }
 
-        test("the node keyed as the interface is the only one") { _ ->
+        test("the node keyed as the interface is the only one") {
             val app = singleOf(::Wiring) + singleOf(::Socket) + singleOf(::Reader).boundTo<Reads>()
 
             app.validate().getOrNull().shouldNotBeNull { plan ->
@@ -57,7 +53,7 @@ object SingleOfSuite : Suite<Unit>() {
             }
         }
 
-        test("a probe follows the key it was asked of") { _ ->
+        test("a probe follows the key it was asked of") {
             val app = singleOf(::Wiring) + singleOf(::Socket) +
                 singleOf(::Reader)
                     .probe("reader", timeout = kotlin.time.Duration.parse("2s")) { reads: Reader ->
@@ -69,13 +65,13 @@ object SingleOfSuite : Suite<Unit>() {
             testApp(app) { whole: Whole -> whole.reads.read() } shouldBe "read"
         }
 
-        test("re-keying a module of several nodes is refused, and says how many") { _ ->
+        test("re-keying a module of several nodes is refused, and says how many") {
             shouldThrow<IllegalArgumentException>({
                 (singleOf(::Wiring) + singleOf(::Socket)).boundTo<Reads>()
             }) { failure -> failure.message.orEmpty() shouldContain "holds 2" }
         }
 
-        test("a constructor that takes nothing needs its type argument") { _ ->
+        test("a constructor that takes nothing needs its type argument") {
             val app = singleOf<Wiring> { Wiring() }
 
             app.validate().getOrNull().shouldNotBeNull { plan ->
@@ -94,11 +90,9 @@ private class Borrowed {
 }
 
 /** A constructor with a teardown that is not `close`, which is most of them. */
-object SingleOfReleaseSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SingleOfReleaseSuite : Suite() {
     init {
-        test("what a constructor built is given back, by whatever the method is called") { _ ->
+        test("what a constructor built is given back, by whatever the method is called") {
             val app = singleOf(::Borrowed, Borrowed::hand)
 
             val borrowed = testApp(app) { borrowed: Borrowed -> borrowed }
@@ -108,7 +102,7 @@ object SingleOfReleaseSuite : Suite<Unit>() {
             }
         }
 
-        test("it is given back when a later node refuses") { _ ->
+        test("it is given back when a later node refuses") {
             val taken = java.util.concurrent.atomic.AtomicReference<Borrowed>()
             val app = singleOf(::Borrowed, Borrowed::hand) +
                 single { borrowed: Borrowed -> taken.set(borrowed); "kept" }

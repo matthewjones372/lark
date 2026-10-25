@@ -1,23 +1,19 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBeRight
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.minutes
 
-object ViewOrderSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ViewOrderSuite : Suite() {
     init {
-        test("whoever waits on a view wakes only once every viewer has been told it") { _ ->
+        test("whoever waits on a view wakes only once every viewer has been told it") {
             val port = ServerSocket(0).use { it.localPort }
             val self = Node("v1", "127.0.0.1", port)
             val next = View(listOf(Member(self, 1, Status.Up, 1)), emptySet(), self)

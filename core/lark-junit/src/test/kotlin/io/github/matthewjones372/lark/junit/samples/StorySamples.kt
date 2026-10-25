@@ -1,13 +1,13 @@
 package io.github.matthewjones372.lark.junit.samples
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.story
 import io.github.matthewjones372.lark.resource
 
 /** Untitled stories, each test named for how its story should end. */
-object StorySuite : Suite<Int>() {
+object StorySuite : SharedSuite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     init {

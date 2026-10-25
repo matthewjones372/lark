@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldThrow
@@ -12,7 +12,7 @@ import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.Exit
 
 /** The test broker's own helpers, which every transactional claim in this module is read through. */
-object KafkaBrokerSuite : Suite<KafkaBroker>() {
+object KafkaBrokerSuite : SharedSuite<KafkaBroker>() {
     override val shared: Resource<KafkaBroker> = kafkaBroker()
 
     private const val COMMITS_AFTER_MILLIS = 500L

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldHaveSize
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -57,11 +55,9 @@ private val meter = LoadMeter("k", rebalance, Sharding.SHARDS, role = null)
 private fun Balancer.round(at: Duration, balance: Balance) =
     moves(at, listOf(meter), led, three[0].node, balance)["k"].orEmpty()
 
-object RebalanceSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RebalanceSuite : Suite() {
     init {
-        test("the busiest member falls within tolerance of the mean within three intervals") { _ ->
+        test("the busiest member falls within tolerance of the mean within three intervals") {
             val load = ownedBy(three[0], 12).associateWith { 10 }
             val balancer = Balancer()
             var moved = emptyMap<Int, Incarnation>()
@@ -78,7 +74,7 @@ object RebalanceSuite : Suite<Unit>() {
             first and most and (totals.values.max().toDouble() shouldBeLessThanOrEqual totals.values.sum() / 3.0 * 1.2)
         }
 
-        test("a moved shard is not moved again within three intervals, even where it would be the one to move") { _ ->
+        test("a moved shard is not moved again within three intervals, even where it would be the one to move") {
             val (a, b, c) = ownedBy(three[0], 3)
             val e = ownedBy(three[1], 1).single()
             val g = ownedBy(three[2], 1).single()
@@ -98,7 +94,7 @@ object RebalanceSuite : Suite<Unit>() {
                 balancer.round(rebalance.every * 3, balance(grown, moved)).shouldBeEmpty()
         }
 
-        test("a shard just moved counts at the load it moved with until its new owner reports it") { _ ->
+        test("a shard just moved counts at the load it moved with until its new owner reports it") {
             val (a, b, c, d) = ownedBy(three[0], 4)
             val balancer = Balancer()
             val _ = balancer.round(Duration.ZERO, Balance.None)
@@ -111,7 +107,7 @@ object RebalanceSuite : Suite<Unit>() {
 
         test(
             "with one hot range of ids on one node of three, its entities spread out, and no shard moves twice at once",
-        ) { _ ->
+        ) {
             val every = 1.seconds
             val ports = List(3) { loadPort() }
             val seeds = seedsAt(ports)

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.Executors
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -61,11 +59,9 @@ private fun <M : Any> void(): ActorRef<M> = object : ActorRef<M> {
     override fun tell(message: M) = Unit
 }
 
-object ProducerSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ProducerSuite : Suite() {
     init {
-        test("commands sent while their entity is stopped and started again are each applied once, in order") { _ ->
+        test("commands sent while their entity is stopped and started again are each applied once, in order") {
             testActors {
                 var ledger = spawn("ledger", ledger("l-1"))
                 val producer = producer("till", resendAfter = 2.seconds) { ledger }
@@ -84,7 +80,7 @@ object ProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("a command whose confirmation is lost is sent again, applied once, and then the next is sent") { _ ->
+        test("a command whose confirmation is lost is sent again, applied once, and then the next is sent") {
             testActors {
                 val ledger = spawn("ledger", ledger("l-1"))
                 var lose = true
@@ -113,7 +109,7 @@ object ProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("a producer keeping as many as it may answers Full, and has room again once one is confirmed") { _ ->
+        test("a producer keeping as many as it may answers Full, and has room again once one is confirmed") {
             testActors {
                 var to: ActorRef<LedgerCommand> = void()
                 val producer = producer("till", keep = 2, within = Duration.ZERO) { id ->
@@ -136,7 +132,7 @@ object ProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("on threads, commands from four senders to ten passivating entities are each applied once") { _ ->
+        test("on threads, commands from four senders to ten passivating entities are each applied once") {
             val journal = InMemoryJournal()
             val balances = flock<Nothing, List<Int>> {
                 journal(journal)
@@ -157,7 +153,7 @@ object ProducerSuite : Suite<Unit>() {
                 ((0 until 10).sumOf { journal.events(ledgerOf("l-$it"), creditedCodec).size } shouldBe 400)
         }
 
-        test("a flock that closes straight after sending waits for every command to be confirmed first") { _ ->
+        test("a flock that closes straight after sending waits for every command to be confirmed first") {
             val journal = InMemoryJournal()
 
             val _ = flock<Nothing, Unit> {
@@ -170,7 +166,7 @@ object ProducerSuite : Suite<Unit>() {
             (0 until 10).sumOf { journal.events(ledgerOf("l-$it"), creditedCodec).size } shouldBe 1_000
         }
 
-        test("a command that fails to build throws to its sender, keeps nothing, and the producer goes on") { _ ->
+        test("a command that fails to build throws to its sender, keeps nothing, and the producer goes on") {
             testActors {
                 val ledger = spawn("ledger", ledger("l-1"))
                 val producer = producer("till", keep = 1, within = Duration.ZERO) { ledger }

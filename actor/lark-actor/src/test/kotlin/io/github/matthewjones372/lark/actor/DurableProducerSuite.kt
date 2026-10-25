@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
@@ -18,7 +17,6 @@ import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.logger
-import io.github.matthewjones372.lark.resource
 import java.nio.ByteBuffer
 import java.sql.SQLException
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -107,15 +105,13 @@ private class Down : Journal {
     override fun read(id: PersistenceId, from: Long) = kept.read(id, from)
 }
 
-object DurableProducerSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DurableProducerSuite : Suite() {
     private val ids = (0 until 5).map { "w-$it" }
 
     init {
         test(
             "a producer started again under its id sends every unconfirmed command once, and numbers on after them",
-        ) { _ ->
+        ) {
             testActors {
                 val wallets = ids.associateWith { spawn(it, wallet(it)) }
                 val crashed = durableProducer("till", topUpCodec) { nowhere }
@@ -133,7 +129,7 @@ object DurableProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("across databases the outbox sits in its producer's own database, and a restart finds it there") { _ ->
+        test("across databases the outbox sits in its producer's own database, and a restart finds it there") {
             val databases = listOf("db-a" to InMemoryJournal(), "db-b" to InMemoryJournal())
             val sharded = ShardedJournal(databases)
             testActors(journal = sharded) {
@@ -153,7 +149,7 @@ object DurableProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("snapshots keep the outbox small, and a producer started from one numbers on") { _ ->
+        test("snapshots keep the outbox small, and a producer started from one numbers on") {
             testActors {
                 val wallets = ids.associateWith { spawn(it, wallet(it)) }
                 val producer = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }
@@ -168,7 +164,7 @@ object DurableProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("what a start recovers holds room, so a drain waits for it") { _ ->
+        test("what a start recovers holds room, so a drain waits for it") {
             testActors {
                 val crashed = durableProducer("till", topUpCodec) { nowhere }
                 for (n in 0 until 3) crashed.send("w-$n") { TopUp(n.toLong(), it) }
@@ -182,7 +178,7 @@ object DurableProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("a producer resumed under an actor sends what an earlier run kept, and then drains") { _ ->
+        test("a producer resumed under an actor sends what an earlier run kept, and then drains") {
             testActors {
                 val wallets = ids.associateWith { spawn(it, wallet(it)) }
                 val crashed = durableProducer("till", topUpCodec, keep = 10) { nowhere }
@@ -199,7 +195,7 @@ object DurableProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("a resumed producer whose journal throws restarts after a backoff, and still drains") { _ ->
+        test("a resumed producer whose journal throws restarts after a backoff, and still drains") {
             val kept = InMemoryJournal()
             testActors(journal = kept) {
                 val crashed = durableProducer("till", topUpCodec) { nowhere }
@@ -223,7 +219,7 @@ object DurableProducerSuite : Suite<Unit>() {
 
         test(
             "a producer whose journal throws for a while sends what it writes once it is back, and holds no room",
-        ) { _ ->
+        ) {
             testActors(journal = Flaky(failures = 4)) {
                 val wallets = ids.associateWith { spawn(it, wallet(it)) }
                 val producer =
@@ -238,7 +234,7 @@ object DurableProducerSuite : Suite<Unit>() {
 
         test(
             "on threads, a send while the journal is down answers Unwritten at once, and one after it is back is sent",
-        ) { _ ->
+        ) {
             val within = 5.seconds
             val database = Down()
             capturingMetrics { captured ->
@@ -269,7 +265,7 @@ object DurableProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("a producer says once that its journal is down, and once that it is back") { _ ->
+        test("a producer says once that its journal is down, and once that it is back") {
             val lines = ConcurrentLinkedQueue<LogLine>()
             val sends = logger.locally({ line -> lines += line }) {
                 testActors(journal = Flaky(failures = 1)) {
@@ -286,7 +282,7 @@ object DurableProducerSuite : Suite<Unit>() {
             sends and said
         }
 
-        test("a command the codec refuses, or that cannot be sent again, throws to its sender and holds no room") { _ ->
+        test("a command the codec refuses, or that cannot be sent again, throws to its sender and holds no room") {
             testActors {
                 val wallets = ids.associateWith { spawn(it, wallet(it)) }
                 val producer =
@@ -310,7 +306,7 @@ object DurableProducerSuite : Suite<Unit>() {
             }
         }
 
-        test("a start that recovers more than it may keep drains only once every one is confirmed") { _ ->
+        test("a start that recovers more than it may keep drains only once every one is confirmed") {
             testActors {
                 val crashed = durableProducer("till", topUpCodec) { nowhere }
                 for (n in 1..5) crashed.send("w-0") { TopUp(n.toLong(), it) }

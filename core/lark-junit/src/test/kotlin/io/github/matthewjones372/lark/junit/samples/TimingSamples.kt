@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.junit.samples
 
 import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.flaky
@@ -20,7 +21,7 @@ class Runs {
 }
 
 /** Tests that pass or fail by how many times they have run, under the timing aspects. */
-object TimingSuite : Suite<Runs>() {
+object TimingSuite : SharedSuite<Runs>() {
     override val shared: Resource<Runs> = resource { Runs() }
 
     init {
@@ -35,16 +36,14 @@ object TimingSuite : Suite<Runs>() {
 }
 
 /** Spec 0193: the build's default timeout, for a test with none of its own and not for one that has one. */
-object DefaultTimeoutSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DefaultTimeoutSuite : Suite() {
     init {
         // Long enough to pass the default the test gives, short enough not to hold up a run that selects every suite.
-        test("sleeps past the default") { _ ->
+        test("sleeps past the default") {
             Thread.sleep(SLEEP_PAST_DEFAULT_MILLIS)
             expect(true)
         }
-        test("outlasts the default under its own timeout", timeout(1.minutes)) { _ ->
+        test("outlasts the default under its own timeout", timeout(1.minutes)) {
             Thread.sleep(SLEEP_PAST_DEFAULT_MILLIS)
             expect(true)
         }

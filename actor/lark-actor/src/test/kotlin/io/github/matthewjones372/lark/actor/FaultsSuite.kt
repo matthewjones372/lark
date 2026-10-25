@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldHaveSize
 import io.github.matthewjones372.lark.junit.shouldNotBeEmpty
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -46,11 +44,9 @@ private fun echo(to: ActorRef<String>): Behaviour<String, Unit, Nothing> = behav
 private fun heard(): Behaviour<String, List<String>, Nothing> =
     behaviour(emptyList()) { _, seen, word -> become(seen + word) }
 
-object FaultsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object FaultsSuite : Suite() {
     init {
-        test("a requester that asks again completes when half of all messages are lost") { _ ->
+        test("a requester that asks again completes when half of all messages are lost") {
             (1L..20L).map { seed ->
                 testActors(order = Ordering.seeded(seed), faults = Faults(drop = 0.5)) {
                     val asker = spawn("asker", asker(spawn("server", pong())))
@@ -61,7 +57,7 @@ object FaultsSuite : Suite<Unit>() {
             }.reduce(Expectations::and)
         }
 
-        test("the trace shows each message lost") { _ ->
+        test("the trace shows each message lost") {
             val dropped = (1L..20L).flatMap { seed ->
                 testActors(order = Ordering.seeded(seed), faults = Faults(drop = 0.5)) {
                     spawn("asker", asker(spawn("server", pong()))).tell("ask")
@@ -74,7 +70,7 @@ object FaultsSuite : Suite<Unit>() {
             }
         }
 
-        test("a duplicated message arrives twice") { _ ->
+        test("a duplicated message arrives twice") {
             testActors(order = Ordering.seeded(1), faults = Faults(duplicate = 1.0)) {
                 val log = spawn("log", heard())
                 spawn("echo", echo(log)).tell("hello")
@@ -83,7 +79,7 @@ object FaultsSuite : Suite<Unit>() {
             }
         }
 
-        test("a delayed message waits for the test's time to reach it") { _ ->
+        test("a delayed message waits for the test's time to reach it") {
             testActors(order = Ordering.seeded(1), faults = Faults(delay = 1.0, maxDelay = 2.seconds)) {
                 val log = spawn("log", heard())
                 spawn("echo", echo(log)).tell("hello")
@@ -95,7 +91,7 @@ object FaultsSuite : Suite<Unit>() {
             }
         }
 
-        test("an actor's tells to itself are never lost, as they never leave its node") { _ ->
+        test("an actor's tells to itself are never lost, as they never leave its node") {
             testActors(order = Ordering.seeded(1), faults = Faults(drop = 1.0)) {
                 val counter = spawn(
                     "counter",
@@ -111,7 +107,7 @@ object FaultsSuite : Suite<Unit>() {
 
         test(
             "a delayed message holds back what its sender tells the same receiver after it, as one connection would",
-        ) { _ ->
+        ) {
             (1L..50L).map { seed ->
                 testActors(order = Ordering.seeded(seed), faults = Faults(delay = 0.5, maxDelay = 2.seconds)) {
                     val log = spawn("log", heard())
@@ -128,7 +124,7 @@ object FaultsSuite : Suite<Unit>() {
             }.reduce(Expectations::and)
         }
 
-        test("a tell from the test itself is never lost") { _ ->
+        test("a tell from the test itself is never lost") {
             testActors(order = Ordering.seeded(1), faults = Faults(drop = 1.0)) {
                 val log = spawn("log", heard())
                 log.tell("hello")
@@ -136,7 +132,7 @@ object FaultsSuite : Suite<Unit>() {
             }
         }
 
-        test("faults draw from the order's seed, so they need one") { _ ->
+        test("faults draw from the order's seed, so they need one") {
             shouldThrow<IllegalArgumentException> { testActors(faults = Faults(drop = 0.1)) { } }
         }
     }

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.bind
@@ -12,7 +11,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.minutes
 
 private data object OutOfStock
@@ -50,11 +48,9 @@ private fun till(stock: Int) = behaviour<Till, Int, OutOfStock>(stock) { _, left
     }
 }
 
-object RaiseSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RaiseSuite : Suite() {
     init {
-        test("a raise stops the actor, and is its failure") { _ ->
+        test("a raise stops the actor, and is its failure") {
             val till = till(3).test()
 
             till.send(Sell(5))
@@ -62,7 +58,7 @@ object RaiseSuite : Suite<Unit>() {
             (till.stopped shouldBe true) and (till.failure shouldBe Failure.Declared(OutOfStock))
         }
 
-        test("a bind on a Left is a raise") { _ ->
+        test("a bind on a Left is a raise") {
             val till = till(3).test()
 
             till.send(Settle(OutOfStock.left()))
@@ -70,7 +66,7 @@ object RaiseSuite : Suite<Unit>() {
             till.failure shouldBe Failure.Declared(OutOfStock)
         }
 
-        test("a raise inside the step's own either is that either's, and the actor carries on") { _ ->
+        test("a raise inside the step's own either is that either's, and the actor carries on") {
             val till = till(3).test()
 
             till.send(Try(5))
@@ -79,7 +75,7 @@ object RaiseSuite : Suite<Unit>() {
             (till.stopped shouldBe false) and (till.state shouldBe 1)
         }
 
-        test("a throw is a Thrown failure, and still reaches the test") { _ ->
+        test("a throw is a Thrown failure, and still reaches the test") {
             val till = till(3).test()
 
             val thrown = shouldThrow<IllegalStateException> { till.send(Explode) }
@@ -89,7 +85,7 @@ object RaiseSuite : Suite<Unit>() {
             }
         }
 
-        test("on threads, a raise stops the actor too") { _ ->
+        test("on threads, a raise stops the actor too") {
             val answer = flock<Nothing, Any> {
                 val till = spawn("till", till(3))
                 till.tell(Sell(5))

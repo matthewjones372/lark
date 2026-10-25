@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.stream
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.Fail
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.withClue
@@ -16,7 +16,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** Every operator on a pipe: the answer its `Stream` twin gives, and one pipe spliced into two sources. */
-object PipeOperatorsSuite : Suite<PekkoSystem>() {
+object PipeOperatorsSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-pipe-operators-test")
 
     /** Long enough that a machine under load does not fail a claim about a branch being heard. */

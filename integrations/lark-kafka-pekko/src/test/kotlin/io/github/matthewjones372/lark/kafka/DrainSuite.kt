@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.stream.Exit
@@ -15,7 +15,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** A committing run stopped drains: the consumer stops fetching, and what is in flight finishes and commits. */
-object DrainSuite : Suite<KafkaKit>() {
+object DrainSuite : SharedSuite<KafkaKit>() {
     override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-drain-test")
 
     private const val GENEROUS_SECONDS = 60L

@@ -4,13 +4,11 @@ import dev.openfeature.sdk.ImmutableStructure
 import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.Value
 import dev.openfeature.sdk.providers.memory.InMemoryProvider
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 import dev.openfeature.sdk.providers.memory.Flag as MemoryFlag
@@ -50,11 +48,9 @@ private val cases = listOf(
 )
 
 /** Spec 0195: a flag says whether a raw value would read as its type, decoding as [Flag.value] does. */
-object FlagRejectsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object FlagRejectsSuite : Suite() {
     init {
-        test("each factory passes a value it reads and names what is wrong with one it does not") { _ ->
+        test("each factory passes a value it reads and names what is wrong with one it does not") {
             cases.forAll { case ->
                 withClue(case.flag.key) {
                     (case.flag.rejects(case.good) shouldBe null) and
@@ -63,7 +59,7 @@ object FlagRejectsSuite : Suite<Unit>() {
             }
         }
 
-        test("rejects passes exactly the values a provider holding them answers without an error code") { _ ->
+        test("rejects passes exactly the values a provider holding them answers without an error code") {
             val values = cases.flatMap { case -> listOf(case.flag to case.good, case.flag to case.bad) }
             val api = OpenFeatureAPI.getInstance().apply { useLark() }
             values.withIndex().forAll { (index, pair) ->
@@ -82,7 +78,7 @@ object FlagRejectsSuite : Suite<Unit>() {
 
         test(
             "a whole number is an Int or a Long only inside its range, and a Long never past where a double holds it",
-        ) { _ ->
+        ) {
             val limit = Flag.int("rejects.limit", 1)
             val total = Flag.long("rejects.total", 1L)
 

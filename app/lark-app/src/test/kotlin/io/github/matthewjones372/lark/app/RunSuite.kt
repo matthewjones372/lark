@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.nonEmptyListOf
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.reflect.typeOf
@@ -15,11 +13,9 @@ import kotlin.reflect.typeOf
 private class Held
 private class Absent
 
-object RunSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RunSuite : Suite() {
     init {
-        test("awaitShutdown returns when the process is asked to stop") { _ ->
+        test("awaitShutdown returns when the process is asked to stop") {
             val shutdown = Shutdown()
             val running = CountDownLatch(1)
             val outcome = AtomicReference<Either<StartupError, Unit>>()
@@ -40,7 +36,7 @@ object RunSuite : Suite<Unit>() {
             outcome.get().shouldNotBeNull { ended -> ended.getOrNull().shouldNotBeNull() }
         }
 
-        test("the graph is released after the block returns") { _ ->
+        test("the graph is released after the block returns") {
             val released = CountDownLatch(1)
             val module = single<Held> { install({ Held() }) { _, _ -> released.countDown() } }
 
@@ -49,7 +45,7 @@ object RunSuite : Suite<Unit>() {
             ran and (released.count shouldBe 0L)
         }
 
-        test("a graph that cannot start never runs the block") { _ ->
+        test("a graph that cannot start never runs the block") {
             val ran = AtomicReference(false)
 
             val error = (single<Held> { Held() }).application(Shutdown()) { _: Absent -> ran.set(true) }.leftOrNull()
@@ -59,13 +55,13 @@ object RunSuite : Suite<Unit>() {
             }
         }
 
-        test("a refusal describes itself by node and reason") { _ ->
+        test("a refusal describes itself by node and reason") {
             val described = StartupError.Refused(typeOf<Held>(), "the port is already taken").describe()
 
             (described shouldContain "Held") and (described shouldContain "the port is already taken")
         }
 
-        test("a faulty graph describes itself with the wiring report") { _ ->
+        test("a faulty graph describes itself with the wiring report") {
             val described = StartupError
                 .Unwireable(nonEmptyListOf(WiringError.Missing(typeOf<Held>(), typeOf<Absent>())))
                 .describe()
@@ -73,12 +69,12 @@ object RunSuite : Suite<Unit>() {
             (described shouldContain "❯ missing Held") and (described shouldContain "❯     for Absent")
         }
 
-        test("an exit code is Ok only when the application left cleanly") { _ ->
+        test("an exit code is Ok only when the application left cleanly") {
             (Either.Right(Unit).exitCode() shouldBe ExitCode.Ok) and
                 (Either.Left(StartupError.NoSuchNode(typeOf<Absent>())).exitCode() shouldBe ExitCode.Failed)
         }
 
-        test("runApp answers rather than ending the process, so a test can read what it decided") { _ ->
+        test("runApp answers rather than ending the process, so a test can read what it decided") {
             val started = AtomicReference(false)
 
             val exit = runApp(single<Held> { Held() }) { _: Held -> started.set(true) }
@@ -86,7 +82,7 @@ object RunSuite : Suite<Unit>() {
             (started.get() shouldBe true) and (exit shouldBe ExitCode.Ok)
         }
 
-        test("a graph that cannot start answers Failed") { _ ->
+        test("a graph that cannot start answers Failed") {
             runApp(single<Held> { Held() }) { _: Absent -> } shouldBe ExitCode.Failed
         }
     }

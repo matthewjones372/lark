@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
@@ -15,7 +14,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldHaveSize
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -44,11 +42,9 @@ private class Heard {
 }
 
 /** Each section logs what it read, as it reads it, and nothing it did not (spec 0155). */
-object SectionReportSuite : Suite<Unit>(concurrent = false) {
+object SectionReportSuite : Suite(concurrent = false) {
     // Not concurrent: nine of the eleven tests check what a handler on the one process-wide `lark-app` logger
     // heard, mostly that it heard a single block, and a test starting an app beside them logs its own block there.
-    override val shared: Resource<Unit> = resource { }
-
     private val logger = Logger.getLogger("lark-app")
 
     /** Runs [body] with a handler on the `lark-app` logger, removed again once it returns. */
@@ -75,7 +71,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
     }
 
     init {
-        test("a section logs the paths it read, masked by how they were read and by name") { _ ->
+        test("a section logs the paths it read, masked by how they were read and by name") {
             listening { heard ->
                 testApp(configOf(hocon) + shop) { _: Shop -> Unit }
 
@@ -93,7 +89,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a section over layers says what each setting overrode") { _ ->
+        test("a section over layers says what each setting overrode") {
             listening { heard ->
                 val base = layeredConfigOf("base" to ConfigFactory.parseString(hocon))
                 val app = configOf(hocon).overridingConfig("petshop.port = 8081", fallback = base) + shop
@@ -104,7 +100,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a layered merge is a Config Typesafe can merge under another, and still reports its layers") { _ ->
+        test("a layered merge is a Config Typesafe can merge under another, and still reports its layers") {
             listening { heard ->
                 val base = layeredConfigOf("base" to ConfigFactory.parseString(hocon))
 
@@ -120,7 +116,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a setting read by its quoted path is masked as its plain one would be") { _ ->
+        test("a setting read by its quoted path is masked as its plain one would be") {
             listening { heard ->
                 val quoted = config<String>("petshop") { string("\"password\"") }
 
@@ -130,7 +126,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("an object read whole is reported as its settings, each masked as it would be alone") { _ ->
+        test("an object read whole is reported as its settings, each masked as it would be alone") {
             listening { heard ->
                 val whole = config<WholeDb>("petshop") { WholeDb(of("db", ConfigFactory.empty()) { getConfig("db") }) }
                 val nested = """petshop { db { user = "shop", password = "hunter4" } }"""
@@ -145,7 +141,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("two stacks that merge to equal documents each keep their own layers") { _ ->
+        test("two stacks that merge to equal documents each keep their own layers") {
             listening { _ ->
                 val first = layeredConfigOf("first" to ConfigFactory.parseString(hocon))
                 val second = layeredConfigOf("second" to ConfigFactory.parseString(hocon))
@@ -157,7 +153,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a path HOCON cannot parse refuses the start with its fault, not the report's") { _ ->
+        test("a path HOCON cannot parse refuses the start with its fault, not the report's") {
             listening { _ ->
                 val app = configOf(hocon) + config<String>("petshop") { string("not..a.path") }
 
@@ -167,7 +163,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a setting a lower layer left null, overridden above, still starts and says so") { _ ->
+        test("a setting a lower layer left null, overridden above, still starts and says so") {
             listening { heard ->
                 val base = layeredConfigOf("base" to ConfigFactory.parseString(hocon + "\npetshop.port = null"))
                 val app = configOf(hocon).overridingConfig("petshop.port = 8081", fallback = base) + shop
@@ -178,7 +174,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a hand-written Config, with no layers, is still reported") { _ ->
+        test("a hand-written Config, with no layers, is still reported") {
             listening { heard ->
                 val app = single<Config> { ConfigFactory.parseString(hocon).resolve() } + shop
 
@@ -188,7 +184,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a section that refuses the start logs what it did read first") { _ ->
+        test("a section that refuses the start logs what it did read first") {
             listening { heard ->
                 val app = configOf("""petshop { host = "0.0.0.0" }""") + shop
 
@@ -203,7 +199,7 @@ object SectionReportSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a section chosen on logs its block when the graph starts") { _ ->
+        test("a section chosen on logs its block when the graph starts") {
             listening { heard ->
                 val root = ConfigFactory.parseString(hocon)
                 val app = configOf(root) + root.choosing("petshop", { string("host") }) { single<Int> { 1 } }

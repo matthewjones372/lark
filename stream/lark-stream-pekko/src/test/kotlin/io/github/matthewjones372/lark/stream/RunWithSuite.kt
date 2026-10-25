@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.Done
@@ -14,7 +14,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** A run to the sink the caller names, beside the sink `divertLefts` names, in one materialisation. */
-object RunWithSuite : Suite<PekkoSystem>() {
+object RunWithSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-runwith-test")
 
     private data class Receipt(val id: Int)

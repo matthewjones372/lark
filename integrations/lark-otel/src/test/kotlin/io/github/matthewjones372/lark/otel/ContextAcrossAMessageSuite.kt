@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.otel
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
 import io.github.matthewjones372.lark.actor.behaviour
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.sdk.OpenTelemetrySdk
@@ -35,11 +33,9 @@ private class Traced {
 }
 
 /** Spec 0122: the trace a message was sent in is the one its handler runs in. */
-object ContextAcrossAMessageSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ContextAcrossAMessageSuite : Suite() {
     init {
-        test("a span open at an ask is the parent of the span its handler opens") { _ ->
+        test("a span open at an ask is the parent of the span its handler opens") {
             val traced = Traced()
             val _ = flock<Nothing, String> {
                 val actor = spawn("handler", traced.handler())
@@ -54,7 +50,7 @@ object ContextAcrossAMessageSuite : Suite<Unit>() {
             }
         }
 
-        test("a message sent outside any span is handled outside one") { _ ->
+        test("a message sent outside any span is handled outside one") {
             val traced = Traced()
             val _ = flock<Nothing, String> {
                 spawn("handler", traced.handler()).ask(1.minutes) { Handle(it) }.getOrNull()!!

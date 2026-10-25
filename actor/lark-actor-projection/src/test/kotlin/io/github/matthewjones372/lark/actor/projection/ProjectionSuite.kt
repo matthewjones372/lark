@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.projection
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.actor.Confirmed
 import io.github.matthewjones372.lark.actor.Delivered
@@ -19,7 +18,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.logAnnotated
-import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.Stream
@@ -70,11 +68,9 @@ private class Orders {
             .mapFollowed { event -> event.value.also { handled += "${event.id.id}: $it" } }
 }
 
-object ProjectionSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ProjectionSuite : Suite() {
     init {
-        test("a projection stopped after 30 of 50 events starts again at the 31st") { _ ->
+        test("a projection stopped after 30 of 50 events starts again at the 31st") {
             with(Orders()) {
                 (1..50).forEach(journal::place)
 
@@ -97,7 +93,7 @@ object ProjectionSuite : Suite<Unit>() {
             }
         }
 
-        test("an event appended while a projection has caught up reaches it on the next poll") { _ ->
+        test("an event appended while a projection has caught up reaches it on the next poll") {
             with(Orders()) {
                 val moving = TestClock()
                 val reached = CountDownLatch(1)
@@ -121,7 +117,7 @@ object ProjectionSuite : Suite<Unit>() {
             }
         }
 
-        test("the marks of reliable deliveries are skipped, and the offset passes them") { _ ->
+        test("the marks of reliable deliveries are skipped, and the offset passes them") {
             with(Orders()) {
                 testActors(journal = journal) {
                     val confirms = spawn("confirms", behaviour<Confirmed, Unit>(Unit) { _, _, _ -> stay() })
@@ -136,7 +132,7 @@ object ProjectionSuite : Suite<Unit>() {
 
         test(
             "an event read as two is followed as two, and a run stopped between them reads it again from the first",
-        ) { _ ->
+        ) {
             with(Orders()) {
                 val split = object : EventCodec<String> {
                     override fun encode(event: String): ByteArray = event.toByteArray()
@@ -160,7 +156,7 @@ object ProjectionSuite : Suite<Unit>() {
             }
         }
 
-        test("a followed event carries what its append carried, for a publisher to send on") { _ ->
+        test("a followed event carries what its append carried, for a publisher to send on") {
             with(Orders()) {
                 logAnnotated("request_id" to "r-4") { journal.place(1) }
                 journal.place(2)

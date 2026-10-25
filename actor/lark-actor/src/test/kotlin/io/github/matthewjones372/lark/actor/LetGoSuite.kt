@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.fail.right
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.minutes
 
 private sealed interface Brood
@@ -65,11 +63,9 @@ private fun kept() = behaviour<Kept, Int>(0) { _, visits, message ->
     }
 }
 
-object LetGoSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LetGoSuite : Suite() {
     init {
-        test("a child that has stopped is no longer among its parent's children") { _ ->
+        test("a child that has stopped is no longer among its parent's children") {
             testActors {
                 val parent = spawn("nest", nest())
                 parent.send(Hatch("rex"))
@@ -81,7 +77,7 @@ object LetGoSuite : Suite<Unit>() {
             }
         }
 
-        test("stopping a child that has already stopped does nothing, and stopping a stranger still fails") { _ ->
+        test("stopping a child that has already stopped does nothing, and stopping a stranger still fails") {
             testActors {
                 val parent = spawn("nest", nest())
                 val stranger = spawn("stranger", idle())
@@ -95,7 +91,7 @@ object LetGoSuite : Suite<Unit>() {
             }
         }
 
-        test("on threads, a child that has stopped is let go by its parent, and stopping it again does nothing") { _ ->
+        test("on threads, a child that has stopped is let go by its parent, and stopping it again does nothing") {
             val parent = flock<Nothing, Int> {
                 val parent = spawn("nest", nest())
                 parent.tell(Hatch("rex"))
@@ -109,7 +105,7 @@ object LetGoSuite : Suite<Unit>() {
             parent shouldBeRight 0
         }
 
-        test("on threads, a flock that spawned and stopped a thousand actors holds none of them") { _ ->
+        test("on threads, a flock that spawned and stopped a thousand actors holds none of them") {
             val held = flock<Nothing, Int> {
                 repeat(1_000) { stop(spawn("passing-$it", idle())).await() }
                 actorCount
@@ -118,7 +114,7 @@ object LetGoSuite : Suite<Unit>() {
             held shouldBeRight 0
         }
 
-        test("on threads, an entity passivated a thousand times is one child of its manager") { _ ->
+        test("on threads, an entity passivated a thousand times is one child of its manager") {
             val moving = TestClock()
             val seen = clock.locally(moving) {
                 flock<Nothing, Any> {

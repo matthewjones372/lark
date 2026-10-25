@@ -8,6 +8,7 @@ import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.increment
 import io.github.matthewjones372.lark.junit.Expectations
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
@@ -58,9 +59,7 @@ import java.util.concurrent.atomic.AtomicInteger
 // Suites that fail on purpose. This module's own `test` task excludes this package, so only the
 // tests that select them through EngineTestKit or a Launcher run them.
 
-object MixedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object MixedSuite : Suite() {
     init {
         test("passes") { expect(true) }
         test("fails an assertion") { throw AssertionError("expected 1 but was 2") }
@@ -69,7 +68,7 @@ object MixedSuite : Suite<Unit>() {
 }
 
 /** Records what each test was handed and when the resource was released, for the engine test to read. */
-object OrderedSuite : Suite<String>(limit = Limit.fixed(1)) {
+object OrderedSuite : SharedSuite<String>(limit = Limit.fixed(1)) {
     val seen: MutableList<String> = mutableListOf()
 
     override val shared: Resource<String> = resource {
@@ -84,7 +83,7 @@ object OrderedSuite : Suite<String>(limit = Limit.fixed(1)) {
 }
 
 /** Opens a connection, then fails to open the database, so the connection is all there is to release. */
-object UnacquirableSuite : Suite<String>() {
+object UnacquirableSuite : SharedSuite<String>() {
     val released: MutableList<String> = CopyOnWriteArrayList()
 
     override val shared: Resource<String> = resource {
@@ -100,7 +99,7 @@ object UnacquirableSuite : Suite<String>() {
 }
 
 /** Its tests pass, and closing what they shared throws. */
-object UnreleasableSuite : Suite<Unit>() {
+object UnreleasableSuite : SharedSuite<Unit>() {
     override val shared: Resource<Unit> = resource {
         install({ }) { _, _ -> error("could not close") }
     }
@@ -112,7 +111,7 @@ object UnreleasableSuite : Suite<Unit>() {
 }
 
 /** Counts acquisitions, and records at release how many of its sixteen concurrent tests had finished. */
-object CountedSuite : Suite<Unit>(limit = Limit.fixed(8)) {
+object CountedSuite : SharedSuite<Unit>(limit = Limit.fixed(8)) {
     val acquired = AtomicInteger()
     val finished = AtomicInteger()
 
@@ -134,7 +133,7 @@ object CountedSuite : Suite<Unit>(limit = Limit.fixed(8)) {
 }
 
 /** Each test waits for all eight to be running, so the suite only finishes if they run together. */
-object GatedSuite : Suite<CountDownLatch>(limit = Limit.fixed(8)) {
+object GatedSuite : SharedSuite<CountDownLatch>(limit = Limit.fixed(8)) {
     val virtual: MutableMap<String, Boolean> = ConcurrentHashMap()
 
     override val shared: Resource<CountDownLatch> = resource { CountDownLatch(8) }
@@ -151,10 +150,8 @@ object GatedSuite : Suite<CountDownLatch>(limit = Limit.fixed(8)) {
 }
 
 /** Would run all at once under its default limit, if `concurrent = false` were ignored. */
-object SequentialSuite : Suite<Unit>(concurrent = false) {
+object SequentialSuite : Suite(concurrent = false) {
     val seen: MutableList<String> = CopyOnWriteArrayList()
-
-    override val shared: Resource<Unit> = resource { }
 
     init {
         (1..8).forEach { n -> test("in turn $n") { expect(seen.add("in turn $n")) } }
@@ -162,14 +159,12 @@ object SequentialSuite : Suite<Unit>(concurrent = false) {
 }
 
 /** Two concurrent tests on either side of an `alone` one, which reads how many of its suite are running. */
-object AloneSuite : Suite<Unit>(limit = Limit.fixed(8)) {
+object AloneSuite : Suite(limit = Limit.fixed(8)) {
     private val running = AtomicInteger()
     val seen: MutableList<String> = CopyOnWriteArrayList()
 
     @Volatile
     var runningWhileAlone: Int = 0
-
-    override val shared: Resource<Unit> = resource { }
 
     private fun together(name: String, gate: CountDownLatch) = test(name) {
         running.incrementAndGet()
@@ -195,7 +190,7 @@ object AloneSuite : Suite<Unit>(limit = Limit.fixed(8)) {
 }
 
 /** A failing test between two that wait for each other, so it fails while both are running. */
-object FailingSiblingSuite : Suite<CountDownLatch>(limit = Limit.fixed(3)) {
+object FailingSiblingSuite : SharedSuite<CountDownLatch>(limit = Limit.fixed(3)) {
     override val shared: Resource<CountDownLatch> = resource { CountDownLatch(3) }
 
     init {
@@ -215,7 +210,7 @@ object FailingSiblingSuite : Suite<CountDownLatch>(limit = Limit.fixed(3)) {
 }
 
 /** Two tests that log while both are running and then fail, a passing one that logs, and one whose fork logs. */
-object LoggingSuite : Suite<CountDownLatch>(limit = Limit.fixed(4)) {
+object LoggingSuite : SharedSuite<CountDownLatch>(limit = Limit.fixed(4)) {
     override val shared: Resource<CountDownLatch> = resource { CountDownLatch(2) }
 
     private fun failsTogether(name: String) = test(name) { gate ->
@@ -241,7 +236,7 @@ object LoggingSuite : Suite<CountDownLatch>(limit = Limit.fixed(4)) {
 }
 
 /** Two tests that count the same metric while both are running, and record the total each one read. */
-object MeteredSuite : Suite<CountDownLatch>(limit = Limit.fixed(2)) {
+object MeteredSuite : SharedSuite<CountDownLatch>(limit = Limit.fixed(2)) {
     val totals: MutableMap<String, Double> = ConcurrentHashMap()
 
     override val shared: Resource<CountDownLatch> = resource { CountDownLatch(2) }
@@ -261,16 +256,14 @@ object MeteredSuite : Suite<CountDownLatch>(limit = Limit.fixed(2)) {
 }
 
 /** Has a suite's shape but is a class, so there is no one instance to run. */
-class NotAnObject : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+class NotAnObject : Suite() {
     init {
         test("never found") { expect(true) }
     }
 }
 
 /** Expectations combined every way, each test named for how it should end. */
-object ExpectingSuite : Suite<Int>() {
+object ExpectingSuite : SharedSuite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     // Power-assert rewrites calls, not references, so this is `expect` as a caller built without the plugin sees it.
@@ -293,7 +286,7 @@ object ExpectingSuite : Suite<Int>() {
 }
 
 /** lark-junit's value-returning matchers, each test named for how it should end. */
-object MatchingSuite : Suite<Int>() {
+object MatchingSuite : SharedSuite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     init {
@@ -310,7 +303,7 @@ object MatchingSuite : Suite<Int>() {
 }
 
 /** Spec 0190's shouldThrow: what a block threw, checked as a value. */
-object ThrowingSuite : Suite<Int>() {
+object ThrowingSuite : SharedSuite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     /** How many times a [shouldThrow]'s second lambda ran; it must not on a failed throw check. */
@@ -338,7 +331,7 @@ object ThrowingSuite : Suite<Int>() {
 }
 
 /** Spec 0190's contains and same-instance matchers. */
-object ContainingSuite : Suite<List<String>>() {
+object ContainingSuite : SharedSuite<List<String>>() {
     override val shared: Resource<List<String>> = resource { listOf("one", "two") }
 
     init {
@@ -358,7 +351,7 @@ object ContainingSuite : Suite<List<String>>() {
 }
 
 /** Spec 0191's clue and narrowing, as values. */
-object CluedSuite : Suite<Any>() {
+object CluedSuite : SharedSuite<Any>() {
     override val shared: Resource<Any> = resource { "two" }
 
     /** How many times a [shouldBeInstanceOf]'s lambda ran; it must not on a miss. */
@@ -393,7 +386,7 @@ object CluedSuite : Suite<Any>() {
 }
 
 /** Spec 0192's matchers: collections in any order, emptiness, null and comparisons, as values. */
-object GappedSuite : Suite<List<Int>>() {
+object GappedSuite : SharedSuite<List<Int>>() {
     override val shared: Resource<List<Int>> = resource { listOf(1, 2, 2, 3) }
 
     /** How many times a narrowing matcher's lambda ran on a miss; it must not. */
@@ -466,7 +459,7 @@ object GappedSuite : Suite<List<Int>>() {
 }
 
 /** Spec 0197's forAll: every element's checks are kept, and no elements is no checks. */
-object ForAllSuite : Suite<List<Int>>() {
+object ForAllSuite : SharedSuite<List<Int>>() {
     override val shared: Resource<List<Int>> = resource { listOf(1, 2, 3, 4) }
 
     init {

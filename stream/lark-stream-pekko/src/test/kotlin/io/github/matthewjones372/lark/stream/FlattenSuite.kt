@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -10,7 +10,7 @@ import io.github.matthewjones372.lark.junit.withClue
 import java.util.concurrent.CompletionStage
 
 /** An element that is itself a stream, flattened in order and out of it. */
-object FlattenSuite : Suite<PekkoSystem>() {
+object FlattenSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-flatten-test")
 
     private data class FetchError(val cursor: Int)

@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.micrometer
 
 import io.github.matthewjones372.lark.Reading
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.counter
 import io.github.matthewjones372.lark.gauge
 import io.github.matthewjones372.lark.histogram
@@ -14,7 +13,6 @@ import io.github.matthewjones372.lark.metricTagged
 import io.github.matthewjones372.lark.metrics
 import io.github.matthewjones372.lark.parMap
 import io.github.matthewjones372.lark.readings
-import io.github.matthewjones372.lark.resource
 import io.micrometer.core.instrument.Meter
 import io.micrometer.core.instrument.config.MeterFilter
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig
@@ -28,11 +26,9 @@ private fun <A> recording(registry: SimpleMeterRegistry, block: () -> A): A =
 private fun <A> unbound(read: () -> A): A = FutureTask(read).also { Thread.ofVirtual().start(it) }.get()
 
 /** What a measurement looks like once it reaches a registry, asserted against a real one. */
-object MicrometerMetricsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object MicrometerMetricsSuite : Suite() {
     init {
-        test("a counter arrives with its name and its total") { _ ->
+        test("a counter arrives with its name and its total") {
             val registry = SimpleMeterRegistry()
 
             recording(registry) {
@@ -43,7 +39,7 @@ object MicrometerMetricsSuite : Suite<Unit>() {
             registry.counter("petshop.adoptions").count() shouldBe 3.0
         }
 
-        test("a tag in scope is a tag on the meter") { _ ->
+        test("a tag in scope is a tag on the meter") {
             val registry = SimpleMeterRegistry()
 
             recording(registry) {
@@ -55,7 +51,7 @@ object MicrometerMetricsSuite : Suite<Unit>() {
             }
         }
 
-        test("a gauge reads back what it was set to, through a registry that pulls") { _ ->
+        test("a gauge reads back what it was set to, through a registry that pulls") {
             val registry = SimpleMeterRegistry()
 
             recording(registry) {
@@ -68,7 +64,7 @@ object MicrometerMetricsSuite : Suite<Unit>() {
             }
         }
 
-        test("a histogram arrives as a distribution") { _ ->
+        test("a histogram arrives as a distribution") {
             val registry = SimpleMeterRegistry()
 
             recording(registry) {
@@ -81,7 +77,7 @@ object MicrometerMetricsSuite : Suite<Unit>() {
             }
         }
 
-        test("a fork measures into the same meter as its opener") { _ ->
+        test("a fork measures into the same meter as its opener") {
             val registry = SimpleMeterRegistry()
 
             recording(registry) {
@@ -93,7 +89,7 @@ object MicrometerMetricsSuite : Suite<Unit>() {
             registry.counter("petshop.adoptions", "species", "tortoise").count() shouldBe 3.0
         }
 
-        test("nothing is bound in main and the classpath still answers") { _ ->
+        test("nothing is bound in main and the classpath still answers") {
             withClue("the service file is the whole of the setup, so it is asserted not assumed") {
                 unbound { metrics.get() }.shouldBeInstanceOf<MicrometerMetrics>()
             }
@@ -102,13 +98,11 @@ object MicrometerMetricsSuite : Suite<Unit>() {
 }
 
 /** Spec 0109: what a registry holds, read back through lark, one reading for each set of tags. */
-object MicrometerReadingsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object MicrometerReadingsSuite : Suite() {
     init {
         test(
             "counters, gauges and bucketed histograms read back from the registry, each tag set its own",
-        ) { _ ->
+        ) {
             val registry = SimpleMeterRegistry()
             registry.config().meterFilter(
                 object : MeterFilter {

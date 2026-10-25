@@ -14,12 +14,12 @@ class StoryCompileTest {
 
     private fun suiteOf(body: String, vararg imports: String) = """
         import io.github.matthewjones372.lark.Resource
-        import io.github.matthewjones372.lark.junit.Suite
+        import io.github.matthewjones372.lark.junit.SharedSuite
         import io.github.matthewjones372.lark.junit.shouldBe
         import io.github.matthewjones372.lark.resource
         ${imports.joinToString("\n") { "import $it" }}
 
-        object Fixture : Suite<Int>() {
+        object Fixture : SharedSuite<Int>() {
             override val shared: Resource<Int> = resource { 1 }
 
             init {

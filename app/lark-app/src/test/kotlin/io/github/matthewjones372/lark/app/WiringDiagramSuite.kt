@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 import java.security.MessageDigest
 
@@ -36,9 +34,7 @@ private inline fun withRepo(check: (File) -> Expectations): Expectations {
  * The diagram the cookbook prints, held to what `render` actually answers. A drawing of a graph is
  * worth having in review only while it is the graph.
  */
-object WiringDiagramSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object WiringDiagramSuite : Suite() {
     private val app: Module =
         single<Tuning> { Tuning() } +
             single { _: Tuning -> Database() } +
@@ -50,7 +46,7 @@ object WiringDiagramSuite : Suite<Unit>() {
             single { _: Memo, _: Opening, _: Reporting -> Frontage() }
 
     init {
-        test("the cookbook prints the diagram this graph renders") { _ ->
+        test("the cookbook prints the diagram this graph renders") {
             withRepo { repo ->
                 val cookbook = File(repo, "docs/cookbook.md").readText()
                 val matches = fenced.findAll(cookbook).map { it.groupValues[1] }.toList()
@@ -73,14 +69,12 @@ object WiringDiagramSuite : Suite<Unit>() {
  * pictures — so what is checked is the recording of what it was drawn from. A graph that changes
  * fails this until `docs/render-diagram.sh` has been run.
  */
-object DiagramImageSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DiagramImageSuite : Suite() {
     private fun drawnFence(repo: File): String =
         fenced.find(File(repo, "docs/cookbook.md").readText())!!.groupValues[1] + "\n"
 
     init {
-        test("the png is drawn from the fence the cookbook prints") { _ ->
+        test("the png is drawn from the fence the cookbook prints") {
             withRepo { repo ->
                 val recorded = File(repo, "docs/wiring.png.sha256")
                 if (!recorded.exists()) {
@@ -99,7 +93,7 @@ object DiagramImageSuite : Suite<Unit>() {
             }
         }
 
-        test("the picture is there to be linked") { _ ->
+        test("the picture is there to be linked") {
             withRepo { repo -> File(repo, "docs/wiring.png").length() shouldNotBe 0L }
         }
     }

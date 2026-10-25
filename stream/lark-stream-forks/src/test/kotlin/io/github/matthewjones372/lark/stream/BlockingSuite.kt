@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.junit.Expectations
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.CopyOnWriteArrayList
@@ -89,11 +87,9 @@ private fun stoppedWhileBlocked(stream: Stream<Nothing, Int>, source: Deaf): Pai
 }
 
 /** A resource opened per run, read by blocking on the pulling thread, and closed once however the run ended. */
-object BlockingSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object BlockingSuite : Suite() {
     init {
-        test("a resource that runs out ends the stream, and is closed once") { _ ->
+        test("a resource that runs out ends the stream, and is closed once") {
             val queue = Queue(1, 2, 3).also { it.woken.countDown() }
 
             val exit = blocking(queue).runCollect().run(Forks()).settled()
@@ -101,7 +97,7 @@ object BlockingSuite : Suite<Unit>() {
             (exit shouldBe Exit.Done(listOf(1, 2, 3))) and (queue.closed.get() shouldBe 1)
         }
 
-        test("a stop while next is blocked wakes it, and the run ends Done with what arrived") { _ ->
+        test("a stop while next is blocked wakes it, and the run ends Done with what arrived") {
             val queue = Queue(1, 2)
             val running = blocking(queue).runCollect().start(Forks())
             val waited = queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
@@ -115,7 +111,7 @@ object BlockingSuite : Suite<Unit>() {
                 (queue.closed.get() shouldBe 1)
         }
 
-        test("a take that is satisfied closes the resource it stopped reading") { _ ->
+        test("a take that is satisfied closes the resource it stopped reading") {
             val queue = Queue(1, 2, 3)
 
             val exit = blocking(queue).take(2).runCollect().run(Forks()).settled()
@@ -123,7 +119,7 @@ object BlockingSuite : Suite<Unit>() {
             (exit shouldBe Exit.Done(listOf(1, 2))) and (queue.closed.get() shouldBe 1)
         }
 
-        test("a next that throws without a wake is a defect, and the resource is still closed") { _ ->
+        test("a next that throws without a wake is a defect, and the resource is still closed") {
             val closed = AtomicInteger()
             val exit = Stream.blocking(
                 open = { Unit },
@@ -135,7 +131,7 @@ object BlockingSuite : Suite<Unit>() {
             ((exit as Exit.Died).cause.message shouldBe "the cursor broke") and (closed.get() shouldBe 1)
         }
 
-        test("a close that throws ends a run that was otherwise Done as Died") { _ ->
+        test("a close that throws ends a run that was otherwise Done as Died") {
             val exit = Stream.blocking(
                 open = { Unit },
                 next = { _ -> null as Int? },
@@ -146,7 +142,7 @@ object BlockingSuite : Suite<Unit>() {
             (exit as Exit.Died).cause.message shouldBe "the connection would not close"
         }
 
-        test("a read that fails closes its resource before restartOnDefect opens another") { _ ->
+        test("a read that fails closes its resource before restartOnDefect opens another") {
             val opened = AtomicInteger()
             val closed = AtomicInteger()
             val exit = Stream.blocking(
@@ -164,7 +160,7 @@ object BlockingSuite : Suite<Unit>() {
 
         test(
             "a restart wakes a source still reading on another fork, and closes it once the read has returned",
-        ) { _ ->
+        ) {
             class Attempt(val number: Int) {
                 val reads = AtomicInteger()
                 val reading = AtomicBoolean(false)
@@ -211,7 +207,7 @@ object BlockingSuite : Suite<Unit>() {
                 (events shouldBe listOf("open 1", "close 1", "open 2", "close 2"))
         }
 
-        test("a stage that is done is passed on while the source blocks for the next element") { _ ->
+        test("a stage that is done is passed on while the source blocks for the next element") {
             val queue = Queue(1)
 
             val exit = blocking(queue)
@@ -227,7 +223,7 @@ object BlockingSuite : Suite<Unit>() {
                 }
         }
 
-        test("a mapPar body that is done is passed on while the source blocks for the next element") { _ ->
+        test("a mapPar body that is done is passed on while the source blocks for the next element") {
             val queue = Queue(1)
 
             val exit = blocking(queue)
@@ -243,7 +239,7 @@ object BlockingSuite : Suite<Unit>() {
                 }
         }
 
-        test("a stop wakes a source blocked inside flatMapMerge, and closes it once") { _ ->
+        test("a stop wakes a source blocked inside flatMapMerge, and closes it once") {
             val source = Deaf(1)
 
             val (reached, exit) = stoppedWhileBlocked(Stream.of(0).flatMapMerge(2) { deaf(source) }, source)
@@ -255,7 +251,7 @@ object BlockingSuite : Suite<Unit>() {
                 (source.closed.get() shouldBe 1)
         }
 
-        test("a stop wakes a source behind a concat upstream of a buffer, and closes it once") { _ ->
+        test("a stop wakes a source behind a concat upstream of a buffer, and closes it once") {
             val source = Deaf(1)
 
             val (reached, exit) = stoppedWhileBlocked(Stream.of(0).concat(deaf(source)).buffer(4), source)
@@ -267,7 +263,7 @@ object BlockingSuite : Suite<Unit>() {
                 (source.closed.get() shouldBe 1)
         }
 
-        test("on a test's clock, a source inside flatMapMerge that a take stops reading is closed once") { _ ->
+        test("on a test's clock, a source inside flatMapMerge that a take stops reading is closed once") {
             // A source that never runs out and never blocks: a stage that blocked would keep its turn on the clock.
             val read = AtomicInteger()
             val closed = AtomicInteger()

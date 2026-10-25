@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.structured
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.left
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -19,9 +17,7 @@ private data object Boom
 
 private data object Slow
 
-object CombinatorsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CombinatorsSuite : Suite() {
     init {
         test("parZip combines both branches") {
             attempt<Nothing, Int> { parZip({ 20 }, { 22 }) { a, b -> a + b } } shouldBe 42.right()

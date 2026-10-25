@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.PersistenceId
@@ -22,7 +21,6 @@ import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
-import io.github.matthewjones372.lark.resource
 
 private val shardedCents = object : EventCodec<Int> {
     override fun encode(event: Int): ByteArray = "$event".toByteArray()
@@ -54,11 +52,9 @@ private fun till(id: PersistenceId, prune: Prune = Prune.never, batch: Int = 64)
 )
 
 /** Spec 0088 on Postgres: two databases, each with its own `ordering`, behind one journal. */
-object ShardedPostgresSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ShardedPostgresSuite : Suite() {
     init {
-        test("entities spread over two databases, and each database's feed holds its own ids' events once") { _ ->
+        test("entities spread over two databases, and each database's feed holds its own ids' events once") {
             with(TwoDatabases()) {
                 val ids = (1..200).map { PersistenceId("till", "t-$it") }
                 flock<Nothing, Unit> {
@@ -81,7 +77,7 @@ object ShardedPostgresSuite : Suite<Unit>() {
             }
         }
 
-        test("a conflict on Postgres is still a conflict") { _ ->
+        test("a conflict on Postgres is still a conflict") {
             with(TwoDatabases()) {
                 val id = PersistenceId("till", "t-1")
                 journal.append(id, 0, listOf("1".toByteArray()))
@@ -89,7 +85,7 @@ object ShardedPostgresSuite : Suite<Unit>() {
             }
         }
 
-        test("snapshots sit beside their events, and each database prunes on its own read models' offsets") { _ ->
+        test("snapshots sit beside their events, and each database prunes on its own read models' offsets") {
             with(TwoDatabases()) {
                 val offsets = JdbcOffsets(a)
                 val ids = (1..50).map { PersistenceId("till", "t-$it") }

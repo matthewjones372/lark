@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
@@ -23,7 +23,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** A record that failed to decode is routed or ends the run, and its offset moves on only once that is done. */
-object RoutingSuite : Suite<KafkaKit>() {
+object RoutingSuite : SharedSuite<KafkaKit>() {
     override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-routing-test")
 
     private const val GENEROUS_SECONDS = 60L

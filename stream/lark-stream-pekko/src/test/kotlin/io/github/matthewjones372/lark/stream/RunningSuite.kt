@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.Done
@@ -14,7 +14,7 @@ import kotlin.time.Duration.Companion.ZERO
 import kotlin.time.Duration.Companion.hours
 
 /** A run whoever started it can end: `start` answers the exit `run` does, and a way to stop it. */
-object RunningSuite : Suite<PekkoSystem>() {
+object RunningSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-running-test")
 
     private const val GENEROUS_SECONDS = 30L

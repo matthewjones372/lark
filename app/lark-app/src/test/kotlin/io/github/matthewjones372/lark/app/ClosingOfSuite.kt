@@ -1,16 +1,12 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CopyOnWriteArrayList
 
-object ClosingOfSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ClosingOfSuite : Suite() {
     // Each test hands these a list of its own: the suite is one object, so a list in a field would be every test's.
     private class Pool(val closed: MutableList<String>) : AutoCloseable {
         override fun close() {
@@ -29,7 +25,7 @@ object ClosingOfSuite : Suite<Unit>() {
     }
 
     init {
-        test("a node built by closingOf is closed on release") { _ ->
+        test("a node built by closingOf is closed on release") {
             val closed = CopyOnWriteArrayList<String>()
             val app = closingOf { -> Pool(closed) }
 
@@ -40,7 +36,7 @@ object ClosingOfSuite : Suite<Unit>() {
             held and (closed shouldBe listOf("pool"))
         }
 
-        test("in reverse dependency order, so a client is closed before the pool it holds") { _ ->
+        test("in reverse dependency order, so a client is closed before the pool it holds") {
             val closed = CopyOnWriteArrayList<String>()
             val app = closingOf { -> Pool(closed) } + closingOf { pool: Pool -> Client(pool, closed) }
 
@@ -49,7 +45,7 @@ object ClosingOfSuite : Suite<Unit>() {
             closed shouldBe listOf("client", "pool")
         }
 
-        test("a close that throws is reported, and the nodes around it are closed anyway") { _ ->
+        test("a close that throws is reported, and the nodes around it are closed anyway") {
             val closed = CopyOnWriteArrayList<String>()
             val app = closingOf { -> Pool(closed) } + closingOf { _: Pool -> Broken() }
 

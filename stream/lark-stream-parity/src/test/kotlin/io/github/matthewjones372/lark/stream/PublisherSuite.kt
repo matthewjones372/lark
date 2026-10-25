@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldThrow
@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.LockSupport
 
 /** A `Flow.Publisher` read on every backend: what arrives, how much is ever owed, and how a run lets go. */
-object PublisherSuite : Suite<ActorSystem>() {
+object PublisherSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-publisher-test")
 
     private const val SETTLE_SECONDS = 10L

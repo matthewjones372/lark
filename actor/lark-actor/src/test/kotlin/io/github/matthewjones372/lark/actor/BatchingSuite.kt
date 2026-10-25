@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration
@@ -19,12 +17,10 @@ private fun requestHere(): String = capturingLogs { logs ->
 }
 
 /** Spec 0198: a plain behaviour handed the messages waiting as one run, each with its own carried context. */
-object BatchingSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object BatchingSuite : Suite() {
     init {
 
-        test("the messages already waiting are handed over as one run, in order") { _ ->
+        test("the messages already waiting are handed over as one run, in order") {
             val seen = CopyOnWriteArrayList<List<Int>>()
             val opened = CountDownLatch(1)
             val runs = batching<Int, Unit>(Unit, batch = 64) { _, _, run ->
@@ -40,7 +36,7 @@ object BatchingSuite : Suite<Unit>() {
             seen shouldBe listOf(listOf(1, 2, 3))
         }
 
-        test("each message of a run is within its own sender's context, and the run within none") { _ ->
+        test("each message of a run is within its own sender's context, and the run within none") {
             val inside = CopyOnWriteArrayList<String>()
             val outside = CopyOnWriteArrayList<String>()
             val opened = CountDownLatch(1)
@@ -60,7 +56,7 @@ object BatchingSuite : Suite<Unit>() {
             (inside shouldBe listOf("r-1", "", "r-3")) and (outside shouldBe listOf(""))
         }
 
-        test("a message handled alone is a run of one, in its own sender's context") { _ ->
+        test("a message handled alone is a run of one, in its own sender's context") {
             val seen = CopyOnWriteArrayList<Pair<List<Int>, String>>()
             val runs = batching<Int, Unit>(Unit, batch = 1) { _, _, run ->
                 seen += run.toList() to requestHere()
@@ -74,7 +70,7 @@ object BatchingSuite : Suite<Unit>() {
             seen shouldBe listOf(listOf(1) to "r-1", listOf(2) to "r-2", listOf(3) to "r-3")
         }
 
-        test("a timer's message reaches the same step as a run of one") { _ ->
+        test("a timer's message reaches the same step as a run of one") {
             val seen = CopyOnWriteArrayList<List<Int>>()
             val runs = batching<Int, Unit>(Unit, batch = 64) { _, _, run ->
                 seen += run.toList()
@@ -86,7 +82,7 @@ object BatchingSuite : Suite<Unit>() {
             seen shouldBe listOf(listOf(7))
         }
 
-        test("a run that stops is heard as a stop by its signal handler") { _ ->
+        test("a run that stops is heard as a stop by its signal handler") {
             val heard = CopyOnWriteArrayList<Signal>()
             val runs = batching<Int, Unit>(Unit, batch = 64) { _, _, _ -> stop() }
                 .onSignal { _, _, signal -> stay().also { heard += signal } }
@@ -98,7 +94,7 @@ object BatchingSuite : Suite<Unit>() {
             heard shouldBe listOf<Signal>(Signal.Stopping)
         }
 
-        test("a run answered unhandled sends every message of it to dead letters") { _ ->
+        test("a run answered unhandled sends every message of it to dead letters") {
             val letters = CopyOnWriteArrayList<DeadLetter>()
             val opened = CountDownLatch(1)
             val runs = batching<Int, Unit>(Unit, batch = 64) { _, _, _ -> unhandled() }.onStart { opened.await() }
@@ -112,7 +108,7 @@ object BatchingSuite : Suite<Unit>() {
             letters.map { it.message to it.why } shouldBe (1..3).map { it to DeadLetter.Why.Unhandled }
         }
 
-        test("a raise from a run is the actor's declared failure") { _ ->
+        test("a raise from a run is the actor's declared failure") {
             val runs =
                 batching<Int, Unit, String>(Unit, batch = 64) { _, _, run -> fail("refused ${run.toList()}") }.test()
 

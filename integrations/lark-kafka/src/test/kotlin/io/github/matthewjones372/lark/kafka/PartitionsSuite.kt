@@ -1,11 +1,11 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import org.apache.kafka.clients.consumer.ConsumerConfig
 
-object PartitionsSuite : Suite<KafkaBroker>() {
+object PartitionsSuite : SharedSuite<KafkaBroker>() {
     override val shared: Resource<KafkaBroker> = kafkaBroker()
 
     init {

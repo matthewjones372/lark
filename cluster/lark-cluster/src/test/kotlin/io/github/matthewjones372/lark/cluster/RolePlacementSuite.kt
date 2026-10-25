@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
@@ -16,7 +15,6 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -78,13 +76,11 @@ private class RoleNode(val name: String, port: Int, seeds: Discovery, roles: Set
     }
 }
 
-object RolePlacementSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RolePlacementSuite : Suite() {
     init {
         test(
             "entities and a singleton run only on members with the role, reached from all, and wait while none is up",
-        ) { _ ->
+        ) {
             val ports = List(5) { somePort() }
             val seeds = Discovery.static(*ports.take(4).map { Node("", "127.0.0.1", it) }.toTypedArray())
             val ledger = setOf("ledger")

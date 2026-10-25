@@ -3,12 +3,10 @@ package io.github.matthewjones372.lark.openfeature
 import dev.openfeature.sdk.ImmutableContext
 import dev.openfeature.sdk.ImmutableStructure
 import dev.openfeature.sdk.Value
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 private val carrier = FeatureContextCarrier()
 
@@ -18,15 +16,13 @@ private fun across(context: ImmutableContext) =
     }
 
 /** What crosses a message: the targeting key and every scalar attribute, each as the type it was. */
-object FeatureContextCarrierSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object FeatureContextCarrierSuite : Suite() {
     init {
-        test("nothing is carried when no context is bound") { _ ->
+        test("nothing is carried when no context is bound") {
             carrier.capture().shouldBeEmpty()
         }
 
-        test("a string, an int, a long, a double and a boolean arrive as what they were") { _ ->
+        test("a string, an int, a long, a double and a boolean arrive as what they were") {
             val sent = ImmutableContext(
                 "ada",
                 mapOf(
@@ -48,7 +44,7 @@ object FeatureContextCarrierSuite : Suite<Unit>() {
                 (arrived.getValue("beta").asObject() shouldBe true)
         }
 
-        test("a structure or a list is left behind, and the scalars beside it still cross") { _ ->
+        test("a structure or a list is left behind, and the scalars beside it still cross") {
             val sent = ImmutableContext(
                 "ada",
                 mapOf(
@@ -65,7 +61,7 @@ object FeatureContextCarrierSuite : Suite<Unit>() {
             }
         }
 
-        test("keys that are not this carrier's are left alone") { _ ->
+        test("keys that are not this carrier's are left alone") {
             carrier.within(mapOf("traceparent" to "00-abc")) { featureContext.get().isEmpty } shouldBe true
         }
     }

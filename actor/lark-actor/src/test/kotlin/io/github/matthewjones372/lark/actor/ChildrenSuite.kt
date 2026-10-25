@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicReference
 
 private sealed interface Shift
@@ -45,11 +43,9 @@ private fun manager(log: AtomicReference<List<String>>) = behaviour<Shift, Unit,
     stay()
 }
 
-object ChildrenSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ChildrenSuite : Suite() {
     init {
-        test("a child's Stopping comes before its parent's") { _ ->
+        test("a child's Stopping comes before its parent's") {
             val log = AtomicReference<List<String>>(emptyList())
             val hired = testActors {
                 val manager = spawn("manager", manager(log))
@@ -65,7 +61,7 @@ object ChildrenSuite : Suite<Unit>() {
             hired and (log.get() shouldBe listOf("ann", "bob", "manager"))
         }
 
-        test("a parent's restart stops its children first, and the parent carries on") { _ ->
+        test("a parent's restart stops its children first, and the parent carries on") {
             val log = AtomicReference<List<String>>(emptyList())
             val restarted = testActors {
                 val manager = spawn("manager", manager(log), restart = Schedule.recurs(1))
@@ -79,7 +75,7 @@ object ChildrenSuite : Suite<Unit>() {
             restarted and (log.get() shouldBe listOf("ann"))
         }
 
-        test("on threads, a child's Stopping comes before its parent's") { _ ->
+        test("on threads, a child's Stopping comes before its parent's") {
             val log = AtomicReference<List<String>>(emptyList())
             flock<Nothing, Unit> {
                 val manager = spawn("manager", manager(log))
@@ -91,7 +87,7 @@ object ChildrenSuite : Suite<Unit>() {
             log.get() shouldBe listOf("ann", "manager")
         }
 
-        test("on threads, closing the flock stops a child before its parent") { _ ->
+        test("on threads, closing the flock stops a child before its parent") {
             val log = AtomicReference<List<String>>(emptyList())
             flock<Nothing, Unit> {
                 spawn("manager", manager(log)).tell(Hire("ann"))
@@ -101,7 +97,7 @@ object ChildrenSuite : Suite<Unit>() {
             log.get() shouldBe listOf("ann", "manager")
         }
 
-        test("on threads, a parent's restart stops its children first") { _ ->
+        test("on threads, a parent's restart stops its children first") {
             val log = AtomicReference<List<String>>(emptyList())
             flock<Nothing, Expectations> {
                 val manager = spawn("manager", manager(log), restart = Schedule.recurs(1))

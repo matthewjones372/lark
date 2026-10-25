@@ -4,7 +4,7 @@ import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldThrow
@@ -15,7 +15,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** A hub on every backend: what reaches whom, what is refused, and when a subscription ends. */
-object HubSuite : Suite<ActorSystem>() {
+object HubSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-hub-test")
 
     private const val SETTLE_SECONDS = 10L

@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeNull
@@ -9,12 +8,9 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 /** What a merge threw away, kept, because that is the half that answers "why is it this?". */
-object LayeredSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LayeredSuite : Suite() {
     private val reference = ConfigFactory.parseString("petshop { port = 8080, db { pool = 4 } }")
 
     private val application = ConfigFactory.parseString("petshop { port = 9090 }")
@@ -36,27 +32,27 @@ object LayeredSuite : Suite<Unit>() {
     )
 
     init {
-        test("the merge is what the layers resolve to") { _ ->
+        test("the merge is what the layers resolve to") {
             layered().config.getInt("petshop.port") shouldBe 9090
         }
 
-        test("a setting that was overridden names what it replaced") { _ ->
+        test("a setting that was overridden names what it replaced") {
             val port = layered().origins().single { it.path == "petshop.port" }
 
             (port.value shouldBe "9090") and port.overrides.shouldNotBeNull { was -> was.value shouldBe "8080" }
         }
 
-        test("a setting only one layer supplied says nothing extra") { _ ->
+        test("a setting only one layer supplied says nothing extra") {
             layered().origins().single { it.path == "petshop.db.pool" }.overrides.shouldBeNull()
         }
 
-        test("the report says what a setting overrode") { _ ->
+        test("the report says what a setting overrode") {
             val said = layered().origins().report()
 
             (said shouldContain "petshop.port") and (said shouldContain "overrides 8080")
         }
 
-        test("an overridden secret does not print either value") { _ ->
+        test("an overridden secret does not print either value") {
             val layers = layeredConfigOf(
                 "application.conf" to ConfigFactory.parseString("""petshop.db.password = "new" """),
                 "reference.conf" to ConfigFactory.parseString("""petshop.db.password = "old" """),
@@ -69,7 +65,7 @@ object LayeredSuite : Suite<Unit>() {
             } and (said shouldContain "petshop.db.password")
         }
 
-        test("a substitution across layers resolves against the whole document") { _ ->
+        test("a substitution across layers resolves against the whole document") {
             val layers = layeredConfigOf(
                 "application.conf" to ConfigFactory.parseString("""petshop.db.url = "jdbc:"${'$'}{petshop.db.name}"""),
                 "reference.conf" to ConfigFactory.parseString("""petshop.db.name = "shop" """),
@@ -79,13 +75,13 @@ object LayeredSuite : Suite<Unit>() {
                 (layers.origins().single { it.path == "petshop.db.url" }.value shouldBe "jdbc:shop")
         }
 
-        test("a default an unset environment variable would override keeps the default and names what it beat") { _ ->
+        test("a default an unset environment variable would override keeps the default and names what it beat") {
             val bus = overridden("LARK_LAYERED_TEST_UNSET").origins().single { it.path == "petshop.bus" }
 
             (bus.value shouldBe "in-process") and bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
         }
 
-        test("a default a set environment variable overrides takes the variable and names what it beat") { _ ->
+        test("a default a set environment variable overrides takes the variable and names what it beat") {
             System.getenv("PATH").shouldNotBeNull { path ->
                 val bus = overridden("PATH").origins().single { it.path == "petshop.bus" }
 
@@ -93,7 +89,7 @@ object LayeredSuite : Suite<Unit>() {
             }
         }
 
-        test("an override pair in a lower layer is what the winner beat") { _ ->
+        test("an override pair in a lower layer is what the winner beat") {
             val layers = layeredConfigOf(
                 "system properties" to ConfigFactory.parseString("""petshop.bus = "local" """),
                 "application.conf" to overridden("LARK_LAYERED_TEST_UNSET").layers.first().config,
@@ -104,7 +100,7 @@ object LayeredSuite : Suite<Unit>() {
             (bus.value shouldBe "local") and bus.overrides.shouldNotBeNull { it.value shouldBe "in-process" }
         }
 
-        test("an override pair whose substitution another layer supplies takes that layer's value") { _ ->
+        test("an override pair whose substitution another layer supplies takes that layer's value") {
             val layers = layeredConfigOf(
                 "application.conf" to ConfigFactory.parseString(
                     """
@@ -120,7 +116,7 @@ object LayeredSuite : Suite<Unit>() {
             (bus.value shouldBe "nats") and bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
         }
 
-        test("an optional substitution left unset supplies nothing to beat") { _ ->
+        test("an optional substitution left unset supplies nothing to beat") {
             val layers = layeredConfigOf(
                 "application.conf" to ConfigFactory.parseString("petshop.bus = ${'$'}{?LARK_LAYERED_TEST_UNSET}"),
                 "reference.conf" to ConfigFactory.parseString("""petshop.bus = "kafka" """),
@@ -137,13 +133,11 @@ object LayeredSuite : Suite<Unit>() {
  * `ConfigFactory.defaultReference()` carries system properties, so a report built on it says
  * reference.conf holds a value that came from `-D`. This is the test that stops that coming back.
  */
-object CleanLayersSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CleanLayersSuite : Suite() {
     init {
         // This suite's one test sets a system property and clears ConfigFactory's caches, both process-wide.
         // Suites run one after another, so no other suite's test sees them while it runs.
-        test("the reference layer is the file, not the file with overrides on top") { _ ->
+        test("the reference layer is the file, not the file with overrides on top") {
             val property = "lark.layered.test.port"
             System.setProperty(property, "6000")
             try {

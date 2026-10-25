@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldMatch
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 private class Spanner
 private class Bolt
@@ -16,11 +14,9 @@ private class Bolt
  * `single` and `singleOf` are inline, so the frame above `module` is already the caller's. The claim
  * worth testing is that a wrapper in another lark module does not get named instead of the graph.
  */
-object CallSiteSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CallSiteSuite : Suite() {
     init {
-        test("a node remembers the file and line it was written on") { _ ->
+        test("a node remembers the file and line it was written on") {
             val module = single { _: Spanner -> Bolt() }
 
             module.nodes.values.single().site.shouldNotBeNull { site ->
@@ -28,7 +24,7 @@ object CallSiteSuite : Suite<Unit>() {
             }
         }
 
-        test("a report names the file rather than the path the site carries for a build tool") { _ ->
+        test("a report names the file rather than the path the site carries for a build tool") {
             single { _: Spanner -> Bolt() }.validate().leftOrNull().shouldNotBeNull { errors ->
                 val report = errors.report()
 
@@ -38,7 +34,7 @@ object CallSiteSuite : Suite<Unit>() {
             }
         }
 
-        test("a node built through a library factory names the graph rather than the factory") { _ ->
+        test("a node built through a library factory names the graph rather than the factory") {
             val module = viaFactory()
 
             withClue("wrapping single in a lark factory must not name that factory's own file") {
@@ -46,13 +42,13 @@ object CallSiteSuite : Suite<Unit>() {
             }
         }
 
-        test("re-keying keeps the site the recipe was written on") { _ ->
+        test("re-keying keeps the site the recipe was written on") {
             val module = singleOf(::Bolt).boundTo<Any>()
 
             module.nodes.values.single().site.shouldNotBeNull { site -> site shouldContain "CallSiteSuite.kt" }
         }
 
-        test("a missing dependency reports the site of the recipe that asked") { _ ->
+        test("a missing dependency reports the site of the recipe that asked") {
             single { _: Spanner -> Bolt() }.validate().leftOrNull().shouldNotBeNull { errors ->
                 val report = errors.report()
 

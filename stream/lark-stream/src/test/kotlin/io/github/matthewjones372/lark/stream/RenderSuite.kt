@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 
 /**
@@ -14,9 +12,7 @@ import java.io.File
  * golden file of the same name under `src/test/resources/render`. A rendering that differs is written to
  * `build/render-actual`, from where it can be read, and copied over the golden file if it is right.
  */
-object RenderSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RenderSuite : Suite() {
     private val pipelines = mapOf(
         "chain" to chain,
         "parallel" to parallel,
@@ -61,14 +57,14 @@ object RenderSuite : Suite<Unit>() {
     init {
         pipelines.forEach { (name, run) ->
             renderings.forEach { (suffix, render) ->
-                test("every pipeline renders as its golden file says [$name.$suffix]") { _ ->
+                test("every pipeline renders as its golden file says [$name.$suffix]") {
                     golden("$name.$suffix", render(run))
                 }
             }
         }
 
         pipelines.forEach { (name, run) ->
-            test("every Mermaid rendering is made of lines Mermaid's flowchart grammar reads [$name]") { _ ->
+            test("every Mermaid rendering is made of lines Mermaid's flowchart grammar reads [$name]") {
                 val lines = run.render(Layout.Mermaid).lines()
                 (lines.first() shouldBe "flowchart TD") and
                     withClue("lines outside the grammar") {
@@ -77,10 +73,10 @@ object RenderSuite : Suite<Unit>() {
             }
         }
 
-        test("a profiled rendering has each stage's numbers, and colours it by its share [chain.profiled.txt]") { _ ->
+        test("a profiled rendering has each stage's numbers, and colours it by its share [chain.profiled.txt]") {
             golden("chain.profiled.txt", chain.render(profile = chainProfile))
         }
-        test("a profiled rendering has each stage's numbers, and colours it by its share [chain.profiled.mmd]") { _ ->
+        test("a profiled rendering has each stage's numbers, and colours it by its share [chain.profiled.mmd]") {
             golden("chain.profiled.mmd", chain.render(Layout.Mermaid, profile = chainProfile))
         }
     }

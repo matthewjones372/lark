@@ -1,34 +1,30 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
-import io.github.matthewjones372.lark.resource
 
 private class Port(val number: Int)
 
 /** The process, and nothing about what a configuration library would do with it. */
-object SysSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SysSuite : Suite() {
     private val sys = FakeSys(
         env = mapOf("DB_URL" to "jdbc:postgresql://db/app", "PORT" to "8080"),
         properties = mapOf("java.vm.name" to "VM"),
     )
 
     init {
-        test("a fake reads what it was given and nothing of the process") { _ ->
+        test("a fake reads what it was given and nothing of the process") {
             (sys.env("DB_URL") shouldBe "jdbc:postgresql://db/app") and
                 (sys.property("java.vm.name") shouldBe "VM") and
                 (sys.env("PATH") shouldBe null)
         }
 
-        test("the real one reads the process") { _ ->
+        test("the real one reads the process") {
             (RealSys.env().isEmpty() shouldBe false) and RealSys.property("java.vm.name").shouldNotBeNull()
         }
 
-        test("a node takes the process rather than calling System getenv") { _ ->
+        test("a node takes the process rather than calling System getenv") {
             val app = single<Sys> { sys } + single { bound: Sys -> Port(bound.env("PORT")!!.toInt()) }
 
             testApp(app) { port: Port -> port.number } shouldBe 8080

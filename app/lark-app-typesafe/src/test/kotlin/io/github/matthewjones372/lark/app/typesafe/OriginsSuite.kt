@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -9,16 +8,13 @@ import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 /** Every setting, its value, and the line that said so. */
-object OriginsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object OriginsSuite : Suite() {
     private fun parsed(hocon: String) = ConfigFactory.parseString(hocon).resolve()
 
     init {
-        test("a setting names its value and where it was written") { _ ->
+        test("a setting names its value and where it was written") {
             val origins = parsed("petshop { port = 9090 }").origins()
 
             val port = origins.single { it.path == "petshop.port" }
@@ -28,19 +24,19 @@ object OriginsSuite : Suite<Unit>() {
                 }
         }
 
-        test("a file names the file and the line") { _ ->
+        test("a file names the file and the line") {
             val origins = ConfigFactory.parseResources("origins.conf").resolve().origins()
 
             origins.single { it.path == "petshop.port" }.where shouldContain "origins.conf:2"
         }
 
-        test("paths come out sorted, so two runs read the same") { _ ->
+        test("paths come out sorted, so two runs read the same") {
             val origins = parsed("b = 2, a = 1, c = 3").origins()
 
             origins.map { it.path } shouldContainExactly listOf("a", "b", "c")
         }
 
-        test("a name that says it holds a secret does not print its value") { _ ->
+        test("a name that says it holds a secret does not print its value") {
             val origins = parsed("""petshop { db { password = "hunter2", pool = 4 } }""").origins()
 
             val password = origins.single { it.path == "petshop.db.password" }
@@ -51,7 +47,7 @@ object OriginsSuite : Suite<Unit>() {
                 }
         }
 
-        test("a declared path does not print its value either") { _ ->
+        test("a declared path does not print its value either") {
             val hocon = """petshop { db { url = "jdbc:postgresql://user:pass@host/shop" } }"""
 
             val origins = parsed(hocon).origins(Secrets.default.and("petshop.db.url"))
@@ -59,7 +55,7 @@ object OriginsSuite : Suite<Unit>() {
             origins.single { it.path == "petshop.db.url" }.value shouldBe MASK
         }
 
-        test("the report names every setting and leaks no secret") { _ ->
+        test("the report names every setting and leaks no secret") {
             val hocon = """petshop { port = 9090, db { password = "hunter2" } }"""
 
             val said = parsed(hocon).origins().report()
@@ -71,7 +67,7 @@ object OriginsSuite : Suite<Unit>() {
                 (said shouldNotContain "hunter2")
         }
 
-        test("a document with nothing in it reports nothing") { _ ->
+        test("a document with nothing in it reports nothing") {
             parsed("{}").origins().report() shouldBe ""
         }
     }

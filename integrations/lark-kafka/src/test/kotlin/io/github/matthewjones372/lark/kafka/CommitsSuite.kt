@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
@@ -23,7 +23,7 @@ import java.util.concurrent.TimeoutException
 
 /** The one commit path every consumer loop shares, at the moment its consumer is closed. */
 @OptIn(KafkaSpi::class)
-object CommitsSuite : Suite<KafkaBroker>() {
+object CommitsSuite : SharedSuite<KafkaBroker>() {
     override val shared: Resource<KafkaBroker> = kafkaBroker()
 
     private const val GENEROUS_SECONDS = 30L

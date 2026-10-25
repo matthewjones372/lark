@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
@@ -18,9 +16,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * starts, and stopped part way through. However a run ends, nothing it started is still running once its
  * exit has completed. Then the whole suite again, many times, to shake out what only shows up sometimes.
  */
-object HardenedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object HardenedSuite : Suite() {
     private const val SETTLE_SECONDS = 10L
     private const val DEFAULT_SOAK = 200
 
@@ -56,7 +52,7 @@ object HardenedSuite : Suite<Unit>() {
     private fun onEveryBackend(name: String, body: (ParitySuite.Case, Counted, StreamBackend) -> Expectations) =
         backends.forEach { (backendName, make) ->
             parity.cases().forEach { case ->
-                test("$name [$backendName] [${case.name}]") { _ ->
+                test("$name [$backendName] [${case.name}]") {
                     val counted = Counted()
                     val backend = make(counted)
                     body(case, counted, backend) and
@@ -91,7 +87,7 @@ object HardenedSuite : Suite<Unit>() {
             counted.leavesNothing(case, "stopped part way")
         }
 
-        test("the whole suite, many times over, answers the same and leaves nothing running") { _ ->
+        test("the whole suite, many times over, answers the same and leaves nothing running") {
             every { counted, backend ->
                 val answered = (1..soak).forAll {
                     parity.cases().forAll { case -> parity.check(case, backend(counted)) }
@@ -100,7 +96,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("a run stopped while a slow body is in flight ends at once, Done with what it had") { _ ->
+        test("a run stopped while a slow body is in flight ends at once, Done with what it had") {
             every { counted, backend ->
                 val bodies = AtomicInteger()
                 val running = Stream.from(1..100)
@@ -122,7 +118,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("a run stopped while it waits on an empty buffer ends at once") { _ ->
+        test("a run stopped while it waits on an empty buffer ends at once") {
             every { counted, backend ->
                 val running = Stream.from(generateSequence(1) { it + 1 }.asIterable())
                     .map { n ->
@@ -141,7 +137,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("two endless streams merged and cut short by take end, and leave nothing running") { _ ->
+        test("two endless streams merged and cut short by take end, and leave nothing running") {
             every { counted, backend ->
                 val exit = Stream.from(naturals).merge(Stream.from(naturals).map { -it }).take(100).runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
@@ -151,7 +147,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("a merge ends once both inputs have, with each input's elements in its own order") { _ ->
+        test("a merge ends once both inputs have, with each input's elements in its own order") {
             every { counted, backend ->
                 val exit = Stream.from(1..5_000).merge(Stream.from(1..3_000).map { -it }).runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
@@ -164,7 +160,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("a failing input ends a merge Failed, and lets go of the other") { _ ->
+        test("a failing input ends a merge Failed, and lets go of the other") {
             every { counted, backend ->
                 val failing: Stream<ParitySuite.Odd, Int> = Stream.from(1..10).mapOrFail {
                     if (it ==
@@ -179,7 +175,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("flatMapMerge never runs more inner streams at once than its breadth") { _ ->
+        test("flatMapMerge never runs more inner streams at once than its breadth") {
             every { counted, backend ->
                 val running = AtomicInteger()
                 val most = AtomicInteger()
@@ -204,7 +200,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("a failing inner stream ends a flatMapMerge Failed, and lets go of the others") { _ ->
+        test("a failing inner stream ends a flatMapMerge Failed, and lets go of the others") {
             every { counted, backend ->
                 val outer: Stream<ParitySuite.Odd, Int> = Stream.from(1..4)
 
@@ -219,7 +215,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("conflate gives a slow reader what piled up, and loses nothing") { _ ->
+        test("conflate gives a slow reader what piled up, and loses nothing") {
             every { counted, backend ->
                 val exit = Stream.from(1..200)
                     .conflateWithSeed({ listOf(it) }, { batch, n -> batch + n })
@@ -240,7 +236,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("an endless source that never blocks, conflated and cut short, leaves nothing running") { _ ->
+        test("an endless source that never blocks, conflated and cut short, leaves nothing running") {
             every { counted, backend ->
                 val exit = Stream.from(naturals).conflateWithSeed({ 1 }, { count, _ -> count + 1 }).take(3).runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
@@ -250,7 +246,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("a run stopped while a restartOnDefect waits on its next tick ends, and does not restart") { _ ->
+        test("a run stopped while a restartOnDefect waits on its next tick ends, and does not restart") {
             every { counted, backend ->
                 // Like an outbox relay with nothing to send: ticks that never become an element, so the loop is
                 // never back between elements to see the stop itself.
@@ -269,7 +265,7 @@ object HardenedSuite : Suite<Unit>() {
             }
         }
 
-        test("the count sees a task left running, so a leak would turn these red") { _ ->
+        test("the count sees a task left running, so a leak would turn these red") {
             val counted = Counted()
             counted.execute { Thread.sleep(5_000) }
 

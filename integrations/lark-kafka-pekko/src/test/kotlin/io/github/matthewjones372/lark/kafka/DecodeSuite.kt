@@ -3,7 +3,7 @@ package io.github.matthewjones372.lark.kafka
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.fold
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A record that fails to decode is a value to route, and a decoder whose backend is down is a defect to restart on. */
-object DecodeSuite : Suite<KafkaKit>() {
+object DecodeSuite : SharedSuite<KafkaKit>() {
     override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-decode-test")
 
     private const val GENEROUS_SECONDS = 60L

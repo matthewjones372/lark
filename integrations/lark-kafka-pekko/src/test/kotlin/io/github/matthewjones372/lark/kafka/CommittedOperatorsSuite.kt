@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.logInfo
@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 
 /** The element operators work on the record's value and carry its offset through to `runCommitting`. */
-object CommittedOperatorsSuite : Suite<KafkaKit>() {
+object CommittedOperatorsSuite : SharedSuite<KafkaKit>() {
     override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-committed-operators-test")
 
     private const val GENEROUS_SECONDS = 60L

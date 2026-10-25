@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
@@ -21,7 +21,7 @@ import java.util.concurrent.CompletionStage
  * Its tests run one at a time: a `LoggingTestKit` expectation matches a log line that more than one
  * of them writes, so a neighbour's line could satisfy it, or be counted against it.
  */
-object DefectSuite : Suite<PekkoSystem>(concurrent = false) {
+object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-defect-test")
 
     // The comments marking the calls whose lines a build site must name. No line holding one
