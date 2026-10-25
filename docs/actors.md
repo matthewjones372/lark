@@ -384,6 +384,15 @@ With `persistent(…, batch = n)`, up to `n` commands already waiting in the
 mailbox are handled together and their events written in one append, which
 raises throughput for a busy entity; a conflict fails the whole batch.
 
+With `persistent(…, start = Start.assumingNew)`, an actor's first start reads
+nothing and begins at `empty`, which saves a read for an entity created just
+before its first command, such as a saga with a fresh id. The first command
+checks the guess: an append that expects no events before it proves the
+entity new. If it conflicts, or the command persists nothing, the actor
+restarts without asking supervision, recovers, runs its start hooks again and
+handles the same command against what it recovered. Its `then` never ran for
+the guess. It needs `batch = 1` for now.
+
 The journal and the snapshot store are the flock's. `InMemoryJournal` and
 `InMemorySnapshots` keep everything in the process, for tests and for trying
 things out. With `snapshots = every(n, codec)`, the actor saves its state every
