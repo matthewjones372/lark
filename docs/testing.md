@@ -214,7 +214,7 @@ import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 
 // Stands in for the service under test.
-class PetShop : AutoCloseable {
+class PetShop {
     private val pets = ConcurrentHashMap<String, String>()
 
     fun list(name: String) {
@@ -225,7 +225,7 @@ class PetShop : AutoCloseable {
 
     fun count(): Int = pets.size
 
-    override fun close() = pets.clear()
+    fun close() = pets.clear()
 }
 
 object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {

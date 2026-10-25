@@ -217,14 +217,14 @@ import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.resourceScope
 import io.github.matthewjones372.lark.use
 
-class Connection : AutoCloseable {
+class Connection {
     fun rows(id: Int): List<String> = listOf("row-$id")
 
     fun commit() = Unit
 
     fun rollback() = Unit
 
-    override fun close() = Unit
+    fun close() = Unit
 }
 
 data class NotFound(val id: Int)
