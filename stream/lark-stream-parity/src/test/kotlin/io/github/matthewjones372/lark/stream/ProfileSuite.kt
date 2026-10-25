@@ -5,6 +5,7 @@ import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.actor.ActorSystem
 import java.util.concurrent.TimeUnit
@@ -65,6 +66,27 @@ object ProfileSuite : SharedSuite<ActorSystem>() {
                     (text.lines()[2] shouldContain Regex("""map +ProfileSuite\.kt:\d+ +\d+% · """)) and
                     (profile.stages.getValue(3).elements shouldBe 25)
             }
+        }
+
+        test("two pipelines measured by one profiler get a profile each, and asking for one profile names both") { _ ->
+            val profiler = Profiler()
+            val numbers = Stream.from(1..10).map { it + 1 }.runCollect()
+            val words = Stream.from(listOf("a", "b", "c")).filter { it != "b" }.runCollect()
+            numbers.measured(Measured("ingest", profiler)).run(Forks())
+                .toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+            words.measured(Measured("export", profiler)).run(Forks())
+                .toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+
+            val ingest = profiler.profile("ingest").stages.getValue(1)
+            val export = profiler.profile("export").stages.getValue(1)
+            val refused = shouldThrow<IllegalStateException>({ profiler.profile() }) { thrown ->
+                thrown.message shouldBe "this profiler saw export and ingest; say which"
+            }
+
+            (ingest.stage shouldBe "map") and (ingest.elements shouldBe 10) and
+                (export.stage shouldBe "filter") and (export.elements shouldBe 2) and
+                expect(ingest.at.orEmpty().startsWith("ProfileSuite.kt:")) and
+                refused
         }
     }
 }

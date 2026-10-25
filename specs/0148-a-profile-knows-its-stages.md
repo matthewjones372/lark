@@ -87,13 +87,10 @@ own.
 
 ## Open questions
 
-1. Should the `require` against `optimised` with a profile stay? The identity
-   check would catch that case too, since fused stages have other names. I
-   recommend keeping it: its message says what to do, while a mismatch
-   message only says what went wrong.
-2. Should `profile()` refuse when it sees several pipelines, or return the
-   one that reported last? I recommend refusing. Picking one silently is the
-   kind of failure this spec exists to remove.
-3. Should `ProfileTest` move from lark-stream-parity to lark-stream? I
-   recommend no: it needs a backend to run a stream, and lark-stream has
-   none.
+Answered (maintainer, 2026-10-25: the recommendations stand).
+
+1. ~~Should the `require` against `optimised` with a profile stay?~~ Yes: its message says what to do, while a
+   mismatch message only says what went wrong.
+2. ~~Should `profile()` refuse when it sees several pipelines, or return the one that reported last?~~ Refuse,
+   naming them.
+3. ~~Should `ProfileTest` move from lark-stream-parity to lark-stream?~~ No: it needs a backend to run a stream.

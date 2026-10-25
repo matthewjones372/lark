@@ -16,6 +16,10 @@ data class StageProfile(
     val waitingMillis: Double? = null,
     /** The sampled busy time in all, which a stage's share of the run is worked out from. */
     val busySampledMillis: Double = 0.0,
+    /** The operator that reported it, so a profile can be matched against the run it is rendered with (spec 0148). */
+    val stage: String? = null,
+    /** Where that operator was written, when the compiler plugin saw it. */
+    val at: String? = null,
 )
 
 /** A measured run's stages, keyed by `step`: each stage's place in the order data moves through the description. */
@@ -49,10 +53,22 @@ class Profiler(private val also: Metrics = NoMetrics) : Metrics {
         fun mean(): Double? = count.sum().takeIf { it > 0 }?.let { sum.sum() / it }
     }
 
-    private val tallies = ConcurrentHashMap<Pair<String, Int>, Tally>()
+    /** One stage of one pipeline: two pipelines measured by one profiler are kept apart (spec 0148). */
+    private data class Step(val pipeline: String, val step: Int)
+
+    private class Stage(val operator: String?, val at: String?)
+
+    private val tallies = ConcurrentHashMap<Pair<String, Step>, Tally>()
+
+    /** Which operator, written where, reported each step: what a rendered run is checked against. */
+    private val stages = ConcurrentHashMap<Step, Stage>()
 
     private fun tally(name: String, tags: Map<String, String>): Tally? =
-        tags["step"]?.toIntOrNull()?.let { step -> tallies.computeIfAbsent(name to step) { Tally() } }
+        tags["step"]?.toIntOrNull()?.let { number ->
+            val step = Step(tags["pipeline"].orEmpty(), number)
+            stages.computeIfAbsent(step) { Stage(tags["stage"], tags["at"]?.takeUnless { site -> site == NO_SITE }) }
+            tallies.computeIfAbsent(name to step) { Tally() }
+        }
 
     override fun counter(name: String, tags: Map<String, String>): Counter {
         val kept = tally(name, tags)
@@ -74,17 +90,26 @@ class Profiler(private val also: Metrics = NoMetrics) : Metrics {
         }
     }
 
-    /** What every stage reported so far. */
-    fun profile(): Profile {
-        val steps = tallies.keys.map { it.second }.toSet()
-        val of = { name: String, step: Int -> tallies[name to step] }
+    /**
+     * What every stage of [pipeline] reported so far. Without one, the only pipeline this profiler has seen: with
+     * several, it refuses rather than sum them, and names them.
+     */
+    fun profile(pipeline: String? = null): Profile {
+        val chosen = pipeline ?: stages.keys.map { it.pipeline }.toSortedSet().let { seen ->
+            check(seen.size <= 1) { "this profiler saw ${seen.joinToString(" and ")}; say which" }
+            seen.firstOrNull()
+        }
+        val steps = stages.filterKeys { it.pipeline == chosen }
+        val of = { name: String, step: Step -> tallies[name to step] }
         return Profile(
-            steps.associateWith { step ->
-                StageProfile(
+            steps.entries.associate { (step, stage) ->
+                step.step to StageProfile(
                     elements = of(ELEMENTS, step)?.sum?.sum()?.toLong() ?: 0,
                     busyMillis = of(BUSY, step)?.mean()?.times(MILLIS_PER_SECOND),
                     waitingMillis = of(WAITING, step)?.mean()?.times(MILLIS_PER_SECOND),
                     busySampledMillis = (of(BUSY, step)?.sum?.sum() ?: 0.0) * MILLIS_PER_SECOND,
+                    stage = stage.operator,
+                    at = stage.at,
                 )
             },
         )
@@ -94,6 +119,9 @@ class Profiler(private val also: Metrics = NoMetrics) : Metrics {
         const val ELEMENTS = "lark.stream.elements"
         const val BUSY = "lark.stream.busy"
         const val WAITING = "lark.stream.waiting"
+
+        /** The `at` tag of a stage the compiler plugin did not see. */
+        const val NO_SITE = "-"
 
         // A stage records its times in seconds; a profile reads them in milliseconds.
         const val MILLIS_PER_SECOND = 1_000.0
