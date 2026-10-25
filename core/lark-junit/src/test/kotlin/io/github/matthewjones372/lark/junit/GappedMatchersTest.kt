@@ -33,6 +33,10 @@ class GappedMatchersTest {
             "fails shouldNotBeNull",
             "fails shouldBeLessThan",
             "fails shouldBeGreaterThanOrEqual",
+            "fails shouldContainAll",
+            "fails shouldContainKey",
+            "fails shouldNotContainKey",
+            "fails shouldContain on a map",
         )
     }
 
@@ -45,6 +49,10 @@ class GappedMatchersTest {
             "fails shouldNotBeNull" to listOf("expected: a value, not null", "but was:  null"),
             "fails shouldBeLessThan" to listOf("expected: less than 2", "but was:  3"),
             "fails shouldBeGreaterThanOrEqual" to listOf("expected: at least 2", "but was:  1"),
+            "fails shouldContainAll" to listOf("expected: all of [3, 4]", "but was:  [1, 2, 2, 3], missing [4]"),
+            "fails shouldContainKey" to listOf("expected: a map with the key b", "but was:  {a=1}"),
+            "fails shouldNotContainKey" to listOf("expected: a map without the key a", "but was:  {a=1}"),
+            "fails shouldContain on a map" to listOf("expected: a map with a=2", "but was:  {a=1}"),
         )
         failures.values.forEach { lines -> lines[2] shouldMatch Regex("at Samples\\.kt:\\d+") }
     }

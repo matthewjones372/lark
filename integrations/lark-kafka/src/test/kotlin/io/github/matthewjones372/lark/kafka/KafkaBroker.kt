@@ -28,14 +28,22 @@ import java.net.ServerSocket
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
-/** A broker in the test JVM for one test class, started and stopped by JUnit 5 as the actor system is. */
+/**
+ * A broker in the test JVM for one suite, as its [kafkaBroker] resource, or for one Jupiter class, started and stopped
+ * by JUnit 5.
+ */
 class KafkaBroker : BeforeAllCallback, AfterAllCallback {
 
     private lateinit var kafka: EmbeddedK
 
     val bootstrap: String get() = "localhost:${kafka.config().kafkaPort()}"
 
-    override fun beforeAll(context: ExtensionContext) {
+    override fun beforeAll(context: ExtensionContext) = start()
+
+    override fun afterAll(context: ExtensionContext) = stop()
+
+    /** Starts the broker; what [kafkaBroker] acquires, and what `beforeAll` does for a Jupiter class. */
+    fun start() {
         // A fatal fault in the broker exits the JVM through Kafka's Exit, which ends the whole test run with no
         // report; thrown instead, it fails the test that is running, and slf4j-simple has logged the fault.
         Exit.setExitProcedure { code, _ -> error("the broker asked the JVM to exit with $code") }
@@ -66,7 +74,8 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
     private fun bindFailed(t: Throwable): Boolean =
         generateSequence(t) { it.cause }.any { it is BindException }
 
-    override fun afterAll(context: ExtensionContext) {
+    /** Stops the broker and puts Kafka's exit procedures back. */
+    fun stop() {
         try {
             kafka.stop(true)
         } finally {
