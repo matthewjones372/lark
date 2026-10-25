@@ -308,3 +308,43 @@ fun registryDown(thrown: Throwable): Boolean =
 
 fun orders(configured: KafkaAvroDeserializer): Decoder<Any> = Decoder(configured, transient = ::registryDown)
 ```
+
+## Testing against a broker
+
+`lark-kafka-test` runs a Kafka broker in the test JVM, so a test needs no
+Docker. Add it as a test dependency. `KafkaBroker` has helpers that send, read,
+create topics and wait for what a group committed. A lark-junit suite shares
+one broker across its tests as a `Resource`:
+
+```kotlin
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.kafka.KafkaBroker
+import io.github.matthewjones372.lark.kafka.Topic
+import io.github.matthewjones372.lark.kafka.kafkaBroker
+
+object OrdersSuite : Suite<KafkaBroker>() {
+    override val shared = kafkaBroker()
+
+    init {
+        test("an order is placed once") { kafka ->
+            val orders = Topic("orders")
+            kafka.send(orders, "o-1")
+            // … run the pipeline with bootstrap.servers set to kafka.bootstrap …
+            kafka.committed(group = "placing", topic = orders) shouldBe 1L
+        }
+    }
+}
+```
+
+On plain Jupiter, register the broker as an extension. It starts before the
+class's first test and stops after its last:
+
+```kotlin
+class OrdersTest {
+    companion object {
+        @JvmField @RegisterExtension
+        val kafka = KafkaBroker()
+    }
+}
+```

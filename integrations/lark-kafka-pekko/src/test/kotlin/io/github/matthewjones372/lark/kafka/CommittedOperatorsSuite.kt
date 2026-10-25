@@ -44,7 +44,7 @@ object CommittedOperatorsSuite : Suite<KafkaKit>() {
         test(
             "mapRecord, filterRecord, mapConcatRecord and mapParRecord see the values, and every record is committed",
         ) { kit ->
-            kit.broker.send("numbers", "1", "2", "3", "4", "5")
+            kit.broker.send(Topic("numbers"), "1", "2", "3", "4", "5")
             val seen = ConcurrentLinkedQueue<Int>()
 
             val exit = subscribe(kit, "counting", "numbers")
@@ -61,11 +61,11 @@ object CommittedOperatorsSuite : Suite<KafkaKit>() {
 
             (exit shouldBe Exit.Done(Done.getInstance())) and
                 (seen.toList() shouldBe listOf(1, 10, 3, 30, 5, 50)) and
-                (kit.broker.committed("counting", "numbers") shouldBe 5L)
+                (kit.broker.committed("counting", Topic("numbers")) shouldBe 5L)
         }
 
         test("a body that raises on record 3 of 5 leaves the first two committed") { kit ->
-            kit.broker.send("refusals", "1", "2", "3", "4", "5")
+            kit.broker.send(Topic("refusals"), "1", "2", "3", "4", "5")
 
             val exit = subscribe(kit, "refusing", "refusals")
                 .mapRecordOrFail { record ->
@@ -77,12 +77,12 @@ object CommittedOperatorsSuite : Suite<KafkaKit>() {
 
             (exit shouldBe Exit.Failed(Refused("3"))) and
                 withClue("the next run in the group starts at the record that raised") {
-                    kit.broker.committed("refusing", "refusals") shouldBe 2L
+                    kit.broker.committed("refusing", Topic("refusals")) shouldBe 2L
                 }
         }
 
         test("a record expanded to three elements whose third raises is not committed") { kit ->
-            kit.broker.send("expansions", "x", "y")
+            kit.broker.send(Topic("expansions"), "x", "y")
 
             val exit = subscribe(kit, "expanding", "expansions")
                 .mapConcatRecord { record ->
@@ -95,12 +95,12 @@ object CommittedOperatorsSuite : Suite<KafkaKit>() {
 
             (exit shouldBe Exit.Failed(Refused("y"))) and
                 withClue("x is committed; y's first two elements got through, and still y is not") {
-                    kit.broker.committed("expanding", "expansions") shouldBe 1L
+                    kit.broker.committed("expanding", Topic("expansions")) shouldBe 1L
                 }
         }
 
         test("a body's log lines name the record it is handling") { kit ->
-            kit.broker.send("annotated", "only")
+            kit.broker.send(Topic("annotated"), "only")
 
             val annotations = ConcurrentLinkedQueue<Map<String, String>>()
             val exit = subscribe(kit, "annotating", "annotated")

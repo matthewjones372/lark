@@ -60,7 +60,7 @@ object DecodeSuite : Suite<KafkaKit>() {
 
     init {
         test("a record that fails to decode is a Left with its position and raw bytes") { kit ->
-            kit.broker.send("mixed", "fine", "bad")
+            kit.broker.send(Topic("mixed"), "fine", "bad")
             val seen = ConcurrentLinkedQueue<Any>()
 
             val exit = Kafka.subscribe(
@@ -87,12 +87,12 @@ object DecodeSuite : Suite<KafkaKit>() {
                         error.cause.shouldBeInstanceOf<SerializationException>()
                 } and
                 withClue("a record that decoded to a Left is still committed") {
-                    kit.broker.committed("reading", "mixed") shouldBe 2L
+                    kit.broker.committed("reading", Topic("mixed")) shouldBe 2L
                 }
         }
 
         test("a throw the decoder calls transient ends the run Died") { kit ->
-            kit.broker.send("unreachable", "flaky")
+            kit.broker.send(Topic("unreachable"), "flaky")
 
             val exit = Kafka.subscribe(
                 bytes(kit, "dying"),
@@ -110,7 +110,7 @@ object DecodeSuite : Suite<KafkaKit>() {
         }
 
         test("after restartOnDefect the record whose decoder was down is read again") { kit ->
-            kit.broker.send("recovering", "flaky")
+            kit.broker.send(Topic("recovering"), "flaky")
             val orders = Orders(downFor = 1)
             val seen = ConcurrentLinkedQueue<String>()
 

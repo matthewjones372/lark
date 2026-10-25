@@ -5,11 +5,6 @@ import io.github.matthewjones372.lark.resource
 import org.apache.pekko.actor.ClassicActorSystemProvider
 import org.apache.pekko.actor.testkit.typed.javadsl.ActorTestKit
 
-/** The broker a suite's tests share, started when the suite acquires it and stopped on release (spec 0193). */
-fun kafkaBroker(): Resource<KafkaBroker> = resource {
-    install({ KafkaBroker().also { it.start() } }) { broker, _ -> broker.stop() }
-}
-
 /**
  * A broker, and the actor system the connector runs on, installed together as a suite's shared resource. Pekko's
  * own testkit owns the system, so a failing test cannot leave its threads running.

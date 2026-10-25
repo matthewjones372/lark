@@ -51,7 +51,7 @@ object RoutingSuite : Suite<KafkaKit>() {
 
     init {
         test("a diverted record is committed only after its function returns") { kit ->
-            kit.broker.send("diverting", "fine", "bad", "fine again")
+            kit.broker.send(Topic("diverting"), "fine", "bad", "fine again")
             val entered = CountDownLatch(1)
             val release = CountDownLatch(1)
             val dead = ConcurrentLinkedQueue<Long>()
@@ -68,17 +68,17 @@ object RoutingSuite : Suite<KafkaKit>() {
             val reached = entered.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             val held = withClue("while the dead letter is being written, nothing past it is committed") {
-                (kit.broker.committed("diverters", "diverting") ?: 0L) shouldBeLessThanOrEqual 1L
+                (kit.broker.committed("diverters", Topic("diverting")) ?: 0L) shouldBeLessThanOrEqual 1L
             }
             release.countDown()
 
             val exited = running.exit.settled() shouldBe Exit.Done(Done.getInstance())
             reached and held and exited and (dead.toList() shouldBe listOf(1L)) and
-                (kit.broker.committed("diverters", "diverting") shouldBe 3L)
+                (kit.broker.committed("diverters", Topic("diverting")) shouldBe 3L)
         }
 
         test("a divert that throws leaves its record uncommitted") { kit ->
-            kit.broker.send("undeliverable", "fine", "bad")
+            kit.broker.send(Topic("undeliverable"), "fine", "bad")
 
             val died = decoded(kit, "stranded", "undeliverable")
                 .divertLefts { throw IllegalStateException("dead letters are down") }
@@ -87,11 +87,11 @@ object RoutingSuite : Suite<KafkaKit>() {
                 .settled()
                 .shouldBeInstanceOf<Exit.Died>()
 
-            died and (kit.broker.committed("stranded", "undeliverable") shouldBe 1L)
+            died and (kit.broker.committed("stranded", Topic("undeliverable")) shouldBe 1L)
         }
 
         test("absolve ends the run with the first record that failed to decode") { kit ->
-            kit.broker.send("strict", "fine", "bad")
+            kit.broker.send(Topic("strict"), "fine", "bad")
 
             val exit = decoded(kit, "absolving", "strict")
                 .absolve()
@@ -100,7 +100,7 @@ object RoutingSuite : Suite<KafkaKit>() {
                 .settled()
 
             exit.shouldBeInstanceOf<Exit.Failed<DecodeError>> { failed -> failed.error.offset shouldBe 1L } and
-                (kit.broker.committed("absolving", "strict") shouldBe 1L)
+                (kit.broker.committed("absolving", Topic("strict")) shouldBe 1L)
         }
     }
 }

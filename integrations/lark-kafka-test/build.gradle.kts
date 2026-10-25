@@ -1,10 +1,12 @@
-// A Kafka broker in the test JVM for a service's own tests (spec 0161): lark-kafka, embedded-kafka, and nothing else.
+// A Kafka broker in the test JVM for a service's own tests (spec 0161): lark-kafka, embedded-kafka and JUnit's
+// Jupiter API, and nothing else.
 // NoOtherDependenciesTest asserts that on the classpath a consumer actually gets.
 
 val scalaBinary = "2.13"
 val embeddedKafka = "io.github.embeddedkafka:embedded-kafka_$scalaBinary:4.3.1"
+val jupiterApi = "org.junit.jupiter:junit-jupiter-api:6.1.3"
 
-// What the module may bring, resolved from those two alone: anything else on its classpath was added beside them.
+// What the module may bring, resolved from those three alone: anything else on its classpath was added beside them.
 val allowed: Configuration by configurations.creating {
     isCanBeConsumed = false
 }
@@ -14,8 +16,11 @@ dependencies {
     api(project(":lark-kafka"))
     // The broker itself. Its kafka-clients matches lark-kafka's.
     api(embeddedKafka)
+    // What a Jupiter test class registers it with.
+    api(jupiterApi)
     allowed(project(":lark-kafka"))
     allowed(embeddedKafka)
+    allowed(jupiterApi)
 
     testImplementation(project(":lark-assert"))
     // The broker's own log, errors only: a fatal fault is logged here before KafkaBroker turns its exit into a throw.
