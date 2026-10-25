@@ -12,6 +12,7 @@ sleep.
 | assertions on log lines or metrics | `capturingLogs { }`, `capturingMetrics { }` | `lark` |
 | a service test written as steps | `story { Given / When / Then }` | `lark-test` |
 | waiting for something to become true | `eventually(within) { }` | `lark-test` |
+| checks that name the test's line on failure | `shouldBe`, `shouldBeRight`, `withClue { }` | `lark-assert` |
 | tests that share a resource and run concurrently | `object … : Suite<R>()` | `lark-junit` |
 | a story as a suite's test, returning its expectations | `story { }` | `lark-junit` |
 | one class | its constructor, with fakes as arguments | nothing |
@@ -136,9 +137,39 @@ class AdoptionTest {
 ```
 
 `lark-test` depends only on `lark`. It brings no assertion library; the
-example uses Kotest's matchers, but any assertion that throws works.
+example uses [`lark-assert`](#assertions)'s, but any assertion that throws works.
 In a suite, a story returns its expectations instead: see
 [Stories in a suite](#stories-in-a-suite).
+
+## Assertions
+
+`lark-assert` holds the checks Lark's own tests use. Each one throws
+opentest4j's `AssertionFailedError` when it fails, so any JUnit runner reports
+it, and returns the value it checked when it holds. The failure says what was
+expected, what was found, and the file, line and source of the check, and its
+stack starts at the test's own frame:
+
+```
+expected: Right(value=42)
+but was:  Left(value=Bad(why=broken))
+at FlockTest.kt:322
+    bound shouldBeRight 42
+```
+
+| Checks | On |
+|---|---|
+| `shouldBe`, `shouldNotBe`, `shouldBeNull`, `shouldNotBeNull`, `shouldBeInstanceOf<T>`, `shouldBeSameInstanceAs` | any value |
+| `shouldBeRight`, `shouldBeLeft` | Lark's `Either`, naming the side it found |
+| `shouldBeLessThan`, `shouldBeGreaterThanOrEqual`, `shouldBeInRange`, … | anything `Comparable` |
+| `shouldContain`, `shouldStartWith`, `shouldEndWith`, `shouldMatch`, `shouldNotBeBlank` | a string, or a `Regex` match within it |
+| `shouldContain`, `shouldContainAll`, `shouldContainExactly`, `shouldContainExactlyInAnyOrder`, `shouldContainOnly`, `shouldHaveSize`, `shouldBeEmpty` | a collection |
+| `shouldContainKey`, `shouldContain(key to value)`, `shouldContainAll`, `shouldContainExactly` | a map |
+| `shouldThrow<T> { }` | a block, returning what it threw |
+
+`shouldBe` and `shouldContainExactly` carry both sides, so an IDE can show
+them side by side. `withClue(clue) { }` puts the clue above any failure inside
+its block; a clue written as a lambda is only worked out if something fails.
+*Unreleased: `lark-assert` is on `main` and not in 0.10.1.*
 
 ## Suites
 
@@ -264,7 +295,7 @@ interrupt or cancellation goes on up, so a `timeout` still stops the test. Infix
 `a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
 parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
 whose matchers throw and return the value; a file importing both can call
-neither. A throwing check, Kotest's or `lark-assert`'s, is still allowed in a
+neither. A throwing check, such as `lark-assert`'s, is still allowed in a
 test: it stops the test, which is reported as an error.
 
 <!-- testing-junit-expect -->

@@ -68,7 +68,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-otel`: traces across forks.
 - `lark-openfeature`: OpenFeature's evaluation context across forks and messages.
 - `lark-arrow`: Lark's types to and from Arrow's.
-- `lark-assert`: `shouldBeRight` and `shouldBeLeft` for tests.
+- `lark-assert`: checks for tests, `shouldBe` to `shouldBeRight`, failing at the test's line.
 - `lark-slf4j`: log lines through SLF4J.
 - `lark-micrometer`: metrics on Micrometer.
 - `lark-kafka`: Kafka as a `Stream`, commit after the work, dead letters, transactions.
