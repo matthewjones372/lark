@@ -74,6 +74,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-micrometer`: metrics on Micrometer.
 - `lark-kafka`: Kafka as a `Stream`, commit after the work, dead letters, transactions.
 - `lark-kafka-pekko`: `lark-kafka` through Pekko's connector.
+- `lark-kafka-test`: a Kafka broker in the test JVM, for a service's own tests.
 - `lark-actor`: actors as values on virtual threads.
 - `lark-actor-journal-jdbc`: an actor's journal on JDBC.
 - `lark-actor-projection`: a journal as a resumable `Stream`.

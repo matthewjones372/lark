@@ -107,6 +107,7 @@ against; the library's own transitive dependencies come with it.
 |---|---|---|---|---|
 | `lark-kafka` | a topic as a `Stream` on any backend, producers, transactions ([guide](kafka.md)) | `lark-stream` | `kafka-clients` 4.3.0 | yes |
 | `lark-kafka-pekko` | the same through Pekko's Kafka connector, on Pekko Streams | `lark-kafka`, `lark-stream-pekko` | `pekko-connectors-kafka` 1.1.0 | yes |
+| `lark-kafka-test` | a broker in the test JVM for a service's own tests, as a lark-junit `Resource` | `lark-kafka` | `embedded-kafka` 4.3.1 | yes |
 | `lark-kafka-benchmarks` | JMH benchmarks against the Java client ([results](../bench/lark-kafka-benchmarks/README.md)) | | JMH, embedded-kafka | no |
 
 ### Actors and clusters

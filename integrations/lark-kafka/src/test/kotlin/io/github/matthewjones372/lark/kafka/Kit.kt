@@ -7,11 +7,6 @@ import io.github.matthewjones372.lark.stream.PekkoStreams
 import io.github.matthewjones372.lark.stream.StreamBackend
 import org.apache.pekko.actor.testkit.typed.javadsl.ActorTestKit
 
-/** The broker a suite's tests share, started when the suite acquires it and stopped on release (spec 0193). */
-fun kafkaBroker(): Resource<KafkaBroker> = resource {
-    install({ KafkaBroker().also { it.start() } }) { broker, _ -> broker.stop() }
-}
-
 /** The two backends a consumer loop is run on, by the name a test per backend carries. */
 val backends: List<String> = listOf("Forks", "Pekko")
 

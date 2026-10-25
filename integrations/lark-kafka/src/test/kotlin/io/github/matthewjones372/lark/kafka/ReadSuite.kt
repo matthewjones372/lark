@@ -62,10 +62,10 @@ object ReadSuite : Suite<KafkaBroker>() {
 
     init {
         test("each partition read to its end at start gives its own records and ends") { kafka ->
-            kafka.create("replay", partitions = 3)
-            kafka.sendTo("replay", 0, "a", "b")
-            kafka.sendTo("replay", 1, "c")
-            kafka.sendTo("replay", 2, "d", "e", "f")
+            kafka.create(Topic("replay"), partitions = 3)
+            kafka.sendTo(Topic("replay"), 0, "a", "b")
+            kafka.sendTo(Topic("replay"), 1, "c")
+            kafka.sendTo(Topic("replay"), 2, "d", "e", "f")
 
             val reads = (0..2).map { values(kafka, "replay", it, From.Earliest, Until.EndAtStart) }
 
@@ -74,11 +74,11 @@ object ReadSuite : Suite<KafkaBroker>() {
         }
 
         test("a record written after the read opened is not read when it ends at start") { kafka ->
-            kafka.create("late", partitions = 1)
-            kafka.sendTo("late", 0, "a", "b")
+            kafka.create(Topic("late"), partitions = 1)
+            kafka.sendTo(Topic("late"), 0, "a", "b")
 
             val written = values(kafka, "late", 0, From.Earliest, Until.EndAtStart) {
-                if (it == "a") kafka.sendTo("late", 0, "late")
+                if (it == "a") kafka.sendTo(Topic("late"), 0, "late")
             }
 
             (written gives listOf("a", "b")) and
@@ -86,28 +86,28 @@ object ReadSuite : Suite<KafkaBroker>() {
         }
 
         test("a partition already at its end gives nothing, at once") { kafka ->
-            kafka.create("empty", partitions = 2)
-            kafka.sendTo("empty", 0, "a")
+            kafka.create(Topic("empty"), partitions = 2)
+            kafka.sendTo(Topic("empty"), 0, "a")
 
             (values(kafka, "empty", 1, From.Earliest, Until.EndAtStart) gives emptyList()) and
                 (values(kafka, "empty", 0, From.Latest, Until.EndAtStart) gives emptyList())
         }
 
         test("a read from an offset starts there") { kafka ->
-            kafka.create("offset", partitions = 1)
-            kafka.sendTo("offset", 0, "a", "b", "c")
+            kafka.create(Topic("offset"), partitions = 1)
+            kafka.sendTo(Topic("offset"), 0, "a", "b", "c")
 
             values(kafka, "offset", 0, From.Offset(1), Until.EndAtStart) gives listOf("b", "c")
         }
 
         test("a read stopped and resumed from what it committed loses nothing") { kafka ->
-            kafka.create("resume", partitions = 1)
-            kafka.sendTo("resume", 0, "1", "2", "3", "4")
+            kafka.create(Topic("resume"), partitions = 1)
+            kafka.sendTo(Topic("resume"), 0, "1", "2", "3", "4")
 
             val stopped = values(kafka, "resume", 0, From.Committed, Until.Never, group = "resumer", take = 2)
             val first = stopped gives listOf("1", "2")
-            val committed = kafka.committed("resumer", "resume") shouldBe 2L
-            kafka.sendTo("resume", 0, "5")
+            val committed = kafka.committed("resumer", Topic("resume")) shouldBe 2L
+            kafka.sendTo(Topic("resume"), 0, "5")
             val resumed = values(kafka, "resume", 0, From.Committed, Until.EndAtStart, group = "resumer")
 
             first and committed and (resumed gives listOf("3", "4", "5"))
@@ -125,8 +125,8 @@ object ReadSuite : Suite<KafkaBroker>() {
         }
 
         test("with decoders, a record that cannot be read is a Left that keeps its place") { kafka ->
-            kafka.create("decoded", partitions = 1)
-            kafka.sendTo("decoded", 0, "1", "two", "3")
+            kafka.create(Topic("decoded"), partitions = 1)
+            kafka.sendTo(Topic("decoded"), 0, "1", "two", "3")
             val strings = Decoder(StringDeserializer()) { false }
             val ints = Decoder(Deserializer { _, bytes -> String(bytes).toInt() }) { false }
             val seen = ConcurrentLinkedQueue<Either<DecodeError, Int?>>()

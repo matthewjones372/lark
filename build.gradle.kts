@@ -94,6 +94,8 @@ val moduleDescriptions = mapOf(
     "lark-structured" to "lark over the JDK's StructuredTaskScope: a flock the thread dump can see.",
     "lark-kafka" to "Kafka as a lark Stream on any backend: a record is committed only after the work on it is done.",
     "lark-kafka-pekko" to "lark-kafka through Pekko's own Kafka connector: prefetch, batched commits, a draining stop.",
+    "lark-kafka-test" to
+        "A Kafka broker in the test JVM for a service's own tests: no Docker, and helpers to read what it did.",
     "lark-actor" to "An actor as a value and a step, on virtual threads: no actor system, and tests that never wait.",
     "lark-actor-journal-jdbc" to
         "lark-actor's journal and snapshots on JDBC: events every node reaches, two writers settled by the key.",

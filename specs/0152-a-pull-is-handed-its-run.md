@@ -84,7 +84,7 @@ interface hidden, so I recommend the parameter.
 - [x] **`spec-0152-forks`** ([#618](https://github.com/matthewjones372/lark/pull/618)): forks carry `ctx`. `Bound` and
       `pullsOnClock` are deleted.
       Done when: no fork calls `Releases.within` or `Resources.around`.
-- [ ] **`spec-0152-unbind`**: the four ThreadLocals are deleted.
+- [x] **`spec-0152-unbind`** ([#622](https://github.com/matthewjones372/lark/pull/622)): the four ThreadLocals are deleted.
       `ActorFanin`'s `run.within { … }` goes, with `Pulling.within`: its
       pulls already carry the context, so there is nothing left to bind.
       Done when: `grep ThreadLocal lark-stream-forks` finds only `Turns`'s

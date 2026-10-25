@@ -94,7 +94,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
             "a close on an interrupted thread still commits what was handled, and leaves the thread interrupted",
         ) { kafka ->
             val topic = "closed-interrupted"
-            kafka.send(topic, "1", "2", "3")
+            kafka.send(Topic(topic), "1", "2", "3")
             val consumer = consumer(kafka, topic).also { it.subscribe(listOf(topic)) }
             val commits = Commits(consumer)
             consumer.polled(3).forEach { record -> commits.carrying(record).handle?.handled() }
@@ -107,7 +107,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
             }.get(GENEROUS_SECONDS, TimeUnit.SECONDS)
 
             withClue("the close committed all three records, though its thread was interrupted") {
-                kafka.committed(topic, topic) shouldBe 3L
+                kafka.committed(topic, Topic(topic)) shouldBe 3L
             } and withClue("the interrupt is still there for whoever sent it") { stillInterrupted shouldBe true }
         }
 
@@ -115,7 +115,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
             "a close waits for a transaction sending the member's offsets, which the broker takes from the member",
         ) { kafka ->
             val topic = "leaving-mid-send"
-            kafka.send(topic, "1", "2", "3")
+            kafka.send(Topic(topic), "1", "2", "3")
             val consumer = consumer(kafka, topic).also { it.subscribe(listOf(topic)) }
             val commits = Commits(consumer)
             val records = consumer.polled(3).also { commits.polled() }
@@ -149,12 +149,12 @@ object CommitsSuite : Suite<KafkaBroker>() {
                 started and waited and asMember
             }
 
-            sent and (kafka.committed(topic, topic) shouldBe 3L)
+            sent and (kafka.committed(topic, Topic(topic)) shouldBe 3L)
         }
 
         test("a transaction after the close sends the group alone, which the broker takes") { kafka ->
             val topic = "sent-after-leaving"
-            kafka.send(topic, "1", "2", "3")
+            kafka.send(Topic(topic), "1", "2", "3")
             val consumer = consumer(kafka, topic).also { it.subscribe(listOf(topic)) }
             val commits = Commits(consumer)
             val records = consumer.polled(3).also { commits.polled() }
@@ -174,14 +174,14 @@ object CommitsSuite : Suite<KafkaBroker>() {
                 gone
             }
 
-            gone and (kafka.committed(topic, topic) shouldBe 3L)
+            gone and (kafka.committed(topic, Topic(topic)) shouldBe 3L)
         }
 
         test(
             "a record handled after its partition was revoked commits nothing, and one read after it is back does",
         ) { kafka ->
             val topic = "handled-after-revoke"
-            kafka.send(topic, "1", "2", "3")
+            kafka.send(Topic(topic), "1", "2", "3")
             val consumer = consumer(kafka, topic).also { it.subscribe(listOf(topic)) }
             val commits = Commits(consumer)
             val records = consumer.polled(3)
@@ -193,13 +193,13 @@ object CommitsSuite : Suite<KafkaBroker>() {
             late.forEach { it.handled() }
             commits.commit()
             val revoked = withClue("records read before the revoke are the new owner's to commit") {
-                kafka.committed(topic, topic) shouldBe null
+                kafka.committed(topic, Topic(topic)) shouldBe null
             }
 
             commits.carrying(records.last()).handle!!.handled()
             commits.close()
             revoked and withClue("a record read once the partition is this consumer's again commits as usual") {
-                kafka.committed(topic, topic) shouldBe 3L
+                kafka.committed(topic, Topic(topic)) shouldBe 3L
             }
         }
 
@@ -207,7 +207,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
             "a close does not wait out the fetch the broker is holding, and still leaves the group with its offsets",
         ) { kafka ->
             val topic = "closed-past-a-held-fetch"
-            kafka.send(topic, "1", "2", "3")
+            kafka.send(Topic(topic), "1", "2", "3")
             // A broker that holds an empty fetch for 3s, so a close that waits for it is plain to see.
             val consumer = KafkaConsumer(
                 mapOf<String, Any>(
@@ -231,7 +231,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
 
             withClue("the close took ${closing}ms against a fetch held for ${HELD_FETCH_MILLIS}ms") {
                 (closing < CLOSE_WITHIN_MILLIS) shouldBe true
-            } and (kafka.committed(topic, topic) shouldBe 3L) and
+            } and (kafka.committed(topic, Topic(topic)) shouldBe 3L) and
                 withClue("the consumer left its group rather than timing out of it") {
                     kafka.members(topic) shouldBe 0
                 }
@@ -241,7 +241,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
             "a member that was given no partition closes as Kafka does, rather than within a lookup it never made",
         ) { kafka ->
             val topic = "more-members-than-partitions"
-            kafka.send(topic, "1")
+            kafka.send(Topic(topic), "1")
             consumer(kafka, topic).use { owner ->
                 owner.subscribe(listOf(topic))
                 owner.polled(1)
@@ -271,7 +271,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
             "a close with nothing due and a wake still pending closes cleanly, rather than throwing the wake",
         ) { kafka ->
             val topic = "closed-with-a-wake-pending"
-            kafka.send(topic, "1")
+            kafka.send(Topic(topic), "1")
             val consumer = consumer(kafka, topic).also { it.subscribe(listOf(topic)) }
             val commits = Commits(consumer)
             // Joined, with nothing handled: there is nothing for the close to commit.
@@ -288,7 +288,7 @@ object CommitsSuite : Suite<KafkaBroker>() {
             "a coordinator that does not answer the close's lookup leaves Kafka's own close, rather than a failed stop",
         ) { kafka ->
             val topic = "closed-with-no-coordinator"
-            kafka.send(topic, "1")
+            kafka.send(Topic(topic), "1")
             // A coordinator that will not answer: the lookup that stands in for a commit's round trip times out.
             val consumer = object : KafkaConsumer<String, String>(
                 mapOf<String, Any>(

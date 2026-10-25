@@ -45,9 +45,9 @@ object ProduceSuite : Suite<KafkaKit>() {
         ProducerConfig.MAX_REQUEST_SIZE_CONFIG to MAX_REQUEST_BYTES,
     )
 
-    private fun consumed(kafka: KafkaBroker, group: String, topic: String) = Kafka.consume(
+    private fun consumed(kafka: KafkaBroker, group: String, topic: Topic) = Kafka.consume(
         consumerProperties(kafka, group),
-        Topic(topic),
+        topic,
         key = StringDeserializer(),
         value = StringDeserializer(),
     )
@@ -73,7 +73,7 @@ object ProduceSuite : Suite<KafkaKit>() {
                 }
 
                 passed and (
-                    kafka.read(topic.name, 5).map { it.key() to it.value() } shouldBe
+                    kafka.read(topic, 5).map { it.key() to it.value() } shouldBe
                         listOf("a" to "A", "b" to "B", "c" to "C", "d" to "D", "e" to "E")
                     )
             }
@@ -82,7 +82,7 @@ object ProduceSuite : Suite<KafkaKit>() {
         backends.forEach { on ->
             test("a consumed record is committed once what it produced is acknowledged [$on]") { kit ->
                 val kafka = kit.broker
-                val input = "orders-in-$on"
+                val input = Topic("orders-in-$on")
                 val output = Topic("orders-out-$on")
                 kafka.send(input, "1", "2", "3")
 
@@ -98,7 +98,7 @@ object ProduceSuite : Suite<KafkaKit>() {
 
                 done and
                     (
-                        kafka.read(output.name, 3).map { it.value() } shouldBe
+                        kafka.read(output, 3).map { it.value() } shouldBe
                             listOf("placed 1", "placed 2", "placed 3")
                         ) and
                     (kafka.committed("relaying-$on", input) shouldBe 3L)
@@ -108,7 +108,7 @@ object ProduceSuite : Suite<KafkaKit>() {
         backends.forEach { on ->
             test("a record the producer gives up on is a defect, and nothing from it on is committed [$on]") { kit ->
                 val kafka = kit.broker
-                val input = "oversized-in-$on"
+                val input = Topic("oversized-in-$on")
                 kafka.send(input, "small", "x".repeat(MAX_REQUEST_BYTES * 2), "small again")
 
                 val exit = strings(kafka).use { producer ->
@@ -131,7 +131,7 @@ object ProduceSuite : Suite<KafkaKit>() {
                 "a dead letter is written as it was read, with where it came from, before its offset moves on [$on]",
             ) { kit ->
                 val kafka = kit.broker
-                val input = "letters-in-$on"
+                val input = Topic("letters-in-$on")
                 val dead = Topic("letters-dead-$on")
                 kafka.send(input, "fine", "bad", "fine again")
                 val strict = Deserializer { _, data: ByteArray ->
@@ -143,7 +143,7 @@ object ProduceSuite : Suite<KafkaKit>() {
                     Kafka.producer(producerProperties(kafka), raw, raw).use { bytes ->
                         Kafka.consume(
                             consumerProperties(kafka, "letters-$on"),
-                            Topic(input),
+                            input,
                             key = Decoder.string(),
                             value = Decoder(strict) { false },
                         )
@@ -155,14 +155,14 @@ object ProduceSuite : Suite<KafkaKit>() {
                     } to captured
                 }
                 val counted = (captured.counter("lark.kafka.dead.letters") shouldBe 1.0) and
-                    (captured.tags("lark.kafka.dead.letters")["topic"] shouldBe input)
+                    (captured.tags("lark.kafka.dead.letters")["topic"] shouldBe input.name)
 
-                val letter = kafka.read(dead.name, 1).single()
+                val letter = kafka.read(dead, 1).single()
                 fun header(name: String) =
                     letter.headers().lastHeader("$DEAD_LETTER_HEADER.$name")?.value()?.let(::String)
                 done and counted and
                     (letter.value() shouldBe "bad") and
-                    (header("topic") shouldBe input) and
+                    (header("topic") shouldBe input.name) and
                     (header("offset") shouldBe "1") and
                     (header("part") shouldBe "Value") and
                     (kafka.committed("letters-$on", input) shouldBe 3L)
@@ -185,7 +185,7 @@ object ProduceSuite : Suite<KafkaKit>() {
                 withClue("the record after the failure is not sent, and says which failure stopped it") {
                     (omitted.record.value() shouldBe "d") and
                         omitted.cause.shouldBeInstanceOf<PublishOmitted> { it.cause shouldBe failed.cause }
-                } and (kafka.read(topic.name, 2).map { it.value() } shouldBe listOf("a", "b"))
+                } and (kafka.read(topic, 2).map { it.value() } shouldBe listOf("a", "b"))
         }
 
         backends.forEach { on ->
@@ -193,7 +193,7 @@ object ProduceSuite : Suite<KafkaKit>() {
                 "a batch whose write fails ends on absolve, with only what came before the failure committed [$on]",
             ) { kit ->
                 val kafka = kit.broker
-                val input = "batch-failing-in-$on"
+                val input = Topic("batch-failing-in-$on")
                 val output = Topic("batch-failing-out-$on")
                 kafka.send(input, "1", "2", "x".repeat(MAX_REQUEST_BYTES * 2), "4", "5")
 
@@ -210,7 +210,7 @@ object ProduceSuite : Suite<KafkaKit>() {
                 exit.shouldBeInstanceOf<Exit.Failed<PublishFailed>> { failed ->
                     failed.error.cause.shouldBeInstanceOf<RecordTooLargeException>()
                 } and
-                    (kafka.read(output.name, 2).map { it.value() } shouldBe listOf("1", "2")) and
+                    (kafka.read(output, 2).map { it.value() } shouldBe listOf("1", "2")) and
                     (kafka.committed("batch-failing-$on", input) shouldBe 2L)
             }
         }
@@ -220,7 +220,7 @@ object ProduceSuite : Suite<KafkaKit>() {
                 "divertLefts hands on a batch's failed and omitted records, and the next batch commits past them [$on]",
             ) { kit ->
                 val kafka = kit.broker
-                val input = "batch-diverted-in-$on"
+                val input = Topic("batch-diverted-in-$on")
                 kafka.send(input, "1", "2", "x".repeat(MAX_REQUEST_BYTES * 2), "4", "5", "6")
                 val lefts = ConcurrentLinkedQueue<PublishFailed>()
 

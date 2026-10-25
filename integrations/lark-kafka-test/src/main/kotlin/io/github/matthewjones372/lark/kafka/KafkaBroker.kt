@@ -25,14 +25,17 @@ import java.net.ServerSocket
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
-/** A broker in the test JVM for one suite, started and stopped as its [kafkaBroker] resource. */
+/**
+ * A Kafka broker in the test JVM, so a test needs no Docker (spec 0161). A lark-junit suite shares one as its
+ * [kafkaBroker] resource. The helpers read and write strings, and wait up to 30 seconds for the broker.
+ */
 class KafkaBroker {
 
     private lateinit var kafka: EmbeddedK
 
     val bootstrap: String get() = "localhost:${kafka.config().kafkaPort()}"
 
-    /** Starts the broker; what [kafkaBroker] acquires. */
+    /** Starts the broker on two free ports, trying new ones if another JVM takes them first. */
     fun start() {
         // A fatal fault in the broker exits the JVM through Kafka's Exit, which ends the whole test run with no
         // report; thrown instead, it fails the test that is running, and slf4j-simple has logged the fault.
@@ -74,23 +77,24 @@ class KafkaBroker {
         }
     }
 
-    fun send(topic: String, vararg values: String) {
+    /** [values] sent to [topic], in order. */
+    fun send(topic: Topic, vararg values: String) {
         KafkaProducer(mapOf<String, Any>("bootstrap.servers" to bootstrap), StringSerializer(), StringSerializer())
             .use { producer ->
                 values.forEach { value ->
-                    producer.send(ProducerRecord(topic, value)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    producer.send(ProducerRecord(topic.name, value)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 }
             }
     }
 
     /** The first [count] records on [topic], read from the start by a consumer of no group. */
-    fun read(topic: String, count: Int): List<ConsumerRecord<String?, String?>> =
+    fun read(topic: Topic, count: Int): List<ConsumerRecord<String?, String?>> =
         KafkaConsumer(
             mapOf<String, Any>(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap),
             StringDeserializer(),
             StringDeserializer(),
         ).use { consumer ->
-            val partition = TopicPartition(topic, 0)
+            val partition = TopicPartition(topic.name, 0)
             consumer.assign(listOf(partition))
             consumer.seekToBeginning(listOf(partition))
             val read = mutableListOf<ConsumerRecord<String?, String?>>()
@@ -102,18 +106,19 @@ class KafkaBroker {
         }
 
     /** [topic] made with [partitions] partitions, before anything is sent to it. */
-    fun create(topic: String, partitions: Int) {
+    fun create(topic: Topic, partitions: Int) {
         Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
-            admin.createTopics(listOf(NewTopic(topic, partitions, 1))).all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            admin.createTopics(listOf(NewTopic(topic.name, partitions, 1))).all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         }
     }
 
     /** [values] sent to [partition] of [topic], in order. */
-    fun sendTo(topic: String, partition: Int, vararg values: String) {
+    fun sendTo(topic: Topic, partition: Int, vararg values: String) {
         KafkaProducer(mapOf<String, Any>("bootstrap.servers" to bootstrap), StringSerializer(), StringSerializer())
             .use { producer ->
                 values.forEach { value ->
-                    producer.send(ProducerRecord(topic, partition, null, value)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    producer.send(ProducerRecord(topic.name, partition, null, value))
+                        .get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 }
             }
     }
@@ -123,8 +128,8 @@ class KafkaBroker {
      * `read_committed` the end is the last committed transaction's, and an aborted one's records are skipped.
      * Read once no transaction is open on it, so a transaction that has just ended is read as it ended.
      */
-    fun readAll(topic: String, isolation: String): List<ConsumerRecord<String?, String?>> {
-        settled(TopicPartition(topic, 0))
+    fun readAll(topic: Topic, isolation: String): List<ConsumerRecord<String?, String?>> {
+        settled(TopicPartition(topic.name, 0))
         return KafkaConsumer(
             mapOf<String, Any>(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap,
@@ -133,7 +138,7 @@ class KafkaBroker {
             StringDeserializer(),
             StringDeserializer(),
         ).use { consumer ->
-            val partition = TopicPartition(topic, 0)
+            val partition = TopicPartition(topic.name, 0)
             consumer.assign(listOf(partition))
             consumer.seekToBeginning(listOf(partition))
             val end = consumer.endOffsets(listOf(partition)).getValue(partition)
@@ -148,6 +153,8 @@ class KafkaBroker {
 
     // commitTransaction returns once the coordinator has prepared the commit; the marker that ends the
     // transaction on the partition is written after, so until then a read_committed reader stops short of it.
+    // A test's own thread, polling a broker for at most TIMEOUT_SECONDS: waiting there stalls nothing else.
+    @Suppress("ForbiddenMethodCall")
     private fun settled(partition: TopicPartition) {
         Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
             fun end(isolation: IsolationLevel): Long =
@@ -169,8 +176,10 @@ class KafkaBroker {
      * and read before then, the group's last offset is the one before. Asked for by partition, a pending one comes
      * back missing, not null.
      */
-    fun committed(group: String, topic: String, number: Int = 0): Long? {
-        val partition = TopicPartition(topic, number)
+    // Polled on the test's own thread until the deadline, as [settled] is.
+    @Suppress("ForbiddenMethodCall")
+    fun committed(group: String, topic: Topic, number: Int = 0): Long? {
+        val partition = TopicPartition(topic.name, number)
         val asked = mapOf(group to ListConsumerGroupOffsetsSpec().topicPartitions(listOf(partition)))
         return Admin.create(mapOf<String, Any>(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap)).use { admin ->
             val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)
