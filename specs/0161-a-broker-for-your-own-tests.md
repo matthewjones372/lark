@@ -59,7 +59,7 @@ are Jupiter; the extension is two callbacks over `start` and `stop`.
 The move of `KafkaBroker` alone is about 220 lines of main source, so entry 1 is over the soft cap; it is code
 moved, not written.
 
-- [ ] **`spec-0161-module`**: `lark-kafka-test` with `KafkaBroker`, its helpers by `Topic`, and `kafkaBroker()`;
+- [x] **`spec-0161-module`** ([#628](https://github.com/matthewjones372/lark/pull/628)): `lark-kafka-test` with `KafkaBroker`, its helpers by `Topic`, and `kafkaBroker()`;
       every place a new module must be named (`docs/agents/new-module.md`); lark-kafka's tests moved onto it.
       Done when: `NoOtherDependenciesTest` allows exactly lark-kafka, embedded-kafka and JUnit.
 - [ ] **`spec-0161-jupiter`**: `KafkaBroker` as a JUnit 5 extension, with a test on Jupiter; lark-kafka-pekko's

@@ -20,6 +20,9 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.Exit
+import org.junit.jupiter.api.extension.AfterAllCallback
+import org.junit.jupiter.api.extension.BeforeAllCallback
+import org.junit.jupiter.api.extension.ExtensionContext
 import java.net.BindException
 import java.net.ServerSocket
 import java.time.Duration
@@ -27,9 +30,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * A Kafka broker in the test JVM, so a test needs no Docker (spec 0161). A lark-junit suite shares one as its
- * [kafkaBroker] resource. The helpers read and write strings, and wait up to 30 seconds for the broker.
+ * [kafkaBroker] resource; a Jupiter test class registers one with `@RegisterExtension`, started before its tests
+ * and stopped after them. The helpers read and write strings, and wait up to 30 seconds for the broker.
  */
-class KafkaBroker {
+class KafkaBroker : BeforeAllCallback, AfterAllCallback {
 
     private lateinit var kafka: EmbeddedK
 
@@ -76,6 +80,12 @@ class KafkaBroker {
             Exit.resetHaltProcedure()
         }
     }
+
+    /** Jupiter's: starts the broker before the class's first test. */
+    override fun beforeAll(context: ExtensionContext) = start()
+
+    /** Jupiter's: stops the broker after the class's last test. */
+    override fun afterAll(context: ExtensionContext) = stop()
 
     /** [values] sent to [topic], in order. */
     fun send(topic: Topic, vararg values: String) {

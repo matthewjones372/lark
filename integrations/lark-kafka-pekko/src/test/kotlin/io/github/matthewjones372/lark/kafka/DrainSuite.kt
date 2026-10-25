@@ -24,7 +24,7 @@ object DrainSuite : Suite<KafkaKit>() {
         test(
             "a stop while a body is running still commits that body's record, and close waits for the commit",
         ) { kit ->
-            kit.broker.send("slow", "1", "2")
+            kit.broker.send(Topic("slow"), "1", "2")
             val second = CountDownLatch(1)
             val release = CountDownLatch(1)
 
@@ -53,7 +53,7 @@ object DrainSuite : Suite<KafkaKit>() {
             val exited = running.exit.toCompletableFuture().getNow(null) shouldBe Exit.Done(Done.getInstance())
             reached and exited and
                 withClue("the kill switch would have dropped record 2 between the stages; a drain commits it") {
-                    kit.broker.committed("draining", "slow") shouldBe 2L
+                    kit.broker.committed("draining", Topic("slow")) shouldBe 2L
                 }
         }
     }

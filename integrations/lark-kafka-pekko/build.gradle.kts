@@ -14,8 +14,8 @@ dependencies {
     api("org.apache.pekko:pekko-connectors-kafka_$scalaBinary:$connectorVersion")
 
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary:$pekkoVersion")
-    // A broker in the test JVM, so the suite needs no Docker. Its kafka-clients matches lark-kafka's.
-    testImplementation("io.github.embeddedkafka:embedded-kafka_$scalaBinary:4.3.1")
+    // A broker in the test JVM, so the suite needs no Docker (spec 0161).
+    testImplementation(project(":lark-kafka-test"))
     // The compiler, so that which overload a call resolves to, and what does not compile, are tests.
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
     testImplementation(project(":lark-assert"))

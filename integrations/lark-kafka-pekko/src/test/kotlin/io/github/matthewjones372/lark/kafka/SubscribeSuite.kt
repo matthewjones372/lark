@@ -44,7 +44,7 @@ object SubscribeSuite : Suite<KafkaKit>() {
 
     init {
         test("the records a run handles are committed, and the group starts after them next time") { kit ->
-            kit.broker.send("orders", "1", "2", "3", "4", "5")
+            kit.broker.send(Topic("orders"), "1", "2", "3", "4", "5")
 
             val first = Kafka.subscribe(consumer(kit, "placing"), Topic("orders"))
                 .take(5)
@@ -52,9 +52,9 @@ object SubscribeSuite : Suite<KafkaKit>() {
                 .run(kit.system)
                 .settled() shouldBe Exit.Done(Done.getInstance())
 
-            val committed = kit.broker.committed("placing", "orders") shouldBe 5L
+            val committed = kit.broker.committed("placing", Topic("orders")) shouldBe 5L
 
-            kit.broker.send("orders", "6")
+            kit.broker.send(Topic("orders"), "6")
             val next = Kafka.subscribe(consumer(kit, "placing"), Topic("orders"))
                 .map { it.value.value() }
                 .take(1)
@@ -68,7 +68,7 @@ object SubscribeSuite : Suite<KafkaKit>() {
         }
 
         test("a batch commits through the connector, and the group starts after it next time") { kit ->
-            kit.broker.send("bulk-orders", "1", "2", "3", "4")
+            kit.broker.send(Topic("bulk-orders"), "1", "2", "3", "4")
 
             val exit = Kafka.subscribe(consumer(kit, "bulk"), Topic("bulk-orders"))
                 .groupedRecord(3, 10.seconds)
@@ -77,11 +77,12 @@ object SubscribeSuite : Suite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(Done.getInstance())) and (kit.broker.committed("bulk", "bulk-orders") shouldBe 3L)
+            (exit shouldBe Exit.Done(Done.getInstance())) and
+                (kit.broker.committed("bulk", Topic("bulk-orders")) shouldBe 3L)
         }
 
         test("a declared failure in the stream is the committing run's exit") { kit ->
-            kit.broker.send("refusals", "fine", "refused")
+            kit.broker.send(Topic("refusals"), "fine", "refused")
 
             Kafka.subscribe(consumer(kit, "refusing"), Topic("refusals"))
                 .mapOrFail { record -> if (record.value.value() == "refused") fail(Refused("refused")) else record }
