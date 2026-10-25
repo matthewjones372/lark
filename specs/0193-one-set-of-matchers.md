@@ -66,7 +66,7 @@ Recommended: the `Miss` seam.
 
 ## Stack
 
-- [ ] **`spec-0193-miss`** — `Miss`, `thrown`, and the checks behind `lark-assert`'s values,
+- [x] **`spec-0193-miss`** ([#588](https://github.com/matthewjones372/lark/pull/588)) — `Miss`, `thrown`, and the checks behind `lark-assert`'s values,
       `Either` and comparison matchers, which use them.
       Done when: every 0169 message test passes unchanged.
 - [ ] **`spec-0193-miss-collections`** — the same for strings, collections and maps.
