@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
@@ -70,9 +69,9 @@ object CollapseSuite : Suite<Unit>() {
         test("a rendering says where each operator was written, before and after") { _ ->
             val stream = numbers.map { it + 1 }.filter { it > 2 }
 
-            expect(Regex("""map +CollapseSuite.kt:\d+""").containsMatchIn(stream.described())) and
-                expect(Regex("""filter +CollapseSuite.kt:\d+""").containsMatchIn(stream.described())) and
-                expect(Regex("""fused\[map, filter] +CollapseSuite.kt:\d+""").containsMatchIn(stream.compiled()))
+            (stream.described() shouldContain Regex("""map +CollapseSuite.kt:\d+""")) and
+                (stream.described() shouldContain Regex("""filter +CollapseSuite.kt:\d+""")) and
+                (stream.compiled() shouldContain Regex("""fused\[map, filter] +CollapseSuite.kt:\d+"""))
         }
     }
 }
