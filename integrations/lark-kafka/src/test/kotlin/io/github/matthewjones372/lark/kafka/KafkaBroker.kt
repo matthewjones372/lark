@@ -20,29 +20,19 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.Exit
-import org.junit.jupiter.api.extension.AfterAllCallback
-import org.junit.jupiter.api.extension.BeforeAllCallback
-import org.junit.jupiter.api.extension.ExtensionContext
 import java.net.BindException
 import java.net.ServerSocket
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
-/**
- * A broker in the test JVM for one suite, as its [kafkaBroker] resource, or for one Jupiter class, started and stopped
- * by JUnit 5.
- */
-class KafkaBroker : BeforeAllCallback, AfterAllCallback {
+/** A broker in the test JVM for one suite, started and stopped as its [kafkaBroker] resource. */
+class KafkaBroker {
 
     private lateinit var kafka: EmbeddedK
 
     val bootstrap: String get() = "localhost:${kafka.config().kafkaPort()}"
 
-    override fun beforeAll(context: ExtensionContext) = start()
-
-    override fun afterAll(context: ExtensionContext) = stop()
-
-    /** Starts the broker; what [kafkaBroker] acquires, and what `beforeAll` does for a Jupiter class. */
+    /** Starts the broker; what [kafkaBroker] acquires. */
     fun start() {
         // A fatal fault in the broker exits the JVM through Kafka's Exit, which ends the whole test run with no
         // report; thrown instead, it fails the test that is running, and slf4j-simple has logged the fault.
