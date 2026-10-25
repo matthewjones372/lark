@@ -16,7 +16,7 @@ private val sourceRoots = listOf("src/test/kotlin", "src/test/java", "src/testFi
 /** A seam for lark's own modules that report a failed check as this module does. */
 @RequiresOptIn("A seam for lark's own modules that report a failed check as this module does.")
 @Retention(AnnotationRetention.BINARY)
-@Target(AnnotationTarget.FUNCTION)
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.CLASS)
 annotation class FailureSeam
 
 /**
