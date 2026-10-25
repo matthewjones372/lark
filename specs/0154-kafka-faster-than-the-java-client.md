@@ -56,14 +56,14 @@ necessary (entry 3).
 
 ## Stack
 
-- [ ] **`spec-0154-benchmarks`**: `lark-kafka-benchmarks`, the ported comparison, the handler-latency
+- [x] **`spec-0154-benchmarks`** ([#442](https://github.com/matthewjones372/lark/pull/442)): `lark-kafka-benchmarks`, the ported comparison, the handler-latency
       sweep, timelines, a README with the baseline. Done when: `:lark-kafka-benchmarks:jmh` reproduces
       the table above.
-- [ ] **`spec-0154-commit-async`**: `commitAsync` before each poll; `commitSync` on revoke and close; a
+- [x] **`spec-0154-commit-async`** ([#443](https://github.com/matthewjones372/lark/pull/443)): `commitAsync` before each poll; `commitSync` on revoke and close; a
       non-retriable async failure is thrown on the next commit, on the polling thread. Done when: a test
       shows the pre-poll commit does not wait, and `ConsumeTest`, `CommitsTest`, `ReadTest` and
       `TransactTest` pass unchanged.
-- [ ] **`spec-0154-revoked-handles`**: a record handled after its partition was revoked commits nothing.
+- [x] **`spec-0154-revoked-handles`** ([#444](https://github.com/matthewjones372/lark/pull/444)): a record handled after its partition was revoked commits nothing.
       Done when: a test that handles a record after its revoke sees no offset for that partition.
 - [ ] **`spec-0154-blocking-ready`**: the overload above; Pekko batches; lark-kafka answers it. Done
       when: `larkPekko` is within 10% of `larkForks`.

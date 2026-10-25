@@ -68,16 +68,16 @@ after this change (stack entry 3).
 
 ## Stack
 
-- [ ] **`spec-0164-rounds`**: `gate.sh` runs A/B rounds, one fork a side per round,
+- [x] **`spec-0164-rounds`** ([#462](https://github.com/matthewjones372/lark/pull/462)): `gate.sh` runs A/B rounds, one fork a side per round,
       and `jmhCompare` judges paired rounds. `benchmarks.yml` gains a dispatch input
       for the base ref.
       Done when: 5 dispatches in a row with base = the branch itself pass, and a
       throwaway branch that makes `ChainBenchmark.forks` 30% slower fails on that row
       alone.
-- [ ] **`spec-0164-confirm`**: a flagged row is re-measured alone before it fails.
+- [x] **`spec-0164-confirm`** ([#462](https://github.com/matthewjones372/lark/pull/462)): a flagged row is re-measured alone before it fails.
       Done when: the same 5 + 1 runs hold, and the table shows a row flagged and then
       cleared.
-- [ ] **`spec-0164-tolerances`** *(only if needed)*: `gate-tolerance.properties`
+- [x] **`spec-0164-tolerances`** ([#462](https://github.com/matthewjones372/lark/pull/462), [#461](https://github.com/matthewjones372/lark/pull/461)) *(only if needed)*: `gate-tolerance.properties`
       beside the benchmarks, row prefix to tolerance, for a row that still fails A/A.
       Done when: a row listed there is judged by its own tolerance in the table.
 

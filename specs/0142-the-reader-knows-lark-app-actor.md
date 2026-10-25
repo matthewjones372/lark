@@ -59,7 +59,7 @@ guess" rule makes risky. Recommended: list them.
 
 ## Stack
 
-- [ ] **`spec-0142-reader-actors`**: `actors` and lark-app-actor's `actor` in the reader, the library test,
+- [x] **`spec-0142-reader-actors`**: `actors` and lark-app-actor's `actor` in the reader, the library test,
       and `docs/app.md`.
       Done when: the new `LarkWiringPluginTest` case passes, and petshop's `Petshop` compiles with
       `larkWiring { verbose = true }` saying what it provides instead of `LARK_APP_UNREAD`.

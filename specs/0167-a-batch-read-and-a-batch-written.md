@@ -61,12 +61,12 @@ unchanged; `List<Committed<A>>` would need a new `runCommitting` on both backend
 
 ## Stack
 
-- [ ] **`spec-0167-grouped-record`** — `groupedRecord`, the batch handle, `offsets()` and Pekko's
+- [x] **`spec-0167-grouped-record`** ([#469](https://github.com/matthewjones372/lark/pull/469)) — `groupedRecord`, the batch handle, `offsets()` and Pekko's
       `runCommitting(settings)` unpacking it, the docs' table row and a short section.
       Done when: against `KafkaBroker`, batches over two partitions commit each partition's highest offset on Forks,
       Pekko and TestStreams and through `Kafka.subscribe`; a restart resumes after the last batch committed; a
       batch's body logs no `kafka.offset`.
-- [ ] **`spec-0167-publish-batch`** — `Producer.publishAll`, `PublishOmitted`, `publishBatch`, the docs' table
+- [x] **`spec-0167-publish-batch`** ([#470](https://github.com/matthewjones372/lark/pull/470)) — `Producer.publishAll`, `PublishOmitted`, `publishBatch`, the docs' table
       row and "What happens when a write in a batch fails".
       Done when: a record that fails (too large) comes back `Left` with the records after it omitted and in order;
       `absolve()` commits only what came before it; `divertLefts` commits past it.

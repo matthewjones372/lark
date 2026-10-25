@@ -77,15 +77,15 @@ Typesafe Config.
 
 ## Stack
 
-- [ ] **`spec-0155-layers`**: `layeredConfig()` matches `load()` layer by
+- [x] **`spec-0155-layers`** ([#437](https://github.com/matthewjones372/lark/pull/437)): `layeredConfig()` matches `load()` layer by
       layer; `loadedConfig()` provides `Layered` and `Config`.
       Done when: the merged `Config` equals `ConfigFactory.load()` under
       `config.file`, `CONFIG_FORCE_` and `application.properties` cases.
-- [ ] **`spec-0155-paths-read`**: `Reading` records each path read and
+- [x] **`spec-0155-paths-read`** ([#438](https://github.com/matthewjones372/lark/pull/438)): `Reading` records each path read and
       whether it was read as a secret, nested sections and kotlinx included.
       Done when: a class read with a `Secret` and a nested section lists
       exactly its paths, the secret marked.
-- [ ] **`spec-0155-report`**: each section logs its block when read; docs.
+- [x] **`spec-0155-report`** ([#440](https://github.com/matthewjones372/lark/pull/440)): each section logs its block when read; docs.
       Done when: a refused section logs its block, then refuses; `docs/app.md`
       and the cookbook show `main` without a report.
 

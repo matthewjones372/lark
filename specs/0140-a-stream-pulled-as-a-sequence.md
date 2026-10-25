@@ -43,7 +43,7 @@ lark `Stream`, which would tie Pelican to lark for one adapter. Recommended: lar
 
 ## Stack
 
-- [ ] **`spec-0140-to-sequence`**: `Stream.toSequence(backend, buffer)` in `lark-stream`, with tests on Forks
+- [x] **`spec-0140-to-sequence`**: `Stream.toSequence(backend, buffer)` in `lark-stream`, with tests on Forks
       and on the Pekko backend through `lark-stream-parity`.
       Done when: a stalled reader holds the run (a gate, no clock), `close()` mid-stream stops the run and
       unblocks a full buffer, a dying run's cause reaches the reader, and the cookbook shows the Jetty case.
