@@ -375,7 +375,8 @@ and `shouldNotBeEmpty`, `shouldContainKey` and `shouldNotContainKey`,
 that runs only when they hold: `x.shouldNotBeNull { a -> … }` checks the
 value, `x.shouldBeInstanceOf<T> { t -> … }` checks it as a `T`, and
 `e.shouldBeRight { a -> … }` and `e.shouldBeLeft { e -> … }` check what an
-`Either` holds. `shouldThrow<T>(block)` holds when `block`
+`Either` holds. `xs.forAll { x -> … }` checks every element, keeping each one's
+failures, and holds on no elements. `shouldThrow<T>(block)` holds when `block`
 throws a `T`; `shouldThrow<T>(block) { e -> … }` then checks what it threw. A
 different exception fails the test with that exception as its cause, and an
 interrupt or cancellation goes on up, so a `timeout` still stops the test. Infix calls share one precedence and group to the left, so

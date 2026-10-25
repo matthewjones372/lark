@@ -11,6 +11,7 @@ import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
+import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
@@ -433,5 +434,16 @@ object GappedSuite : Suite<List<Int>>() {
                 expect(true)
             }
         }
+    }
+}
+
+/** Spec 0197's forAll: every element's checks are kept, and no elements is no checks. */
+object ForAllSuite : Suite<List<Int>>() {
+    override val shared: Resource<List<Int>> = resource { listOf(1, 2, 3, 4) }
+
+    init {
+        test("holds when every element does") { xs -> xs.forAll { x -> x shouldBeLessThan 5 } }
+        test("holds on no elements") { _ -> emptyList<Int>().forAll { x -> x shouldBe 0 } }
+        test("fails once for each element that does not") { xs -> xs.forAll { x -> x shouldBeLessThan 3 } }
     }
 }
