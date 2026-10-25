@@ -12,6 +12,7 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.Flow
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.LockSupport
@@ -113,8 +114,12 @@ object PublisherSuite : Suite<ActorSystem>() {
                 object : Flow.Subscription {
                     override fun request(n: Long) {
                         mostOwed = maxOf(mostOwed, owed.addAndGet(n))
-                        // A request after the end has nothing to start.
-                        if (!sender.isShutdown) sender.execute(::send)
+                        // A request after the end has nothing to start, and one racing the end's shutdown is refused.
+                        try {
+                            sender.execute(::send)
+                        } catch (_: RejectedExecutionException) {
+                            // Ended or cancelled: there is nothing left to send.
+                        }
                     }
 
                     // Only ever on the sender's one thread, so `next` needs no lock.
