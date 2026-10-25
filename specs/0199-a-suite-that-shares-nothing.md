@@ -56,11 +56,10 @@ existing suite, but the name a reader meets first stays the long form. Recommend
 
 ## Stack
 
-- [ ] **`spec-0199-suite`** — `Suite` and `SharedSuite<R>` in `lark-junit`, its own tests and samples, and
-      `docs/testing.md` and `docs/kafka.md`.
-      Done when: `:lark-junit:check` passes and the docs' examples compile.
-- [ ] **`spec-0199-move`** — every suite in the repo on its new header: `Suite<Unit>` becomes `Suite`, every
-      other `Suite<R>` becomes `SharedSuite<R>`.
+- [ ] **`spec-0199-suite`** — `Suite` and `SharedSuite<R>` in `lark-junit`, and every suite in the repo on its
+      new header: `Suite<Unit>` with nothing shared becomes `Suite`, every other `Suite<R>` becomes
+      `SharedSuite<R>`. One PR, since the repo cannot build with only one half. The move is test code, so the
+      PR stays inside the line cap.
       Done when: `./gradlew build` passes with every test reported under its old name.
 
 ## Acceptance
