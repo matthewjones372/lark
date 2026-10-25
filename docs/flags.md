@@ -124,6 +124,41 @@ object CheckoutFlags {
 A value that will not decode answers the default, with `PARSE_ERROR` and the
 reason in `details()`, and is warned about and counted like any other fall-back.
 
+## Checking flags in the config at start
+
+When the flags come from the service's own config, `flagdFlags` can check them
+against their declarations before the first request does. Each flag object
+lists what it declares, and the graph passes the lists in:
+
+```kotlin
+object AdoptionFlags {
+    val registryCheck = Flag.boolean("adoption.registry-check", default = true)
+    val perAdopterLimit = Flag.int("adoption.per-customer-limit", default = 3)
+    val all = listOf(registryCheck, perAdopterLimit)
+}
+
+val flags: Module = flagdFlags("flags", AdoptionFlags.all + CheckoutFlags.all)
+```
+
+Every variant of each declared flag must read as the flag's type. A `Flag.enum`
+variant has to name a constant, a `Flag.duration` variant has to parse, and a
+`Flag.of` variant has to pass the decoder. A whole number too big for an `Int`
+is refused for any numeric flag, `Flag.long` included, because flagd reads such
+a number as none of its numeric types. A declared flag missing from the section
+is refused too, since it would only ever answer its default. Every miss is
+named in one refusal, each with the line it is written on:
+
+```
+flags at flags do not match their declarations:
+  adoption.per-customer-limit: variant raised 5.5 is not a whole number (application.conf: 14)
+  checkout.mode: variant new "Fast" did not decode as a Checkout: … (application.conf: 22)
+  checkout.registry-timeout: declared but not in the section (application.conf: 9)
+```
+
+A key in the section that nothing declares is left alone: it may belong to code
+not deployed yet. `Flag.rejects(value)` is the same check, one value at a time,
+for a provider of your own.
+
 ## What gets counted
 
 Every evaluation is counted under `openfeature.evaluations`, tagged `flag`,
