@@ -1,16 +1,12 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 /** What a section read is what its report prints, so the record has to be exact (spec 0155). */
-object PathsReadSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PathsReadSuite : Suite() {
     private val hocon = ConfigFactory.parseString(
         """
         petshop {
@@ -21,7 +17,7 @@ object PathsReadSuite : Suite<Unit>() {
     )
 
     init {
-        test("a section lists the paths its leaves read, nested ones in full, and nothing else") { _ ->
+        test("a section lists the paths its leaves read, nested ones in full, and nothing else") {
             val section = hocon.sectionOf("petshop") {
                 string("host") to int("port") to section("database") { secret("url") to int("poolSize") }
             }
@@ -36,7 +32,7 @@ object PathsReadSuite : Suite<Unit>() {
             }
         }
 
-        test("a path that could not be read is still one the section asked for") { _ ->
+        test("a path that could not be read is still one the section asked for") {
             val section = hocon.sectionOf("petshop") { string("host") to int("missing") }
 
             section.paths shouldContainExactly listOf(
@@ -45,19 +41,19 @@ object PathsReadSuite : Suite<Unit>() {
             )
         }
 
-        test("a path read twice is listed once, and as a secret if either read was one") { _ ->
+        test("a path read twice is listed once, and as a secret if either read was one") {
             val section = hocon.sectionOf("petshop") { string("host") to secret("host") }
 
             section.paths shouldContainExactly listOf(PathRead("petshop.host", secret = true))
         }
 
-        test("a value read through of with its path is recorded like a leaf") { _ ->
+        test("a value read through of with its path is recorded like a leaf") {
             val section = hocon.sectionOf("petshop") { of("unread", false) { getBoolean("unread") } }
 
             section.paths shouldContainExactly listOf(PathRead("petshop.unread", secret = false))
         }
 
-        test("a quoted path is the same setting as its plain one, recorded once and secret if either read was") { _ ->
+        test("a quoted path is the same setting as its plain one, recorded once and secret if either read was") {
             val section = hocon.sectionOf("petshop") { string("host") to secret("\"host\"") }
 
             section.paths shouldContainExactly listOf(PathRead("petshop.host", secret = true))

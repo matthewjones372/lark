@@ -1,18 +1,14 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import javax.sql.DataSource
 
 /** The journal's tables as a Liquibase changelog (spec 0107). */
-object ChangelogSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ChangelogSuite : Suite() {
     init {
-        test("a fresh database takes the changelog once, with every string column text") { _ ->
+        test("a fresh database takes the changelog once, with every string column text") {
             val source = Postgres.empty()
             // The tables, then the metadata column (spec 0123).
             val first = source.migrate() shouldBe 2

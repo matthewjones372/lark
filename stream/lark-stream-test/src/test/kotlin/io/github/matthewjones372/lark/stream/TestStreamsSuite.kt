@@ -3,7 +3,6 @@ package io.github.matthewjones372.lark.stream
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Logger
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.junit.Suite
@@ -14,7 +13,6 @@ import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.logger
-import io.github.matthewjones372.lark.resource
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.hours
@@ -24,16 +22,14 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
 /** A run on TestStreams is over, or waiting on the test's clock, by the time `start` returns. */
-object TestStreamsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object TestStreamsSuite : Suite() {
     private data class Odd(val value: Int)
 
     private val <E, R> Running<E, R>.done: Exit<E, R>?
         get() = exit.toCompletableFuture().takeIf { it.isDone }?.join()
 
     init {
-        test("a run with no time in it is over when run returns, having run one stage at a time") { _ ->
+        test("a run with no time in it is over when run returns, having run one stage at a time") {
             val threads = ConcurrentLinkedQueue<Thread>()
 
             val exit = Stream.of(1, 2, 3).map { threads += Thread.currentThread(); it * 2 }.runCollect()
@@ -44,14 +40,14 @@ object TestStreamsSuite : Suite<Unit>() {
                 (threads.toSet().size shouldBe 1)
         }
 
-        test("a declared failure ends the run Failed, as on any backend") { _ ->
+        test("a declared failure ends the run Failed, as on any backend") {
             val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) fail(Odd(it)) else it }.runCollect()
                 .run(TestStreams())
 
             exit.toCompletableFuture().join() shouldBe Exit.Failed(Odd(2))
         }
 
-        test("another backend's own value is refused by its own name") { _ ->
+        test("another backend's own value is refused by its own name") {
             val elsewhere =
                 Stream<Nothing, Int>(Node.Native(Any(), BackendKey("Elsewhere"), "Elsewhere.source", "Here.kt:1"))
 
@@ -62,14 +58,14 @@ object TestStreamsSuite : Suite<Unit>() {
             }
         }
 
-        test("merge on a test's clock answers in the same order every time, the first stream then the other") { _ ->
+        test("merge on a test's clock answers in the same order every time, the first stream then the other") {
             (1..20).forAll { _ ->
                 Stream.of(1, 2).merge(Stream.of(3)).runCollect().run(TestStreams()).toCompletableFuture()
                     .join() shouldBe Exit.Done(listOf(1, 2, 3))
             }
         }
 
-        test("mapPar runs one element at a time in the order they came, and its raise is the stream's") { _ ->
+        test("mapPar runs one element at a time in the order they came, and its raise is the stream's") {
             val inFlight = java.util.concurrent.atomic.AtomicInteger()
             val most = java.util.concurrent.atomic.AtomicInteger()
 
@@ -86,7 +82,7 @@ object TestStreamsSuite : Suite<Unit>() {
                 (most.get() shouldBe 1)
         }
 
-        test("an hour of ticks at one a minute is sixty elements, in well under a second") { _ ->
+        test("an hour of ticks at one a minute is sixty elements, in well under a second") {
             val clock = TestClock()
             val (checks, took) = measureTimedValue {
                 val running = Stream.tick(1.minutes, "t").runCollect().start(TestStreams(clock))
@@ -101,7 +97,7 @@ object TestStreamsSuite : Suite<Unit>() {
             checks and withClue("took $took") { (took < 1.seconds) shouldBe true }
         }
 
-        test("each move of the clock returns with what fell due by then, and a take ends the run") { _ ->
+        test("each move of the clock returns with what fell due by then, and a take ends the run") {
             val clock = TestClock()
             val running = Stream.tick(10.seconds, 1, after = 5.seconds).scan(0) { total, n -> total + n }.take(4)
                 .runCollect().start(TestStreams(clock))
@@ -116,7 +112,7 @@ object TestStreamsSuite : Suite<Unit>() {
             first and early and due and open and (running.done shouldBe Exit.Done(listOf(0, 1, 2, 3)))
         }
 
-        test("a stage body reads the test's clock as lark's clock") { _ ->
+        test("a stage body reads the test's clock as lark's clock") {
             val clock = TestClock(Instant.parse("2026-09-25T12:00:00Z"))
             val running = Stream.tick(1.minutes, Unit).map { io.github.matthewjones372.lark.clock.get().now() }.take(2)
                 .runCollect().start(TestStreams(clock))
@@ -128,7 +124,7 @@ object TestStreamsSuite : Suite<Unit>() {
             )
         }
 
-        test("groupedWithin closes a window when its time is up, and a full group starts the next") { _ ->
+        test("groupedWithin closes a window when its time is up, and a full group starts the next") {
             val clock = TestClock()
             val running = Stream.tick(2.seconds, 1).groupedWithin(3, 5.seconds).map { it.size }
                 .runCollect().start(TestStreams(clock))
@@ -152,7 +148,7 @@ object TestStreamsSuite : Suite<Unit>() {
             closed and waiting and filled and next
         }
 
-        test("groupedWithin emits what a window held when it closes before the group is full") { _ ->
+        test("groupedWithin emits what a window held when it closes before the group is full") {
             val clock = TestClock()
             val running = Stream.tick(2.seconds, 1).take(3).groupedWithin(10, 5.seconds)
                 .runCollect().start(TestStreams(clock))
@@ -168,7 +164,7 @@ object TestStreamsSuite : Suite<Unit>() {
             }
         }
 
-        test("a restart waits the schedule's delay on the test's clock, and says so at the clock's time") { _ ->
+        test("a restart waits the schedule's delay on the test's clock, and says so at the clock's time") {
             val clock = TestClock()
             val lines = ConcurrentLinkedQueue<LogLine>()
             val attempts = ConcurrentLinkedQueue<Int>()
@@ -201,7 +197,7 @@ object TestStreamsSuite : Suite<Unit>() {
                     )
         }
 
-        test("stopping a run that waits on the clock ends it Done with what it had") { _ ->
+        test("stopping a run that waits on the clock ends it Done with what it had") {
             val clock = TestClock()
             val running = Stream.tick(1.seconds, "t").runCollect().start(TestStreams(clock))
             clock.adjust(2.seconds)
@@ -213,7 +209,7 @@ object TestStreamsSuite : Suite<Unit>() {
             stopped and (running.emitted() shouldBe listOf("t", "t"))
         }
 
-        test("a clock no run waits on moves as it always has") { _ ->
+        test("a clock no run waits on moves as it always has") {
             val clock = TestClock()
 
             Stream.of(1).runCollect().run(TestStreams(clock))

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes
 
@@ -59,11 +57,9 @@ private fun usher() = behaviour<Usher, List<Int>>(emptyList()) { ctx, sizes, mes
     }
 }
 
-object ReceptionistSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ReceptionistSuite : Suite() {
     init {
-        test("an actor registered under a key is found by it") { _ ->
+        test("an actor registered under a key is found by it") {
             testActors {
                 val wicket = spawn("wicket", wicket())
 
@@ -71,7 +67,7 @@ object ReceptionistSuite : Suite<Unit>() {
             }
         }
 
-        test("onStart runs before the first message") { _ ->
+        test("onStart runs before the first message") {
             val log = ConcurrentLinkedQueue<String>()
             val wicket = wicket(log).test()
 
@@ -80,7 +76,7 @@ object ReceptionistSuite : Suite<Unit>() {
             log.toList() shouldContainExactly listOf("start", "step")
         }
 
-        test("a subscriber is told the listing now, and again whenever it changes") { _ ->
+        test("a subscriber is told the listing now, and again whenever it changes") {
             testActors {
                 val usher = spawn("usher", usher())
                 usher.send(Follow)
@@ -92,7 +88,7 @@ object ReceptionistSuite : Suite<Unit>() {
             }
         }
 
-        test("a restart loses the registration, and onStart makes it again") { _ ->
+        test("a restart loses the registration, and onStart makes it again") {
             val log = ConcurrentLinkedQueue<String>()
             val restarted = testActors {
                 val usher = spawn("usher", usher())
@@ -108,13 +104,13 @@ object ReceptionistSuite : Suite<Unit>() {
             restarted and (log.toList() shouldContainExactly listOf("start", "step", "start"))
         }
 
-        test("a failing start fails the actor like a step") { _ ->
+        test("a failing start fails the actor like a step") {
             val broken = behaviour<Wicket, Unit>(Unit) { _, _, _ -> stay() }.onStart { error("no start") }
 
             shouldThrow<IllegalStateException> { broken.test() }
         }
 
-        test("on threads, a subscriber hears a registration and a stop, and find sees the same") { _ ->
+        test("on threads, a subscriber hears a registration and a stop, and find sees the same") {
             val heard = flock<Nothing, Any> {
                 val usher = spawn("usher", usher())
                 usher.tell(Follow)

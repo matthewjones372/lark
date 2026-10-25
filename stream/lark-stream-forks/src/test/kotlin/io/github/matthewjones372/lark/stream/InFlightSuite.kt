@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.VirtualThreads
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -48,11 +46,9 @@ private fun <T> onVirtualThread(body: () -> T): CompletableFuture<T> {
 }
 
 /** One body on its own thread, waited on by the pull and let go of by the run. */
-object InFlightSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object InFlightSuite : Suite() {
     init {
-        test("a pull parked on a body is woken by its answer") { _ ->
+        test("a pull parked on a body is woken by its answer") {
             val release = CountDownLatch(1)
             val flight = InFlight(VirtualThreads) { release.await(); "answer" }
             val awaited = CompletableFuture<String>()
@@ -64,7 +60,7 @@ object InFlightSuite : Suite<Unit>() {
             awaited.get(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe "answer"
         }
 
-        test("no wake is lost while answers race the pulls waiting for them") { _ ->
+        test("no wake is lost while answers race the pulls waiting for them") {
             val count = 20_000
             val answers = onVirtualThread {
                 List(count) { i ->
@@ -81,7 +77,7 @@ object InFlightSuite : Suite<Unit>() {
             answers.get(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe List(count) { it }
         }
 
-        test("whenDone runs once, whether the body answered before it was asked or after") { _ ->
+        test("whenDone runs once, whether the body answered before it was asked or after") {
             (0 until ROUNDS).forAll { round ->
                 val ran = AtomicInteger()
                 val done = CountDownLatch(1)
@@ -97,14 +93,14 @@ object InFlightSuite : Suite<Unit>() {
             }
         }
 
-        test("what the body threw is what await throws, as it threw it") { _ ->
+        test("what the body threw is what await throws, as it threw it") {
             val failure = IllegalStateException("the body failed")
             val flight = InFlight<Unit>(VirtualThreads) { throw failure }
 
             shouldThrow<IllegalStateException>({ flight.await() }) { thrown -> thrown shouldBeSameInstanceAs failure }
         }
 
-        test("an interrupt reaches a pull parked on a body that has not answered") { _ ->
+        test("an interrupt reaches a pull parked on a body that has not answered") {
             val flight = InFlight(VirtualThreads) { Thread.sleep(Long.MAX_VALUE) }
             val outcome = CompletableFuture<Throwable?>()
             val puller = Thread.ofVirtual().start {
@@ -124,7 +120,7 @@ object InFlightSuite : Suite<Unit>() {
             reached
         }
 
-        test("cancel interrupts a running body and returns only once it has stopped") { _ ->
+        test("cancel interrupts a running body and returns only once it has stopped") {
             val started = CountDownLatch(1)
             val stopped = AtomicInteger()
             val flight = InFlight(VirtualThreads) {
@@ -144,7 +140,7 @@ object InFlightSuite : Suite<Unit>() {
             (stopped.get() shouldBe 1) and shouldThrow<InterruptedException> { flight.await() }
         }
 
-        test("a body cancelled before it started never runs, and await says it was cancelled") { _ ->
+        test("a body cancelled before it started never runs, and await says it was cancelled") {
             val queued = mutableListOf<Runnable>()
             val held = Executor { queued.add(it) }
             val ran = AtomicInteger()
@@ -160,7 +156,7 @@ object InFlightSuite : Suite<Unit>() {
                 shouldThrow<CancellationException> { flight.await() }
         }
 
-        test("a cancel interrupted while it waits still waits, and keeps the interrupt") { _ ->
+        test("a cancel interrupted while it waits still waits, and keeps the interrupt") {
             val started = CountDownLatch(1)
             val release = CountDownLatch(1)
             val flight = InFlight(VirtualThreads) {

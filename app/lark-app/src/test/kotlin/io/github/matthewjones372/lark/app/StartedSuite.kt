@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.seconds
@@ -17,13 +15,11 @@ private class Hub
 private class Spoke
 
 /** Spec 0129: what a node does once the whole graph is built, and a probe asked only then. */
-object StartedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object StartedSuite : Suite() {
     init {
         test(
             "started hooks run once every node is built, in the graph's order, and a WhenStarted probe after them",
-        ) { _ ->
+        ) {
             val log = ConcurrentLinkedQueue<String>()
             val module = single<Hub> {
                 log += "hub built"
@@ -44,7 +40,7 @@ object StartedSuite : Suite<Unit>() {
                 )
         }
 
-        test("a WhenStarted probe that never passes fails the start, naming its node, after every node is built") { _ ->
+        test("a WhenStarted probe that never passes fails the start, naming its node, after every node is built") {
             val built = ConcurrentLinkedQueue<String>()
             val module = single<Hub> { Hub() }
                 .probe("hub", timeout = 5.seconds, asked = Asked.WhenStarted) { _: Hub -> false } +
@@ -58,7 +54,7 @@ object StartedSuite : Suite<Unit>() {
 
         test(
             "a started hook that throws fails the start as its node's refusal, and one that refuses keeps its reason",
-        ) { _ ->
+        ) {
             val thrown = single<Hub> { onStarted { error("no broker") }; Hub() }.use { _: Hub -> }.leftOrNull()
 
             val threw = thrown.shouldBeInstanceOf<StartupError.Refused> { refused ->
@@ -71,7 +67,7 @@ object StartedSuite : Suite<Unit>() {
             threw and (declined shouldBe StartupError.Refused(typeOf<Hub>(), "not today"))
         }
 
-        test("a started hook asked for once the graph has started throws, rather than never running") { _ ->
+        test("a started hook asked for once the graph has started throws, rather than never running") {
             var wiring: Wiring? = null
             val module = single<Hub> { wiring = this; Hub() }
 

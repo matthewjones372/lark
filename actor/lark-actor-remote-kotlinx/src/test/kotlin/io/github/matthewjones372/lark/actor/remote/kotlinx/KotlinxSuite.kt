@@ -2,7 +2,6 @@
 
 package io.github.matthewjones372.lark.actor.remote.kotlinx
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.InMemoryJournal
@@ -30,7 +29,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.serializer
@@ -67,11 +65,9 @@ private val everyKind = listOf(
     Till.Closed,
 )
 
-object KotlinxSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object KotlinxSuite : Suite() {
     init {
-        test("one data class crosses as its own bytes and reads back equal") { _ ->
+        test("one data class crosses as its own bytes and reads back equal") {
             val takings = Takings(Pence(350), listOf("a", "b"), open = true)
             (Kotlinx.codec(serializer<Takings>()).roundTrip(takings) shouldBe takings) and
                 (Kotlinx.state(serializer<Takings>()).let { it.decode(it.encode(takings)) } shouldBe takings)
@@ -79,12 +75,12 @@ object KotlinxSuite : Suite<Unit>() {
 
         test(
             "each class of a table reads back as the class it was written as, between nodes and in the journal",
-        ) { _ ->
+        ) {
             (everyKind.map { tills.messages().roundTrip(it) } shouldBe everyKind) and
                 (everyKind.map { tills.events().let { codec -> codec.decode(codec.encode(it)) } } shouldBe everyKind)
         }
 
-        test("a table writes in any binary format it is given") { _ ->
+        test("a table writes in any binary format it is given") {
             val cbor = Kotlinx.oneOf<Till>(Cbor) {
                 message<Till.Paid>(1)
                 message<Till.Refunded>(2)
@@ -93,7 +89,7 @@ object KotlinxSuite : Suite<Unit>() {
             cbor.events().let { it.decode(it.encode(paid)) } shouldBe paid
         }
 
-        test("a table with a tag or a class given twice fails when it is built") { _ ->
+        test("a table with a tag or a class given twice fails when it is built") {
             val tagTwice = shouldThrow<IllegalArgumentException>({
                 Kotlinx.oneOf<Till> {
                     message<Till.Paid>(1)
@@ -109,7 +105,7 @@ object KotlinxSuite : Suite<Unit>() {
             tagTwice and classTwice
         }
 
-        test("a class the table has no tag for is refused, and a tag it does not know is not read") { _ ->
+        test("a class the table has no tag for is refused, and a tag it does not know is not read") {
             val short = Kotlinx.oneOf<Till> { message<Till.Paid>(1) }
             val refused =
                 shouldThrow<IllegalArgumentException>({ short.write(Till.Closed) }) { e ->
@@ -125,7 +121,7 @@ object KotlinxSuite : Suite<Unit>() {
                 }
         }
 
-        test("an entity's events and snapshot are written through a table and survive a replay") { _ ->
+        test("an entity's events and snapshot are written through a table and survive a replay") {
             val journal = InMemoryJournal()
             val snapshots = InMemorySnapshots()
             val id = PersistenceId("till", "t-1")
@@ -162,7 +158,7 @@ object KotlinxSuite : Suite<Unit>() {
             firstLife and written and (run() shouldBe Takings(Pence(300), listOf("order-42", "order-42"), open = false))
         }
 
-        test("an ask whose request is a data class is answered from another node") { _ ->
+        test("an ask whose request is a data class is answered from another node") {
             val port = ServerSocket(0).use(ServerSocket::getLocalPort)
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)

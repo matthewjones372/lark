@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration.Companion.minutes
@@ -58,12 +56,10 @@ private fun runner(served: ConcurrentHashMap<String, List<String>>) =
 
 private fun TestActor<*, *, *>.routees(): List<TestActor<*, *, *>> = children.map { it as TestActor<*, *, *> }
 
-object RouterSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RouterSuite : Suite() {
     init {
         // Each test keeps its own record of what was served: in Jupiter this was a field, fresh per test.
-        test("a pool of four hands eight messages two to each") { _ ->
+        test("a pool of four hands eight messages two to each") {
             val served = ConcurrentHashMap<String, List<String>>()
             val pool = pool(4) { runner(served) }.test("pool")
 
@@ -73,7 +69,7 @@ object RouterSuite : Suite<Unit>() {
                 (served.keys shouldBe (1..4).map { "/user/pool/routee-$it" }.toSet())
         }
 
-        test("hashing sends one key to one routee, always") { _ ->
+        test("hashing sends one key to one routee, always") {
             val served = ConcurrentHashMap<String, List<String>>()
             val byPet = hashing { errand: Errand -> (errand as? Fetch)?.pet }
             val pool = pool(4, route = byPet) { runner(served) }.test("pool")
@@ -86,7 +82,7 @@ object RouterSuite : Suite<Unit>() {
                 (served.values.flatten() shouldContainExactlyInAnyOrder listOf("sam", "bo", "sam", "kit", "bo", "sam"))
         }
 
-        test("a failed routee restarts alone") { _ ->
+        test("a failed routee restarts alone") {
             val served = ConcurrentHashMap<String, List<String>>()
             val pool = pool(4, restart = Schedule.recurs(1)) { runner(served) }.test("pool")
 
@@ -97,7 +93,7 @@ object RouterSuite : Suite<Unit>() {
                 (served.values.map { it.size } shouldContainExactly listOf(1, 1, 1, 1))
         }
 
-        test("a routee that stops leaves the pool smaller, and a pool with none left stops") { _ ->
+        test("a routee that stops leaves the pool smaller, and a pool with none left stops") {
             val served = ConcurrentHashMap<String, List<String>>()
             val pool = pool(2) { runner(served) }.test("pool")
 
@@ -111,7 +107,7 @@ object RouterSuite : Suite<Unit>() {
             } and (pool.stopped shouldBe true)
         }
 
-        test("a group routes over refs already running, with no actor between") { _ ->
+        test("a group routes over refs already running, with no actor between") {
             val served = ConcurrentHashMap<String, List<String>>()
             testActors {
                 val runners = (1..3).map { spawn("runner-$it", runner(served)) }
@@ -123,7 +119,7 @@ object RouterSuite : Suite<Unit>() {
             }
         }
 
-        test("on threads, a pool of four hands eight messages two to each") { _ ->
+        test("on threads, a pool of four hands eight messages two to each") {
             val served = ConcurrentHashMap<String, List<String>>()
             flock<Nothing, Unit> {
                 val pool = spawn("pool", pool(4) { runner(served) })
@@ -134,7 +130,7 @@ object RouterSuite : Suite<Unit>() {
             served.values.map { it.size } shouldContainExactly listOf(2, 2, 2, 2)
         }
 
-        test("on threads, a pool passes over a routee whose mailbox is full, for the next") { _ ->
+        test("on threads, a pool passes over a routee whose mailbox is full, for the next") {
             val served = ConcurrentHashMap<String, List<String>>()
             val began = CountDownLatch(1)
             val open = CountDownLatch(1)

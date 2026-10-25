@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 
 /** Version 1: an order placed, with its total in pounds and pence together. */
 private data class PlacedV1(val totalPence: Long)
@@ -53,11 +51,9 @@ private fun order() = persistent<Long, LineAdded, List<Long>>(
     event = { lines, added -> lines + added.pence },
 )
 
-object VersionedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object VersionedSuite : Suite() {
     init {
-        test("events written as versions 1, with no prefix, 2 and 3 replay as version 3, one of them as two") { _ ->
+        test("events written as versions 1, with no prefix, 2 and 3 replay as version 3, one of them as two") {
             testActors {
                 // As a service wrote them before it versioned its codec, then after, then today.
                 journal.append(orderId, 0, listOf(v1.encode(PlacedV1(500))))
@@ -70,14 +66,14 @@ object VersionedSuite : Suite<Unit>() {
             }
         }
 
-        test("an event reads back as it was written, and one read that upgrades to several asks for all of them") { _ ->
+        test("an event reads back as it was written, and one read that upgrades to several asks for all of them") {
             val upgraded = versionedBytes(2, v2.encode(PlacedV2(listOf(1, 2))))
             (orders.decode(orders.encode(LineAdded(42))) shouldBe LineAdded(42)) and
                 (orders.decodeAll(upgraded) shouldBe listOf(LineAdded(1), LineAdded(2))) and
                 shouldThrow<IllegalStateException> { orders.decode(upgraded) }
         }
 
-        test("upgrades that skip a version, or reach past the current one, are refused when the codec is built") { _ ->
+        test("upgrades that skip a version, or reach past the current one, are refused when the codec is built") {
             shouldThrow<IllegalArgumentException>({ versioned(3, v3, mapOf(2 to upgrades.getValue(2))) }) { refusal ->
                 refusal.message shouldContain "[1]"
             } and
@@ -89,7 +85,7 @@ object VersionedSuite : Suite<Unit>() {
 
         test(
             "an event newer than the codec fails its entity's replay, naming the entity, the event and the version",
-        ) { _ ->
+        ) {
             testActors {
                 journal.append(orderId, 0, listOf(versionedBytes(4, v3.encode(LineAdded(1)))))
                 val expected = "PersistenceId(kind=order, id=o-1) cannot be recovered: " +

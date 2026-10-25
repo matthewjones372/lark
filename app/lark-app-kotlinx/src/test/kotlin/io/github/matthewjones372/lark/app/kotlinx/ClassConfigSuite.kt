@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app.kotlinx
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.typesafe.configOf
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -51,11 +49,9 @@ private data class Unreadable(
     val spare: Double? = null,
 )
 
-object ClassConfigSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ClassConfigSuite : Suite() {
     init {
-        test("a class with every supported leaf reads from HOCON") { _ ->
+        test("a class with every supported leaf reads from HOCON") {
             val file = configOf(
                 """
                 petshop {
@@ -81,7 +77,7 @@ object ClassConfigSuite : Suite<Unit>() {
             )
         }
 
-        test("an absent path is the property's default, and an absent nullable is null") { _ ->
+        test("an absent path is the property's default, and an absent nullable is null") {
             val file = configOf("petshop { timeout = 5s }")
 
             val settings = testApp(file + config<Defaulted>("petshop")) { settings: Defaulted -> settings }
@@ -89,7 +85,7 @@ object ClassConfigSuite : Suite<Unit>() {
             settings shouldBe Defaulted(port = 8080, proxy = null, fallback = null, timeout = 5.seconds)
         }
 
-        test("a file with three faults is refused naming all three") { _ ->
+        test("a file with three faults is refused naming all three") {
             val file = configOf(
                 """
                 petshop {
@@ -117,7 +113,7 @@ object ClassConfigSuite : Suite<Unit>() {
             }
         }
 
-        test("a property of a type the class form cannot read is a fault naming its type, beside every other") { _ ->
+        test("a property of a type the class form cannot read is a fault naming its type, beside every other") {
             val file = configOf(
                 """
                 petshop {

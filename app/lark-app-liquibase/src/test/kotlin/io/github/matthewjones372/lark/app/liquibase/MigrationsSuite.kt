@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app.liquibase
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.journal.jdbc.Postgres
 import io.github.matthewjones372.lark.app.render
 import io.github.matthewjones372.lark.app.report
@@ -12,7 +11,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
@@ -33,11 +31,9 @@ private fun counting(source: DataSource): Int =
         }
     }
 
-object MigrationsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object MigrationsSuite : Suite() {
     init {
-        test("a changelog runs, and what it created is there to read") { _ ->
+        test("a changelog runs, and what it created is there to read") {
             val source = database()
             val app = single<DataSource> { source } +
                 migrations(CHANGELOG) +
@@ -46,7 +42,7 @@ object MigrationsSuite : Suite<Unit>() {
             testApp(app) { orders: Orders -> orders.rows } shouldBe 0
         }
 
-        test("running it again applies nothing") { _ ->
+        test("running it again applies nothing") {
             val source = database()
             val applied = AtomicInteger(-1)
             val app = single<DataSource> { source } +
@@ -63,7 +59,7 @@ object MigrationsSuite : Suite<Unit>() {
             }
         }
 
-        test("the graph draws the reader after the migration") { _ ->
+        test("the graph draws the reader after the migration") {
             val app = single<DataSource> { database() } +
                 migrations(CHANGELOG) +
                 single { _: Migrated -> Orders(0) }
@@ -73,7 +69,7 @@ object MigrationsSuite : Suite<Unit>() {
             } and app.validate().getOrNull().shouldNotBeNull()
         }
 
-        test("a graph with no DataSource is refused before anything connects") { _ ->
+        test("a graph with no DataSource is refused before anything connects") {
             val app = migrations(CHANGELOG) + single { _: Migrated -> Orders(0) }
 
             app.validate().leftOrNull().shouldNotBeNull { errors -> errors.report() shouldContain "missing DataSource" }

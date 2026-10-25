@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.security.KeyStore
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -37,11 +35,9 @@ private class Told(dropping: Int = 0) : Listener {
     fun take(count: Int) = List(count) { checkNotNull(received.poll(1, TimeUnit.MINUTES)) }
 }
 
-object TlsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object TlsSuite : Suite() {
     init {
-        test("two nodes whose certificates one CA signed exchange frames both ways, in order") { _ ->
+        test("two nodes whose certificates one CA signed exchange frames both ways, in order") {
             opening {
                 val n1 = nodeNamed("n1")
                 val n2 = nodeNamed("n2")
@@ -58,7 +54,7 @@ object TlsSuite : Suite<Unit>() {
             }
         }
 
-        test("a peer another CA signed is refused both ways, and what was sent to it is dropped and said to be") { _ ->
+        test("a peer another CA signed is refused both ways, and what was sent to it is dropped and said to be") {
             opening {
                 val n2 = nodeNamed("n2")
                 val n4 = nodeNamed("n4")
@@ -83,7 +79,7 @@ object TlsSuite : Suite<Unit>() {
             }
         }
 
-        test("a peer with no certificate is refused both ways") { _ ->
+        test("a peer with no certificate is refused both ways") {
             opening {
                 val n1 = nodeNamed("n1")
                 val plain = nodeNamed("plain")
@@ -105,7 +101,7 @@ object TlsSuite : Suite<Unit>() {
             }
         }
 
-        test("a peer that speaks TLS and trusts the CA, but has no certificate of its own, is refused") { _ ->
+        test("a peer that speaks TLS and trusts the CA, but has no certificate of its own, is refused") {
             opening {
                 val n1 = nodeNamed("n1")
                 val anonymous = nodeNamed("anonymous")
@@ -123,7 +119,7 @@ object TlsSuite : Suite<Unit>() {
             }
         }
 
-        test("a node with a good certificate that claims another name is refused when it connects") { _ ->
+        test("a node with a good certificate that claims another name is refused when it connects") {
             opening {
                 val n3 = nodeNamed("n3")
                 val claimsN2 = nodeNamed("n2")
@@ -140,7 +136,7 @@ object TlsSuite : Suite<Unit>() {
             }
         }
 
-        test("a node with a good certificate that claims another name is refused when it is connected to") { _ ->
+        test("a node with a good certificate that claims another name is refused when it is connected to") {
             opening {
                 val n3 = nodeNamed("n3")
                 val claimsN2 = nodeNamed("n2")
@@ -156,7 +152,7 @@ object TlsSuite : Suite<Unit>() {
             }
         }
 
-        test("a seed known only by its address is whichever node its certificate names") { _ ->
+        test("a seed known only by its address is whichever node its certificate names") {
             opening {
                 val n2 = nodeNamed("n2")
                 val toldN2 = Told()

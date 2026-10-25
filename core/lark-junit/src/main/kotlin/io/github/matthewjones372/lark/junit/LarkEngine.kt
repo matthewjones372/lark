@@ -37,7 +37,7 @@ import kotlin.time.Duration
  */
 internal const val DEFAULT_TIMEOUT = "lark.junit.timeout.default"
 
-/** Runs every [Suite] object the platform's selectors reach, one suite at a time and its tests as forks. */
+/** Runs every [AnySuite] object the platform's selectors reach, one suite at a time and its tests as forks. */
 class LarkEngine : TestEngine {
 
     override fun getId(): String = "lark"
@@ -58,7 +58,7 @@ class LarkEngine : TestEngine {
 
     /** Runs [suite]; a test with no timeout of its own, nor its suite's, is held to [fallback] if there is one. */
     private fun <R> run(
-        suite: Suite<R>,
+        suite: AnySuite<R>,
         descriptor: SuiteDescriptor,
         listener: EngineExecutionListener,
         fallback: Duration?,
@@ -72,7 +72,7 @@ class LarkEngine : TestEngine {
         ignored.forEach { test -> tests.getValue(test.displayName).aspects.ignored?.let { report.skipped(test, it) } }
         var acquired = false
         val outcome = outcomeOf {
-            suite.shared.use { shared ->
+            suite.toAcquire.use { shared ->
                 acquired = true
                 flock<Nothing, Unit> {
                     val running = mutableListOf<Deferred<Unit>>()
@@ -166,7 +166,7 @@ private fun LogLine.rendered(): String =
         .joinToString(" ")
 
 /** A Kotlin `object`: its one instance is the static `INSTANCE` field, read without initialising the class. */
-private fun isSuiteObject(type: Class<*>): Boolean = Suite::class.java.isAssignableFrom(type) &&
+private fun isSuiteObject(type: Class<*>): Boolean = AnySuite::class.java.isAssignableFrom(type) &&
     type.declaredFields.any { it.name == "INSTANCE" && it.type == type && Modifier.isStatic(it.modifiers) }
 
 /** The class [name] names, or null where this classpath has none, as for an ID left from a renamed suite. */
@@ -206,14 +206,14 @@ private val resolver = EngineDiscoveryRequestResolver.builder<EngineDescriptor>(
     .addSelectorResolver(SuiteResolver)
     .build()
 
-internal class SuiteDescriptor private constructor(id: UniqueId, type: Class<*>, val suite: Suite<*>) :
+internal class SuiteDescriptor private constructor(id: UniqueId, type: Class<*>, val suite: AnySuite<*>) :
     AbstractTestDescriptor(id, type.simpleName, ClassSource.from(type)) {
 
     override fun getType(): TestDescriptor.Type = TestDescriptor.Type.CONTAINER
 
     companion object {
         fun of(parent: UniqueId, type: Class<*>): SuiteDescriptor {
-            val suite = type.getField("INSTANCE").get(null) as Suite<*>
+            val suite = type.getField("INSTANCE").get(null) as AnySuite<*>
             val descriptor = SuiteDescriptor(parent.append("suite", type.name), type, suite)
             suite.tests.forEach { (name, test) ->
                 val id = descriptor.uniqueId.append("test", name)

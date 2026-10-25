@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app
 
 import io.github.matthewjones372.lark.Clock
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.SystemClock
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.junit.Suite
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -23,11 +21,9 @@ private class Broker
 private class Consumer
 private class Wedged
 
-object ProbeSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ProbeSuite : Suite() {
     init {
-        test("a dependent waits for the probe, not just the recipe") { _ ->
+        test("a dependent waits for the probe, not just the recipe") {
             val ready = AtomicBoolean()
             val sawReady = AtomicBoolean()
             val module = single<Broker> { Broker() }
@@ -39,7 +35,7 @@ object ProbeSuite : Suite<Unit>() {
             started and withClue("Consumer is built only after the broker answered") { sawReady.get() shouldBe true }
         }
 
-        test("a probe that never passes fails the start, naming the node") { _ ->
+        test("a probe that never passes fails the start, naming the node") {
             val module = single<Broker> { Broker() }.probe("broker", timeout = 5.seconds) { _: Broker -> false }
 
             module.use { _: Broker -> }.leftOrNull().shouldNotBeNull { error ->
@@ -49,7 +45,7 @@ object ProbeSuite : Suite<Unit>() {
             }
         }
 
-        test("a probe that always throws fails the start as unready, with the throw as its cause") { _ ->
+        test("a probe that always throws fails the start as unready, with the throw as its cause") {
             val module = single<Broker> { Broker() }
                 .probe("broker", timeout = 5.seconds) { _: Broker -> error("connection refused") }
 
@@ -63,7 +59,7 @@ object ProbeSuite : Suite<Unit>() {
             }
         }
 
-        test("a probe that hangs fails inside its timeout") { _ ->
+        test("a probe that hangs fails inside its timeout") {
             val forever = CountDownLatch(1)
             val module = single<Wedged> { Wedged() }
                 .probe("wedged", timeout = 50.milliseconds) { _: Wedged -> forever.await(); true }
@@ -73,7 +69,7 @@ object ProbeSuite : Suite<Unit>() {
             }
         }
 
-        test("what was acquired before an unready node is given back") { _ ->
+        test("what was acquired before an unready node is given back") {
             val released = AtomicBoolean()
             val module = single<Broker> { install({ Broker() }) { _, _ -> released.set(true) } } +
                 single<Consumer, Broker> { Consumer() }.probe("consumer", timeout = 5.seconds) { _: Consumer -> false }
@@ -83,7 +79,7 @@ object ProbeSuite : Suite<Unit>() {
             failed and (released.get() shouldBe true)
         }
 
-        test("overriding a key drops the probe that was asked of it") { _ ->
+        test("overriding a key drops the probe that was asked of it") {
             val asked = AtomicInteger()
             val module = (
                 single<Broker> { Broker() }.probe("broker", timeout = 5.seconds) { _: Broker ->
@@ -97,7 +93,7 @@ object ProbeSuite : Suite<Unit>() {
             started and withClue("the fake is not the thing the probe was written about") { asked.get() shouldBe 0 }
         }
 
-        test("a subgraph keeps only the probes of the nodes it kept") { _ ->
+        test("a subgraph keeps only the probes of the nodes it kept") {
             val asked = AtomicBoolean()
             val module = single<Broker> { Broker() }
                 .probe("broker", timeout = 5.seconds) { _: Broker -> asked.set(true); true } +
@@ -128,11 +124,9 @@ private fun impatientClock(upTo: Duration): Clock = object : Clock {
     }
 }
 
-object ProbeRetrySuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ProbeRetrySuite : Suite() {
     init {
-        test("a probe that passes on a later attempt does not fail the start") { _ ->
+        test("a probe that passes on a later attempt does not fail the start") {
             val asked = AtomicInteger()
             val module = single<Broker> { Broker() }
                 .probe("broker", timeout = 5.seconds, attempts = 4, interval = 1.seconds) { _: Broker ->
@@ -145,7 +139,7 @@ object ProbeRetrySuite : Suite<Unit>() {
             started and (asked.get() shouldBe 3)
         }
 
-        test("a probe that throws is asked again, like one that answered no") { _ ->
+        test("a probe that throws is asked again, like one that answered no") {
             val asked = AtomicInteger()
             val module = single<Broker> { Broker() }
                 .probe("broker", timeout = 5.seconds, attempts = 3, interval = 1.seconds) { _: Broker ->
@@ -159,7 +153,7 @@ object ProbeRetrySuite : Suite<Unit>() {
             started and (asked.get() shouldBe 3)
         }
 
-        test("a probe that never passes gives up after its attempts") { _ ->
+        test("a probe that never passes gives up after its attempts") {
             val asked = AtomicInteger()
             val module = single<Broker> { Broker() }
                 .probe("broker", timeout = 5.seconds, attempts = 3, interval = 1.seconds) { _: Broker ->

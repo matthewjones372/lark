@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -8,16 +7,13 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.junit.withTempDirectory
-import io.github.matthewjones372.lark.resource
 import java.io.File
 
 /**
  * Run against this module's own test output, so discovery is the real thing: `Sampled` and `Faulty`
  * in `LarkAppSuite.kt` are the applications it finds.
  */
-object CheckSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CheckSuite : Suite() {
     // The clue is for a build that forgot the property, not for what the test then checks.
     private fun testClasses(then: (List<File>) -> Expectations): Expectations =
         System.getProperty("lark.app.testClasses")
@@ -27,7 +23,7 @@ object CheckSuite : Suite<Unit>() {
             }
 
     init {
-        test("an application declared as an object is found by its supertype") { _ ->
+        test("an application declared as an object is found by its supertype") {
             testClasses { classes ->
                 val found = apps(classes).map { it::class.simpleName }
 
@@ -35,7 +31,7 @@ object CheckSuite : Suite<Unit>() {
             }
         }
 
-        test("a graph short of a key fails the check and names the application") { _ ->
+        test("a graph short of a key fails the check and names the application") {
             testClasses { classes ->
                 val checked = checkWiring(classes)
 
@@ -45,7 +41,7 @@ object CheckSuite : Suite<Unit>() {
             }
         }
 
-        test("a diagram is written for every application found") { _ ->
+        test("a diagram is written for every application found") {
             testClasses { classes ->
                 withTempDirectory { dir ->
                     val into = dir.toFile()
@@ -56,7 +52,7 @@ object CheckSuite : Suite<Unit>() {
             }
         }
 
-        test("a directory with no application passes and says nothing") { _ ->
+        test("a directory with no application passes and says nothing") {
             withTempDirectory { dir ->
                 val checked = checkWiring(listOf(dir.toFile()))
 
@@ -64,7 +60,7 @@ object CheckSuite : Suite<Unit>() {
             }
         }
 
-        test("a warning stops the build only where the caller asked it to") { _ ->
+        test("a warning stops the build only where the caller asked it to") {
             testClasses { classes ->
                 withTempDirectory { dir ->
                     val only = dir.toFile()

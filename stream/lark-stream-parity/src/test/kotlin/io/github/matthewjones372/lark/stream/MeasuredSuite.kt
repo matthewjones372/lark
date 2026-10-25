@@ -5,7 +5,7 @@ import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.Histogram
 import io.github.matthewjones372.lark.Metrics
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.DoubleAdder
 
 /** A measured run on every backend: each stage's elements counted, and the slow one's body the busiest. */
-object MeasuredSuite : Suite<ActorSystem>() {
+object MeasuredSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-measured-test")
 
     // Well above a loaded runner's scheduling noise, or the stage is not the slow one it is named for.

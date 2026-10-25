@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Expectations
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -18,9 +16,7 @@ import java.util.concurrent.TimeUnit
 /** What one test's listeners heard, by name: made per test, since the suite's tests run together. */
 private typealias HeardByName = ConcurrentHashMap<String, ConcurrentLinkedQueue<Int>>
 
-object TopicSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object TopicSuite : Suite() {
     private fun listener(heard: HeardByName, name: String) = behaviour<Int, Unit>(Unit) { _, _, n ->
         stay().also { heard.computeIfAbsent(name) { ConcurrentLinkedQueue() } += n }
     }
@@ -37,7 +33,7 @@ object TopicSuite : Suite<Unit>() {
     init {
         test(
             "every subscriber hears every publish in order, and one that stops is dropped without a dead letter",
-        ) { _ ->
+        ) {
             val heard = HeardByName()
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
@@ -70,7 +66,7 @@ object TopicSuite : Suite<Unit>() {
             }
         }
 
-        test("a publish is handed on, and a message that arrives is heard here and handed on no further") { _ ->
+        test("a publish is handed on, and a message that arrives is heard here and handed on no further") {
             val heard = HeardByName()
             val forwarded = ConcurrentLinkedQueue<Int>()
 
@@ -88,7 +84,7 @@ object TopicSuite : Suite<Unit>() {
 
         test(
             "a subscriber that cannot be watched hears every publish until it unsubscribes, and the topic lives on",
-        ) { _ ->
+        ) {
             val heard = HeardByName()
             val elsewhere = Elsewhere(ConcurrentLinkedQueue())
 
@@ -109,7 +105,7 @@ object TopicSuite : Suite<Unit>() {
 
         test(
             "a stalled subscriber stops nothing, the others hear everything, and what it cannot keep is counted full",
-        ) { _ ->
+        ) {
             val heard = HeardByName()
             val open = CountDownLatch(1)
             val letters = ConcurrentLinkedQueue<DeadLetter>()

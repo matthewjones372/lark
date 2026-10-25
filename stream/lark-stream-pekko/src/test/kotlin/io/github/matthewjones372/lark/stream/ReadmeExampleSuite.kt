@@ -5,7 +5,7 @@ import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
  *
  * The README's quick start is compiled here too, since this module's test classpath holds the core it uses.
  */
-object ReadmeExampleSuite : Suite<PekkoSystem>() {
+object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-readme-test")
 
     private const val MARKER = "<!-- readme-example -->"

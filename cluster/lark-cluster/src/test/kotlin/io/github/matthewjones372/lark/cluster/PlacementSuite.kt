@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
@@ -10,18 +9,15 @@ import io.github.matthewjones372.lark.junit.shouldBeInRange
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 private fun up(n: Int, status: Status = Status.Up) = Member(Node("n$n", "10.0.0.$n", 25520), n.toLong(), status, n)
 
 private fun owners(members: List<Member>, shards: Int = 256) =
     List(shards) { Placement.owner("order", it, members) }
 
-object PlacementSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PlacementSuite : Suite() {
     init {
-        test("an id is always in the same shard, and every shard is one of the kind's") { _ ->
+        test("an id is always in the same shard, and every shard is one of the kind's") {
             val shards = (1..10_000).map { Placement.shardOf("order-$it", 256) }
 
             shards.forAll { it shouldBeInRange 0..255 } and
@@ -29,21 +25,21 @@ object PlacementSuite : Suite<Unit>() {
                 withClue("every shard has some id") { shards.toSet().size shouldBe 256 }
         }
 
-        test("every node that has the same members agrees on every owner, whatever order it has them in") { _ ->
+        test("every node that has the same members agrees on every owner, whatever order it has them in") {
             val five = (1..5).map { up(it) }
 
             (owners(five.shuffled()) shouldBe owners(five)) and
                 (owners(five.reversed()) shouldBe owners(five))
         }
 
-        test("the shards are spread across the members") { _ ->
+        test("the shards are spread across the members") {
             val counts = owners((1..5).map { up(it) }).groupingBy { it }.eachCount()
 
             (counts.keys.size shouldBe 5) and
                 counts.values.forAll { it shouldBeInRange 30..80 }
         }
 
-        test("a member joining takes about its share of shards, and no shard moves between the others") { _ ->
+        test("a member joining takes about its share of shards, and no shard moves between the others") {
             val before = owners((1..5).map { up(it) })
             val after = owners((1..6).map { up(it) })
 
@@ -52,21 +48,21 @@ object PlacementSuite : Suite<Unit>() {
                 (moved.size shouldBeInRange 20..70)
         }
 
-        test("a member leaving gives up only its own shards") { _ ->
+        test("a member leaving gives up only its own shards") {
             val before = owners((1..5).map { up(it) })
             val after = owners((1..4).map { up(it) })
 
             before.indices.filter { before[it] != after[it] }.filterNot { before[it] == up(5).node }.shouldBeEmpty()
         }
 
-        test("only Up members own shards, and with none up no shard has an owner") { _ ->
+        test("only Up members own shards, and with none up no shard has an owner") {
             val members = listOf(up(1), up(2, Status.Joining), up(3, Status.Leaving), up(4, Status.Down))
 
             (owners(members).toSet() shouldBe setOf(up(1).node)) and
                 Placement.owner("order", 0, listOf(up(2, Status.Joining))).shouldBeNull()
         }
 
-        test("an override moves only its shard, and only to an Up member in the life it names") { _ ->
+        test("an override moves only its shard, and only to an Up member in the life it names") {
             val members = listOf(up(1), up(2), up(3, Status.Leaving))
             val hashed = owners(members)
             val shard = hashed.indexOfFirst { it != up(2).node }
@@ -80,7 +76,7 @@ object PlacementSuite : Suite<Unit>() {
                 withClue("another life at the same address") { moved(to(2, 7L)) shouldBe hashed }
         }
 
-        test("workers spread as evenly as the members allow, and one member leaving moves few besides its own") { _ ->
+        test("workers spread as evenly as the members allow, and one member leaving moves few besides its own") {
             val even = listOf(1 to 8, 3 to 8, 4 to 8, 5 to 16, 8 to 3).forAll { (members, count) ->
                 val placed = Placement.spread("totals", count, (1..members).map { up(it) })
                 val counts = placed.groupingBy { it }.eachCount().values

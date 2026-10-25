@@ -1,17 +1,13 @@
 package io.github.matthewjones372.lark.structured
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldEndWith
 import io.github.matthewjones372.lark.junit.shouldStartWith
-import io.github.matthewjones372.lark.resource
 
-object NamingSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object NamingSuite : Suite() {
     init {
         test("a branch's thread is virtual and named after the function that forked it") {
             `a branch's thread is virtual and named after the function that forked it`()

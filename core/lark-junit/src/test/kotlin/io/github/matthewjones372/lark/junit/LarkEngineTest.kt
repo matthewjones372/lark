@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.junit
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.assert.shouldContain
 import io.github.matthewjones372.lark.assert.shouldContainExactly
@@ -21,7 +20,6 @@ import io.github.matthewjones372.lark.junit.samples.OrderedSuite
 import io.github.matthewjones372.lark.junit.samples.SequentialSuite
 import io.github.matthewjones372.lark.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.lark.junit.samples.UnreleasableSuite
-import io.github.matthewjones372.lark.resource
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.DiscoverySelector
 import org.junit.platform.engine.TestExecutionResult
@@ -194,6 +192,7 @@ class LarkEngineTest {
             "ForAllSuite",
             "GappedSuite",
             "GatedSuite",
+            "HoldsSuite",
             "IgnoringSuite",
             "Lark",
             "LoggingSuite",
@@ -340,9 +339,7 @@ class LarkEngineTest {
     @Test
     fun `two tests with one name are refused, because the name is the test's ID`() {
         val refused = shouldThrow<IllegalArgumentException> {
-            object : Suite<Unit>() {
-                override val shared: Resource<Unit> = resource { }
-
+            object : Suite() {
                 init {
                     test("twice") { expect(true) }
                     test("twice") { expect(true) }

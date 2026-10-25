@@ -5,7 +5,7 @@ import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.capturingMetrics
 import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 
 /** One description of a consumer, run on whichever backend the run names, against one broker. */
-object ConsumeSuite : Suite<KafkaKit>() {
+object ConsumeSuite : SharedSuite<KafkaKit>() {
     override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-consume-test")
 
     private const val GENEROUS_SECONDS = 60L

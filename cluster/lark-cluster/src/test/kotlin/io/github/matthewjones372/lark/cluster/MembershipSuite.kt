@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.seconds
 
 private val five = listOf(1, 2, 3, 4, 5)
@@ -20,13 +18,11 @@ private fun Net.fiveUp(): Expectations {
     }
 }
 
-object MembershipSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object MembershipSuite : Suite() {
     init {
         test(
             "five nodes started from the same seeds agree on one view, with all five Up and the lowest seed oldest",
-        ) { _ ->
+        ) {
             val net = Net()
             val up = net.fiveUp()
 
@@ -38,7 +34,7 @@ object MembershipSuite : Suite<Unit>() {
                 view.unreachable.shouldBeEmpty()
         }
 
-        test("a stopped node is seen unreachable by every other, and stays a member") { _ ->
+        test("a stopped node is seen unreachable by every other, and stays a member") {
             val net = Net()
             val up = net.fiveUp()
 
@@ -50,7 +46,7 @@ object MembershipSuite : Suite<Unit>() {
                 (net.view(1).up().size shouldBe 5)
         }
 
-        test("a node one other cannot reach is still reachable, through the others probing it for that one") { _ ->
+        test("a node one other cannot reach is still reachable, through the others probing it for that one") {
             val net = Net()
             val up = net.fiveUp()
 
@@ -59,7 +55,7 @@ object MembershipSuite : Suite<Unit>() {
             up and (net.until(steps = 100) { five.any { net.view(it).unreachable.isNotEmpty() } } shouldBe false)
         }
 
-        test("a node cut off from all is unreachable, and reachable again once its links heal") { _ ->
+        test("a node cut off from all is unreachable, and reachable again once its links heal") {
             val net = Net()
             val up = net.fiveUp()
 
@@ -70,7 +66,7 @@ object MembershipSuite : Suite<Unit>() {
             up and unreachable and (net.until { five.all { net.view(it).unreachable.isEmpty() } } shouldBe true)
         }
 
-        test("a joiner is not moved to Up while a member is unreachable, and is once it is back") { _ ->
+        test("a joiner is not moved to Up while a member is unreachable, and is once it is back") {
             val net = Net()
             val up = net.fiveUp()
             net.isolate(5, listOf(1, 2, 3, 4))
@@ -87,7 +83,7 @@ object MembershipSuite : Suite<Unit>() {
 
         test(
             "a joiner that waits to be told is Joining in every view until it is ready, and Up in every view after",
-        ) { _ ->
+        ) {
             val net = Net()
             val up = net.fiveUp()
 
@@ -104,7 +100,7 @@ object MembershipSuite : Suite<Unit>() {
 
         test(
             "a node that forms the cluster waiting is not Up until it is ready, and leads its joiners meanwhile",
-        ) { _ ->
+        ) {
             val net = Net()
             val first = net.start(1, seeds(1, 2), ready = false)
             val _ = net.start(2, seeds(1, 2))
@@ -116,7 +112,7 @@ object MembershipSuite : Suite<Unit>() {
                 (net.until { (1..2).all { net.view(it).up().toSet() == setOf(at(1), at(2)) } } shouldBe true)
         }
 
-        test("a node that restarts joins as a new member, and its earlier life is downed and removed") { _ ->
+        test("a node that restarts joins as a new member, and its earlier life is downed and removed") {
             val net = Net(downing = Downing.keepMajority(2.seconds))
             val up = net.fiveUp()
 
@@ -129,7 +125,7 @@ object MembershipSuite : Suite<Unit>() {
             up and later and (net.until { net.view(1).members.none { it.node == at(5) && it.uid == 5L } } shouldBe true)
         }
 
-        test("a member that leaves is removed from every view") { _ ->
+        test("a member that leaves is removed from every view") {
             val net = Net()
             val up = net.fiveUp()
 
@@ -139,7 +135,7 @@ object MembershipSuite : Suite<Unit>() {
             up and (removed shouldBe true)
         }
 
-        test("nodes of another cluster that probe this one are not taken in") { _ ->
+        test("nodes of another cluster that probe this one are not taken in") {
             val net = Net()
             (1..3).forEach { net.start(it, seeds(1)) }
             (7..8).forEach { net.start(it, seeds(7)) }
@@ -154,7 +150,7 @@ object MembershipSuite : Suite<Unit>() {
                 (net.view(7).up() shouldContainExactly listOf(at(7), at(8)))
         }
 
-        test("a node that is not the lowest seed waits for one to form the cluster, and never forms one itself") { _ ->
+        test("a node that is not the lowest seed waits for one to form the cluster, and never forms one itself") {
             val net = Net()
             val _ = net.start(2, seeds(1, 2))
 
@@ -163,7 +159,7 @@ object MembershipSuite : Suite<Unit>() {
             alone and (net.until { net.view(2).up() == listOf(at(1), at(2)) } shouldBe true)
         }
 
-        test("an Up member that goes before its joiners hear them Up leaves no cluster without a leader") { _ ->
+        test("an Up member that goes before its joiners hear them Up leaves no cluster without a leader") {
             val net = Net(downing = Downing.keepMajority(2.seconds))
             val _ = net.start(1, seeds(1))
             val formed = net.until { net.view(1).up() == listOf(at(1)) } shouldBe true
@@ -184,7 +180,7 @@ object MembershipSuite : Suite<Unit>() {
 
         test(
             "the lowest seed restarted while its welcome is slow joins the cluster it hears, and forms no second one",
-        ) { _ ->
+        ) {
             val net = Net()
             val up = net.fiveUp()
             // The earlier life is gone as the new one starts at its address.

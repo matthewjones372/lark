@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalConflict
 import io.github.matthewjones372.lark.actor.JournalPruning
@@ -16,7 +15,6 @@ import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.time.Duration
@@ -33,13 +31,11 @@ private class Conflicts(private val journal: JdbcJournal) :
         journal.append(id, expected, events).onLeft { seen += it }
 }
 
-object ProducersSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ProducersSuite : Suite() {
     init {
         test(
             "two lives of one node, restarted in place, keep separate outboxes, and each one's commands are delivered",
-        ) { _ ->
+        ) {
             val journal = JdbcJournal(accountsDatabase())
             val ports = List(3) { ServerSocket(0).use(ServerSocket::getLocalPort) }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -79,7 +75,7 @@ object ProducersSuite : Suite<Unit>() {
             }
         }
 
-        test("on three nodes, the registry lists each node's durable producer with the life that runs it") { _ ->
+        test("on three nodes, the registry lists each node's durable producer with the life that runs it") {
             val journal = JdbcJournal(accountsDatabase())
             val ports = List(3) { ServerSocket(0).use(ServerSocket::getLocalPort) }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -107,7 +103,7 @@ object ProducersSuite : Suite<Unit>() {
 
         test(
             "a crashed node's commands are delivered, though the node that resumed them crashes straight after",
-        ) { _ ->
+        ) {
             val journal = Conflicts(JdbcJournal(accountsDatabase()))
             val ports = List(4) { ServerSocket(0).use(ServerSocket::getLocalPort) }
             val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())

@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -15,9 +13,7 @@ private class Kept
 private class Skipped
 private class Ticker
 
-object SubgraphSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SubgraphSuite : Suite() {
     private fun graph(built: AtomicInteger) =
         single<Prefs> { Prefs() } +
             single { _: Prefs -> Kept() } +
@@ -25,7 +21,7 @@ object SubgraphSuite : Suite<Unit>() {
             single { _: Prefs -> built.incrementAndGet(); Skipped() }
 
     init {
-        test("a subgraph builds only what its root needs") { _ ->
+        test("a subgraph builds only what its root needs") {
             val skipped = AtomicInteger()
 
             testApp(graph(skipped).subgraph<Kept>()) { kept: Kept -> kept }
@@ -35,7 +31,7 @@ object SubgraphSuite : Suite<Unit>() {
             }
         }
 
-        test("overriding replaces a key everything below already points at") { _ ->
+        test("overriding replaces a key everything below already points at") {
             val real = AtomicInteger()
             val module = (single<Prefs> { real.incrementAndGet(); Prefs() } + single { _: Prefs -> Kept() })
                 .overriding(single<Prefs> { Prefs() })
@@ -47,13 +43,13 @@ object SubgraphSuite : Suite<Unit>() {
             }
         }
 
-        test("overriding a key nothing provides is refused") { _ ->
+        test("overriding a key nothing provides is refused") {
             shouldThrow<IllegalArgumentException>({
                 single<Prefs> { Prefs() }.overriding(single<Ticker> { Ticker() })
             }) { failure -> failure.message.orEmpty() shouldContain "Ticker" }
         }
 
-        test("testApp releases after the block fails") { _ ->
+        test("testApp releases after the block fails") {
             val released = AtomicBoolean()
             val module = single<Prefs> { install({ Prefs() }) { _, _ -> released.set(true) } }
 
@@ -64,7 +60,7 @@ object SubgraphSuite : Suite<Unit>() {
             failed and (released.get() shouldBe true)
         }
 
-        test("testApp fails with what the start could not do") { _ ->
+        test("testApp fails with what the start could not do") {
             shouldThrow<IllegalStateException>({
                 testApp(single<Prefs> { Prefs() }) { _: Kept -> }
             }) { failure -> failure.message.orEmpty() shouldContain "Kept" }

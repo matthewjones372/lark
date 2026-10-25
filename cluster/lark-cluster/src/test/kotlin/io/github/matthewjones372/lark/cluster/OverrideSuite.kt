@@ -1,22 +1,18 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-object OverrideSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object OverrideSuite : Suite() {
     init {
         test(
             "an override set on the leader moves exactly its shard through the handoff, and goes when its member does",
-        ) { _ ->
+        ) {
             val ports = List(3) { loadPort() }
             val seeds = seedsAt(ports)
             val rarely = Rebalance.byLoad(every = 1.minutes)

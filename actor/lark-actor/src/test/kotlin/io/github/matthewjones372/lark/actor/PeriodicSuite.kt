@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
@@ -12,7 +11,6 @@ import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
@@ -77,11 +75,9 @@ private fun heart() = behaviour<Pulse, Heart>(Heart()) { ctx, heart, message ->
     }
 }
 
-object PeriodicSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PeriodicSuite : Suite() {
     init {
-        test("a periodic timer sounds once each interval until it is cancelled") { _ ->
+        test("a periodic timer sounds once each interval until it is cancelled") {
             val heart = heart().test()
             heart.send(Beat(every = 1.seconds, times = 3))
 
@@ -91,7 +87,7 @@ object PeriodicSuite : Suite<Unit>() {
                 (heart.pendingTimers shouldBe 0)
         }
 
-        test("a periodic timer runs on in time order with everything else") { _ ->
+        test("a periodic timer runs on in time order with everything else") {
             val heart = heart().test()
             heart.send(Beat(every = 2.seconds))
 
@@ -101,7 +97,7 @@ object PeriodicSuite : Suite<Unit>() {
                 (heart.pendingTimers shouldBe 1)
         }
 
-        test("starting its key again replaces a periodic timer") { _ ->
+        test("starting its key again replaces a periodic timer") {
             val heart = heart().test()
             heart.send(Beat(every = 1.seconds))
 
@@ -111,7 +107,7 @@ object PeriodicSuite : Suite<Unit>() {
             heart.state.heard shouldContainExactly listOf("tick")
         }
 
-        test("an idle actor hears its receive timeout once per silence") { _ ->
+        test("an idle actor hears its receive timeout once per silence") {
             val heart = heart().test()
             heart.send(Quiet(5.seconds))
 
@@ -122,7 +118,7 @@ object PeriodicSuite : Suite<Unit>() {
             silent and (heart.state.heard shouldContainExactly listOf("hush"))
         }
 
-        test("any message resets the receive timeout") { _ ->
+        test("any message resets the receive timeout") {
             val heart = heart().test()
             heart.send(Quiet(5.seconds))
 
@@ -139,7 +135,7 @@ object PeriodicSuite : Suite<Unit>() {
             reset and (heart.state.heard shouldContainExactly listOf("poke", "poke", "hush"))
         }
 
-        test("a message after the timeout starts the next silence") { _ ->
+        test("a message after the timeout starts the next silence") {
             val heart = heart().test()
             heart.send(Quiet(5.seconds))
             heart.advance(5.seconds)
@@ -150,7 +146,7 @@ object PeriodicSuite : Suite<Unit>() {
             heart.state.heard shouldContainExactly listOf("hush", "poke", "hush")
         }
 
-        test("null turns the receive timeout off") { _ ->
+        test("null turns the receive timeout off") {
             val heart = heart().test()
             heart.send(Quiet(5.seconds))
 
@@ -160,7 +156,7 @@ object PeriodicSuite : Suite<Unit>() {
             heart.state.heard.shouldBeEmpty() and (heart.pendingTimers shouldBe 0)
         }
 
-        test("a restart turns the receive timeout off, and cancels a periodic timer") { _ ->
+        test("a restart turns the receive timeout off, and cancels a periodic timer") {
             val heart = heart().test(restart = Schedule.recurs(1))
             heart.send(Quiet(5.seconds))
             heart.send(Beat(every = 1.seconds))
@@ -171,7 +167,7 @@ object PeriodicSuite : Suite<Unit>() {
             heart.state.heard.shouldBeEmpty() and (heart.pendingTimers shouldBe 0)
         }
 
-        test("on threads, the flock's clock drives a periodic timer and a receive timeout") { _ ->
+        test("on threads, the flock's clock drives a periodic timer and a receive timeout") {
             val moving = TestClock()
             val heard = clock.locally(moving) {
                 flock<Nothing, Any> {

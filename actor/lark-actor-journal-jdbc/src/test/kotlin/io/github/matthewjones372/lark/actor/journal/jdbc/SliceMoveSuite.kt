@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.InMemoryOffsets
 import io.github.matthewjones372.lark.actor.JournalUnavailable
 import io.github.matthewjones372.lark.actor.PersistenceId
@@ -15,7 +14,6 @@ import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -39,11 +37,9 @@ private class ThreeDatabases {
 }
 
 /** Spec 0105 on Postgres: a range of slices moved from one database to another while appends go on. */
-object SliceMoveSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SliceMoveSuite : Suite() {
     init {
-        test("a journal's first start writes the formula's ranges, so every id stays where it was") { _ ->
+        test("a journal's first start writes the formula's ranges, so every id stays where it was") {
             with(ThreeDatabases()) {
                 val before = ShardedJournal(databases.take(2).map { (name, source) -> name to JdbcJournal(source) })
                 val after = journal()
@@ -54,7 +50,7 @@ object SliceMoveSuite : Suite<Unit>() {
 
         test(
             "under appends from a thousand ids, a range moves to a new database, losing none and pausing no other",
-        ) { _ ->
+        ) {
             with(ThreeDatabases()) {
                 val journal = journal()
                 val appended = ConcurrentHashMap<PersistenceId, Long>()
@@ -103,7 +99,7 @@ object SliceMoveSuite : Suite<Unit>() {
             }
         }
 
-        test("a node that has not seen the move is refused by the source, and appends on the target") { _ ->
+        test("a node that has not seen the move is refused by the source, and appends on the target") {
             with(ThreeDatabases()) {
                 val stale = journal(refreshEvery = 1.hours)
                 val id = ids.first { Slices.of(it) in moving }
@@ -121,7 +117,7 @@ object SliceMoveSuite : Suite<Unit>() {
             }
         }
 
-        test("the source keeps a moved range until its read models have passed it, then lets it go") { _ ->
+        test("the source keeps a moved range until its read models have passed it, then lets it go") {
             with(ThreeDatabases()) {
                 val journal = journal()
                 ids.forEach { journal.append(it, 0, listOf("1".toByteArray())) }

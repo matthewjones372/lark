@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A buffer on every backend: upstream runs ahead of a slow reader, and only as far as the buffer lets it. */
-object BufferSuite : Suite<ActorSystem>() {
+object BufferSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-buffer-test")
 
     private const val SIZE = 4

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster.aws
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.cluster.Joins
 import io.github.matthewjones372.lark.junit.Expectations
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBe
-import io.github.matthewjones372.lark.resource
 import software.amazon.awssdk.core.exception.SdkClientException
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue
@@ -110,9 +108,7 @@ private class FakeDynamo : DynamoDbClient {
     }
 }
 
-object AwsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object AwsSuite : Suite() {
     init {
         test(
             "the instances Cloud Map has for the service are the seeds, at the port each registered or the cluster's",

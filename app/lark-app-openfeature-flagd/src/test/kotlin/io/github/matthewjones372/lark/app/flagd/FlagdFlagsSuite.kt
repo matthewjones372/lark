@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app.flagd
 
 import dev.openfeature.sdk.Client
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.typesafe.configOf
 import io.github.matthewjones372.lark.app.use
@@ -13,18 +12,15 @@ import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.openfeature.Flag
 import io.github.matthewjones372.lark.openfeature.evaluatedFor
-import io.github.matthewjones372.lark.resource
 
 private val limit = Flag.int("adoption.per-customer-limit", default = 1)
 
 /** Spec 0184: flags in flagd's schema, written as a section of the service's own HOCON. */
 // Every test starts flagd as the provider of OpenFeatureAPI, a process-wide singleton that one graph holds at a
 // time, so two at once refuse each other's start: run concurrently, two of the three failed.
-object FlagdFlagsSuite : Suite<Unit>(concurrent = false) {
-    override val shared: Resource<Unit> = resource { }
-
+object FlagdFlagsSuite : Suite(concurrent = false) {
     init {
-        test("a targeted flag in HOCON answers for the key evaluatedFor bound") { _ ->
+        test("a targeted flag in HOCON answers for the key evaluatedFor bound") {
             val graph = configOf(
                 """
                 flags {
@@ -47,7 +43,7 @@ object FlagdFlagsSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a section flagd rejects refuses the start, naming the flag and where the section came from") { _ ->
+        test("a section flagd rejects refuses the start, naming the flag and where the section came from") {
             val graph = configOf(
                 """
                 flags {
@@ -63,7 +59,7 @@ object FlagdFlagsSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a graph whose section is missing refuses the start, naming the path") { _ ->
+        test("a graph whose section is missing refuses the start, naming the path") {
             (configOf("other = 1") + flagdFlags("flags")).use { _: Client -> }.leftOrNull().shouldNotBeNull { refused ->
                 refused.shouldBeInstanceOf<StartupError.Refused> { it.reason shouldContain "flags" }
             }

@@ -5,7 +5,7 @@ import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Logger
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 
 /** A defect starts the same description again, for as long as the schedule says; a declared failure does not. */
-object RestartSuite : Suite<PekkoSystem>() {
+object RestartSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-restart-test")
 
     private const val GENEROUS_SECONDS = 30L

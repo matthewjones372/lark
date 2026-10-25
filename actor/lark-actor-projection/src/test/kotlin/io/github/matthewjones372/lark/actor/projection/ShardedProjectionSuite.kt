@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.projection
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.InMemoryJournal
 import io.github.matthewjones372.lark.actor.InMemoryOffsets
@@ -15,7 +14,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
-import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.start
 import java.util.Collections
@@ -54,11 +52,9 @@ private class TwoDatabases {
 }
 
 /** Spec 0088: a read model over a journal across databases is one projection per database. */
-object ShardedProjectionSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ShardedProjectionSuite : Suite() {
     init {
-        test("one projection per database sees every event once, and only its own database's") { _ ->
+        test("one projection per database sees every event once, and only its own database's") {
             with(TwoDatabases()) {
                 val ids = (1..200).map { PersistenceId("till", "t-$it") }
                 ids.forEach { id -> journal.append(id, 0, (1..5).map { "$it".toByteArray() }) }
@@ -89,7 +85,7 @@ object ShardedProjectionSuite : Suite<Unit>() {
             }
         }
 
-        test("pruning in one database waits only on what has read that database") { _ ->
+        test("pruning in one database waits only on what has read that database") {
             with(TwoDatabases()) {
                 val ids = (1..50).map { PersistenceId("till", "t-$it") }
                 val inA = ids.first { journal.database(it) == "db-a" }

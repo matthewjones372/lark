@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
@@ -53,21 +51,19 @@ internal object Warned : LarkApp<Counter>() {
     override fun AppScope.run(root: Counter) = Unit
 }
 
-object LarkAppSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LarkAppSuite : Suite() {
     init {
-        test("an application carries the root it starts from") { _ ->
+        test("an application carries the root it starts from") {
             Sampled.root shouldBe typeOf<Counter>()
         }
 
-        test("runApp starts the graph and hands the root to the declared block") { _ ->
+        test("runApp starts the graph and hands the root to the declared block") {
             val exit = runApp(Sampled)
 
             exit shouldBe ExitCode.Ok
         }
 
-        test("an application with no run waits for shutdown, and its graph is released after") { _ ->
+        test("an application with no run waits for shutdown, and its graph is released after") {
             val shutdown = Shutdown()
             val built = CompletableFuture<Released>()
             val running = Thread.ofVirtual().start {
@@ -88,11 +84,11 @@ object LarkAppSuite : Suite<Unit>() {
             heldWhileRunning and (held.closed.get() shouldBe true)
         }
 
-        test("a faulty graph leaves with a failure rather than running the block") { _ ->
+        test("a faulty graph leaves with a failure rather than running the block") {
             runApp(Faulty) shouldBe ExitCode.Failed
         }
 
-        test("an application is asked for its findings from the root it declares") { _ ->
+        test("an application is asked for its findings from the root it declares") {
             val findings = Faulty.module.findings(Faulty.root)
 
             (findings.map { it.severity } shouldContainExactly listOf(Severity.FAIL)) and
@@ -112,11 +108,9 @@ internal object TwoOfThem : LarkApp<Ambiguous>() {
 }
 
 /** The root is read off the declaration, so it is written once. */
-object RootFromTheDeclarationSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RootFromTheDeclarationSuite : Suite() {
     init {
-        test("the type between the angle brackets is the root") { _ ->
+        test("the type between the angle brackets is the root") {
             TwoOfThem.root shouldBe typeOf<Ambiguous>()
         }
     }

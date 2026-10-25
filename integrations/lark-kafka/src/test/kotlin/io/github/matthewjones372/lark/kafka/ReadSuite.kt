@@ -5,7 +5,7 @@ import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.fold
 import io.github.matthewjones372.lark.fail.map
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.stream.Exit
@@ -18,7 +18,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 
-object ReadSuite : Suite<KafkaBroker>() {
+object ReadSuite : SharedSuite<KafkaBroker>() {
     override val shared: Resource<KafkaBroker> = kafkaBroker()
 
     private const val GENEROUS_SECONDS = 60L

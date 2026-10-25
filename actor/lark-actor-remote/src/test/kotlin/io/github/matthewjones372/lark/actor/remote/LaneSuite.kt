@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.spawn
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -19,11 +17,9 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 
 /** Spec 0104: the cluster's own traffic on a lane of its own, never behind, or dropped with, ordinary messages. */
-object LaneSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LaneSuite : Suite() {
     init {
-        test("a control frame arrives at once, and none is dropped, while the data lane to its peer is jammed") { _ ->
+        test("a control frame arrives at once, and none is dropped, while the data lane to its peer is jammed") {
             val port = freePort()
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)

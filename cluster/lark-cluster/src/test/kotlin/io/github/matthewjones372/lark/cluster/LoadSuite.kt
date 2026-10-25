@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.ask
@@ -19,7 +18,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -113,13 +111,11 @@ internal class LoadNode(
     }
 }
 
-object LoadSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LoadSuite : Suite() {
     init {
         test(
             "every member sees each member's running entities of a kind that rebalances, as they start and passivate",
-        ) { _ ->
+        ) {
             val ports = List(3) { loadPort() }
             val seeds = seedsAt(ports)
             // So wide a tolerance that nothing moves: this is about the load, not what the leader does with it.

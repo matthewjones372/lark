@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.EventCodec
@@ -25,7 +24,6 @@ import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.metrics
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -129,11 +127,9 @@ internal class Bank(
     }
 }
 
-object ReliableSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ReliableSuite : Suite() {
     init {
-        test("payments to 200 accounts while a node crashes are each applied exactly once, in order") { _ ->
+        test("payments to 200 accounts while a node crashes are each applied exactly once, in order") {
             val journal = JdbcJournal(accountsDatabase())
             val ports = List(3) { openPort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -193,7 +189,7 @@ object ReliableSuite : Suite<Unit>() {
 
         test(
             "payments a node sends just before it closes are each applied once, from wherever their accounts run",
-        ) { _ ->
+        ) {
             val journal = JdbcJournal(accountsDatabase())
             val ports = List(3) { openPort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
@@ -221,7 +217,7 @@ object ReliableSuite : Suite<Unit>() {
 
         test(
             "payments a durable producer accepted before its node crashed are each applied once, sent by the registry",
-        ) { _ ->
+        ) {
             val journal = JdbcJournal(accountsDatabase())
             val ports = List(4) { openPort() }
             val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())

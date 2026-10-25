@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.app.kotlinx
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.typesafe.configOf
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration
@@ -24,11 +22,9 @@ private data class Inner(val maxRetries: Int)
 @Serializable
 private data class Renamed(@SerialName("outboxEvery") val outbox: Duration)
 
-object NamingSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object NamingSuite : Suite() {
     init {
-        test("under kebab naming arrivalsEvery reads arrivals-every, and a SerialName is the key as written") { _ ->
+        test("under kebab naming arrivalsEvery reads arrivals-every, and a SerialName is the key as written") {
             val file = configOf(
                 """
                 petshop {
@@ -44,7 +40,7 @@ object NamingSuite : Suite<Unit>() {
             settings shouldBe Kebabed(30.seconds, 5.seconds, Inner(3))
         }
 
-        test("under kebab naming a SerialName with capitals is kebab-cased, as kotlinx keeps no other name") { _ ->
+        test("under kebab naming a SerialName with capitals is kebab-cased, as kotlinx keeps no other name") {
             val file = configOf("petshop { outbox-every = 5s }")
 
             val settings = testApp(file + config<Renamed>("petshop", Naming.Kebab)) { settings: Renamed -> settings }

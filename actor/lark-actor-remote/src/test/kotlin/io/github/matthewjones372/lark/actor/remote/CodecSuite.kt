@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Confirmed
@@ -13,7 +12,6 @@ import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 
 private sealed interface Clinic
 
@@ -87,18 +85,16 @@ private val there = Address("shop-2@10.0.0.7:25520", "/user/clinic", 7)
 
 private fun Clinic.roundTrip(refs: Refs): Clinic = clinicCodec.decode(clinicCodec.encode(this, refs), refs)
 
-object CodecSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CodecSuite : Suite() {
     init {
-        test("a message of plain fields comes back equal, a missing note included") { _ ->
+        test("a message of plain fields comes back equal, a missing note included") {
             val refs = AddressedRefs()
             (Book("rex", 50, "limps").roundTrip(refs) shouldBe Book("rex", 50, "limps")) and
                 (Book("bo", 7, null).roundTrip(refs) shouldBe Book("bo", 7, null)) and
                 (Close.roundTrip(refs) shouldBe Close)
         }
 
-        test("a reply crosses as its address, and answering the one that comes back answers that address") { _ ->
+        test("a reply crosses as its address, and answering the one that comes back answers that address") {
             val refs = AddressedRefs()
             val asked = refs.reply(Address("shop-1@10.0.0.6:25520", "/temp/ask-3", 1), Codecs.int)
 
@@ -110,7 +106,7 @@ object CodecSuite : Suite<Unit>() {
             }
         }
 
-        test("a ref crosses as its address, incarnation included, and tells that address") { _ ->
+        test("a ref crosses as its address, incarnation included, and tells that address") {
             val refs = AddressedRefs()
             val sent = Refer(refs.ref(there, clinicCodec), since = 1_700_000_000_000)
             sent.roundTrip(refs).shouldBeInstanceOf<Refer> { refer ->
@@ -122,13 +118,13 @@ object CodecSuite : Suite<Unit>() {
             }
         }
 
-        test("text past what a modified UTF-8 string holds, and outside the basic plane, comes back whole") { _ ->
+        test("text past what a modified UTF-8 string holds, and outside the basic plane, comes back whole") {
             val long = "é".repeat(40_000) + "🐾"
 
             Book(long, 1, null).roundTrip(AddressedRefs()) shouldBe Book(long, 1, null)
         }
 
-        test("reading past the end of a message is an error that says so") { _ ->
+        test("reading past the end of a message is an error that says so") {
             val refs = AddressedRefs()
             val cut = clinicCodec.encode(Book("rex", 50, null), refs).copyOf(3)
 
@@ -137,7 +133,7 @@ object CodecSuite : Suite<Unit>() {
             }
         }
 
-        test("the answers most asks want come back as they went") { _ ->
+        test("the answers most asks want come back as they went") {
             val refs = AddressedRefs()
             val longs = Codecs.list(Codecs.long)
             (Codecs.int.decode(Codecs.int.encode(-7, refs), refs) shouldBe -7) and
@@ -146,11 +142,11 @@ object CodecSuite : Suite<Unit>() {
                 (Codecs.unit.decode(Codecs.unit.encode(Unit, refs), refs) shouldBe Unit)
         }
 
-        test("the clinic's messages could all cross") { _ ->
+        test("the clinic's messages could all cross") {
             protocolFaults<Clinic>().shouldBeEmpty()
         }
 
-        test("a delivery crosses with its producer's address, and confirming the one that comes back tells it") { _ ->
+        test("a delivery crosses with its producer's address, and confirming the one that comes back tells it") {
             val refs = AddressedRefs()
             val producer = Address("shop-1@10.0.0.6:25520", "/user/producer-till", 3)
             val delivery = Delivery("till/1", "o-42", 9, refs.ref(producer, Codecs.confirmed))

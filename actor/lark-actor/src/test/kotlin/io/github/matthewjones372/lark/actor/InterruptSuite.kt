@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.hours
@@ -36,11 +34,9 @@ private fun chores(log: AtomicReference<List<String>>) = behaviour<Chore, Unit, 
     stay()
 }
 
-object InterruptSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object InterruptSuite : Suite() {
     init {
-        test("closing the flock interrupts a step blocked forever, and the actor still takes its Stopping") { _ ->
+        test("closing the flock interrupts a step blocked forever, and the actor still takes its Stopping") {
             val log = AtomicReference<List<String>>(emptyList())
 
             flock<Nothing, Unit> {
@@ -52,7 +48,7 @@ object InterruptSuite : Suite<Unit>() {
             log.get() shouldBe listOf("stopping")
         }
 
-        test("closing the flock cuts a restart's delay short") { _ ->
+        test("closing the flock cuts a restart's delay short") {
             val log = AtomicReference<List<String>>(emptyList())
 
             flock<Nothing, Unit> {
@@ -64,7 +60,7 @@ object InterruptSuite : Suite<Unit>() {
             log.get() shouldBe listOf("stopping")
         }
 
-        test("a parent's stop interrupts a child blocked forever") { _ ->
+        test("a parent's stop interrupts a child blocked forever") {
             val log = AtomicReference<List<String>>(emptyList())
 
             flock<Nothing, Unit> {

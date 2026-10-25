@@ -1,18 +1,14 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 
 /** What the fence-compiling tests do not check: the order of an example's imports, and the coordinates it names. */
-object DocsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DocsSuite : Suite() {
     private fun pages(root: File, then: (List<File>) -> Expectations): Expectations =
         File(root, "docs").listFiles { file -> file.extension == "md" }.shouldNotBeNull { docs ->
             then(listOf(File(root, "README.md")) + docs.sortedBy { it.name })
@@ -22,7 +18,7 @@ object DocsSuite : Suite<Unit>() {
         System.getProperty("lark.app.repoRoot").shouldNotBeNull { root -> then(File(root)) }
 
     init {
-        test("every import block in a Kotlin fence is in ktlint's order") { _ ->
+        test("every import block in a Kotlin fence is in ktlint's order") {
             root { root ->
                 pages(root) { pages ->
                     val unordered = pages.flatMap { page ->
@@ -34,7 +30,7 @@ object DocsSuite : Suite<Unit>() {
             }
         }
 
-        test("every coordinate names a published module, at the released version or a snapshot") { _ ->
+        test("every coordinate names a published module, at the released version or a snapshot") {
             root { root ->
                 pages(root) { pages ->
                     System.getProperty("lark.app.publishedModules").shouldNotBeNull { modules ->

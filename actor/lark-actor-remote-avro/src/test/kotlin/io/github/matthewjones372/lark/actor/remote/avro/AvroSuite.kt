@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote.avro
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Reply
@@ -21,7 +20,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import org.apache.avro.generic.GenericData
 import org.apache.avro.generic.GenericRecord
 import org.apache.avro.message.BinaryMessageEncoder
@@ -48,20 +46,18 @@ private class Kept : Refs {
     override fun <A : Any> reply(address: Address, answers: MessageCodec<A>) = replies.getValue(address) as Reply<A>
 }
 
-object AvroSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object AvroSuite : Suite() {
     // Filled here and only read after, so the tests running at once share it safely.
     private val schemas = SchemaStore.Cache().apply { addSchema(Placed.VERSION_2) }
     private val placed = Avro.codec(Placed::class.java, schemas)
     private val price = Avro.asked(Placed::class.java, schemas, Codecs.long, ::Price, Price::placed, Price::reply)
 
     init {
-        test("a record crosses in single-object encoding and reads back equal") { _ ->
+        test("a record crosses in single-object encoding and reads back equal") {
             placed.decode(placed.encode(Placed("o-42", 250), Kept()), Kept()) shouldBe Placed("o-42", 250)
         }
 
-        test("a record a node wrote with a newer schema is read by one on the older, through the store") { _ ->
+        test("a record a node wrote with a newer schema is read by one on the older, through the store") {
             val newer = GenericData.Record(Placed.VERSION_2).apply {
                 put("order", "o-7")
                 put("pence", 120L)
@@ -73,7 +69,7 @@ object AvroSuite : Suite<Unit>() {
             placed.decode(frame, Kept()) shouldBe Placed("o-7", 120)
         }
 
-        test("a record whose schema no store has, or bytes that are not a record, is a wire exception") { _ ->
+        test("a record whose schema no store has, or bytes that are not a record, is a wire exception") {
             val unknown = Avro.codec(Placed::class.java, SchemaStore.Cache())
             val newer = GenericData.Record(Placed.VERSION_2).apply {
                 put("order", "o-7")
@@ -88,7 +84,7 @@ object AvroSuite : Suite<Unit>() {
                 shouldThrow<WireException> { placed.decode(Codecs.bytes.encode(byteArrayOf(1, 2, 3), Kept()), Kept()) }
         }
 
-        test("an ask whose request is a record is answered from another node") { _ ->
+        test("an ask whose request is a record is answered from another node") {
             val port = ServerSocket(0).use(ServerSocket::getLocalPort)
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)

@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -50,13 +48,11 @@ private fun postbox() = behaviour<Mail, List<Int>>(emptyList()) { ctx, letters, 
     }
 }
 
-object DeadLettersSuite : Suite<Unit>() {
+object DeadLettersSuite : Suite() {
     private const val RACES = 200
 
-    override val shared: Resource<Unit> = resource { }
-
     init {
-        test("a message told to a stopped actor is a dead letter, once") { _ ->
+        test("a message told to a stopped actor is a dead letter, once") {
             testActors {
                 val postbox = spawn("postbox", postbox())
                 postbox.send(Seal)
@@ -67,7 +63,7 @@ object DeadLettersSuite : Suite<Unit>() {
             }
         }
 
-        test("a message the step answers unhandled is a dead letter, and still in unhandled") { _ ->
+        test("a message the step answers unhandled is a dead letter, and still in unhandled") {
             val postbox = postbox().test()
 
             postbox.send(Junk)
@@ -79,7 +75,7 @@ object DeadLettersSuite : Suite<Unit>() {
                 (postbox.unhandled shouldContainExactly listOf(Junk))
         }
 
-        test("what is still waiting when an actor stops is a dead letter, in the order it was told") { _ ->
+        test("what is still waiting when an actor stops is a dead letter, in the order it was told") {
             val postbox = postbox().test()
 
             postbox.send(Burn)
@@ -90,7 +86,7 @@ object DeadLettersSuite : Suite<Unit>() {
             )
         }
 
-        test("a stashed message is a dead letter when the actor stops") { _ ->
+        test("a stashed message is a dead letter when the actor stops") {
             val postbox = postbox().test()
             postbox.send(Hold(7))
 
@@ -100,7 +96,7 @@ object DeadLettersSuite : Suite<Unit>() {
                 listOf(DeadLetter(postbox.address, Hold(7), DeadLetter.Why.Stopped))
         }
 
-        test("on threads, a flock hands every dead letter to its handler, once") { _ ->
+        test("on threads, a flock hands every dead letter to its handler, once") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
             flock<Nothing, Address> {
                 onDeadLetter(letters::add)
@@ -125,7 +121,7 @@ object DeadLettersSuite : Suite<Unit>() {
             }
         }
 
-        test("after its flock has closed, a dead letter is only logged, and a spawn is refused") { _ ->
+        test("after its flock has closed, a dead letter is only logged, and a spawn is refused") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
             val closed = flock<Nothing, Flock<Nothing>> {
                 onDeadLetter(letters::add)
@@ -139,7 +135,7 @@ object DeadLettersSuite : Suite<Unit>() {
                 shouldThrow<IllegalStateException> { closed.spawn("late", postbox()) }
         }
 
-        test("a dead letter the flock is told of while its actors stop reaches its handler") { _ ->
+        test("a dead letter the flock is told of while its actors stop reaches its handler") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
             flock<Nothing, Unit> {
@@ -160,7 +156,7 @@ object DeadLettersSuite : Suite<Unit>() {
 
         test(
             "a thread the flock did not fork, telling it of dead letters while it closes, stands no second guardian",
-        ) { _ ->
+        ) {
             val failed = ConcurrentLinkedQueue<Throwable>()
             val letter = DeadLetter(Address("local", "/user/postbox", 1), Letter(1), DeadLetter.Why.Unreachable)
 

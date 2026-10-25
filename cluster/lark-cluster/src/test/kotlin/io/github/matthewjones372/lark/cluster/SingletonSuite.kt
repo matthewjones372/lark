@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.Signal
@@ -21,7 +20,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -92,13 +90,11 @@ private class Station(val name: String, port: Int, seeds: Discovery) : AutoClose
     }
 }
 
-object SingletonSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SingletonSuite : Suite() {
     init {
         test(
             "one clock runs on the oldest member, and moves to the next oldest when it leaves, never running twice",
-        ) { _ ->
+        ) {
             val ports = List(3) { ServerSocket(0).use(ServerSocket::getLocalPort) }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val stations = ports.mapIndexed { i, port -> Station("n${i + 1}", port, seeds) }

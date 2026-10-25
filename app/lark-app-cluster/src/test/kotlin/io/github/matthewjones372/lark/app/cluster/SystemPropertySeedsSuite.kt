@@ -1,21 +1,17 @@
 package io.github.matthewjones372.lark.app.cluster
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.app.typesafe.reading
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
-import io.github.matthewjones372.lark.resource
 import java.util.Properties
 
 /** Seeds given as `-Dpath.static.seeds.0=…`, as JAVA_OPTS gives them: an object Typesafe reads as a list. */
-object SystemPropertySeedsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SystemPropertySeedsSuite : Suite() {
     init {
-        test("seeds overridden by numbered system properties are a list, in their numbers' order") { _ ->
+        test("seeds overridden by numbered system properties are a list, in their numbers' order") {
             val properties = Properties().apply {
                 setProperty("lark.cluster.static.seeds.1", "bank-2:25520")
                 setProperty("lark.cluster.static.seeds.0", "bank-1:25520")

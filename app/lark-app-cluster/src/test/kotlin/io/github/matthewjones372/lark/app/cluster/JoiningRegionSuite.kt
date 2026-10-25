@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.DeadLetter
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.Codecs
@@ -17,7 +16,6 @@ import io.github.matthewjones372.lark.cluster.sharding
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -68,11 +66,9 @@ private fun AtomicReference<Ledgers>.awaitUp(count: Int): Ledgers {
 }
 
 /** Spec 0129: a node that joins through lark-app is given no shard before its regions are open. */
-object JoiningRegionSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object JoiningRegionSuite : Suite() {
     init {
-        test("a node that joins while its future entities are being told has no dead letter for their region") { _ ->
+        test("a node that joins while its future entities are being told has no dead letter for their region") {
             val ports = List(3) { ServerSocket(0).use { socket -> socket.localPort } }.sorted()
             val done = CountDownLatch(1)
             val ignored = ConcurrentLinkedQueue<DeadLetter>()

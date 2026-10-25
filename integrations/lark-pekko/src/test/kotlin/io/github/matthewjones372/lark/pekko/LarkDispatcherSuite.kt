@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.pekko
 
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
@@ -29,7 +29,7 @@ private val DISPATCHERS = """
     }
 """.trimIndent()
 
-object LarkDispatcherSuite : Suite<ActorSystem>() {
+object LarkDispatcherSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = resource {
         install({ ActorSystem.create("lark-dispatcher-test", ConfigFactory.parseString(DISPATCHERS)) }) { system, _ ->
             system.terminate()

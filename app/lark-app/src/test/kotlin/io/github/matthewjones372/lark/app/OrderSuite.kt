@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 private class Mains
 private class Pumping(val mains: Mains)
@@ -24,11 +22,9 @@ private val forwards: Module =
  * A graph is a set keyed by type, so `plus` is commutative: the order a service writes its modules in
  * is the order a reader wants them in, not an order the wiring depends on.
  */
-object OrderSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object OrderSuite : Suite() {
     init {
-        test("a graph written consumer-first starts") { _ ->
+        test("a graph written consumer-first starts") {
             val kitchen = testApp(backwards) { kitchen: Kitchen -> kitchen }
 
             withClue("Kitchen was written before Mains existed anywhere in the file") {
@@ -36,13 +32,13 @@ object OrderSuite : Suite<Unit>() {
             }
         }
 
-        test("and plans the same as one written provider-first") { _ ->
+        test("and plans the same as one written provider-first") {
             backwards.validate().getOrNull().shouldNotBeNull { one ->
                 forwards.validate().getOrNull().shouldNotBeNull { other -> one.layers shouldBe other.layers }
             }
         }
 
-        test("and draws the same") { _ ->
+        test("and draws the same") {
             backwards.render() shouldBe forwards.render()
         }
     }

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.fail.right
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -76,11 +74,9 @@ private fun held(open: CountDownLatch, heard: MutableList<Int>) = behaviour<Int,
     stay()
 }
 
-object EntitiesSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object EntitiesSuite : Suite() {
     init {
-        test("one id is one actor, and two ids are two") { _ ->
+        test("one id is one actor, and two ids are two") {
             val log = ConcurrentLinkedQueue<String>()
             val kennel = entities(passivateAfter = 10.minutes) { id -> pup(id, log) }.test("kennel")
             val rex = kennel.entity("rex")
@@ -95,7 +91,7 @@ object EntitiesSuite : Suite<Unit>() {
                 (kennel.children.size shouldBe 2)
         }
 
-        test("an idle entity is stopped, and comes back on its next message") { _ ->
+        test("an idle entity is stopped, and comes back on its next message") {
             val log = ConcurrentLinkedQueue<String>()
             val kennel = entities(passivateAfter = 10.minutes) { id -> pup(id, log) }.test("kennel")
             val rex = kennel.entity("rex")
@@ -112,7 +108,7 @@ object EntitiesSuite : Suite<Unit>() {
             kept and stopped and (rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 0).right())
         }
 
-        test("a message for an entity that arrives while it stops is kept, and starts it again") { _ ->
+        test("a message for an entity that arrives while it stops is kept, and starts it again") {
             val log = ConcurrentLinkedQueue<String>()
             val kennel = AtomicReference<ActorRef<Entities<Kennel>>>()
             val running = entities(passivateAfter = 10.minutes) { id -> pup(id, log, kennel) }.test("kennel")
@@ -126,7 +122,7 @@ object EntitiesSuite : Suite<Unit>() {
                 (rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 1).right())
         }
 
-        test("an entity ref is the same ref however often it is asked for") { _ ->
+        test("an entity ref is the same ref however often it is asked for") {
             val log = ConcurrentLinkedQueue<String>()
             val kennel = entities(passivateAfter = 10.minutes) { id -> pup(id, log) }.test("kennel")
 
@@ -134,7 +130,7 @@ object EntitiesSuite : Suite<Unit>() {
                 (kennel.entity("rex").address.path shouldBe "/user/kennel/rex")
         }
 
-        test("on threads, entities come and go on the flock's clock, and a message sent as one stops is kept") { _ ->
+        test("on threads, entities come and go on the flock's clock, and a message sent as one stops is kept") {
             val log = ConcurrentLinkedQueue<String>()
             val moving = TestClock()
             val kennel = AtomicReference<ActorRef<Entities<Kennel>>>()
@@ -160,7 +156,7 @@ object EntitiesSuite : Suite<Unit>() {
                 Triple(listOf("bo stopped", "rex stopped"), ("rex" to 0).right(), ("bo" to 1).right())
         }
 
-        test("on threads, an entity that is still stopping is not started again until it has stopped") { _ ->
+        test("on threads, an entity that is still stopping is not started again until it has stopped") {
             val log = ConcurrentLinkedQueue<String>()
             val moving = TestClock()
             val began = CountDownLatch(1)
@@ -192,7 +188,7 @@ object EntitiesSuite : Suite<Unit>() {
             seen shouldBeRight (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right())
         }
 
-        test("a burst to a busy entity is kept in order, and its manager goes on") { _ ->
+        test("a burst to a busy entity is kept in order, and its manager goes on") {
             val heard = ConcurrentHashMap<String, MutableList<Int>>()
             fun heardBy(id: String) = heard.computeIfAbsent(id) { Collections.synchronizedList(mutableListOf()) }
             val open = CountDownLatch(1)
@@ -214,7 +210,7 @@ object EntitiesSuite : Suite<Unit>() {
                 (letters.toList() shouldBe emptyList())
         }
 
-        test("past what a manager may keep, a message to a busy entity is a dead letter for being full") { _ ->
+        test("past what a manager may keep, a message to a busy entity is a dead letter for being full") {
             val heard = Collections.synchronizedList(mutableListOf<Int>())
             val open = CountDownLatch(1)
             val letters = ConcurrentLinkedQueue<DeadLetter>()
@@ -236,7 +232,7 @@ object EntitiesSuite : Suite<Unit>() {
                 (heard.toList() shouldBe heard.sorted())
         }
 
-        test("the running count falls as entities passivate, stop themselves, and stop with their manager") { _ ->
+        test("the running count falls as entities passivate, stop themselves, and stop with their manager") {
             val moving = TestClock()
             val running = AtomicInteger()
             val counts = mutableListOf<Int>()

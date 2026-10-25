@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
@@ -13,7 +12,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -37,11 +35,9 @@ private fun answering() = behaviour<WhoAsked, Unit>(Unit) { _, _, message ->
 }
 
 /** Spec 0122 across nodes: what an asker had bound is what the handler on the other node runs with. */
-object RemoteCarriedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RemoteCarriedSuite : Suite() {
     init {
-        test("an ask made inside logAnnotated is handled on another node with the asker's annotations") { _ ->
+        test("an ask made inside logAnnotated is handled on another node with the asker's annotations") {
             val port = freePort()
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
@@ -95,11 +91,9 @@ private class Telling(private val heard: CompletableFuture<String>) : Reply<Stri
     }
 }
 
-object RemoteReplyCarriedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RemoteReplyCarriedSuite : Suite() {
     init {
-        test("an answer to a reply crosses back inside the trace it was given in") { _ ->
+        test("an answer to a reply crosses back inside the trace it was given in") {
             val port = freePort()
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)

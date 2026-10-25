@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -30,11 +28,9 @@ private class OneHolder(var holder: String? = null) : Lease {
     }
 }
 
-object DowningSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DowningSuite : Suite() {
     init {
-        test("a 3-2 partition leaves the three up and the two downed, with no moment where both sides are up") { _ ->
+        test("a 3-2 partition leaves the three up and the two downed, with no moment where both sides are up") {
             val net = Net(downing = Downing.keepMajority(2.seconds))
             val up = net.upAll(1, 2, 3, 4, 5)
             var overlap = false
@@ -62,7 +58,7 @@ object DowningSuite : Suite<Unit>() {
                 (1..3).forAll { net.view(it).up().toSet() shouldBe setOf(at(1), at(2), at(3)) }
         }
 
-        test("a node unreachable for less than stableAfter is downed by nobody") { _ ->
+        test("a node unreachable for less than stableAfter is downed by nobody") {
             val net = Net(downing = Downing.keepMajority(5.seconds))
             val up = net.upAll(1, 2, 3, 4, 5)
 
@@ -82,7 +78,7 @@ object DowningSuite : Suite<Unit>() {
          * Each suspects the other while their gossip still flows, so each learns that it is suspected too. The side
          * that stays is the one with the lowest address, and it must not count itself among the unreachable it downs.
          */
-        test("two members that stop hearing each other's acks keep the lowest up rather than downing both") { _ ->
+        test("two members that stop hearing each other's acks keep the lowest up rather than downing both") {
             val net = Net(downing = Downing.keepMajority(2.seconds))
             val up = net.upAll(1, 2)
 
@@ -91,7 +87,7 @@ object DowningSuite : Suite<Unit>() {
             up and (net.until { !net.active(2) } shouldBe true) and (net.active(1) shouldBe true)
         }
 
-        test("an even split keeps the side with the lowest address") { _ ->
+        test("an even split keeps the side with the lowest address") {
             val net = Net(downing = Downing.keepMajority(2.seconds))
             val up = net.upAll(1, 2, 3, 4)
 
@@ -104,7 +100,7 @@ object DowningSuite : Suite<Unit>() {
                 (net.active(2) shouldBe true)
         }
 
-        test("a static quorum keeps no side smaller than it, even when that is every side") { _ ->
+        test("a static quorum keeps no side smaller than it, even when that is every side") {
             val net = Net(downing = Downing.staticQuorum(3, stableAfter = 2.seconds))
             val up = net.upAll(1, 2, 3, 4)
 
@@ -113,7 +109,7 @@ object DowningSuite : Suite<Unit>() {
             up and (net.until { (1..4).none { net.active(it) } } shouldBe true)
         }
 
-        test("a lease keeps the side whose lowest member holds it, even the smaller one") { _ ->
+        test("a lease keeps the side whose lowest member holds it, even the smaller one") {
             val lease = OneHolder(holder = at(4).toString())
             val net = Net(downing = Downing.lease(lease, stableAfter = 2.seconds))
             val up = net.upAll(1, 2, 3, 4, 5)

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Topic
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.Codecs
@@ -12,7 +11,6 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -64,13 +62,11 @@ private class Exchange(val name: String, port: Int, seeds: Discovery) : AutoClos
     }
 }
 
-object TopicClusterSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object TopicClusterSuite : Suite() {
     init {
         test(
             "a publish on one node reaches every subscriber on every member once, in order, a later member included",
-        ) { _ ->
+        ) {
             val ports = List(4) { portFree() }
             val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes = mutableListOf(

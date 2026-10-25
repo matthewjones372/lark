@@ -6,7 +6,7 @@ import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.ensure
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.parZip
@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * The scope an element body runs in is a `Raise`, so everything a lark handler
  * writes — `bind`, `ensure`, a fork of its own — is in reach of an operator.
  */
-object RaiseInStreamSuite : Suite<PekkoSystem>() {
+object RaiseInStreamSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-raise-test")
 
     private data class NoCustomer(val id: Int)

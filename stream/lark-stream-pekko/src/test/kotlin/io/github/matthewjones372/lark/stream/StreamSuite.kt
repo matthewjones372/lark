@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.NotUsed
@@ -12,7 +12,7 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.atomic.AtomicInteger
 
 /** What a declared failure means, asserted through the public API on a real system. */
-object StreamSuite : Suite<PekkoSystem>() {
+object StreamSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-stream-test")
 
     private data class Row(val id: Int, val customer: String?)

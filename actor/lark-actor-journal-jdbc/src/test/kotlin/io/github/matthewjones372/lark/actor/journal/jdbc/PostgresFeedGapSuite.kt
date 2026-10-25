@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.actor.FeedEvent
 import io.github.matthewjones372.lark.actor.PersistenceId
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
-import io.github.matthewjones372.lark.resource
 import java.sql.Connection
 import javax.sql.DataSource
 import kotlin.time.Duration.Companion.seconds
@@ -38,14 +36,12 @@ private fun JdbcJournal.put(id: String) = append(PersistenceId("order", id), 0, 
  * One test at a time: a gap is read from `pg_current_snapshot()`, whose horizon covers every open transaction on the
  * server, in every database. These tests hold transactions open on purpose, so another test's would read as a gap here.
  */
-object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
-    override val shared: Resource<Unit> = resource { }
-
+object PostgresFeedGapSuite : Suite(concurrent = false) {
     /** An empty database with the journal's table, fresh for each test. */
     private fun source(): DataSource = Postgres.fresh()
 
     init {
-        test("an append still open holds back what committed after it, until it commits") { _ ->
+        test("an append still open holds back what committed after it, until it commits") {
             val source = source()
             val journal = JdbcJournal(source)
             journal.put("o-1")
@@ -58,7 +54,7 @@ object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
             held and (journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-2#1", "o-3#1"))
         }
 
-        test("a gap that does not fill within gapTimeout is passed, and what is after it is read") { _ ->
+        test("a gap that does not fill within gapTimeout is passed, and what is after it is read") {
             val moving = TestClock()
             clock.locally(moving) {
                 val source = source()
@@ -79,7 +75,7 @@ object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("gaps seen together are passed together, after one gapTimeout and not one each") { _ ->
+        test("gaps seen together are passed together, after one gapTimeout and not one each") {
             val moving = TestClock()
             clock.locally(moving) {
                 val source = source()
@@ -99,7 +95,7 @@ object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
 
         test(
             "partitions by slice read every event once between them, and none reads past a gap in another's slices",
-        ) { _ ->
+        ) {
             val source = source()
             val journal = JdbcJournal(source)
             (1..100).forEach { journal.put("o-$it") }
@@ -120,7 +116,7 @@ object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
                 }
         }
 
-        test("a gap above everything read holds nothing back") { _ ->
+        test("a gap above everything read holds nothing back") {
             val source = source()
             val journal = JdbcJournal(source)
             journal.put("o-1")
@@ -128,7 +124,7 @@ object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
             source.pending("o-2").use { journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1") }
         }
 
-        test("an append whose writer is slow to commit is waited for past gapTimeout, and read once it commits") { _ ->
+        test("an append whose writer is slow to commit is waited for past gapTimeout, and read once it commits") {
             val moving = TestClock()
             clock.locally(moving) {
                 val source = source()
@@ -153,7 +149,7 @@ object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a rolled back append's gap is passed once its transaction has ended, well inside gapTimeout") { _ ->
+        test("a rolled back append's gap is passed once its transaction has ended, well inside gapTimeout") {
             val moving = TestClock()
             clock.locally(moving) {
                 val source = source()

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.PersistenceId
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import java.sql.Connection
@@ -22,11 +20,9 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
 /** Spec 0108: appends from many ids share a commit, and each still answers as it would have alone. */
-object GroupCommitSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object GroupCommitSuite : Suite() {
     init {
-        test("two hundred appends at once to two hundred ids all land, in fewer commits than appends") { _ ->
+        test("two hundred appends at once to two hundred ids all land, in fewer commits than appends") {
             val source = CountedCommits(Postgres.fresh())
             val journal = JdbcJournal(source, groupCommit = GroupCommit())
             val ids = (1..200).map { PersistenceId("till", "t-$it") }
@@ -41,7 +37,7 @@ object GroupCommitSuite : Suite<Unit>() {
                 (source.commits.get() shouldBeLessThan ids.size)
         }
 
-        test("a conflicting append in a group is answered alone, and the rest of the group commits") { _ ->
+        test("a conflicting append in a group is answered alone, and the rest of the group commits") {
             val held = CountDownLatch(1)
             val source = CountedCommits(Postgres.fresh(), holdFirst = held)
             val journal = JdbcJournal(source, groupCommit = GroupCommit(committers = 1))
@@ -63,7 +59,7 @@ object GroupCommitSuite : Suite<Unit>() {
                 (source.commits.get() shouldBe 2)
         }
 
-        test("a commit that fails fails every append in its group, and none of them is written") { _ ->
+        test("a commit that fails fails every append in its group, and none of them is written") {
             val held = CountDownLatch(1)
             val source = CountedCommits(Postgres.fresh(), holdFirst = held, failSecond = true)
             val journal = JdbcJournal(source, groupCommit = GroupCommit(committers = 1))

@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.stream.javadsl.Source
@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 /** A source built through the seam hears the run stop and end, so it can finish what it started. */
 @OptIn(SourceSeam::class)
-object HookedSuite : Suite<PekkoSystem>() {
+object HookedSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-hooked-test")
 
     private const val GENEROUS_SECONDS = 30L

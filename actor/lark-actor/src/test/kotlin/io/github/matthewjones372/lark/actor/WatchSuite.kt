@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.minutes
 
@@ -70,11 +68,9 @@ private fun worker(stopping: AtomicReference<List<String>>) = behaviour<Hand, Un
     stay()
 }
 
-object WatchSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object WatchSuite : Suite() {
     init {
-        test("a watcher hears Terminated once, however often it watches") { _ ->
+        test("a watcher hears Terminated once, however often it watches") {
             testActors {
                 val worker = spawn("worker", worker(AtomicReference(emptyList())))
                 val lookout = spawn("lookout", counted())
@@ -87,7 +83,7 @@ object WatchSuite : Suite<Unit>() {
             }
         }
 
-        test("watching an actor that has already stopped hears it at once") { _ ->
+        test("watching an actor that has already stopped hears it at once") {
             testActors {
                 val worker = spawn("worker", worker(AtomicReference(emptyList())))
                 val lookout = spawn("lookout", counted())
@@ -99,7 +95,7 @@ object WatchSuite : Suite<Unit>() {
             }
         }
 
-        test("Stopping comes once before the actor ends, after a throw as after a stop") { _ ->
+        test("Stopping comes once before the actor ends, after a throw as after a stop") {
             val stopping = AtomicReference<List<String>>(emptyList())
             val burst = testActors {
                 spawn("quits", worker(stopping)).send(Leave)
@@ -109,7 +105,7 @@ object WatchSuite : Suite<Unit>() {
             burst and (stopping.get() shouldBe listOf("stopping", "stopping"))
         }
 
-        test("on threads, a watcher hears Terminated once") { _ ->
+        test("on threads, a watcher hears Terminated once") {
             val seen = flock<Nothing, Any> {
                 val worker = spawn("worker", worker(AtomicReference(emptyList())))
                 val lookout = spawn("lookout", counted())
@@ -125,7 +121,7 @@ object WatchSuite : Suite<Unit>() {
             seen shouldBeRight 1.right()
         }
 
-        test("on threads, watch from outside answers once the actor has stopped") { _ ->
+        test("on threads, watch from outside answers once the actor has stopped") {
             val stopping = AtomicReference<List<String>>(emptyList())
             val heard = flock<Nothing, Signal.Terminated> {
                 val worker = spawn("worker", worker(stopping))
@@ -137,7 +133,7 @@ object WatchSuite : Suite<Unit>() {
                 (stopping.get() shouldBe listOf("stopping"))
         }
 
-        test("on threads, stop from outside ends the actor, and answers once it has") { _ ->
+        test("on threads, stop from outside ends the actor, and answers once it has") {
             val stopping = AtomicReference<List<String>>(emptyList())
             val heard = flock<Nothing, Pair<Expectations, Any>> {
                 val worker = spawn("worker", worker(stopping))
@@ -151,7 +147,7 @@ object WatchSuite : Suite<Unit>() {
 
         test(
             "on threads, a ref that is not an actor here can be watched, by an actor and by the flock, once it says so",
-        ) { _ ->
+        ) {
             val far = Faraway()
             val seen = flock<Nothing, Any> {
                 val lookout = spawn("lookout", counted())
@@ -167,7 +163,7 @@ object WatchSuite : Suite<Unit>() {
             seen shouldBeRight 1.right()
         }
 
-        test("on threads, a letter a transport found reaches the flock's dead-letter handler") { _ ->
+        test("on threads, a letter a transport found reaches the flock's dead-letter handler") {
             val letters = java.util.concurrent.ConcurrentLinkedQueue<DeadLetter>()
             val far = Faraway()
             flock<Nothing, Unit> {

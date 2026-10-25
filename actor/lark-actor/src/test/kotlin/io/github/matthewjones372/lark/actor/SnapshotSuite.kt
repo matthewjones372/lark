@@ -2,7 +2,6 @@ package io.github.matthewjones372.lark.actor
 
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Suite
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.shouldBeNull
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.logger
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 
 private val tally = PersistenceId("tally", "t-1")
@@ -62,11 +60,9 @@ private class Reading(private val kept: Journal = InMemoryJournal()) : Journal b
         kept.read(id, from).also { reads += from to it.size }
 }
 
-object SnapshotSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SnapshotSuite : Suite() {
     init {
-        test("a restart after 1,050 events starts from the snapshot at 1,000 and reads the 50 after it") { _ ->
+        test("a restart after 1,050 events starts from the snapshot at 1,000 and reads the 50 after it") {
             val journal = Reading()
             testActors(journal = journal) {
                 val counter = spawn("tally", tallying(every(100, tallyCodec)))
@@ -84,7 +80,7 @@ object SnapshotSuite : Suite<Unit>() {
             }
         }
 
-        test("a persist that carries the count across a multiple takes a snapshot at the count it reaches") { _ ->
+        test("a persist that carries the count across a multiple takes a snapshot at the count it reaches") {
             testActors {
                 val counter = spawn("tally", tallying(every(100, tallyCodec)))
                 counter.send(Tallied(*IntArray(98) { 1 }))
@@ -100,7 +96,7 @@ object SnapshotSuite : Suite<Unit>() {
             }
         }
 
-        test("a store whose saves throw leaves every command answered, and says so") { _ ->
+        test("a store whose saves throw leaves every command answered, and says so") {
             val lines = ConcurrentLinkedQueue<LogLine>()
             val broken = object : SnapshotStore {
                 override fun save(id: PersistenceId, sequence: Long, bytes: ByteArray) =
@@ -127,7 +123,7 @@ object SnapshotSuite : Suite<Unit>() {
                 (errors shouldContainExactly listOf("the snapshot store is down", "the snapshot store is down"))
         }
 
-        test("a behaviour with no snapshotting takes none, even with a store") { _ ->
+        test("a behaviour with no snapshotting takes none, even with a store") {
             testActors {
                 val counter = spawn("tally", tallying(null))
 

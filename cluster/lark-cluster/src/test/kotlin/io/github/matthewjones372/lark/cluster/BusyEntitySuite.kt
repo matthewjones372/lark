@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.Codecs
 import io.github.matthewjones372.lark.actor.remote.Node
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -62,11 +60,9 @@ private class TillNode(name: String, port: Int, seeds: Discovery, roles: Set<Str
     }
 }
 
-object BusyEntitySuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object BusyEntitySuite : Suite() {
     init {
-        test("a burst of 5,000 from another node to a busy entity is applied in order, and no region stops") { _ ->
+        test("a burst of 5,000 from another node to a busy entity is applied in order, and no region stops") {
             val ports = List(3) { ServerSocket(0).use { socket -> socket.localPort } }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val open = CountDownLatch(1)

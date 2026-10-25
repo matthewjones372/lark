@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.seconds
 
 private fun log(): Behaviour<String, List<String>, Nothing> =
@@ -33,15 +31,13 @@ private fun heard(order: Ordering = Ordering.Told): Logged = testActors(order = 
     Logged(log.state, trace)
 }
 
-object OrderingSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object OrderingSuite : Suite() {
     init {
-        test("without an order every message runs in the order it was told") { _ ->
+        test("without an order every message runs in the order it was told") {
             heard().words shouldContainExactly listOf("a1", "a2", "a3", "b1", "b2", "b3")
         }
 
-        test("seeds give different interleavings, each keeping every sender's own order") { _ ->
+        test("seeds give different interleavings, each keeping every sender's own order") {
             val runs = (1L..20L).map { heard(Ordering.seeded(it)).words }
             (runs.toSet().size shouldBeGreaterThan 1) and runs.map { words ->
                 withClue(words) {
@@ -51,12 +47,12 @@ object OrderingSuite : Suite<Unit>() {
             }.reduce(Expectations::and)
         }
 
-        test("one seed gives the same trace every time") { _ ->
+        test("one seed gives the same trace every time") {
             val first = heard(Ordering.seeded(42)).trace
             heard(Ordering.seeded(42)).trace shouldBe first
         }
 
-        test("the trace names who told what to whom") { _ ->
+        test("the trace names who told what to whom") {
             val trace = heard().trace.filterIsInstance<TraceEntry.Delivered>()
             (trace.first() shouldBe TraceEntry.Delivered(null, Address("test", "/user/go", 4), "go")) and
                 (
@@ -65,7 +61,7 @@ object OrderingSuite : Suite<Unit>() {
                     )
         }
 
-        test("settle runs timers to idle, moving time on to each") { _ ->
+        test("settle runs timers to idle, moving time on to each") {
             testActors {
                 val log = spawn("log", log())
                 val later = spawn(
@@ -82,7 +78,7 @@ object OrderingSuite : Suite<Unit>() {
             }
         }
 
-        test("settle fails rather than run forever when something never goes idle") { _ ->
+        test("settle fails rather than run forever when something never goes idle") {
             testActors {
                 val ticker = spawn(
                     "ticker",

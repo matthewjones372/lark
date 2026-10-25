@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.DeadLetter
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.onDeadLetter
@@ -14,7 +13,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -27,11 +25,9 @@ import kotlin.time.Duration.Companion.minutes
 private val unhurried =
     Gossiping(probeEvery = 500.milliseconds, ackWithin = 250.milliseconds, formAfter = 1_000.milliseconds)
 
-object BusySingletonSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object BusySingletonSuite : Suite() {
     init {
-        test("a burst to a busy singleton is kept in order by its region, which goes on") { _ ->
+        test("a burst to a busy singleton is kept in order by its region, which goes on") {
             val port = ServerSocket(0).use { it.localPort }
             val heard = LinkedBlockingQueue<Int>()
             val open = CountDownLatch(1)

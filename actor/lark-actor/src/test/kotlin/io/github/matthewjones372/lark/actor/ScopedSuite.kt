@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
 import io.github.matthewjones372.lark.flock
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -69,11 +67,9 @@ private fun lamp(log: AtomicReference<List<String>>) = behaviour<Switch, Bulb>(O
 /** What a test's lamp did, fresh for each test: the suite's tests share one object, and run at once. */
 private fun freshLog() = AtomicReference<List<String>>(emptyList())
 
-object ScopedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ScopedSuite : Suite() {
     init {
-        test("the timers a state starts with arrive while it lasts") { _ ->
+        test("the timers a state starts with arrive while it lasts") {
             val log = freshLog()
             val lamp = lamp(log).test()
 
@@ -83,7 +79,7 @@ object ScopedSuite : Suite<Unit>() {
             log.get() shouldContainExactly listOf("shimmer", "shimmer", "fade")
         }
 
-        test("becoming a state of another class cancels its timers") { _ ->
+        test("becoming a state of another class cancels its timers") {
             val log = freshLog()
             val lamp = lamp(log).test()
             lamp.send(On)
@@ -95,7 +91,7 @@ object ScopedSuite : Suite<Unit>() {
             (log.get() shouldContainExactly listOf("shimmer")) and (lamp.pendingTimers shouldBe 0)
         }
 
-        test("a copy of the same state keeps them") { _ ->
+        test("a copy of the same state keeps them") {
             val log = freshLog()
             val lamp = lamp(log).test()
             lamp.send(On)
@@ -106,7 +102,7 @@ object ScopedSuite : Suite<Unit>() {
             (lamp.state shouldBe Lit(2)) and (log.get() shouldContainExactly listOf("shimmer", "shimmer", "fade"))
         }
 
-        test("becoming the state again with timers replaces the ones it had") { _ ->
+        test("becoming the state again with timers replaces the ones it had") {
             val log = freshLog()
             val lamp = lamp(log).test()
             lamp.send(On)
@@ -120,7 +116,7 @@ object ScopedSuite : Suite<Unit>() {
             }
         }
 
-        test("the timers of a become the step does not return never start") { _ ->
+        test("the timers of a become the step does not return never start") {
             val log = freshLog()
             val lamp = lamp(log).test()
 
@@ -130,7 +126,7 @@ object ScopedSuite : Suite<Unit>() {
             (lamp.state shouldBe Off) and log.get().shouldBeEmpty() and (lamp.pendingTimers shouldBe 0)
         }
 
-        test("on threads, a state's timers last while it does and a copy keeps them") { _ ->
+        test("on threads, a state's timers last while it does and a copy keeps them") {
             val log = freshLog()
             val moving = TestClock()
             clock.locally(moving) {

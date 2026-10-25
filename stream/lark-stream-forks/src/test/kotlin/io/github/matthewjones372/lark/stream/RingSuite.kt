@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldBeNull
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -42,11 +40,9 @@ private fun waitUntilParked(thread: Thread) {
 }
 
 /** One producer and one consumer across a ring that wakes either side only when it has to. */
-object RingSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RingSuite : Suite() {
     init {
-        test("every element arrives once, in order, whatever the capacity") { _ ->
+        test("every element arrives once, in order, whatever the capacity") {
             listOf(1, 3, 4, 256).forAll { capacity ->
                 val ring = Ring(capacity)
                 val count = 100_000
@@ -56,7 +52,7 @@ object RingSuite : Suite<Unit>() {
             }
         }
 
-        test("a producer runs ahead by the capacity and no further") { _ ->
+        test("a producer runs ahead by the capacity and no further") {
             listOf(3, 4, 5).forAll { capacity ->
                 val ring = Ring(capacity)
                 val put = AtomicInteger()
@@ -73,7 +69,7 @@ object RingSuite : Suite<Unit>() {
             }
         }
 
-        test("a consumer parked on an empty ring is woken by one element") { _ ->
+        test("a consumer parked on an empty ring is woken by one element") {
             val ring = Ring(256)
             val taken = onVirtualThread { ring.take() }
             Thread.sleep(50)
@@ -83,7 +79,7 @@ object RingSuite : Suite<Unit>() {
             taken.get(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe "only"
         }
 
-        test("a producer parked on a full ring is woken once the consumer has made room") { _ ->
+        test("a producer parked on a full ring is woken once the consumer has made room") {
             val ring = Ring(8)
             val produced = onVirtualThread { repeat(100) { ring.put(it) } }
             val taken = List(100) { ring.take() }
@@ -92,7 +88,7 @@ object RingSuite : Suite<Unit>() {
             taken shouldBe List(100) { it }
         }
 
-        test("no wake-up is lost while each side keeps running dry and parking") { _ ->
+        test("no wake-up is lost while each side keeps running dry and parking") {
             listOf(1, 2, 64).forAll { capacity ->
                 val ring = Ring(capacity)
                 val count = 20_000
@@ -115,7 +111,7 @@ object RingSuite : Suite<Unit>() {
             }
         }
 
-        test("an interrupt reaches a producer parked on a full ring") { _ ->
+        test("an interrupt reaches a producer parked on a full ring") {
             val ring = Ring(2)
             val outcome = CompletableFuture<Throwable?>()
             val producer = Thread.ofVirtual().start {
@@ -133,7 +129,7 @@ object RingSuite : Suite<Unit>() {
             outcome.get(GENEROUS_SECONDS, TimeUnit.SECONDS).shouldBeInstanceOf<InterruptedException>()
         }
 
-        test("an interrupt reaches a consumer parked on an empty ring") { _ ->
+        test("an interrupt reaches a consumer parked on an empty ring") {
             val ring = Ring(2)
             val threw = CompletableFuture<Expectations>()
             val consumer = Thread.ofVirtual().start {
@@ -147,7 +143,7 @@ object RingSuite : Suite<Unit>() {
             (consumer.isAlive shouldBe false) and threw.getNow(null).shouldNotBeNull { it }
         }
 
-        test("an interrupted producer stops at its next put even when there is room") { _ ->
+        test("an interrupted producer stops at its next put even when there is room") {
             val ring = Ring(256)
             Thread.currentThread().interrupt()
 

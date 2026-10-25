@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.clock
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -44,11 +42,9 @@ private fun press() = behaviour<Press, List<Int>, Jammed>(emptyList()) { _, stam
     }
 }
 
-object RestartSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RestartSuite : Suite() {
     init {
-        test("a raise restarts the actor from its initial state, and it carries on") { _ ->
+        test("a raise restarts the actor from its initial state, and it carries on") {
             val press = press().test(restart = Schedule.recurs(3))
 
             press.send(Stamp(1))
@@ -58,7 +54,7 @@ object RestartSuite : Suite<Unit>() {
             (press.stopped shouldBe false) and (press.state shouldBe listOf(2)) and (press.restarts shouldBe 1)
         }
 
-        test("a throw restarts it on the same schedule, and does not reach the test") { _ ->
+        test("a throw restarts it on the same schedule, and does not reach the test") {
             val press = press().test(restart = Schedule.recurs(3))
 
             press.send(Crack)
@@ -66,7 +62,7 @@ object RestartSuite : Suite<Unit>() {
             (press.stopped shouldBe false) and (press.restarts shouldBe 1)
         }
 
-        test("when the schedule is done the actor stops, with the failure that ended it") { _ ->
+        test("when the schedule is done the actor stops, with the failure that ended it") {
             val press = press().test(restart = Schedule.recurs(1))
 
             press.send(Jam)
@@ -77,7 +73,7 @@ object RestartSuite : Suite<Unit>() {
                 (press.failure shouldBe Failure.Declared(Jammed))
         }
 
-        test("the test kit records each restart's delay rather than waiting it out") { _ ->
+        test("the test kit records each restart's delay rather than waiting it out") {
             val press = press().test(restart = Schedule.exponential(100.milliseconds))
 
             repeat(3) { press.send(Jam) }
@@ -85,7 +81,7 @@ object RestartSuite : Suite<Unit>() {
             press.delays shouldBe listOf(100.milliseconds, 200.milliseconds, 400.milliseconds)
         }
 
-        test("with no schedule a throw still stops the actor and reaches the test") { _ ->
+        test("with no schedule a throw still stops the actor and reaches the test") {
             val press = press().test()
 
             val thrown = shouldThrow<IllegalStateException> { press.send(Crack) }
@@ -93,7 +89,7 @@ object RestartSuite : Suite<Unit>() {
             thrown and (press.stopped shouldBe true)
         }
 
-        test("on threads, a restart waits on the flock's clock and the mailbox is intact") { _ ->
+        test("on threads, a restart waits on the flock's clock and the mailbox is intact") {
             val time = TestClock()
             val stamped = clock.locally(time) {
                 flock<Nothing, Any> {
@@ -110,7 +106,7 @@ object RestartSuite : Suite<Unit>() {
             stamped shouldBeRight listOf(2, 3).right()
         }
 
-        test("on threads, a schedule that is done stops the actor") { _ ->
+        test("on threads, a schedule that is done stops the actor") {
             val answer = flock<Nothing, Any> {
                 val press = spawn("press", press(), restart = Schedule.recurs(0))
                 press.tell(Jam)

@@ -5,7 +5,7 @@ import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A blocking body per element, forked: what runs it, in what order, and what ends it. */
-object MapParSuite : Suite<PekkoSystem>() {
+object MapParSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-mappar-test")
 
     /** Long enough that a machine under load does not fail a claim about interruption. */

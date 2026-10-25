@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.bind
 import io.github.matthewjones372.lark.fail.left
@@ -14,7 +13,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -38,15 +36,13 @@ private fun <E, A : Any> Stream<E, A>.collected(): Exit<E, List<A>> = runCollect
 private val naturals: Iterable<Int> = generateSequence(1) { it + 1 }.asIterable()
 
 /** A run on lark's own forks: one pull loop, on one virtual thread, and the same exits Pekko answers with. */
-object ForksSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ForksSuite : Suite() {
     private data class Odd(val value: Int)
 
     init {
         test(
             "on real time, a window closes with what it held while upstream is blocked, and a full group goes at once",
-        ) { _ ->
+        ) {
             val given = LinkedBlockingQueue<Int>(listOf(1, 2))
             val done = -1
             val exit = Stream.blocking(
@@ -64,7 +60,7 @@ object ForksSuite : Suite<Unit>() {
             exit shouldBe Exit.Done(listOf(listOf(1, 2), listOf(3, 4, 5)))
         }
 
-        test("on real time, groupedWithin hands on every element in order, a group at a time") { _ ->
+        test("on real time, groupedWithin hands on every element in order, a group at a time") {
             val exit = Stream.from(1..10_000).groupedWithin(100, 1.minutes).runCollect()
                 .run(Forks()).toCompletableFuture().get(10, TimeUnit.SECONDS)
 
@@ -74,13 +70,13 @@ object ForksSuite : Suite<Unit>() {
             }
         }
 
-        test("a raise in an element body ends the run Failed with what it raised") { _ ->
+        test("a raise in an element body ends the run Failed with what it raised") {
             val exit = Stream.of(1, 2, 3).mapOrFail { if (it == 2) fail(Odd(it)) else it }.collected()
 
             exit shouldBe Exit.Failed(Odd(2))
         }
 
-        test("a bind on a Left in an element body is the same failure") { _ ->
+        test("a bind on a Left in an element body is the same failure") {
             val lookup: (Int) -> Either<Odd, Int> = { if (it % 2 == 0) Odd(it).left() else it.right() }
 
             val exit = Stream.of(1, 3, 4, 5).mapOrFail { lookup(it).bind() }.collected()
@@ -88,7 +84,7 @@ object ForksSuite : Suite<Unit>() {
             exit shouldBe Exit.Failed(Odd(4))
         }
 
-        test("take ends an infinite stream, and the source is pulled no further than it asked") { _ ->
+        test("take ends an infinite stream, and the source is pulled no further than it asked") {
             val pulled = AtomicInteger()
 
             val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.take(3).collected()
@@ -96,7 +92,7 @@ object ForksSuite : Suite<Unit>() {
             (exit shouldBe Exit.Done(listOf(1, 2, 3))) and (pulled.get() shouldBe 3)
         }
 
-        test("every stage runs on a virtual thread that is not the caller's") { _ ->
+        test("every stage runs on a virtual thread that is not the caller's") {
             val caller = Thread.currentThread()
 
             val exit = Stream.of(1).map { Thread.currentThread() }.collected()
@@ -108,7 +104,7 @@ object ForksSuite : Suite<Unit>() {
             }
         }
 
-        test("a defect ends the run Died, naming the operator, the element and the line that wrote it") { _ ->
+        test("a defect ends the run Died, naming the operator, the element and the line that wrote it") {
             val exit = Stream.of(1, 2).map { n -> check(n < 2) { "too big" }; n }.collected()
 
             exit.shouldBeInstanceOf<Exit.Died> { died ->
@@ -117,7 +113,7 @@ object ForksSuite : Suite<Unit>() {
             }
         }
 
-        test("in a fused run a defect names the step that threw, its element and its line") { _ ->
+        test("in a fused run a defect names the step that threw, its element and its line") {
             val fused = Stream.of(1, 2, 3).map { it + 1 }
 
             val steps = listOf(
@@ -137,7 +133,7 @@ object ForksSuite : Suite<Unit>() {
             }
         }
 
-        test("in a fused run a raise ends the run Failed, and a filter keeps what it is asked to") { _ ->
+        test("in a fused run a raise ends the run Failed, and a filter keeps what it is asked to") {
             val kept = Stream.of(1, 2, 3, 4, 5, 6).map { it * 3 }.filter { it % 2 == 0 }.filterNot { it == 12 }
                 .map { it + 1 }.collected()
             val raised = Stream.of(1, 2, 3).map { it * 2 }.mapOrFail { if (it == 4) fail(Odd(it)) else it }
@@ -146,7 +142,7 @@ object ForksSuite : Suite<Unit>() {
             (kept shouldBe Exit.Done(listOf(7, 19))) and (raised shouldBe Exit.Failed(Odd(4)))
         }
 
-        test("another backend's own value is refused by name before anything runs") { _ ->
+        test("another backend's own value is refused by name before anything runs") {
             val pulled = AtomicInteger()
             val elsewhere =
                 Stream<Nothing, Int>(Node.Native(Any(), BackendKey("Elsewhere"), "Elsewhere.source", "Here.kt:1"))
@@ -158,7 +154,7 @@ object ForksSuite : Suite<Unit>() {
             } and (pulled.get() shouldBe 0)
         }
 
-        test("stop ends a run that would not end, Done with what it had") { _ ->
+        test("stop ends a run that would not end, Done with what it had") {
             val running = Stream.from(naturals).runFold(0) { count, _ -> count + 1 }.start(forks)
 
             running.close()
@@ -166,7 +162,7 @@ object ForksSuite : Suite<Unit>() {
             running.exit.settled().shouldBeInstanceOf<Exit.Done<Int>>()
         }
 
-        test("the bounds answer as their names say") { _ ->
+        test("the bounds answer as their names say") {
             (Stream.of(1, 2, 3, 4, 5).drop(2).collected() shouldBe Exit.Done(listOf(3, 4, 5))) and
                 (Stream.of(1, 2, 3, 1).takeWhile { it < 3 }.collected() shouldBe Exit.Done(listOf(1, 2))) and
                 (Stream.of(1, 2, 3, 1).dropWhile { it < 3 }.collected() shouldBe Exit.Done(listOf(3, 1))) and
@@ -174,7 +170,7 @@ object ForksSuite : Suite<Unit>() {
                 (Stream.of(1, 2).drop(5).collected() shouldBe Exit.Done(emptyList()))
         }
 
-        test("grouping, scanning and state carry across elements") { _ ->
+        test("grouping, scanning and state carry across elements") {
             val grouped = Stream.of(1, 2, 3, 4, 5).grouped(2).collected() shouldBe
                 Exit.Done(listOf(listOf(1, 2), listOf(3, 4), listOf(5)))
             val scanned =
@@ -188,7 +184,7 @@ object ForksSuite : Suite<Unit>() {
             grouped and scanned and stateful and concatenated
         }
 
-        test("the failure operators replace, recover and name as Pekko's do") { _ ->
+        test("the failure operators replace, recover and name as Pekko's do") {
             val failing = Stream.of(1, 2).mapOrFail { if (it == 2) fail(Odd(it)) else it }
 
             (failing.either().collected() shouldBe Exit.Done(listOf(1.right(), Odd(2).left()))) and
@@ -198,7 +194,7 @@ object ForksSuite : Suite<Unit>() {
                 (Stream.empty().orFailIfEmpty(Odd(0)).collected() shouldBe Exit.Failed(Odd(0)))
         }
 
-        test("streams join end to end, pairwise, and one inside another") { _ ->
+        test("streams join end to end, pairwise, and one inside another") {
             (Stream.of(1, 2).concat(Stream.of(3)).collected() shouldBe Exit.Done(listOf(1, 2, 3))) and
                 (Stream.of(3).prepend(Stream.of(1, 2)).collected() shouldBe Exit.Done(listOf(1, 2, 3))) and
                 (
@@ -211,7 +207,7 @@ object ForksSuite : Suite<Unit>() {
                     }
         }
 
-        test("a stage's value is the one element, and null from it is the defect fromStage names") { _ ->
+        test("a stage's value is the one element, and null from it is the defect fromStage names") {
             val stage: CompletionStage<String> = java.util.concurrent.CompletableFuture.completedFuture("ready")
 
             @Suppress("UNCHECKED_CAST")
@@ -223,7 +219,7 @@ object ForksSuite : Suite<Unit>() {
 
         test(
             "mapPar answers in the order the elements came, with never more bodies at once than it was given",
-        ) { _ ->
+        ) {
             val running = AtomicInteger()
             val most = AtomicInteger()
 
@@ -242,7 +238,7 @@ object ForksSuite : Suite<Unit>() {
                 }
         }
 
-        test("a raise in one mapPar body ends the run Failed, and interrupts the bodies still running") { _ ->
+        test("a raise in one mapPar body ends the run Failed, and interrupts the bodies still running") {
             val interrupted = AtomicInteger()
 
             val exit = Stream.from(1..8)
@@ -267,7 +263,7 @@ object ForksSuite : Suite<Unit>() {
                 }
         }
 
-        test("take after mapPar ends the run, and no body is left running behind it") { _ ->
+        test("take after mapPar ends the run, and no body is left running behind it") {
             val running = AtomicInteger()
 
             val exit = Stream.from(naturals)
@@ -290,7 +286,7 @@ object ForksSuite : Suite<Unit>() {
             } and (running.get() shouldBe 0)
         }
 
-        test("a mapPar body that throws is the defect the run dies with, naming mapPar") { _ ->
+        test("a mapPar body that throws is the defect the run dies with, naming mapPar") {
             val exit = Stream.of(1, 2).mapPar(2) { n -> check(n != 2) { "two" }; n }.collected()
 
             exit.shouldBeInstanceOf<Exit.Died> { died ->
@@ -299,11 +295,11 @@ object ForksSuite : Suite<Unit>() {
             }
         }
 
-        test("mapParKeyed refuses a parallelism with no room for a body, rather than waiting for one") { _ ->
+        test("mapParKeyed refuses a parallelism with no room for a body, rather than waiting for one") {
             shouldThrow<IllegalArgumentException> { Stream.of(1).mapParKeyed(0, key = { it }) { n -> n } }
         }
 
-        test("under mapParKeyed a slow element on one key does not hold back another key's results") { _ ->
+        test("under mapParKeyed a slow element on one key does not hold back another key's results") {
             val arrived = ConcurrentLinkedQueue<Int>()
 
             val exit = Stream.from(0..9)
@@ -321,7 +317,7 @@ object ForksSuite : Suite<Unit>() {
                 }
         }
 
-        test("under mapParKeyed every key's results keep their order") { _ ->
+        test("under mapParKeyed every key's results keep their order") {
             val random = Random(SEED)
             val delays = List(400) { random.nextLong(3) }
 
@@ -341,7 +337,7 @@ object ForksSuite : Suite<Unit>() {
 
         test(
             "a raise in one mapParKeyed body ends the run Failed, and interrupts the bodies still running",
-        ) { _ ->
+        ) {
             val interrupted = AtomicInteger()
 
             val exit = Stream.from(1..8)
@@ -363,7 +359,7 @@ object ForksSuite : Suite<Unit>() {
             (exit shouldBe Exit.Failed(Odd(1))) and (interrupted.get() shouldBe 7)
         }
 
-        test("a mapParKeyed body that throws is the defect the run dies with, naming mapPar") { _ ->
+        test("a mapParKeyed body that throws is the defect the run dies with, naming mapPar") {
             val exit = Stream.of(1, 2).mapParKeyed(2, key = { it }) { n -> check(n != 2) { "two" }; n }.collected()
 
             exit.shouldBeInstanceOf<Exit.Died> { died ->
@@ -374,7 +370,7 @@ object ForksSuite : Suite<Unit>() {
 
         test(
             "under mapParKeyed a key that throws is the defect the run dies with, after what came before it",
-        ) { _ ->
+        ) {
             val exit =
                 Stream.of(1, 2, 3).mapParKeyed(2, key = { n -> check(n != 3) { "no key" }; n }) { it }.collected()
 
@@ -384,7 +380,7 @@ object ForksSuite : Suite<Unit>() {
             }
         }
 
-        test("take after mapParKeyed ends the run, and no body is left running behind it") { _ ->
+        test("take after mapParKeyed ends the run, and no body is left running behind it") {
             val running = AtomicInteger()
 
             val exit = Stream.from(naturals)
@@ -407,7 +403,7 @@ object ForksSuite : Suite<Unit>() {
             } and (running.get() shouldBe 0)
         }
 
-        test("mapAsync keeps no more of its stages in flight than it was given, and answers in order") { _ ->
+        test("mapAsync keeps no more of its stages in flight than it was given, and answers in order") {
             val inFlight = AtomicInteger()
             val most = AtomicInteger()
             val delayed = CompletableFuture.delayedExecutor(2, TimeUnit.MILLISECONDS)
@@ -423,7 +419,7 @@ object ForksSuite : Suite<Unit>() {
                 withClue("at most three stages at once, and more than one") { (most.get() in 2..3) shouldBe true }
         }
 
-        test("tick on Forks waits on real time, one element per interval") { _ ->
+        test("tick on Forks waits on real time, one element per interval") {
             val started = System.nanoTime()
 
             val exit = Stream.tick(20.milliseconds, "t").take(3).collected()
@@ -434,7 +430,7 @@ object ForksSuite : Suite<Unit>() {
                 }
         }
 
-        test("groupedWithin on Forks closes a window on real time while upstream is slow") { _ ->
+        test("groupedWithin on Forks closes a window on real time while upstream is slow") {
             val exit = Stream.from(1..6)
                 .map { n ->
                     Thread.sleep(30)
@@ -451,7 +447,7 @@ object ForksSuite : Suite<Unit>() {
             }
         }
 
-        test("a restart on Forks waits its delay on real time, and runs the description again") { _ ->
+        test("a restart on Forks waits its delay on real time, and runs the description again") {
             val attempts = AtomicInteger()
             val started = System.nanoTime()
 

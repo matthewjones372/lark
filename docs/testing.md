@@ -13,7 +13,8 @@ sleep.
 | a service test written as steps | `story { Given / When / Then }` | `lark-test` |
 | waiting for something to become true | `eventually(within) { }` | `lark-test` |
 | checks that name the test's line on failure | `shouldBe`, `shouldBeRight`, `withClue { }` | `lark-assert` |
-| tests that share a resource and run concurrently | `object … : Suite<R>()` | `lark-junit` |
+| tests that run concurrently | `object … : Suite()` | `lark-junit` |
+| tests that share a resource and run concurrently | `object … : SharedSuite<R>()` | `lark-junit` |
 | a story as a suite's test, returning its expectations | `story { }` | `lark-junit` |
 | one class | its constructor, with fakes as arguments | nothing |
 | several nodes together, one faked | `testApp(module.subgraph<Root>().overriding(…)) { }` | `lark-app` |
@@ -174,12 +175,22 @@ its block; a clue written as a lambda is only worked out if something fails.
 ## Suites
 
 `lark-junit` runs tests on the JUnit Platform with Lark's own concurrency. A
-suite is a Kotlin `object` extending `Suite<R>`, which the `lark` engine finds
-with no annotation. Its `shared` resource is acquired once, handed to every
-test, and released after the last; if acquiring throws, each test fails with
-that throw, and what was installed before it is released. A test is registered
-from `init` with `test(name) { shared -> … }` and returns
-[`Expectations`](#expectations).
+suite is a Kotlin `object`, which the `lark` engine finds with no annotation. A
+test is registered from `init` and returns [`Expectations`](#expectations).
+
+- **`Suite`:** tests that share nothing, registered with `test(name) { … }`.
+- **`SharedSuite<R>`:** tests that share one `R`, registered with
+  `test(name) { shared -> … }`. Its `shared` resource is acquired once, handed
+  to every test, and released after the last. If acquiring throws, each test
+  fails with that throw, and what was installed before it is released.
+
+```kotlin
+object SortingSuite : Suite() {
+    init {
+        test("a list is sorted smallest first") { expect(listOf(3, 1, 2).sorted() == listOf(1, 2, 3)) }
+    }
+}
+```
 
 - **Concurrency:** each test is a fork on a virtual thread, at most the
   suite's `Limit` at once, `Limit.fixed(availableProcessors)` by default.
@@ -206,7 +217,7 @@ tasks.test { useJUnitPlatform() }
 ```kotlin
 import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.logInfo
@@ -228,7 +239,7 @@ class PetShop {
     fun close() = pets.clear()
 }
 
-object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {
+object PetShopSuite : SharedSuite<PetShop>(limit = Limit.fixed(8)) {
     override val shared: Resource<PetShop> = resource { install({ PetShop() }) { shop, _ -> shop.close() } }
 
     init {
@@ -255,7 +266,7 @@ when the test ends.
 <!-- testing-junit-resources -->
 ```kotlin
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.use
@@ -303,7 +314,7 @@ fun recorder(): Resource<Recorder> = resource { install({ Recorder() }) { record
 
 class Shop(val orders: Orders, val broker: Broker)
 
-object ShopSuite : Suite<Shop>() {
+object ShopSuite : SharedSuite<Shop>() {
     // Acquired in order and released in reverse: the broker, then the orders. If the broker fails to start,
     // the orders already started are released, and every test fails with the broker's error.
     override val shared: Resource<Shop> = resource { Shop(orders().bind(), broker().bind()) }
@@ -381,7 +392,11 @@ value, `x.shouldBeInstanceOf<T> { t -> … }` checks it as a `T`, and
 failures, and holds on no elements. `shouldThrow<T>(block)` holds when `block`
 throws a `T`; `shouldThrow<T>(block) { e -> … }` then checks what it threw. A
 different exception fails the test with that exception as its cause, and an
-interrupt or cancellation goes on up, so a `timeout` still stops the test. Infix calls share one precedence and group to the left, so
+interrupt or cancellation goes on up, so a `timeout` still stops the test.
+`holds { }` is one check made by a library that checks by throwing, such as
+Playwright's `assertThat`: it holds if the block returns, and fails at its line
+if the block throws an `AssertionError`.
+Anything else it throws errors the test. Infix calls share one precedence and group to the left, so
 `a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
 parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
 whose matchers throw and return the value; a file importing both can call
@@ -392,7 +407,7 @@ test: it stops the test, which is reported as an error.
 ```kotlin
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBeLeft
 import io.github.matthewjones372.lark.junit.shouldBeRight
@@ -418,7 +433,7 @@ class Database {
     override fun toString(): String = "Database(orders=${orders.size})"
 }
 
-object OrderSuite : Suite<Database>(concurrent = false) {
+object OrderSuite : SharedSuite<Database>(concurrent = false) {
     override val shared: Resource<Database> = resource { Database() }
 
     init {
@@ -490,7 +505,7 @@ with it.
 <!-- testing-junit-story -->
 ```kotlin
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.story
 import io.github.matthewjones372.lark.resource
@@ -511,7 +526,7 @@ class Orders {
     fun find(order: String): String? = order.takeIf { it in saved }
 }
 
-object OrderStorySuite : Suite<Orders>(concurrent = false) {
+object OrderStorySuite : SharedSuite<Orders>(concurrent = false) {
     override val shared: Resource<Orders> = resource { Orders() }
 
     init {
@@ -560,7 +575,7 @@ to 60 seconds.
 <!-- testing-junit-aspects -->
 ```kotlin
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.flaky
@@ -579,7 +594,7 @@ class Wire {
 }
 
 // Every test is tagged "io", and each runs within 30 seconds, retries and all.
-object WireSuite : Suite<Wire>(aspects = tag("io") + timeout(30.seconds)) {
+object WireSuite : SharedSuite<Wire>(aspects = tag("io") + timeout(30.seconds)) {
     override val shared: Resource<Wire> = resource { Wire() }
 
     init {

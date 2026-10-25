@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingMetrics
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.withClue
@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
 
 /** One description of a producer, run on whichever backend the run names, against one broker. */
-object ProduceSuite : Suite<KafkaKit>() {
+object ProduceSuite : SharedSuite<KafkaKit>() {
     override val shared: Resource<KafkaKit> = kafkaKit("lark-kafka-produce-test")
 
     private const val GENEROUS_SECONDS = 60L

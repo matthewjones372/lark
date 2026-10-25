@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import org.apache.pekko.actor.ActorSystem
 import java.util.concurrent.CompletableFuture
@@ -13,7 +13,7 @@ import kotlin.random.Random
  * The operators whose edges are easy to get subtly wrong, run over a grid of their arguments and of
  * stream lengths, with Pekko's answer as the one every other backend has to give.
  */
-object DifferentialSuite : Suite<ActorSystem>() {
+object DifferentialSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-differential-test")
 
     private const val SETTLE_SECONDS = 10L
