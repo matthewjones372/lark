@@ -192,6 +192,7 @@ class LarkEngineTest {
             "ForAllSuite",
             "GappedSuite",
             "GatedSuite",
+            "HoldsSuite",
             "IgnoringSuite",
             "Lark",
             "LoggingSuite",

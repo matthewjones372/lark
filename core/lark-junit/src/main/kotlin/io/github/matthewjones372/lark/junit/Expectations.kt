@@ -57,6 +57,17 @@ fun expect(condition: Boolean): Expectations =
 fun expect(condition: Boolean, message: () -> String): Expectations =
     if (condition) passed(1) else failedHere(message().trim(), quoting = false)
 
+/**
+ * One check of [block], for a library that checks by throwing: holds if [block] returns, and fails if it throws an
+ * [AssertionError], naming this line with what it threw. Anything else it throws goes on up, as it would without.
+ */
+fun holds(block: () -> Unit): Expectations = try {
+    block()
+    held()
+} catch (thrown: AssertionError) {
+    thrownHere(thrown)
+}
+
 /** [block]'s expectations, each failure in it saying [clue] first. Blocks nest, the outermost clue first. */
 fun withClue(clue: Any?, block: () -> Expectations): Expectations = clued(clue, block)
 
@@ -98,6 +109,19 @@ private val own = setOf(
 @OptIn(FailureSeam::class)
 internal fun failedHere(message: String, quoting: Boolean = true): Expectations =
     Expectations(listOf(failureAt(message, skipping = { it.className in own }, quoting)), 1)
+
+/** [thrown]'s message, and its expected and actual where it has them, at the test's line; [thrown] is the cause. */
+@OptIn(FailureSeam::class)
+private fun thrownHere(thrown: AssertionError): Expectations {
+    val failure = failureAt(thrown.message.orEmpty().trim(), skipping = { it.className in own }) { located ->
+        if (thrown is AssertionFailedError && thrown.isExpectedDefined) {
+            AssertionFailedError(located, thrown.expected?.value, thrown.actual?.value, thrown)
+        } else {
+            AssertionFailedError(located, thrown)
+        }
+    }
+    return Expectations(listOf(failure), 1)
+}
 
 @OptIn(FailureSeam::class)
 internal fun mismatchedHere(

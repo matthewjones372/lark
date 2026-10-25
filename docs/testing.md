@@ -392,7 +392,11 @@ value, `x.shouldBeInstanceOf<T> { t -> … }` checks it as a `T`, and
 failures, and holds on no elements. `shouldThrow<T>(block)` holds when `block`
 throws a `T`; `shouldThrow<T>(block) { e -> … }` then checks what it threw. A
 different exception fails the test with that exception as its cause, and an
-interrupt or cancellation goes on up, so a `timeout` still stops the test. Infix calls share one precedence and group to the left, so
+interrupt or cancellation goes on up, so a `timeout` still stops the test.
+`holds { }` is one check made by a library that checks by throwing, such as
+Playwright's `assertThat`: it holds if the block returns, and fails at its line
+if the block throws an `AssertionError`.
+Anything else it throws errors the test. Infix calls share one precedence and group to the left, so
 `a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
 parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
 whose matchers throw and return the value; a file importing both can call
