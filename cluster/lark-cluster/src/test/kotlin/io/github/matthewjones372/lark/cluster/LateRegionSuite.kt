@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.DeadLetter
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
@@ -12,9 +13,11 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -80,34 +83,35 @@ private class LateNode(val name: String, port: Int, seeds: Discovery, roles: Set
     }
 }
 
-class LateRegionTest {
+object LateRegionSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `a member that opens its region after a shard was won still lets the winner run it`() {
-        val ports = List(2) { freePort() }
-        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
-        // The ledger opens its region only once both are Up, so it wins its shards with the web node there to ask:
-        // opened sooner, it wins them alone and asks nobody.
-        val now = CountDownLatch(1)
-        val later = CountDownLatch(1)
-        val ledger = LateNode("ledger", ports[0], seeds, setOf("ledger"), now)
-        val web = LateNode("web", ports[1], seeds, setOf("web"), later)
-        try {
-            listOf(ledger, web).forEach { n ->
-                n.cluster().await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 2 } shouldBe true
+    init {
+        test("a member that opens its region after a shard was won still lets the winner run it") { _ ->
+            val ports = List(2) { freePort() }
+            val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+            // The ledger opens its region only once both are Up, so it wins its shards with the web node there to ask:
+            // opened sooner, it wins them alone and asks nobody.
+            val now = CountDownLatch(1)
+            val later = CountDownLatch(1)
+            val ledger = LateNode("ledger", ports[0], seeds, setOf("ledger"), now)
+            val web = LateNode("web", ports[1], seeds, setOf("web"), later)
+            try {
+                val up = listOf(ledger, web).forAll { n ->
+                    n.cluster().await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 2 } shouldBe true
+                }
+                now.countDown()
+                // The winner has asked the web node to release its shards, before there was a region there to hear it.
+                val region = Sharding.path("ledger")
+                val _ = generateSequence { web.letters.poll(1, TimeUnit.MINUTES) }.first { it.recipient.path == region }
+
+                val answered = CompletableFuture.supplyAsync { ledger.who("l-1") }
+                later.countDown()
+
+                up and (answered.get(1, TimeUnit.MINUTES) shouldBe "ledger") and (web.who("l-2") shouldBe "ledger")
+            } finally {
+                listOf(web, ledger).forEach(LateNode::close)
             }
-            now.countDown()
-            // The winner has asked the web node to release its shards, before there was a region there to hear it.
-            val region = Sharding.path("ledger")
-            val _ = generateSequence { web.letters.poll(1, TimeUnit.MINUTES) }.first { it.recipient.path == region }
-
-            val answered = CompletableFuture.supplyAsync { ledger.who("l-1") }
-            later.countDown()
-
-            answered.get(1, TimeUnit.MINUTES) shouldBe "ledger"
-            web.who("l-2") shouldBe "ledger"
-        } finally {
-            listOf(web, ledger).forEach(LateNode::close)
         }
     }
 }
