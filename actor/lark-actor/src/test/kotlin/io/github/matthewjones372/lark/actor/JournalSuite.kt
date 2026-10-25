@@ -1,0 +1,77 @@
+package io.github.matthewjones372.lark.actor
+
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.fail.right
+import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeRight
+import io.github.matthewjones372.lark.junit.shouldContainExactly
+import io.github.matthewjones372.lark.junit.shouldThrow
+import io.github.matthewjones372.lark.resource
+import kotlin.time.Duration.Companion.minutes
+
+private val text = object : EventCodec<String> {
+    override fun encode(event: String): ByteArray = event.toByteArray()
+
+    override fun decode(bytes: ByteArray): String = String(bytes)
+}
+
+private val diaryOf = PersistenceId("diary", "sam")
+
+private sealed interface Diary
+
+private data class Note(val text: String) : Diary
+
+private data class Written(val reply: Reply<List<String>>) : Diary
+
+/** Writes each note straight to its flock's journal, and reads back what is there. */
+private fun diary() = behaviour<Diary, Long>(0L) { ctx, last, message ->
+    when (message) {
+        is Note -> {
+            val next = ctx.journal.append(diaryOf, last, listOf(text.encode(message.text))).getOrNull() ?: last
+            become(next)
+        }
+
+        is Written -> {
+            message.reply(ctx.journal.events(diaryOf, text))
+            stay()
+        }
+    }
+}
+
+object JournalSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
+
+    init {
+        test("a test's actors write to the test's journal, which the test can read") { _ ->
+            testActors {
+                val diary = spawn("diary", diary())
+
+                diary.send(Note("one"))
+                diary.send(Note("two"))
+
+                journal.events(diaryOf, text) shouldContainExactly listOf("one", "two")
+            }
+        }
+
+        test("on threads, an actor writes to its flock's journal") { _ ->
+            val journal = InMemoryJournal()
+            val written = flock<Nothing, Any> {
+                journal(journal)
+                val diary = spawn("diary", diary())
+                diary.tell(Note("one"))
+                diary.tell(Note("two"))
+                diary.ask(1.minutes) { Written(it) }
+            }
+
+            written shouldBeRight listOf("one", "two").right()
+        }
+
+        test("on threads, a flock with no journal says so") { _ ->
+            shouldThrow<IllegalStateException>({ flock<Nothing, Journal> { journal() } }) { failed ->
+                failed.message shouldBe "no journal: give the flock one with journal(…)"
+            }
+        }
+    }
+}
