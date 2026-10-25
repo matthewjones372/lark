@@ -1,14 +1,17 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.Codecs
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldContainExactly
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldContainExactly
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -59,34 +62,37 @@ private class TillNode(name: String, port: Int, seeds: Discovery, roles: Set<Str
     }
 }
 
-class BusyEntityTest {
+object BusyEntitySuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `a burst of 5,000 from another node to a busy entity is applied in order, and no region stops`() {
-        val ports = List(3) { ServerSocket(0).use { socket -> socket.localPort } }
-        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val open = CountDownLatch(1)
-        val nodes = listOf(
-            TillNode("t1", ports[0], seeds, setOf("till"), open),
-            TillNode("t2", ports[1], seeds, emptySet(), open),
-            TillNode("t3", ports[2], seeds, emptySet(), open),
-        )
-        try {
-            nodes.forEach { n ->
-                n.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
+    init {
+        test("a burst of 5,000 from another node to a busy entity is applied in order, and no region stops") { _ ->
+            val ports = List(3) { ServerSocket(0).use { socket -> socket.localPort } }
+            val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+            val open = CountDownLatch(1)
+            val nodes = listOf(
+                TillNode("t1", ports[0], seeds, setOf("till"), open),
+                TillNode("t2", ports[1], seeds, emptySet(), open),
+                TillNode("t3", ports[2], seeds, emptySet(), open),
+            )
+            try {
+                val formed = nodes.forAll { n ->
+                    n.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
+                }
+                val (host, sender) = nodes
+                val till = sender.tills.entity("till-1")
+                till.tell(0)
+                (1..5_000).forEach(till::tell)
+                open.countDown()
+
+                val inOrder =
+                    List(5_000) { host.heard.poll(1, TimeUnit.MINUTES) } shouldContainExactly (1..5_000).toList()
+                nodes.last().tills.entity("till-2").tell(7)
+                formed and inOrder and (host.heard.poll(1, TimeUnit.MINUTES) shouldBe 7)
+            } finally {
+                open.countDown()
+                nodes.forEach(TillNode::close)
             }
-            val (host, sender) = nodes
-            val till = sender.tills.entity("till-1")
-            till.tell(0)
-            (1..5_000).forEach(till::tell)
-            open.countDown()
-
-            List(5_000) { host.heard.poll(1, TimeUnit.MINUTES) } shouldContainExactly (1..5_000).toList()
-            nodes.last().tills.entity("till-2").tell(7)
-            host.heard.poll(1, TimeUnit.MINUTES) shouldBe 7
-        } finally {
-            open.countDown()
-            nodes.forEach(TillNode::close)
         }
     }
 }

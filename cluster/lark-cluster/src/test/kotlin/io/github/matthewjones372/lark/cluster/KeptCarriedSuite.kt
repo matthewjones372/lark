@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.behaviour
@@ -10,12 +11,13 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -74,31 +76,35 @@ private class LedgerNode(name: String, port: Int, seeds: Discovery, roles: Set<S
 }
 
 /** Spec 0122: a message a region keeps for a shard with no owner yet is handled in its sender's context. */
-class KeptCarriedTest {
+object KeptCarriedSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `a message kept until a member with the role joins is handled with what its sender had bound`() {
-        val ports = List(2) { ServerSocket(0).use { socket -> socket.localPort } }.sorted()
-        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val nodes = mutableListOf(LedgerNode("front", ports[0], seeds, emptySet()))
-        try {
-            val front = nodes.single()
-            front.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 1 } shouldBe true
-            val answered = CompletableFuture<String>()
-            val reply = object : Reply<String> {
-                override val address = Address("test", "/reply", 0)
+    init {
+        test("a message kept until a member with the role joins is handled with what its sender had bound") { _ ->
+            val ports = List(2) { ServerSocket(0).use { socket -> socket.localPort } }.sorted()
+            val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+            val nodes = mutableListOf(LedgerNode("front", ports[0], seeds, emptySet()))
+            try {
+                val front = nodes.single()
+                val up =
+                    front.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 1 } shouldBe
+                        true
+                val answered = CompletableFuture<String>()
+                val reply = object : Reply<String> {
+                    override val address = Address("test", "/reply", 0)
 
-                override fun invoke(answer: String) {
-                    answered.complete(answer)
+                    override fun invoke(answer: String) {
+                        answered.complete(answer)
+                    }
                 }
-            }
-            // No member has the role, so the front's region keeps this until one joins.
-            logAnnotated("request_id" to "r-3") { front.ledgers.entity("l-1").tell(WhoAsked(reply)) }
-            nodes += LedgerNode("host", ports[1], seeds, setOf("ledger"))
+                // No member has the role, so the front's region keeps this until one joins.
+                logAnnotated("request_id" to "r-3") { front.ledgers.entity("l-1").tell(WhoAsked(reply)) }
+                nodes += LedgerNode("host", ports[1], seeds, setOf("ledger"))
 
-            answered.get(1, TimeUnit.MINUTES) shouldBe "r-3"
-        } finally {
-            nodes.forEach(LedgerNode::close)
+                up and (answered.get(1, TimeUnit.MINUTES) shouldBe "r-3")
+            } finally {
+                nodes.forEach(LedgerNode::close)
+            }
         }
     }
 }

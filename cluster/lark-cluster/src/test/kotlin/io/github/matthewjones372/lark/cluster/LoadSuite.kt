@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.ask
@@ -13,10 +14,12 @@ import io.github.matthewjones372.lark.actor.remote.WireIn
 import io.github.matthewjones372.lark.actor.remote.WireOut
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -110,40 +113,45 @@ internal class LoadNode(
     }
 }
 
-class LoadTest {
+object LoadSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `every member sees each member's running entities of a kind that rebalances, as they start and passivate`() {
-        val ports = List(3) { loadPort() }
-        val seeds = seedsAt(ports)
-        // So wide a tolerance that nothing moves: this is about the load, not what the leader does with it.
-        val every = Rebalance.byLoad(every = 200.milliseconds, tolerance = 100.0)
-        val nodes = ports.indices.map { LoadNode("l${it + 1}", ports[it], seeds, every, passivateAfter = 6.seconds) }
-        try {
-            nodes.forEach { n ->
-                n.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
-            }
+    init {
+        test(
+            "every member sees each member's running entities of a kind that rebalances, as they start and passivate",
+        ) { _ ->
+            val ports = List(3) { loadPort() }
+            val seeds = seedsAt(ports)
+            // So wide a tolerance that nothing moves: this is about the load, not what the leader does with it.
+            val every = Rebalance.byLoad(every = 200.milliseconds, tolerance = 100.0)
+            val nodes =
+                ports.indices.map { LoadNode("l${it + 1}", ports[it], seeds, every, passivateAfter = 6.seconds) }
+            try {
+                val up = nodes.forAll { n ->
+                    n.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
+                }
 
-            val placed = (0 until 90).map { nodes[it % 3].tally("t-$it") }
-            (0 until 30).forEach { nodes[it % 3].plain("p-$it") }
-            val expected = nodes.associate { n -> n.name to placed.count { it == n.name } }
-            nodes.forEach { n ->
-                withClue({ "${n.name} sees ${n.running("tally")}, not $expected" }) {
-                    n.cluster.await(20.seconds) { _ -> n.running("tally") == expected } shouldBe true
+                val placed = (0 until 90).map { nodes[it % 3].tally("t-$it") }
+                (0 until 30).forEach { nodes[it % 3].plain("p-$it") }
+                val expected = nodes.associate { n -> n.name to placed.count { it == n.name } }
+                val running = nodes.forAll { n ->
+                    val seen = withClue({ "${n.name} sees ${n.running("tally")}, not $expected" }) {
+                        n.cluster.await(20.seconds) { _ -> n.running("tally") == expected } shouldBe true
+                    }
+                    seen and withClue("a kind that does not rebalance carries no load") {
+                        n.cluster.balance.loads.values.none { "plain" in it } shouldBe true
+                    }
                 }
-                withClue("a kind that does not rebalance carries no load") {
-                    n.cluster.balance.loads.values.none { "plain" in it } shouldBe true
-                }
-            }
 
-            val none = nodes.associate { it.name to 0 }
-            nodes.forEach { n ->
-                withClue({ "${n.name} sees ${n.running("tally")} once they passivate" }) {
-                    n.cluster.await(20.seconds) { _ -> n.running("tally") == none } shouldBe true
+                val none = nodes.associate { it.name to 0 }
+                up and running and nodes.forAll { n ->
+                    withClue({ "${n.name} sees ${n.running("tally")} once they passivate" }) {
+                        n.cluster.await(20.seconds) { _ -> n.running("tally") == none } shouldBe true
+                    }
                 }
+            } finally {
+                nodes.forEach(LoadNode::close)
             }
-        } finally {
-            nodes.forEach(LoadNode::close)
         }
     }
 }
