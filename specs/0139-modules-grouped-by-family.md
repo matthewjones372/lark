@@ -57,13 +57,13 @@ revisit repos at 1.0.
 
 ## Stack
 
-- [ ] **`spec-0139-settings`**: `module()` helper; core, stream, bench moved;
+- [x] **`spec-0139-settings`** ([#406](https://github.com/matthewjones372/lark/pull/406), [#407](https://github.com/matthewjones372/lark/pull/407)): `module()` helper; core, stream, bench moved;
       `benchmarks.yml` paths and `gate.sh` paths follow.
       Done when: `./gradlew build` green and the benchmarks workflow path
       filters name the new folders.
-- [ ] **`spec-0139-actor-cluster`**: actor and cluster families moved.
+- [x] **`spec-0139-actor-cluster`** ([#408](https://github.com/matthewjones372/lark/pull/408)): actor and cluster families moved.
       Done when: `./gradlew build` green.
-- [ ] **`spec-0139-app-integrations`**: app, integrations, examples moved;
+- [x] **`spec-0139-app-integrations`** ([#586](https://github.com/matthewjones372/lark/pull/586)): app, integrations, examples moved;
       README, AGENTS.md "Layout", `docs/` and `llms.txt` links follow.
       Done when: `./gradlew build` green and no link in the repo names an old
       root-level module path.

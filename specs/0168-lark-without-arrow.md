@@ -82,45 +82,45 @@ path easy for anyone already on Arrow.
 
 ## Stack
 
-- [ ] **`fail-in-lark`** — `Fail`, `attempt`, `Either`, `NonEmptyList` and
+- [x] **`fail-in-lark`** ([#475](https://github.com/matthewjones372/lark/pull/475)) — `Fail`, `attempt`, `Either`, `NonEmptyList` and
       `nonFatalOrThrow` in `lark`, tested alone, with the three improvements. Arrow is still on the classpath.
       Done when: the tests for these pass without importing `arrow`.
-- [ ] **`lark-arrow`** — a new module with `toArrow()`, `toLark()` and the
+- [x] **`lark-arrow`** ([#476](https://github.com/matthewjones372/lark/pull/476)) — a new module with `toArrow()`, `toLark()` and the
       `lark { }` bridge from `Raise` to `Fail`, which adds `arrow-core`.
       Done when: its round-trip and bridge tests pass.
-- [ ] **`flock-on-fail`** — `Flock`, `Flight`, `Fork`, `Race`, `Timeout`,
+- [x] **`flock-on-fail`** ([#478](https://github.com/matthewjones372/lark/pull/478), [#500](https://github.com/matthewjones372/lark/pull/500)) — `Flock`, `Flight`, `Fork`, `Race`, `Timeout`,
       `Retry` and `Policy` move to `Fail`, and a fail from a thread the scope
       didn't fork is rejected. The Arrow-`Raise` versions stay as one-line
       wrappers, so the modules above `lark` keep compiling.
       Done when: core's tests pass on `Fail`, and every other module builds
       unchanged.
-- [ ] **`par-on-fail`** — `parZip` and `parMap` at every arity, with
+- [x] **`par-on-fail`** ([#494](https://github.com/matthewjones372/lark/pull/494)) — `parZip` and `parMap` at every arity, with
       wrappers.
-- [ ] **`accumulate-on-fail`** — `parZipOrAccumulate` and
+- [x] **`accumulate-on-fail`** ([#503](https://github.com/matthewjones372/lark/pull/503), [#506](https://github.com/matthewjones372/lark/pull/506)) — `parZipOrAccumulate` and
       `parMapOrAccumulate`, with wrappers. Split by arity if it runs past the
       cap.
-- [ ] **`structured-on-fail`** — `lark-structured`.
-- [ ] **`policy-on-fail`** — `retry`, `retryRaise`, `guarded`, `Guard`,
+- [x] **`structured-on-fail`** ([#507](https://github.com/matthewjones372/lark/pull/507)) — `lark-structured`.
+- [x] **`policy-on-fail`** ([#509](https://github.com/matthewjones372/lark/pull/509)) — `retry`, `retryRaise`, `guarded`, `Guard`,
       `raceN` and `timeout` take a `Fail`, and `raceN` and `Schedule.andThen`
       answer with Lark's `Either`. `flock-on-fail` moved only how these treat a
       failure; the modules below call them, so they move first (added
       2026-10-23).
       Done when: core's tests and the guide examples pass with none of these
       taking a `Raise`.
-- [ ] **`stream-off-arrow`** — the four `stream/` modules move.
-- [ ] **`actor-off-arrow`** — `lark-actor`, `-journal-jdbc` and `-remote`
+- [x] **`stream-off-arrow`** ([#513](https://github.com/matthewjones372/lark/pull/513)) — the four `stream/` modules move.
+- [x] **`actor-off-arrow`** ([#521](https://github.com/matthewjones372/lark/pull/521)) — `lark-actor`, `-journal-jdbc` and `-remote`
       move.
-- [ ] **`app-off-arrow`** — `lark-app`, `-typesafe` and `lark-bank` move. `lark-bank`
+- [x] **`app-off-arrow`** ([#523](https://github.com/matthewjones372/lark/pull/523)) — `lark-app`, `-typesafe` and `lark-bank` move. `lark-bank`
       moved with `actor-off-arrow` (2026-10-23), since it reads the actors' answers.
-- [ ] **`kafka-off-arrow`** — `lark-kafka` and `lark-kafka-pekko` move. Folded into
+- [x] **`kafka-off-arrow`** ([#513](https://github.com/matthewjones372/lark/pull/513)) — `lark-kafka` and `lark-kafka-pekko` move. Folded into
       `stream-off-arrow` (2026-10-23): their records' `Either`s flow through the stream
       operators, so the two cannot move apart.
-- [ ] **`core-drops-arrow`** — the wrappers go, and `arrow-core` leaves
+- [x] **`core-drops-arrow`** ([#524](https://github.com/matthewjones372/lark/pull/524)) — the wrappers go, and `arrow-core` leaves
       `lark`'s build.
       Done when: `NoOtherDependenciesTest` allows only the JDK and the stdlib.
-- [ ] **`docs-off-arrow`** — the README, `docs/`, `llms.txt`, the SKILL and
+- [x] **`docs-off-arrow`** ([#525](https://github.com/matthewjones372/lark/pull/525)) — the README, `docs/`, `llms.txt`, the SKILL and
       AGENTS.md move, with a migration page that points to `lark-arrow`.
-- [ ] **`either-catch`** — `Either.catch { }` in `lark.fail`, which keeps a
+- [x] **`either-catch`** ([#538](https://github.com/matthewjones372/lark/pull/538)) — `Either.catch { }` in `lark.fail`, which keeps a
       fatal throw and a `fail` going up through `nonFatalOrThrow`. `lark-kafka`
       drops its own `catching` for it. Missed by the entries above (maintainer,
       2026-10-24).

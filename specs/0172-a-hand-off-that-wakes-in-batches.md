@@ -49,14 +49,14 @@ cost in place, and that cost is what the profile shows. Recommended: the primiti
 
 ## Stack
 
-- [ ] **`handoff-ring`** — `Ring` with its batching rule, end marker and interrupt behaviour, and unit tests.
+- [x] **`handoff-ring`** ([#479](https://github.com/matthewjones372/lark/pull/479)) — `Ring` with its batching rule, end marker and interrupt behaviour, and unit tests.
       Done when: its tests pass, including a producer interrupted while parked on a full ring.
-- [ ] **`buffer-on-handoff`** — `buffer` on Forks moves to `Ring`.
+- [x] **`buffer-on-handoff`** ([#480](https://github.com/matthewjones372/lark/pull/480)) — `buffer` on Forks moves to `Ring`.
       Done when: `lark-stream-parity` is green and a new hand-off row in `lark-stream-benchmarks` is at least 5×
       faster than today's baseline.
-- [ ] **`mapasync-on-handoff`** — the `mapAsync` window uses slots and batched room.
+- [x] **`mapasync-on-handoff`** ([#481](https://github.com/matthewjones372/lark/pull/481)) — the `mapAsync` window uses slots and batched room.
       Done when: parity is green and `MapParBenchmark`'s `mapAsync` rows pass the regression gate (`gate.sh`).
-- [ ] **`mappar-on-handoff`** — the `mapPar` window, with each body's answer written to its slot instead of a
+- [x] **`mappar-on-handoff`** ([#482](https://github.com/matthewjones372/lark/pull/482)) — the `mapPar` window, with each body's answer written to its slot instead of a
       per-body `CompletableFuture` and `CountDownLatch`.
       Done when: parity is green and `mapPar` allocates fewer bytes per element than today (JMH `-prof gc`).
 

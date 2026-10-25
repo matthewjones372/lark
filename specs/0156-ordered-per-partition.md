@@ -44,12 +44,12 @@ Recommended and answered: (a).
 
 ## Stack
 
-- [ ] **`spec-0156-skew-row`**: a `ProcessingBenchmarks` row where one partition's handler is 10× slower,
+- [x] **`spec-0156-skew-row`** ([#457](https://github.com/matthewjones372/lark/pull/457)): a `ProcessingBenchmarks` row where one partition's handler is 10× slower,
       measured against today's code. Done when: the row is in the baseline.
-- [ ] **`spec-0156-keyed-forks`**: `mapParKeyed`, the `key` field, Forks, and parity tests. Done when: on Forks a
+- [x] **`spec-0156-keyed-forks`** ([#452](https://github.com/matthewjones372/lark/pull/452)): `mapParKeyed`, the `key` field, Forks, and parity tests. Done when: on Forks a
       slow element on one key does not delay another key's results, and every key's order holds on every backend.
-- [ ] **`spec-0156-keyed-pekko`**: the same on Pekko. Done when: the parity test's no-delay case runs on Pekko too.
-- [ ] **`spec-0156-kafka`**: `mapParPartitioned`, its docs, and a skewed row for it. Done when: on the skewed row
+- [x] **`spec-0156-keyed-pekko`** ([#453](https://github.com/matthewjones372/lark/pull/453)): the same on Pekko. Done when: the parity test's no-delay case runs on Pekko too.
+- [x] **`spec-0156-kafka`** ([#458](https://github.com/matthewjones372/lark/pull/458)): `mapParPartitioned`, its docs, and a skewed row for it. Done when: on the skewed row
       lark beats `javaParallelBatch` by more than on the uniform one.
 
 ## Acceptance

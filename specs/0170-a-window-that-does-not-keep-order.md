@@ -44,12 +44,12 @@ which `lark-stream-pekko` users know. Recommended: separate operators.
 
 ## Stack
 
-- [ ] **`unordered-description`** — the two operators and their `Node`s in `lark-stream`, with Pekko,
+- [x] **`unordered-description`** ([#483](https://github.com/matthewjones372/lark/pull/483)) — the two operators and their `Node`s in `lark-stream`, with Pekko,
       Actors and TestStreams compiling them.
       Done when: a parity test asserts the multiset of answers matches the ordered operator's on every backend.
-- [ ] **`unordered-on-forks`** — Forks runs them on `Ring`.
+- [x] **`unordered-on-forks`** ([#484](https://github.com/matthewjones372/lark/pull/484)) — Forks runs them on `Ring`.
       Done when: a Forks test shows a slow first element does not delay the others, and parity is green.
-- [ ] **`unordered-docs`** — `docs/stream.md` operator table rows, and a compiled example.
+- [x] **`unordered-docs`** ([#485](https://github.com/matthewjones372/lark/pull/485)) — `docs/stream.md` operator table rows, and a compiled example.
       Done when: `ReadmeExampleTest` compiles the example.
 
 ## Acceptance

@@ -48,7 +48,7 @@ is under the benchmark's own 20% noise caveat, and the change adds a second prod
 
 ## Stack
 
-- [ ] **`spec-0174-async-few-in-flight`** — this spec, with the measurements, and no code.
+- [x] **`spec-0174-async-few-in-flight`** ([#498](https://github.com/matthewjones372/lark/pull/498)) — this spec, with the measurements, and no code.
       Done when: reviewed and either cut or committed.
 - [ ] **`mapasync-pull-starts`** — only if kept: the hand-over above, with a test that fails when the hand-over's
       wake is dropped, in the style of `RingTest`'s lost-wake test.

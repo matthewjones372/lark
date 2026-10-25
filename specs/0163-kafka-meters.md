@@ -47,11 +47,11 @@ the work is, not how fast one call is.
 
 ## Stack
 
-- [ ] **`spec-0163-consumer`**: records, bytes, poll, commit, close, rebalances, assigned, in flight.
+- [x] **`spec-0163-consumer`** ([#451](https://github.com/matthewjones372/lark/pull/451)): records, bytes, poll, commit, close, rebalances, assigned, in flight.
       Done when: a test reads each back through `readings(name)` after a run.
-- [ ] **`spec-0163-lag-latency`**: `lag` and `latency`. Done when: lag reads N with N records unread, then 0.
-- [ ] **`spec-0163-producer`**: producer, dead letters, transactions.
-- [ ] **`spec-0163-docs`**: the table in `docs/observability.md` and `docs/kafka.md`, and a benchmark row showing
+- [x] **`spec-0163-lag-latency`** ([#454](https://github.com/matthewjones372/lark/pull/454)): `lag` and `latency`. Done when: lag reads N with N records unread, then 0.
+- [x] **`spec-0163-producer`** ([#455](https://github.com/matthewjones372/lark/pull/455)): producer, dead letters, transactions.
+- [x] **`spec-0163-docs`** ([#456](https://github.com/matthewjones372/lark/pull/456)): the table in `docs/observability.md` and `docs/kafka.md`, and a benchmark row showing
       that recording costs nothing measurable with no backend bound.
 
 ## Acceptance

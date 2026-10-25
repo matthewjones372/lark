@@ -53,10 +53,10 @@ module keeps its one dependency.
 
 ## Stack
 
-- [ ] **`spec-0183-decoded`** — `long`, `duration`, `instant`, `enum`, `of`.
+- [x] **`spec-0183-decoded`** ([#578](https://github.com/matthewjones372/lark/pull/578)) — `long`, `duration`, `instant`, `enum`, `of`.
       Done when: each decodes a good value, and a bad one answers its default
       with `PARSE_ERROR` and one hook warning.
-- [ ] **`spec-0183-docs`** — the types in `docs/flags.md`.
+- [x] **`spec-0183-docs`** ([#579](https://github.com/matthewjones372/lark/pull/579)) — the types in `docs/flags.md`.
       Done when: the guide's test compiles the new fences.
 
 ## Acceptance

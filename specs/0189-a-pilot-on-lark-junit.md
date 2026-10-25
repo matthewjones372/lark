@@ -60,12 +60,12 @@ difference in the result comes from the framework, not from different checks.
 
 ## Stack
 
-- [ ] **`spec-0189-pilot`** — `lark-pekko`'s test build takes `lark-junit`. `LarkDispatcherTest`
+- [x] **`spec-0189-pilot`** ([#550](https://github.com/matthewjones372/lark/pull/550)) — `lark-pekko`'s test build takes `lark-junit`. `LarkDispatcherTest`
       becomes `LarkDispatcherSuite`, and `AwaitTest` becomes `AwaitSuite`. The Jupiter classes are
       removed.
       Done when: `:lark-pekko:test` reports the same 6 test names, all passing, under the `lark`
       engine, and `NoOtherDependenciesTest` still passes on Jupiter.
-- [ ] **`spec-0189-result`** — a `## Result` section in this spec. It gives the before and after
+- [x] **`spec-0189-result`** ([#551](https://github.com/matthewjones372/lark/pull/551)) — a `## Result` section in this spec. It gives the before and after
       wall time of `:lark-pekko:test` (median of 5 warm runs), the lines changed, each matcher or
       feature that was missing, anything that surprised, and a recommendation on the wider migration.
       Done when: the section holds measured numbers and a recommendation.

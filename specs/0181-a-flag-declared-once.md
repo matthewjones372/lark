@@ -55,12 +55,12 @@ needs both.
 
 ## Stack
 
-- [ ] **`spec-0181-flags`** — `Flag`, the four factories, `value()`,
+- [x] **`spec-0181-flags`** ([#543](https://github.com/matthewjones372/lark/pull/543)) — `Flag`, the four factories, `value()`,
       `details()`, `featureClient`.
       Done when: a missing flag answers its default, a wrong-typed one
       answers its default with `TYPE_MISMATCH`, and a fork reads the client
       its opener bound.
-- [ ] **`spec-0181-docs`** — `docs/flags.md` with compiled fences.
+- [x] **`spec-0181-docs`** ([#545](https://github.com/matthewjones372/lark/pull/545)) — `docs/flags.md` with compiled fences.
       Done when: the guide's test compiles them.
 
 ## Acceptance

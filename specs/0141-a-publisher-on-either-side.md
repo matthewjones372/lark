@@ -60,7 +60,7 @@ where `toSequence` has a buffer, so the two should share that hand-off rather th
 
 ## Stack
 
-- [ ] **`spec-0141-from-publisher`**: `Stream.fromPublisher` on `Stream.blocking`, with batched demand.
+- [x] **`spec-0141-from-publisher`**: `Stream.fromPublisher` on `Stream.blocking`, with batched demand.
       Done when: on Forks, Pekko and TestStreams, a `SubmissionPublisher` of 10,000 elements read through a
       slow stage never has more than `prefetch` outstanding, and a `stop()` cancels the subscription.
 - [ ] **`spec-0141-to-publisher`**: `Stream.toPublisher(backend)`, and the Reactive Streams TCK

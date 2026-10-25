@@ -43,7 +43,7 @@ before the close either way, so the worst case is that wait, never a lost commit
 
 ## Stack
 
-- [ ] **`spec-0155-close`**: the budget above. Done when: a consumer whose broker holds a fetch for 3 s
+- [x] **`spec-0155-close`** ([#447](https://github.com/matthewjones372/lark/pull/447)): the budget above. Done when: a consumer whose broker holds a fetch for 3 s
       closes in under 1 s, leaves its group empty, and has committed what it handled.
 
 ## Acceptance

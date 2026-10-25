@@ -60,12 +60,12 @@ A then B: B can follow as its own spec, with a default of `Limit.adaptive`.
 
 ## Stack
 
-- [ ] **`limit-value`** — `Limit`, `Limit.fixed`, and the `Int` overloads delegating to it; no behaviour change.
+- [x] **`limit-value`** ([#486](https://github.com/matthewjones372/lark/pull/486)) — `Limit`, `Limit.fixed`, and the `Int` overloads delegating to it; no behaviour change.
       Done when: the existing tests pass unchanged.
-- [ ] **`limit-adaptive`** — the adaptive algorithm, driven by an injected clock and fake latencies in tests.
+- [x] **`limit-adaptive`** ([#486](https://github.com/matthewjones372/lark/pull/486)) — the adaptive algorithm, driven by an injected clock and fake latencies in tests.
       Done when: tests show the limit converging on a simulated dependency's capacity, and then following it down
       when that capacity halves.
-- [ ] **`limit-in-streams`** — `mapPar`, `mapAsync` and 0170's unordered operators accept a `Limit`; Forks
+- [x] **`limit-in-streams`** ([#487](https://github.com/matthewjones372/lark/pull/487)) — `mapPar`, `mapAsync` and 0170's unordered operators accept a `Limit`; Forks
       resizes its window live.
       Done when: parity is green with `Limit.fixed`, and a Forks test shows the window resizing.
 - [ ] **`limit-in-core`** — `parMap(…, limit)` and `bulkhead(limit)`, with metrics.
