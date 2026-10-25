@@ -23,6 +23,10 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
 
     private const val GENEROUS_SECONDS = 60L
 
+    // A poll interval the slow handler below outlasts more than twice over.
+    private const val SHORT_POLL_INTERVAL_MILLIS = 1_500
+    private const val SLOW_HANDLER_MILLIS = 4_000L
+
     private val backend = Forks()
 
     private fun properties(kafka: KafkaBroker, group: String? = null): Map<String, Any> =
@@ -111,6 +115,32 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
             val resumed = values(kafka, "resume", 0, From.Committed, Until.EndAtStart, group = "resumer")
 
             first and committed and (resumed gives listOf("3", "4", "5"))
+        }
+
+        test("a grouped read whose handler outlasts the poll interval keeps its place and commits") { kafka ->
+            // An assigned consumer is no member of the group, so no poll interval drops it (spec 0157): a handler
+            // slower than max.poll.interval.ms delays the next poll and nothing else.
+            val topic = Topic("slow-read")
+            kafka.create(topic, partitions = 1)
+            kafka.sendTo(topic, 0, "1", "2", "3")
+            val slow = properties(kafka, "slow-reader") +
+                (ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG to SHORT_POLL_INTERVAL_MILLIS)
+            val seen = ConcurrentLinkedQueue<String?>()
+            val strings = StringDeserializer()
+
+            val exit = Kafka.read(slow, topic, 0, strings, strings, From.Committed, Until.EndAtStart)
+                .mapRecord { record ->
+                    if (record.value() == "1") Thread.sleep(SLOW_HANDLER_MILLIS)
+                    record.value().also(seen::add)
+                }
+                .runCommitting()
+                .run(backend)
+                .toCompletableFuture()
+                .get(GENEROUS_SECONDS, TimeUnit.SECONDS)
+
+            (exit shouldBe Exit.Done(3L)) and
+                (seen.toList() shouldBe listOf("1", "2", "3")) and
+                (kafka.committed("slow-reader", topic) shouldBe 3L)
         }
 
         test("a read from the committed offset with no group is refused where it is built") { kafka ->
