@@ -131,6 +131,9 @@ val gradlePluginModules = setOf("lark-app-gradle")
 // test of it is a compilation, and those live in lark-app-gradle where the build that runs them is.
 val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
 
+// lark-junit and what it runs on keep their tests on Jupiter: a runner cannot report on its own parts (spec 0197).
+val larkJunitRunsOn = setOf("lark", "lark-assert", "lark-test", "lark-junit")
+
 // Measured, not tested: a benchmark has no assertions for a coverage floor to count.
 val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks", "lark-kafka-benchmarks")
 
@@ -203,6 +206,22 @@ subprojects {
         "testImplementation"(kotlin("test"))
         "testImplementation"("org.junit.jupiter:junit-jupiter:6.1.3")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+    }
+
+    // A module's tests are lark-junit suites (spec 0197), and a failed `expect` draws its values. Not for what
+    // lark-junit is built on, which a bug would break the runner reporting it, nor for the JDK 21 build tools.
+    if (name !in larkJunitRunsOn + testedByRunningABuild + benchmarkModules) {
+        apply(plugin = "org.jetbrains.kotlin.plugin.power-assert")
+        dependencies { "testImplementation"(project(":lark-junit")) }
+        @OptIn(org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class)
+        extensions.configure<org.jetbrains.kotlin.powerassert.gradle.PowerAssertGradleExtension> {
+            functions.add("io.github.matthewjones372.lark.junit.expect")
+            includedSourceSets.add("test")
+        }
+        // A suite's dropped Expectations is reported only under this flag; the main sources are not lark-junit's.
+        tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileTestKotlin") {
+            compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
+        }
     }
 
     tasks.withType<Test>().configureEach {

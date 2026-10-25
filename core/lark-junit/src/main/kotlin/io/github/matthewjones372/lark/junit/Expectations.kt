@@ -60,9 +60,17 @@ fun expect(condition: Boolean, message: () -> String): Expectations =
 /** [block]'s expectations, each failure in it saying [clue] first. Blocks nest, the outermost clue first. */
 fun withClue(clue: Any?, block: () -> Expectations): Expectations = clued(clue, block)
 
+/** Holds if [check] holds for every element, keeping every element's failures. Holds on no elements, checking none. */
+inline fun <T> Iterable<T>.forAll(check: (T) -> Expectations): Expectations =
+    fold(nothingChecked()) { all, element -> all and check(element) }
+
 /** A check that passed, for the matchers that take a lambda. */
 @PublishedApi
 internal fun held(): Expectations = passed(1)
+
+/** No checks at all, for [forAll] to start from. */
+@PublishedApi
+internal fun nothingChecked(): Expectations = passed(0)
 
 internal fun passed(checked: Int) = Expectations(emptyList(), checked)
 

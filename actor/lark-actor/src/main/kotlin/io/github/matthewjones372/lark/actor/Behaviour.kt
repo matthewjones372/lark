@@ -1,7 +1,9 @@
 package io.github.matthewjones372.lark.actor
 
+import io.github.matthewjones372.lark.Carriers
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.Fail
+import java.util.Objects
 import kotlin.time.Duration
 
 /** Where an actor lives. A ref is named by one, so that a ref can later name an actor on another node. */
@@ -155,7 +157,7 @@ class Behaviour<M : Any, S, out E> internal constructor(
      * A step over a run of the plain messages already waiting, up to [batch] of them (spec 0086). With none, or a
      * batch of 1, each message has a [step] of its own. Signals, timers and replayed messages always do.
      */
-    internal val steps: (Fail<E>.(ctx: Ctx<M>, state: S, messages: List<M>) -> Batched<S>)?,
+    internal val steps: (Fail<E>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Batched<S>)?,
     internal val batch: Int,
 ) {
     constructor(
@@ -171,6 +173,63 @@ class Behaviour<M : Any, S, out E> internal constructor(
  * unhandled message goes, and those it never ran because it stopped first, which go where a stopped actor's do.
  */
 internal class Batched<out S>(val next: Next<S>, val unhandled: List<Any>, val unrun: List<Any>)
+
+/**
+ * A run of messages handled by one step (spec 0198), in the order they came. Each carries what its sender had bound
+ * (spec 0122), and the step runs inside none of it: [within] is where a message's own context is.
+ */
+interface Run<out M : Any> : List<M> {
+    /** Runs [block] inside what the message at [index] carried from its sender, and nobody else's. */
+    fun <A> within(index: Int, block: () -> A): A
+}
+
+/** A run of [messages], each with what it [carried]; with none carried, [within] binds nothing. */
+internal class Carrying<out M : Any>(
+    private val messages: List<M>,
+    private val carried: List<Map<String, String>>?,
+) : AbstractList<M>(), Run<M> {
+    override val size: Int get() = messages.size
+
+    override fun get(index: Int): M = messages[index]
+
+    override fun <A> within(index: Int, block: () -> A): A {
+        val bound = carried?.get(Objects.checkIndex(index, size)).orEmpty()
+        return if (bound.isEmpty()) block() else Carriers.within(bound, block)
+    }
+}
+
+/**
+ * A behaviour whose [steps] takes the plain messages already waiting, up to [batch] of them, as one [Run] (spec
+ * 0198). A message handled alone, such as a timer's, a stashed one put back, or any with a batch of 1, is a run of
+ * one, inside its own sender's context. A run answered `unhandled()` sends every message of it to dead letters. Name
+ * all three types, `batching<M, S, E>(…)`: left to inference, a call resolves to the overload that never raises.
+ */
+@JvmName("raisingBatching")
+fun <M : Any, S, E> batching(
+    initial: S,
+    batch: Int,
+    steps: Fail<E>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Next<S>,
+): Behaviour<M, S, E> {
+    require(batch > 0) { "a batch of $batch messages takes none" }
+    return Behaviour(
+        initial = initial,
+        step = { ctx, state, message -> steps(ctx, state, Carrying(listOf(message), null)) },
+        signal = null,
+        start = null,
+        steps = { ctx, state, run ->
+            val next = steps(ctx, state, run)
+            Batched(next, if (next === Next.Unhandled) run else emptyList(), emptyList())
+        },
+        batch = batch,
+    )
+}
+
+/** A batching behaviour that never raises, so nothing has to name a failure type it does not have. */
+fun <M : Any, S> batching(
+    initial: S,
+    batch: Int,
+    steps: Fail<Nothing>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Next<S>,
+): Behaviour<M, S, Nothing> = batching<M, S, Nothing>(initial, batch, steps)
 
 /** This behaviour, taking signals with [handler]. */
 fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
