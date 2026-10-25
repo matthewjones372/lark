@@ -121,7 +121,7 @@ Task runs, `lark-kafka`: 91.27, 91.45, 90.75, 89.71, 91.52 s before; 64.50, 64.5
   - **A shared-state trap, caught in time.** `GroupedRecordTest` kept a mutable queue in a class field, which a
     suite object would have shared between tests; it is made per test now. Nothing else had state in a field.
   - **A stale local build.** After branch switches, Gradle's incremental compile reported errors that a clean
-  compile did not. A `--rerun-tasks` build is the one to trust before pushing.
+    compile did not. A `--rerun-tasks` build is the one to trust before pushing.
   - **A spec number taken twice.** #588 merged with "spec 0193" in its title, for unrelated lark-assert work,
     after this spec had taken the number.
 - **What to move next.** The remaining Jupiter modules in the same way, one stack each, starting with those
