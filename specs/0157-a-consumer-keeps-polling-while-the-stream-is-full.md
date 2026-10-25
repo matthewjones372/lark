@@ -43,7 +43,7 @@ Recommended: (a) first. It closes the correctness gap; (b) is a throughput chang
 
 - [x] **`spec-0157-slow-handler-test`** ([#450](https://github.com/matthewjones372/lark/pull/450)): a test whose handler takes longer than a short `max.poll.interval.ms`,
       failing today with a rebalance. Done when: it fails on `main` for the stated reason.
-- [ ] **`spec-0157-poller`**: the poller, pause and resume, on `Kafka.consume`. Grouped `Kafka.read` needs none:
+- [x] **`spec-0157-poller`** ([#450](https://github.com/matthewjones372/lark/pull/450), [#664](https://github.com/matthewjones372/lark/pull/664)): the poller, pause and resume, on `Kafka.consume`. Grouped `Kafka.read` needs none:
       it assigns its partition rather than subscribing, so it is no member of the group, and no poll interval drops
       it; a `ReadSuite` test with a handler slower than `max.poll.interval.ms` shows it keeps its place and commits.
       Done when: that test passes on Forks and Pekko, and the comparison benchmarks do not get slower.
