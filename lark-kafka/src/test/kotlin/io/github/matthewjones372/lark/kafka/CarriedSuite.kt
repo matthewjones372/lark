@@ -40,7 +40,8 @@ object CarriedSuite : Suite<Unit>() {
         }
 
         test("a record is handled inside the annotations it carried, and one that carried none outside any") { _ ->
-            val carried = ProducerRecord("orders", "o-1", "placed").carrying(mapOf("lark.annotation.request_id" to "r-3"))
+            val carried =
+                ProducerRecord("orders", "o-1", "placed").carrying(mapOf("lark.annotation.request_id" to "r-3"))
             val bare = ProducerRecord("orders", "o-2", "placed")
 
             (annotationsInside(consumed(carried)) shouldContain ("request_id" to "r-3")) and

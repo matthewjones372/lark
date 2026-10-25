@@ -42,12 +42,19 @@ object GroupedRecordSuite : Suite<Unit>() {
     init {
         test("a batch marks each of its records handled once it reaches the end") { _ ->
             val marks = Marks()
-            val read = listOf(marks.record(0, 0), marks.record(1, 0), marks.record(0, 1), marks.record(1, 1), marks.record(0, 2))
+            val read = listOf(
+                marks.record(0, 0),
+                marks.record(1, 0),
+                marks.record(0, 1),
+                marks.record(1, 1),
+                marks.record(0, 2),
+            )
 
             val exit = Stream.from(read).groupedRecord(5, 1.hours).runCommitting().run(TestStreams())
                 .toCompletableFuture().join()
 
-            (exit shouldBe Exit.Done(1L)) and (marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position })
+            (exit shouldBe Exit.Done(1L)) and
+                (marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position })
         }
 
         test("a record still expanding at a batch's end is committed with the batch its last element is in") { _ ->
@@ -72,7 +79,8 @@ object GroupedRecordSuite : Suite<Unit>() {
                 logs.all().single().annotations
             }
 
-            (annotationsOf(batch) shouldNotContainKey "kafka.offset") and (annotationsOf(one) shouldContainKey "kafka.offset")
+            (annotationsOf(batch) shouldNotContainKey "kafka.offset") and
+                (annotationsOf(one) shouldContainKey "kafka.offset")
         }
 
         test("a batch of batches marks each record handled once, as one batch would") { _ ->
@@ -82,7 +90,8 @@ object GroupedRecordSuite : Suite<Unit>() {
             val exit = Stream.from(read).groupedRecord(2, 1.hours).groupedRecord(2, 1.hours).runCommitting()
                 .run(TestStreams()).toCompletableFuture().join()
 
-            (exit shouldBe Exit.Done(1L)) and (marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position })
+            (exit shouldBe Exit.Done(1L)) and
+                (marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position })
         }
     }
 }

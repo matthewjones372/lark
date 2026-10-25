@@ -46,8 +46,10 @@ object KeeperSuite : Suite<Unit>() {
                 var closed = false
 
                 polled and shouldThrow<KafkaException>({ keeper.closing { closed = true } }) { thrown ->
-                    withClue("the commit and close ran before the keeper's failure was thrown") { closed shouldBe true } and
-                        (thrown.message shouldBe "refused")
+                    val ranFirst = withClue("the commit and close ran before the keeper's failure was thrown") {
+                        closed shouldBe true
+                    }
+                    ranFirst and (thrown.message shouldBe "refused")
                 }
             }
         }

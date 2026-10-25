@@ -13,9 +13,6 @@ import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.junit.shouldNotContainKey
-import io.github.matthewjones372.lark.junit.shouldContainKey
-import io.github.matthewjones372.lark.junit.shouldContainAll
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
@@ -26,12 +23,15 @@ import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldContainAll
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
+import io.github.matthewjones372.lark.junit.shouldContainKey
 import io.github.matthewjones372.lark.junit.shouldNotBe
 import io.github.matthewjones372.lark.junit.shouldNotBeEmpty
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldNotContain
+import io.github.matthewjones372.lark.junit.shouldNotContainKey
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.tag
 import io.github.matthewjones372.lark.junit.withClue

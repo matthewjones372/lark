@@ -12,8 +12,9 @@ object PartitionsSuite : Suite<KafkaBroker>() {
         test("a topic's partitions are listed in order, by a consumer that joins no group") { kafka ->
             kafka.create("clicks", partitions = 3)
 
-            Kafka.partitions(mapOf(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrap), Topic("clicks")) shouldBe
-                listOf(0, 1, 2)
+            val bootstrap = mapOf<String, Any>(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrap)
+
+            Kafka.partitions(bootstrap, Topic("clicks")) shouldBe listOf(0, 1, 2)
         }
     }
 }
