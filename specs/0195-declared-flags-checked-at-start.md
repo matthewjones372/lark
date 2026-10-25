@@ -109,13 +109,13 @@ with an explicit list.
    warn? **Refuse.** A missing key is usually a misspelling on one side, and
    leaving the flag out on purpose means it always answers its default. A
    declaration nobody configures should be deleted, or given a one-variant
-   entry.
+   entry. **Answered:** as recommended.
 2. Should a `Flag.int` accept a variant `5.0`? **No.** HOCON writes `5` as an
    integer. The check should say what the read would say. The first entry
-   confirms how flagd's integer evaluation treats `5.0`, and matches it.
+   confirms how flagd's integer evaluation treats `5.0`, and matches it. **Answered:** as recommended.
 3. Should `rejects` be public, or internal to the two modules? **Public.** A
    test on `InMemoryProvider`, or a provider of a service's own, can use the
-   same check. It's one function, documented on `Flag`.
+   same check. It's one function, documented on `Flag`. **Answered:** as recommended.
 4. Should the flags be passed as `vararg` or as a `List`? **List**, because a
    service with several flag objects joins their `all`s with `+`. A `vararg`
-   overload can come later if someone asks for it.
+   overload can come later if someone asks for it. **Answered:** as recommended.
