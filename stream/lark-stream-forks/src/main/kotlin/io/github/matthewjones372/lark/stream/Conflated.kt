@@ -43,6 +43,7 @@ private class Pile(private val seed: (Any) -> Any, private val aggregate: (Any, 
  */
 // The catch is as wide as a pipeline: whatever upstream, the seed or the aggregate threw is the reader's.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.Conflate.conflated(bound: Bound): Pull {
     val pile = Pile(guarded("conflateWithSeed", at, seed), guarded("conflateWithSeed", at, aggregate))
     val up = upstream.pull()
@@ -66,6 +67,7 @@ internal fun Node.Conflate.conflated(bound: Bound): Pull {
  * [Node.Conflate] on a test's clock: upstream is a worker that folds everything it has in the same
  * instant before the reader's turn, so a source with no time in it arrives as one aggregate.
  */
+context(ctx: PullContext)
 internal fun Node.Conflate.conflatedOnClock(turns: Turns): Pull =
     TurnPile(guarded("conflateWithSeed", at, seed), guarded("conflateWithSeed", at, aggregate), turns)
         .also { pile -> turns.fork { pile.fill(upstream.pull()) } }

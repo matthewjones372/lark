@@ -147,6 +147,7 @@ private class Confluence(private val queue: ArrayBlockingQueue<Any>) {
  * Both streams at once, each drained on a fork of its own into a [Ring] of its own, and read a ring at a time in
  * turn (spec 0185). It ends once both have, and fails as soon as the reader comes to either's failure.
  */
+context(ctx: PullContext)
 internal fun Node.Merge.merged(bound: Bound): Pull {
     val on = bound.releases?.on ?: VirtualThreads
     val inputs = listOf(upstream.pull(), other.pull())
@@ -163,6 +164,7 @@ internal fun Node.Merge.merged(bound: Bound): Pull {
  */
 // The catch is as wide as a pipeline: whatever the outer stream or a build threw is the reader's.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.FlatMap.merged(breadth: Int, bound: Bound): Pull {
     val build = guarded("flatMapMerge", at, f)
     val up = upstream.pull()
@@ -205,6 +207,7 @@ internal fun Node.FlatMap.merged(breadth: Int, bound: Bound): Pull {
 /** [Node.Merge] on a test's clock: each input a worker taking turns, so the order is the same every run. */
 // The catch is as wide as a pipeline, as above.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.Merge.mergedOnClock(turns: Turns): Pull {
     val held = ArrayDeque<Any>()
     val inputs = listOf(upstream.pull(), other.pull())
@@ -217,6 +220,7 @@ internal fun Node.Merge.mergedOnClock(turns: Turns): Pull {
 /** [Node.FlatMap] merged on a test's clock: the outer stream and each inner one are workers taking turns. */
 // The catch is as wide as a pipeline, as above.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.FlatMap.mergedOnClock(breadth: Int, turns: Turns): Pull {
     val build = guarded("flatMapMerge", at, f)
     val up = upstream.pull()

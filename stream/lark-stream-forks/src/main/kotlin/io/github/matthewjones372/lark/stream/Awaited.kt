@@ -32,6 +32,7 @@ private class Started(val element: Any, val stage: CompletableFuture<Any?>)
  * The started stages wait in a [Ring] of [window]: the head leaves it only once it has answered, so the ring's
  * capacity is the window, and the fork is woken for room a batch at a time rather than once per answer.
  */
+context(ctx: PullContext)
 internal fun Node.MapAsync.fed(window: Int, bound: Bound): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()
@@ -86,6 +87,7 @@ internal fun feed(up: Pull, started: Ring, start: (Any) -> Any) {
  * As [fed], but each answer is passed on as soon as its stage completes (spec 0170): a stage's completion puts it
  * in [Arrivals] for the pull, from whichever thread completed it, so nothing waits on the oldest.
  */
+context(ctx: PullContext)
 internal fun Node.MapAsync.fedUnordered(bound: Bound): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()

@@ -224,6 +224,7 @@ internal class InFlight<T>(on: Executor, private val body: () -> T) : Runnable {
  */
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.MapPar.window(bound: Bound): Pull {
     val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
@@ -270,6 +271,7 @@ internal fun Node.MapPar.window(bound: Bound): Pull {
  */
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.MapPar.unorderedWindow(bound: Bound): Pull {
     val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
@@ -323,6 +325,7 @@ internal fun Node.MapPar.unorderedWindow(bound: Bound): Pull {
  */
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.MapPar.keyedWindow(key: (Any) -> Any, bound: Bound): Pull {
     val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val keyOf = guarded("mapParKeyed", at, key)
