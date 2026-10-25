@@ -34,8 +34,11 @@ private fun JdbcJournal.put(id: String) = append(PersistenceId("order", id), 0, 
 /**
  * What the JDBC feed does at a gap on Postgres: an append still open on one connection holds the feed back on another,
  * and one that never commits is passed after `gapTimeout`.
+ *
+ * One test at a time: a gap is read from `pg_current_snapshot()`, whose horizon covers every open transaction on the
+ * server, in every database. These tests hold transactions open on purpose, so another test's would read as a gap here.
  */
-object PostgresFeedGapSuite : Suite<Unit>() {
+object PostgresFeedGapSuite : Suite<Unit>(concurrent = false) {
     override val shared: Resource<Unit> = resource { }
 
     /** An empty database with the journal's table, fresh for each test. */
