@@ -357,7 +357,7 @@ knows:
 - `single`, `singleOf`, `closingOf` and `choice`;
 - `lark-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
   `configFromResource` and `configFromFile`; `lark-app-kotlinx`'s `config`;
-  `lark-app-liquibase`'s `migrations`; `lark-app-openfeature`'s `openFeature`;
+  `lark-app-liquibase`'s `migrations`; `lark-app-openfeature`'s `openFeature`; `lark-app-openfeature-flagd`'s `flagdFlags`;
   `lark-app-pekko`'s `actor`;
   `lark-app-actor`'s `actors` and `actor`;
 - `plus`, `overriding`, `overridingConfig`, `boundTo` and `probe`;
