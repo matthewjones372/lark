@@ -24,6 +24,30 @@ graph reports not ready while the provider is in error or stale, and release
 shuts the SDK down. `Flag.value()` reads the same provider. One graph per JVM
 can hold it, and a second is refused.
 
+## Flags in the service's config
+
+`lark-app-openfeature-flagd`'s `flagdFlags("flags")` reads the flags from a
+section of the service's own HOCON, in [flagd's schema](https://flagd.dev/reference/flag-definitions/),
+and evaluates them in-process. HOCON is a superset of JSON, so a flagd
+definition is already a valid section, targeting included:
+
+```hocon
+flags {
+  "adoption.per-customer-limit" {
+    state = ENABLED
+    variants { standard = 3, raised = 5 }
+    defaultVariant = standard
+    targeting { "if" = [{ "==" = [{ "var" = "targetingKey" }, "ada"] }, "raised", "standard"] }
+  }
+}
+```
+
+The targeting key is the one `evaluatedFor` binds. A section flagd rejects
+refuses the start, naming the flag and the file it came from, and a test
+overrides the section like any other setting. A change is a redeploy. The
+module brings flagd's gRPC client with it, so a service on another provider
+never carries it.
+
 ## Declaring and reading a flag
 
 <!-- flags-declare -->

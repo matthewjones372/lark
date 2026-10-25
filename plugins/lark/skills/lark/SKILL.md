@@ -60,6 +60,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `lark-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.
 - `lark-app-liquibase`: `migrations` and `Migrated`.
 - `lark-app-openfeature`: `openFeature { provider }`, a flag provider as a node.
+- `lark-app-openfeature-flagd`: `flagdFlags(path)`, flags in the service's HOCON.
 - `lark-app-pekko`: a Pekko typed actor as a node.
 - `lark-app-actor`: a `lark-actor` flock and actors as nodes.
 - `lark-app-cluster`: a cluster membership as a node.
