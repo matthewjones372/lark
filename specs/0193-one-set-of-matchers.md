@@ -86,11 +86,11 @@ grep -n '"a string containing\|"no elements\|"at least' core/lark-junit/src/main
 
 ## Open questions
 
-1. **Should `Miss` and the checks be public behind `@FailureSeam`, or published as a stable API for
-   other assertion styles to build on?** Recommended: behind the seam, as `mismatchAt` is today,
-   until a third user appears.
-2. **What should the checks be named?** `missingInAnyOrder`, `notEqual`, `notLessThan`, … read as
-   "what went wrong". The other option is `shouldContainExactlyInAnyOrderMiss`, which is easy to find
-   but long. Recommended: the short names, in one `Checks.kt` per family.
-3. **Should `lark-junit` gain the rest of `lark-assert`'s matchers now that each is one line?**
-   Recommended: no. 0192 said "when a module needs them", and that still holds.
+Answered (maintainer, 2026-10-25: the recommendations stand).
+
+1. ~~Should `Miss` and the checks be public behind `@FailureSeam`, or published as a stable API?~~
+   Behind the seam, as `mismatchAt` is today, until a third user appears.
+2. ~~What should the checks be named?~~ The short names (`missingInAnyOrder`, `notEqual`,
+   `notLessThan`, …), in one `Checks.kt` per family.
+3. ~~Should `lark-junit` gain the rest of `lark-assert`'s matchers now?~~ No: they follow when a
+   module needs them, as 0192 said.
