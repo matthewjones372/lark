@@ -98,13 +98,11 @@ interface hidden, so I recommend the parameter.
 
 ## Open questions
 
-1. `Boundaries.within` is public (`@StreamSpi`). After entry 3 nothing calls
-   it. Should it be deleted, or deprecated for one release? I recommend
-   deleting it: it is pre-1.0 SPI, and lark-stream-actors is its only user.
-2. Late-built pulls change behaviour: today they use whatever is bound on the
-   thread that pulls them. Is there any case where that differs from the
-   `ctx` they were built with, other than the 0150 bug? I recommend running
-   `DifferentialTest` with a seed sweep in entry 1 to find out.
-3. Does entry 1 stay under 200 lines? It threads `ctx` through about 45 call
-   sites. If not, I recommend splitting it by file: `Pull.kt` first, then the
-   fork files.
+Answered (maintainer, 2026-10-25: the recommendations stand).
+
+1. ~~Delete `Boundaries.within`, or deprecate it?~~ Delete it in entry 3.
+2. ~~Do late-built pulls change behaviour beyond the 0150 bug?~~ Not that the tests find: `DifferentialTest` and
+   the rest of parity pass with every late pull built under the context it was handed.
+3. ~~Does entry 1 stay under 200 lines?~~ Yes. `ctx` is a context parameter, `context(ctx: PullContext)`, as
+   `Fail` is in core, rather than an argument: the dependency is still in every signature and checked by the
+   compiler, but the 45 `upstream.pull()` calls stay as they are.

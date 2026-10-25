@@ -70,6 +70,7 @@ class ForksOnClock(private val time: TestClock, name: String) : StreamBackend {
             onStop = turns::stop,
             kept = CopyOnWriteArrayList(),
             interrupting = false,
+            turns = turns,
         )
         turns.fork {
             try {
@@ -99,6 +100,8 @@ private class PullRun<E, R : Any>(
     private val kept: MutableList<Any>? = null,
     /** Whether a stop interrupts the loop: on Forks yes, on a test's clock the workers are parked instead. */
     private val interrupting: Boolean = true,
+    /** The turns of a run on a test's clock; none on Forks. */
+    private val turns: Turns? = null,
 ) : Running<E, R>, Emitting {
 
     private val stopped = AtomicBoolean(false)
@@ -138,7 +141,7 @@ private class PullRun<E, R : Any>(
         synchronized(this) { loop = Thread.currentThread() }
         var opened: Pulling<E, R>? = null
         val ended = try {
-            val loop = Pulling(run, log, clock, on, kept).also { opened = it }
+            val loop = Pulling(run, log, clock, on, kept, boundaries = null, turns).also { opened = it }
             pulling = loop
             if (stopped.get()) loop.stop()
             checkNotNull(loop.pull(Int.MAX_VALUE)) { "a pull of every element ended without an exit" }
@@ -163,14 +166,25 @@ private class PullRun<E, R : Any>(
  * the thread that pulls it, so the batches may each be on a different thread, as long as it is one at a time.
  */
 @StreamSpi
-class Pulling<E, R : Any>(
+class Pulling<E, R : Any> internal constructor(
     run: Run<E, R>,
     private val log: Logger,
     private val clock: Clock,
     on: Executor,
-    private val kept: MutableList<Any>? = null,
-    private val boundaries: Boundaries? = null,
+    private val kept: MutableList<Any>?,
+    private val boundaries: Boundaries?,
+    /** The turns of a run on a test's clock, which its pulls take turns on; none on Forks. */
+    private val turns: Turns?,
 ) {
+    constructor(
+        run: Run<E, R>,
+        log: Logger,
+        clock: Clock,
+        on: Executor,
+        kept: MutableList<Any>? = null,
+        boundaries: Boundaries? = null,
+    ) : this(run, log, clock, on, kept, boundaries, turns = null)
+
     // The fused tree is the same for every run of a description, so it is worked out once, and so is whether
     // a run of it can start a thread of its own: one that cannot pays nothing for it.
     private val compiled = run.compiled.getOrCompile(ForksKey) { Compiled(run.node.optimised()) }
@@ -225,13 +239,20 @@ class Pulling<E, R : Any>(
         return Exit.Died(unclosed)
     }
 
+    /** The run's pull, built under the run's context on the first batch and kept for the ones after. */
+    private fun opened(): Pull {
+        pull?.let { return it }
+        val context = PullContext(turns, releases, resources, boundaries)
+        return with(context) { compiled.tree.pull() }.also { pull = it }
+    }
+
     // The catch is as wide as a pipeline, because everything a stage threw ends the run: a declared
     // failure as `Failed`, an interruption a stop caused as `Done`, and anything else as the `Died` it
     // is logged as.
     @Suppress("TooGenericExceptionCaught", "UNCHECKED_CAST")
     private fun pulled(max: Int): Exit<E, R>? =
         try {
-            val from = pull ?: compiled.tree.pull().also { pull = it }
+            val from = opened()
             var left = max
             var ended: Exit<E, R>? = null
             while (ended == null && left > 0) {

@@ -16,6 +16,7 @@ private sealed interface Ended {
  */
 // The catch is as wide as a pipeline: whatever upstream threw is the pull's to throw, in order.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.Buffer.buffered(bound: Bound): Pull {
     val up = upstream.pull()
     val queue = Ring(size)
@@ -64,6 +65,7 @@ private fun Pull.into(queue: Ring) {
  */
 // The catch is as wide as a pipeline, as above.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.Buffer.bufferedOnClock(turns: Turns): Pull {
     val up = upstream.pull()
     val held = ArrayDeque<Any>()

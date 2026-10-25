@@ -64,7 +64,7 @@ that refactor.
 
 ## Stack
 
-- [ ] **`spec-0150-bound`**: `Bound`, used at all six forks and in
+- [x] **`spec-0150-bound`** ([#615](https://github.com/matthewjones372/lark/pull/615)): `Bound`, used at all six forks and in
       `Turns.fork`. The failing
       tests come first:
       - stopping a run wakes a blocked `Stream.blocking` read inside

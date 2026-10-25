@@ -44,6 +44,34 @@ fun interface Boundaries {
     }
 }
 
+/**
+ * What a pull is built under, handed to it rather than read from its thread (spec 0152): the run's time, its forks
+ * and blocking sources, and the backend that runs some operators its own way. A pull built later, by a `concat`, a
+ * `catchAll` or a fork, is built under the one it was handed.
+ */
+internal class PullContext(
+    /** The run's turns on a test's clock, or none on Forks. */
+    val turns: Turns?,
+    val releases: Releases?,
+    val resources: Resources?,
+    val boundaries: Boundaries?,
+) {
+    val onClock: Boolean get() = turns != null
+
+    /** The turns of a run on a test's clock, for a node that only pulls on one. */
+    val clockTurns: Turns get() = checkNotNull(turns) { "a node with time in it was pulled off a test's clock" }
+
+    /** What a fork of this run binds on its own thread. */
+    val bound: Bound get() = Bound(releases, resources)
+
+    /** The same run, with [scope] for the blocking sources the pulls built under it open: one restart's attempt. */
+    fun within(scope: Resources): PullContext = PullContext(turns, releases, scope, boundaries)
+
+    /** The run's time: a test's clock, or the run's own clock on Forks. */
+    fun timeline(): Timeline =
+        turns ?: RealTime(checkNotNull(releases) { "a node with time in it was pulled outside a run" })
+}
+
 /** The operators a pull runs: every one with no backend of its own in it, since spec 0052. */
 internal fun Node.pulls(): Boolean =
     when (this) {
@@ -67,8 +95,9 @@ internal fun Node.pullsOnClock(): Boolean = pulls()
  * The pull a node describes. `start` has refused every node its backend cannot run before this is reached.
  * A node with time in it waits on the run's [Timeline]: a test's clock, or the run's own on Forks.
  */
+context(ctx: PullContext)
 internal fun Node.pull(): Pull =
-    Boundaries.here()?.takeUnless { Turns.taking() }?.pull(this, Node::pull) ?: when (this) {
+    ctx.boundaries?.takeUnless { ctx.onClock }?.pull(this) { it.pull() } ?: when (this) {
         is Node.Elements -> elements.iterator().let { items -> Pull { items.takeIf { it.hasNext() }?.next() } }
 
         is Node.Single -> once { element }
@@ -79,7 +108,7 @@ internal fun Node.pull(): Pull =
 
         is Node.FromStage -> once { awaited(this) }
 
-        is Node.Blocking -> blocking(Resources.here())
+        is Node.Blocking -> blocking(ctx.resources)
 
         is Node.Map -> map()
 
@@ -127,25 +156,25 @@ internal fun Node.pull(): Pull =
 
         is Node.Probed -> probed()
 
-        is Node.Tick -> tick(timeline())
+        is Node.Tick -> tick(ctx.timeline())
 
-        is Node.GroupedWithin -> groupedWithin(timeline())
+        is Node.GroupedWithin -> groupedWithin(ctx.timeline())
 
-        is Node.RestartOnDefect -> restarting(timeline())
+        is Node.RestartOnDefect -> restarting(ctx.timeline())
 
         // On a test's clock one element at a time, in the order they came, which is the answer a test of
         // timing wants, and keeps every key's order too; on Forks, a window of bodies in flight.
         is Node.MapPar -> {
             val keyed = key
             when {
-                Turns.taking() -> inOrder()
-                keyed != null -> keyedWindow(keyed, Bound.here())
-                ordered -> window(Bound.here())
-                else -> unorderedWindow(Bound.here())
+                ctx.onClock -> inOrder()
+                keyed != null -> keyedWindow(keyed, ctx.bound)
+                ordered -> window(ctx.bound)
+                else -> unorderedWindow(ctx.bound)
             }
         }
 
-        is Node.Buffer -> if (Turns.taking()) bufferedOnClock(Turns.here()) else buffered(Bound.here())
+        is Node.Buffer -> if (ctx.onClock) bufferedOnClock(ctx.clockTurns) else buffered(ctx.bound)
 
         is Node.Sliding -> sliding()
 
@@ -153,14 +182,14 @@ internal fun Node.pull(): Pull =
 
         // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them fed by a fork.
         is Node.MapAsync -> when {
-            Turns.taking() -> awaiting(1)
-            ordered -> fed(parallelism, Bound.here())
-            else -> fedUnordered(Bound.here())
+            ctx.onClock -> awaiting(1)
+            ordered -> fed(parallelism, ctx.bound)
+            else -> fedUnordered(ctx.bound)
         }
 
-        is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Bound.here())
+        is Node.Merge -> if (ctx.onClock) mergedOnClock(ctx.clockTurns) else merged(ctx.bound)
 
-        is Node.Conflate -> if (Turns.taking()) conflatedOnClock(Turns.here()) else conflated(Bound.here())
+        is Node.Conflate -> if (ctx.onClock) conflatedOnClock(ctx.clockTurns) else conflated(ctx.bound)
 
         is Node.Native, is Node.Stage, Node.Hole,
         -> error("$operator reached the Forks runner, which start refuses it before")
@@ -183,6 +212,7 @@ private fun once(element: () -> Any): Pull {
  * closed as soon as it runs out; the run closes it otherwise, once its loop has ended.
  */
 @Suppress("TooGenericExceptionCaught") // Only to close before the failure goes on, unchanged.
+context(ctx: PullContext)
 private fun Node.Blocking.blocking(resources: Resources?): Pull {
     var opened: Opened? = null
     var done = false
@@ -214,12 +244,14 @@ private fun awaited(from: Node.FromStage): Any =
         throw wrapped.cause ?: wrapped
     }
 
+context(ctx: PullContext)
 private fun Node.Map.map(): Pull {
     val body = guarded("map", at, f)
     val up = upstream.pull()
     return Pull { up.next()?.let(body) }
 }
 
+context(ctx: PullContext)
 private fun Node.MapOrFail.mapOrFail(): Pull {
     val scope = Failing<Any?>()
     val body = guarded("mapOrFail", at) { a: Any -> scope.f(a) }
@@ -228,12 +260,14 @@ private fun Node.MapOrFail.mapOrFail(): Pull {
 }
 
 /** A `mapPar` one element at a time, on the pulling thread: its raise is the stream's, as on Pekko. */
+context(ctx: PullContext)
 private fun Node.MapPar.inOrder(): Pull {
     val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
     return Pull { up.next()?.let { a -> body(a).fold({ e -> throw DeclaredFailure(e) }, { b -> b }) } }
 }
 
+context(ctx: PullContext)
 private fun Node.Unary.kept(operator: String, at: String, test: (Any) -> Boolean): Pull {
     val guard = guarded(operator, at, test)
     val up = upstream.pull()
@@ -244,6 +278,7 @@ private fun Node.Unary.kept(operator: String, at: String, test: (Any) -> Boolean
     }
 }
 
+context(ctx: PullContext)
 private fun Node.Take.take(): Pull {
     val up = upstream.pull()
     var left = n
@@ -257,6 +292,7 @@ private fun Node.Take.take(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.Drop.drop(): Pull {
     val up = upstream.pull()
     var skip = n
@@ -269,6 +305,7 @@ private fun Node.Drop.drop(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.TakeWhile.takeWhile(): Pull {
     val test = guarded("takeWhile", at, predicate)
     val up = upstream.pull()
@@ -280,6 +317,7 @@ private fun Node.TakeWhile.takeWhile(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.DropWhile.dropWhile(): Pull {
     val test = guarded("dropWhile", at, predicate)
     val up = upstream.pull()
@@ -292,6 +330,7 @@ private fun Node.DropWhile.dropWhile(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.Grouped.grouped(): Pull {
     val up = upstream.pull()
     return Pull {
@@ -301,6 +340,7 @@ private fun Node.Grouped.grouped(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.Scan.scan(): Pull {
     val carry = guarded("scan", at, f)
     val up = upstream.pull()
@@ -315,6 +355,7 @@ private fun Node.Scan.scan(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.StatefulMap.statefulMap(): Pull {
     val step = guarded("statefulMap", at, f)
     val up = upstream.pull()
@@ -334,6 +375,7 @@ private fun Node.StatefulMap.statefulMap(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.MapConcat.mapConcat(): Pull {
     val body = guarded("mapConcat", at, f)
     val up = upstream.pull()
@@ -345,6 +387,7 @@ private fun Node.MapConcat.mapConcat(): Pull {
 }
 
 /** The declared failure as a last `Left`: a pull that failed is not pulled again, so the stream ends there. */
+context(ctx: PullContext)
 private fun Node.Either.either(): Pull {
     val up = upstream.pull()
     var ended = false
@@ -360,6 +403,7 @@ private fun Node.Either.either(): Pull {
 }
 
 @Suppress("UNCHECKED_CAST")
+context(ctx: PullContext)
 private fun Node.Absolve.absolve(): Pull {
     val decided = guarded("absolve", at) { either: Any ->
         (either as Either<Any?, Any>).fold({ left -> throw DeclaredFailure(left) }, { right -> right })
@@ -369,6 +413,7 @@ private fun Node.Absolve.absolve(): Pull {
 }
 
 /** One recovery, as Pekko's `recoverWithRetries(1)`: a failure of the stream that took over ends the run. */
+context(ctx: PullContext)
 private fun Node.CatchAll.catchAll(): Pull {
     var current = upstream.pull()
     var recovered = false
@@ -386,6 +431,7 @@ private fun Node.CatchAll.catchAll(): Pull {
 
 // A declared failure carries a value and no stack, so the one replaced is not lost: its value is mapped.
 @Suppress("SwallowedException")
+context(ctx: PullContext)
 private fun Node.MapError.mapError(): Pull {
     val mapped = guardedError("mapError", at, f)
     val up = upstream.pull()
@@ -398,6 +444,7 @@ private fun Node.MapError.mapError(): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.OrFailIfEmpty.orFailIfEmpty(): Pull {
     val up = upstream.pull()
     var emitted = false
@@ -410,13 +457,15 @@ private fun Node.OrFailIfEmpty.orFailIfEmpty(): Pull {
 }
 
 /** One inner stream after another, or up to [breadth] at once: on a test's clock as workers taking turns. */
+context(ctx: PullContext)
 private fun Node.FlatMap.flatMapped(breadth: Int?): Pull =
     when {
         breadth == null -> flatMapConcat()
-        Turns.taking() -> mergedOnClock(breadth, Turns.here())
-        else -> merged(breadth, Bound.here())
+        ctx.onClock -> mergedOnClock(breadth, ctx.clockTurns)
+        else -> merged(breadth, ctx.bound)
     }
 
+context(ctx: PullContext)
 private fun Node.FlatMap.flatMapConcat(): Pull {
     val build = guarded("flatMapConcat", at, f)
     val up = upstream.pull()
@@ -433,6 +482,7 @@ private fun Node.FlatMap.flatMapConcat(): Pull {
 }
 
 /** This node's elements, then [next]'s, which is not pulled from, or started, until this one has ended. */
+context(ctx: PullContext)
 private fun Node.then(next: Node): Pull {
     val first = pull()
     var second: Pull? = null
@@ -443,6 +493,7 @@ private fun Node.then(next: Node): Pull {
     }
 }
 
+context(ctx: PullContext)
 private fun Node.ZipWith.zipWith(): Pull {
     val combine = guarded("zipWith", at, f)
     val left = upstream.pull()
@@ -455,6 +506,7 @@ private fun Node.ZipWith.zipWith(): Pull {
 }
 
 /** A fused run as one pull: the steps are calls in a loop, and an element a filter drops pulls the next. */
+context(ctx: PullContext)
 private fun Node.Fused.fusedLoop(): Pull {
     val links = steps.map { it.link() }.toTypedArray()
     val up = upstream.pull()
@@ -515,6 +567,7 @@ private inline fun <B> guarding(operator: String, at: String, a: Any, f: () -> B
     }
 
 /** A probe on the pulling thread: entering `next` ends a wait, and returning an element starts one. */
+context(ctx: PullContext)
 private fun Node.Probed.probed(): Pull {
     val watch = probe.watch()
     val up = upstream.pull()
@@ -529,6 +582,7 @@ private fun Node.Probed.probed(): Pull {
  * them: a step longer than the window skips what falls between, and the stream's end emits what is left
  * only where it holds elements no window has emitted yet.
  */
+context(ctx: PullContext)
 private fun Node.Sliding.sliding(): Pull = Windowing(upstream.pull(), n, step)
 
 private class Windowing(private val up: Pull, private val n: Int, private val step: Int) : Pull {
@@ -577,6 +631,7 @@ private class Windowing(private val up: Pull, private val n: Int, private val st
  * [Node.Interleave.segmentSize] elements from the first stream, then as many from the other, in turn;
  * once either ends, the rest of the other, as Pekko's `interleave` does by default.
  */
+context(ctx: PullContext)
 private fun Node.Interleave.interleave(): Pull {
     val sides = arrayOf(upstream.pull(), other.pull())
     val done = booleanArrayOf(false, false)
@@ -606,6 +661,7 @@ private fun Node.Interleave.interleave(): Pull {
  * answered in the order the elements came. A stage that fails is the defect `mapAsync` names, and one that completes
  * with `null` is too, as on Pekko. The wait is interruptible, so a stop wakes it.
  */
+context(ctx: PullContext)
 private fun Node.MapAsync.awaiting(window: Int): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()
@@ -629,11 +685,3 @@ private fun Node.MapAsync.awaiting(window: Int): Pull {
         }
     }
 }
-
-/** The run's time: a test's clock where this is one of its workers, and the run's own clock on Forks. */
-private fun timeline(): Timeline =
-    if (Turns.taking()) {
-        Turns.here()
-    } else {
-        RealTime(checkNotNull(Releases.here()) { "a node with time in it was pulled outside a run" })
-    }

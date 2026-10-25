@@ -18,6 +18,7 @@ private fun Instant.plus(duration: Duration): Instant = plusNanos(duration.inWho
  * The first element [Node.Tick.after] from the first pull, then one every [Node.Tick.every]. A tick that
  * falls due while nothing is asking is dropped, as Pekko's is: the next pull waits for the next one.
  */
+context(ctx: PullContext)
 internal fun Node.Tick.tick(turns: Timeline): Pull {
     var due: Instant? = null
     return Pull {
@@ -78,6 +79,7 @@ private fun Timeline.feed(up: Pull, into: Handoff) = fork {
  * Windows follow each other every [Node.GroupedWithin.within] from the first pull, and a full group starts
  * the next window from the instant it was emitted, as Pekko's do. A window that closes empty emits nothing.
  */
+context(ctx: PullContext)
 internal fun Node.GroupedWithin.groupedWithin(turns: Timeline): Pull =
     if (turns is RealTime) {
         Queued(n, within, turns, ArrayBlockingQueue<Any>(n + 1).also { turns.feed(upstream.pull(), it) })
@@ -199,12 +201,14 @@ private class Windows(val n: Int, val within: Duration, val turns: Timeline, val
  */
 // The catch is as wide as a pipeline, because a defect is whatever upstream threw that it did not declare.
 @Suppress("TooGenericExceptionCaught")
+context(ctx: PullContext)
 internal fun Node.RestartOnDefect.restarting(turns: Timeline): Pull {
     // Each attempt opens its blocking sources in a scope of its own, so a restart closes what the attempt it
     // gives up held (a consumer's place in its group, say) before the next attempt opens its own.
-    val run = Resources.here()
+    val run = ctx.resources
     var attempt = run?.attempt()
-    fun attempted(): Pull = attempt?.around { upstream.pull() } ?: upstream.pull()
+    fun attempted(): Pull =
+        attempt?.let { scope -> scope.around { with(ctx.within(scope)) { upstream.pull() } } } ?: upstream.pull()
     var current = attempted()
     var schedule = step
     return Pull {
