@@ -81,6 +81,7 @@ private val own = setOf(
     Expectations::class.java.name,
     Expectations::class.java.name + "Kt",
     Expectations::class.java.packageName + ".MatchersKt",
+    Expectations::class.java.packageName + ".CollectionMatchersKt",
 )
 
 @OptIn(FailureSeam::class)

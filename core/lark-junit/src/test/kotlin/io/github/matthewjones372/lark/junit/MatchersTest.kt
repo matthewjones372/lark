@@ -60,7 +60,7 @@ class MatchersTest {
     fun `a failed shouldNotBe names the value it should not have been`() {
         failures.getValue("fails shouldNotBe").message.orEmpty().lines().take(3) shouldBe listOf(
             "fails shouldNotBe: 1 of 1 expectations failed",
-            "expected: not 2",
+            "expected: anything but 2",
             "but was:  2",
         )
     }
@@ -70,7 +70,8 @@ class MatchersTest {
         val failed = failures.getValue("fails both matchers").shouldBeInstanceOf<MultipleFailuresError>()
 
         failed.message.orEmpty().lines().first() shouldBe "fails both matchers: 2 of 2 expectations failed (2 failures)"
-        failed.failures.map { it.message.orEmpty().lines().first() } shouldBe listOf("expected: 3", "expected: not 2")
+        failed.failures.map { it.message.orEmpty().lines().first() } shouldBe
+            listOf("expected: 3", "expected: anything but 2")
     }
 
     @Test
