@@ -18,7 +18,6 @@ dependencies {
     allowed(embeddedKafka)
 
     testImplementation(project(":lark-assert"))
-    testImplementation(project(":lark-junit"))
     // The broker's own log, errors only: a fatal fault is logged here before KafkaBroker turns its exit into a throw.
     testRuntimeOnly("org.slf4j:slf4j-simple:2.0.17")
 }
