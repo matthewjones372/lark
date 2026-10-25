@@ -957,7 +957,7 @@ private class Cell<M : Any, S, E>(
         // What each message carried, listed only when one carried something, so a run in no trace allocates none.
         val carried = if (items.any { it is Carried }) items.map { (it as? Carried)?.carried.orEmpty() } else null
         var batched: Batched<S>? = null
-        // One step for the run, inside no message's context: each is the step's to enter with `within` (spec 0196).
+        // One step for the run, inside no message's context: each is the step's to enter with `within` (spec 0198).
         val next = supervised {
             steps(this, this@Cell, state, Carrying(run as List<M>, carried)).also { batched = it }.next
         }
