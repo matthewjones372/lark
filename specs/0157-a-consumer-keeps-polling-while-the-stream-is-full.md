@@ -5,7 +5,7 @@
 `Kafka.consume` polls only when the stream pulls (`Consume.kt`, `Loop.next`). A handler slower than
 `max.poll.interval.ms` (5 minutes by default) for one poll's worth of records stops the polling, the broker
 removes the consumer from its group, every partition is rebalanced, and the records it was working on are read
-again by someone else. The same happens to `Kafka.read` with a group. Nothing in lark-kafka mentions
+again by someone else. Nothing in lark-kafka mentions
 `max.poll.interval.ms`, pauses a partition, or polls without a pull.
 
 zio-kafka polls on its own loop and pauses the partitions whose buffer is full (`FetchStrategy`,
@@ -43,7 +43,9 @@ Recommended: (a) first. It closes the correctness gap; (b) is a throughput chang
 
 - [x] **`spec-0157-slow-handler-test`** ([#450](https://github.com/matthewjones372/lark/pull/450)): a test whose handler takes longer than a short `max.poll.interval.ms`,
       failing today with a rebalance. Done when: it fails on `main` for the stated reason.
-- [ ] **`spec-0157-poller`**: the poller, pause and resume, on `Kafka.consume` and grouped `Kafka.read`.
+- [ ] **`spec-0157-poller`**: the poller, pause and resume, on `Kafka.consume`. Grouped `Kafka.read` needs none:
+      it assigns its partition rather than subscribing, so it is no member of the group, and no poll interval drops
+      it; a `ReadSuite` test with a handler slower than `max.poll.interval.ms` shows it keeps its place and commits.
       Done when: that test passes on Forks and Pekko, and the comparison benchmarks do not get slower.
 
 ## Acceptance
