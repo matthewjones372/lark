@@ -5,7 +5,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.resource
-import java.net.ServerSocket
 import java.security.KeyStore
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -18,7 +17,7 @@ private fun store(name: String) = TestCertificates.store(name)
 
 private fun tlsFor(name: String, ca: String = "cluster-ca") = TestCertificates.tls(name, ca)
 
-private fun nodeNamed(name: String) = Node(name, "127.0.0.1", ServerSocket(0).use { it.localPort })
+private fun nodeNamed(name: String) = Node(name, "127.0.0.1", freePort())
 
 private fun frameOf(n: Int) = Frame("/user/clinic", 1, byteArrayOf(n.toByte()))
 

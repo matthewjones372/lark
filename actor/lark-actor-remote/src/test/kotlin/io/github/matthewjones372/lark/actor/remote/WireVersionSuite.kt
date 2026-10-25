@@ -94,8 +94,6 @@ private fun DataOutputStream.oldHello(self: Node) {
 object WireVersionSuite : Suite<Unit>() {
     override val shared: Resource<Unit> = resource { }
 
-    private fun freePort(): Int = ServerSocket(0).use { it.localPort }
-
     init {
         test("between two nodes on version 2, what a frame carried arrives with it") { _ ->
             opening {

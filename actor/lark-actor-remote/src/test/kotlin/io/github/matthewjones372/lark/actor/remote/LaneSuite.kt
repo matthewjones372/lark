@@ -12,14 +12,11 @@ import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.resource
-import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
-
-private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
 /** Spec 0104: the cluster's own traffic on a lane of its own, never behind, or dropped with, ordinary messages. */
 object LaneSuite : Suite<Unit>() {

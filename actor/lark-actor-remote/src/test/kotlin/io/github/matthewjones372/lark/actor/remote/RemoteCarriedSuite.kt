@@ -14,7 +14,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
 import io.github.matthewjones372.lark.resource
-import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -43,7 +42,7 @@ object RemoteCarriedSuite : Suite<Unit>() {
 
     init {
         test("an ask made inside logAnnotated is handled on another node with the asker's annotations") { _ ->
-            val port = ServerSocket(0).use { it.localPort }
+            val port = freePort()
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
             val other = Thread.ofPlatform().start {
@@ -57,7 +56,7 @@ object RemoteCarriedSuite : Suite<Unit>() {
             ready.await()
             try {
                 val heard = flock<Nothing, String> {
-                    val asking = node("asking", ServerSocket(0).use { it.localPort })
+                    val asking = node("asking", freePort())
                     val answer = asking.remote(Address("answering@127.0.0.1:$port", "/user/answer", 0), whoAskedCodec)
                     logAnnotated("request_id" to "r-9") { answer.ask(1.minutes) { WhoAsked(it) }.getOrNull()!! }
                 }.getOrNull()
@@ -101,7 +100,7 @@ object RemoteReplyCarriedSuite : Suite<Unit>() {
 
     init {
         test("an answer to a reply crosses back inside the trace it was given in") { _ ->
-            val port = ServerSocket(0).use { it.localPort }
+            val port = freePort()
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
             val other = Thread.ofPlatform().start {
@@ -115,7 +114,7 @@ object RemoteReplyCarriedSuite : Suite<Unit>() {
             try {
                 val heard = CompletableFuture<String>()
                 flock<Nothing, Unit> {
-                    val asking = node("asking", ServerSocket(0).use { it.localPort })
+                    val asking = node("asking", freePort())
                     val answer = asking.remote(Address("answering@127.0.0.1:$port", "/user/answer", 0), answerToCodec)
                     logAnnotated("request_id" to "r-10") { answer.tell(AnswerTo(Telling(heard))) }
                     heard.get(1, TimeUnit.MINUTES)
