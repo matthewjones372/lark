@@ -197,6 +197,12 @@ internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
         return forks.mapNotNull { it.raisedError() }
     }
 
+    /** Ends every fork started so far, for a combinator stopped before it could settle them. */
+    fun abandon() {
+        forks.forEach { it.interrupt() }
+        forks.forEach { it.join() }
+    }
+
     private fun surfaceFirstFailure() {
         forks.firstNotNullOfOrNull { it.ownFailure() }?.let { owner.surface(it) }
     }

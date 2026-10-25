@@ -44,6 +44,9 @@ class Policy internal constructor(val name: String, val steps: List<Step>) {
 
         data class Bulkhead(val bulkhead: io.github.matthewjones372.lark.Bulkhead) : Step
 
+        /** In a bulkhead's place: calls kept inside a [io.github.matthewjones372.lark.Limit] (spec 0171). */
+        data class Concurrency(val limit: io.github.matthewjones372.lark.Limit, val maxWait: Duration) : Step
+
         data class AttemptTimeout(val each: Duration) : Step
 
         data class Custom(val guard: Guard) : Step
@@ -83,6 +86,15 @@ class PolicyBuilder internal constructor() {
         steps += Step.Bulkhead(bulkhead)
     }
 
+    /**
+     * Calls kept inside [limit], in a bulkhead's place: the one value every caller of a dependency shares, so a
+     * stream, a `parMap` and this policy draw on one budget (spec 0171). A call waits up to [maxWait] for room,
+     * as at a [Bulkhead], and is refused with [Rejected.BulkheadFull] after.
+     */
+    fun guard(limit: Limit, maxWait: Duration = ZERO) {
+        steps += Step.Concurrency(limit, maxWait)
+    }
+
     fun guard(guard: Guard) {
         steps += Step.Custom(guard)
     }
@@ -117,7 +129,7 @@ private val Step.kind: Kind?
         is Step.Retry -> Kind.RETRY
         is Step.Breaker -> Kind.BREAKER
         is Step.Limit -> Kind.LIMIT
-        is Step.Bulkhead -> Kind.BULKHEAD
+        is Step.Bulkhead, is Step.Concurrency -> Kind.BULKHEAD
         is Step.AttemptTimeout -> Kind.ATTEMPT_TIMEOUT
         is Step.Custom -> null
     }
@@ -199,6 +211,8 @@ private fun <E, A> Fail<E>.from(policy: Policy, at: Int, budget: Budget, block: 
 
         is Step.Bulkhead -> inside(step.bulkhead, budget, next)
 
+        is Step.Concurrency -> inside(step.limit, step.maxWait, budget, next)
+
         is Step.AttemptTimeout -> cut(minOf(step.each, budget.remaining()), budget, next)
 
         is Step.Custom -> with(step.guard) { guard(next) }
@@ -266,6 +280,12 @@ private fun <E, A> Fail<E>.inside(bulkhead: Bulkhead, budget: Budget, block: Fai
     } finally {
         bulkhead.release()
     }
+}
+
+// The same for a limit: its wait cut to what the deadline leaves, and the call timed for an adaptive limit to learn.
+private fun <E, A> Fail<E>.inside(limit: Limit, maxWait: Duration, budget: Budget, block: Fail<E>.() -> A): A {
+    val found = limit.admit(minOf(maxWait, budget.remaining())) ?: throw Rejected.BulkheadFull(limit.name)
+    return limit.measured(found) { block() }
 }
 
 // One fork for an attempt, and none at all when nothing bounds it. A timeout that leaves no budget is the

@@ -337,8 +337,10 @@ val written: Stream<Nothing, Int> =
     Stream.from(listOf(Order(1), Order(2))).mapPar(orders) { order -> ordersDb.write(order) }
 ```
 
-It publishes `lark.limit.current` and `lark.limit.in_use`, so a dashboard
-shows where it settled.
+The same limit goes to `parMap(ids, orders) { … }` and to a policy's
+`guard(orders)`, so all three draw on one budget. It publishes
+`lark.limit.current` and `lark.limit.in_use`, so a dashboard shows where it
+settled.
 
 ## Missing is a failure, not an empty stream
 

@@ -81,8 +81,10 @@ fun report(id: Int) = flock<Err, Dashboard> {
 - Outside a `Fail`, `parZip`, `parMap` and `raceN` take plain `() -> A`
   branches and return the combined value.
 - `parMap` starts one fork per element and has no concurrency limit. To cap
-  concurrency against a shared resource, use a [`Bulkhead`](#policies) or
-  [`mapPar`](stream.md#a-body-that-must-block) on a stream.
+  it, pass a [`Limit`](stream.md#a-limit-nobody-has-to-pick):
+  `parMap(ids, limit = ordersDb) { … }` keeps every call inside it, and never
+  has more forks than its `max`. One limit shared with a stream's `mapPar` and
+  a policy bounds all three together.
 - `flock { }` is the scope that `async` forks in. On its own it returns
   Lark's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
   it returns `A` and a failure propagates to the enclosing scope.
@@ -403,6 +405,9 @@ built, not on the first call. Each step is optional.
   order. The rest wait up to `maxWait` (or the deadline) and are then refused
   with `Rejected.BulkheadFull`. Virtual threads make callers cheap, so a
   bulkhead is what keeps thousands of them off a pool of twenty connections.
+  `guard(limit, maxWait)` takes a [`Limit`](stream.md#a-limit-nobody-has-to-pick)
+  in its place, which can find its own level and is shared with every other
+  caller of the dependency.
 - **`attemptTimeout(each)`** limits each attempt.
 
 Called as `partner { … }`, a refusal throws its `Rejected`, which is a
@@ -417,6 +422,7 @@ Each guard records metrics through lark's [metrics](observability.md#metrics):
 | `lark.breaker.calls` | counter | `name`, `outcome` (`success`, `failure`, `rejected`) |
 | `lark.bulkhead.in_use` | gauge | `name` |
 | `lark.bulkhead.calls` | counter | `name`, `outcome` (`admitted`, `rejected`) |
+| `lark.limit.current`, `lark.limit.in_use` | gauge | `name` |
 | `lark.ratelimiter.calls` | counter | `name`, `outcome` (`immediate`, `waited`, `rejected`) |
 | `lark.ratelimiter.wait` | histogram, seconds | `name` |
 
