@@ -1,20 +1,17 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Limit
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldBeInstanceOf
-import io.github.matthewjones372.lark.assert.shouldContain
-import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
+import io.github.matthewjones372.lark.junit.Expectations
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
+import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.actor.ActorSystem
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.DynamicContainer
-import org.junit.jupiter.api.DynamicContainer.dynamicContainer
-import org.junit.jupiter.api.DynamicTest
-import org.junit.jupiter.api.DynamicTest.dynamicTest
-import org.junit.jupiter.api.TestFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.TimeUnit
@@ -27,23 +24,13 @@ import kotlin.time.Duration.Companion.seconds
  * Every operator, described once and run on every backend. A backend answers each case as the case says,
  * or refuses it before it starts, naming the operator it cannot run: a case is never skipped.
  */
-class ParityTest {
+object ParitySuite : Suite<ActorSystem>() {
+    override val shared: Resource<ActorSystem> = actorSystem("lark-stream-parity-test")
 
-    companion object {
-        private val system: ActorSystem = ActorSystem.create("lark-stream-parity-test")
-
-        @JvmStatic
-        @AfterAll
-        fun stop() {
-            system.terminate()
-            system.getWhenTerminated().toCompletableFuture().join()
-        }
-
-        private const val SETTLE_SECONDS = 10L
-    }
+    private const val SETTLE_SECONDS = 10L
 
     /** Every backend there is. A new one joins here, and is held to every case below. */
-    private val backends: List<StreamBackend> = listOf(PekkoStreams(system), Forks(), TestStreams(), Actors(heldFlock))
+    private val backends: List<Backend> = listOf(OnPekko, OnForks, OnTestStreams, OnActors)
 
     internal data class Odd(val value: Int)
 
@@ -183,7 +170,7 @@ class ParityTest {
             Stream.empty().orFailIfEmpty(Odd(0)).all()
         },
         Case("orFailIfEmpty on a stream that emitted", done(listOf(1))) { Stream.of(1).orFailIfEmpty(Odd(0)).all() },
-        Case("a defect in map", Expected.Died("map died on 2, built at ParityTest.kt:")) {
+        Case("a defect in map", Expected.Died("map died on 2, built at ParitySuite.kt:")) {
             Stream.of(1, 2).map { n -> check(n < 2) { "too big" }; n }.all()
         },
         Case("concat", done(listOf(1, 2, 3))) { Stream.of(1, 2).concat(Stream.of(3)).all() },
@@ -210,24 +197,29 @@ class ParityTest {
         Case("runFold", done(10)) { Stream.of(1, 2, 3, 4).runFold(0) { total, n -> total + n } },
     )
 
-    @TestFactory
-    fun `every case answers alike on every backend, or is refused naming what it cannot run`(): List<DynamicContainer> =
-        backends.map { backend ->
-            dynamicContainer(backend.key.name, cases().map { case -> dynamicTest(case.name) { check(case, backend) } })
+    init {
+        backends.forEach { backend ->
+            cases().forEach { case ->
+                test(
+                    "every case answers alike on every backend, or is refused naming what it cannot run " +
+                        "[${backend.name}] [${case.name}]",
+                ) { system -> check(case, backend.on(system)) }
+            }
         }
-
-    @TestFactory
-    fun `no backend refuses any case, since every operator in them has no backend of its own`(): List<DynamicTest> =
-        backends.map { backend ->
-            dynamicTest(backend.key.name) {
+        backends.forEach { backend ->
+            test(
+                "no backend refuses any case, since every operator in them has no backend of its own [${backend.name}]",
+            ) { system ->
+                val on = backend.on(system)
                 val refused = cases().mapNotNull { case ->
-                    case.run().node.firstUnrunnableOn(backend)?.let { "${case.name}: ${it.operator}" }
+                    case.run().node.firstUnrunnableOn(on)?.let { "${case.name}: ${it.operator}" }
                 }
                 refused shouldBe emptyList()
             }
         }
+    }
 
-    internal fun check(case: Case, backend: StreamBackend) {
+    internal fun check(case: Case, backend: StreamBackend): Expectations {
         val run = case.run()
         val running = run.start(backend)
         // A run on a test's clock waits for the test to move it: an hour is past every case's time.
@@ -235,20 +227,21 @@ class ParityTest {
         val exit = running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
         val unrunnable = run.node.firstUnrunnableOn(backend)
         if (unrunnable != null) {
-            val died = exit.shouldBeInstanceOf<Exit.Died>()
-            withClue("${backend.key} cannot run ${unrunnable.operator}, so it refuses the run naming it") {
-                died.cause.message shouldContain "${unrunnable.operator}"
-                died.cause.message shouldContain "is not something ${backend.key} runs"
+            return exit.shouldBeInstanceOf<Exit.Died> { died ->
+                withClue("${backend.key} cannot run ${unrunnable.operator}, so it refuses the run naming it") {
+                    (died.cause.message shouldContain "${unrunnable.operator}") and
+                        (died.cause.message shouldContain "is not something ${backend.key} runs")
+                }
             }
-            return
         }
-        when (val expected = case.expected) {
-            is Expected.Done -> case.normalised(exit.shouldBeInstanceOf<Exit.Done<Any>>().value) shouldBe expected.value
+        return when (val expected = case.expected) {
+            is Expected.Done -> exit.shouldBeInstanceOf<Exit.Done<Any>> { done ->
+                case.normalised(done.value) shouldBe expected.value
+            }
 
             is Expected.Failed -> exit shouldBe Exit.Failed(expected.error)
 
-            is Expected.Died -> {
-                val died = exit.shouldBeInstanceOf<Exit.Died>()
+            is Expected.Died -> exit.shouldBeInstanceOf<Exit.Died> { died ->
                 (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain
                     expected.saying
             }
