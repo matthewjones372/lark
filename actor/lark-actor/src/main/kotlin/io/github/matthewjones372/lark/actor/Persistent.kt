@@ -215,18 +215,8 @@ fun <M : Any, Ev, S> persistent(
                 val guessed = start.guessing && remembered === initial
                 if (guessed && effect.events.isEmpty()) throw WrongGuess
                 val after = when {
-                    effect.events.isNotEmpty() -> {
-                        val written = effect.events.map(codec::encode) + listOfNotNull(delivery?.let(::mark))
-                        val appended = ctx.journal.append(id, remembered.sequence, written)
-                        if (guessed && appended.isLeft()) throw WrongGuess
-                        val sequence = appended.bind()
-                        val value = effect.events.fold(remembered.value, event)
-                        Remembered(value, sequence, remembered.delivered.after(delivery)).also { reached ->
-                            if (snapshots != null) {
-                                ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
-                            }
-                        }
-                    }
+                    effect.events.isNotEmpty() ->
+                        written(id, codec, event, snapshots, ctx, remembered, effect.events, delivery, guessed)
 
                     delivery != null -> remembered.copy(delivered = remembered.delivered.after(delivery))
 
@@ -236,17 +226,39 @@ fun <M : Any, Ev, S> persistent(
                 effect.next ?: if (after === remembered) Next.Stay else Next.Become(after)
             }
         },
-        start = { ctx, _ ->
-            if (start.guessing && (ctx as? Restartable)?.restarted == false) {
-                Next.Stay
-            } else {
-                Next.Become(recovered(id, empty, codec, event, snapshots, ctx))
-            }
-        },
+        start = { ctx, _ -> begun(start, ctx) { recovered(id, empty, codec, event, snapshots, ctx) } },
         signal = null,
         steps = steps,
         batch = batch,
     )
+}
+
+/** Nothing read, on a first start that guesses the entity is new; what [recover] reads, on every other. */
+private inline fun <S> begun(start: Start, ctx: Ctx<*>, recover: () -> S): Next<S> =
+    if (start.guessing && (ctx as? Restartable)?.restarted == false) Next.Stay else Next.Become(recover())
+
+/**
+ * [events] and the mark of [delivery] appended after [remembered], and the state they reach, saved as a snapshot when
+ * it is due. On a [guessed] state, a conflict is the guess shown wrong rather than a failure.
+ */
+private fun <M : Any, Ev, S> Fail<JournalConflict>.written(
+    id: PersistenceId,
+    codec: EventCodec<Ev>,
+    event: (state: S, event: Ev) -> S,
+    snapshots: Snapshotting<S>?,
+    ctx: Ctx<M>,
+    remembered: Remembered<S>,
+    events: List<Ev>,
+    delivery: Delivery?,
+    guessed: Boolean,
+): Remembered<S> {
+    val written = events.map(codec::encode) + listOfNotNull(delivery?.let(::mark))
+    val appended = ctx.journal.append(id, remembered.sequence, written)
+    if (guessed && appended.isLeft()) throw WrongGuess
+    val value = events.fold(remembered.value, event)
+    return Remembered(value, appended.bind(), remembered.delivered.after(delivery)).also { reached ->
+        if (snapshots != null) ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
+    }
 }
 
 /** The newest snapshot, if any, and every event after it folded in: where a start and a restart begin. */
