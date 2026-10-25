@@ -1,15 +1,17 @@
 package io.github.matthewjones372.lark.actor.remote
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Confirmed
 import io.github.matthewjones372.lark.actor.Delivered
 import io.github.matthewjones372.lark.actor.Delivery
 import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldContain
-import io.github.matthewjones372.lark.assert.shouldThrow
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldThrow
+import io.github.matthewjones372.lark.resource
 
 /** A payment a durable producer can keep. */
 private data class Deposit(val pence: Long, override val delivery: Delivery) : Delivered {
@@ -58,38 +60,41 @@ private fun producerAt(incarnation: Long) = object : ActorRef<Confirmed> {
     override fun tell(message: Confirmed) = Unit
 }
 
-class OutboxTest {
+object OutboxSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `a kept command reads back with a blank delivery, and redelivered it is the original but for the delivery`() {
-        val sent = Deposit(10, Delivery("checkout", "w-42", 7, producerAt(1)))
+    init {
+        test(
+            "a kept command reads back with a blank delivery, and redelivered it is the original but for the delivery",
+        ) { _ ->
+            val sent = Deposit(10, Delivery("checkout", "w-42", 7, producerAt(1)))
 
-        val kept = depositCodec.outbox().decode(depositCodec.outbox().encode(sent))
-        val again = Delivery("checkout", "w-42", 7, producerAt(2))
+            val kept = depositCodec.outbox().decode(depositCodec.outbox().encode(sent))
+            val again = Delivery("checkout", "w-42", 7, producerAt(2))
 
-        kept shouldBe sent.copy(delivery = sent.delivery.blank())
-        kept.delivery.confirmTo shouldBe Delivery.NoOne
-        kept.redeliver(again) shouldBe Deposit(10, again)
-    }
-
-    @Test
-    fun `a command that cannot redeliver itself is refused, and says why`() {
-        val tip = Tip(5, Delivery("checkout", "w-42", 1, producerAt(1)))
-
-        shouldThrow<UnsupportedOperationException> { tipCodec.outbox().encode(tip) }.message shouldContain
-            "Tip is sent durably, so it must implement redeliver"
-    }
-
-    @Test
-    fun `a command that carries a reply is refused, since nothing would answer it after a crash`() {
-        val reply = object : Reply<Long> {
-            override val address = Address("shop-1@10.0.0.7:25520", "/temp/ask-1", 1)
-
-            override fun invoke(answer: Long) = Unit
+            (kept shouldBe sent.copy(delivery = sent.delivery.blank())) and
+                (kept.delivery.confirmTo shouldBe Delivery.NoOne) and
+                (kept.redeliver(again) shouldBe Deposit(10, again))
         }
 
-        shouldThrow<IllegalArgumentException> {
-            quoteCodec.outbox().encode(Quote(reply, Delivery("checkout", "w-42", 1, producerAt(1))))
-        }.message shouldContain "carries no reply"
+        test("a command that cannot redeliver itself is refused, and says why") { _ ->
+            val tip = Tip(5, Delivery("checkout", "w-42", 1, producerAt(1)))
+
+            shouldThrow<UnsupportedOperationException>({ tipCodec.outbox().encode(tip) }) { e ->
+                e.message shouldContain "Tip is sent durably, so it must implement redeliver"
+            }
+        }
+
+        test("a command that carries a reply is refused, since nothing would answer it after a crash") { _ ->
+            val reply = object : Reply<Long> {
+                override val address = Address("shop-1@10.0.0.7:25520", "/temp/ask-1", 1)
+
+                override fun invoke(answer: Long) = Unit
+            }
+
+            shouldThrow<IllegalArgumentException>({
+                quoteCodec.outbox().encode(Quote(reply, Delivery("checkout", "w-42", 1, producerAt(1))))
+            }) { e -> e.message shouldContain "carries no reply" }
+        }
     }
 }
