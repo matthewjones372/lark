@@ -2,12 +2,12 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
+import io.github.matthewjones372.lark.junit.shouldStartWith
 import io.github.matthewjones372.lark.resource
 
 /** The fusing pass, read off the tree it answers with: which operators merge, and which stay apart. */
@@ -30,7 +30,7 @@ object FuseSuite : Suite<Unit>() {
                     ) and
                     (fused.upstream shouldBeSameInstanceAs source.node) and
                     (fused.operator shouldBe "fused[map, filter, mapOrFail, filterNot]") and
-                    fused.site.shouldNotBeNull { site -> expect(site.startsWith("FuseSuite.kt:")) }
+                    fused.site.shouldNotBeNull { site -> site shouldStartWith "FuseSuite.kt:" }
             }
         }
 
