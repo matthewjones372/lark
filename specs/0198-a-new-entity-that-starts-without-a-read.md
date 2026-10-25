@@ -30,16 +30,17 @@ persistent<TransferMessage, TransferEvent, Transfer>(
 )
 ```
 
-With `Start.assumingNew`, the first command is decided against `empty` at sequence 0, with no read:
+With `Start.assumingNew`, an actor's first start reads nothing: it starts at `empty`, sequence 0, and its start
+hooks (`onStart`) run with that state, as they do today for an entity whose journal is empty. Its first command:
 
-- **It persists:** the append expects sequence 0. If it succeeds, the journal was empty and the actor carries on,
-  having read nothing. If it conflicts, the entity existed: the actor recovers as today, then decides the same
-  command again against the recovered state. Nothing is lost and no `then` has run.
-- **It persists nothing:** an answer from `empty` could be wrong, so the actor recovers first and decides the
-  command against the recovered state. A lazy start costs nothing more than today's.
+- **Persists:** the append expects sequence 0. If it succeeds, the journal was empty and the guess was right. If it
+  conflicts, the entity existed.
+- **Persists nothing:** an answer from `empty` could be wrong, so the guess is treated as wrong.
 
-Start hooks (`onStart`) run after the real state is known: straight away when the first append proves the journal
-was empty, or after the recovery otherwise.
+A wrong guess restarts the actor as a failure under supervision would, without asking supervision: timers,
+registrations and the stash go, it recovers by reading its journal as today, its start hooks run again with the
+recovered state, and then the same command is decided against that state. No `then` ran for the guess. Restarts
+after that, and every restart after a failure, recover as today.
 
 ## Why this shape
 
@@ -50,7 +51,8 @@ sharding's envelope. Recommended: the behaviour option.
 
 ## Stack
 
-- [ ] **`start-assuming-new`** — `Start.assumingNew` on `persistent`, single-step only.
+- [ ] **`start-assuming-new`** — `Start.assumingNew` on `persistent`, single-step only, and the restart a wrong
+      guess makes, in both the flock's runtime and `TestActors`.
       Done when: a new entity's first persisting command makes no `read` (a counting journal shows 0), an existing
       one decided lazily ends in the same state and answer as with `Start.recovering`, and a command that persists
       nothing on a lazy start answers from the recovered state.
@@ -65,11 +67,13 @@ sharding's envelope. Recommended: the behaviour option.
 
 ## Open questions
 
-1. **Should `onStart` wait for the real state?** Recommend yes, as Shape says: a hook that starts timers or nudges
-   from the state must not see `empty` for an entity that exists. The cost is that a lazy actor's hooks run inside
-   its first step rather than before it.
-2. **Is a conflict on the first append a failure, or a recovery?** Recommend a recovery, with no failure signalled
-   and no supervision involved: it is the expected outcome of a wrong guess, not a fault.
+1. ~~Should `onStart` wait for the real state?~~ Answered by building (2026-10-25): a hook is wrapped around the
+   start from outside (`onStart`, or lark-bank's own `onRecovered`), so `persistent` cannot hold it back until its
+   first command without changing how `Behaviour` composes a start. Instead hooks run with `empty`, and a wrong guess
+   restarts the actor so they run again with the recovered state. What a hook did with `empty` is undone by the
+   restart, except a message it sent elsewhere.
+2. **Is a conflict on the first append a failure, or a recovery?** Recommend a restart that supervision is not asked
+   about and that counts as no failure: it is the expected outcome of a wrong guess, not a fault.
 3. **Should restarts be lazy too?** Recommend no: a restart follows a failure, so the entity almost certainly exists.
 4. **Name.** `Start.assumingNew`, or a plain `assumeNew: Boolean = false`? Recommend the type, which leaves room for
    another kind of start later.
