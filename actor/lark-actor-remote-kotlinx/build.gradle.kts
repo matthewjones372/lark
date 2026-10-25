@@ -4,7 +4,7 @@
 
 plugins {
     kotlin("plugin.serialization")
-    // Only for ProtoTest: protoc compiles the golden .proto, and its classes read what this module writes.
+    // Only for ProtoSuite: protoc compiles the golden .proto, and its classes read what this module writes.
     id("com.google.protobuf") version "0.9.5"
 }
 
@@ -28,7 +28,7 @@ protobuf {
 tasks.test {
     val mainRuntime = configurations.runtimeClasspath
     inputs.files(mainRuntime).withPropertyName("mainRuntimeClasspath")
-    // ProtoTest compares what proto() writes with the golden file protoc compiles.
+    // ProtoSuite compares what proto() writes with the golden file protoc compiles.
     val golden = layout.projectDirectory.file("src/test/proto/lark/kotlinx/till.proto")
     inputs.file(golden).withPropertyName("golden")
     jvmArgumentProviders.add(

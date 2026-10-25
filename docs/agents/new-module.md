@@ -8,7 +8,7 @@ without a build error when missed.
 | `settings.gradle.kts` | `module("<family>", "lark-…")`, with the folder under that family | module does not exist |
 | root `build.gradle.kts`, `moduleDescriptions` | one line for the POM | silent: POM says "Part of Lark." |
 | root `build.gradle.kts`, `unpublished` and the lists beside it | only if the module is not published, a Gradle plugin, or a benchmark | published by default |
-| `llms.txt` and `plugins/lark/skills/lark/SKILL.md`, `## Modules` | ``- `name`: …`` | `AgentDocsTest` fails |
+| `llms.txt` and `plugins/lark/skills/lark/SKILL.md`, `## Modules` | ``- `name`: …`` | `AgentDocsSuite` fails |
 | the module's `NoOtherDependenciesTest` | allow-list of jar prefixes, plus the `-D…runtimeClasspath` property in its `build.gradle.kts` | no dependency gate |
 | `docs/modules.md` | its family's table row | stale docs |
 

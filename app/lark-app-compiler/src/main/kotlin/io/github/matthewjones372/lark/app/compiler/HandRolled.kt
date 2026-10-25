@@ -47,7 +47,7 @@ private val readingString = CallableId(
     Name.identifier("string"),
 )
 
-/** `Secrets.default`'s names: the checker cannot depend on lark-app-typesafe, so SecretNamesTest keeps them equal. */
+/** `Secrets.default`'s names: the checker cannot depend on lark-app-typesafe, so SecretNamesSuite keeps them equal. */
 private val secretNames: Set<String> = setOf(
     "password",
     "passphrase",

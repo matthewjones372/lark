@@ -364,6 +364,9 @@ object CluedSuite : Suite<Any>() {
     /** How many times a [shouldBeInstanceOf]'s lambda ran; it must not on a miss. */
     val thenRan = AtomicInteger()
 
+    /** How many times a lazy clue was built; it must not be when its block holds. */
+    val lazyClueBuilt = AtomicInteger()
+
     init {
         test("passes a narrowed check") { two -> two.shouldBeInstanceOf<String> { it shouldBe "two" } }
         test("fails under a clue") { two ->
@@ -379,6 +382,13 @@ object CluedSuite : Suite<Any>() {
             }
         }
         test("fails a narrowed check") { two -> two.shouldBeInstanceOf<String> { it shouldBe "three" } }
+        test("passes under a lazy clue") { two ->
+            withClue({
+                lazyClueBuilt.incrementAndGet()
+                "never built"
+            }) { two shouldBe "two" }
+        }
+        test("fails under a lazy clue") { two -> withClue({ "built from $two" }) { two shouldBe 3 } }
     }
 }
 

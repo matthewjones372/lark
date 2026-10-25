@@ -48,11 +48,6 @@ private fun Map<Int, Incarnation>.after(moves: Map<Int, Node?>) = moves.entries.
     if (to == null) moved - shard else moved + (shard to three.first { it.node == to }.life())
 }
 
-/** A clue built only when a check fails, as `lark-assert`'s `withClue { }` builds one: its text is [text]'s. */
-internal fun lazily(text: () -> String): Any = object {
-    override fun toString() = text()
-}
-
 private val rebalance = Rebalance.byLoad(every = 1.minutes, tolerance = 0.2, mostMoves = 4)
 private val led = View(three, emptySet(), three[0].node)
 
@@ -162,7 +157,7 @@ object RebalanceSuite : Suite<Unit>() {
                     } +
                         listOf("even at ${evenAt.get()?.let { it - t0 }}", "hot ${hot.name} ${shards.sorted()}")
                 }
-                val spread = withClue(lazily { "entities by member: ${leader.running("tally")} ${story()}" }) {
+                val spread = withClue({ "entities by member: ${leader.running("tally")} ${story()}" }) {
                     even shouldBe true
                 }
                 val _ = pacer.shutdownNow()
@@ -171,7 +166,7 @@ object RebalanceSuite : Suite<Unit>() {
                     was.second != now.second
                 }
                 val fewRounds = withClue(
-                    lazily { "the leader moved shards in at most three rounds before they were even ${story()}" },
+                    { "the leader moved shards in at most three rounds before they were even ${story()}" },
                 ) {
                     rounds shouldBeLessThanOrEqual 3
                 }

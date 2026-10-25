@@ -439,8 +439,8 @@ edge between them, so they start at the same time; and every path into
 `Frontage` is something that must be ready before the service accepts
 requests.
 
-`WiringDiagramTest` holds the fence above to what `render` answers, and
-`DiagramImageTest` holds the PNG to the fence. After changing the graph, run
+`WiringDiagramSuite` holds the fence above to what `render` answers, and
+`DiagramImageSuite` holds the PNG to the fence. After changing the graph, run
 `docs/render-diagram.sh` to redraw the PNG.
 
 ## Configuration a module owns
@@ -564,7 +564,7 @@ petshop.port           9090          application.conf:2
                        overrides 8080 at reference.conf:2
 ```
 
-`ReportedTest` holds this output to what the code prints. `layeredConfig()`
+`ReportedSuite` holds this output to what the code prints. `layeredConfig()`
 reads what `ConfigFactory.load()` reads, layer by layer — `CONFIG_FORCE_`
 variables under `-Dconfig.override_with_env_vars`, system properties,
 `config.file`/`resource`/`url` or else `application.conf`, `.json` and
