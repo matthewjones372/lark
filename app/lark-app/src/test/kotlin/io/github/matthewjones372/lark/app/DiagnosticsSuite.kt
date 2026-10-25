@@ -2,9 +2,9 @@ package io.github.matthewjones372.lark.app
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldStartWith
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.resource
 import java.io.File
@@ -23,7 +23,7 @@ object DiagnosticsSuite : Suite<Unit>() {
         test("a missing dependency is a compiler error pointing at the line that asked") { _ ->
             val line = single { _: Hammer -> Nail() }.findings().diagnostics(sources)
 
-            expect(line.startsWith("e: file://")) and
+            (line shouldStartWith "e: file://") and
                 (line shouldContain "DiagnosticsSuite.kt:") and
                 (line shouldContain "Nail needs Hammer, and nothing builds it") and
                 withClue("a diagnostic that wraps is two diagnostics to whatever parses the output") {
@@ -47,7 +47,7 @@ object DiagnosticsSuite : Suite<Unit>() {
             val line = loop.findings().diagnostics(sources)
 
             withClue("a cycle is written on as many lines as it has nodes, so it names none of them") {
-                expect(line.startsWith("e: lark-app: cycle "))
+                (line shouldStartWith "e: lark-app: cycle ")
             }
         }
 
@@ -56,7 +56,7 @@ object DiagnosticsSuite : Suite<Unit>() {
 
             val line = module.findings(typeOf<Nail>()).diagnostics(sources)
 
-            expect(line.startsWith("w: file://")) and (line shouldContain "nothing reaches Hammer")
+            (line shouldStartWith "w: file://") and (line shouldContain "nothing reaches Hammer")
         }
 
         test("a key the graph builds under a name that reads the same is named beside the missing one") { _ ->

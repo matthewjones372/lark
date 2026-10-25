@@ -62,7 +62,7 @@ object ProfileSuite : Suite<ActorSystem>() {
 
             withClue(text) {
                 (profile.hottest() shouldBe 2) and
-                    expect(Regex("""map +ProfileSuite\.kt:\d+ +\d+% · """).containsMatchIn(text.lines()[2])) and
+                    (text.lines()[2] shouldContain Regex("""map +ProfileSuite\.kt:\d+ +\d+% · """)) and
                     (profile.stages.getValue(3).elements shouldBe 25)
             }
         }

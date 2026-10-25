@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders the cookbook's wiring fence to docs/wiring.png, and records what it was rendered from.
 #
-# The fence is golden-tested against `render()`, and DiagramImageTest holds this recording to the
+# The fence is golden-tested against `render()`, and DiagramImageSuite holds this recording to the
 # fence — so a graph that changes fails the build until the picture is made again. Not part of
 # `./gradlew build`: it needs a browser, and CI has no business drawing pictures.
 set -euo pipefail

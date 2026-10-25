@@ -97,7 +97,7 @@ object ProducersSuite : Suite<Unit>() {
                 val oldest = checkNotNull(Placement.oldest(banks.first().cluster.view.members))
                 val registry = checkNotNull(banks.single { it.cluster.self == oldest }.cluster.producers)
                 up and
-                    withClue(lazily { "the registry lists ${registry.listed}" }) {
+                    withClue({ "the registry lists ${registry.listed}" }) {
                         registry.await(30.seconds) { it == expected } shouldBe true
                     }
             } finally {
@@ -147,7 +147,7 @@ object ProducersSuite : Suite<Unit>() {
 
                 val drained = payments[banks.indexOf(stays)].drain(1.minutes) shouldBe true
                 val registry = checkNotNull(stays.cluster.producers)
-                val listed = withClue(lazily { "the registry lists ${registry.listed}" }) {
+                val listed = withClue({ "the registry lists ${registry.listed}" }) {
                     registry.await(30.seconds) { it?.keys == setOf(outbox(stays)) } shouldBe true
                 }
                 up and sent and resuming and drained and listed and

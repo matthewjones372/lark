@@ -26,13 +26,25 @@ class CluesTest {
 
     @Test
     fun `a narrowed check passes, and every miss fails`() {
-        events.succeeded().list().map { it.testDescriptor.displayName } shouldBe listOf("passes a narrowed check")
+        events.succeeded().list().map { it.testDescriptor.displayName }.sorted() shouldBe
+            listOf("passes a narrowed check", "passes under a lazy clue")
         failures.keys shouldContainExactlyInAnyOrder listOf(
             "fails under a clue",
             "fails one of two under a clue",
             "fails a narrowing",
             "fails a narrowed check",
+            "fails under a lazy clue",
         )
+    }
+
+    @Test
+    fun `a lazy clue is built only when its block fails`() {
+        lines("fails under a lazy clue").take(3) shouldBe listOf(
+            "fails under a lazy clue: 1 of 1 expectations failed",
+            "built from two",
+            "expected: 3",
+        )
+        CluedSuite.lazyClueBuilt.get() shouldBe 0
     }
 
     @Test

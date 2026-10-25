@@ -4,8 +4,9 @@ import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldEndWith
+import io.github.matthewjones372.lark.junit.shouldStartWith
 import io.github.matthewjones372.lark.resource
 
 object NamingSuite : Suite<Unit>() {
@@ -39,6 +40,6 @@ object NamingSuite : Suite<Unit>() {
                 parZip({ Thread.currentThread().name }, { 0 }) { a, _ -> a }
             }) { _, b -> b }
         }.getOrNull()!!
-        return expect(inner.startsWith("NamingSuite.a combinator inside a branch")) and expect(inner.endsWith("/2/1"))
+        return (inner shouldStartWith "NamingSuite.a combinator inside a branch") and (inner shouldEndWith "/2/1")
     }
 }

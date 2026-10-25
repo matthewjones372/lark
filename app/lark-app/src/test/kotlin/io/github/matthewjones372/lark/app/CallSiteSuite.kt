@@ -2,8 +2,8 @@ package io.github.matthewjones372.lark.app
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
-import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.shouldContain
+import io.github.matthewjones372.lark.junit.shouldMatch
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
@@ -24,7 +24,7 @@ object CallSiteSuite : Suite<Unit>() {
             val module = single { _: Spanner -> Bolt() }
 
             module.nodes.values.single().site.shouldNotBeNull { site ->
-                expect(Regex("""io/github/matthewjones372/lark/app/CallSiteSuite\.kt:\d+""").matches(site))
+                site shouldMatch Regex("""io/github/matthewjones372/lark/app/CallSiteSuite\.kt:\d+""")
             }
         }
 
@@ -57,7 +57,7 @@ object CallSiteSuite : Suite<Unit>() {
                 val report = errors.report()
 
                 (report shouldContain "missing Spanner") and
-                    expect(Regex("""(?s).*for Bolt\s+CallSiteSuite\.kt:\d+.*""").matches(report))
+                    (report shouldMatch Regex("""(?s).*for Bolt\s+CallSiteSuite\.kt:\d+.*"""))
             }
         }
     }
