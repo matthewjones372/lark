@@ -56,26 +56,29 @@ writing a test, and a new module would pick one at random. Recommended: move the
 
 ## Stack
 
-- [ ] **`spec-0197-setup`** — `forAll`, with tests; the root build's `lark-junit` setup; the modules on
+- [x] **`spec-0197-setup`** ([#623](https://github.com/matthewjones372/lark/pull/623)) — `forAll`, with tests; the root build's `lark-junit` setup; the modules on
       `lark-junit` drop their copies.
       Done when: `./gradlew build` passes with no module's tests changed.
-- [ ] **One PR per batch**, each a module or a few small ones, about 8 to 14 classes:
-  - `lark-stream`, `lark-stream-test` and `lark-stream-actors`;
-  - `lark-stream-forks`;
-  - `lark-stream-parity`;
-  - `lark-actor-remote` and its three codec modules;
-  - `lark-actor-journal-jdbc` and `lark-actor-projection`;
-  - `lark-cluster`, in two halves;
-  - `lark-cluster-aws`, `lark-cluster-kubernetes`, `lark-arrow` and `lark-structured`;
-  - `lark-app`, in two halves;
-  - `lark-app-typesafe`;
-  - `lark-app-actor`, `lark-app-cluster`, `lark-app-kotlinx` and `lark-app-liquibase`;
-  - `lark-app-openfeature`, `lark-app-openfeature-flagd` and `lark-app-pekko`;
-  - `lark-micrometer`, `lark-openfeature`, `lark-otel` and `lark-slf4j`;
-  - `lark-bank`.
+- [x] **One PR per batch**, each a module or a few small ones, about 8 to 14 classes:
+  - `lark-stream`, `lark-stream-test` and `lark-stream-actors` ([#643](https://github.com/matthewjones372/lark/pull/643));
+  - `lark-stream-forks` ([#625](https://github.com/matthewjones372/lark/pull/625));
+  - `lark-stream-parity` ([#626](https://github.com/matthewjones372/lark/pull/626));
+  - `lark-actor-remote` and its three codec modules ([#627](https://github.com/matthewjones372/lark/pull/627));
+  - `lark-actor-journal-jdbc` and `lark-actor-projection` ([#631](https://github.com/matthewjones372/lark/pull/631));
+  - `lark-cluster`, in two halves ([#629](https://github.com/matthewjones372/lark/pull/629), [#638](https://github.com/matthewjones372/lark/pull/638));
+  - `lark-cluster-aws`, `lark-cluster-kubernetes`, `lark-arrow` and `lark-structured` ([#632](https://github.com/matthewjones372/lark/pull/632));
+  - `lark-app`, in two halves ([#630](https://github.com/matthewjones372/lark/pull/630), [#634](https://github.com/matthewjones372/lark/pull/634));
+  - `lark-app-typesafe` ([#635](https://github.com/matthewjones372/lark/pull/635));
+  - `lark-app-actor`, `lark-app-cluster`, `lark-app-kotlinx` and `lark-app-liquibase` ([#637](https://github.com/matthewjones372/lark/pull/637));
+  - `lark-app-openfeature`, `lark-app-openfeature-flagd` and `lark-app-pekko` ([#639](https://github.com/matthewjones372/lark/pull/639));
+  - `lark-micrometer`, `lark-openfeature`, `lark-otel` and `lark-slf4j` ([#641](https://github.com/matthewjones372/lark/pull/641));
+  - `lark-bank` ([#640](https://github.com/matthewjones372/lark/pull/640)).
+
+  Along the way: the matchers the batches found missing ([#633](https://github.com/matthewjones372/lark/pull/633)), a port race in `lark-actor-remote`'s
+  tests ([#636](https://github.com/matthewjones372/lark/pull/636)), and a tidy-up of the `expect(...)` stand-ins, stale names and a publisher race ([#642](https://github.com/matthewjones372/lark/pull/642)).
 
   Done when (each): the moved suites report the same tests, all passing, under `lark`.
-- [ ] **`spec-0197-result`** — a `## Result` section:
+- [x] **`spec-0197-result`** — a `## Result` section:
   - the whole `./gradlew test` before and after;
   - each module's test task, from the same profile;
   - every `alone` or `concurrent = false` added, and why;
