@@ -33,3 +33,22 @@ object TimingSuite : Suite<Runs>() {
         }
     }
 }
+
+/** Spec 0193: the build's default timeout, for a test with none of its own and not for one that has one. */
+object DefaultTimeoutSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
+
+    init {
+        // Long enough to pass the default the test gives, short enough not to hold up a run that selects every suite.
+        test("sleeps past the default") { _ ->
+            Thread.sleep(SLEEP_PAST_DEFAULT_MILLIS)
+            expect(true)
+        }
+        test("outlasts the default under its own timeout", timeout(1.minutes)) { _ ->
+            Thread.sleep(SLEEP_PAST_DEFAULT_MILLIS)
+            expect(true)
+        }
+    }
+
+    private const val SLEEP_PAST_DEFAULT_MILLIS = 500L
+}

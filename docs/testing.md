@@ -214,7 +214,7 @@ import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 
 // Stands in for the service under test.
-class PetShop : AutoCloseable {
+class PetShop {
     private val pets = ConcurrentHashMap<String, String>()
 
     fun list(name: String) {
@@ -225,7 +225,7 @@ class PetShop : AutoCloseable {
 
     fun count(): Int = pets.size
 
-    override fun close() = pets.clear()
+    fun close() = pets.clear()
 }
 
 object PetShopSuite : Suite<PetShop>(limit = Limit.fixed(8)) {
@@ -460,6 +460,12 @@ together, and an attempt cut off by it is not retried;
 one that runs out. A suite's aspects wrap each of its tests'. Tags add up, a
 test is `alone` if either side is, and an `ignore` on the left gives its reason
 before one on the right.
+
+A test with no `timeout` of its own, nor one from its suite, is held to the
+`lark.junit.timeout.default` configuration parameter or system property, if
+set: a duration such as `60s`, as Jupiter's
+`junit.jupiter.execution.timeout.default` is. This repository's build sets both
+to 60 seconds.
 
 <!-- testing-junit-aspects -->
 ```kotlin

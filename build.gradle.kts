@@ -209,6 +209,8 @@ subprojects {
         useJUnitPlatform { included?.let { includeTags(*it.toTypedArray()) } }
 
         systemProperty("junit.jupiter.execution.timeout.default", "60s")
+        // The same default for lark-junit suites, which Jupiter's property does not reach (spec 0193).
+        systemProperty("lark.junit.timeout.default", "60s")
     }
 
     if (name !in testedByRunningABuild + benchmarkModules) {
