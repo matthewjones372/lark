@@ -160,13 +160,14 @@ fun <M : Any, Ev, S> persistent(
 ): Behaviour<M, Remembered<S>, JournalConflict> {
     require(batch > 0) { "a batch of $batch commands decides none" }
     val effects = Effects<Ev, S>()
-    val steps: (Fail<JournalConflict>.(Ctx<M>, Remembered<S>, List<M>) -> Batched<Remembered<S>>)? =
+    val steps: (Fail<JournalConflict>.(Ctx<M>, Remembered<S>, Run<M>) -> Batched<Remembered<S>>)? =
         if (batch == 1) {
             null
         } else {
             { ctx, remembered, messages ->
                 val deciding = Deciding(effects, command, event, codec, ctx, remembered)
-                decided(id, snapshots, deciding, ctx, remembered, messages)
+                // One append for the batch, so one context: the first command's (spec 0122).
+                messages.within(0) { decided(id, snapshots, deciding, ctx, remembered, messages) }
             }
         }
     return Behaviour<M, Remembered<S>, JournalConflict>(
