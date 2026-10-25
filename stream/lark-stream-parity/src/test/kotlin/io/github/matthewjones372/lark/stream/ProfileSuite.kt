@@ -68,6 +68,20 @@ object ProfileSuite : SharedSuite<ActorSystem>() {
             }
         }
 
+        test("a profile rendered against an edited run is refused at the first stage that moved") { _ ->
+            val written = Stream.from(1..10).map { it + 1 }.filter { it % 2 == 0 }.runCollect()
+            val edited = Stream.from(1..10).filter { it % 2 == 0 }.map { it + 1 }.runCollect()
+            val profile = written.profiledOn(Forks())
+
+            val ownRun = expect(written.render(profile = profile).isNotEmpty())
+            val moved = Regex(
+                """step 1 is map at ProfileSuite\.kt:\d+ in the profile, filter at ProfileSuite\.kt:\d+ in this run""",
+            )
+            ownRun and shouldThrow<IllegalArgumentException>({ edited.render(profile = profile) }) { thrown ->
+                expect(moved.matches(thrown.message.orEmpty()))
+            }
+        }
+
         test("two pipelines measured by one profiler get a profile each, and asking for one profile names both") { _ ->
             val profiler = Profiler()
             val numbers = Stream.from(1..10).map { it + 1 }.runCollect()
