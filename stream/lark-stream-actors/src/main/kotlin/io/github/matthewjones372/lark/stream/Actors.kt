@@ -59,7 +59,6 @@ class Actors(
         // Read here, on the caller's thread: the actor inherits neither.
         val boundaries = ActorBoundaries(batch)
         val pulling = Pulling(run, logger.get(), clock.get(), on, boundaries = boundaries)
-        boundaries.pulling = pulling
         val running = ActorRun(flock, pulling, boundaries, batch, live)
         live.incrementAndGet()
         running.ref = flock.spawn("stream", running.behaviour())

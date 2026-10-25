@@ -208,7 +208,7 @@ internal fun Node.RestartOnDefect.restarting(turns: Timeline): Pull {
     val run = ctx.resources
     var attempt = run?.attempt()
     fun attempted(): Pull =
-        attempt?.let { scope -> scope.around { with(ctx.within(scope)) { upstream.pull() } } } ?: upstream.pull()
+        attempt?.let { scope -> with(ctx.within(scope)) { upstream.pull() } } ?: upstream.pull()
     var current = attempted()
     var schedule = step
     return Pull {

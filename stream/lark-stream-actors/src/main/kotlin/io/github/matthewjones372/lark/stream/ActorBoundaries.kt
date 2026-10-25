@@ -36,9 +36,6 @@ internal class ActorBoundaries(private val batch: Int) : Boundaries {
         }
     }
 
-    // A feeder that pulls its upstream binds the run's resources, so it reaches here too; it gets Forks' way.
-    internal lateinit var pulling: Pulling<*, *>
-
     override fun pull(node: Node, pulled: (Node) -> Pull): Pull? {
         if (stepping !== Thread.currentThread()) return null
         return when (node) {
@@ -89,15 +86,15 @@ internal class ActorBoundaries(private val batch: Int) : Boundaries {
     /** `buffer(n)`: an input actor pulls upstream ahead of the reader, while there is room for `n`. */
     private fun Node.Buffer.fed(up: Pull): Pull {
         val confluence = Inflow(room = size, open = 1, outerDone = true)
-        spawn("buffer", Input(up, confluence, batch, pulling).behaviour())
+        spawn("buffer", Input(up, confluence, batch).behaviour())
         return Pull(confluence::next)
     }
 
     /** `merge`: each stream an input actor, both into one queue, read in the order their elements arrived. */
     private fun Node.Merge.fed(up: Pull, others: Pull): Pull {
         val confluence = Inflow(room = MERGED, open = 2, outerDone = true)
-        spawn("merge", Input(up, confluence, batch, pulling).behaviour())
-        spawn("merge", Input(others, confluence, batch, pulling).behaviour())
+        spawn("merge", Input(up, confluence, batch).behaviour())
+        spawn("merge", Input(others, confluence, batch).behaviour())
         return Pull(confluence::next)
     }
 
@@ -108,7 +105,7 @@ internal class ActorBoundaries(private val batch: Int) : Boundaries {
     private fun Node.FlatMap.fed(breadth: Int, up: Pull, pulled: (Node) -> Pull): Pull {
         val confluence = Inflow(room = MERGED, open = 0, outerDone = false)
         val build = guarded("flatMapMerge", at, f)
-        val outer = Outer(up, { a -> pulled(build(a).node.optimised()) }, breadth, confluence, batch, pulling)
+        val outer = Outer(up, { a -> pulled(build(a).node.optimised()) }, breadth, confluence, batch)
         spawn("flatMapMerge", outer.behaviour())
         return Pull(confluence::next)
     }
@@ -116,7 +113,7 @@ internal class ActorBoundaries(private val batch: Int) : Boundaries {
     /** `conflate`: an actor folds upstream into what is pending while the reader is slow, a batch at a time. */
     private fun Node.Conflate.fed(up: Pull): Pull {
         val pile = Heap(guarded("conflateWithSeed", at, seed), guarded("conflateWithSeed", at, aggregate))
-        spawn("conflate", Folding(up, pile, batch, pulling).behaviour())
+        spawn("conflate", Folding(up, pile, batch).behaviour())
         return Pull(pile::take)
     }
 }

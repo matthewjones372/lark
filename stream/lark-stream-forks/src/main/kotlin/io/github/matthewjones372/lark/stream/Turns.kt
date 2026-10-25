@@ -46,7 +46,7 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
 
     /**
      * [body] as a worker of its own, which runs when it is its turn. It reads lark's `clock` as this
-     * run's, and a pull built on it finds this run's turns by [here].
+     * run's.
      */
     override fun fork(body: () -> Unit) {
         val worker = Worker()
@@ -54,10 +54,8 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
         on.execute {
             lock.withLock { while (turn !== worker) turned.await() }
             try {
-                current.set(this)
                 Waiting.within(waiting) { clock.locally(time) { body() } }
             } finally {
-                current.remove()
                 lock.withLock {
                     worker.done = true
                     passOn()
@@ -122,16 +120,5 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
     private fun passOn() {
         turn = workers.lastOrNull(::canGoOn)
         turned.signalAll()
-    }
-
-    companion object {
-        private val current = ThreadLocal<Turns>()
-
-        /** The turns of the run whose worker this is. A node with time in it is only pulled on one. */
-
-        /** Whether this thread is a worker of a run on a test's clock. */
-        fun taking(): Boolean = current.get() != null
-
-        fun here(): Turns = checkNotNull(current.get()) { "a node with time in it was pulled off a test's clock" }
     }
 }
