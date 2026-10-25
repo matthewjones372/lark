@@ -35,7 +35,7 @@ records.mapPar(orders) { record -> ordersDb.write(record) }
 parMap(ids, limit = orders) { id -> ordersDb.find(id) }
 
 // in a policy
-val guarded = policy("orders-db") { bulkhead(orders) }
+val guarded = policy("orders-db") { guard(orders) }
 ```
 
 - `Limit.fixed(n)` is today's behaviour. Each existing `Int` overload delegates to it.
@@ -87,5 +87,6 @@ first half. "Lark wins" is defined in advance: equal throughput, and lower p99 l
 - **Which algorithm?** Recommended: start with a gradient (Vegas-like) algorithm, which shrinks on latency before
   errors appear, and keep AIMD as a fallback. The choice is internal and can change later.
 - **Is Option B wanted at all?** Recommended: defer to a later spec once A has run in a real service.
-- **Should a limit wait or reject when it is full?** Recommended: wait in streams, which is the backpressure. In a
-  `Policy`, follow `Bulkhead`'s `maxWait`.
+- ~~**Should a limit wait or reject when it is full?**~~ Answered (maintainer, 2026-10-25): wait in streams and in
+  `parMap`, which is the backpressure. In a `Policy`, `guard(limit, maxWait)` follows `Bulkhead`'s `maxWait`, and a
+  limit takes the bulkhead's place in the order.

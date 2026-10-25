@@ -4,6 +4,8 @@ import io.github.matthewjones372.lark.fail.Failed
 import java.util.concurrent.CancellationException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.ZERO
 
 /**
  * How many calls may be inside one dependency at once (spec 0171). [fixed] is a number somebody picked;
@@ -34,8 +36,25 @@ class Limit private constructor(
      * cancelled, which says nothing about the dependency. Nor does a `fail` passing through: it is the call's own
      * answer, so a lookup that answers "not found" is not taken for overload.
      */
-    fun <A> withPermit(block: () -> A): A {
-        val found = acquire()
+    fun <A> withPermit(block: () -> A): A = measured(acquire(), block)
+
+    /**
+     * Room for one call if it comes within [wait], and how many calls are inside with it; null if none came. The
+     * call that was let in then runs through [measured], which gives the room back.
+     */
+    internal fun admit(wait: Duration): Int? = lock.withLock {
+        var left = wait.coerceAtLeast(ZERO).inWholeNanoseconds
+        while (using >= allowed) {
+            if (left <= 0) return null
+            left = room.awaitNanos(left)
+        }
+        using++
+        publish()
+        using
+    }
+
+    /** [block] run as a call let in with [found] calls inside: timed, learnt from, and its room given back. */
+    internal fun <A> measured(found: Int, block: () -> A): A {
         val started = System.nanoTime()
         var outcome = Outcome.FAILED
         try {

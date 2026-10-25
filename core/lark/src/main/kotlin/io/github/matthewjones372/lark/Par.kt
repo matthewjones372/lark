@@ -2,6 +2,8 @@ package io.github.matthewjones372.lark
 
 import io.github.matthewjones372.lark.fail.Fail
 import java.util.concurrent.Executor
+import java.util.concurrent.Semaphore
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Runs both branches on forks of their own and combines their values; the first branch to fail interrupts
@@ -271,6 +273,49 @@ fun <E, A, B> Fail<E>.parMap(
     return forks.map { it.await() }
 }
 
+/**
+ * [parMap] with every call inside [limit] (spec 0171), so it shares one budget with every other caller of the
+ * dependency the limit guards. A fork starts only once fewer than the limit's `max` are running, so a long list
+ * never parks a thread per element, and none starts after one has failed.
+ */
+fun <E, A, B> Fail<E>.parMap(iterable: Iterable<A>, limit: Limit, f: Fail<E>.(A) -> B): List<B> =
+    parMap(VirtualThreads, iterable, limit, f)
+
+/** The same, with every fork run on [on]. */
+fun <E, A, B> Fail<E>.parMap(
+    on: Executor,
+    iterable: Iterable<A>,
+    limit: Limit,
+    f: Fail<E>.(A) -> B,
+): List<B> {
+    val flight = Flight(this, on)
+    val room = Semaphore(limit.max)
+    val failed = AtomicBoolean(false)
+    val forks = mutableListOf<Fork<E, B>>()
+    var started = false
+    try {
+        for (element in iterable) {
+            room.acquire()
+            if (failed.get()) break
+            forks += flight.fork {
+                var answered = false
+                try {
+                    limit.withPermit { f(element) }.also { answered = true }
+                } finally {
+                    if (!answered) failed.set(true)
+                    room.release()
+                }
+            }
+        }
+        started = true
+    } finally {
+        // Stopped while starting them, by an interrupt or the iterable itself: the forks already started end here.
+        if (!started) flight.abandon()
+    }
+    flight.settleAll()
+    return forks.map { it.await() }
+}
+
 // The same combinators for code outside any `Fail`, with plain branches: the arrow-fx-coroutines
 // signatures minus the `suspend`. Each forks under an owner that cannot be asked to fail.
 
@@ -440,3 +485,11 @@ fun <A, B> parMap(iterable: Iterable<A>, f: (A) -> B): List<B> = parMap(VirtualT
 /** The same, with every fork run on [on]. */
 fun <A, B> parMap(on: Executor, iterable: Iterable<A>, f: (A) -> B): List<B> =
     Unraisable.parMap(on, iterable) { f(it) }
+
+/** [parMap] with every call inside [limit], as the one in a `Fail` is (spec 0171). */
+fun <A, B> parMap(iterable: Iterable<A>, limit: Limit, f: (A) -> B): List<B> =
+    parMap(VirtualThreads, iterable, limit, f)
+
+/** The same, with every fork run on [on]. */
+fun <A, B> parMap(on: Executor, iterable: Iterable<A>, limit: Limit, f: (A) -> B): List<B> =
+    Unraisable.parMap(on, iterable, limit) { f(it) }
