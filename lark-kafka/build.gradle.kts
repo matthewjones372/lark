@@ -1,5 +1,13 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 // Kafka as a lark Stream on any backend: lark-stream and the Kafka client, and nothing else.
 // NoOtherDependenciesTest asserts that on the classpath a consumer actually gets.
+
+// The tests are lark-junit suites (spec 0193): a failed `expect` draws its values.
+plugins {
+    kotlin("plugin.power-assert")
+}
 
 val pekkoVersion = "1.2.1"
 val scalaBinary = "2.13"
@@ -23,6 +31,18 @@ dependencies {
     // The broker's own log, errors only: a fatal fault is logged here before KafkaBroker turns its exit into a throw.
     testRuntimeOnly("org.slf4j:slf4j-simple:2.0.17")
     testImplementation(project(":lark-assert"))
+    testImplementation(project(":lark-junit"))
+}
+
+@OptIn(ExperimentalKotlinGradlePluginApi::class)
+powerAssert {
+    functions.add("io.github.matthewjones372.lark.junit.expect")
+    includedSourceSets.add("test")
+}
+
+// A suite's dropped Expectations is reported only under this flag; the main sources are not lark-junit's.
+tasks.named<KotlinCompile>("compileTestKotlin") {
+    compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
 }
 
 tasks.test {

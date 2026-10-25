@@ -13,6 +13,9 @@ import io.github.matthewjones372.lark.junit.alone
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldNotContainKey
+import io.github.matthewjones372.lark.junit.shouldContainKey
+import io.github.matthewjones372.lark.junit.shouldContainAll
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
@@ -383,7 +386,9 @@ object GappedSuite : Suite<List<Int>>() {
                 emptyMap<String, Int>().shouldBeEmpty() and mapOf("a" to 1).shouldNotBeEmpty() and
                 xs.firstOrNull().shouldNotBeNull { first -> first shouldBe 1 } and xs.shouldNotBeNull() and
                 (1 shouldBeLessThan 2) and (2 shouldBeLessThanOrEqual 2) and
-                (3 shouldBeGreaterThan 2) and (2 shouldBeGreaterThanOrEqual 2)
+                (3 shouldBeGreaterThan 2) and (2 shouldBeGreaterThanOrEqual 2) and
+                (xs shouldContainAll listOf(3, 1)) and (mapOf("a" to 1) shouldContainKey "a") and
+                (mapOf("a" to 1) shouldNotContainKey "b") and (mapOf("a" to 1) shouldContain ("a" to 1))
         }
         test("fails in any order") { xs -> xs shouldContainExactlyInAnyOrder listOf(1, 2, 3) }
         test("fails shouldBeEmpty") { xs -> xs.shouldBeEmpty() }
@@ -396,5 +401,9 @@ object GappedSuite : Suite<List<Int>>() {
         }
         test("fails shouldBeLessThan") { _ -> 3 shouldBeLessThan 2 }
         test("fails shouldBeGreaterThanOrEqual") { _ -> 1 shouldBeGreaterThanOrEqual 2 }
+        test("fails shouldContainAll") { xs -> xs shouldContainAll listOf(3, 4) }
+        test("fails shouldContainKey") { _ -> mapOf("a" to 1) shouldContainKey "b" }
+        test("fails shouldNotContainKey") { _ -> mapOf("a" to 1) shouldNotContainKey "a" }
+        test("fails shouldContain on a map") { _ -> mapOf("a" to 1) shouldContain ("a" to 2) }
     }
 }
