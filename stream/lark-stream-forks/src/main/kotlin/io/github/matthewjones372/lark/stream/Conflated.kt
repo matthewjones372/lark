@@ -43,12 +43,12 @@ private class Pile(private val seed: (Any) -> Any, private val aggregate: (Any, 
  */
 // The catch is as wide as a pipeline: whatever upstream, the seed or the aggregate threw is the reader's.
 @Suppress("TooGenericExceptionCaught")
-internal fun Node.Conflate.conflated(releases: Releases?): Pull {
+internal fun Node.Conflate.conflated(bound: Bound): Pull {
     val pile = Pile(guarded("conflateWithSeed", at, seed), guarded("conflateWithSeed", at, aggregate))
     val up = upstream.pull()
-    val fork = InFlight(releases?.on ?: VirtualThreads) {
+    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
         try {
-            Releases.within(releases) {
+            bound.within {
                 while (!Thread.currentThread().isInterrupted) pile.add(up.next() ?: break)
             }
             pile.end()
@@ -58,7 +58,7 @@ internal fun Node.Conflate.conflated(releases: Releases?): Pull {
             pile.end(thrown)
         }
     }
-    releases?.add(fork::cancel)
+    bound.releases?.add(fork::cancel)
     return Pull { pile.take() }
 }
 

@@ -139,13 +139,13 @@ internal fun Node.pull(): Pull =
             val keyed = key
             when {
                 Turns.taking() -> inOrder()
-                keyed != null -> keyedWindow(keyed, Releases.here())
-                ordered -> window(Releases.here())
-                else -> unorderedWindow(Releases.here())
+                keyed != null -> keyedWindow(keyed, Bound.here())
+                ordered -> window(Bound.here())
+                else -> unorderedWindow(Bound.here())
             }
         }
 
-        is Node.Buffer -> if (Turns.taking()) bufferedOnClock(Turns.here()) else buffered(Releases.here())
+        is Node.Buffer -> if (Turns.taking()) bufferedOnClock(Turns.here()) else buffered(Bound.here())
 
         is Node.Sliding -> sliding()
 
@@ -154,13 +154,13 @@ internal fun Node.pull(): Pull =
         // On a test's clock one stage at a time, as mapPar is; on Forks, a window of them fed by a fork.
         is Node.MapAsync -> when {
             Turns.taking() -> awaiting(1)
-            ordered -> fed(parallelism, Releases.here())
-            else -> fedUnordered(Releases.here())
+            ordered -> fed(parallelism, Bound.here())
+            else -> fedUnordered(Bound.here())
         }
 
-        is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Releases.here())
+        is Node.Merge -> if (Turns.taking()) mergedOnClock(Turns.here()) else merged(Bound.here())
 
-        is Node.Conflate -> if (Turns.taking()) conflatedOnClock(Turns.here()) else conflated(Releases.here())
+        is Node.Conflate -> if (Turns.taking()) conflatedOnClock(Turns.here()) else conflated(Bound.here())
 
         is Node.Native, is Node.Stage, Node.Hole,
         -> error("$operator reached the Forks runner, which start refuses it before")
@@ -414,7 +414,7 @@ private fun Node.FlatMap.flatMapped(breadth: Int?): Pull =
     when {
         breadth == null -> flatMapConcat()
         Turns.taking() -> mergedOnClock(breadth, Turns.here())
-        else -> merged(breadth, Releases.here())
+        else -> merged(breadth, Bound.here())
     }
 
 private fun Node.FlatMap.flatMapConcat(): Pull {

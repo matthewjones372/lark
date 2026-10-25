@@ -49,13 +49,14 @@ internal class Turns(private val time: TestClock, private val on: Executor = Vir
      * run's, and a pull built on it finds this run's turns by [here].
      */
     override fun fork(body: () -> Unit) {
+        val bound = Bound.here()
         val worker = Worker()
         lock.withLock { workers += worker }
         on.execute {
             lock.withLock { while (turn !== worker) turned.await() }
             try {
                 current.set(this)
-                Waiting.within(waiting) { clock.locally(time, body) }
+                Waiting.within(waiting) { clock.locally(time) { bound.within(body) } }
             } finally {
                 current.remove()
                 lock.withLock {

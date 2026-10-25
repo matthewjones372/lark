@@ -1,6 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Schedule
+import io.github.matthewjones372.lark.TestClock
 import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.assert.shouldBeEmpty
 import io.github.matthewjones372.lark.assert.withClue
@@ -197,6 +198,90 @@ class BlockingTest {
         exit shouldBe Exit.Done(listOf(10))
         withClue("the source was let go of while it blocked, and closed once") {
             queue.closed.get() shouldBe 1
+        }
+    }
+
+    /** A read that blocks until it is woken, and only then: an interrupt does not end it, as with a Kafka poll. */
+    private class Deaf(private val first: Int) {
+        private var given = false
+        val waiting = CountDownLatch(1)
+        val woken = CountDownLatch(1)
+        val closed = AtomicInteger()
+
+        fun next(): Int? {
+            if (!given) return first.also { given = true }
+            waiting.countDown()
+            while (woken.count > 0) {
+                try {
+                    woken.await()
+                } catch (_: InterruptedException) {
+                    // Not a wake: only the source's own wake ends this read.
+                }
+            }
+            return null
+        }
+    }
+
+    private fun deaf(source: Deaf): Stream<Nothing, Int> =
+        Stream.blocking(
+            open = { source },
+            next = { it.next() },
+            wake = { it.woken.countDown() },
+            close = { it.closed.incrementAndGet() },
+        )
+
+    /** Runs [stream] on Forks, stops it once [source]'s read blocks, and answers the run's exit. */
+    private fun stoppedWhileBlocked(stream: Stream<Nothing, Int>, source: Deaf): Exit<*, *> {
+        val running = stream.runCollect().start(Forks())
+        withClue("the source's read was reached") {
+            source.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+        }
+        running.stop()
+        return running.exit.settled()
+    }
+
+    @Test
+    fun `a stop wakes a source blocked inside flatMapMerge, and closes it once`() {
+        val source = Deaf(1)
+
+        val exit = stoppedWhileBlocked(Stream.of(0).flatMapMerge(2) { deaf(source) }, source)
+
+        withClue("an inner stream is pulled on a fork, which must still find the run's resources to be woken") {
+            (exit is Exit.Done) shouldBe true
+        }
+        source.closed.get() shouldBe 1
+    }
+
+    @Test
+    fun `a stop wakes a source behind a concat upstream of a buffer, and closes it once`() {
+        val source = Deaf(1)
+
+        val exit = stoppedWhileBlocked(Stream.of(0).concat(deaf(source)).buffer(4), source)
+
+        withClue("concat builds its next stream on the buffer's fork") {
+            (exit is Exit.Done) shouldBe true
+        }
+        source.closed.get() shouldBe 1
+    }
+
+    @Test
+    fun `on a test's clock, a source inside flatMapMerge that a take stops reading is closed once`() {
+        // A source that never runs out and never blocks: a stage that blocked would keep its turn on the clock.
+        val read = AtomicInteger()
+        val closed = AtomicInteger()
+        val endless = Stream.blocking(
+            open = { Unit },
+            next = { _ -> read.incrementAndGet() },
+            wake = { },
+            close = { closed.incrementAndGet() },
+        )
+
+        val exit = Stream.of(0).flatMapMerge(2) { endless }.take(1).runCollect()
+            .run(ForksOnClock(TestClock(), name = "OnClock")).settled()
+
+        exit shouldBe Exit.Done(listOf(1))
+        withClue("only the run can close a source it stopped reading, so a worker on the clock must find it") {
+            closed.get() shouldBe 1
         }
     }
 

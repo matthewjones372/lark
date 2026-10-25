@@ -17,6 +17,25 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.locks.LockSupport
 
 /**
+ * What a fork carries from the thread that started it: the run's [releases] and its [resources]. A pull built on a
+ * fork finds both, so a blocking source there is woken by the run's stop and closed when the run ends (spec 0150).
+ */
+internal class Bound(val releases: Releases?, val resources: Resources?) {
+
+    /** Runs [body] with both bound to this thread. */
+    fun <T> within(body: () -> T): T = Releases.within(releases) {
+        if (resources ==
+            null
+        ) body() else resources.around(body)
+    }
+
+    companion object {
+        /** What this thread has bound: what a fork it starts is to carry. */
+        fun here(): Bound = Bound(Releases.here(), Resources.here())
+    }
+}
+
+/**
  * What a run has to let go of when it ends, however it ends: the bodies still in flight and the forks
  * still filling a buffer. Released in reverse, on the thread that ran the loop, before the exit completes.
  *
@@ -205,20 +224,20 @@ internal class InFlight<T>(on: Executor, private val body: () -> T) : Runnable {
  */
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
-internal fun Node.MapPar.window(releases: Releases?): Pull {
+internal fun Node.MapPar.window(bound: Bound): Pull {
     val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
-    val executor = releases?.executorFor(on) ?: on
+    val executor = bound.releases?.executorFor(on) ?: on
     val started = Ring(parallelism)
-    val fork = InFlight(releases?.on ?: VirtualThreads) {
-        Releases.within(releases) { feed(up, started) { a -> InFlight(executor) { body(a) } } }
+    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
+        bound.within { feed(up, started) { a -> InFlight(executor) { body(a) } } }
     }
     // The fork first, so nothing is started behind the bodies being let go of.
     val cancelAll = {
         fork.cancel()
         generateSequence { started.poll() }.filterIsInstance<InFlight<*>>().forEach { it.cancel() }
     }
-    releases?.add(cancelAll)
+    bound.releases?.add(cancelAll)
     var ended = false
     return Pull {
         if (ended) return@Pull null
@@ -251,14 +270,14 @@ internal fun Node.MapPar.window(releases: Releases?): Pull {
  */
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
-internal fun Node.MapPar.unorderedWindow(releases: Releases?): Pull {
+internal fun Node.MapPar.unorderedWindow(bound: Bound): Pull {
     val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val up = upstream.pull()
-    val executor = releases?.executorFor(on) ?: on
+    val executor = bound.releases?.executorFor(on) ?: on
     val arrivals = Arrivals(parallelism)
     val running = ConcurrentHashMap.newKeySet<InFlight<*>>()
-    val fork = InFlight(releases?.on ?: VirtualThreads) {
-        Releases.within(releases) {
+    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
+        bound.within {
             feedUnordered(up, arrivals) { a ->
                 val flight = InFlight(executor) { body(a) }
                 running.add(flight)
@@ -271,7 +290,7 @@ internal fun Node.MapPar.unorderedWindow(releases: Releases?): Pull {
         fork.cancel()
         running.forEach { it.cancel() }
     }
-    releases?.add(cancelAll)
+    bound.releases?.add(cancelAll)
     var ended = false
     return Pull {
         if (ended) return@Pull null
@@ -304,17 +323,17 @@ internal fun Node.MapPar.unorderedWindow(releases: Releases?): Pull {
  */
 // The catch is as wide as a body's, and rethrows what it caught once the window behind it is let go of.
 @Suppress("TooGenericExceptionCaught")
-internal fun Node.MapPar.keyedWindow(key: (Any) -> Any, releases: Releases?): Pull {
+internal fun Node.MapPar.keyedWindow(key: (Any) -> Any, bound: Bound): Pull {
     val body = guarded("mapPar", at) { a: Any -> attempt { f(a) } }
     val keyOf = guarded("mapParKeyed", at, key)
     val up = upstream.pull()
-    val executor = releases?.executorFor(on) ?: on
+    val executor = bound.releases?.executorFor(on) ?: on
     val room = Semaphore(parallelism)
     val released = LinkedBlockingQueue<Any>()
     val running = ConcurrentHashMap.newKeySet<InFlight<*>>()
     val tails = ConcurrentHashMap<Any, CompletableFuture<Unit>>()
-    val fork = InFlight(releases?.on ?: VirtualThreads) {
-        Releases.within(releases) {
+    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
+        bound.within {
             keyedFeed(up, room, released, tails) { a ->
                 val k = keyOf(a)
                 val behind = tails[k] ?: CompletableFuture.completedFuture(Unit)
@@ -339,7 +358,7 @@ internal fun Node.MapPar.keyedWindow(key: (Any) -> Any, releases: Releases?): Pu
         fork.cancel()
         running.forEach { it.cancel() }
     }
-    releases?.add(cancelAll)
+    bound.releases?.add(cancelAll)
     var ended = false
     return Pull {
         if (ended) return@Pull null

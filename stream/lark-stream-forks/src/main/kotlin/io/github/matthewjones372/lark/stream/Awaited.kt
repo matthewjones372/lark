@@ -32,19 +32,19 @@ private class Started(val element: Any, val stage: CompletableFuture<Any?>)
  * The started stages wait in a [Ring] of [window]: the head leaves it only once it has answered, so the ring's
  * capacity is the window, and the fork is woken for room a batch at a time rather than once per answer.
  */
-internal fun Node.MapAsync.fed(window: Int, releases: Releases?): Pull {
+internal fun Node.MapAsync.fed(window: Int, bound: Bound): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()
     val started = Ring(window)
-    val fork = InFlight(releases?.on ?: VirtualThreads) {
-        Releases.within(releases) {
+    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
+        bound.within {
             feed(up, started) { a ->
                 @Suppress("UNCHECKED_CAST")
                 Started(a, (start(a) as CompletionStage<Any?>).toCompletableFuture())
             }
         }
     }
-    releases?.add(fork::cancel)
+    bound.releases?.add(fork::cancel)
     var ended = false
     return Pull {
         if (ended) return@Pull null
@@ -86,12 +86,12 @@ internal fun feed(up: Pull, started: Ring, start: (Any) -> Any) {
  * As [fed], but each answer is passed on as soon as its stage completes (spec 0170): a stage's completion puts it
  * in [Arrivals] for the pull, from whichever thread completed it, so nothing waits on the oldest.
  */
-internal fun Node.MapAsync.fedUnordered(releases: Releases?): Pull {
+internal fun Node.MapAsync.fedUnordered(bound: Bound): Pull {
     val start = guarded("mapAsync", at, f)
     val up = upstream.pull()
     val arrivals = Arrivals(parallelism)
-    val fork = InFlight(releases?.on ?: VirtualThreads) {
-        Releases.within(releases) {
+    val fork = InFlight(bound.releases?.on ?: VirtualThreads) {
+        bound.within {
             feedUnordered(up, arrivals) { a ->
                 @Suppress("UNCHECKED_CAST")
                 val stage = (start(a) as CompletionStage<Any?>).toCompletableFuture()
@@ -99,7 +99,7 @@ internal fun Node.MapAsync.fedUnordered(releases: Releases?): Pull {
             }
         }
     }
-    releases?.add(fork::cancel)
+    bound.releases?.add(fork::cancel)
     var ended = false
     return Pull {
         if (ended) return@Pull null
