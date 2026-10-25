@@ -14,10 +14,10 @@ business.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor-remote:0.10.1")       // two nodes
-    implementation("io.github.matthewjones372:lark-cluster:0.10.1")            // membership, sharding, delivery, topics
-    implementation("io.github.matthewjones372:lark-actor-journal-jdbc:0.10.1") // a journal every node reaches
-    implementation("io.github.matthewjones372:lark-actor-projection:0.10.1")   // read models
+    implementation("io.github.matthewjones372:lark-actor-remote:0.11.0")       // two nodes
+    implementation("io.github.matthewjones372:lark-cluster:0.11.0")            // membership, sharding, delivery, topics
+    implementation("io.github.matthewjones372:lark-actor-journal-jdbc:0.11.0") // a journal every node reaches
+    implementation("io.github.matthewjones372:lark-actor-projection:0.11.0")   // read models
 }
 ```
 

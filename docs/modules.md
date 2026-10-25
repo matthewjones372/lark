@@ -16,9 +16,9 @@ transitive dependency fails the build.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark:0.10.1")
-    implementation("io.github.matthewjones372:lark-app:0.10.1")
-    testImplementation("io.github.matthewjones372:lark-test:0.10.1")
+    implementation("io.github.matthewjones372:lark:0.11.0")
+    implementation("io.github.matthewjones372:lark-app:0.11.0")
+    testImplementation("io.github.matthewjones372:lark-test:0.11.0")
 }
 ```
 
@@ -27,7 +27,7 @@ describe the `main` branch, which can be ahead of the latest release; features
 not yet released are marked where they are documented.
 
 **Snapshots.** An untagged commit builds as the next patch version with
-`-SNAPSHOT` (after `v0.10.1`, `0.10.2-SNAPSHOT`). Snapshots are published by
+`-SNAPSHOT` (after `v0.11.0`, `0.11.1-SNAPSHOT`). Snapshots are published by
 hand rather than on every push, to
 `https://central.sonatype.com/repository/maven-snapshots/`, and expire after
 90 days. To try `main` reliably, build it locally:

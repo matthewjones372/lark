@@ -45,14 +45,14 @@ Each backend module brings `lark-stream` with it:
 ```kotlin
 dependencies {
     // a pull loop on a virtual thread: brings lark-stream and nothing else
-    implementation("io.github.matthewjones372:lark-stream-forks:0.10.1")
+    implementation("io.github.matthewjones372:lark-stream-forks:0.11.0")
     // or Pekko Streams: brings lark-stream, lark-pekko and pekko-stream
-    // implementation("io.github.matthewjones372:lark-stream-pekko:0.10.1")
+    // implementation("io.github.matthewjones372:lark-stream-pekko:0.11.0")
     // or actors of a lark-actor flock
-    // implementation("io.github.matthewjones372:lark-stream-actors:0.10.1")
+    // implementation("io.github.matthewjones372:lark-stream-actors:0.11.0")
 
     // time a test owns
-    testImplementation("io.github.matthewjones372:lark-stream-test:0.10.1")
+    testImplementation("io.github.matthewjones372:lark-stream-test:0.11.0")
 }
 ```
 

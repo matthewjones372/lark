@@ -9,7 +9,7 @@ inherit. Everything on this page is in the package
 ```kotlin
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:lark:0.10.1")
+    implementation("io.github.matthewjones372:lark:0.11.0")
 }
 ```
 
@@ -465,7 +465,7 @@ configured there the executor Lark forks on, and lets a fork wait for Pekko's
 ```kotlin
 dependencies {
     // brings lark and pekko-actor
-    implementation("io.github.matthewjones372:lark-pekko:0.10.1")
+    implementation("io.github.matthewjones372:lark-pekko:0.11.0")
 }
 ```
 

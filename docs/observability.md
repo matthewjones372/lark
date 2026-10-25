@@ -17,9 +17,9 @@ dependency is the whole setup.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-slf4j:0.10.1")
-    implementation("io.github.matthewjones372:lark-micrometer:0.10.1")
-    implementation("io.github.matthewjones372:lark-otel:0.10.1")
+    implementation("io.github.matthewjones372:lark-slf4j:0.11.0")
+    implementation("io.github.matthewjones372:lark-micrometer:0.11.0")
+    implementation("io.github.matthewjones372:lark-otel:0.11.0")
 }
 ```
 

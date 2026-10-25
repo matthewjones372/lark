@@ -15,7 +15,7 @@ what builds.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor:0.10.1")
+    implementation("io.github.matthewjones372:lark-actor:0.11.0")
 }
 ```
 

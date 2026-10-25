@@ -9,7 +9,7 @@ key, its type and its default, and read with no client passed in.
 ```kotlin
 dependencies {
     // brings lark, the OpenFeature SDK and the slf4j-api it logs through
-    implementation("io.github.matthewjones372:lark-openfeature:0.10.1")
+    implementation("io.github.matthewjones372:lark-openfeature:0.11.0")
 }
 ```
 
