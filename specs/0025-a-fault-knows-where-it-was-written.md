@@ -30,7 +30,7 @@ app.findings().report()
 ```
 
 ```
-lark-app wiring
+surefold-app wiring
 
 ❯ error: missing DataSource
 ❯     for OrderRepo          Wiring.kt:42
@@ -59,7 +59,7 @@ Duplicates warn rather than fail: `overriding` is a duplicate on purpose, and
 failing would mean an opt-out on every test that swaps a fake. So `overriding`
 marks its replacements deliberate and is silent, and a bare `+` collision is
 not. Unreachable warns for the reverse reason — a node held for its side effect
-alone is legal, even though `Migrated` in `lark-app-liquibase` shows the better
+alone is legal, even though `Migrated` in `surefold-app-liquibase` shows the better
 answer is to make it an edge.
 
 Unreachable names the top of each unreachable subtree rather than every node

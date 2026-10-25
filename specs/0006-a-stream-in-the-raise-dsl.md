@@ -2,8 +2,8 @@
 
 ## Problem
 
-`lark-stream`'s element functions run in dipper's own `Failing<E>` scope with
-`fail(e)`, not Arrow's `Raise<E>` — so `bind()`, `ensure` and every lark
+`surefold-stream`'s element functions run in dipper's own `Failing<E>` scope with
+`fail(e)`, not Arrow's `Raise<E>` — so `bind()`, `ensure` and every surefold
 combinator are out of reach inside `mapOrFail`. `mapAsync` takes a
 `CompletionStage`, so a blocking body per element has no spelling. And a
 handler that runs a stream gets `CompletionStage<Exit<E, R>>` back and folds
@@ -31,13 +31,13 @@ Stream.from(rows)
 
 - `Failing<E> : Raise<E>`; `fail(e)` stays as an alias of `raise(e)`.
 - `Stream<E, A>.mapPar(parallelism: Int, on: Executor = virtual threads, f: Raise<E>.(A) -> B): Stream<E, B>`
-  — `mapAsync` underneath, each element's body on a lark fork; a `raise` is
+  — `mapAsync` underneath, each element's body on a surefold fork; a `raise` is
   the stream's declared failure, a throw is `Died`; order and parallelism are
   `mapAsync`'s; `B : Any`, so the completion that drops an element cannot be
   written.
 - `Raise<E>.awaitExit()` on `CompletionStage<Exit<E, R>>`: `Done(r)` is `r`,
   `Failed(e)` raises, `Died(cause)` throws `cause`; the `when` has no `else`.
-  An interrupt while waiting cancels the stage as `lark-pekko`'s `await()`
+  An interrupt while waiting cancels the stage as `surefold-pekko`'s `await()`
   does.
 
 ## Why this shape
@@ -54,7 +54,7 @@ meet, and it is three lines.
 - [x] **`spec-0006-raise`** (`main`, 8384dce) — `Failing<E> : Raise<E>`.
       Done when: `bind()` and `parZip` compile and run inside `mapOrFail`, and
       dipper's suite passes unedited.
-- [x] **`spec-0006-mappar`** (`main`, e6d7017) — `mapPar`, on lark's forks, `on:` honoured.
+- [x] **`spec-0006-mappar`** (`main`, e6d7017) — `mapPar`, on surefold's forks, `on:` honoured.
       Done when: a blocking body per element runs on a virtual thread, a
       `raise` fails the stream with its `E`, and order is preserved.
 - [x] **`spec-0006-exit`** (`main`, c8b80be) — `awaitExit`.
@@ -69,15 +69,15 @@ meet, and it is three lines.
 
 ## Open questions
 
-1. **Does `mapPar` depend on `lark-pekko`** (for `on:` from a dispatcher) or
-   on `lark` alone? Recommended: `lark` alone — `on:` is a plain `Executor`;
-   `lark-pekko` is where a dispatcher becomes one.
-2. **`awaitExit` in `lark-stream` or `lark-pekko`?** Recommended:
-   `lark-stream`; `Exit` is its type.
+1. **Does `mapPar` depend on `surefold-pekko`** (for `on:` from a dispatcher) or
+   on `surefold` alone? Recommended: `surefold` alone — `on:` is a plain `Executor`;
+   `surefold-pekko` is where a dispatcher becomes one.
+2. **`awaitExit` in `surefold-stream` or `surefold-pekko`?** Recommended:
+   `surefold-stream`; `Exit` is its type.
 
 Decided while building (2026-09-03): `awaitExit` takes the stage as an
 argument (`awaitExit(pipeline.run(system))`), since an extension on the stage
 with a `Raise` receiver needs context parameters; `mapPar` has a
 `Stream<Nothing, A>` twin as `mapOrFail` does, so a first `raise` can name
 `E`; a body is cancelled by the run, at stream termination, not by Pekko;
-`lark-stream` depends on `lark-pekko` so the wait is `await()`'s one code.
+`surefold-stream` depends on `surefold-pekko` so the wait is `await()`'s one code.

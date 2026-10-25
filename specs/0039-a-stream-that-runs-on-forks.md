@@ -2,21 +2,21 @@
 
 ## Problem
 
-The only stream lark has is `lark-stream`, a typed view over Pekko Streams. A
+The only stream surefold has is `surefold-stream`, a typed view over Pekko Streams. A
 service that isn't on Pekko pays for an actor system to get one. Its stages are
 Pekko operators, so a stage body cannot `bind` without the `Failing` wrapper
 turning a raise into an exception on Pekko's failure channel
-([Stream.kt](../lark-stream/src/main/kotlin/io/github/matthewjones372/lark/stream/Stream.kt)).
+([Stream.kt](../surefold-stream/src/main/kotlin/io/github/matthewjones372/surefold/stream/Stream.kt)).
 A service without Pekko uses `Sequence` instead. It has the right shape and
 fuses stages on one thread, but it has no bounded concurrent stage and no
 bounded buffer between a fast stage and a slow one.
 
 With 0037's forks and 0038's channels, the missing pieces are a few operators,
-in a module of their own: `lark-feed`, depending on `lark` and nothing else.
+in a module of their own: `surefold-feed`, depending on `surefold` and nothing else.
 
 ## Not doing
 
-- **No change to `lark-stream`.** Pekko users keep it. The two share no types,
+- **No change to `surefold-stream`.** Pekko users keep it. The two share no types,
   and neither depends on the other.
 - **No materialised values, graphs or fan-out.** Linear pipelines only. A
   second consumer is a second channel.
@@ -57,12 +57,12 @@ failure is the scope's own `Raise`. A stream adds no rules the forks don't
 already have.
 
 The alternative is to keep `Stream<E, A>` and give it a second, fork-based
-backend behind `lark-stream`'s API. Recommended against: that API exposes
+backend behind `surefold-stream`'s API. Recommended against: that API exposes
 `Source` (`toSource`, `Stream.from`), so the Pekko dependency cannot leave it.
 
 ## Stack
 
-- [ ] **`spec-0039-feed`** — the `lark-feed` module and its classpath test, `Feed`,
+- [ ] **`spec-0039-feed`** — the `surefold-feed` module and its classpath test, `Feed`,
       `feed`, fused `map`/`filter`/`take`/`chunked`, `forEach`, `toList`.
       Done when: a raise in `map` is the `Left`, and `take(3)` on an infinite feed
       returns.
@@ -78,12 +78,12 @@ backend behind `lark-stream`'s API. Recommended against: that API exposes
 
 ## Open questions
 
-1. **The name.** `Stream` clashes with `lark-stream`, `Flow` means something else
+1. **The name.** `Stream` clashes with `surefold-stream`, `Flow` means something else
    to a Kotlin reader, and `Pipe` is taken. `Feed` is recommended. Pick another
    freely.
 2. **Does `mapPar` keep input order?** Recommended: yes, with `mapParUnordered`
-   later if a pipeline asks for it. This matches `lark-stream`.
+   later if a pipeline asks for it. This matches `surefold-stream`.
 3. **A producing block (`feed { emit(x) }`) as the way in?** Recommended: yes, as
    a fork with a channel of capacity 0, so `emit` parks until pulled.
 
-Decided (2026-09-22): `lark-feed` is a module of its own, not part of `lark`.
+Decided (2026-09-22): `surefold-feed` is a module of its own, not part of `surefold`.

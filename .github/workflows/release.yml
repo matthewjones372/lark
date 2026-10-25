@@ -30,7 +30,7 @@ jobs:
           # axion reads the tag to decide the version, and a shallow clone has none.
           fetch-depth: 0
 
-      # 27 for lark-structured's toolchain, installed rather than left to Gradle, whose download of
+      # 27 for surefold-structured's toolchain, installed rather than left to Gradle, whose download of
       # 27 is an Alpine build that does not run here; 25, listed last, is what Gradle runs on.
       - uses: actions/setup-java@v4
         with:
@@ -69,7 +69,7 @@ jobs:
       - id: already
         run: |
           version="${{ steps.version.outputs.value }}"
-          url="https://repo1.maven.org/maven2/io/github/matthewjones372/lark/$version/lark-$version.pom"
+          url="https://repo1.maven.org/maven2/io/github/matthewjones372/surefold/$version/surefold-$version.pom"
           code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
           echo "released=$([ "$code" = "200" ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
           echo "$version is $([ "$code" = "200" ] && echo 'already on Central' || echo 'not on Central yet')"

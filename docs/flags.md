@@ -1,6 +1,6 @@
 # Feature flags
 
-`lark-openfeature` reads [OpenFeature](https://openfeature.dev) flags on
+`surefold-openfeature` reads [OpenFeature](https://openfeature.dev) flags on
 virtual threads. Who a flag is evaluated for is bound once, where a request
 comes in, and every flag read below it answers for that caller: in a `parZip`
 branch, in a fork, and in an actor's handler. A flag is declared once, with its
@@ -8,16 +8,16 @@ key, its type and its default, and read with no client passed in.
 
 ```kotlin
 dependencies {
-    // brings lark, the OpenFeature SDK and the slf4j-api it logs through
-    implementation("io.github.matthewjones372:lark-openfeature:0.10.1")
+    // brings surefold, the OpenFeature SDK and the slf4j-api it logs through
+    implementation("io.github.matthewjones372:surefold-openfeature:0.10.1")
 }
 ```
 
-Call `OpenFeatureAPI.getInstance().useLark()` once, in `main`, before setting a
+Call `OpenFeatureAPI.getInstance().useSurefold()` once, in `main`, before setting a
 provider. It keeps the SDK's evaluation context where forks and messages can
 see it, and adds the hook that counts evaluations.
 
-In a `lark-app` graph, `lark-app-openfeature`'s `openFeature { provider }` does
+In a `surefold-app` graph, `surefold-app-openfeature`'s `openFeature { provider }` does
 this for you. The provider is a node keyed by `Client`, set before any node
 that takes one is built. A provider whose init throws refuses the start, the
 graph reports not ready while the provider is in error or stale, and release
@@ -26,7 +26,7 @@ can hold it, and a second is refused.
 
 ## Flags in the service's config
 
-`lark-app-openfeature-flagd`'s `flagdFlags("flags")` reads the flags from a
+`surefold-app-openfeature-flagd`'s `flagdFlags("flags")` reads the flags from a
 section of the service's own HOCON, in [flagd's schema](https://flagd.dev/reference/flag-definitions/),
 and evaluates them in-process. HOCON is a superset of JSON, so a flagd
 definition is already a valid section, targeting included:
@@ -53,9 +53,9 @@ never carries it.
 <!-- flags-declare -->
 ```kotlin
 import dev.openfeature.sdk.FlagEvaluationDetails
-import io.github.matthewjones372.lark.openfeature.Flag
-import io.github.matthewjones372.lark.openfeature.evaluatedFor
-import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.surefold.openfeature.Flag
+import io.github.matthewjones372.surefold.openfeature.evaluatedFor
+import io.github.matthewjones372.surefold.parZip
 
 object AdoptionFlags {
     val registryCheck = Flag.boolean("adoption.registry-check", default = true)
@@ -94,7 +94,7 @@ type the code wants, and decoded once, beside the key and the default:
 <!-- flags-types -->
 ```kotlin
 import dev.openfeature.sdk.Value
-import io.github.matthewjones372.lark.openfeature.Flag
+import io.github.matthewjones372.surefold.openfeature.Flag
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 
@@ -165,7 +165,7 @@ Every evaluation is counted under `openfeature.evaluations`, tagged `flag`,
 `variant` and `reason`. One that fell back to its default also writes a
 warning naming the flag and the error code, and is counted under
 `openfeature.errors`, tagged `flag` and `code`. Both go to whatever logger and
-metrics the service bound, the same as [Lark's own](observability.md).
+metrics the service bound, the same as [Surefold's own](observability.md).
 
 ## Testing
 
@@ -176,15 +176,15 @@ provider of its own, and the forks it opens read the same one:
 ```kotlin
 import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.providers.memory.InMemoryProvider
-import io.github.matthewjones372.lark.openfeature.Flag
-import io.github.matthewjones372.lark.openfeature.featureClient
-import io.github.matthewjones372.lark.openfeature.useLark
+import io.github.matthewjones372.surefold.openfeature.Flag
+import io.github.matthewjones372.surefold.openfeature.featureClient
+import io.github.matthewjones372.surefold.openfeature.useSurefold
 import dev.openfeature.sdk.providers.memory.Flag as MemoryFlag
 
 val perAdopterLimit = Flag.int("adoption.per-customer-limit", default = 3)
 
 fun aTest(): Int {
-    val api = OpenFeatureAPI.getInstance().apply { useLark() }
+    val api = OpenFeatureAPI.getInstance().apply { useSurefold() }
     val five = MemoryFlag.builder<Int>().variant("on", 5).defaultVariant("on").build()
     api.setProviderAndWait("a-test", InMemoryProvider(mapOf("adoption.per-customer-limit" to five)))
 

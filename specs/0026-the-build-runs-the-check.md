@@ -21,14 +21,14 @@ argument at the `runApp` call site, where nothing but `runApp` can read it.
 - **No change to `runApp(module) { }`.** The lambda form stays for tests and
   one-file examples.
 - **Nothing published from the plugin but the plugin.** The checker's `main`
-  ships in `lark-app`, so there is no second artifact to resolve.
+  ships in `surefold-app`, so there is no second artifact to resolve.
 
 ## Shape
 
 An application is a value that carries its own root:
 
 ```kotlin
-object Petshop : LarkApp<PelicanServer>() {
+object Petshop : SurefoldApp<PelicanServer>() {
     override val module: Module = settings + telemetry + theShop + arrivals + web
     override fun AppScope.run(root: PelicanServer) { root.block() }
 }
@@ -39,18 +39,18 @@ fun main(): Unit = exitProcess(runApp(Petshop).code)
 A plugin is the whole of the per-application cost:
 
 ```kotlin
-plugins { id("io.github.matthewjones372.lark.wiring") }
+plugins { id("io.github.matthewjones372.surefold.wiring") }
 
-larkWiring { unreachable = Severity.FAIL }   // optional
+surefoldWiring { unreachable = Severity.FAIL }   // optional
 ```
 
-`larkWiring` runs before `check`, finds every `LarkApp` in the project's own
+`surefoldWiring` runs before `check`, finds every `SurefoldApp` in the project's own
 class output, prints `findings().report()`, fails on an error, and writes
-`build/reports/lark/<app>.mmd`.
+`build/reports/surefold/<app>.mmd`.
 
 ## Why this shape
 
-`LarkApp` as an abstract class taking `typeOf<A>()` rather than an interface:
+`SurefoldApp` as an abstract class taking `typeOf<A>()` rather than an interface:
 an interface cannot reify, and the root must be a `KType` the checker reads
 without running `main`. The restatement is one type argument written twice on
 one line, against a root the build can see.
@@ -67,11 +67,11 @@ this repo's own rule that a description is a value.
 
 ## Stack
 
-- [x] **`spec-0026-larkapp`** — `LarkApp<A>`, `runApp(LarkApp)`, the checker
-      `main` in `lark-app`.
+- [x] **`spec-0026-surefoldapp`** — `SurefoldApp<A>`, `runApp(SurefoldApp)`, the checker
+      `main` in `surefold-app`.
       Done when: an application declares its root as a value, `main` is one
       line, and the checker names a fault given a class output directory.
-- [x] **`spec-0026-gradle`** — `lark-app-gradle`, the `larkWiring` task and its
+- [x] **`spec-0026-gradle`** — `surefold-app-gradle`, the `surefoldWiring` task and its
       extension, wiring into `check`, the `.mmd` output.
       Done when: applying the plugin alone fails a build on a missing key and
       leaves a diagram behind.
@@ -84,13 +84,13 @@ this repo's own rule that a description is a value.
 
 ## Open questions
 
-1. **Where should the diagram land?** Recommend `build/reports/lark`, path
+1. **Where should the diagram land?** Recommend `build/reports/surefold`, path
    configurable. A checked-in file shows an added edge in review, but a build
    that writes into the source tree by default is worse.
-2. **Should the plugin apply to a project with no `LarkApp`?** Recommend the
+2. **Should the plugin apply to a project with no `SurefoldApp`?** Recommend the
    task registers and passes, rather than failing: a library module in an
    application build should not need to opt out.
-3. **Is `lark-app-gradle` published from this repo's release?** Recommend yes,
+3. **Is `surefold-app-gradle` published from this repo's release?** Recommend yes,
    on the same version, though a plugin marker is a second coordinate and the
    `NoOtherDependenciesTest` rule cannot apply to a module that depends on
    `gradleApi()`.

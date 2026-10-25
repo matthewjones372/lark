@@ -2,10 +2,10 @@
 
 ## Problem
 
-`lark` has no logging dependency, and `StderrLogger` is what a service gets
+`surefold` has no logging dependency, and `StderrLogger` is what a service gets
 until it binds something else. `docs/cookbook.md` answers the obvious next
 question with twenty lines of `Slf4jLogger` and the sentence "the adapter is
-yours". That is right about `lark` and wrong about everyone who uses it: the
+yours". That is right about `surefold` and wrong about everyone who uses it: the
 twenty lines are the same twenty lines every time, and the part people get wrong
 is not the level `when`.
 
@@ -25,38 +25,38 @@ prints in two formats.
 
 ## Not doing
 
-- **No backend.** `slf4j-api` only, the way `lark-otel` takes the OpenTelemetry
+- **No backend.** `slf4j-api` only, the way `surefold-otel` takes the OpenTelemetry
   API and leaves the SDK to the service.
 - **No version anybody has to match.** The facade is declared at the oldest
   version this compiles against, so resolution can only raise it. Declaring a
   2.x floor would drag a service on 1.7 across the change from
   `StaticLoggerBinder` to `ServiceLoader` providers, and its logging would go
   quiet because it added this module.
-- **No dependency on `lark`.** A new module, so `NoOtherDependenciesTest` in
-  `lark` says exactly what it says today.
+- **No dependency on `surefold`.** A new module, so `NoOtherDependenciesTest` in
+  `surefold` says exactly what it says today.
 - **No SLF4J provider.** Routing *other* libraries' slf4j output back into
-  `lark` means winning a `ServiceLoader` race for the whole JVM. Its own spec,
+  `surefold` means winning a `ServiceLoader` race for the whole JVM. Its own spec,
   if ever.
 - **No deleting the cookbook recipe.** It stays, shortened, because the point it
-  makes about `lark` is still true.
+  makes about `surefold` is still true.
 
 ## Shape
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-slf4j:$larkVersion")
+    implementation("io.github.matthewjones372:surefold-slf4j:$surefoldVersion")
 }
 ```
 
 There is no second step. The module registers a `Logger` through a
-`ServiceLoader`, and `lark`'s default resolves through one — so a service that
+`ServiceLoader`, and `surefold`'s default resolves through one — so a service that
 has bound nothing logs where everything else on its classpath already logs.
 
 ```kotlin
 logger.locally(MyLogger()) { runApp(app) }   // still wins: a test, or your own
 ```
 
-- `Slf4jLogger(name: String = "lark")` — a backend is configured by name, and a
+- `Slf4jLogger(name: String = "surefold")` — a backend is configured by name, and a
   service wants a level for its own lines that is not its libraries'.
 - Level maps to `debug`/`info`/`warn`/`error`; `cause` goes to the throwable
   overload rather than into the message.
@@ -69,20 +69,20 @@ logger.locally(MyLogger()) { runApp(app) }   // still wins: a test, or your own
 ## Why this shape
 
 A wrapper around `runApp` is a line to remember, and `petshop` is the evidence
-that it gets forgotten. Discovery is the ergonomics `lark-otel` already has —
+that it gets forgotten. Discovery is the ergonomics `surefold-otel` already has —
 "put it on the classpath; nothing else" — and it is the difference between an
 adapter being a dependency and being a step in a README nobody reaches.
 
-The MDC is the other half. `lark` carries a binding across a fork and slf4j's
+The MDC is the other half. `surefold` carries a binding across a fork and slf4j's
 MDC does not, so the adapter is the seam where one becomes the other, and it is
 a seam with a wrong answer that looks right: append to the message and every
 line still reads correctly to a human while being unsearchable to everything
 else. Putting values in and taking them back out — rather than setting and
-leaving them — is what makes that safe on a pooled or virtual thread `lark` did
+leaving them — is what makes that safe on a pooled or virtual thread `surefold` did
 not open.
 
 The alternative to discovery is `MDCContextMap`, an slf4j SPI that would let
-`lark`'s bindings *be* the MDC for the whole JVM. It would carry annotations
+`surefold`'s bindings *be* the MDC for the whole JVM. It would carry annotations
 onto third-party lines for free, and it takes over something the service may
 already have configured. Recommend the plain adapter.
 
@@ -90,8 +90,8 @@ already have configured. Recommend the plain adapter.
 
 - [x] **`spec-0032-the-module`**
       ([#67](https://github.com/matthewjones372/lark/pull/67))
-      — `lark-slf4j`: the module, `Slf4jLogger`, levels, `cause`, and a
-        `NoOtherDependenciesTest` allowing `lark`, Arrow and `slf4j-api` and
+      — `surefold-slf4j`: the module, `Slf4jLogger`, levels, `cause`, and a
+        `NoOtherDependenciesTest` allowing `surefold`, Arrow and `slf4j-api` and
         nothing else.
       Done when: each of the four levels reaches the matching slf4j call, an
       error carries its `Throwable` as a throwable, and the classpath test
@@ -104,10 +104,10 @@ already have configured. Recommend the plain adapter.
       the block does, and a key the service set itself survives.
 - [x] **`spec-0032-found-on-the-classpath`**
       ([#69](https://github.com/matthewjones372/lark/pull/69))
-      — `lark`'s default `Logger` resolves through a `ServiceLoader`, resolved
-        once; `lark-slf4j` ships the service file; README and cookbook say so.
+      — `surefold`'s default `Logger` resolves through a `ServiceLoader`, resolved
+        once; `surefold-slf4j` ships the service file; README and cookbook say so.
       Done when: with the module on the test classpath and nothing bound,
-      `logger.get()` is a `Slf4jLogger`, `lark`'s own tests still get
+      `logger.get()` is a `Slf4jLogger`, `surefold`'s own tests still get
       `StderrLogger`, and `logger.locally` still wins.
 
 ## Acceptance
@@ -120,13 +120,13 @@ already have configured. Recommend the plain adapter.
 
 1. **Can a level be checked before a line is built?** No: `logInfo` interpolates
    its message and builds a `LogLine` before any `Logger` sees it, so a disabled
-   level costs the same as an enabled one. Fixing that is a change to `lark`'s
+   level costs the same as an enabled one. Fixing that is a change to `surefold`'s
    own API, not to this adapter. Recommend saying so in the KDoc and leaving it.
-2. **`lark-slf4j`, or `lark-app-slf4j`?** It adapts `lark`'s `Logger` and knows
-   nothing about a graph. Recommend `lark-slf4j`.
+2. **`surefold-slf4j`, or `surefold-app-slf4j`?** It adapts `surefold`'s `Logger` and knows
+   nothing about a graph. Recommend `surefold-slf4j`.
 3. **What restores an MDC that was already set?** Recommend saving the map
    before and restoring it after, not clearing: a service that set its own keys
-   outside `lark` keeps them.
+   outside `surefold` keeps them.
 4. ~~**Does `CookbookTest` still compile the old recipe?**~~ Answered: it
    compiles only fences marked `<!-- cookbook -->`, so the dependency snippet is
    prose and the hand-rolled adapter below it stays compiled.
@@ -139,5 +139,5 @@ already have configured. Recommend the plain adapter.
    first log line would take out the caller. Recommend catching that and falling
    back to stderr, having said once why.
 7. **Whose classloader?** This class's, not the thread's — which thread a line
-   is written on is exactly what `lark` makes vary. A container that isolates
+   is written on is exactly what `surefold` makes vary. A container that isolates
    the application from the library loader would not find the adapter.

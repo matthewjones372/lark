@@ -14,8 +14,8 @@ reading.
   transcript stays plain, because it ends up in JUnit XML, CI logs and bug
   reports, where escape codes are noise.
 - Themes or configurable palettes.
-- Anything except ANSI escape codes: no terminal library, no Jansi. `lark-test`
-  stays `lark` and Kotest.
+- Anything except ANSI escape codes: no terminal library, no Jansi. `surefold-test`
+  stays `surefold` and Kotest.
 - Detecting a terminal's capabilities beyond on and off.
 
 ## Shape
@@ -38,7 +38,7 @@ prints exactly this.
 
 Whether colour is on is decided once per JVM, in this order:
 
-1. `-Dlark.test.colour=always|never|auto`: `always` and `never` win outright.
+1. `-Dsurefold.test.colour=always|never|auto`: `always` and `never` win outright.
 2. `NO_COLOR` set to anything non-empty: off ([no-color.org](https://no-color.org)).
 3. `FORCE_COLOR` set to anything non-empty: on.
 4. Running under IntelliJ: on.
@@ -62,12 +62,12 @@ place, so a coloured message would arrive as `?[31m` in every CI report.
 **A Gradle test worker does not see the shell's environment.**
 `FORCE_COLOR=1 ./gradlew test` set nothing in the JVM the tests ran in, so
 rules 2 and 3 never fired from the command line. The prototype hands them on
-in the build, and `lark-test` should say how:
+in the build, and `surefold-test` should say how:
 
 ```kotlin
 tasks.test {
     listOf("FORCE_COLOR", "NO_COLOR").forEach { name -> providers.environmentVariable(name).orNull?.let { environment(name, it) } }
-    providers.gradleProperty("lark.test.colour").orNull?.let { systemProperty("lark.test.colour", it) }
+    providers.gradleProperty("surefold.test.colour").orNull?.let { systemProperty("surefold.test.colour", it) }
 }
 ```
 
@@ -76,8 +76,8 @@ tasks.test {
 Depends on 0115's `spec-0115-steps`.
 
 - [ ] **`spec-0116-colour`** — the styles, the five rules deciding whether
-      they are on, and the build snippet above in `lark-test`'s KDoc.
-      Done when: output captured with `lark.test.colour=never` holds no escape
+      they are on, and the build snippet above in `surefold-test`'s KDoc.
+      Done when: output captured with `surefold.test.colour=never` holds no escape
       code; with `always`, the ✗ line starts with red and bold; with
       `NO_COLOR=1` and `FORCE_COLOR=1` both set, it is off; and the thrown
       transcript holds no escape code in any mode.
@@ -85,7 +85,7 @@ Depends on 0115's `spec-0115-steps`.
 ## Acceptance
 
 ```bash
-./gradlew :lark-test:test
+./gradlew :surefold-test:test
 ```
 
 Then a failing petshop story run from IntelliJ shows its ✗ in red.
@@ -101,10 +101,10 @@ Then a failing petshop story run from IntelliJ shows its ✗ in red.
 - **Colour inside the failure line**, e.g. Kotest's `expected:<…>` green and
   `but was:<…>` red? That means parsing Kotest's message, which can change
   under us. Recommended: no; the whole line is red.
-- **The build snippet: documented, or applied?** `lark-app-gradle` already
+- **The build snippet: documented, or applied?** `surefold-app-gradle` already
   configures consumers' builds for the wiring check, and could pass these
   through too. Recommended: document it here, and leave applying it to that
   plugin for a later spec.
-- **Should `NO_COLOR` beat `-Dlark.test.colour=always`?** Recommended: no. An
+- **Should `NO_COLOR` beat `-Dsurefold.test.colour=always`?** Recommended: no. An
   explicit property on this one run is more specific than an environment
   variable that may have been set for something else.

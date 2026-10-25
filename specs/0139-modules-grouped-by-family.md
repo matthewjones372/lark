@@ -4,7 +4,7 @@
 
 The repo root holds 36 module directories side by side. Finding the stream
 backends or the actor serialisers means scanning an alphabetical list where
-`lark-app-cluster` sits next to `lark-actor-remote-avro`. The dependency graph
+`surefold-app-cluster` sits next to `surefold-actor-remote-avro`. The dependency graph
 already has clear families (core, stream, actor, cluster, app, integrations),
 but the tree does not show them.
 
@@ -19,17 +19,17 @@ but the tree does not show them.
 ## Shape
 
 ```
-core/          lark  lark-test  lark-structured
-stream/        lark-stream  -forks  -pekko  -actors  -test  -parity
-actor/         lark-actor  -remote  -remote-avro  -remote-kotlinx
+core/          surefold  surefold-test  surefold-structured
+stream/        surefold-stream  -forks  -pekko  -actors  -test  -parity
+actor/         surefold-actor  -remote  -remote-avro  -remote-kotlinx
                -remote-protobuf  -journal-jdbc  -projection
-cluster/       lark-cluster  -kubernetes  -aws
-app/           lark-app  -pekko  -typesafe  -liquibase  -gradle  -compiler
+cluster/       surefold-cluster  -kubernetes  -aws
+app/           surefold-app  -pekko  -typesafe  -liquibase  -gradle  -compiler
                -actor  -cluster
-integrations/  lark-pekko  lark-otel  lark-slf4j  lark-micrometer
-               lark-kafka  lark-kafka-pekko
-bench/         lark-stream-benchmarks  lark-actor-benchmarks
-examples/      lark-bank
+integrations/  surefold-pekko  surefold-otel  surefold-slf4j  surefold-micrometer
+               surefold-kafka  surefold-kafka-pekko
+bench/         surefold-stream-benchmarks  surefold-actor-benchmarks
+examples/      surefold-bank
 ```
 
 `settings.gradle.kts` keeps each project path and points it at the folder:
@@ -40,15 +40,15 @@ fun module(group: String, name: String) {
     project(":$name").projectDir = file("$group/$name")
 }
 
-module("stream", "lark-stream")
+module("stream", "surefold-stream")
 ```
 
-`:lark-stream:test` and `io.github.matthewjones372:lark-stream` stay exactly as
+`:surefold-stream:test` and `io.github.matthewjones372:surefold-stream` stay exactly as
 they are, so petshop and every published coordinate are untouched.
 
 ## Why this shape
 
-Setting `projectDir` instead of including `:stream:lark-stream` keeps project
+Setting `projectDir` instead of including `:stream:surefold-stream` keeps project
 paths flat. A nested path would rename every task, every `project(":...")`
 dependency and every CI command for no gain. The alternative, splitting repos,
 was weighed in chat: about one code commit in eight touches two families, and
@@ -76,7 +76,7 @@ about the edits around them.
 ```bash
 ./gradlew build
 ./gradlew publishToMavenLocal   # same artifacts, same coordinates
-ls                               # eight folders, no lark-* at the root
+ls                               # eight folders, no surefold-* at the root
 ```
 
 Then petshop builds against the local snapshot with no change.
@@ -85,8 +85,8 @@ Then petshop builds against the local snapshot with no change.
 
 Answered with the drafted recommendations, on Matt's go-ahead to build overnight:
 
-1. `lark-structured` goes in `core/`.
-2. `lark-app-actor` and `lark-app-cluster` go in `app/`.
-3. `lark-pekko` and `lark-kafka*` go in `integrations/`; `lark-stream-pekko` and
-   `lark-app-pekko` stay with their families.
+1. `surefold-structured` goes in `core/`.
+2. `surefold-app-actor` and `surefold-app-cluster` go in `app/`.
+3. `surefold-pekko` and `surefold-kafka*` go in `integrations/`; `surefold-stream-pekko` and
+   `surefold-app-pekko` stay with their families.
 4. `bench/` and `examples/` stay separate.

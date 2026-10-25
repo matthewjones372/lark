@@ -20,18 +20,18 @@ shows up at start.
 
 ## Not doing
 
-- A lark compiler plugin that generates readers. The kotlinx.serialization
-  plugin already generates a descriptor for each class, so lark won't maintain
+- A surefold compiler plugin that generates readers. The kotlinx.serialization
+  plugin already generates a descriptor for each class, so surefold won't maintain
   a second code generator.
 - Changes to `config(path) { … }`, `choosing` or `Reading`. The block form
   stays for anything a class can't say.
 - Enums, polymorphism and lists of objects. They are listed under Open
   questions.
-- Any kotlinx dependency in `lark-app-typesafe`.
+- Any kotlinx dependency in `surefold-app-typesafe`.
 
 ## Shape
 
-A new module, `lark-app-kotlinx`, depending on `lark-app-typesafe` and on
+A new module, `surefold-app-kotlinx`, depending on `surefold-app-typesafe` and on
 `kotlinx-serialization-core` only:
 
 ```kotlin
@@ -60,18 +60,18 @@ private val kebab: Module = config<Settings>("petshop", Naming.Kebab)   // arriv
 
 ## Why this shape
 
-kotlinx.serialization gives lark a compile-time descriptor of the class for the
-cost of one `@Serializable` annotation. A lark-owned `Decoder` on top of
+kotlinx.serialization gives surefold a compile-time descriptor of the class for the
+cost of one `@Serializable` annotation. A surefold-owned `Decoder` on top of
 `Reading` keeps what `kotlinx-serialization-hocon` would drop: it reports every
 fault instead of stopping at the first, reads HOCON's durations, and keeps
-`Secret`. The alternatives were a lark K2 plugin, which means IR codegen
+`Secret`. The alternatives were a surefold K2 plugin, which means IR codegen
 maintained on every Kotlin bump, and `kotlin-reflect`, which is a new
 dependency with nothing checked at compile time. Both were rejected.
 
 ## Stack
 
 - [x] **`spec-0153-module`** ([#426](https://github.com/matthewjones372/lark/pull/426)):
-      `lark-app-kotlinx` with a `Decoder` on
+      `surefold-app-kotlinx` with a `Decoder` on
       `Reading` for the leaves, nested sections, defaults and nulls.
       `config<A>(path)` is added.
       Done when: a class with every supported leaf reads from HOCON, and a
@@ -89,16 +89,16 @@ dependency with nothing checked at compile time. Both were rejected.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app-kotlinx:test :lark-app-typesafe:test :lark-app:test
+./gradlew :surefold-app-kotlinx:test :surefold-app-typesafe:test :surefold-app:test
 ./gradlew spotlessApply && ./gradlew build
 ```
 
 ## Open questions
 
-1. `Secret` lives in `lark-app-typesafe` and isn't `@Serializable`. Should the
-   decoder special-case it by type, or should `lark-app-typesafe` ship a
+1. `Secret` lives in `surefold-app-typesafe` and isn't `@Serializable`. Should the
+   decoder special-case it by type, or should `surefold-app-typesafe` ship a
    serializer for it? I recommend special-casing it in the decoder, so
-   `lark-app-typesafe` stays free of kotlinx.
+   `surefold-app-typesafe` stays free of kotlinx.
 2. kotlinx's built-in `Duration` serializer expects ISO strings. Should the
    decoder intercept `kotlin.time.Duration` by descriptor name, or require
    `@Contextual`? I recommend intercepting by name: no annotation, and it reads

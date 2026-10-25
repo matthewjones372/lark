@@ -13,8 +13,8 @@ earlier one in two places:
 - **`Cluster.self` is a `Node`, with no `uid`.** The new life hears
   `Downed(earlier life)` and `Removed(earlier life)`, and each event's
   `member.node` equals its own `cluster.self`. A subscriber that asks "was I
-  downed?" gets yes. lark-bank asked exactly that and exited, and so does
-  `lark-app-cluster`'s `whenDowned = exit` (spec 0096). In the bank's Docker
+  downed?" gets yes. surefold-bank asked exactly that and exited, and so does
+  `surefold-app-cluster`'s `whenDowned = exit` (spec 0096). In the bank's Docker
   run this was the loop: bank-1 restarted, joined, heard its predecessor
   downed, exited, and restarted again about every 30 seconds. Only restarting
   every node at once cleared it, because that left no earlier life in anyone's
@@ -44,7 +44,7 @@ earlier one in two places:
 ## Shape
 
 ```kotlin
-// lark-cluster
+// surefold-cluster
 val Cluster.uid: Long                         // this life's; the uid its Member carries
 fun Cluster.isSelf(member: Member): Boolean   // member.node == self && member.uid == uid
 
@@ -61,7 +61,7 @@ life, not the address:
   that address end. They can only be on an earlier life's actors, because
   nothing could have watched the new life's actors before it was known.
 
-`lark-app-cluster`'s `whenDowned = exit` uses `isSelf`.
+`surefold-app-cluster`'s `whenDowned = exit` uses `isSelf`.
 
 ## Why this shape
 
@@ -77,7 +77,7 @@ correct: the process those watches pointed at is gone.
 
 ## Stack
 
-- [x] **`spec-0097-self`**: `Cluster.uid` and `Cluster.isSelf`; `ready()` and `stop()` by life; `lark-app-cluster`'s exit uses it.
+- [x] **`spec-0097-self`**: `Cluster.uid` and `Cluster.isSelf`; `ready()` and `stop()` by life; `surefold-app-cluster`'s exit uses it.
       Done when: in a three-node test, a node stopped without leaving and started again on the same port comes `Up`,
       a subscriber on it never sees `isSelf` true for a `Downed` member, and `whenDowned = exit` does not exit.
 - [x] **`spec-0097-watches`**: watches end per life. A later life seen at an address ends the earlier life's watches; its removal ends none.
@@ -89,10 +89,10 @@ correct: the process those watches pointed at is gone.
 ## Acceptance
 
 ```bash
-./gradlew :lark-cluster:test :lark-app-cluster:test
+./gradlew :surefold-cluster:test :surefold-app-cluster:test
 ```
 
-With lark-bank on the snapshot, the Docker run's `scripts/demo.sh` restarts
+With surefold-bank on the snapshot, the Docker run's `scripts/demo.sh` restarts
 bank-3 and it comes back `Up` once, not in a loop, without restarting the
 others.
 
@@ -102,7 +102,7 @@ Each recommendation was taken. Settled while building:
 
 - **`stop()` still treats earlier lives at this address as this node** when it asks whether the node is the only
   member left, so a node alone with its own downed predecessor stops at once, as it did.
-- **Both tests fail on the code they replace.** With the address check, `lark-app-cluster`'s restarted node exits
+- **Both tests fail on the code they replace.** With the address check, `surefold-app-cluster`'s restarted node exits
   once. With watches ended by address, the earlier life's watch ends only at its removal, and the test's check that
   it ended while that life was still in the view fails.
 
@@ -117,7 +117,7 @@ Each recommendation was taken. Settled while building:
    Recommended: no. Other subscribers need `Downed` and `Removed` for the
    earlier life, and one subscriber stream should not differ by node. `isSelf`
    makes the question answerable.
-4. **Should this ship as a fix to `lark-app-cluster` ahead of the rest?**
+4. **Should this ship as a fix to `surefold-app-cluster` ahead of the rest?**
    Recommended: yes, as the first entry. `whenDowned = exit` is shipped and has
    this bug, so any application on it that restarts a node in place loops the
    way the bank did.

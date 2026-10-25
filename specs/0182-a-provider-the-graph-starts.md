@@ -18,7 +18,7 @@ every default.
 
 ## Shape
 
-A module, `lark-app-openfeature`, on `lark-app` and `lark-openfeature`:
+A module, `surefold-app-openfeature`, on `surefold-app` and `surefold-openfeature`:
 
 ```kotlin
 val flags: Module = openFeature { InMemoryProvider(mapOf(...)) }   // any FeatureProvider
@@ -29,7 +29,7 @@ single { client: Client -> AdoptionService(client) }  // starts after the provid
 `openFeature` is an `install`:
 
 - on the way in, `setProviderAndWait` (blocking is fine on a virtual
-  thread) and `useLark()` from 0180; a provider whose init throws refuses
+  thread) and `useSurefold()` from 0180; a provider whose init throws refuses
   the start;
 - a `Client` node, also bound into 0181's `featureClient` for the graph's
   lifetime, so `Flag.value()` and an injected `Client` read one provider;
@@ -46,7 +46,7 @@ flags. Recommended: the component.
 
 ## Stack
 
-- [x] **`spec-0182-component`** ([#552](https://github.com/matthewjones372/lark/pull/552)) — `lark-app-openfeature`, `openFeature`,
+- [x] **`spec-0182-component`** ([#552](https://github.com/matthewjones372/lark/pull/552)) — `surefold-app-openfeature`, `openFeature`,
       the `Client` node, readiness, release, and the dependency test.
       Done when: a graph whose provider fails init refuses to start, one
       whose provider goes `STALE` reports not ready, and release shuts the
@@ -55,7 +55,7 @@ flags. Recommended: the component.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app-openfeature:test
+./gradlew :surefold-app-openfeature:test
 ./gradlew spotlessApply && ./gradlew build
 ```
 

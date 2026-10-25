@@ -4,7 +4,7 @@
 
 Since 0143 a runner that runs dry spins for 10 µs, then parks on a stack until a submit wakes it. An actor asked
 at a steady pace whose gaps are longer than the spin pays for the whole spin and the park on every message. Petshop
-at 50,000 asks a second to one actor (gaps near 20 µs) re-measured after 0143 with lark still at about 15% of its
+at 50,000 asks a second to one actor (gaps near 20 µs) re-measured after 0143 with surefold still at about 15% of its
 CPU: JFR put 10.7% in `Runners.push`, 4.2% in `ConcurrentLinkedQueue.first` under `nothingQueued()`, and 13% of
 allocation in virtual thread stack chunks.
 
@@ -55,9 +55,9 @@ local 4.2 / 4.1 against 4.6 / 3.7 µs, Tell one-to-one 64 / 72 against 61 / 63 n
 
 ## Stack
 
-- [ ] **`spec-0144-paced-ask`** — an `askCpu` task in `lark-actor-benchmarks` that prints process CPU per ask,
-      closed loop and paced to 50,000 a second, for lark and Pekko.
-      Done when: `./gradlew :lark-actor-benchmarks:askCpu` prints four rows.
+- [ ] **`spec-0144-paced-ask`** — an `askCpu` task in `surefold-actor-benchmarks` that prints process CPU per ask,
+      closed loop and paced to 50,000 a second, for surefold and Pekko.
+      Done when: `./gradlew :surefold-actor-benchmarks:askCpu` prints four rows.
 - [ ] **`spec-0144-adaptive-spin`** — each runner halves its spin after a wasted one; a `RunnersTest` that fails
       on main.
       Done when: activations submitted 50 µs apart spin for less than a quarter of 10 µs each, and
@@ -66,9 +66,9 @@ local 4.2 / 4.1 against 4.6 / 3.7 µs, Tell one-to-one 64 / 72 against 61 / 63 n
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:test --tests '*RunnersTest*'
-./gradlew :lark-actor-benchmarks:askCpu
-./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs=".*\.(Ask|ShardedAsk|Tell|PingPong|FanOut)Benchmark\.lark"
+./gradlew :surefold-actor:test --tests '*RunnersTest*'
+./gradlew :surefold-actor-benchmarks:askCpu
+./gradlew :surefold-actor-benchmarks:jmh -PbenchmarkArgs=".*\.(Ask|ShardedAsk|Tell|PingPong|FanOut)Benchmark\.surefold"
 ./gradlew build
 ```
 

@@ -2,7 +2,7 @@
 
 ## Problem
 
-`Transport.close()` (`actor/lark-actor-remote/.../Wire.kt`) closes every socket at once. It interrupts each
+`Transport.close()` (`actor/surefold-actor-remote/.../Wire.kt`) closes every socket at once. It interrupts each
 writer and drops whatever is still queued. So a frame told just before close is lost, even when its connection is
 up and the frame was handed over in time.
 
@@ -68,7 +68,7 @@ connection, and short next to the 30 s `leaveWithin` a cluster gives its own lea
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor-remote:test :lark-cluster:test :lark-app-actor:test
+./gradlew :surefold-actor-remote:test :surefold-cluster:test :surefold-app-actor:test
 ./gradlew build
 ```
 

@@ -19,7 +19,7 @@ means threading one through code that otherwise only needs the value.
 
 ## Shape
 
-In `lark-openfeature`. Factories on `Flag`'s companion, as `Schedule`'s are:
+In `surefold-openfeature`. Factories on `Flag`'s companion, as `Schedule`'s are:
 
 ```kotlin
 object AdoptionFlags {
@@ -36,7 +36,7 @@ val detail: FlagEvaluationDetails<Int> = AdoptionFlags.perAdopterLimit.details()
 - `Flag<A>`, a value with a `key` and a `default`; `Flag.boolean`,
   `Flag.string`, `Flag.int`, `Flag.double` construct one.
 - `value()` and `details()` evaluate against `featureClient`, a
-  `LarkLocal<Client>` defaulting to `OpenFeatureAPI.getInstance().client`,
+  `SurefoldLocal<Client>` defaulting to `OpenFeatureAPI.getInstance().client`,
   and the context 0180 binds.
 - `featureClient.locally(otherClient) { ... }` swaps the client, which is
   what a test with its own provider domain does.
@@ -46,7 +46,7 @@ val detail: FlagEvaluationDetails<Int> = AdoptionFlags.perAdopterLimit.details()
 A flag as a declared value puts key, default and type in one place. Named
 factories over one `Flag(key, default)` inferring from the default:
 `default = 3` versus `3.0` would choose int or double silently. Reading the
-client from a `LarkLocal` matches `logger` and `metrics`: a call site needs
+client from a `SurefoldLocal` matches `logger` and `metrics`: a call site needs
 nothing passed in; an injected `Flags` class over a `Client` was the
 alternative and puts a dependency on every class that reads one flag.
 Keeping `Flag` over `FeatureFlag`: the SDK's in-memory `Flag` is rarely
@@ -66,7 +66,7 @@ needs both.
 ## Acceptance
 
 ```bash
-./gradlew :lark-openfeature:test
+./gradlew :surefold-openfeature:test
 ./gradlew spotlessApply && ./gradlew build
 ```
 

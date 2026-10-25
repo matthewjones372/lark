@@ -1,8 +1,8 @@
 plugins {
     kotlin("jvm") version "2.4.10" apply false
-    // @Serializable classes: lark-actor-remote-kotlinx's tests, and the services that use it (spec 0093).
+    // @Serializable classes: surefold-actor-remote-kotlinx's tests, and the services that use it (spec 0093).
     kotlin("plugin.serialization") version "2.4.10" apply false
-    // A failed `expect` in lark-junit's suites draws its values (spec 0175).
+    // A failed `expect` in surefold-junit's suites draws its values (spec 0175).
     kotlin("plugin.power-assert") version "2.4.10" apply false
     id("com.diffplug.spotless") version "8.10.0"
     id("dev.detekt") version "2.0.0-alpha.6" apply false
@@ -70,79 +70,94 @@ spotless {
 
 /** One line per module, so a Maven search result says what the artifact is. */
 val moduleDescriptions = mapOf(
-    "lark" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
-    "lark-pekko" to "lark on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
-    "lark-stream" to "A stream that names its failure: Stream<E, A> described once, run on the backend you pick.",
-    "lark-stream-pekko" to "lark-stream on Pekko Streams: the backend, and the operators that take Pekko's types.",
-    "lark-stream-forks" to "lark-stream on lark's own forks: a run is a pull loop on a virtual thread.",
-    "lark-stream-actors" to "lark-stream on lark-actor: a run is an actor, pulling its loop a batch at a time.",
-    "lark-stream-test" to "lark-stream for tests: every stage on the calling thread, on a clock the test owns.",
-    "lark-arrow" to "Lark's Either, NonEmptyList and Fail to and from Arrow's, for a codebase already on Arrow.",
-    "lark-assert" to "Checks for tests of lark code that fail at the test's own line, Either matchers among them.",
-    "lark-test" to "For tests of a lark service: eventually on lark's clock, and a test that reads as a story.",
-    "lark-junit" to "Lark's tests on the JUnit Platform: a suite is an object, its tests share one resource.",
-    "lark-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
-    "lark-app-pekko" to "lark-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
-    "lark-otel" to "lark on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
-    "lark-slf4j" to "lark's log lines through SLF4J, with a fork's annotations in the MDC.",
-    "lark-micrometer" to "lark's metrics into a Micrometer registry.",
-    "lark-app-liquibase" to "lark-app on Liquibase: a migration is a node, and reading the database depends on it.",
-    "lark-app-typesafe" to "lark-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
-    "lark-app-kotlinx" to "lark-app-typesafe from a @Serializable class: the section read from the class itself.",
-    "lark-app-gradle" to "lark-app as a build gate: every graph in a project checked and drawn as it compiles.",
-    "lark-app-compiler" to "lark-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
-    "lark-structured" to "lark over the JDK's StructuredTaskScope: a flock the thread dump can see.",
-    "lark-kafka" to "Kafka as a lark Stream on any backend: a record is committed only after the work on it is done.",
-    "lark-kafka-pekko" to "lark-kafka through Pekko's own Kafka connector: prefetch, batched commits, a draining stop.",
-    "lark-kafka-test" to
+    "surefold" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
+    "surefold-pekko" to
+        "surefold on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
+    "surefold-stream" to "A stream that names its failure: Stream<E, A> described once, run on the backend you pick.",
+    "surefold-stream-pekko" to
+        "surefold-stream on Pekko Streams: the backend, and the operators that take Pekko's types.",
+    "surefold-stream-forks" to "surefold-stream on surefold's own forks: a run is a pull loop on a virtual thread.",
+    "surefold-stream-actors" to
+        "surefold-stream on surefold-actor: a run is an actor, pulling its loop a batch at a time.",
+    "surefold-stream-test" to "surefold-stream for tests: every stage on the calling thread, on a clock the test owns.",
+    "surefold-arrow" to
+        "Surefold's Either, NonEmptyList and Fail to and from Arrow's, for a codebase already on Arrow.",
+    "surefold-assert" to
+        "Checks for tests of surefold code that fail at the test's own line, Either matchers among them.",
+    "surefold-test" to
+        "For tests of a surefold service: eventually on surefold's clock, and a test that reads as a story.",
+    "surefold-junit" to "Surefold's tests on the JUnit Platform: a suite is an object, its tests share one resource.",
+    "surefold-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
+    "surefold-app-pekko" to "surefold-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
+    "surefold-otel" to "surefold on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
+    "surefold-slf4j" to "surefold's log lines through SLF4J, with a fork's annotations in the MDC.",
+    "surefold-micrometer" to "surefold's metrics into a Micrometer registry.",
+    "surefold-app-liquibase" to
+        "surefold-app on Liquibase: a migration is a node, and reading the database depends on it.",
+    "surefold-app-typesafe" to
+        "surefold-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
+    "surefold-app-kotlinx" to
+        "surefold-app-typesafe from a @Serializable class: the section read from the class itself.",
+    "surefold-app-gradle" to "surefold-app as a build gate: every graph in a project checked and drawn as it compiles.",
+    "surefold-app-compiler" to
+        "surefold-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
+    "surefold-structured" to "surefold over the JDK's StructuredTaskScope: a flock the thread dump can see.",
+    "surefold-kafka" to
+        "Kafka as a surefold Stream on any backend: a record is committed only after the work on it is done.",
+    "surefold-kafka-pekko" to
+        "surefold-kafka through Pekko's own Kafka connector: prefetch, batched commits, a draining stop.",
+    "surefold-kafka-test" to
         "A Kafka broker in the test JVM for a service's own tests: no Docker, and helpers to read what it did.",
-    "lark-actor" to "An actor as a value and a step, on virtual threads: no actor system, and tests that never wait.",
-    "lark-actor-journal-jdbc" to
-        "lark-actor's journal and snapshots on JDBC: events every node reaches, two writers settled by the key.",
-    "lark-actor-projection" to
-        "lark-actor's journal as a lark Stream: a read model follows one kind, and resumes where it left off.",
-    "lark-actor-remote" to "lark-actor across nodes: codecs you own, and one TCP connection per pair of nodes.",
-    "lark-actor-remote-avro" to
-        "lark-actor-remote's messages in Avro: specific records, resolved across versions, and asks.",
-    "lark-actor-remote-protobuf" to
-        "lark-actor-remote's messages in Protobuf: generated messages, protocols of them, and asks.",
-    "lark-actor-remote-kotlinx" to
-        "lark-actor-remote's messages, events and snapshots from @Serializable data classes, in ProtoBuf by default.",
-    "lark-cluster" to "lark-actor as a cluster: discovery, gossip membership and downing, with no coordinator.",
-    "lark-cluster-aws" to
-        "lark-cluster on AWS: seeds from Cloud Map or ECS, and a DynamoDB lease to break an even split.",
-    "lark-cluster-kubernetes" to
-        "lark-cluster on Kubernetes: seeds from the pods API, and a Lease to break an even split.",
-    "lark-app-actor" to "lark-app on lark-actor: a flock is a node, and an actor is a node keyed by its protocol.",
-    "lark-app-cluster" to "lark-app on lark-cluster: a cluster is a node, joined as a HOCON section says.",
-    "lark-openfeature" to
-        "lark on OpenFeature: who a flag is evaluated for, bound once and read in every fork and actor.",
-    "lark-app-openfeature" to
-        "lark-app on OpenFeature: the provider is a node, set before any flag is read and shut down on release.",
-    "lark-app-openfeature-flagd" to
-        "lark-app-openfeature on flagd: flags in flagd's schema as a section of the service's own HOCON.",
+    "surefold-actor" to
+        "An actor as a value and a step, on virtual threads: no actor system, and tests that never wait.",
+    "surefold-actor-journal-jdbc" to
+        "surefold-actor's journal and snapshots on JDBC: events every node reaches, two writers settled by the key.",
+    "surefold-actor-projection" to
+        "surefold-actor's journal as a surefold Stream: a read model follows one kind, and resumes where it left off.",
+    "surefold-actor-remote" to "surefold-actor across nodes: codecs you own, and one TCP connection per pair of nodes.",
+    "surefold-actor-remote-avro" to
+        "surefold-actor-remote's messages in Avro: specific records, resolved across versions, and asks.",
+    "surefold-actor-remote-protobuf" to
+        "surefold-actor-remote's messages in Protobuf: generated messages, protocols of them, and asks.",
+    "surefold-actor-remote-kotlinx" to
+        "surefold-actor-remote's messages, events and snapshots from @Serializable data classes, " +
+        "in ProtoBuf by default.",
+    "surefold-cluster" to "surefold-actor as a cluster: discovery, gossip membership and downing, with no coordinator.",
+    "surefold-cluster-aws" to
+        "surefold-cluster on AWS: seeds from Cloud Map or ECS, and a DynamoDB lease to break an even split.",
+    "surefold-cluster-kubernetes" to
+        "surefold-cluster on Kubernetes: seeds from the pods API, and a Lease to break an even split.",
+    "surefold-app-actor" to
+        "surefold-app on surefold-actor: a flock is a node, and an actor is a node keyed by its protocol.",
+    "surefold-app-cluster" to "surefold-app on surefold-cluster: a cluster is a node, joined as a HOCON section says.",
+    "surefold-openfeature" to
+        "surefold on OpenFeature: who a flag is evaluated for, bound once and read in every fork and actor.",
+    "surefold-app-openfeature" to
+        "surefold-app on OpenFeature: the provider is a node, set before any flag is read and shut down on release.",
+    "surefold-app-openfeature-flagd" to
+        "surefold-app-openfeature on flagd: flags in flagd's schema as a section of the service's own HOCON.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
 // is a build that runs rather than a line count: petshop applying it is the test, not a percentage.
-val gradlePluginModules = setOf("lark-app-gradle")
+val gradlePluginModules = setOf("surefold-app-gradle")
 
 // The same argument for the compiler plugin: it runs inside the Kotlin compiler, so the only honest
-// test of it is a compilation, and those live in lark-app-gradle where the build that runs them is.
-val testedByRunningABuild = gradlePluginModules + "lark-app-compiler"
+// test of it is a compilation, and those live in surefold-app-gradle where the build that runs them is.
+val testedByRunningABuild = gradlePluginModules + "surefold-app-compiler"
 
-// lark-junit and what it runs on keep their tests on Jupiter: a runner cannot report on its own parts (spec 0197).
-val larkJunitRunsOn = setOf("lark", "lark-assert", "lark-test", "lark-junit")
+// surefold-junit and what it runs on keep their tests on Jupiter: a runner cannot report on its own parts (spec 0197).
+val surefoldJunitRunsOn = setOf("surefold", "surefold-assert", "surefold-test", "surefold-junit")
 
 // Measured, not tested: a benchmark has no assertions for a coverage floor to count.
-val benchmarkModules = setOf("lark-stream-benchmarks", "lark-actor-benchmarks", "lark-kafka-benchmarks")
+val benchmarkModules = setOf("surefold-stream-benchmarks", "surefold-actor-benchmarks", "surefold-kafka-benchmarks")
 
-// Built and tested, never published: lark-structured calls StructuredTaskScope, a preview API until
-// JDK 28 (JEP 543), and a release must not promise an API the JDK has not. lark-bank is an application
+// Built and tested, never published: surefold-structured calls StructuredTaskScope, a preview API until
+// JDK 28 (JEP 543), and a release must not promise an API the JDK has not. surefold-bank is an application
 // to run, not a library to depend on (spec 0094).
-val unpublished = setOf("lark-structured", "lark-stream-parity", "lark-bank") + benchmarkModules
+val unpublished = setOf("surefold-structured", "surefold-stream-parity", "surefold-bank") + benchmarkModules
 
-// What llms.txt and the lark skill must name, no more and no fewer: AgentDocsSuite in lark-app reads it.
+// What llms.txt and the surefold skill must name, no more and no fewer: AgentDocsSuite in surefold-app reads it.
 extra["publishedModules"] = subprojects.map { it.name }.filterNot { it in unpublished }.sorted()
 
 // AgentDocsSuite holds this to the published set: a module missing here ships a POM with no description.
@@ -171,7 +186,7 @@ tasks.named("check") {
     dependsOn("koverVerify")
 }
 
-extra["larkKotlinVersion"] = kotlinVersion
+extra["surefoldKotlinVersion"] = kotlinVersion
 
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
@@ -186,7 +201,7 @@ subprojects {
         // 25: the first LTS where a virtual thread blocked in `synchronized` no longer pins its carrier, which
         // every library here runs on. What runs inside the build tools stays at 21, the JDK a Gradle daemon or a
         // Kotlin daemon may still be on: the Gradle plugin and the compiler plugin it registers.
-        jvmToolchain(if (project.name in setOf("lark-app-gradle", "lark-app-compiler")) 21 else 25)
+        jvmToolchain(if (project.name in setOf("surefold-app-gradle", "surefold-app-compiler")) 21 else 25)
 
         compilerOptions {
             // A warning nobody reads is a defect nobody fixed; the build says so.
@@ -208,30 +223,30 @@ subprojects {
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
 
-    // A module's tests are lark-junit suites (spec 0197), and a failed `expect` draws its values. Not for what
-    // lark-junit is built on, which a bug would break the runner reporting it, nor for the JDK 21 build tools.
-    if (name !in larkJunitRunsOn + testedByRunningABuild + benchmarkModules) {
+    // A module's tests are surefold-junit suites (spec 0197), and a failed `expect` draws its values. Not for what
+    // surefold-junit is built on, which a bug would break the runner reporting it, nor for the JDK 21 build tools.
+    if (name !in surefoldJunitRunsOn + testedByRunningABuild + benchmarkModules) {
         apply(plugin = "org.jetbrains.kotlin.plugin.power-assert")
-        dependencies { "testImplementation"(project(":lark-junit")) }
+        dependencies { "testImplementation"(project(":surefold-junit")) }
         @OptIn(org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class)
         extensions.configure<org.jetbrains.kotlin.powerassert.gradle.PowerAssertGradleExtension> {
-            functions.add("io.github.matthewjones372.lark.junit.expect")
+            functions.add("io.github.matthewjones372.surefold.junit.expect")
             includedSourceSets.add("test")
         }
-        // A suite's dropped Expectations is reported only under this flag; the main sources are not lark-junit's.
+        // A suite's dropped Expectations is reported only under this flag; the main sources are not surefold-junit's.
         tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileTestKotlin") {
             compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
         }
     }
 
     tasks.withType<Test>().configureEach {
-        // `-PincludeTags=io,db` runs only the tests tagged so: Jupiter's @Tag and lark-junit's tag() alike.
+        // `-PincludeTags=io,db` runs only the tests tagged so: Jupiter's @Tag and surefold-junit's tag() alike.
         val included = providers.gradleProperty("includeTags").orNull?.split(',')?.filter { it.isNotBlank() }
         useJUnitPlatform { included?.let { includeTags(*it.toTypedArray()) } }
 
         systemProperty("junit.jupiter.execution.timeout.default", "60s")
-        // The same default for lark-junit suites, which Jupiter's property does not reach (spec 0193).
-        systemProperty("lark.junit.timeout.default", "60s")
+        // The same default for surefold-junit suites, which Jupiter's property does not reach (spec 0193).
+        systemProperty("surefold.junit.timeout.default", "60s")
     }
 
     if (name !in testedByRunningABuild + benchmarkModules) {
@@ -308,7 +323,7 @@ subprojects {
 
         pom {
             name.set(this@subprojects.name)
-            description.set(moduleDescriptions[this@subprojects.name] ?: "Part of Lark.")
+            description.set(moduleDescriptions[this@subprojects.name] ?: "Part of Surefold.")
             url.set("https://github.com/matthewjones372/lark")
             licenses {
                 license {

@@ -18,7 +18,7 @@ coroutines and arrow, but with virtual threads".
 - **No `Resource`, no `Schedule`, no timeouts.** Each is its own spec.
 - **No forking across a `Raise` boundary.** A fork opens its own; only values
   cross back.
-- **One module.** The scope lives in `lark`.
+- **One module.** The scope lives in `surefold`.
 
 ## Shape
 
@@ -37,7 +37,7 @@ val (user, orders) = parZip({ users.find(id) ?: raise(UserNotFound(id)) }, { ord
 val quote = raceN({ fast.quote(id) }, { slow.quote(id) })
 ```
 
-- `Flock<E> : Raise<E>` in `lark`: a scope that owns every thread forked in it.
+- `Flock<E> : Raise<E>` in `surefold`: a scope that owns every thread forked in it.
   `flock<E, A>(block: Flock<E>.() -> A): Either<E, A>` opens one on the
   calling thread and closes it when the block leaves — by return, raise or
   throw — joining every fork still running after interrupting it.
@@ -74,7 +74,7 @@ interruptible blocking call, and a scope closes only when its forks have.
 - [x] **`spec-0002-race`** (`main`, 1fe019e) — `raceN`; the losers interrupted.
       Done when: the winner's value is the result and the losers are
       interrupted before they finish.
-- [x] ~~**`spec-0002-rising`**~~ — withdrawn by spec 0003: the scope is a `Raise`, and nothing outside lark binds it.
+- [x] ~~**`spec-0002-rising`**~~ — withdrawn by spec 0003: the scope is a `Raise`, and nothing outside surefold binds it.
 
 ## Acceptance
 
@@ -91,5 +91,5 @@ None — decided by the maintainer in chat, 2026-09-03:
    says which JDBC calls honour interrupt.
 2. **Exceptions in a fork** re-throw at `await()` as the same instance, no
    wrapping; the interpreter answers as spec 0001 says.
-3. **One module.** `lark` (arrow-core and the JDK) holds `Flock`, and asserts
+3. **One module.** `surefold` (arrow-core and the JDK) holds `Flock`, and asserts
    its classpath.

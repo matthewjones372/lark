@@ -1,6 +1,6 @@
 # Actors on one node
 
-`lark-actor` is an actor as a value: a state, and a step that takes one
+`surefold-actor` is an actor as a value: a state, and a step that takes one
 message at a time. Actors run on virtual threads inside the same structured
 scope, `flock`, that the core uses for forks, so there is no actor system to
 start and stop, and a step may block.
@@ -15,7 +15,7 @@ what builds.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:lark-actor:0.10.1")
+    implementation("io.github.matthewjones372:surefold-actor:0.10.1")
 }
 ```
 
@@ -39,7 +39,7 @@ the actor's context, its state and one message, and answers what happens next:
 - `unhandled()` keeps the state and sends the message where dead letters go.
 
 Nothing runs until the behaviour is spawned. An actor lives in a `flock`, the
-structured scope `lark` already has, and cannot outlive it: when the flock's
+structured scope `surefold` already has, and cannot outlive it: when the flock's
 block ends, every actor in it is stopped, and the flock returns only once they
 have. On virtual threads a step still running at that point is interrupted; on
 another executor it is waited for.
@@ -58,17 +58,17 @@ and a step that tells a full mailbox fails. `ask` sends a message carrying a
 
 <!-- actors-actor -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.AskFailure
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.ask
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.actor.stop
-import io.github.matthewjones372.lark.actor.unhandled
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.surefold.actor.AskFailure
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.ask
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.actor.stay
+import io.github.matthewjones372.surefold.actor.stop
+import io.github.matthewjones372.surefold.actor.unhandled
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.flock
 import kotlin.time.Duration.Companion.seconds
 
 sealed interface Till
@@ -119,7 +119,7 @@ A step fails in one of two ways:
 Either way, the actor's `restart` schedule decides. While the schedule
 continues, the actor starts again from its initial state after the schedule's
 delay, with the messages still in its mailbox. Once the schedule is done, or if
-there is none, the actor stops. The schedule is `lark`'s `Schedule`, the same
+there is none, the actor stops. The schedule is `surefold`'s `Schedule`, the same
 one a retry takes, and it sees each failure as a `Failure.Declared` or a
 `Failure.Thrown`.
 
@@ -135,20 +135,20 @@ not; `watch` on the flock gives the same as a `Deferred` to await.
 
 <!-- actors-failure -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.actor.ActorRef
-import io.github.matthewjones372.lark.actor.Failure
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.Signal
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.onSignal
-import io.github.matthewjones372.lark.actor.onStart
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.actor.watch
-import io.github.matthewjones372.lark.logInfo
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.actor.Failure
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.Signal
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.onSignal
+import io.github.matthewjones372.surefold.actor.onStart
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.actor.stay
+import io.github.matthewjones372.surefold.actor.watch
+import io.github.matthewjones372.surefold.logInfo
 import kotlin.time.Duration.Companion.milliseconds
 
 sealed interface Feed
@@ -206,25 +206,25 @@ arrived for a while. A state's own timers, `ctx.become(state) { after(…) }`,
 end when the actor becomes a state of another class, so a timeout that belongs
 to "waiting for payment" cannot fire once payment has arrived.
 
-Every wait runs on the flock's clock, which is `lark`'s `clock`. Bind a
+Every wait runs on the flock's clock, which is `surefold`'s `clock`. Bind a
 `TestClock` around the flock and move it with `adjust`, and an hour's timers
 fire in no time at all.
 
 <!-- actors-time -->
 ```kotlin
-import io.github.matthewjones372.lark.TestClock
-import io.github.matthewjones372.lark.actor.ActorRef
-import io.github.matthewjones372.lark.actor.awaitIdle
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.onStart
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.actor.stop
-import io.github.matthewjones372.lark.actor.unhandled
-import io.github.matthewjones372.lark.actor.watch
-import io.github.matthewjones372.lark.clock
-import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.surefold.TestClock
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.actor.awaitIdle
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.onStart
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.actor.stay
+import io.github.matthewjones372.surefold.actor.stop
+import io.github.matthewjones372.surefold.actor.unhandled
+import io.github.matthewjones372.surefold.actor.watch
+import io.github.matthewjones372.surefold.clock
+import io.github.matthewjones372.surefold.flock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
@@ -307,21 +307,21 @@ many.
 
 <!-- actors-routing -->
 ```kotlin
-import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.actor.ActorRef
-import io.github.matthewjones372.lark.actor.ServiceKey
-import io.github.matthewjones372.lark.actor.awaitIdle
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.entities
-import io.github.matthewjones372.lark.actor.entity
-import io.github.matthewjones372.lark.actor.find
-import io.github.matthewjones372.lark.actor.group
-import io.github.matthewjones372.lark.actor.hashing
-import io.github.matthewjones372.lark.actor.onStart
-import io.github.matthewjones372.lark.actor.pool
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.actor.stay
+import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.actor.ServiceKey
+import io.github.matthewjones372.surefold.actor.awaitIdle
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.entities
+import io.github.matthewjones372.surefold.actor.entity
+import io.github.matthewjones372.surefold.actor.find
+import io.github.matthewjones372.surefold.actor.group
+import io.github.matthewjones372.surefold.actor.hashing
+import io.github.matthewjones372.surefold.actor.onStart
+import io.github.matthewjones372.surefold.actor.pool
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.actor.stay
 import kotlin.time.Duration.Companion.minutes
 
 data class Job(val owner: String, val document: String)
@@ -393,22 +393,22 @@ are the [cluster guide](cluster.md#state-that-survives)'s.
 
 <!-- actors-persistent -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.AskFailure
-import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.InMemoryJournal
-import io.github.matthewjones372.lark.actor.InMemorySnapshots
-import io.github.matthewjones372.lark.actor.PersistenceId
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.StateCodec
-import io.github.matthewjones372.lark.actor.ask
-import io.github.matthewjones372.lark.actor.every
-import io.github.matthewjones372.lark.actor.journal
-import io.github.matthewjones372.lark.actor.persistent
-import io.github.matthewjones372.lark.actor.snapshots
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.actor.stop
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.surefold.actor.AskFailure
+import io.github.matthewjones372.surefold.actor.EventCodec
+import io.github.matthewjones372.surefold.actor.InMemoryJournal
+import io.github.matthewjones372.surefold.actor.InMemorySnapshots
+import io.github.matthewjones372.surefold.actor.PersistenceId
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.StateCodec
+import io.github.matthewjones372.surefold.actor.ask
+import io.github.matthewjones372.surefold.actor.every
+import io.github.matthewjones372.surefold.actor.journal
+import io.github.matthewjones372.surefold.actor.persistent
+import io.github.matthewjones372.surefold.actor.snapshots
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.actor.stop
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.flock
 import java.nio.ByteBuffer
 import kotlin.time.Duration.Companion.seconds
 
@@ -490,11 +490,11 @@ is refused when the codec is built, not when an old event is replayed.
 
 <!-- actors-versioned -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.EventCodec
-import io.github.matthewjones372.lark.actor.PersistenceId
-import io.github.matthewjones372.lark.actor.Upgrade
-import io.github.matthewjones372.lark.actor.persistent
-import io.github.matthewjones372.lark.actor.versioned
+import io.github.matthewjones372.surefold.actor.EventCodec
+import io.github.matthewjones372.surefold.actor.PersistenceId
+import io.github.matthewjones372.surefold.actor.Upgrade
+import io.github.matthewjones372.surefold.actor.persistent
+import io.github.matthewjones372.surefold.actor.versioned
 
 /** Version 1: an order paid in one go. */
 data class PaidV1(val pence: Long)
@@ -553,13 +553,13 @@ failure fails the whole run.
 
 <!-- actors-batching -->
 ```kotlin
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.ask
-import io.github.matthewjones372.lark.actor.batching
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.spawn
-import io.github.matthewjones372.lark.flock
-import io.github.matthewjones372.lark.logAnnotated
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.ask
+import io.github.matthewjones372.surefold.actor.batching
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.spawn
+import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.logAnnotated
 import kotlin.time.Duration.Companion.seconds
 
 data class Admit(val name: String, val reply: Reply<Int>)
@@ -628,19 +628,19 @@ The tests below are run by the build, as well as compiled, so each passes.
 
 <!-- actors-testing -->
 ```kotlin
-import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.actor.ActorRef
-import io.github.matthewjones372.lark.actor.Failure
-import io.github.matthewjones372.lark.actor.Reply
-import io.github.matthewjones372.lark.actor.become
-import io.github.matthewjones372.lark.actor.behaviour
-import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.actor.stop
-import io.github.matthewjones372.lark.actor.test
-import io.github.matthewjones372.lark.actor.testActors
-import io.github.matthewjones372.lark.actor.unhandled
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.fail.right
+import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.actor.Failure
+import io.github.matthewjones372.surefold.actor.Reply
+import io.github.matthewjones372.surefold.actor.become
+import io.github.matthewjones372.surefold.actor.behaviour
+import io.github.matthewjones372.surefold.actor.stay
+import io.github.matthewjones372.surefold.actor.stop
+import io.github.matthewjones372.surefold.actor.test
+import io.github.matthewjones372.surefold.actor.testActors
+import io.github.matthewjones372.surefold.actor.unhandled
+import io.github.matthewjones372.surefold.assert.shouldBe
+import io.github.matthewjones372.surefold.fail.right
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes

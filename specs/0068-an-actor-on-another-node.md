@@ -2,7 +2,7 @@
 
 ## Problem
 
-Every lark actor lives in one flock in one process. A service that wants an
+Every surefold actor lives in one flock in one process. A service that wants an
 actor on another machine has two choices today: Pekko's cluster, with its
 actor system, or a queue or HTTP call written by hand, where a `Reply` cannot
 follow the message. 0059 kept refs ready for this: an `ActorRef` equals by
@@ -52,7 +52,7 @@ flock<Nothing, Unit> {
 
 ## Why this shape
 
-lark's reason to exist is a small runtime you can read. So the transport is
+surefold's reason to exist is a small runtime you can read. So the transport is
 JDK sockets on virtual threads: a blocking read per connection is what those
 threads are for, and it adds no dependency. Pekko's Artery (Aeron or TCP, with
 its own serialization registry) is the alternative. It is faster at scale, but
@@ -74,18 +74,18 @@ optional module later.
       `watch` across nodes. Done when: stopping one flock gives the other
       `Terminated` within `unreachableAfter`.
 - [x] **`spec-0068-bench`** ([#158](https://github.com/matthewjones372/lark/pull/158)) — remote tell and ping-pong against Pekko's Artery
-      over TCP on loopback. Done when: the README says where lark stands.
+      over TCP on loopback. Done when: the README says where surefold stands.
 
 ## Acceptance
 
 ```bash
 ./gradlew build
-./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs=Remote
+./gradlew :surefold-actor-benchmarks:jmh -PbenchmarkArgs=Remote
 ```
 
 ## Open questions
 
-- **Its own module (`lark-actor-remote`) or in `lark-actor`?** Recommended:
+- **Its own module (`surefold-actor-remote`) or in `surefold-actor`?** Recommended:
   its own module, so a single-process service carries no socket code.
 - **A full outbound buffer: drop, or block the sender like a full mailbox?**
   Recommended: drop to dead letters. A remote node is slower than any local
@@ -97,7 +97,7 @@ optional module later.
   "stopped" from "unreachable" once it knows which nodes are up.
 
 Decided (2026-09-26): every open question goes as recommended. The transport
-is its own module, `lark-actor-remote`; a full outbound buffer drops to dead
+is its own module, `surefold-actor-remote`; a full outbound buffer drops to dead
 letters; a node's address is `name@host:port` in `Address.node`; and `watch`
 across nodes answers `Terminated`.
 
@@ -106,7 +106,7 @@ direction has its own connection, opened by the node that sends, so order per
 sender and receiver needs nothing more than one writer per connection; Pekko's
 Artery does the same. Frames wait, up to the queue's room, while a connection
 opens, rather than being dropped because it is not yet up, and are dropped when
-an attempt fails or a connection ends. Reconnection backs off on lark's clock.
+an attempt fails or a connection ends. Reconnection backs off on surefold's clock.
 
 Decided while building `spec-0068-remote` (2026-09-26), for editing:
 - `node(name, port)` answers a `RemoteNode`, and `remote(address, codec)` is
@@ -121,7 +121,7 @@ Decided while building `spec-0068-remote` (2026-09-26), for editing:
 - The node closes with its flock, through a guardian actor's `Stopping`.
 
 Decided while building `spec-0068-unreachable` (2026-09-26), for editing:
-- lark-actor gains two small hooks: `DeadLetter.Why` has `Unreachable` and
+- surefold-actor gains two small hooks: `DeadLetter.Why` has `Unreachable` and
   `NoSuchActor`, and `Flock.deadLetter(letter)` posts one; a ref that is not
   an actor on threads can be `watch`ed if it is `Watchable`.
 - What is sent and dropped is a dead letter on the sending node, with the

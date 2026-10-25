@@ -9,7 +9,7 @@ service. A service that restarts the node in place gets them back. One whose
 node is gone for good, such as an autoscaled pod or a lost machine, does
 not, and its commands wait in the journal for good.
 
-lark-bank (0094) needed this and built it by hand. Each node names its
+surefold-bank (0094) needed this and built it by hand. Each node names its
 producers after its own life, and when a member is `Removed`, the oldest
 `Up` member it knows starts that member's producers again. Building it showed
 three gaps that a service cannot close alone:
@@ -46,7 +46,7 @@ val payments = wallets.reliable("checkout", durable = true)
   `kind-producerId-life`, where the life is the node's name and `uid`
   (`Cluster.uid`, 0097). The service passes the same `producerId` on every
   node and every restart.
-- **One registry.** A cluster singleton, `lark-producers`, keeps a
+- **One registry.** A cluster singleton, `surefold-producers`, keeps a
   persistent list of every durable producer and the life that runs it. A
   producer registers when it starts.
 - **Resumed by the singleton.** When a life is `Removed`, the singleton
@@ -63,7 +63,7 @@ val payments = wallets.reliable("checkout", durable = true)
 ## Why this shape
 
 Deciding who resumes a dead life's work is the same decision as where a
-singleton runs, and lark already makes that decision once, with a hand-over,
+singleton runs, and surefold already makes that decision once, with a hand-over,
 for every singleton. The registry turns "resume on `Removed`" into "resume
 whatever the list says has no live runner", which the singleton checks on
 every start, so a second crash is covered by the same code as the first. The
@@ -77,7 +77,7 @@ resumer's own death. Recommended: the singleton.
       the node's life. Done when: two lives of one node, restarted in place,
       keep separate outboxes in the journal, and each one's commands are
       delivered.
-- [x] **`spec-0099-registry`** — the `lark-producers` singleton and each
+- [x] **`spec-0099-registry`** — the `surefold-producers` singleton and each
       durable producer's registration. Done when: on three nodes, the list
       names each node's producer and its life.
 - [x] **`spec-0099-resume`** — resume on `Removed` and on the singleton's
@@ -88,14 +88,14 @@ resumer's own death. Recommended: the singleton.
         they are still delivered;
       - the journal shows no conflict;
       - the drained producers are gone from the list.
-- [x] **`spec-0099-bank`** — lark-bank drops its hand-built adoption and uses
+- [x] **`spec-0099-bank`** — surefold-bank drops its hand-built adoption and uses
       this. Done when: its `CrashTest` passes unchanged. This one waits for
       0094's stack to merge.
 
 ## Acceptance
 
 ```bash
-./gradlew :lark-cluster:test --tests '*Producers*' :lark-bank:test
+./gradlew :surefold-cluster:test --tests '*Producers*' :surefold-bank:test
 ```
 
 ## Open questions
@@ -113,12 +113,12 @@ resumer's own death. Recommended: the singleton.
    member events agree on it.
 
 Decided (2026-09-27): every open question goes as recommended. Resuming is on
-by default for `reliable(durable = true)`; a `lark-producers` singleton
+by default for `reliable(durable = true)`; a `surefold-producers` singleton
 decides it; resumed producers run on the singleton's node; and the life in a
 producer's id is the node's name and `Cluster.uid`.
 
 Decided while building `spec-0099-life`:
-- **The life's form.** It is the node's name, a dash, and `Cluster.uid` as an unsigned number in base 36, as lark-bank wrote it. Only `reliable(durable = true)` carries it; an in-memory producer already has an incarnation of its own.
+- **The life's form.** It is the node's name, a dash, and `Cluster.uid` as an unsigned number in base 36, as surefold-bank wrote it. Only `reliable(durable = true)` carries it; an in-memory producer already has an incarnation of its own.
 - **Between this entry and resume.** A crashed life's commands wait until something starts its producer by the full id. `ReliableTest`'s successor does that by hand for now.
 - **What the test catches.** Naming the producer without the life fails it: both lives share one outbox, and neither life-named id holds anything.
 
@@ -131,7 +131,7 @@ Decided while building `spec-0099-registry`:
 Decided while building `spec-0099-resume`:
 - **When it looks.** The singleton checks every 500 ms, and at once when it starts. One check covers `Removed` and a start alike. A resumed producer has no event to say it has drained, so a timer was needed anyway.
 - **What it resumes.** A producer whose runner is not in the view, or whose runner is not its owner. The second covers producers a singleton on a live node was running when it handed over.
-- **Where a resumed producer runs.** As a child of the singleton, through `Ctx.resumedProducer` in `lark-actor`, so it stops with the singleton. It holds room for everything it recovers, so draining means empty. It takes no new sends.
+- **Where a resumed producer runs.** As a child of the singleton, through `Ctx.resumedProducer` in `surefold-actor`, so it stops with the singleton. It holds room for everything it recovers, so draining means empty. It takes no new sends.
 - **One change a step.** Each resume or retirement is its own append, followed at once by the next check. detekt refuses the spread that one append of them all would need.
 - **Registering waits.** `reliable(durable = true)` waits up to `within` for its registration to be confirmed. Otherwise a node that crashed straight after sending could leave commands nobody lists.
 - **Pruning.** A retired outbox keeps only its newest event, as `JournalPruning` requires. The registry takes no snapshots yet, since retiring keeps its list short.

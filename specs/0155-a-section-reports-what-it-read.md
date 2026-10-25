@@ -2,12 +2,12 @@
 
 ## Problem
 
-Lark knows everything a configuration report needs, yet every service writes it
+Surefold knows everything a configuration report needs, yet every service writes it
 by hand. Petshop's `main` does:
 
 ```kotlin
 private val layers: Layered = layeredConfig()
-object Petshop : LarkApp<PelicanServer>() {
+object Petshop : SurefoldApp<PelicanServer>() {
     override val module: Module = configOf(layers.config) + /* … */
 }
 fun configReport(): String =
@@ -35,7 +35,7 @@ service restates all three, and a path missed from the hand list is printed.
 ## Shape
 
 ```kotlin
-object Petshop : LarkApp<PelicanServer>() {
+object Petshop : SurefoldApp<PelicanServer>() {
     override val module: Module = loadedConfig() + config<Settings>("petshop") + /* … */
 }
 fun main() = exitProcess(runApp(Petshop).code)
@@ -44,7 +44,7 @@ fun main() = exitProcess(runApp(Petshop).code)
 At start, as each section is read and before anything depends on it:
 
 ```
-lark-app configuration: petshop
+surefold-app configuration: petshop
 
 petshop.host            0.0.0.0     env variables
 petshop.port            9090        application.conf:2
@@ -64,15 +64,15 @@ petshop.database.url    ●●●●●●      env variables
   the application layer (`config.file`/`resource`/`url` if set, else
   `.conf`, `.json`, `.properties`), then `defaultReferenceUnresolved()`.
   `layeredConfig()` is fixed to the same list.
-- `config(path) { … }`, `choosing`, and lark-app-kotlinx's `config<A>` all report.
+- `config(path) { … }`, `choosing`, and surefold-app-kotlinx's `config<A>` all report.
 
 ## Why this shape
 
 `Reading` is the one place every read passes through, in both forms, so the
 report is a by-product rather than a second list to keep in step. Logging per
-section as it is read needs no new phase in lark-app and cannot miss a section
-that refuses. The alternative, lark-app reading every section before building
-anything, would need lark-app to recognise config nodes without depending on
+section as it is read needs no new phase in surefold-app and cannot miss a section
+that refuses. The alternative, surefold-app reading every section before building
+anything, would need surefold-app to recognise config nodes without depending on
 Typesafe Config.
 
 ## Stack
@@ -92,13 +92,13 @@ Typesafe Config.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app-typesafe:test :lark-app-kotlinx:test
+./gradlew :surefold-app-typesafe:test :surefold-app-kotlinx:test
 ./gradlew spotlessApply && ./gradlew build
 ```
 
 ## Open questions
 
-1. A section node needs the `Layered` when there is one. Should every lark
+1. A section node needs the `Layered` when there is one. Should every surefold
    config source (`configOf`, `configFromFile`, `overridingConfig`) provide a
    one-layer `Layered` too, so the section always depends on it?
    **Yes.** `overridingConfig` adds an "overrides" layer on top.

@@ -2,7 +2,7 @@
 
 ## Problem
 
-Spec 0174's `lark-junit` lets a test say one thing about how it runs: `alone = true`. ZIO Test has a
+Spec 0174's `surefold-junit` lets a test say one thing about how it runs: `alone = true`. ZIO Test has a
 general mechanism for this, aspects (`test(...) @@ flaky @@ timeout(5.seconds)`). In Jupiter the same
 needs are annotations spread across three extensions, and some can't be expressed at all. The repo has
 load-sensitive tests (`WireTest` in #489, `UnorderedTest` in #490) that nothing today runs many times to
@@ -33,7 +33,7 @@ object WireSuite : Suite<Wire>(aspects = tag("io") + timeout(30.seconds)) {
 |---|---|---|---|
 | `flaky(n)` | retries up to `n` times, and passes if any attempt passes | `Schedule.retry` | passed, with a `ReportEntry` giving the attempts |
 | `nonFlaky(n)` | runs `n` times, and every run must pass | a loop | failed on the first failing run, naming it |
-| `timeout(d)` | fails the test if it runs longer than `d` | Lark's `timeout` | failed, naming `d` |
+| `timeout(d)` | fails the test if it runs longer than `d` | Surefold's `timeout` | failed, naming `d` |
 | `ignore(why)` | doesn't run the test | — | skipped, with `why` |
 | `tag(name)` | a JUnit tag, so Gradle's `includeTags` and the IDE filter by it | `TestTag` | — |
 | `alone` | nothing else in the suite runs alongside it | 0174's scheduler | — |
@@ -50,7 +50,7 @@ The options for where the aspects go:
   return a handle that is mutated after registration. Also, `with` already has a different meaning in
   Kotlin.
 
-Building aspects on Lark's own `Schedule` and `timeout` keeps their behaviour identical to the
+Building aspects on Surefold's own `Schedule` and `timeout` keeps their behaviour identical to the
 production code they test.
 
 ## Stack
@@ -71,7 +71,7 @@ Builds on 0174's `spec-0174-concurrency`.
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-junit:test -PincludeTags=io   # only tagged suites run
+./gradlew :surefold-junit:test -PincludeTags=io   # only tagged suites run
 ```
 
 ## Open questions

@@ -1,13 +1,13 @@
-# lark
+# surefold
 
 > Structured concurrency, resources, streams, actors and application wiring for
 > Kotlin on the JDK's virtual threads, with no coroutines and no second effect
-> system. Lark's own `Fail` and `Either` are the error model throughout.
+> system. Surefold's own `Fail` and `Either` are the error model throughout.
 
 Facts worth having before anything else:
 
 - Kotlin 2.4, JDK 25 or newer. Apache 2.0. On Maven Central as
-  `io.github.matthewjones372:lark` and sibling modules, all on one version.
+  `io.github.matthewjones372:surefold` and sibling modules, all on one version.
 - Releases are tagged `vX.Y.Z`. Between them, `X.Y.(Z+1)-SNAPSHOT` is
   published by hand, not on every push, to
   `https://central.sonatype.com/repository/maven-snapshots/`.
@@ -16,94 +16,94 @@ Facts worth having before anything else:
 - Each module brings at most the one external library or SDK it integrates,
   so depend only on the modules the code uses.
 - Blocking is fine: every fork is a virtual thread. Do not reach for
-  `suspend`, a dispatcher or a `CompletableFuture` where a lark call exists.
-- A service is a `Module` (a dependency graph) run by `LarkApp` and `runApp`.
+  `suspend`, a dispatcher or a `CompletableFuture` where a surefold call exists.
+- A service is a `Module` (a dependency graph) run by `SurefoldApp` and `runApp`.
   Resources are nodes the graph releases in reverse dependency order; a node's
   `close()` is the graph's job, not the class that holds it.
 - Background work is a `Stream` started on the graph's `StreamBackend`
   (usually `Forks()`), not a scheduler or a thread of its own.
-- Lark's compiler plugin, applied with `id("io.github.matthewjones372.lark.wiring")`,
-  checks every graph as it compiles and warns where code hand-rolls what lark
-  ships: `LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN`, `LARK_SCHEDULER_BY_HAND`,
-  `LARK_SECRET_AS_STRING`, `LARK_SLEEP_IN_TEST`.
+- Surefold's compiler plugin, applied with `id("io.github.matthewjones372.surefold.wiring")`,
+  checks every graph as it compiles and warns where code hand-rolls what surefold
+  ships: `SUREFOLD_RUN_NEVER_RETURNS_ON_SHUTDOWN`, `SUREFOLD_SCHEDULER_BY_HAND`,
+  `SUREFOLD_SECRET_AS_STRING`, `SUREFOLD_SLEEP_IN_TEST`.
 
 ## Modules
 
-- `lark`: `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
+- `surefold`: `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
   `timeout`, `policy` (retry, circuit breaker, bulkhead, rate limiter),
-  `LarkLocal`, `Clock`, `TestClock`, the log and metrics calls,
+  `SurefoldLocal`, `Clock`, `TestClock`, the log and metrics calls,
   `capturingLogs` and `capturingMetrics` for tests, `await()` for a
-  `CompletionStage` or `Future`, and `larkFuture { }` to hand one back.
-- `lark-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
+  `CompletionStage` or `Future`, and `surefoldFuture { }` to hand one back.
+- `surefold-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
   awaited from a fork.
-- `lark-stream`: `Stream<E, A>` as a description, with its failure in the type
+- `surefold-stream`: `Stream<E, A>` as a description, with its failure in the type
   and no backend named.
-- `lark-stream-forks`: runs a `Stream` as a pull loop on one virtual thread;
+- `surefold-stream-forks`: runs a `Stream` as a pull loop on one virtual thread;
   the usual backend.
-- `lark-stream-pekko`: runs a `Stream` on Pekko Streams, with the operators
+- `surefold-stream-pekko`: runs a `Stream` on Pekko Streams, with the operators
   that take Pekko's types.
-- `lark-stream-actors`: runs a `Stream` on `lark-actor`, an actor per run.
-- `lark-stream-test`: `TestStreams` and `TestClock`, every stage on the calling
+- `surefold-stream-actors`: runs a `Stream` on `surefold-actor`, an actor per run.
+- `surefold-stream-test`: `TestStreams` and `TestClock`, every stage on the calling
   thread and time the test moves.
-- `lark-test`: `story` (Given, When, Then), `eventually(within)`.
-- `lark-junit`: a JUnit Platform engine; a `Suite` object's tests share one
+- `surefold-test`: `story` (Given, When, Then), `eventually(within)`.
+- `surefold-junit`: a JUnit Platform engine; a `Suite` object's tests share one
   `Resource`, and Gradle and the IDE report them as Jupiter's.
-- `lark-app`: an application as a value: `single`, `singleOf`, `closingOf`,
-  `boundTo`, `overriding`, `subgraph`, probes, health, `testApp`, `LarkApp`,
+- `surefold-app`: an application as a value: `single`, `singleOf`, `closingOf`,
+  `boundTo`, `overriding`, `subgraph`, probes, health, `testApp`, `SurefoldApp`,
   `awaitShutdown`.
-- `lark-app-typesafe`: a HOCON section as a node (`config`), every fault at
+- `surefold-app-typesafe`: a HOCON section as a node (`config`), every fault at
   once, `secret`, `Config.choosing`, `overridingConfig`, and where each setting
   came from (`origins`).
-- `lark-app-kotlinx`: a HOCON section read from its `@Serializable` class,
+- `surefold-app-kotlinx`: a HOCON section read from its `@Serializable` class,
   `config<Settings>("section")` with no block.
-- `lark-app-liquibase`: a changelog as a node (`migrations`); readers take a
+- `surefold-app-liquibase`: a changelog as a node (`migrations`); readers take a
   `Migrated`.
-- `lark-app-openfeature`: `openFeature { provider }`, the provider as a node; a
+- `surefold-app-openfeature`: `openFeature { provider }`, the provider as a node; a
   `Client` node and `Flag.value()` read it, and readiness follows it.
-- `lark-app-openfeature-flagd`: `flagdFlags("flags")`, flags in flagd's schema
+- `surefold-app-openfeature-flagd`: `flagdFlags("flags")`, flags in flagd's schema
   as a HOCON section, evaluated in-process; brings gRPC and netty.
   `flagdFlags("flags", declared)` also checks every variant against its declared `Flag` at start.
-- `lark-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
-- `lark-app-actor`: a `lark-actor` flock as a node, and an actor as a node.
-- `lark-app-cluster`: a `lark-cluster` membership as a node, joined as a HOCON
+- `surefold-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
+- `surefold-app-actor`: a `surefold-actor` flock as a node, and an actor as a node.
+- `surefold-app-cluster`: a `surefold-cluster` membership as a node, joined as a HOCON
   section says.
-- `lark-app-gradle`: the Gradle plugin `io.github.matthewjones372.lark.wiring`,
+- `surefold-app-gradle`: the Gradle plugin `io.github.matthewjones372.surefold.wiring`,
   which checks and draws every graph as it compiles. It is on Maven Central,
   not the Plugin Portal, so `pluginManagement` needs `mavenCentral()`.
-- `lark-app-compiler`: the K2 checker behind it, which shows the same faults
+- `surefold-app-compiler`: the K2 checker behind it, which shows the same faults
   and warnings in the editor.
-- `lark-otel`: an OpenTelemetry `Context` that crosses a fork; on the classpath
+- `surefold-otel`: an OpenTelemetry `Context` that crosses a fork; on the classpath
   and nothing else.
-- `lark-openfeature`: `evaluatedFor(key, …) { }` and `useLark()`, so a flag read
+- `surefold-openfeature`: `evaluatedFor(key, …) { }` and `useSurefold()`, so a flag read
   in a fork or an actor handler answers for the request that started it.
-- `lark-arrow`: Lark's `Either`, `NonEmptyList` and `Fail` to and from
-  Arrow's: `toArrow()`, `toLark()`, `lark { }` and `arrow { }`.
-- `lark-assert`: checks for tests: `shouldBe`, `shouldBeRight` and `shouldBeLeft`
-  for Lark's `Either`, the string, collection and map matchers, and `withClue`; a
+- `surefold-arrow`: Surefold's `Either`, `NonEmptyList` and `Fail` to and from
+  Arrow's: `toArrow()`, `toSurefold()`, `surefold { }` and `arrow { }`.
+- `surefold-assert`: checks for tests: `shouldBe`, `shouldBeRight` and `shouldBeLeft`
+  for Surefold's `Either`, the string, collection and map matchers, and `withClue`; a
   failure names the test's line and its source.
-- `lark-slf4j`: lark's log lines through SLF4J, annotations in the MDC; on the
+- `surefold-slf4j`: surefold's log lines through SLF4J, annotations in the MDC; on the
   classpath and nothing else.
-- `lark-micrometer`: lark's counters, gauges and timers on Micrometer's
+- `surefold-micrometer`: surefold's counters, gauges and timers on Micrometer's
   registry; on the classpath and nothing else.
-- `lark-kafka`: Kafka as a `Stream` on any backend: commit after the work,
+- `surefold-kafka`: Kafka as a `Stream` on any backend: commit after the work,
   dead letters, transactions.
-- `lark-kafka-pekko`: `lark-kafka` through Pekko's Kafka connector.
-- `lark-kafka-test`: a Kafka broker in the test JVM for a service's own tests,
+- `surefold-kafka-pekko`: `surefold-kafka` through Pekko's Kafka connector.
+- `surefold-kafka-test`: a Kafka broker in the test JVM for a service's own tests,
   with helpers to send, read and see what a group committed.
-- `lark-actor`: an actor as a value and a step on virtual threads, with no
+- `surefold-actor`: an actor as a value and a step on virtual threads, with no
   actor system.
-- `lark-actor-journal-jdbc`: `lark-actor`'s journal and snapshots on JDBC.
-- `lark-actor-projection`: a journal as a `Stream`, for a read model that
+- `surefold-actor-journal-jdbc`: `surefold-actor`'s journal and snapshots on JDBC.
+- `surefold-actor-projection`: a journal as a `Stream`, for a read model that
   resumes where it left off.
-- `lark-actor-remote`: `lark-actor` across nodes over one TCP connection per
+- `surefold-actor-remote`: `surefold-actor` across nodes over one TCP connection per
   pair.
-- `lark-actor-remote-protobuf`: remote messages in Protobuf.
-- `lark-actor-remote-avro`: remote messages in Avro.
-- `lark-actor-remote-kotlinx`: remote messages from `@Serializable` classes.
-- `lark-cluster`: gossip membership, discovery and downing with no
+- `surefold-actor-remote-protobuf`: remote messages in Protobuf.
+- `surefold-actor-remote-avro`: remote messages in Avro.
+- `surefold-actor-remote-kotlinx`: remote messages from `@Serializable` classes.
+- `surefold-cluster`: gossip membership, discovery and downing with no
   coordinator.
-- `lark-cluster-kubernetes`: cluster seeds from the pods API, and a Lease.
-- `lark-cluster-aws`: cluster seeds from Cloud Map or ECS, and a DynamoDB
+- `surefold-cluster-kubernetes`: cluster seeds from the pods API, and a Lease.
+- `surefold-cluster-aws`: cluster seeds from Cloud Map or ECS, and a DynamoDB
   lease.
 
 ## What to reach for
@@ -113,8 +113,8 @@ Facts worth having before anything else:
 | a value built once and shared | `singleOf(::Thing)` |
 | a value that must be closed, and is `AutoCloseable` | `closingOf(::Thing)` |
 | a value given back some other way | `singleOf(::Thing, Thing::stop)` |
-| `main` | `object App : LarkApp<Root>()` and `exitProcess(runApp(App).code)`; `run` parks on `awaitShutdown()` (the default on `main`; write it out on 0.10.1) |
-| configuration | `config<Settings>("section") { … }` from `lark-app-typesafe` |
+| `main` | `object App : SurefoldApp<Root>()` and `exitProcess(runApp(App).code)`; `run` parks on `awaitShutdown()` (the default on `main`; write it out on 0.10.1) |
+| configuration | `config<Settings>("section") { … }` from `surefold-app-typesafe` |
 | a password or token | `secret("password")`, never `string(…)` |
 | a setting that picks a module | `choice<Settings, Provided> { … }` inside the graph (unreleased, on `main`), or `conf.choosing("section", read) { … }` |
 | migrations | `migrations("db/changelog.sql")`, then take a `Migrated` |
@@ -126,17 +126,17 @@ Facts worth having before anything else:
 | a stream that restarts after a defect | `restartOnDefect(schedule)` |
 | a log line, a counter, a timer | `logInfo`, `counter(…).increment()`, `timed(…) { … }` |
 | a value from a future | `future.await()` |
-| to hand back a future, or be called from coroutines | `larkFuture { … }`; a coroutine waits on it with kotlinx's `await` |
+| to hand back a future, or be called from coroutines | `surefoldFuture { … }`; a coroutine waits on it with kotlinx's `await` |
 | a coroutine library's answer | `runBlocking { … }`, with no `fail` inside |
 | a fake in a test | `.overriding(single<T> { … })` |
 | a smaller test | `.subgraph<Root>()` and `testApp(module) { root -> … }` |
 | a test that waits for something | `eventually(within) { … }`, never `Thread.sleep` |
-| a test of something on a timer | `TestStreams` from `lark-stream-test`, with `TestClock` |
+| a test of something on a timer | `TestStreams` from `surefold-stream-test`, with `TestClock` |
 | a test of a backoff | `clock.locally(fixedClock()) { … }`; not for `timeout`, which fires at once under it |
 
 ## Docs
 
-- [README](https://github.com/matthewjones372/lark/blob/main/README.md): what Lark is, a first example, and where to go next.
+- [README](https://github.com/matthewjones372/lark/blob/main/README.md): what Surefold is, a first example, and where to go next.
 - [Modules](https://github.com/matthewjones372/lark/blob/main/docs/modules.md): every module, what it adds, maturity, performance and limitations.
 - [Core](https://github.com/matthewjones372/lark/blob/main/docs/core.md): forks, cancellation, errors, resources, schedules, timeouts, policies, context, Pekko dispatchers.
 - [Applications](https://github.com/matthewjones372/lark/blob/main/docs/app.md): the graph, starting and stopping, probes, testing, the Gradle and compiler plugins.

@@ -43,7 +43,7 @@ flock {
 ```
 
 - `Flock<E>.channel<A : Any>(capacity: Int): Channel<A>`. The element type is not
-  null, as in `lark-stream`.
+  null, as in `surefold-stream`.
 - `send` parks while the channel is full. `receive` parks while it is empty and
   answers `null` once closed and drained. The channel is `Iterable<A>`.
 - `close()` is the producer's: a later `send` throws `IllegalStateException`.

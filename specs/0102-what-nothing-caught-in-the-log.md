@@ -5,7 +5,7 @@
 An actor that throws with no supervision stops, and the throw goes on to its thread's handler (the runtime's rule).
 In an application, that handler was the JVM's default one, which prints a bare stack trace to stderr. The trace is
 not a log line, so an operator's log shipping, levels and error counts never see it. When a journal database went
-away in lark-bank's Docker chaos run, every account entity with an append in flight threw the same
+away in surefold-bank's Docker chaos run, every account entity with an append in flight threw the same
 `SQLTransientConnectionException`. One node printed 8,000 traces in a minute, and its log showed no errors at all.
 
 ## Not doing
@@ -17,7 +17,7 @@ away in lark-bank's Docker chaos run, every account entity with an append in fli
 ## Shape
 
 `runApp` sets a default uncaught-exception handler for as long as the application runs, unless one is already set.
-The handler logs through lark's `logError`, with the stack. The first failure of each kind (its class and the frame
+The handler logs through surefold's `logError`, with the stack. The first failure of each kind (its class and the frame
 it was thrown from) in a minute is logged. The rest of that kind in the minute are counted, and the count is said
 with the next one after it:
 
@@ -42,11 +42,11 @@ exactly the minute it was needed.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app:check
+./gradlew :surefold-app:check
 ```
 
 ## Open questions
 
 1. **Should the count be said when the minute ends, even if nothing of that kind comes after?** Recommended: not
-   yet. That needs a timer thread in lark-app. The count is said once the kind is seen again, which is the case
+   yet. That needs a timer thread in surefold-app. The count is said once the kind is seen again, which is the case
    that matters: an outage that is still going on.

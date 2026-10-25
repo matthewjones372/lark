@@ -2,7 +2,7 @@
 
 ## Problem
 
-Every service's `LarkApp` ends the same way: `run` parks until the process is
+Every service's `SurefoldApp` ends the same way: `run` parks until the process is
 asked to stop, which is `awaitShutdown()`. It is boilerplate in every app, and
 the version a reader guesses instead, parking on the root's own wait such as a
 server's `block()`, is the bug spec 0132 had to warn about: that wait ends only
@@ -22,16 +22,16 @@ nothing until the grace period kills the process. Petshop had exactly that.
 `run` is `open`, and its default parks until the process is asked to stop:
 
 ```kotlin
-abstract class LarkApp<A : Any> {
+abstract class SurefoldApp<A : Any> {
     abstract val module: Module
     open fun AppScope.run(root: A) = awaitShutdown()
 }
 
-object Petshop : LarkApp<PelicanServer>() {
+object Petshop : SurefoldApp<PelicanServer>() {
     override val module: Module = petshop
 }
 
-object Reindex : LarkApp<Indexer>() {          // a job still says what it does
+object Reindex : SurefoldApp<Indexer>() {          // a job still says what it does
     override val module = indexing
     override fun AppScope.run(root: Indexer) = root.reindexEverything()
 }
@@ -42,17 +42,17 @@ as an `onStarted` hook, which runs once every node is built.
 
 ## Why this shape
 
-A default rather than a second class (`LarkService` beside `LarkApp`): one name
+A default rather than a second class (`SurefoldService` beside `SurefoldApp`): one name
 to learn, and a job is the exception that overrides. Source-compatible: every
-existing `run` still compiles and means what it did. `LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN`
+existing `run` still compiles and means what it did. `SUREFOLD_RUN_NEVER_RETURNS_ON_SHUTDOWN`
 stays, for a `run` that is overridden and parks on the wrong thing.
 
 ## Stack
 
 - [ ] **`spec-0135-run-default`**: `run` open with `awaitShutdown()` as its
-      default, `LarkApp`'s KDoc, and a test that a `LarkApp` without `run`
+      default, `SurefoldApp`'s KDoc, and a test that a `SurefoldApp` without `run`
       starts, parks, and releases its graph when `Shutdown.request()` is called.
-      Done when: `./gradlew :lark-app:build` passes with the new test.
+      Done when: `./gradlew :surefold-app:build` passes with the new test.
 - [ ] **`spec-0135-docs`**: the README, `docs/app.md` and the cookbook's "Run
       it" drop the `run` that only waits.
       Done when: `CookbookTest` compiles every changed recipe.
@@ -60,13 +60,13 @@ stays, for a `run` that is overridden and parks on the wrong thing.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app:build :lark-app-pekko:test
+./gradlew :surefold-app:build :surefold-app-pekko:test
 ```
 
 ## Open questions
 
 1. **Should `runApp` log that the app is up and waiting?** Recommend: no; the
    node that knows what "up" means says so, in an `onStarted` hook.
-2. **A `fun main() = larkMain(App)` that also exits?** Recommend: no; the exit
+2. **A `fun main() = surefoldMain(App)` that also exits?** Recommend: no; the exit
    code is `main`'s one decision, and `exitProcess(runApp(App).code)` is already
    one line.

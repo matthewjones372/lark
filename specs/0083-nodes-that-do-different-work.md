@@ -88,7 +88,7 @@ needs its own transport. Recommended: roles in one cluster.
 - **Should sharding take a set of roles (any of them) or one?** Recommended:
   one; a service that wants either names a role both kinds of node hold.
 - **The gossip's wire format changes.** 0069's codec is internal, and nodes of
-  different lark versions are not promised to join. Recommended: change it in
+  different surefold versions are not promised to join. Recommended: change it in
   place.
 
 Decided (2026-09-27): every open question goes as recommended. Roles live in

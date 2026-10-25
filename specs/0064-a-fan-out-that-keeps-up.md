@@ -2,9 +2,9 @@
 
 ## Problem
 
-Waking an idle `lark-actor` actor starts a virtual thread, and a fan-out wakes
+Waking an idle `surefold-actor` actor starts a virtual thread, and a fan-out wakes
 thousands at once: one message to each of 10,000 idle actors takes 4.2 ms
-where Pekko takes 3.5 ms, the one row of the benchmark where lark is behind.
+where Pekko takes 3.5 ms, the one row of the benchmark where surefold is behind.
 Measured on the same machine:
 
 | 10,000 wakes | time | allocated each |
@@ -24,8 +24,8 @@ Transport, membership and sharding, which 0059 numbered 0064–0066, move to
 
 ## Not doing
 
-- **A work-stealing scheduler of lark's own.** The carriers stay the JDK's;
-  what changes is how many virtual threads lark asks them to run.
+- **A work-stealing scheduler of surefold's own.** The carriers stay the JDK's;
+  what changes is how many virtual threads surefold asks them to run.
 - **Changing what a step may do.** A step still blocks freely, and a flock of
   blocking actors must stay as fast as it is now (12 ms for 100 actors × 10
   steps of 1 ms, against Pekko's 70 ms on its blocking dispatcher).
@@ -72,11 +72,11 @@ Nothing in the API changes. Inside a flock on virtual threads:
 ## Why this shape
 
 Pekko wins a fan-out because waking an actor queues a task that already
-exists on threads that already run. Runners give lark the same: a wake is a
+exists on threads that already run. Runners give surefold the same: a wake is a
 queue offer, and only a burst the runners cannot keep up with starts a
 thread. Earlier tries parked idle runners and paid a cross-thread unpark for
 every wake; a runner that spins and then leaves pays nothing to be woken,
-because nothing ever wakes it. The watcher is what keeps the reason lark exists
+because nothing ever wakes it. The watcher is what keeps the reason surefold exists
 intact: a step may block, and when every runner is blocked the flock grows
 rather than stalls. A per-actor object costs a cache miss every time a tell
 reaches an actor that has gone cold, and a fan-out reaches only cold actors,
@@ -86,7 +86,7 @@ so the cell's hot state lives in the cell.
 
 - [x] **`spec-0064-runners`** ([#135](https://github.com/matthewjones372/lark/pull/135)) — the ready queue, runners, the watcher, and
       interrupts that stay with their actor. Done when: `FanOutBenchmark`'s
-      lark row is no slower than Pekko's, and blocking, ping-pong and tell
+      surefold row is no slower than Pekko's, and blocking, ping-pong and tell
       are within their error of the last baseline.
 - [x] **`spec-0064-cell`** ([#136](https://github.com/matthewjones372/lark/pull/136)) — the cell's flags, mailbox and room as fields.
       Done when: a tell to an idle actor is no slower than Pekko's in the
@@ -95,13 +95,13 @@ so the cell's hot state lives in the cell.
       130 ns), and is written down in the benchmarks' README as the next thing
       to take.
 - [x] **`spec-0064-baseline`** — the full benchmark, the README's table and
-      its JSON. Done when: the README shows where lark stands on every row.
+      its JSON. Done when: the README shows where surefold stands on every row.
 
 ## Acceptance
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-actor-benchmarks:jmh
+./gradlew :surefold-actor-benchmarks:jmh
 ```
 
 ## Open questions

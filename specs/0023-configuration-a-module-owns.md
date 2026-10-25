@@ -26,7 +26,7 @@ deploys.
 
 ## Shape
 
-A module, `lark-app-typesafe`, on `lark-app` and `com.typesafe:config`.
+A module, `surefold-app-typesafe`, on `surefold-app` and `com.typesafe:config`.
 
 ```kotlin
 val database: Module =
@@ -42,7 +42,7 @@ not a wall. What is added is that a failed read records its fault and the block
 runs on:
 
 ```
-lark-app: Db refused to start: No configuration setting found for key 'url'
+surefold-app: Db refused to start: No configuration setting found for key 'url'
 (application.conf: 8); ...
 ```
 

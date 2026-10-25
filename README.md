@@ -1,6 +1,6 @@
-# Lark
+# Surefold
 
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.matthewjones372/lark?label=maven%20central)](https://central.sonatype.com/artifact/io.github.matthewjones372/lark)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.matthewjones372/surefold?label=maven%20central)](https://central.sonatype.com/artifact/io.github.matthewjones372/surefold)
 [![Build](https://github.com/matthewjones372/lark/actions/workflows/build.yml/badge.svg)](https://github.com/matthewjones372/lark/actions/workflows/build.yml)
 [![Coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25%20enforced-brightgreen)](AGENTS.md#verifying)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -8,10 +8,10 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Status](https://img.shields.io/badge/status-experimental-orange)](#status)
 
-Lark is a set of Kotlin libraries for writing services on the JDK's virtual
+Surefold is a set of Kotlin libraries for writing services on the JDK's virtual
 threads, with ordinary blocking code and no coroutines. Its core gives you
 structured concurrency, resource safety, retries and timeouts, with typed
-errors in Lark's own `Fail` and `Either`. Further modules build on that core:
+errors in Surefold's own `Fail` and `Either`. Further modules build on that core:
 an application wired as a checked dependency graph, typed streams, actors,
 persistence, clustering, Kafka, and integrations for logging, metrics and
 tracing.
@@ -19,8 +19,12 @@ tracing.
 Each module is a separate dependency. You can use the core on its own, or add
 only the pieces a service needs.
 
-Lark is experimental. It is published so that it is easy to try, but its API
+Surefold is experimental. It is published so that it is easy to try, but its API
 changes between releases. See [Status](#status).
+
+Surefold was published as Lark up to 0.11.0, under `io.github.matthewjones372:lark*` and the
+package `io.github.matthewjones372.lark`. Moving over is a rename: `lark` becomes `surefold` in
+every artifact, package, plugin id and configuration key.
 
 ## Why virtual threads
 
@@ -32,7 +36,7 @@ profilers see ordinary threads.
 
 What virtual threads do not give you is structure. `Thread.ofVirtual().start`
 does not know which request started it, does not stop when a sibling fails,
-and carries no context. Lark adds:
+and carries no context. Surefold adds:
 
 - **Structured concurrency.** Forks belong to a scope. A scope returns only
   after every fork it started has ended, and the first failure interrupts the
@@ -51,7 +55,7 @@ else. Its combinators have the same names and shapes as
 `arrow-fx-coroutines`, so moving a function across usually means removing
 `suspend`, writing `attempt` for `either` and `fail` for `raise`, and changing
 an import. [Coming from Arrow](docs/arrow.md) has the rest, and
-`lark-arrow` converts between the two for code that keeps both.
+`surefold-arrow` converts between the two for code that keeps both.
 
 ## A first look
 
@@ -78,46 +82,46 @@ running behind it.
 
 ## What you can build
 
-**Concurrent, resource-safe code.** [`lark`](docs/core.md) provides `parZip`,
+**Concurrent, resource-safe code.** [`surefold`](docs/core.md) provides `parZip`,
 `parMap`, `raceN`, `flock { async { } }`, `resourceScope`, `Schedule`,
 `timeout`, and `policy`, which combines a deadline, retries, a circuit breaker,
-a rate limiter and a bulkhead. `lark-pekko` lets those forks run on a Pekko
+a rate limiter and a bulkhead. `surefold-pekko` lets those forks run on a Pekko
 dispatcher.
 
-**An application as a dependency graph.** [`lark-app`](docs/app.md) describes
+**An application as a dependency graph.** [`surefold-app`](docs/app.md) describes
 a service as a value: each node says what it builds and what it needs. The
 graph is checked before anything is constructed, started in dependency order
 with independent nodes in parallel, waits for readiness probes, and is released
 in reverse order on shutdown. Tests can start a subgraph with fakes. A Gradle
 plugin and a K2 compiler plugin report a broken graph at build time and in the
 editor. Integrations make HOCON configuration, Liquibase migrations, Pekko
-actors and Lark actors into nodes.
+actors and Surefold actors into nodes.
 
-**Typed streams.** [`lark-stream`](docs/stream.md) is `Stream<E, A>`, a
+**Typed streams.** [`surefold-stream`](docs/stream.md) is `Stream<E, A>`, a
 pipeline whose declared failure is part of its type. A stream is a description,
 and you choose where it runs: a pull loop on a virtual thread, Pekko Streams,
-Lark actors, or a test backend with a clock the test controls.
+Surefold actors, or a test backend with a clock the test controls.
 
-**Actors, persistence and clusters.** [`lark-actor`](docs/actors.md) runs
+**Actors, persistence and clusters.** [`surefold-actor`](docs/actors.md) runs
 actors on virtual threads within a `flock`, with supervision, timers, routers,
 event-sourced persistence and a deterministic test runtime.
 [Remote and cluster modules](docs/cluster.md) add TCP messaging with optional
 mutual TLS, gossip membership, sharded entities, singletons, reliable delivery,
 topics, a JDBC journal and read-model projections.
 
-**Kafka.** [`lark-kafka`](docs/kafka.md) reads a topic as a `Stream` on any
+**Kafka.** [`surefold-kafka`](docs/kafka.md) reads a topic as a `Stream` on any
 backend. Offsets are committed only after the work on a record is done, and
 transactions give exactly-once output to `read_committed` readers, with
 one caveat at the end of a run that the guide describes.
 
 **Observability.** Logging, metrics and tracing calls are part of the core and
-cross forks. Adding [`lark-slf4j`, `lark-micrometer` or `lark-otel`](docs/observability.md)
+cross forks. Adding [`surefold-slf4j`, `surefold-micrometer` or `surefold-otel`](docs/observability.md)
 sends them to the backend a service already uses.
 
 **Tests that do not wait.** [Testing utilities](docs/testing.md) include
 `TestClock`, `story { Given / When / Then }`, `eventually`, `testApp` for a
 subgraph, actor tests that step on the calling thread, and a stream backend
-on a test clock. [`lark-junit`](#tests-that-run-together) runs a suite's tests
+on a test clock. [`surefold-junit`](#tests-that-run-together) runs a suite's tests
 concurrently on virtual threads, shares one resource across them, and reports
 to Gradle, the IDE and CI as JUnit does.
 
@@ -125,20 +129,20 @@ to Gradle, the IDE and CI as JUnit does.
 
 ```mermaid
 graph BT
-    lark --> larkarrow[lark-arrow]
-    lark --> app[lark-app]
-    lark --> stream[lark-stream]
-    lark --> actor[lark-actor]
-    stream --> backends["lark-stream-forks / -pekko / -actors / -test"]
+    surefold --> surefoldarrow[surefold-arrow]
+    surefold --> app[surefold-app]
+    surefold --> stream[surefold-stream]
+    surefold --> actor[surefold-actor]
+    stream --> backends["surefold-stream-forks / -pekko / -actors / -test"]
     actor --> backends
-    stream --> kafka[lark-kafka]
-    actor --> remote[lark-actor-remote]
-    remote --> cluster[lark-cluster]
-    actor --> journal[lark-actor-journal-jdbc]
-    actor --> projection[lark-actor-projection]
+    stream --> kafka[surefold-kafka]
+    actor --> remote[surefold-actor-remote]
+    remote --> cluster[surefold-cluster]
+    actor --> journal[surefold-actor-journal-jdbc]
+    actor --> projection[surefold-actor-projection]
     stream --> projection
-    app --> appint["lark-app-typesafe / -liquibase / -pekko / -actor / -cluster"]
-    lark --> obs["lark-slf4j / lark-micrometer / lark-otel"]
+    app --> appint["surefold-app-typesafe / -liquibase / -pekko / -actor / -cluster"]
+    surefold --> obs["surefold-slf4j / surefold-micrometer / surefold-otel"]
 ```
 
 An arrow points from a module to the modules that build on it. Everything runs
@@ -156,37 +160,37 @@ your classpath, and which are unpublished.
 
 | Module | Use it for | Adds |
 |---|---|---|
-| `lark` | forks, errors, resources, schedules, policies, context, logs and metrics ([guide](docs/core.md)) | nothing |
-| `lark-arrow` | Lark's `Either`, `NonEmptyList` and `Fail` to and from Arrow's ([guide](docs/arrow.md)) | `arrow-core` |
-| `lark-app` | an application as a checked dependency graph ([guide](docs/app.md)) | nothing |
-| `lark-stream` | `Stream<E, A>` as a description ([guide](docs/stream.md)) | nothing |
-| `lark-stream-forks` | the stream backend on a virtual thread | nothing |
-| `lark-stream-pekko` | the stream backend on Pekko Streams | `pekko-stream` |
-| `lark-actor` | actors, supervision, persistence and actor tests ([guide](docs/actors.md)) | nothing |
-| `lark-actor-remote` | actors across nodes over TCP ([guide](docs/cluster.md)) | nothing |
-| `lark-actor-journal-jdbc` | the event journal, snapshots and offsets on JDBC ([guide](docs/cluster.md)) | nothing |
-| `lark-cluster` | membership, sharding, singletons, reliable delivery, topics ([guide](docs/cluster.md)) | nothing |
-| `lark-kafka` | Kafka as a `Stream`, producers and transactions ([guide](docs/kafka.md)) | `kafka-clients` |
-| `lark-slf4j`, `lark-micrometer`, `lark-otel` | logs, metrics and traces to an existing backend ([guide](docs/observability.md)) | the library named |
-| `lark-test` | `story` and `eventually` for service tests ([guide](docs/testing.md)) | nothing |
-| `lark-junit` | suites whose tests run together, expectations as values, aspects ([guide](docs/testing.md#suites)) | `junit-platform-engine` |
+| `surefold` | forks, errors, resources, schedules, policies, context, logs and metrics ([guide](docs/core.md)) | nothing |
+| `surefold-arrow` | Surefold's `Either`, `NonEmptyList` and `Fail` to and from Arrow's ([guide](docs/arrow.md)) | `arrow-core` |
+| `surefold-app` | an application as a checked dependency graph ([guide](docs/app.md)) | nothing |
+| `surefold-stream` | `Stream<E, A>` as a description ([guide](docs/stream.md)) | nothing |
+| `surefold-stream-forks` | the stream backend on a virtual thread | nothing |
+| `surefold-stream-pekko` | the stream backend on Pekko Streams | `pekko-stream` |
+| `surefold-actor` | actors, supervision, persistence and actor tests ([guide](docs/actors.md)) | nothing |
+| `surefold-actor-remote` | actors across nodes over TCP ([guide](docs/cluster.md)) | nothing |
+| `surefold-actor-journal-jdbc` | the event journal, snapshots and offsets on JDBC ([guide](docs/cluster.md)) | nothing |
+| `surefold-cluster` | membership, sharding, singletons, reliable delivery, topics ([guide](docs/cluster.md)) | nothing |
+| `surefold-kafka` | Kafka as a `Stream`, producers and transactions ([guide](docs/kafka.md)) | `kafka-clients` |
+| `surefold-slf4j`, `surefold-micrometer`, `surefold-otel` | logs, metrics and traces to an existing backend ([guide](docs/observability.md)) | the library named |
+| `surefold-test` | `story` and `eventually` for service tests ([guide](docs/testing.md)) | nothing |
+| `surefold-junit` | suites whose tests run together, expectations as values, aspects ([guide](docs/testing.md#suites)) | `junit-platform-engine` |
 
-"Adds" is the external dependency a module brings beyond the Lark modules it
+"Adds" is the external dependency a module brings beyond the Surefold modules it
 builds on. Each module has a `NoOtherDependenciesTest` that checks its runtime
 classpath against that list, so a new transitive dependency fails the build.
 
 ## Status
 
-Lark is an experiment in what a Kotlin service looks like without coroutines.
+Surefold is an experiment in what a Kotlin service looks like without coroutines.
 Everything described in these guides is implemented and tested, and the build
 enforces 90% line coverage. That said:
 
 - **The API is not stable.** Releases are `0.x`, and any release can change or
   remove API. There is no binary-compatibility check. Pin an exact version.
 - **No production use is known.** Apart from its tests, the code is exercised by
-  [`lark-bank`](docs/modules.md#the-example-application), an example
+  [`surefold-bank`](docs/modules.md#the-example-application), an example
   application in this repository, and by the related projects listed below.
-- **Maturity varies.** The core, `lark-app` and `lark-stream` are the most
+- **Maturity varies.** The core, `surefold-app` and `surefold-stream` are the most
   established. The actor, cluster and Kafka modules are newer.
 - **Some numbers are provisional.** Benchmark results were measured on JDK 21
   on a shared cloud machine, and the cluster benchmarks have not been run yet.
@@ -196,7 +200,7 @@ newer than the latest release; they are marked where they appear.
 
 ## Try it
 
-Lark needs **JDK 25 or newer** at runtime and is built with **Kotlin 2.4.10**.
+Surefold needs **JDK 25 or newer** at runtime and is built with **Kotlin 2.4.10**.
 JDK 25 is required because earlier JDKs pin a virtual thread's carrier while
 it blocks inside `synchronized`, which can exhaust the carriers when a library
 such as a JDBC driver or JSON serializer synchronizes internally. JDK 24 removed
@@ -209,7 +213,7 @@ kotlin { jvmToolchain(25) }
 
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:lark:0.10.1")
+    implementation("io.github.matthewjones372:surefold:0.10.1")
 }
 ```
 
@@ -217,10 +221,10 @@ A complete program, with every import it uses:
 
 <!-- quickstart-example -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.parZip
-import io.github.matthewjones372.lark.timeout
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.parZip
+import io.github.matthewjones372.surefold.timeout
 import kotlin.time.Duration.Companion.seconds
 
 data class User(val id: Int, val name: String)
@@ -262,17 +266,17 @@ than 200.
 
 Every published module uses the same group and version, so adding another is
 one more line, for example
-`implementation("io.github.matthewjones372:lark-app:0.10.1")`. The
+`implementation("io.github.matthewjones372:surefold-app:0.10.1")`. The
 [module guide](docs/modules.md) has the coordinates, what each module brings,
 and how to use a snapshot or a local build.
 
 ## Tests that run together
 
-`lark-junit` is optional. Lark is a library, so a plain JUnit Jupiter test can
+`surefold-junit` is optional. Surefold is a library, so a plain JUnit Jupiter test can
 call it directly, with `TestClock`, `capturingLogs`, `story`, `eventually` and
-`lark-assert`'s matchers, and nothing here needs changing.
+`surefold-assert`'s matchers, and nothing here needs changing.
 
-`lark-junit` is for the suites where Jupiter gets in the way:
+`surefold-junit` is for the suites where Jupiter gets in the way:
 
 - **Speed.** A suite's tests run concurrently, each on its own virtual thread,
   under a `Limit` you choose for that suite. Jupiter's parallel mode is one
@@ -296,14 +300,14 @@ Stay on Jupiter for tests that need its extensions, such as parameterized
 tests, `@TempDir`, or a framework's own extension. The two engines run side by
 side in one `test` task.
 
-Because `lark-junit` is a JUnit Platform engine, its suites run beside JUnit
+Because `surefold-junit` is a JUnit Platform engine, its suites run beside JUnit
 Jupiter tests in the same `test` task, and Gradle's XML reports, the IDE and CI
 read the results unchanged.
 
 ```kotlin
 // build.gradle.kts
 dependencies {
-    testImplementation("io.github.matthewjones372:lark-junit:0.10.1")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.10.1")
 }
 
 tasks.test { useJUnitPlatform() }
@@ -318,14 +322,14 @@ fails.
 
 <!-- readme-junit-suite -->
 ```kotlin
-import io.github.matthewjones372.lark.Limit
-import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.SharedSuite
-import io.github.matthewjones372.lark.junit.expect
-import io.github.matthewjones372.lark.junit.flaky
-import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.junit.tag
-import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.surefold.Limit
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.expect
+import io.github.matthewjones372.surefold.junit.flaky
+import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.junit.tag
+import io.github.matthewjones372.surefold.resource
 import java.util.concurrent.ConcurrentHashMap
 
 // Stands in for a database: started once for the suite, closed after its last test.
@@ -366,20 +370,20 @@ test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
 
 ## Where next
 
-**Evaluating Lark**
+**Evaluating Surefold**
 
 - [Core concurrency, errors and resources](docs/core.md): what the forks,
   cancellation and resource guarantees are, in detail.
 - [Applications](docs/app.md): the dependency graph and the build-time checks.
 - [Modules](docs/modules.md): what to depend on, what each module brings,
   maturity, performance and limitations.
-- [`lark-bank`](docs/modules.md#the-example-application): three nodes of a
+- [`surefold-bank`](docs/modules.md#the-example-application): three nodes of a
   small bank, using actors, persistence, remoting and clustering together.
 
 **Using a capability**
 
 - [Core](docs/core.md): `parZip`, `flock`, cancellation, `resourceScope`,
-  `Schedule`, `timeout`, `policy`, `LarkLocal` and the clock, and Pekko
+  `Schedule`, `timeout`, `policy`, `SurefoldLocal` and the clock, and Pekko
   dispatchers.
 - [Applications](docs/app.md) and the [application cookbook](docs/cookbook.md),
   one compiled recipe per task: wiring, lifecycle, configuration, probes,
@@ -392,23 +396,23 @@ test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
 - [Kafka](docs/kafka.md): consuming, committing, producing and transactions.
 - [Observability](docs/observability.md): logs, metrics and traces.
 - [Testing](docs/testing.md): the test utilities in one place, and
-  `lark-junit` suites.
+  `surefold-junit` suites.
 - [Feature flags](docs/flags.md): OpenFeature flags declared once, and read
   for the request in every fork and actor.
 
-**Writing code with an agent.** [`llms.txt`](llms.txt) summarises what Lark
-ships and which call to use for a task. In Claude Code, the Lark plugin loads
-the same guidance whenever code uses Lark:
+**Writing code with an agent.** [`llms.txt`](llms.txt) summarises what Surefold
+ships and which call to use for a task. In Claude Code, the Surefold plugin loads
+the same guidance whenever code uses Surefold:
 
 ```
 /plugin marketplace add matthewjones372/lark
-/plugin install lark@lark
+/plugin install surefold@surefold
 ```
 
 **Contributing.** [`AGENTS.md`](AGENTS.md) describes how work on this
 repository is done: a spec in [`specs/`](specs/README.md) first, small stacked
 pull requests, and the gates that `./gradlew build` enforces. Building needs
-JDK 25 (and JDK 27 for the unpublished `lark-structured` module); Gradle's
+JDK 25 (and JDK 27 for the unpublished `surefold-structured` module); Gradle's
 toolchain support can download them.
 
 ```bash
@@ -424,20 +428,20 @@ toolchain support can download them.
 - [kimney](https://github.com/matthewjones372/kimney): compile-time mapping
   between Kotlin types.
 - [petshop](https://github.com/matthewjones372/petshop): a small service that
-  uses Lark with Pelican and Proofload.
+  uses Surefold with Pelican and Proofload.
 - [tweet-street](https://github.com/matthewjones372/tweet-street): a bank in
-  four services on a three-node Lark cluster, with its journal in Postgres and
+  four services on a three-node Surefold cluster, with its journal in Postgres and
   its events on Kafka.
 
 ## Credit
 
-Lark owes its error model and the shape of its combinators to
+Surefold owes its error model and the shape of its combinators to
 [Arrow](https://arrow-kt.io). `Either`, `NonEmptyList` and `Fail` follow the
 types Arrow made familiar in Kotlin, and `parZip`, `parMap`, `raceN` and their
 `OrAccumulate` forms keep the names and shapes of `arrow-fx-coroutines`, so code
-moves between the two with little change. Lark's versions are written from
+moves between the two with little change. Surefold's versions are written from
 scratch for blocking code on virtual threads rather than taken from Arrow.
-Anyone already using Arrow can keep it alongside: [`lark-arrow`](docs/arrow.md)
+Anyone already using Arrow can keep it alongside: [`surefold-arrow`](docs/arrow.md)
 converts between the two.
 
 ## Licence

@@ -2,7 +2,7 @@
 
 ## Problem
 
-A `lark-actor` step that throws stops its actor, and nothing else happens:
+A `surefold-actor` step that throws stops its actor, and nothing else happens:
 there is no restart, no way for another actor to hear that it stopped, and no
 way to raise a declared failure. 0059 put all three off to here. An actor
 cannot spawn children either, so an actor that owns workers has to be handed
@@ -67,7 +67,7 @@ flock {
 
 ## Why this shape
 
-Supervision on `Schedule` rather than a strategy type: lark already has one
+Supervision on `Schedule` rather than a strategy type: surefold already has one
 way to say "retry, with backoff, this many times", and a restart is that. The
 alternative is Pekko's `SupervisorStrategy`, a second vocabulary for the same
 decision. Restart from `initial` rather than keeping state: a failure may have

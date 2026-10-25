@@ -70,7 +70,7 @@ the journal and `persistent` do not change.
 ## Stack
 
 - [x] **`spec-0091-versioned`** — `versioned`, `Upgrade`, the prefix and the
-      chain, in `lark-actor`. Done when: events written as versions 1 (with no
+      chain, in `surefold-actor`. Done when: events written as versions 1 (with no
       prefix), 2 and 3 replay as version 3, one version-1 event replays as two,
       and a missing upgrade is refused when the codec is built.
       ([#257](https://github.com/matthewjones372/lark/pull/257))
@@ -85,7 +85,7 @@ the journal and `persistent` do not change.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:build
+./gradlew :surefold-actor:build
 ```
 
 ## Open questions
@@ -113,7 +113,7 @@ Decided while building `spec-0091-versioned`:
   defaults to one `decode`, so every codec written before this is unchanged.
   Replay, `Journal.events` and a projection read through it, and `decode`
   refuses an event that upgrades to several.
-- **The mark.** It is `\0lark:v` and a four-byte version. Bytes without it are
+- **The mark.** It is `\0surefold:v` and a four-byte version. Bytes without it are
   version 1.
 - **A projection and a split event.** Each part but the last carries the offset
   before the event's own. A run stopped between the parts reads the event again

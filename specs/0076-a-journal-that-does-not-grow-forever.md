@@ -59,7 +59,7 @@ Recommended: one flag on `every`.
 ## Stack
 
 - [x] **`spec-0076-prune`** — `JournalPruning`, the in-memory journal's
-      deletion, and `PruneContract` in `lark-actor`'s test fixtures. Done
+      deletion, and `PruneContract` in `surefold-actor`'s test fixtures. Done
       when: after a deletion the journal answers only the events kept, still
       appends after the newest, and never deletes the newest.
       ([#195](https://github.com/matthewjones372/lark/pull/195))
@@ -110,7 +110,7 @@ not; under `testActors` that throw comes from `spawn`, as any failed start's doe
 
 Decided while building `spec-0076-jdbc`: a deleted row leaves a missing
 `ordering` that 0075's feed would wait on as a gap, so each deletion records
-the span of orderings it removed in `lark_journal_pruned`, in the same
+the span of orderings it removed in `surefold_journal_pruned`, in the same
 transaction, and the feed reads past a missing ordering inside a recorded
 span. That is one row per deletion, not per event. The contract's feed test
 fails without it.

@@ -5,7 +5,7 @@
 `ShardedJournal` (spec 0088) keeps each id's events in one of 1,024 slices, and gives each database a contiguous
 range: slice × databases ÷ 1024. The ranges depend on how many databases there are. A journal on two databases
 that gains a third moves about a third of all ids to a database that holds none of their events. Those entities
-recover empty. So a journal's write capacity is fixed on the day it is created. lark-bank found this while
+recover empty. So a journal's write capacity is fixed on the day it is created. surefold-bank found this while
 working out how it would scale, after its own config had said "append, never reorder", which is not safe either.
 
 ## Not doing
@@ -16,7 +16,7 @@ working out how it would scale, after its own config had said "append, never reo
 
 ## Shape
 
-**Routing is a table, not a formula.** Each database owns explicit ranges, kept in a `lark_journal_slices` table
+**Routing is a table, not a formula.** Each database owns explicit ranges, kept in a `surefold_journal_slices` table
 in the first database. Every node reads it at start, and reads its newest version at most once a second after:
 
 ```kotlin
@@ -26,30 +26,30 @@ ShardedSnapshots(snapshotStores, slices)
 // db-0: 0..511, db-1: 512..1023   — written once, as version 1, by the rule used before
 ```
 
-**Each row carries its slice.** `lark_journal.slice` is set on append, and is never null.
+**Each row carries its slice.** `surefold_journal.slice` is set on append, and is never null.
 
-**Each database refuses the slices it has given away.** They are listed in its own `lark_journal_fenced`, and an
+**Each database refuses the slices it has given away.** They are listed in its own `surefold_journal_fenced`, and an
 append's insert checks the list in the same statement. A refused append throws `SliceElsewhere`; `ShardedJournal`
 reads the table again and sends the append to the slice's new owner, or throws `JournalUnavailable` while the slice
 is still moving. Callers already retry both, as when a database is down.
 
-**A range moves in four steps,** run by `SliceMover.move`, the `lark-journal-move` command, or a service's own
+**A range moves in four steps,** run by `SliceMover.move`, the `surefold-journal-move` command, or a service's own
 admin endpoint:
 1. **Copy:** each id's events the target lacks, and its newest snapshot, twice over while appends continue.
-2. **Fence:** the range goes into the source's `lark_journal_fenced`. On Postgres, the mover then waits until
+2. **Fence:** the range goes into the source's `surefold_journal_fenced`. On Postgres, the mover then waits until
    every transaction running at the fence has ended (spec 0100's horizon), so no append that missed the fence is
    still to commit. On H2 it waits one second.
 3. **Catch up and switch:** the tail written since the copy is copied, the target's own fence on the range, if
    any, is lifted, and the next version is written with the range on the target, in one transaction with a row
-   in `lark_journal_moves`. If any step fails before that, the source is unfenced and nothing moved.
+   in `surefold_journal_moves`. If any step fails before that, the source is unfenced and nothing moved.
 4. **Clean up:** `SliceMover.cleanUp` deletes the range's rows and snapshots from the source once the move is an
    hour old and every named read model's offset on the source has passed the range's last row. It records the
-   deleted span in `lark_journal_pruned`, so the feed reads past it. A range that has moved back is kept.
+   deleted span in `surefold_journal_pruned`, so the feed reads past it. A range that has moved back is kept.
 
 - **Projections:** events copied to the target reappear in the target's feed. Projections must therefore be
-  idempotent by `(id, sequence)`, which `runProjecting` states, and lark-bank's already are. The source's feed
+  idempotent by `(id, sequence)`, which `runProjecting` states, and surefold-bank's already are. The source's feed
   loses nothing, because rows are deleted only after the grace period.
-- Each step is logged with its duration, as `lark.journal.move <range>: <step> took <duration>`. The mover runs
+- Each step is logged with its duration, as `surefold.journal.move <range>: <step> took <duration>`. The mover runs
   outside any flock, so it has no meter registry of its own.
 
 **What the bank's run found.** Two costs showed at 400 transfers a second. The slice table, once its map was a
@@ -68,7 +68,7 @@ data whenever the set changes, and hides from the operator which slices moved.
 
 ## Stack
 
-- [x] **`spec-0105-table`** — `lark_journal_slices`, routing from it, and today's ranges written on first start.
+- [x] **`spec-0105-table`** — `surefold_journal_slices`, routing from it, and today's ranges written on first start.
       Done when: a journal created before this spec starts unchanged, and routes every id where it did before.
 - [x] **`spec-0105-move`** — copy, fence, switch and clean up, as a function and a command.
       Done when: under appends from 1,000 entities, a range moves from db-0 to db-2. No append is lost, every
@@ -77,7 +77,7 @@ data whenever the set changes, and hides from the operator which slices moved.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:check :lark-actor-journal-jdbc:check
+./gradlew :surefold-actor:check :surefold-actor-journal-jdbc:check
 ```
 
 ## Settled

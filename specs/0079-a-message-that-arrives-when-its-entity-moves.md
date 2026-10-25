@@ -65,7 +65,7 @@ Recommended: one producer per sender, one wrapper per entity.
 ## Stack
 
 - [x] **`spec-0079-receive`** — `Delivery`, `Delivered`, `Confirmed` and
-      `delivered(behaviour)`, in `lark-actor`. Done when: an entity confirms
+      `delivered(behaviour)`, in `surefold-actor`. Done when: an entity confirms
       each delivered command after its step, a plain one never, and a step
       that fails confirms nothing.
       ([#206](https://github.com/matthewjones372/lark/pull/206))

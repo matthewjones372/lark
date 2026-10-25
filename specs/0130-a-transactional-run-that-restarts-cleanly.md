@@ -35,7 +35,7 @@ The other two local failures were a stop racing its last transaction's group met
 
 - **Explaining the abort-case hang here.** Not reproduced in 94 runs; 3 is what makes the next one explain itself.
 - **Longer timeouts.** Nothing waits longer than it does today.
-- **A dump on timeout outside `lark-kafka`.** See Open questions.
+- **A dump on timeout outside `surefold-kafka`.** See Open questions.
 
 ## Shape
 
@@ -48,7 +48,7 @@ The other two local failures were a stop racing its last transaction's group met
   and `consumer.close()`, and sets it again after, so an interrupt that stopped the read does not also stop the commit.
 - **`readAll` after the transaction ends.** The test broker's `readAll` waits until no transaction is open on the
   partition, within its 30-second deadline, before it reads.
-- **Every thread on timeout.** A `PreInterruptCallback` in `lark-kafka`'s tests writes
+- **Every thread on timeout.** A `PreInterruptCallback` in `surefold-kafka`'s tests writes
   `HotSpotDiagnosticMXBean.dumpThreads(path, TEXT)`, virtual threads included, to stderr before JUnit interrupts the
   test. Stderr is in the XML report CI already uploads.
 
@@ -61,7 +61,7 @@ For 3, JUnit's own dump is one property and no code, but it misses exactly the t
 ## Stack
 
 - [x] **`spec-0130-threads-on-timeout`** ([#368](https://github.com/matthewjones372/lark/pull/368)):
-      the callback, registered for `lark-kafka`'s tests by extension autodetection.
+      the callback, registered for `surefold-kafka`'s tests by extension autodetection.
       Done when: a test that parks a virtual thread and times out prints that thread's stack in its report.
 - [x] **`spec-0130-close-after-read`** ([#370](https://github.com/matthewjones372/lark/pull/370)):
       `Opened.close()` wakes and waits for a read in flight.
@@ -74,17 +74,17 @@ For 3, JUnit's own dump is one property and no code, but it misses exactly the t
 - [x] **`spec-0130-one-batch`** ([#384](https://github.com/matthewjones372/lark/pull/384)):
       `TransactTest` batches by count, the restart case drops its upstream `take`, and
       `readAll` waits for the partition's transactions to end.
-      Done when: `./gradlew :lark-kafka:test` passes 100 runs in a row under load, on both backends.
+      Done when: `./gradlew :surefold-kafka:test` passes 100 runs in a row under load, on both backends.
 
 ## Acceptance
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-for i in $(seq 100); do ./gradlew :lark-kafka:test --rerun -q || break; done
+for i in $(seq 100); do ./gradlew :surefold-kafka:test --rerun -q || break; done
 ```
 
 ## Open questions
 
-1. **The dump for every module?** Every Forks test runs on virtual threads. Recommend `lark-kafka` first, and moving
+1. **The dump for every module?** Every Forks test runs on virtual threads. Recommend `surefold-kafka` first, and moving
    the callback to a shared test module once it has caught something.
 2. **A dump file or stderr?** Recommend stderr: the report CI uploads holds it, and a file would need its own upload.

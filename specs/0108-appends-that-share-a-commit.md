@@ -64,7 +64,7 @@ Postgres already shares and does nothing for the transactions and connections, w
 
 ## Depends on
 
-Nothing new. The bank takes it by upgrading Lark and passing `groupCommit`.
+Nothing new. The bank takes it by upgrading Surefold and passing `groupCommit`.
 
 ## Stack
 
@@ -82,7 +82,7 @@ Nothing new. The bank takes it by upgrading Lark and passing `groupCommit`.
 
 ```bash
 ./gradlew build
-./gradlew :lark-actor-benchmarks:jmh -Pjmh.includes=SpreadPersistent
+./gradlew :surefold-actor-benchmarks:jmh -Pjmh.includes=SpreadPersistent
 ```
 
 ## Settled

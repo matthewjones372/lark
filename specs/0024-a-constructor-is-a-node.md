@@ -2,7 +2,7 @@
 
 ## Problem
 
-Two services were wired with `lark-app` and both came out longer than the code
+Two services were wired with `surefold-app` and both came out longer than the code
 they replaced: a shopping cart went 272 lines to 283, a petshop needed about
 ninety lines to describe eight nodes where sixty would have done by hand. The
 measurement is the same in both: a node costs about three lines where a call

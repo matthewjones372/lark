@@ -2,8 +2,8 @@
 
 ## Problem
 
-lark-stream has three backends: Pekko Streams, Forks (a pull loop on one fork)
-and `TestStreams`. lark-actor now has a runtime that beats Pekko's actors on
+surefold-stream has three backends: Pekko Streams, Forks (a pull loop on one fork)
+and `TestStreams`. surefold-actor now has a runtime that beats Pekko's actors on
 every row but a cold tell, yet no stream runs on it. So nobody can tell
 whether an actor-shaped backend (Pekko's own design, without Pekko) is faster
 or slower than Forks, or where. Forks starts a virtual thread for each
@@ -17,7 +17,7 @@ An actor that already exists costs a tell, about 150 ns.
 - **An actor per stage.** Linear stages are calls in one loop, as on Forks. A
   hop per stage would lose to Forks' 30 ns chain before anything else started.
 - **Pekko interop, remote streams, stream refs.**
-- **Speed work on lark-actor itself.** Spec 0065 owns that.
+- **Speed work on surefold-actor itself.** Spec 0065 owns that.
 
 ## Shape
 
@@ -39,7 +39,7 @@ flock<Nothing, Unit> {
   sends at most `n`. `mapPar(n)` is a pool of `n` workers, not a thread per
   element.
 - **Time is the flock's timers.** `tick`, `groupedWithin` and the restart
-  delay use lark-actor's timers, which follow lark's `clock`.
+  delay use surefold-actor's timers, which follow surefold's `clock`.
 - **Ending.** The exit completes once the run's actor and every child have
   ended. A stop stops the run's actor, whose children go first. A defect is
   the actor's failure, with no restart.
@@ -60,7 +60,7 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
 
 ## Stack
 
-- [x] **`spec-0066-island`** ([#147](https://github.com/matthewjones372/lark/pull/147)) — `lark-stream-actors`: a run is one actor
+- [x] **`spec-0066-island`** ([#147](https://github.com/matthewjones372/lark/pull/147)) — `surefold-stream-actors`: a run is one actor
       pulling in batches, and every operator Forks runs without a fork.
       Refuses the rest by name. Done when: those parity cases pass, and
       the hardened checks leave no actor running.
@@ -79,16 +79,16 @@ simpler, but it loses the chain by an order of magnitude. Not recommended.
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-stream-benchmarks:jmh
+./gradlew :surefold-stream-benchmarks:jmh
 ```
 
 ## Open questions
 
 - **Where does the flock come from?** `Actors(flock)`, so a run cannot outlive
   the scope it was started in, or an `Actors()` that owns a flock and is
-  `close`d? Recommended: `Actors(flock)`, as lark scopes everything else.
-- **Reuse Forks' pull operators?** That means `lark-stream-actors` depends on
-  `lark-stream-forks`, and Forks' `Pull` becomes `@StreamSpi`. The
+  `close`d? Recommended: `Actors(flock)`, as surefold scopes everything else.
+- **Reuse Forks' pull operators?** That means `surefold-stream-actors` depends on
+  `surefold-stream-forks`, and Forks' `Pull` becomes `@StreamSpi`. The
   alternative is to write push-style operators of its own. Recommended: reuse
   them, so that the two backends differ only at the boundaries being compared.
 - **Batch and credit size?** Recommended: 64 for both, as the actor's
@@ -129,7 +129,7 @@ Decided while building `spec-0066-fanin` (2026-09-26), for editing:
   elements, as on Forks; `flatMapMerge(breadth)` is an outer actor that starts
   each inner stream as an input actor of its own, and `conflate` an actor that
   folds a batch a step into what is pending.
-- The module shares its package with lark-stream and lark-stream-forks, where
+- The module shares its package with surefold-stream and surefold-stream-forks, where
   a private class is still a class of the package: a `Confluence` of its own
   was loaded in place of Forks' and broke `merge` on Forks. A test now fails
   on any class name two of those modules both have.
@@ -143,6 +143,6 @@ Decided while building `spec-0066-fanin` (2026-09-26), for editing:
 Decided while building `spec-0066-compared` (2026-09-26): the rows are in the
 stream benchmarks' README. Actors win `mapPar` (5.7×), starting a run (2.1×),
 `buffer` and `merge`; Forks keeps the plain chain and a thousand runs at once.
-Both lark backends run `groupedWithin` at about 25 µs an element against
+Both surefold backends run `groupedWithin` at about 25 µs an element against
 Pekko's 184 ns, which is Forks' feed and not the backend: spec 0067 takes it
 to 317 ns.

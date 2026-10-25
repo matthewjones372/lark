@@ -39,13 +39,13 @@ logAnnotated("correlation_id" to request.id) {
 }
 ```
 
-The annotations and the logger both live in a `LarkLocal`, so the propagation
+The annotations and the logger both live in a `SurefoldLocal`, so the propagation
 is 0017's and this spec adds no fork-site code.
 
 ```kotlin
 fun interface Logger { fun log(line: LogLine) }
 
-val logger: LarkLocal<Logger> = larkLocal { StderrLogger }
+val logger: SurefoldLocal<Logger> = surefoldLocal { StderrLogger }
 ```
 
 ## Why this shape
@@ -77,8 +77,8 @@ still do it where it wants to assert on a specific class's output.
 
 ## Open questions
 
-1. **Does `lark` hold the facade, or a `lark-log` module?** Recommend `lark`:
-   an interface and a `LarkLocal` add nothing to `NoOtherDependenciesTest`'s
+1. **Does `surefold` hold the facade, or a `surefold-log` module?** Recommend `surefold`:
+   an interface and a `SurefoldLocal` add nothing to `NoOtherDependenciesTest`'s
    classpath, and a fork carrying no log context is the thing being fixed.
 2. **Does a raise or a throw log itself?** Recommend no. `zio.dev` argues the
    same: a typed error is already reported to its caller, and logging it as

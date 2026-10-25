@@ -24,7 +24,7 @@ There is also repetition. Five operators pick their implementation by asking
 and `Conflate`, plus `FlatMap` and `timeline()`. And `pullsOnClock()` is just
 `pulls()` (`Pull.kt:63`).
 
-Research for this spec found that nothing outside lark-stream-forks reads the
+Research for this spec found that nothing outside surefold-stream-forks reads the
 four ThreadLocals, and user lambdas never call `pull()`. Spec 0066 made only
 `Boundaries` ambient, to keep spawning on the thread that steps. Its own
 thread check in `ActorBoundaries.kt:41` already enforces that.
@@ -32,10 +32,10 @@ thread check in `ActorBoundaries.kt:41` already enforces that.
 ## Not doing
 
 - The clock binding in `Turns.fork` (`clock.locally`, `Waiting.within`).
-  User lambdas read lark's `clock` through it, and specs 0017 and 0018 chose
+  User lambdas read surefold's `clock` through it, and specs 0017 and 0018 chose
   a ThreadLocal on purpose.
 - The `Boundaries.pull(node, pulled)` interface (`@StreamSpi`). `pulled`
-  closes over the context, so lark-stream-actors' implementation doesn't
+  closes over the context, so surefold-stream-actors' implementation doesn't
   change.
 - Behaviour, apart from the late-built pulls below.
 
@@ -79,7 +79,7 @@ interface hidden, so I recommend the parameter.
 
 - [x] **`spec-0152-context`** ([#617](https://github.com/matthewjones372/lark/pull/617)): `PullContext`, built by both runs and passed to
       every `pull`. The ThreadLocals are still set but no longer read.
-      Done when: lark-stream-forks, lark-stream-actors and parity tests pass,
+      Done when: surefold-stream-forks, surefold-stream-actors and parity tests pass,
       and `Pull.kt` has no `here()` or `taking()` call.
 - [x] **`spec-0152-forks`** ([#618](https://github.com/matthewjones372/lark/pull/618)): forks carry `ctx`. `Bound` and
       `pullsOnClock` are deleted.
@@ -87,13 +87,13 @@ interface hidden, so I recommend the parameter.
 - [x] **`spec-0152-unbind`** ([#622](https://github.com/matthewjones372/lark/pull/622)): the four ThreadLocals are deleted.
       `ActorFanin`'s `run.within { … }` goes, with `Pulling.within`: its
       pulls already carry the context, so there is nothing left to bind.
-      Done when: `grep ThreadLocal lark-stream-forks` finds only `Turns`'s
+      Done when: `grep ThreadLocal surefold-stream-forks` finds only `Turns`'s
       clock binding.
 
 ## Acceptance
 
 ```bash
-./gradlew :lark-stream-forks:test :lark-stream-actors:test :lark-stream-parity:test
+./gradlew :surefold-stream-forks:test :surefold-stream-actors:test :surefold-stream-parity:test
 ```
 
 ## Open questions
