@@ -69,11 +69,18 @@ it is a hidden coupling, whichever runner they are on.
 
 ## Stack
 
-- [ ] **`spec-0196-matchers`** — the six matchers above, in `lark-junit`, with tests.
-- [ ] **`spec-0196-actors-1`** to **`spec-0196-actors-6`** — `lark-actor`'s classes in six batches of
-      about seven classes each, in alphabetical order, with the build's `lark-junit` setup in the first.
+- [x] **`spec-0196-matchers`** ([#604](https://github.com/matthewjones372/lark/pull/604)) — the six matchers above, in `lark-junit`, with tests.
+- [x] **`spec-0196-actors-1`** to **`spec-0196-actors-6`** — `lark-actor`'s classes in six batches of
+      about seven classes each, in alphabetical order. The build's `lark-junit` setup came first, in a
+      shared base commit that every batch was cut from:
+      [#614](https://github.com/matthewjones372/lark/pull/614),
+      [#613](https://github.com/matthewjones372/lark/pull/613),
+      [#612](https://github.com/matthewjones372/lark/pull/612),
+      [#608](https://github.com/matthewjones372/lark/pull/608),
+      [#610](https://github.com/matthewjones372/lark/pull/610) and
+      [#609](https://github.com/matthewjones372/lark/pull/609).
       Done when (each): the moved suites report the same tests, all passing, under `lark`.
-- [ ] **`spec-0196-result`** — a `## Result` section: `:lark-actor:test` before and after (median of 5 warm
+- [x] **`spec-0196-result`** — a `## Result` section: `:lark-actor:test` before and after (median of 5 warm
       runs), every `alone` or `concurrent = false` added and why, and what to move next.
       Done when: the section holds measured numbers.
 
@@ -83,6 +90,51 @@ it is a hidden coupling, whichever runner they are on.
 ./gradlew spotlessApply && ./gradlew build
 ./gradlew :lark-actor:test
 ```
+
+## Result
+
+Measured on 2026-10-25, on a 4-core container, as `./gradlew :lark-actor:test --rerun --profile`. Each side had one
+warm-up, then 5 runs: before on `main` at #603, after on `main` with #614. Each side was measured twice, the second
+pair back to back on a quiet machine. Medians:
+
+| | Before (Jupiter) | After (228 on `lark`) |
+|---|---|---|
+| `:lark-actor:test` task, first pair | 22.25 s | 24.58 s |
+| `:lark-actor:test` task, second pair | 23.49 s | 24.57 s |
+| Whole command, first pair | 24.04 s | 26.87 s |
+
+Task runs, first pair: 21.99, 22.46, 21.87, 22.25, 22.36 s before; 26.58, 25.62, 23.48, 24.58, 23.75 s after.
+Second pair: 23.06, 22.85, 23.49, 23.64, 23.89 s before; 27.67, 26.08, 23.43, 23.24, 24.57 s after.
+
+- **No time gained; about a second lost.** The moved tests were never the cost. In the JUnit XML their 39 classes
+  took 3.63 s between them before and 3.46 s after. Each test is a few milliseconds, and suites run one after
+  another, so running a suite's tests at once has little to overlap. `ActorsGuideTest`, which compiles the guides'
+  examples and stays on Jupiter, is most of the task: 15.45 s of case time before and 16.96 s after. That 1.5 s rise
+  accounts for most of the loss. The likely cause is that its compiles now load a larger test classpath, with
+  `lark-junit` and power-assert on it, but that was not measured.
+- **Tests:** the same 260 in every run: 228 in 39 suites on `lark`, and 32 on Jupiter. All 22 runs on `main` above
+  passed.
+- **No `alone` or `concurrent = false`** was needed. No test failed on CI or in any timed run.
+- **Load-sensitive tests**, each seen once while six agents' builds ran at once (load average up to 54 on 4 cores):
+  - `DurableProducerSuite`'s "on threads, a send while the journal is down answers Unwritten at once" checks each
+    send takes under 500 ms. One send took 565 ms.
+  - `InMemoryFeedTest`, still on Jupiter, hit the 60-second default timeout.
+  - One run in 13 on batch 1's branch failed one test, and the next run overwrote its report before anyone saw which.
+
+  None of these recurred on a quiet machine. The 500 ms check is the one to watch; `alone` is the fix if it does.
+- **Shared state in fields**, as spec 0191 warned: eight classes kept mutable state in a field that a suite object
+  would share. These were `Delivered`, `Entities`, `Persistent`, `PersistentDelivery`, `Prune`, `Router`, `Scoped`
+  and `Topic`. Each test now makes its own.
+- **Names:** every test keeps its name, except one `@ParameterizedTest` in `PersistentDelivery`. Its two cases,
+  shown by Jupiter as `[1] 1` and `[2] 4`, are now two tests whose names end in ", batch 1" and ", batch 4". Spec
+  0193 ended such names with `[value]` instead.
+- **Matchers:** none missing once #604 landed. Loops of checks are joined with `reduce(Expectations::and)`, once in
+  `Router` and through a small helper in `ShardedJournal`. An `allOf` in `lark-junit` would save both.
+- **What to move next.** Moving pays where tests wait on something slow and can wait together, as `lark-kafka`'s
+  did (−29%). It does not where each test takes milliseconds, as here. Move the modules whose tests wait on a network,
+  `lark-actor-remote` and the cluster, next. Leave the fast unit-test modules until the migration's end state is
+  what is wanted, not the time. `ActorsGuideTest` is this module's cost, as `ReadmeExampleSuite` was
+  `lark-stream-pekko`'s, and is worth a look of its own.
 
 ## Open questions
 
