@@ -1,10 +1,13 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -44,25 +47,31 @@ private class Worker(val name: String, port: Int, seeds: Discovery, roles: Set<S
 private fun View.roles(): Map<String, Set<String>> =
     members.filter { it.status == Status.Up }.associate { it.node.name to it.roles }
 
-class RolesTest {
+object RolesSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `every member sees every member's roles, and a node started again with other roles shows the new ones`() {
-        val ports = List(3) { unusedPort() }
-        val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val roles = listOf(setOf("ledger"), setOf("web"), setOf("ledger", "web"))
-        val first = mapOf("r1" to roles[0], "r2" to roles[1], "r3" to roles[2])
-        val workers = ports.indices.map { Worker("r${it + 1}", ports[it], seeds, roles[it]) }.toMutableList()
-        try {
-            workers.forEach { it.cluster.await(1.minutes) { view -> view.roles() == first } shouldBe true }
+    init {
+        test(
+            "every member sees every member's roles, and a node started again with other roles shows the new ones",
+        ) { _ ->
+            val ports = List(3) { unusedPort() }
+            val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
+            val roles = listOf(setOf("ledger"), setOf("web"), setOf("ledger", "web"))
+            val first = mapOf("r1" to roles[0], "r2" to roles[1], "r3" to roles[2])
+            val workers = ports.indices.map { Worker("r${it + 1}", ports[it], seeds, roles[it]) }.toMutableList()
+            try {
+                val seen = workers.forAll { w ->
+                    w.cluster.await(1.minutes) { view -> view.roles() == first } shouldBe true
+                }
 
-            workers.removeLast().close()
-            workers += Worker("r3", ports[2], seeds, setOf("batch"))
+                workers.removeLast().close()
+                workers += Worker("r3", ports[2], seeds, setOf("batch"))
 
-            val again = first + ("r3" to setOf("batch"))
-            workers.forEach { it.cluster.await(1.minutes) { view -> view.roles() == again } shouldBe true }
-        } finally {
-            workers.forEach(Worker::close)
+                val again = first + ("r3" to setOf("batch"))
+                seen and workers.forAll { it.cluster.await(1.minutes) { view -> view.roles() == again } shouldBe true }
+            } finally {
+                workers.forEach(Worker::close)
+            }
         }
     }
 }

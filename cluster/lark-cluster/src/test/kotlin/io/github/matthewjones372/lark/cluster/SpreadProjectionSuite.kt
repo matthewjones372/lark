@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.InMemoryJournal
 import io.github.matthewjones372.lark.actor.InMemoryOffsets
@@ -10,15 +11,18 @@ import io.github.matthewjones372.lark.actor.projection.mapFollowed
 import io.github.matthewjones372.lark.actor.projection.runProjecting
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldBeGreaterThan
-import io.github.matthewjones372.lark.assert.shouldBeLessThanOrEqual
-import io.github.matthewjones372.lark.assert.shouldContainAll
-import io.github.matthewjones372.lark.assert.withClue
 import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.junit.Expectations
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
+import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
+import io.github.matthewjones372.lark.junit.shouldContainAll
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.start
-import org.junit.jupiter.api.Test
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -43,7 +47,20 @@ private val quick =
     Gossiping(probeEvery = 200.milliseconds, ackWithin = 60.milliseconds, formAfter = 1_000.milliseconds)
 
 /** Spec 0106: a read model's partitions spread over the cluster, each moving when its member leaves. */
-class SpreadProjectionTest {
+object SpreadProjectionSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
+
+    init {
+        test(
+            "eight partitions over three members follow a million events, and a member's partitions resume elsewhere",
+        ) { _ ->
+            Spread().run()
+        }
+    }
+}
+
+/** One run of the read model: its journal, its offsets and what its workers handled, new for each test. */
+private class Spread {
 
     private val journal = InMemoryJournal()
     private val offsets = InMemoryOffsets()
@@ -95,8 +112,7 @@ class SpreadProjectionTest {
         }
     }
 
-    @Test
-    fun `eight partitions over three members follow a million events, and a member's partitions resume elsewhere`() {
+    fun run(): Expectations {
         val ids = (1..IDS).map { PersistenceId("till", "t-$it") }
         ids.forEach { id -> journal.append(id, 0, (1..EACH).map { "$it".toByteArray() }) }
         val total = IDS * EACH
@@ -105,7 +121,7 @@ class SpreadProjectionTest {
         val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
         val members = ports.mapIndexed { i, port -> Member("n${i + 1}", port, seeds) }.toMutableList()
         try {
-            members.forEach { member ->
+            val up = members.forAll { member ->
                 member.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe
                     true
             }
@@ -115,7 +131,9 @@ class SpreadProjectionTest {
             // Where each worker runs now: the last start of each, since workers move as members join.
             val startsBefore = started.toList()
             val placed = startsBefore.toMap()
-            withClue("workers spread over the members: $placed") { placed.values.toSet().size shouldBeGreaterThan 1 }
+            val spread = withClue("workers spread over the members: $placed") {
+                placed.values.toSet().size shouldBeGreaterThan 1
+            }
 
             val leaving = members.first { member -> member.name in placed.values }
             val moved = placed.filterValues { it == leaving.name }.keys
@@ -123,23 +141,24 @@ class SpreadProjectionTest {
             members -= leaving
             await { handled.get() >= total && times.size == total }
 
-            withClue("every event is handled") { times.size shouldBe total }
+            val every = withClue("every event is handled") { times.size shouldBe total }
             val restarted = started.toList().drop(startsBefore.size)
-            withClue("the leaving member's partitions started elsewhere: $restarted") {
-                restarted.map { it.first }.toSet() shouldContainAll moved
-                restarted.none { it.second == leaving.name } shouldBe true
+            val resumed = withClue("the leaving member's partitions started elsewhere: $restarted") {
+                (restarted.map { it.first }.toSet() shouldContainAll moved) and
+                    (restarted.none { it.second == leaving.name } shouldBe true)
             }
             // Only a moved partition can see an event twice: those it handled and had not yet saved when it stopped.
             val twice = times.filterValues { it.get() > 1 }.keys
             println("placed $placed; ${leaving.name} left; restarted $restarted; ${twice.size} handled twice")
-            withClue("${twice.size} events handled twice") {
-                twice.all { (id, _) -> partitionOf(id) in moved } shouldBe true
-                twice.size shouldBeLessThanOrEqual moved.size * 256
+            val fewTwice = withClue("${twice.size} events handled twice") {
+                (twice.all { (id, _) -> partitionOf(id) in moved } shouldBe true) and
+                    (twice.size shouldBeLessThanOrEqual moved.size * 256)
             }
-            ids.forEach { id ->
-                val first = order.getValue(id).distinct()
-                withClue(id) { first shouldBe (1L..EACH).toList() }
-            }
+            return up and spread and every and resumed and fewTwice and
+                ids.forAll { id ->
+                    val first = order.getValue(id).distinct()
+                    withClue(id) { first shouldBe (1L..EACH).toList() }
+                }
         } finally {
             members.forEach(Member::close)
         }

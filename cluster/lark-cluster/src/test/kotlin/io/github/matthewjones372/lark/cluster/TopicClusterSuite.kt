@@ -1,5 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Topic
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.Codecs
@@ -7,9 +8,11 @@ import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
-import io.github.matthewjones372.lark.assert.shouldBe
 import io.github.matthewjones372.lark.flock
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.forAll
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -61,38 +64,42 @@ private class Exchange(val name: String, port: Int, seeds: Discovery) : AutoClos
     }
 }
 
-class TopicClusterTest {
+object TopicClusterSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `a publish on one node reaches every subscriber on every member once, in order, a later member included`() {
-        val ports = List(4) { portFree() }
-        val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
-        val nodes = mutableListOf(
-            Exchange("x1", ports[0], seeds),
-            Exchange("x2", ports[1], seeds),
-            Exchange("x3", ports[2], seeds),
-        )
-        try {
-            val up = { count: Int -> { view: View -> view.members.count { it.status == Status.Up } == count } }
-            nodes.forEach { it.cluster.await(1.minutes, up(3)) shouldBe true }
-            val publisher = nodes[2]
+    init {
+        test(
+            "a publish on one node reaches every subscriber on every member once, in order, a later member included",
+        ) { _ ->
+            val ports = List(4) { portFree() }
+            val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
+            val nodes = mutableListOf(
+                Exchange("x1", ports[0], seeds),
+                Exchange("x2", ports[1], seeds),
+                Exchange("x3", ports[2], seeds),
+            )
+            try {
+                val up = { count: Int -> { view: View -> view.members.count { it.status == Status.Up } == count } }
+                val three = nodes.forAll { it.cluster.await(1.minutes, up(3)) shouldBe true }
+                val publisher = nodes[2]
 
-            (1..100).forEach(publisher.prices::publish)
+                (1..100).forEach(publisher.prices::publish)
 
-            // The publisher's own subscriber among them: it hears each publish once, not again from the others.
-            nodes.forEach { it.next(100) shouldBe (1..100).toList() }
+                // The publisher's own subscriber among them: it hears each publish once, not again from the others.
+                val first = nodes.forAll { it.next(100) shouldBe (1..100).toList() }
 
-            nodes += Exchange("x4", ports[3], seeds)
-            nodes.forEach { it.cluster.await(1.minutes, up(4)) shouldBe true }
-            (101..110).forEach(publisher.prices::publish)
+                nodes += Exchange("x4", ports[3], seeds)
+                val four = nodes.forAll { it.cluster.await(1.minutes, up(4)) shouldBe true }
+                (101..110).forEach(publisher.prices::publish)
 
-            nodes.forEach { it.next(10) shouldBe (101..110).toList() }
+                val later = nodes.forAll { it.next(10) shouldBe (101..110).toList() }
 
-            // Each hears the next publish next: in order, anything heard twice would have come before it.
-            publisher.prices.publish(111)
-            nodes.forEach { it.next(1) shouldBe listOf(111) }
-        } finally {
-            nodes.forEach(Exchange::close)
+                // Each hears the next publish next: in order, anything heard twice would have come before it.
+                publisher.prices.publish(111)
+                three and first and four and later and nodes.forAll { it.next(1) shouldBe listOf(111) }
+            } finally {
+                nodes.forEach(Exchange::close)
+            }
         }
     }
 }
