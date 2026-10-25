@@ -64,7 +64,7 @@ Running unbound makes `within(i)` exact. `persistent` gets the old behaviour by 
 
 ## Stack
 
-- [ ] **`spec-0196-batching`** — `Run`, `batching`, the runtime handing `steps` a `Run`, and `persistent` wrapping
+- [x] **`spec-0196-batching`** (#605) — `Run`, `batching`, the runtime handing `steps` a `Run`, and `persistent` wrapping
       in `within(0)`; the guide's paragraph.
       Done when: `BatchingTest` shows a run sees `[1, 2, 3]` told before start, each `within(i)` sees message `i`'s
       annotation and one that carried nothing sees none, a lone message reaches `steps` as a run of one in its own
@@ -79,6 +79,6 @@ Running unbound makes `within(i)` exact. `persistent` gets the old behaviour by 
 ## Open questions
 
 1. **Name.** `batching` beside `behaviour`, or `behaviour(initial, batch = n) { … }` as an overload? Recommend
-   `batching`: the step's third argument changes type, and an overload that differs only there resolves badly.
-2. **Index or message in `within`?** Recommend the index: messages may be equal, and a data object is one value.
-3. **Context outside `within` for a run.** None (recommended, for the reason above), or the first's as `persistent`?
+   `batching`: the step's third argument changes type, and an overload that differs only there resolves badly. **Answered:** as recommended.
+2. **Index or message in `within`?** Recommend the index: messages may be equal, and a data object is one value. **Answered:** as recommended.
+3. **Context outside `within` for a run.** None (recommended, for the reason above), or the first's as `persistent`? **Answered:** as recommended.
