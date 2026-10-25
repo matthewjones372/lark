@@ -10,7 +10,7 @@ import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.capturingMetrics
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.withClue
@@ -41,7 +41,7 @@ private fun <A> one(value: A): MemoryFlag<A> =
     MemoryFlag.builder<A>().variant("on", value).defaultVariant("on").build()
 
 /** Spec 0183: a flag read as the type the code wants, decoded once beside its key and default. */
-object DecodedFlagSuite : Suite<Client>() {
+object DecodedFlagSuite : SharedSuite<Client>() {
     override val shared: Resource<Client> = resource {
         OpenFeatureAPI.getInstance().run {
             useLark()

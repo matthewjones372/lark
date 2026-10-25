@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.cluster
 
 import io.github.matthewjones372.lark.Flock
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.Codecs
@@ -20,7 +19,6 @@ import io.github.matthewjones372.lark.junit.shouldBeGreaterThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -75,13 +73,11 @@ private class Running(
 
 private fun View.upNames() = members.filter { it.status == Status.Up }.map { it.node.name }.toSet()
 
-object ClusterSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ClusterSuite : Suite() {
     init {
         test(
             "five nodes in one JVM agree on the same view, and one that stops is seen unreachable by all the rest",
-        ) { _ ->
+        ) {
             val ports = List(5) { freePort() }
             val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
             val names = (1..5).map { "n$it" }
@@ -116,7 +112,7 @@ object ClusterSuite : Suite<Unit>() {
 
         test(
             "a subscriber hears each member come Up, and a member that leaves is removed and ends every watch on it",
-        ) { _ ->
+        ) {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val second = Running("n2", ports[1], seeds)
@@ -152,7 +148,7 @@ object ClusterSuite : Suite<Unit>() {
 
         test(
             "a subscriber too busy to take its events hears every one later, in order, and the view moves on meanwhile",
-        ) { _ ->
+        ) {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val second = Running("n2", ports[1], seeds)
@@ -184,7 +180,7 @@ object ClusterSuite : Suite<Unit>() {
             }
         }
 
-        test("a node joined to wait is Joining and not ready until it is admitted, and Up and ready after") { _ ->
+        test("a node joined to wait is Joining and not ready until it is admitted, and Up and ready after") {
             val ports = List(2) { freePort() }.sorted()
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes =
@@ -207,7 +203,7 @@ object ClusterSuite : Suite<Unit>() {
             }
         }
 
-        test("a node whose flock closes leaves, and the others remove it without downing it") { _ ->
+        test("a node whose flock closes leaves, and the others remove it without downing it") {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes = ports.mapIndexed { i, port -> Running("n${i + 1}", port, seeds) }
@@ -236,7 +232,7 @@ object ClusterSuite : Suite<Unit>() {
             }
         }
 
-        test("a node that cannot finish leaving closes by its deadline") { _ ->
+        test("a node that cannot finish leaving closes by its deadline") {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes = ports.mapIndexed { i, port ->
@@ -262,7 +258,7 @@ object ClusterSuite : Suite<Unit>() {
 
         test(
             "a node restarted at its address comes Up as a new life, and hears its earlier life downed as not itself",
-        ) { _ ->
+        ) {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             // Every node goes without leaving: a leave would wait on a cluster that still holds a gone node.
@@ -297,7 +293,7 @@ object ClusterSuite : Suite<Unit>() {
             }
         }
 
-        test("watches end with the life they were made on, not with a later life at the same address") { _ ->
+        test("watches end with the life they were made on, not with a later life at the same address") {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val second = Running("n2", ports[1], seeds, leaveWithin = Duration.ZERO)

@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -18,11 +16,9 @@ private class Lookup
 private class Jammed
 private class Endpoint(val health: HealthRegistry)
 
-object HealthSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object HealthSuite : Suite() {
     init {
-        test("a node can be handed the registry") { _ ->
+        test("a node can be handed the registry") {
             val module = single<Ledger> { Ledger() }.probe("ledger", timeout = 5.seconds) { _: Ledger -> true } +
                 single { health: HealthRegistry -> Endpoint(health) }
 
@@ -31,7 +27,7 @@ object HealthSuite : Suite<Unit>() {
             readiness shouldBe Health.Up
         }
 
-        test("a critical probe that stops answering makes readiness Down") { _ ->
+        test("a critical probe that stops answering makes readiness Down") {
             val answering = AtomicBoolean(true)
             val module = single<Ledger> { Ledger() }
                 .probe("ledger", timeout = 5.seconds) { _: Ledger -> answering.get() } +
@@ -45,7 +41,7 @@ object HealthSuite : Suite<Unit>() {
             readiness.shouldBeInstanceOf<Health.Down> { it.failing shouldBe listOf("ledger") }
         }
 
-        test("a probe that is not critical makes readiness Degraded rather than Down") { _ ->
+        test("a probe that is not critical makes readiness Degraded rather than Down") {
             val answering = AtomicBoolean(true)
             val module = single<Lookup> { Lookup() }
                 .probe("lookup", timeout = 5.seconds, critical = false) { _: Lookup -> answering.get() } +
@@ -59,7 +55,7 @@ object HealthSuite : Suite<Unit>() {
             readiness.shouldBeInstanceOf<Health.Degraded> { it.failing shouldBe listOf("lookup") }
         }
 
-        test("a critical probe that throws makes readiness Down, rather than throwing out of it") { _ ->
+        test("a critical probe that throws makes readiness Down, rather than throwing out of it") {
             val throwing = AtomicBoolean(false)
             val module = single<Ledger> { Ledger() }
                 .probe("ledger", timeout = 5.seconds) { _: Ledger ->
@@ -76,7 +72,7 @@ object HealthSuite : Suite<Unit>() {
             readiness.shouldBeInstanceOf<Health.Down> { it.failing shouldBe listOf("ledger") }
         }
 
-        test("a probe that is not critical and throws makes readiness Degraded") { _ ->
+        test("a probe that is not critical and throws makes readiness Degraded") {
             val throwing = AtomicBoolean(false)
             val module = single<Lookup> { Lookup() }
                 .probe("lookup", timeout = 5.seconds, critical = false) { _: Lookup ->
@@ -93,7 +89,7 @@ object HealthSuite : Suite<Unit>() {
             readiness.shouldBeInstanceOf<Health.Degraded> { it.failing shouldBe listOf("lookup") }
         }
 
-        test("a wedged probe answers inside its timeout rather than hanging") { _ ->
+        test("a wedged probe answers inside its timeout rather than hanging") {
             val forever = CountDownLatch(1)
             val wedge = AtomicBoolean(false)
             val module = single<Jammed> { Jammed() }
@@ -111,7 +107,7 @@ object HealthSuite : Suite<Unit>() {
             readiness.shouldBeInstanceOf<Health.Down> { it.failing shouldBe listOf("jammed") }
         }
 
-        test("liveness is Down until every node has started") { _ ->
+        test("liveness is Down until every node has started") {
             val duringStart = AtomicReference<Health>()
             val module = single<Ledger> { Ledger() }.probe("ledger", timeout = 5.seconds) { _: Ledger -> true } +
                 single { health: HealthRegistry -> duringStart.set(health.liveness()); Endpoint(health) }

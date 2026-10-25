@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
@@ -44,11 +42,9 @@ private fun byRing(taken: List<Any?>, rings: Int) =
     List(rings) { ring -> taken.map { it as Int }.filter { it / COUNT == ring } }
 
 /** Several producers, a ring each, and one reader taking from the rings in turn and parking on all of them. */
-object InTurnSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object InTurnSuite : Suite() {
     init {
-        test("no wake-up is lost while every side keeps running dry and parking") { _ ->
+        test("no wake-up is lost while every side keeps running dry and parking") {
             listOf(2, 3).forAll { rings ->
                 listOf(1, 2, 16).forAll { capacity ->
                     val ring = Array(rings) { Ring(capacity) }
@@ -77,7 +73,7 @@ object InTurnSuite : Suite<Unit>() {
             }
         }
 
-        test("a reader takes from each ring in turn while more than one has elements") { _ ->
+        test("a reader takes from each ring in turn while more than one has elements") {
             val rings = Array(2) { Ring(4) }
             repeat(4) { rings[0].put("a$it") }
             repeat(4) { rings[1].put("b$it") }
@@ -86,7 +82,7 @@ object InTurnSuite : Suite<Unit>() {
             List(8) { reading.next() } shouldBe listOf("a0", "b0", "a1", "b1", "a2", "b2", "a3", "b3")
         }
 
-        test("a reader parked on every ring is woken by one element on whichever ring it comes") { _ ->
+        test("a reader parked on every ring is woken by one element on whichever ring it comes") {
             (0..2).forAll { which ->
                 val rings = Array(3) { Ring(16) }
                 val reading = InTurn(rings)
@@ -100,7 +96,7 @@ object InTurnSuite : Suite<Unit>() {
             }
         }
 
-        test("an interrupt reaches a reader parked on every ring") { _ ->
+        test("an interrupt reaches a reader parked on every ring") {
             val reading = InTurn(Array(2) { Ring(2) })
             val threw = CompletableFuture<Expectations>()
             val reader = Thread.ofVirtual().start {

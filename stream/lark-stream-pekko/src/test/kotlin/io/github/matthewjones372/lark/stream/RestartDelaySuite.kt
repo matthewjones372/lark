@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import org.apache.pekko.actor.testkit.typed.javadsl.ManualTime
 import org.apache.pekko.stream.testkit.javadsl.TestSink
@@ -21,7 +21,7 @@ import kotlin.time.toJavaDuration
  * other test on this system would stop with it. Its tests run one at a time for the same reason:
  * a test that moves the clock moves it for every test beside it.
  */
-object RestartDelaySuite : Suite<PekkoSystem>(concurrent = false) {
+object RestartDelaySuite : SharedSuite<PekkoSystem>(concurrent = false) {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-restart-delay-test", ManualTime.config())
 
     private val delay = 10.seconds

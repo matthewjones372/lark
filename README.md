@@ -320,7 +320,7 @@ fails.
 ```kotlin
 import io.github.matthewjones372.lark.Limit
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.flaky
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -341,7 +341,7 @@ class Inventory {
     fun close() = stock.clear()
 }
 
-object InventorySuite : Suite<Inventory>(limit = Limit.fixed(8), aspects = tag("db")) {
+object InventorySuite : SharedSuite<Inventory>(limit = Limit.fixed(8), aspects = tag("db")) {
     override val shared: Resource<Inventory> = resource { install({ Inventory() }) { db, _ -> db.close() } }
 
     init {

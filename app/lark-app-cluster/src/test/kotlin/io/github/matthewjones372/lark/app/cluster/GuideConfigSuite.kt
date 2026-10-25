@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app.cluster
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.typesafe.reading
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -29,11 +27,9 @@ private fun fence(then: (String) -> Expectations): Expectations {
 }
 
 /** The section `docs/cluster.md` shows, read as `cluster(path)` reads it (spec 0096). */
-object GuideConfigSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object GuideConfigSuite : Suite() {
     init {
-        test("the guide's section reads without a fault, and joins through its static seeds") { _ ->
+        test("the guide's section reads without a fault, and joins through its static seeds") {
             fence { text ->
                 val section = ConfigFactory.parseString(text).resolve().getConfig("shop.cluster")
                 val read = section.reading { clusterSettings("shop.cluster") }

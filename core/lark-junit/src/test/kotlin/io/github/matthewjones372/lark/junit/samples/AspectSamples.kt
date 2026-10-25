@@ -1,18 +1,14 @@
 package io.github.matthewjones372.lark.junit.samples
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Aspect
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.junit.ignore
 import io.github.matthewjones372.lark.junit.tag
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Tagged as a whole, so each of its tests is. */
-object TaggedSuite : Suite<Unit>(aspects = tag("io")) {
-    override val shared: Resource<Unit> = resource { }
-
+object TaggedSuite : Suite(aspects = tag("io")) {
     init {
         test("reads the wire") { expect(true) }
         test("writes the wire") { expect(true) }
@@ -20,9 +16,7 @@ object TaggedSuite : Suite<Unit>(aspects = tag("io")) {
 }
 
 /** One test tagged on top of the suite's own tag, and one with only the suite's. */
-object PartlyTaggedSuite : Suite<Unit>(aspects = tag("suite")) {
-    override val shared: Resource<Unit> = resource { }
-
+object PartlyTaggedSuite : Suite(aspects = tag("suite")) {
     init {
         test("tagged", tag("io")) { expect(true) }
         test("untagged") { expect(true) }
@@ -30,10 +24,8 @@ object PartlyTaggedSuite : Suite<Unit>(aspects = tag("suite")) {
 }
 
 /** Two ignored tests that would fail if they ran, and one that runs. */
-object IgnoringSuite : Suite<Unit>() {
+object IgnoringSuite : Suite() {
     val ran: MutableList<String> = CopyOnWriteArrayList()
-
-    override val shared: Resource<Unit> = resource { }
 
     init {
         test("speaks HTTP/3", ignore("no QUIC on CI")) {
@@ -49,10 +41,8 @@ object IgnoringSuite : Suite<Unit>() {
 }
 
 /** Records the order its suite's aspect and its test's two aspects are entered and left in. */
-object WrappedSuite : Suite<Unit>(aspects = recording("suite")) {
+object WrappedSuite : Suite(aspects = recording("suite")) {
     val seen: MutableList<String> = recorded
-
-    override val shared: Resource<Unit> = resource { }
 
     init {
         test("wrapped", recording("left") + recording("right")) { expect(recorded.add("test")) }

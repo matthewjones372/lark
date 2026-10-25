@@ -1,14 +1,12 @@
 package io.github.matthewjones372.lark.app.kotlinx
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.typesafe.PathRead
 import io.github.matthewjones372.lark.app.typesafe.reading
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
 
@@ -25,11 +23,9 @@ private enum class Trading { Live, Demo }
 private data class Token(val token: Secret?)
 
 /** A class read lists the paths it read as the block form does, its `Secret` marked (spec 0155). */
-object ClassPathsReadSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ClassPathsReadSuite : Suite() {
     init {
-        test("a class with a Secret and a nested section lists exactly its paths, the secret marked") { _ ->
+        test("a class with a Secret and a nested section lists exactly its paths, the secret marked") {
             val hocon = ConfigFactory.parseString(
                 """
                 petshop {
@@ -54,7 +50,7 @@ object ClassPathsReadSuite : Suite<Unit>() {
             }
         }
 
-        test("an absent Secret that may be null, with no default, reads as null") { _ ->
+        test("an absent Secret that may be null, with no default, reads as null") {
             val read = ConfigFactory.parseString("petshop {}").reading {
                 section("petshop") { decoded(serializer<Token>(), Naming.AsDeclared) }
             }

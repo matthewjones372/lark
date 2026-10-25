@@ -1,14 +1,12 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.LogLevel
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldHaveSize
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -16,9 +14,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 /** Spec 0130: a close waits for a read in flight, but not for ever. */
-object OpenedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object OpenedSuite : Suite() {
     /** A source whose `next` blocks until [release], and whose `wake` reaches nothing. */
     private class Deaf {
         val reading = CountDownLatch(1)
@@ -39,7 +35,7 @@ object OpenedSuite : Suite<Unit>() {
     }
 
     init {
-        test("a read its wake does not end is closed under once the wait runs out, with a warning") { _ ->
+        test("a read its wake does not end is closed under once the wait runs out, with a warning") {
             val deaf = Deaf()
             val opened = Opened(deaf.node(), readEndsWithin = 200.milliseconds)
             val reader = Thread.ofVirtual().start { opened.next() }
@@ -59,7 +55,7 @@ object OpenedSuite : Suite<Unit>() {
             }
         }
 
-        test("a close interrupted while it waits closes at once and keeps the interrupt") { _ ->
+        test("a close interrupted while it waits closes at once and keeps the interrupt") {
             val deaf = Deaf()
             val opened = Opened(deaf.node(), readEndsWithin = 1.minutes)
             val reader = Thread.ofVirtual().start { opened.next() }

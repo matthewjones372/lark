@@ -1,21 +1,17 @@
 package io.github.matthewjones372.lark.structured
 
 import com.sun.management.HotSpotDiagnosticMXBean
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainAll
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.lang.management.ManagementFactory
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 
-object ThreadDumpSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ThreadDumpSuite : Suite() {
     // The JSON dump's own spelling: every container names its parent by the same identifier.
     private val container = Regex(""""container": "([^"]+)",\s*"parent": ("[^"]+"|null)""")
 

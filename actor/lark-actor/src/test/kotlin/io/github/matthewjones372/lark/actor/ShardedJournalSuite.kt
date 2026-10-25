@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldBeInRange
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 private fun two() = listOf("db-a" to InMemoryJournal(), "db-b" to InMemoryJournal())
 
@@ -19,11 +17,9 @@ private inline fun <T> Iterable<T>.allOf(check: (T) -> Expectations): Expectatio
     map(check).reduce(Expectations::and)
 
 /** Spec 0088: a journal split across databases by id. */
-object ShardedJournalSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ShardedJournalSuite : Suite() {
     init {
-        test("murmur3 answers the reference values, so a slice never moves") { _ ->
+        test("murmur3 answers the reference values, so a slice never moves") {
             mapOf(
                 "" to 0,
                 "a" to 1009084850,
@@ -37,7 +33,7 @@ object ShardedJournalSuite : Suite<Unit>() {
             ).entries.allOf { (text, hash) -> withClue(text) { murmur3(text.toByteArray()) shouldBe hash } }
         }
 
-        test("an id's events are written to one database, and read back from it") { _ ->
+        test("an id's events are written to one database, and read back from it") {
             val databases = two()
             val journal = ShardedJournal(databases)
             val id = PersistenceId("account", "acc-1")
@@ -50,21 +46,21 @@ object ShardedJournalSuite : Suite<Unit>() {
                 (journal.read(id, from = 2).map { it.sequence } shouldContainExactly listOf(2L))
         }
 
-        test("the same names in the same order route an id to the same database every time") { _ ->
+        test("the same names in the same order route an id to the same database every time") {
             val ids = (1..1_000).map { PersistenceId("account", "acc-$it") }
             val first = ShardedJournal(two())
             val second = ShardedJournal(two())
             ids.map(first::database) shouldContainExactly ids.map(second::database)
         }
 
-        test("a conflict is still a conflict") { _ ->
+        test("a conflict is still a conflict") {
             val journal = ShardedJournal(two())
             val id = PersistenceId("account", "acc-1")
             journal.append(id, 0, listOf(byteArrayOf(1)))
             journal.append(id, 0, listOf(byteArrayOf(2))) shouldBe Either.Left(JournalConflict(id, 0, 1))
         }
 
-        test("ten thousand ids split within five percent of even") { _ ->
+        test("ten thousand ids split within five percent of even") {
             listOf(2, 3, 4).allOf { n ->
                 val journal = ShardedJournal((1..n).map { "db-$it" to InMemoryJournal() })
                 val counts =
@@ -77,7 +73,7 @@ object ShardedJournalSuite : Suite<Unit>() {
             }
         }
 
-        test("a snapshot sits in the database its id's events do") { _ ->
+        test("a snapshot sits in the database its id's events do") {
             val stores = listOf("db-a" to InMemorySnapshots(), "db-b" to InMemorySnapshots())
             val journal = ShardedJournal(two())
             val snapshots = ShardedSnapshots(stores)
@@ -88,7 +84,7 @@ object ShardedJournalSuite : Suite<Unit>() {
             }
         }
 
-        test("pruning deletes in the id's own database") { _ ->
+        test("pruning deletes in the id's own database") {
             val journal = ShardedJournal(two())
             val id = PersistenceId("account", "acc-1")
             journal.append(id, 0, (1..5).map { byteArrayOf(it.toByte()) })
@@ -96,7 +92,7 @@ object ShardedJournalSuite : Suite<Unit>() {
             journal.read(id).map { it.sequence } shouldContainExactly listOf(4L, 5L)
         }
 
-        test("the formula's ranges, as a slice map, own each slice where spec 0088's formula put it") { _ ->
+        test("the formula's ranges, as a slice map, own each slice where spec 0088's formula put it") {
             listOf(1, 2, 3, 4, 7).allOf { n ->
                 val names = (1..n).map { "db-$it" }
                 val map = SliceMap.even(names)
@@ -107,7 +103,7 @@ object ShardedJournalSuite : Suite<Unit>() {
 
         test(
             "a range moved takes the next version and merges with its neighbours, and a map missing a slice is refused",
-        ) { _ ->
+        ) {
             val two = SliceMap.even(listOf("db-a", "db-b"))
             val moved = two.moving(0..255, "db-c")
             val merged = moved.moving(0..255, "db-a")
@@ -119,7 +115,7 @@ object ShardedJournalSuite : Suite<Unit>() {
                 shouldThrow<IllegalArgumentException> { SliceMap(1, listOf(0..1023 to "db-a", 5..5 to "db-b")) }
         }
 
-        test("an append refused for a slice given away goes to its new owner, or is unavailable while it moves") { _ ->
+        test("an append refused for a slice given away goes to its new owner, or is unavailable while it moves") {
             val a = InMemoryJournal()
             val b = InMemoryJournal()
             val refusing = object : Journal by a {
@@ -145,7 +141,7 @@ object ShardedJournalSuite : Suite<Unit>() {
                 (b.read(id).map { it.sequence } shouldContainExactly listOf(1L))
         }
 
-        test("every slice is in exactly the partition partitionOf names, for any count of partitions") { _ ->
+        test("every slice is in exactly the partition partitionOf names, for any count of partitions") {
             val ids = (1..5_000).map { PersistenceId("account", "acc-$it") }
             listOf(1, 2, 3, 7, 8, 100, 1023, 1024).allOf { n ->
                 val slices = (0 until n).flatMap { Slices.partition(it, n) }
@@ -159,7 +155,7 @@ object ShardedJournalSuite : Suite<Unit>() {
             }
         }
 
-        test("pruning after partitioned read models waits on the partition that follows the id") { _ ->
+        test("pruning after partitioned read models waits on the partition that follows the id") {
             val journal = ShardedJournal(two())
             val offsets = InMemoryOffsets()
             val prune = Prune.after(offsets, journal, 4, "totals")
@@ -170,7 +166,7 @@ object ShardedJournalSuite : Suite<Unit>() {
             prune.readTo(id) shouldBe 10L + partition
         }
 
-        test("databases named twice, or none at all, are refused") { _ ->
+        test("databases named twice, or none at all, are refused") {
             shouldThrow<IllegalArgumentException> { ShardedJournal(emptyList()) } and
                 shouldThrow<IllegalArgumentException> {
                     ShardedJournal(listOf("a" to InMemoryJournal(), "a" to InMemoryJournal()))

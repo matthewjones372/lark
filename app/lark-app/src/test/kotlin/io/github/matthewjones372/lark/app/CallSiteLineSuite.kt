@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 
 private class Widget
@@ -17,21 +15,19 @@ private class Cog
  * that a site names a line somebody can open. Adding a line above one of these breaks the test,
  * which is the test working.
  */
-object CallSiteLineSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
-    private const val DECLARED_ON_LINE = 25
+object CallSiteLineSuite : Suite() {
+    private const val DECLARED_ON_LINE = 21
 
     private val module = single { _: Widget -> Cog() }
 
     init {
-        test("a site names the line the recipe was written on, not the line the JVM reports") { _ ->
+        test("a site names the line the recipe was written on, not the line the JVM reports") {
             module.nodes.values.single().site.shouldNotBeNull { site ->
                 site shouldBe "io/github/matthewjones372/lark/app/CallSiteLineSuite.kt:$DECLARED_ON_LINE"
             }
         }
 
-        test("a line past the end of the file would be one nobody could open") { _ ->
+        test("a line past the end of the file would be one nobody could open") {
             module.nodes.values.single().site.shouldNotBeNull { site ->
                 val line = site.substringAfterLast(':').toInt()
 

@@ -1,16 +1,12 @@
 package io.github.matthewjones372.lark.structured
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 
-object ScopedValueSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ScopedValueSuite : Suite() {
     private val tenant: ScopedValue<String> = ScopedValue.newInstance()
 
     init {

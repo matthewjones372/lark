@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Suite
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.Optional
 import java.util.concurrent.atomic.AtomicReference
 
@@ -59,13 +57,11 @@ private fun shop(): Behaviour<Shop, Map<String, Pet>, Nothing> = behaviour(empty
     }
 }
 
-object TestActorSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object TestActorSuite : Suite() {
     private val rex = Pet("rex")
 
     init {
-        test("a step runs on the calling thread") { _ ->
+        test("a step runs on the calling thread") {
             val seen = AtomicReference<Thread>()
             val actor = behaviour<Shop, Unit>(Unit) { _, _, _ ->
                 seen.set(Thread.currentThread())
@@ -77,7 +73,7 @@ object TestActorSuite : Suite<Unit>() {
             seen.get() shouldBe Thread.currentThread()
         }
 
-        test("send returns with the state already moved") { _ ->
+        test("send returns with the state already moved") {
             val actor = shop().test()
 
             actor.send(Arrived(rex))
@@ -85,7 +81,7 @@ object TestActorSuite : Suite<Unit>() {
             actor.state shouldBe mapOf("rex" to rex)
         }
 
-        test("an ask answers with the reply") { _ ->
+        test("an ask answers with the reply") {
             val actor = shop().test()
             actor.send(Arrived(rex))
 
@@ -93,7 +89,7 @@ object TestActorSuite : Suite<Unit>() {
                 (actor.ask { Find("tom", it) } shouldBe Optional.empty<Pet>().right())
         }
 
-        test("a message told to self is handled before send returns") { _ ->
+        test("a message told to self is handled before send returns") {
             val actor = shop().test()
 
             actor.send(Restock(listOf(rex, Pet("tom"))))
@@ -101,7 +97,7 @@ object TestActorSuite : Suite<Unit>() {
             actor.state.keys shouldBe setOf("rex", "tom")
         }
 
-        test("a message the step never answers fails the ask at once") { _ ->
+        test("a message the step never answers fails the ask at once") {
             val actor = shop().test()
 
             shouldThrow<IllegalStateException>({ actor.ask { Forget("rex", it) } }) { failure ->
@@ -109,7 +105,7 @@ object TestActorSuite : Suite<Unit>() {
             }
         }
 
-        test("a second reply fails where it is made, and stops the actor") { _ ->
+        test("a second reply fails where it is made, and stops the actor") {
             val twice = behaviour<Shop, Unit>(Unit) { _, _, message ->
                 if (message is Find) {
                     message.reply(Optional.empty())
@@ -123,7 +119,7 @@ object TestActorSuite : Suite<Unit>() {
             failed and (twice.stopped shouldBe true)
         }
 
-        test("an unhandled message leaves the state and is recorded") { _ ->
+        test("an unhandled message leaves the state and is recorded") {
             val actor = shop().test()
             actor.send(Arrived(rex))
 
@@ -133,7 +129,7 @@ object TestActorSuite : Suite<Unit>() {
             (actor.state shouldBe mapOf("rex" to rex)) and (actor.unhandled shouldContainExactly listOf(adopt))
         }
 
-        test("stop ends the actor, and an ask after it is Stopped") { _ ->
+        test("stop ends the actor, and an ask after it is Stopped") {
             val actor = shop().test()
 
             actor.send(Close)
@@ -145,7 +141,7 @@ object TestActorSuite : Suite<Unit>() {
                 }
         }
 
-        test("a throw stops the actor and reaches the test") { _ ->
+        test("a throw stops the actor and reaches the test") {
             val actor = behaviour<Shop, Unit>(Unit) { _, _, _ -> throw IllegalArgumentException("broken") }.test()
 
             val threw = shouldThrow<IllegalArgumentException> { actor.send(Close) }
@@ -153,7 +149,7 @@ object TestActorSuite : Suite<Unit>() {
             threw and (actor.stopped shouldBe true)
         }
 
-        test("a reply is addressed like a ref, and each ask has its own") { _ ->
+        test("a reply is addressed like a ref, and each ask has its own") {
             val addresses = AtomicReference<List<Address>>(emptyList())
             val actor = behaviour<Shop, Unit>(Unit) { _, _, message ->
                 if (message is Forget) {
@@ -171,7 +167,7 @@ object TestActorSuite : Suite<Unit>() {
                 (addresses.get().map { it.node }.distinct() shouldBe listOf("test"))
         }
 
-        test("adopting twice answers no the second time") { _ ->
+        test("adopting twice answers no the second time") {
             val actor = shop().test()
             actor.send(Arrived(rex))
 

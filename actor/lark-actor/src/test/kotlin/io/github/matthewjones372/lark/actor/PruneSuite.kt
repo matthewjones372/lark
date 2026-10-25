@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 
 private val ledgerOf = PersistenceId("ledger", "l-1")
 
@@ -35,11 +33,9 @@ private fun ledger(prune: Prune) = persistent<Post, Int, Long>(
 
 private fun Journal.kept() = read(ledgerOf).map { it.sequence }
 
-object PruneSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PruneSuite : Suite() {
     init {
-        test("with pruning, 1,050 events keep only 901 to 1,050, and a restart reaches the same state") { _ ->
+        test("with pruning, 1,050 events keep only 901 to 1,050, and a restart reaches the same state") {
             val journal = InMemoryJournal()
             testActors(journal = journal) {
                 val book = spawn("ledger", ledger(prune = Prune.always))
@@ -53,7 +49,7 @@ object PruneSuite : Suite<Unit>() {
             }
         }
 
-        test("without pruning, every event is kept") { _ ->
+        test("without pruning, every event is kept") {
             val journal = InMemoryJournal()
             testActors(journal = journal) {
                 val book = spawn("ledger", ledger(prune = Prune.never))
@@ -63,7 +59,7 @@ object PruneSuite : Suite<Unit>() {
             }
         }
 
-        test("a snapshot that fails to save deletes nothing") { _ ->
+        test("a snapshot that fails to save deletes nothing") {
             val journal = InMemoryJournal()
             val broken = object : SnapshotStore {
                 override fun save(id: PersistenceId, sequence: Long, bytes: ByteArray) =
@@ -79,7 +75,7 @@ object PruneSuite : Suite<Unit>() {
             }
         }
 
-        test("a start that finds a pruned history and no snapshot fails, and names the gap") { _ ->
+        test("a start that finds a pruned history and no snapshot fails, and names the gap") {
             val journal = InMemoryJournal()
             testActors(journal = journal) {
                 val book = spawn("ledger", ledger(prune = Prune.always))
@@ -93,7 +89,7 @@ object PruneSuite : Suite<Unit>() {
             }
         }
 
-        test("pruning after a read model deletes no further than it has read, and more once it catches up") { _ ->
+        test("pruning after a read model deletes no further than it has read, and more once it catches up") {
             val journal = InMemoryJournal()
             val offsets = InMemoryOffsets()
             testActors(journal = journal) {
@@ -111,7 +107,7 @@ object PruneSuite : Suite<Unit>() {
             }
         }
 
-        test("a read model with no offset saved holds pruning back entirely") { _ ->
+        test("a read model with no offset saved holds pruning back entirely") {
             val journal = InMemoryJournal()
             val offsets = InMemoryOffsets().also { it.save("totals", 10_000) }
             testActors(journal = journal) {

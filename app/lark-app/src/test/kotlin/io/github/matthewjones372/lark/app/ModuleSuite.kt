@@ -1,11 +1,9 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 
 private class Knob
 private class Pool
@@ -14,17 +12,15 @@ private class Cache
 private class Metrics
 private class Server
 
-object ModuleSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ModuleSuite : Suite() {
     init {
-        test("render draws an edge for every dependency") { _ ->
+        test("render draws an edge for every dependency") {
             val rendered = (single<Knob> { Knob() } + single { _: Knob -> Pool() }).render()
 
             (rendered shouldContain "graph TD") and (rendered shouldContain "Knob --> Pool")
         }
 
-        test("a later module replaces an earlier node under the same key") { _ ->
+        test("a later module replaces an earlier node under the same key") {
             val module = single<Knob> { Knob() } + single<Knob> { Knob() } + single { _: Knob -> Pool() }
 
             val declarations = module.render().lines().filter { it.contains("Knob[") }
@@ -35,7 +31,7 @@ object ModuleSuite : Suite<Unit>() {
             oneNode and (module.render() shouldContain "Knob --> Pool")
         }
 
-        test("a recipe declares up to five dependencies as parameters") { _ ->
+        test("a recipe declares up to five dependencies as parameters") {
             val module = single<Knob> { Knob() } +
                 single { _: Knob -> Pool() } +
                 single { _: Knob, _: Pool -> Repo() } +
@@ -50,7 +46,7 @@ object ModuleSuite : Suite<Unit>() {
                 (rendered shouldContain "Knob --> Server")
         }
 
-        test("a dependency nothing builds is still drawn") { _ ->
+        test("a dependency nothing builds is still drawn") {
             val rendered = single { _: Knob -> Pool() }.render()
 
             withClue("the edge is the reader's clue that Knob is the key nothing provides") {

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.reflect.typeOf
 
 private class Kettle
@@ -17,11 +15,9 @@ private class Cup
 private class Saucer
 private class Teapot
 
-object FindingsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object FindingsSuite : Suite() {
     init {
-        test("a key provided twice is a warning naming both sites") { _ ->
+        test("a key provided twice is a warning naming both sites") {
             val module = single<Kettle> { Kettle() } + single<Kettle> { Kettle() }
 
             val duplicate = module.findings().single()
@@ -36,13 +32,13 @@ object FindingsSuite : Suite<Unit>() {
                 }
         }
 
-        test("an overriding is a duplicate on purpose and is not reported") { _ ->
+        test("an overriding is a duplicate on purpose and is not reported") {
             val module = single<Kettle> { Kettle() }.overriding(single<Kettle> { Kettle() })
 
             module.findings().shouldBeEmpty()
         }
 
-        test("an overriding forgives its own collision and not one already there") { _ ->
+        test("an overriding forgives its own collision and not one already there") {
             val careless = single<Kettle> { Kettle() } + single<Kettle> { Kettle() }
 
             val overridden = careless.overriding(single<Kettle> { Kettle() })
@@ -52,7 +48,7 @@ object FindingsSuite : Suite<Unit>() {
             }
         }
 
-        test("a node no root reaches is a warning") { _ ->
+        test("a node no root reaches is a warning") {
             val module = single<Kettle> { Kettle() } +
                 single { _: Kettle -> Cup() } +
                 single<Saucer> { Saucer() }
@@ -65,7 +61,7 @@ object FindingsSuite : Suite<Unit>() {
                 }
         }
 
-        test("an unreachable module is named once rather than under everything it reaches") { _ ->
+        test("an unreachable module is named once rather than under everything it reaches") {
             val module = single<Kettle> { Kettle() } +
                 single { _: Kettle -> Cup() } +
                 single<Saucer> { Saucer() } +
@@ -81,7 +77,7 @@ object FindingsSuite : Suite<Unit>() {
             }
         }
 
-        test("a root nothing builds fails rather than making the whole graph unreachable") { _ ->
+        test("a root nothing builds fails rather than making the whole graph unreachable") {
             val module = single<Kettle> { Kettle() }
 
             val findings = module.findings(root = typeOf<Cup>())
@@ -90,13 +86,13 @@ object FindingsSuite : Suite<Unit>() {
                 (findings.single().error shouldBe WiringError.NoRoot(typeOf<Cup>()))
         }
 
-        test("omitting the root skips the unreachable check and nothing else") { _ ->
+        test("omitting the root skips the unreachable check and nothing else") {
             val module = single<Kettle> { Kettle() } + single<Saucer> { Saucer() }
 
             module.findings().shouldBeEmpty()
         }
 
-        test("a missing key fails and is reported before a warning") { _ ->
+        test("a missing key fails and is reported before a warning") {
             val module = single { _: Kettle -> Cup() } + single<Saucer> { Saucer() } + single<Saucer> { Saucer() }
 
             val findings = module.findings()
@@ -104,7 +100,7 @@ object FindingsSuite : Suite<Unit>() {
             (findings.first().severity shouldBe Severity.FAIL) and (findings.last().severity shouldBe Severity.WARN)
         }
 
-        test("the report names the severity and the places") { _ ->
+        test("the report names the severity and the places") {
             val module = single<Kettle> { Kettle() } + single<Kettle> { Kettle() } + single<Saucer> { Saucer() }
 
             val report = module.findings(root = typeOf<Kettle>()).report()

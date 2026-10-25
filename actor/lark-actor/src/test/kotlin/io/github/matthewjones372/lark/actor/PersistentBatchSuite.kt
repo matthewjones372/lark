@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.Either
 import io.github.matthewjones372.lark.fail.left
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
@@ -80,9 +78,7 @@ private fun batchTill(batch: Int, opened: CountDownLatch, every: Int? = null) = 
     ),
 ).onStart { opened.await() }
 
-object PersistentBatchSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PersistentBatchSuite : Suite() {
     private fun rung(batch: Int, n: Int): Pair<AppendCounting, List<Int>> {
         val journal = AppendCounting()
         val opened = CountDownLatch(1)
@@ -98,13 +94,13 @@ object PersistentBatchSuite : Suite<Unit>() {
     }
 
     init {
-        test("a thousand commands waiting at once are written in a handful of appends") { _ ->
+        test("a thousand commands waiting at once are written in a handful of appends") {
             val (journal, _) = rung(batch = 64, n = 1_000)
             (journal.appends.get() shouldBeLessThanOrEqual 20) and
                 (journal.events(batchTillId, batchPence) shouldContainExactly (1..1_000).toList())
         }
 
-        test("batched and one at a time end in the same state and the same journal") { _ ->
+        test("batched and one at a time end in the same state and the same journal") {
             val (batched, batchedTotals) = rung(batch = 64, n = 300)
             val (single, singleTotals) = rung(batch = 1, n = 300)
             val events = batched.events(batchTillId, batchPence)
@@ -113,12 +109,12 @@ object PersistentBatchSuite : Suite<Unit>() {
                 (batchedTotals shouldContainExactly singleTotals)
         }
 
-        test("each command's then runs in order, with the state its own command left") { _ ->
+        test("each command's then runs in order, with the state its own command left") {
             val (_, totals) = rung(batch = 64, n = 10)
             totals shouldContainExactly (1..10).runningFold(0, Int::plus).drop(1)
         }
 
-        test("a delivery told twice in one batch is written once") { _ ->
+        test("a delivery told twice in one batch is written once") {
             val journal = AppendCounting()
             val opened = CountDownLatch(1)
             val confirmed = CopyOnWriteArrayList<Confirmed>()
@@ -145,7 +141,7 @@ object PersistentBatchSuite : Suite<Unit>() {
                 withClue("every delivery is confirmed, the duplicate included") { confirmed.size shouldBe 3 }
         }
 
-        test("a batch that crosses a snapshot's multiple saves one") { _ ->
+        test("a batch that crosses a snapshot's multiple saves one") {
             val journal = AppendCounting()
             val snapshots = InMemorySnapshots()
             val opened = CountDownLatch(1)
@@ -160,7 +156,7 @@ object PersistentBatchSuite : Suite<Unit>() {
             snapshots.latest(batchTillId)?.let { batchTotal.decode(it.bytes) } shouldBe 25
         }
 
-        test("a command that stops ends the batch, and what came after it is not written") { _ ->
+        test("a command that stops ends the batch, and what came after it is not written") {
             val journal = AppendCounting()
             val opened = CountDownLatch(1)
             val letters = CopyOnWriteArrayList<DeadLetter>()
@@ -181,7 +177,7 @@ object PersistentBatchSuite : Suite<Unit>() {
                 (letters.map { it.message to it.why } shouldContainExactly dead)
         }
 
-        test("a conflicted batch is lost as a failed step is, and the actor recovers to what the journal holds") { _ ->
+        test("a conflicted batch is lost as a failed step is, and the actor recovers to what the journal holds") {
             val journal = AppendCounting(failing = setOf(1))
             val opened = CountDownLatch(1)
             val counted = flock<Nothing, Any> {

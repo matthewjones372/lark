@@ -1,17 +1,13 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.time.Duration.Companion.seconds
 
-object ChoiceSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ChoiceSuite : Suite() {
     private enum class Kind { InProcess, Remote }
 
     private interface Bus
@@ -54,13 +50,13 @@ object ChoiceSuite : Suite<Unit>() {
             closingOf { bus: Bus -> Uses(bus, closed) }
 
     init {
-        test("the setting picks the branch, and only that branch is built") { _ ->
+        test("the setting picks the branch, and only that branch is built") {
             val closed = CopyOnWriteArrayList<String>()
             val built = testApp(bus(Kind.InProcess, closed)) { uses: Uses -> uses.bus.shouldBeInstanceOf<LocalBus>() }
             built and (closed shouldBe listOf("uses", "hub"))
         }
 
-        test("overriding the setting picks the other branch") { _ ->
+        test("overriding the setting picks the other branch") {
             val closed = CopyOnWriteArrayList<String>()
             val app = bus(Kind.InProcess, closed).overriding(single<Kind> { Kind.Remote })
 
@@ -68,13 +64,13 @@ object ChoiceSuite : Suite<Unit>() {
             built and (closed shouldBe listOf("uses", "producer"))
         }
 
-        test("before anything runs, the choice is a node providing its key") { _ ->
+        test("before anything runs, the choice is a node providing its key") {
             val closed = CopyOnWriteArrayList<String>()
             (bus(Kind.InProcess, closed).validate().isRight() shouldBe true) and
                 (bus(Kind.InProcess, closed).render() shouldContain "ChoiceSuite_Kind --> ChoiceSuite_Bus")
         }
 
-        test("a branch that does not provide the key refuses the start, naming it") { _ ->
+        test("a branch that does not provide the key refuses the start, naming it") {
             val closed = CopyOnWriteArrayList<String>()
             val app = single<Kind> { Kind.InProcess } + choice<Kind, Bus> { _ -> single<String> { "no bus" } } +
                 single { bus: Bus -> Uses(bus, closed) }
@@ -84,7 +80,7 @@ object ChoiceSuite : Suite<Unit>() {
             refused.shouldBeInstanceOf<StartupError.Refused> { it.reason shouldContain "does not provide it" }
         }
 
-        test("a branch that needs what nothing builds refuses the start") { _ ->
+        test("a branch that needs what nothing builds refuses the start") {
             val closed = CopyOnWriteArrayList<String>()
             val app = single<Kind> { Kind.InProcess } +
                 choice<Kind, Bus> { _ -> single { hub: Hub -> LocalBus(hub) }.boundTo<Bus>() } +
@@ -95,7 +91,7 @@ object ChoiceSuite : Suite<Unit>() {
             refused.shouldBeInstanceOf<StartupError.Refused> { it.reason shouldContain "needs ChoiceSuite.Hub" }
         }
 
-        test("a key the graph already holds is not replaced by the branch") { _ ->
+        test("a key the graph already holds is not replaced by the branch") {
             val closed = CopyOnWriteArrayList<String>()
             val app = bus(Kind.InProcess, closed).overriding(single<Bus> { object : Bus {} })
 
@@ -103,14 +99,14 @@ object ChoiceSuite : Suite<Unit>() {
             built and (closed shouldBe listOf("uses"))
         }
 
-        test("a node only the chosen branch brings can be overridden") { _ ->
+        test("a node only the chosen branch brings can be overridden") {
             val fake = Producer(CopyOnWriteArrayList())
             val app = bus(Kind.Remote, CopyOnWriteArrayList()).overriding(single<Producer> { fake })
 
             testApp(app) { uses: Uses -> (uses.bus as RemoteBus).producer shouldBe fake }
         }
 
-        test("an override no chosen branch brings refuses the start") { _ ->
+        test("an override no chosen branch brings refuses the start") {
             val closed = CopyOnWriteArrayList<String>()
             val app = bus(Kind.InProcess, closed).overriding(single<Producer> { Producer(closed) })
 
@@ -119,7 +115,7 @@ object ChoiceSuite : Suite<Unit>() {
             refused.shouldBeInstanceOf<StartupError.Refused> { it.reason shouldContain "no chosen branch provides it" }
         }
 
-        test("a probe in the branch is asked like any other") { _ ->
+        test("a probe in the branch is asked like any other") {
             val closed = CopyOnWriteArrayList<String>()
             val app = single<Kind> { Kind.InProcess } +
                 choice<Kind, Bus> { _ ->

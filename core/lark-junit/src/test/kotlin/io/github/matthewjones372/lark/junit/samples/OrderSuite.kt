@@ -1,12 +1,12 @@
 package io.github.matthewjones372.lark.junit.samples
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.expect
 import io.github.matthewjones372.lark.resource
 
 /** Spec 0175's example: a database that saves an order twice. ExpectDiagramTest holds its lines to a golden. */
-object OrderSuite : Suite<Database>(concurrent = false) {
+object OrderSuite : SharedSuite<Database>(concurrent = false) {
     override val shared: Resource<Database> = resource { Database() }
 
     init {

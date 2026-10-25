@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -25,13 +23,11 @@ private fun waitFor(what: String, condition: () -> Boolean) {
 }
 
 /** Forks' unordered windows: each answer passes on as soon as it is done, and nothing waits on the oldest. */
-object UnorderedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object UnorderedSuite : Suite() {
     private data class Odd(val value: Int)
 
     init {
-        test("mapParUnordered passes on the quick bodies while the first is still running") { _ ->
+        test("mapParUnordered passes on the quick bodies while the first is still running") {
             val firstMayFinish = CountDownLatch(1)
             val seen = CopyOnWriteArrayList<Int>()
             val running = Stream.of(1, 2, 3)
@@ -49,7 +45,7 @@ object UnorderedSuite : Suite<Unit>() {
             heldBackNothing and ((exit as Exit.Done).value.last() shouldBe 1)
         }
 
-        test("mapAsyncUnordered passes on the quick stages while the first is still pending") { _ ->
+        test("mapAsyncUnordered passes on the quick stages while the first is still pending") {
             val first = CompletableFuture<Int>()
             val seen = CopyOnWriteArrayList<Int>()
             val running = Stream.of(1, 2, 3)
@@ -66,7 +62,7 @@ object UnorderedSuite : Suite<Unit>() {
             heldBackNothing and ((running.settled() as Exit.Done).value.last() shouldBe 1)
         }
 
-        test("no more than the parallelism run at once") { _ ->
+        test("no more than the parallelism run at once") {
             val now = AtomicInteger()
             val most = AtomicInteger()
             val exit = Stream.from(1..200)
@@ -84,7 +80,7 @@ object UnorderedSuite : Suite<Unit>() {
                 withClue("the most bodies ever running at once") { (most.get() <= 4) shouldBe true }
         }
 
-        test("a declared failure ends the run with it, and interrupts the bodies still running") { _ ->
+        test("a declared failure ends the run with it, and interrupts the bodies still running") {
             val interrupted = CountDownLatch(1)
             val sleeping = CountDownLatch(1)
             val odd: Stream<Odd, Int> = Stream.of(3, 2)
@@ -111,7 +107,7 @@ object UnorderedSuite : Suite<Unit>() {
             (exit shouldBe Exit.Failed(Odd(3))) and (interrupted.await(SETTLE_SECONDS, TimeUnit.SECONDS) shouldBe true)
         }
 
-        test("the end of upstream arrives after every answer, whatever order they came in") { _ ->
+        test("the end of upstream arrives after every answer, whatever order they came in") {
             val exit = Stream.from(1..1_000)
                 .mapAsyncUnordered(16) { n -> CompletableFuture.supplyAsync { n } }
                 .runCollect()

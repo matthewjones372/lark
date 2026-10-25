@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration.Companion.minutes
 
 private val text = object : EventCodec<String> {
@@ -40,11 +38,9 @@ private fun diary() = behaviour<Diary, Long>(0L) { ctx, last, message ->
     }
 }
 
-object JournalSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object JournalSuite : Suite() {
     init {
-        test("a test's actors write to the test's journal, which the test can read") { _ ->
+        test("a test's actors write to the test's journal, which the test can read") {
             testActors {
                 val diary = spawn("diary", diary())
 
@@ -55,7 +51,7 @@ object JournalSuite : Suite<Unit>() {
             }
         }
 
-        test("on threads, an actor writes to its flock's journal") { _ ->
+        test("on threads, an actor writes to its flock's journal") {
             val journal = InMemoryJournal()
             val written = flock<Nothing, Any> {
                 journal(journal)
@@ -68,7 +64,7 @@ object JournalSuite : Suite<Unit>() {
             written shouldBeRight listOf("one", "two").right()
         }
 
-        test("on threads, a flock with no journal says so") { _ ->
+        test("on threads, a flock with no journal says so") {
             shouldThrow<IllegalStateException>({ flock<Nothing, Journal> { journal() } }) { failed ->
                 failed.message shouldBe "no journal: give the flock one with journal(…)"
             }

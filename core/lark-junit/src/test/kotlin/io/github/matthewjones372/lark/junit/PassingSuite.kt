@@ -4,7 +4,7 @@ import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.resource
 
 /** Run by this module's own `test` task, so its tests appear in Gradle's JUnit XML beside Jupiter's. */
-object PassingSuite : Suite<Int>() {
+object PassingSuite : SharedSuite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     init {

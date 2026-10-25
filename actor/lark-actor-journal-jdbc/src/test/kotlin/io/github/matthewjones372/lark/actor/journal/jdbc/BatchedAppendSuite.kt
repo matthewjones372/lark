@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.JournalConflict
@@ -16,7 +15,6 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -34,11 +32,9 @@ private class Counted(private val kept: Journal) : Journal by kept {
 }
 
 /** Spec 0086 on Postgres: commands waiting at once become one statement's worth of rows each batch. */
-object BatchedAppendSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object BatchedAppendSuite : Suite() {
     init {
-        test("a thousand commands waiting at once reach Postgres in a handful of appends, every event in order") { _ ->
+        test("a thousand commands waiting at once reach Postgres in a handful of appends, every event in order") {
             val id = PersistenceId("merchant", "m-1")
             val journal = Counted(JdbcJournal(Postgres.fresh()))
             val opened = CountDownLatch(1)

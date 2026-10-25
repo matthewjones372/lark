@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.kafka
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotContainKey
 import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.resource
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.record.TimestampType
@@ -28,18 +26,16 @@ private fun annotationsInside(record: ConsumerRecord<String, String>): Map<Strin
 }
 
 /** Spec 0123: what an event carried rides its record as headers, and the consumer handles it inside them. */
-object CarriedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CarriedSuite : Suite() {
     init {
-        test("a record carrying a map has it as headers, read back as the same map") { _ ->
+        test("a record carrying a map has it as headers, read back as the same map") {
             val carried = mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", "k" to "é")
             val record = ProducerRecord("orders", "o-1", "placed").carrying(carried)
 
             consumed(record).carried() shouldBe carried
         }
 
-        test("a record is handled inside the annotations it carried, and one that carried none outside any") { _ ->
+        test("a record is handled inside the annotations it carried, and one that carried none outside any") {
             val carried =
                 ProducerRecord("orders", "o-1", "placed").carrying(mapOf("lark.annotation.request_id" to "r-3"))
             val bare = ProducerRecord("orders", "o-2", "placed")

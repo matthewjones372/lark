@@ -7,7 +7,7 @@ import ch.qos.logback.core.read.ListAppender
 import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.LogLine
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeNull
 import io.github.matthewjones372.lark.junit.withClue
@@ -49,7 +49,7 @@ private fun <A> LoggerContext.appended(block: () -> A): List<ILoggingEvent> =
  */
 // Not concurrent: seven of the ten tests read what reached logback's logger named after this suite, and an
 // appender on it sees every test's lines. That logger is the adapter's, so the tests cannot each have their own.
-object Slf4jLoggerSuite : Suite<LoggerContext>(concurrent = false) {
+object Slf4jLoggerSuite : SharedSuite<LoggerContext>(concurrent = false) {
     // Asked for once, before any test runs: SLF4J answers a call made while another thread is still
     // initialising it with a stand-in factory, which is not logback's.
     override val shared: Resource<LoggerContext> = resource { LoggerFactory.getILoggerFactory() as LoggerContext }

@@ -1,13 +1,13 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import java.util.concurrent.CompletionStage
 
 /** The builders that start from values already in hand, asserted on a real system. */
-object BuildersSuite : Suite<PekkoSystem>() {
+object BuildersSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-builders-test")
 
     private data class Customer(val id: Int, val name: String)

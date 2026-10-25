@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 
 /** A till's takings: version 1 kept the pence alone; version 2 keeps the currency too. */
 private data class Takings(val pence: Long, val currency: String)
@@ -45,13 +43,11 @@ private fun till(id: PersistenceId) = persistent<Long, Long, Takings>(
     snapshots = every(1_000, takings),
 )
 
-object VersionedStateSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object VersionedStateSuite : Suite() {
     init {
         test(
             "an entity recovered from a snapshot of an older version and newer events reaches what a full replay does",
-        ) { _ ->
+        ) {
             testActors {
                 val snapshotted = PersistenceId("till", "t-1")
                 val replayed = PersistenceId("till", "t-2")
@@ -72,7 +68,7 @@ object VersionedStateSuite : Suite<Unit>() {
             }
         }
 
-        test("a state reads back as it was written, and a chain with a gap is refused when the codec is built") { _ ->
+        test("a state reads back as it was written, and a chain with a gap is refused when the codec is built") {
             (takings.decode(takings.encode(Takings(1, "EUR"))) shouldBe Takings(1, "EUR")) and
                 shouldThrow<IllegalArgumentException> { versionedState(3, takingsV2, mapOf(2 to StateUpgrade { it })) }
         }

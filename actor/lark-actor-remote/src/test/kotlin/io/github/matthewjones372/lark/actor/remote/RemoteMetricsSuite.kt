@@ -4,7 +4,6 @@ import io.github.matthewjones372.lark.Counter
 import io.github.matthewjones372.lark.Gauge
 import io.github.matthewjones372.lark.Histogram
 import io.github.matthewjones372.lark.Metrics
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.DeadLetter
 import io.github.matthewjones372.lark.actor.behaviour
@@ -17,7 +16,6 @@ import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.metrics
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -59,13 +57,11 @@ private class TaggedMetrics : Metrics {
     }
 }
 
-object RemoteMetricsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RemoteMetricsSuite : Suite() {
     init {
         test(
             "frames are counted each way per peer, and a peer that goes reads 0 and counts what was dropped for it",
-        ) { _ ->
+        ) {
             val herePort = freePort()
             val therePort = freePort()
             val here = TaggedMetrics()

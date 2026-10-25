@@ -4,7 +4,6 @@ import com.google.protobuf.BoolValue
 import com.google.protobuf.Int64Value
 import com.google.protobuf.Message
 import com.google.protobuf.StringValue
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.ActorRef
 import io.github.matthewjones372.lark.actor.Address
 import io.github.matthewjones372.lark.actor.Reply
@@ -26,7 +25,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeRight
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration.Companion.minutes
@@ -56,25 +54,23 @@ private class Kept : Refs {
 private fun <M : Any> MessageCodec<M>.roundTrip(message: M, refs: Refs = Kept()): M =
     decode(encode(message, refs), refs)
 
-object ProtobufSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ProtobufSuite : Suite() {
     private val protocol = Protobuf.oneOf {
         message(1, StringValue.parser())
         message(2, Int64Value.parser())
     }
 
     init {
-        test("a generated message crosses as its own bytes and reads back equal") { _ ->
+        test("a generated message crosses as its own bytes and reads back equal") {
             Protobuf.codec(StringValue.parser()).roundTrip(text("order-42")) shouldBe text("order-42")
         }
 
-        test("each message of a protocol reads back as the type it was written as") { _ ->
+        test("each message of a protocol reads back as the type it was written as") {
             listOf<Message>(text("placed"), Int64Value.of(7)).map { protocol.roundTrip(it) } shouldBe
                 listOf(text("placed"), Int64Value.of(7))
         }
 
-        test("a protocol with a tag or a type given twice fails when it is built") { _ ->
+        test("a protocol with a tag or a type given twice fails when it is built") {
             val tagTwice = shouldThrow<IllegalArgumentException>({
                 Protobuf.oneOf {
                     message(1, StringValue.parser())
@@ -90,7 +86,7 @@ object ProtobufSuite : Suite<Unit>() {
             tagTwice and typeTwice
         }
 
-        test("a message the protocol has no tag for is refused, and a tag it does not know is not read") { _ ->
+        test("a message the protocol has no tag for is refused, and a tag it does not know is not read") {
             val refused = shouldThrow<IllegalArgumentException> { protocol.roundTrip(BoolValue.of(true)) }
             val unknown = Protobuf.oneOf { message(9, StringValue.parser()) }.encode(text("x"), Kept())
 
@@ -100,13 +96,13 @@ object ProtobufSuite : Suite<Unit>() {
                 }
         }
 
-        test("bytes that are not the message are a wire exception, not Protobuf's own") { _ ->
+        test("bytes that are not the message are a wire exception, not Protobuf's own") {
             val notAString = Codecs.bytes.encode(byteArrayOf(0x0a, 0x7f), Kept())
 
             shouldThrow<WireException> { Protobuf.codec(StringValue.parser()).decode(notAString, Kept()) }
         }
 
-        test("an ask whose request is a generated message is answered from another node") { _ ->
+        test("an ask whose request is a generated message is answered from another node") {
             val port = ServerSocket(0).use(ServerSocket::getLocalPort)
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)

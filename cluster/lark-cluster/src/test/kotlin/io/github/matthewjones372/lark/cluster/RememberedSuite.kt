@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.Journal
 import io.github.matthewjones372.lark.actor.PersistenceId
@@ -29,7 +28,6 @@ import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBe
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -147,13 +145,11 @@ private class Shop(val name: String, port: Int, seeds: Discovery, journal: Journ
     }
 }
 
-object RememberedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RememberedSuite : Suite() {
     init {
         test(
             "a sharded persistent entity answers from its next owner with every event it had, from its snapshot",
-        ) { _ ->
+        ) {
             val database = sharedDatabase()
             val journal = Reads(JdbcJournal(database))
             val snapshots = JdbcSnapshots(database)

@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
 import org.apache.pekko.stream.javadsl.Source
@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 
 /** The word a caller says about a source lark did not build, asserted on a real system. */
-object OrFailIfEmptySuite : Suite<PekkoSystem>() {
+object OrFailIfEmptySuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-or-fail-if-empty-test")
 
     private data class Missing(val id: Int)

@@ -10,7 +10,6 @@ import io.fabric8.mockwebserver.Context
 import io.fabric8.mockwebserver.MockWebServer
 import io.fabric8.mockwebserver.ServerRequest
 import io.fabric8.mockwebserver.ServerResponse
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.cluster.Joins
 import io.github.matthewjones372.lark.junit.Suite
@@ -20,7 +19,6 @@ import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withTempDirectory
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.nio.file.Files
 import java.time.Instant
@@ -58,9 +56,7 @@ private fun KubernetesClient.pod(name: String, ip: String?, phase: String, app: 
 
 private val start: Instant = Instant.parse("2026-09-26T10:00:00Z")
 
-object KubernetesSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object KubernetesSuite : Suite() {
     init {
         test("the running pods with the service's labels and an address are the seeds, at the cluster's port") {
             withMockClient { client ->

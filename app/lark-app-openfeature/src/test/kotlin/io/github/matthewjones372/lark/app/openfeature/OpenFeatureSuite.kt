@@ -9,7 +9,6 @@ import dev.openfeature.sdk.ProviderEvaluation
 import dev.openfeature.sdk.ProviderEventDetails
 import dev.openfeature.sdk.ProviderState
 import dev.openfeature.sdk.Value
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.Health
 import io.github.matthewjones372.lark.app.HealthRegistry
 import io.github.matthewjones372.lark.app.StartupError
@@ -23,7 +22,6 @@ import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.openfeature.Flag
-import io.github.matthewjones372.lark.resource
 
 /** A provider that answers every flag with `true`, and can be made to fail its init or go stale. */
 private class Switchable(private val failsInit: Boolean = false) : EventProvider() {
@@ -65,11 +63,9 @@ private val registryCheck = Flag.boolean("adoption.registry-check", default = fa
 /** Spec 0182: the provider is a node, so nothing reads a flag before it is ready, and its release shuts it down. */
 // Every test installs a provider into OpenFeatureAPI, a process-wide singleton that one graph holds at a time,
 // so two at once refuse each other's start: run concurrently, five of the six failed.
-object OpenFeatureSuite : Suite<Unit>(concurrent = false) {
-    override val shared: Resource<Unit> = resource { }
-
+object OpenFeatureSuite : Suite(concurrent = false) {
     init {
-        test("a node taking a Client starts after the provider is ready, and reads it as a Flag does") { _ ->
+        test("a node taking a Client starts after the provider is ready, and reads it as a Flag does") {
             val provider = Switchable()
             val graph = openFeature { provider } + single { client: Client -> Adoption(client) }
 
@@ -90,7 +86,7 @@ object OpenFeatureSuite : Suite<Unit>(concurrent = false) {
                 }
         }
 
-        test("a provider whose init throws refuses the start") { _ ->
+        test("a provider whose init throws refuses the start") {
             val graph = openFeature { Switchable(failsInit = true) } + single { client: Client -> Adoption(client) }
 
             val refused = graph.use { _: Adoption -> }.leftOrNull()
@@ -105,7 +101,7 @@ object OpenFeatureSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a provider that goes stale reports the graph not ready") { _ ->
+        test("a provider that goes stale reports the graph not ready") {
             val provider = Switchable()
             val graph = openFeature { provider } + single { health: HealthRegistry -> Ready(health) }
 
@@ -118,7 +114,7 @@ object OpenFeatureSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("release shuts the SDK down") { _ ->
+        test("release shuts the SDK down") {
             val provider = Switchable()
 
             val started = openFeature { provider }.use { _: Client -> }
@@ -128,7 +124,7 @@ object OpenFeatureSuite : Suite<Unit>(concurrent = false) {
                 (OpenFeatureAPI.getInstance().providerMetadata?.name shouldBe "No-op Provider")
         }
 
-        test("a provider that throws before it is set gives OpenFeature back") { _ ->
+        test("a provider that throws before it is set gives OpenFeature back") {
             shouldThrow<IllegalStateException>({
                 openFeature { error("no provider configured") }.use { _: Client -> }
             }) and withClue("the next graph can still install OpenFeature") {
@@ -136,7 +132,7 @@ object OpenFeatureSuite : Suite<Unit>(concurrent = false) {
             }
         }
 
-        test("a second graph cannot install OpenFeature while one holds it") { _ ->
+        test("a second graph cannot install OpenFeature while one holds it") {
             val refused = openFeature { Switchable() }.use { _: Client ->
                 openFeature { Switchable() }.use { _: Client -> }.leftOrNull()
             }.getOrNull()

@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.StartupError
 import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
@@ -13,7 +12,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import com.typesafe.config.Config as Hocon
@@ -28,9 +26,7 @@ private class Checked(val url: String) {
     }
 }
 
-object SectionsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SectionsSuite : Suite() {
     private val file: Hocon = ConfigFactory.parseResources("application.conf").resolve()
 
     private fun db(): Reading.() -> Db = {
@@ -38,7 +34,7 @@ object SectionsSuite : Suite<Unit>() {
     }
 
     init {
-        test("everything HOCON can say still works through the reading") { _ ->
+        test("everything HOCON can say still works through the reading") {
             file.reading { section("database", db()) }.getOrNull().shouldNotBeNull { db ->
                 withClue("substitution, a list and a duration, none of them re-encoded as a string") {
                     (db.url shouldBe "jdbc:postgresql://db.internal/shopping") and
@@ -48,7 +44,7 @@ object SectionsSuite : Suite<Unit>() {
             }
         }
 
-        test("every fault comes back, in Typesafe Config's own words") { _ ->
+        test("every fault comes back, in Typesafe Config's own words") {
             file.reading { section("broken", db()) }.leftOrNull().shouldNotBeNull { faults ->
                 val said = faults.joinToString { it.why }
                 withClue("one message listing what is wrong beats one deploy per fault") {
@@ -61,7 +57,7 @@ object SectionsSuite : Suite<Unit>() {
             }
         }
 
-        test("a constructor that validates a discarded value still answers with the faults") { _ ->
+        test("a constructor that validates a discarded value still answers with the faults") {
             file.reading { section("broken") { Checked(string("url")) } }
                 .leftOrNull().shouldNotBeNull { faults ->
                     withClue("the missing url is what to fix; the require it tripped on the way past is not") {
@@ -70,13 +66,13 @@ object SectionsSuite : Suite<Unit>() {
                 }
         }
 
-        test("a module reads its own section and nothing else names its paths") { _ ->
+        test("a module reads its own section and nothing else names its paths") {
             val app = single<Hocon> { file } + config("database", db()) + single { db: Db -> Pooling(db) }
 
             testApp(app) { pooling: Pooling -> pooling.db.poolSize } shouldBe 5
         }
 
-        test("a section that cannot be read refuses the start") { _ ->
+        test("a section that cannot be read refuses the start") {
             val app = single<Hocon> { file } + config("broken", db()) + single { db: Db -> Pooling(db) }
 
             app.use { _: Pooling -> }.leftOrNull().shouldNotBeNull { error ->
@@ -84,7 +80,7 @@ object SectionsSuite : Suite<Unit>() {
             }
         }
 
-        test("the when a service writes over its own settings is a Module, and needs nothing from here") { _ ->
+        test("the when a service writes over its own settings is a Module, and needs nothing from here") {
             val carts: io.github.matthewjones372.lark.app.Module =
                 when (file.getString("database.url").substringAfter("://").substringBefore("/")) {
                     "db.internal" -> single<Pooling> { Pooling(Db("", 0, Duration.ZERO, emptyList())) }

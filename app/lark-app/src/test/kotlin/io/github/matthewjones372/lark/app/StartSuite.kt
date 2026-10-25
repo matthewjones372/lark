@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
@@ -8,7 +7,6 @@ import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldHaveSize
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -20,17 +18,15 @@ private class Left
 private class Right
 private class Leaf
 
-object StartSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object StartSuite : Suite() {
     init {
-        test("the root is handed to the block") { _ ->
+        test("the root is handed to the block") {
             val module = single<Leaf> { Leaf() } + single { _: Leaf -> Root() }
 
             module.use { root: Root -> root }.getOrNull().shouldNotBeNull()
         }
 
-        test("a node is built once, however many need it") { _ ->
+        test("a node is built once, however many need it") {
             val built = AtomicInteger()
             val module = single<Leaf> { built.incrementAndGet(); Leaf() } +
                 single { _: Leaf -> Left() } +
@@ -42,7 +38,7 @@ object StartSuite : Suite<Unit>() {
             started and (built.get() shouldBe 1)
         }
 
-        test("independent nodes start on virtual threads of their own") { _ ->
+        test("independent nodes start on virtual threads of their own") {
             val threads = ConcurrentHashMap.newKeySet<String>()
             val virtual = ConcurrentHashMap.newKeySet<Boolean>()
             fun record() {
@@ -59,7 +55,7 @@ object StartSuite : Suite<Unit>() {
             started and (threads shouldHaveSize 2) and (virtual shouldContainExactly setOf(true))
         }
 
-        test("a node that refuses leaves nothing acquired") { _ ->
+        test("a node that refuses leaves nothing acquired") {
             val released = mutableListOf<String>()
             val module = single<Leaf> { install({ Leaf() }) { _, _ -> released += "leaf" } } +
                 single<Root, Leaf> { refuse("the port is already taken") }
@@ -74,7 +70,7 @@ object StartSuite : Suite<Unit>() {
             }
         }
 
-        test("a node that installs and then refuses has what it installed given back") { _ ->
+        test("a node that installs and then refuses has what it installed given back") {
             val released = mutableListOf<String>()
             val module = single<Root> {
                 install({ Leaf() }) { _, _ -> released += "own" }
@@ -88,7 +84,7 @@ object StartSuite : Suite<Unit>() {
             }
         }
 
-        test("a sibling built in the layer that refused is given back too, before the layers below it") { _ ->
+        test("a sibling built in the layer that refused is given back too, before the layers below it") {
             val order = Collections.synchronizedList(mutableListOf<String>())
             val leftInstalled = CountDownLatch(1)
             val module = single<Leaf> { install({ Leaf() }) { _, _ -> order += "leaf" } } +
@@ -109,7 +105,7 @@ object StartSuite : Suite<Unit>() {
             }
         }
 
-        test("releases run in reverse topological order") { _ ->
+        test("releases run in reverse topological order") {
             val released = mutableListOf<String>()
             val module = single<Leaf> { install({ Leaf() }) { _, _ -> released += "leaf" } } +
                 single { _: Leaf -> install({ Left() }) { _, _ -> released += "left" } } +
@@ -120,7 +116,7 @@ object StartSuite : Suite<Unit>() {
             started and (released shouldContainExactly listOf("root", "left", "leaf"))
         }
 
-        test("a graph that does not validate never builds") { _ ->
+        test("a graph that does not validate never builds") {
             val module = single<Root, Leaf> { error("a recipe must not run when the graph is short of a key") }
 
             module.use { _: Root -> }.leftOrNull().shouldNotBeNull { error ->
@@ -133,7 +129,7 @@ object StartSuite : Suite<Unit>() {
             }
         }
 
-        test("asking for a type the graph does not build names it") { _ ->
+        test("asking for a type the graph does not build names it") {
             single<Leaf> { Leaf() }.use { _: Root -> }.leftOrNull().shouldNotBeNull { error ->
                 error.shouldBeInstanceOf<StartupError.NoSuchNode> { missing -> missing.key shouldBe typeOf<Root>() }
             }

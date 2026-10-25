@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
@@ -18,7 +17,6 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeLessThan
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -32,11 +30,9 @@ private val quick =
 
 private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
-object LeaveOnReleaseSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LeaveOnReleaseSuite : Suite() {
     init {
-        test("a cluster made in the actors' flock leaves it as the application is released") { _ ->
+        test("a cluster made in the actors' flock leaves it as the application is released") {
             val ports = List(2) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val heard = ConcurrentLinkedQueue<MemberEvent>()

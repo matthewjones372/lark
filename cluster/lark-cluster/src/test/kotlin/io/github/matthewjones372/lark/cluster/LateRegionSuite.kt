@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.DeadLetter
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
@@ -17,7 +16,6 @@ import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -83,11 +81,9 @@ private class LateNode(val name: String, port: Int, seeds: Discovery, roles: Set
     }
 }
 
-object LateRegionSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object LateRegionSuite : Suite() {
     init {
-        test("a member that opens its region after a shard was won still lets the winner run it") { _ ->
+        test("a member that opens its region after a shard was won still lets the winner run it") {
             val ports = List(2) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             // The ledger opens its region only once both are Up, so it wins its shards with the web node there to ask:

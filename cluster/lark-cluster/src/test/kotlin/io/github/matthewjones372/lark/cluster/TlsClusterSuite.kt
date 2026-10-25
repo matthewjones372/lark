@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.ask
 import io.github.matthewjones372.lark.actor.behaviour
@@ -19,7 +18,6 @@ import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -76,11 +74,9 @@ private class Office(val name: String, port: Int, seeds: Discovery, tls: Tls) : 
     }
 }
 
-object TlsClusterSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object TlsClusterSuite : Suite() {
     init {
-        test("three nodes form a cluster and shard over TLS, and one another CA signed never joins") { _ ->
+        test("three nodes form a cluster and shard over TLS, and one another CA signed never joins") {
             val ports = List(4) { portFree() }
             val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
             val offices = (1..3).map { Office("n$it", ports[it - 1], seeds, TestCertificates.tls("n$it")) }

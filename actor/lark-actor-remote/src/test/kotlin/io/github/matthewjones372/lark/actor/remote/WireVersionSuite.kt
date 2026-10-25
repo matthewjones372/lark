@@ -1,9 +1,7 @@
 package io.github.matthewjones372.lark.actor.remote
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
@@ -91,11 +89,9 @@ private fun DataOutputStream.oldHello(self: Node) {
 }
 
 /** Spec 0122's wire: version 2 carries the map, and a node still talks to one that speaks only version 1. */
-object WireVersionSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object WireVersionSuite : Suite() {
     init {
-        test("between two nodes on version 2, what a frame carried arrives with it") { _ ->
+        test("between two nodes on version 2, what a frame carried arrives with it") {
             opening {
                 val two = Node("two", "127.0.0.1", freePort())
                 val heard = Frames()
@@ -116,7 +112,7 @@ object WireVersionSuite : Suite<Unit>() {
             }
         }
 
-        test("a node built before reads what a new node sends it, on version 1, without the map") { _ ->
+        test("a node built before reads what a new node sends it, on version 1, without the map") {
             opening {
                 val old = OldNode().closedAfter()
                 val one =
@@ -130,7 +126,7 @@ object WireVersionSuite : Suite<Unit>() {
             }
         }
 
-        test("a node built before is answered on version 1, and what it sends is read") { _ ->
+        test("a node built before is answered on version 1, and what it sends is read") {
             opening {
                 val two = Node("two", "127.0.0.1", freePort())
                 val heard = Frames()

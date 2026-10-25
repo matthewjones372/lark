@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 
 private sealed interface TillCommand
@@ -44,11 +42,9 @@ private fun shutTill() = delivered(
     },
 )
 
-object DeliveredSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DeliveredSuite : Suite() {
     init {
-        test("a delivered command is confirmed once its step has run, and a plain one is not") { _ ->
+        test("a delivered command is confirmed once its step has run, and a plain one is not") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             testActors {
                 val confirms =
@@ -65,7 +61,7 @@ object DeliveredSuite : Suite<Unit>() {
             }
         }
 
-        test("a step that fails confirms nothing, so the command is sent again") { _ ->
+        test("a step that fails confirms nothing, so the command is sent again") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             testActors {
                 val confirms =
@@ -79,7 +75,7 @@ object DeliveredSuite : Suite<Unit>() {
             }
         }
 
-        test("a command stashed is confirmed once it is handled, not when it is kept") { _ ->
+        test("a command stashed is confirmed once it is handled, not when it is kept") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             testActors {
                 val confirms =

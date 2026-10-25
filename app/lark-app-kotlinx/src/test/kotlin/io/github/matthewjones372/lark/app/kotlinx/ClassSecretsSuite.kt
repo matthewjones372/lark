@@ -1,7 +1,6 @@
 package io.github.matthewjones372.lark.app.kotlinx
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.typesafe.MASK
 import io.github.matthewjones372.lark.app.typesafe.Secrets
@@ -12,7 +11,6 @@ import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -21,11 +19,9 @@ private data class Store(val dbUrl: Secret, val replica: Replica)
 @Serializable
 private data class Replica(val readUrl: Secret)
 
-object ClassSecretsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ClassSecretsSuite : Suite() {
     init {
-        test("a Secret property masks itself in toString and in the report") { _ ->
+        test("a Secret property masks itself in toString and in the report") {
             val hocon =
                 """
                 petshop {

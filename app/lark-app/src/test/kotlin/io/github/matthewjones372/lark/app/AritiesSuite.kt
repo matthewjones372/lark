@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
-import io.github.matthewjones372.lark.resource
 
 private class Alpha
 private class Bravo
@@ -21,9 +19,7 @@ private class Eight
 private class Nine
 private class Whole
 
-object AritiesSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object AritiesSuite : Suite() {
     private val leaves = single<Alpha> { Alpha() } +
         single<Bravo> { Bravo() } +
         single<Charlie> { Charlie() } +
@@ -35,7 +31,7 @@ object AritiesSuite : Suite<Unit>() {
         single<India> { India() }
 
     init {
-        test("a recipe declares up to nine dependencies as parameters") { _ ->
+        test("a recipe declares up to nine dependencies as parameters") {
             val module = leaves +
                 single { _: Alpha, _: Bravo, _: Charlie, _: Delta, _: Echo, _: Foxtrot -> Six() } +
                 single { _: Alpha, _: Bravo, _: Charlie, _: Delta, _: Echo, _: Foxtrot, _: Golf -> Seven() } +

@@ -2,7 +2,7 @@ package io.github.matthewjones372.lark.stream
 
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * A stream pulled as a `Sequence`, on every backend that runs apart from its caller. `TestStreams` runs a run on
  * the thread that starts it, so a buffer that fills would hold the reader's own thread.
  */
-object SequenceSuite : Suite<ActorSystem>() {
+object SequenceSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-sequence-test")
 
     private const val BUFFER = 4

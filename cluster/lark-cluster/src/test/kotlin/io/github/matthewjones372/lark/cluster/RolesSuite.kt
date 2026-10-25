@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.remote.Node
 import io.github.matthewjones372.lark.actor.remote.node
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -47,13 +45,11 @@ private class Worker(val name: String, port: Int, seeds: Discovery, roles: Set<S
 private fun View.roles(): Map<String, Set<String>> =
     members.filter { it.status == Status.Up }.associate { it.node.name to it.roles }
 
-object RolesSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object RolesSuite : Suite() {
     init {
         test(
             "every member sees every member's roles, and a node started again with other roles shows the new ones",
-        ) { _ ->
+        ) {
             val ports = List(3) { unusedPort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val roles = listOf(setOf("ledger"), setOf("web"), setOf("ledger", "web"))

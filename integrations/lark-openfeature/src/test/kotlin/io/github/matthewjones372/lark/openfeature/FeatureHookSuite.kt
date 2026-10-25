@@ -10,7 +10,7 @@ import io.github.matthewjones372.lark.LogLevel
 import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.capturingMetrics
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldHaveSize
@@ -35,7 +35,7 @@ private object Down : FeatureProvider {
 }
 
 /** Spec 0180: an evaluation is counted, and one that fell back to its default says so. */
-object FeatureHookSuite : Suite<OpenFeatureAPI>() {
+object FeatureHookSuite : SharedSuite<OpenFeatureAPI>() {
     override val shared: Resource<OpenFeatureAPI> = resource {
         OpenFeatureAPI.getInstance().apply {
             useLark()

@@ -10,7 +10,7 @@ import io.github.matthewjones372.lark.actor.behaviour
 import io.github.matthewjones372.lark.actor.spawn
 import io.github.matthewjones372.lark.actor.stay
 import io.github.matthewjones372.lark.flock
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldThrow
@@ -22,7 +22,7 @@ import kotlin.time.Duration.Companion.minutes
 private data class Who(val reply: Reply<Pair<String, Int>>)
 
 /** Spec 0180: the context bound where a request came in is the one every flag read below it answers for. */
-object FeatureContextSuite : Suite<Client>() {
+object FeatureContextSuite : SharedSuite<Client>() {
     override val shared: Resource<Client> = resource {
         OpenFeatureAPI.getInstance().run {
             useLark()

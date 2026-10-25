@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.InMemoryJournal
 import io.github.matthewjones372.lark.actor.InMemoryOffsets
@@ -20,7 +19,6 @@ import io.github.matthewjones372.lark.junit.shouldBeGreaterThan
 import io.github.matthewjones372.lark.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.lark.junit.shouldContainAll
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.start
 import java.net.ServerSocket
@@ -47,13 +45,11 @@ private val quick =
     Gossiping(probeEvery = 200.milliseconds, ackWithin = 60.milliseconds, formAfter = 1_000.milliseconds)
 
 /** Spec 0106: a read model's partitions spread over the cluster, each moving when its member leaves. */
-object SpreadProjectionSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SpreadProjectionSuite : Suite() {
     init {
         test(
             "eight partitions over three members follow a million events, and a member's partitions resume elsewhere",
-        ) { _ ->
+        ) {
             Spread().run()
         }
     }

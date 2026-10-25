@@ -1,7 +1,7 @@
 package io.github.matthewjones372.lark.kafka
 
 import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 
 /** The commit a consumer loop makes before each poll, which the poll does not wait for (spec 0154). */
 @OptIn(KafkaSpi::class)
-object CommitBeforePollSuite : Suite<KafkaBroker>() {
+object CommitBeforePollSuite : SharedSuite<KafkaBroker>() {
     override val shared: Resource<KafkaBroker> = kafkaBroker()
 
     private const val GENEROUS_SECONDS = 30L

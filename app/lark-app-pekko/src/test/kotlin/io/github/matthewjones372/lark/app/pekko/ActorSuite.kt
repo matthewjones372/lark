@@ -6,7 +6,7 @@ import io.github.matthewjones372.lark.app.single
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.use
 import io.github.matthewjones372.lark.app.validate
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldHaveSize
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
@@ -36,7 +36,7 @@ private fun greeting(stopped: CountDownLatch): Behavior<Greet> =
         .onSignal(PostStop::class.java) { stopped.countDown(); Behaviors.same<Greet>() }
         .build()
 
-object ActorSuite : Suite<ActorSystem>() {
+object ActorSuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = resource {
         install({ ActorSystem.create("lark-app-pekko-test") }) { system, _ -> system.terminate() }
     }

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.cluster
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.Reply
 import io.github.matthewjones372.lark.actor.Signal
 import io.github.matthewjones372.lark.actor.ask
@@ -23,7 +22,6 @@ import io.github.matthewjones372.lark.junit.forAll
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -126,11 +124,9 @@ private fun List<Bar>.awaitUp(count: Int): Expectations = forAll { bar ->
     }
 }
 
-object ShardingSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ShardingSuite : Suite() {
     init {
-        test("an entity told and asked from any node runs on the one node that owns it") { _ ->
+        test("an entity told and asked from any node runs on the one node that owns it") {
             val ports = List(3) { openPort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val running = TabsRunning()
@@ -157,7 +153,7 @@ object ShardingSuite : Suite<Unit>() {
             }
         }
 
-        test("a node joining and one leaving while tabs are told throughout never runs one tab on two nodes") { _ ->
+        test("a node joining and one leaving while tabs are told throughout never runs one tab on two nodes") {
             val ports = List(4) { openPort() }
             val seeds = Discovery.static(*ports.take(3).map { Node("", "127.0.0.1", it) }.toTypedArray())
             val running = TabsRunning()

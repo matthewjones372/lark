@@ -6,7 +6,7 @@ import io.github.matthewjones372.lark.Schedule
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Expectations
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeInstanceOf
 import io.github.matthewjones372.lark.junit.shouldContain
@@ -24,7 +24,7 @@ import kotlin.time.Duration.Companion.seconds
  * Every operator, described once and run on every backend. A backend answers each case as the case says,
  * or refuses it before it starts, naming the operator it cannot run: a case is never skipped.
  */
-object ParitySuite : Suite<ActorSystem>() {
+object ParitySuite : SharedSuite<ActorSystem>() {
     override val shared: Resource<ActorSystem> = actorSystem("lark-stream-parity-test")
 
     private const val SETTLE_SECONDS = 10L

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.nonEmptyListOf
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -10,7 +9,6 @@ import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.reflect.typeOf
 
 private class Settings
@@ -18,16 +16,14 @@ private class Pipe
 private class Store
 private class Buffer
 
-object ValidateSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object ValidateSuite : Suite() {
     init {
-        test("a graph with no edges plans as one layer") { _ ->
+        test("a graph with no edges plans as one layer") {
             (single<Settings> { Settings() } + single<Buffer> { Buffer() })
                 .validate().getOrNull().shouldNotBeNull { plan -> plan.layers.size shouldBe 1 }
         }
 
-        test("a dependency is planned before what needs it") { _ ->
+        test("a dependency is planned before what needs it") {
             val module = single<Settings> { Settings() } +
                 single { _: Settings -> Pipe() } +
                 single { _: Pipe -> Store() }
@@ -41,7 +37,7 @@ object ValidateSuite : Suite<Unit>() {
             }
         }
 
-        test("independent nodes share a layer") { _ ->
+        test("independent nodes share a layer") {
             val module = single<Settings> { Settings() } +
                 single { _: Settings -> Pipe() } +
                 single { _: Settings -> Buffer() }
@@ -53,14 +49,14 @@ object ValidateSuite : Suite<Unit>() {
             }
         }
 
-        test("validate runs no recipe body") { _ ->
+        test("validate runs no recipe body") {
             val module = single<Settings> { Settings() } +
                 single<Pipe, Settings> { error("a recipe must not run to be validated") }
 
             module.validate().getOrNull().shouldNotBeNull()
         }
 
-        test("a missing dependency is named with what needed it") { _ ->
+        test("a missing dependency is named with what needed it") {
             single { _: Settings -> Pipe() }.validate().leftOrNull().shouldNotBeNull { errors ->
                 errors.head.shouldBeInstanceOf<WiringError.Missing> { missing ->
                     missing.copy(site = null) shouldBe
@@ -69,7 +65,7 @@ object ValidateSuite : Suite<Unit>() {
             }
         }
 
-        test("a cycle names the path around it") { _ ->
+        test("a cycle names the path around it") {
             val module = single { _: Store -> Pipe() } + single { _: Pipe -> Store() }
 
             module.validate().leftOrNull().shouldNotBeNull { errors ->
@@ -83,7 +79,7 @@ object ValidateSuite : Suite<Unit>() {
             }
         }
 
-        test("the report names every consumer of a missing key") { _ ->
+        test("the report names every consumer of a missing key") {
             val module = single { _: Settings -> Pipe() } + single { _: Settings -> Buffer() }
 
             module.validate().leftOrNull().shouldNotBeNull { errors ->
@@ -103,11 +99,9 @@ private class Sdk
  * matches it. "missing Thing" with a Thing in the graph is the least helpful true sentence a build
  * can print, so the report names the one that reads the same.
  */
-object AlikeKeySuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object AlikeKeySuite : Suite() {
     init {
-        test("a key that reads the same as a missing one is named beside it") { _ ->
+        test("a key that reads the same as a missing one is named beside it") {
             val faults = nonEmptyListOf(WiringError.Missing(typeOf<Settings>(), typeOf<Pipe>()))
 
             val said = faults.report(setOf(typeOf<Settings?>(), typeOf<Sdk>()))
@@ -117,7 +111,7 @@ object AlikeKeySuite : Suite<Unit>() {
             }
         }
 
-        test("nothing alike is said where nothing is alike") { _ ->
+        test("nothing alike is said where nothing is alike") {
             val faults = nonEmptyListOf(WiringError.Missing(typeOf<Settings>(), typeOf<Pipe>()))
 
             faults.report(setOf(typeOf<Sdk>())) shouldNotContain "not the same type"

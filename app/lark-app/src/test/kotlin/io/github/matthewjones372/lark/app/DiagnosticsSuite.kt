@@ -1,12 +1,10 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldStartWith
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 import kotlin.reflect.typeOf
 
@@ -16,11 +14,9 @@ private class Nail
 /** Where this file's own sources are, which is what a build hands the checker. */
 private val sources = listOf(File("src/test/kotlin"))
 
-object DiagnosticsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object DiagnosticsSuite : Suite() {
     init {
-        test("a missing dependency is a compiler error pointing at the line that asked") { _ ->
+        test("a missing dependency is a compiler error pointing at the line that asked") {
             val line = single { _: Hammer -> Nail() }.findings().diagnostics(sources)
 
             (line shouldStartWith "e: file://") and
@@ -31,7 +27,7 @@ object DiagnosticsSuite : Suite<Unit>() {
                 }
         }
 
-        test("the file in the URI is one that exists, so the IDE has something to open") { _ ->
+        test("the file in the URI is one that exists, so the IDE has something to open") {
             val line = single { _: Hammer -> Nail() }.findings().diagnostics(sources)
 
             // `file://<path>:<line>:<column> <message>`, and the message has colons of its own.
@@ -41,7 +37,7 @@ object DiagnosticsSuite : Suite<Unit>() {
             File(path).isFile shouldBe true
         }
 
-        test("a fault with no line of its own still gets a diagnostic") { _ ->
+        test("a fault with no line of its own still gets a diagnostic") {
             val loop = single { _: Nail -> Hammer() } + single { _: Hammer -> Nail() }
 
             val line = loop.findings().diagnostics(sources)
@@ -51,7 +47,7 @@ object DiagnosticsSuite : Suite<Unit>() {
             }
         }
 
-        test("an unreached node is a warning rather than an error") { _ ->
+        test("an unreached node is a warning rather than an error") {
             val module = singleOf(::Hammer) + singleOf(::Nail)
 
             val line = module.findings(typeOf<Nail>()).diagnostics(sources)
@@ -59,7 +55,7 @@ object DiagnosticsSuite : Suite<Unit>() {
             (line shouldStartWith "w: file://") and (line shouldContain "nothing reaches Hammer")
         }
 
-        test("a key the graph builds under a name that reads the same is named beside the missing one") { _ ->
+        test("a key the graph builds under a name that reads the same is named beside the missing one") {
             val fault = Finding(Severity.FAIL, WiringError.Missing(typeOf<Hammer>(), typeOf<Nail>()))
 
             val line = listOf(fault).diagnostics(sources, setOf(typeOf<Hammer?>()))
@@ -69,7 +65,7 @@ object DiagnosticsSuite : Suite<Unit>() {
             }
         }
 
-        test("without source directories there is nothing to link and the sentence still says it") { _ ->
+        test("without source directories there is nothing to link and the sentence still says it") {
             val line = single { _: Hammer -> Nail() }.findings().diagnostics(emptyList())
 
             line shouldBe "e: lark-app: Nail needs Hammer, and nothing builds it"

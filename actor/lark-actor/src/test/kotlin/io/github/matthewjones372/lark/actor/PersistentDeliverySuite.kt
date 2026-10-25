@@ -1,10 +1,8 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldContainExactly
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -71,11 +69,9 @@ private fun purse(
 private fun TestActors.confirms(confirmed: ConcurrentLinkedQueue<Confirmed>) =
     spawn("confirms", behaviour<Confirmed, Unit>(Unit) { _, _, c -> stay().also { confirmed += c } })
 
-object PersistentDeliverySuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PersistentDeliverySuite : Suite() {
     init {
-        test("a command sent twice is applied once and confirmed twice") { _ ->
+        test("a command sent twice is applied once and confirmed twice") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             val peeks = ConcurrentLinkedQueue<Long>()
             testActors {
@@ -94,7 +90,7 @@ object PersistentDeliverySuite : Suite<Unit>() {
             }
         }
 
-        test("each producer is counted on its own") { _ ->
+        test("each producer is counted on its own") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             val peeks = ConcurrentLinkedQueue<Long>()
             testActors {
@@ -108,7 +104,7 @@ object PersistentDeliverySuite : Suite<Unit>() {
             }
         }
 
-        test("after a restart, and on the next owner after a move, the duplicate is still dropped") { _ ->
+        test("after a restart, and on the next owner after a move, the duplicate is still dropped") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             val peeks = ConcurrentLinkedQueue<Long>()
             testActors {
@@ -128,7 +124,7 @@ object PersistentDeliverySuite : Suite<Unit>() {
             }
         }
 
-        test("a snapshot remembers the deliveries whose marks were pruned") { _ ->
+        test("a snapshot remembers the deliveries whose marks were pruned") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             val peeks = ConcurrentLinkedQueue<Long>()
             testActors {
@@ -144,7 +140,7 @@ object PersistentDeliverySuite : Suite<Unit>() {
             }
         }
 
-        test("a command that persists nothing is dropped as a duplicate until its entity stops") { _ ->
+        test("a command that persists nothing is dropped as a duplicate until its entity stops") {
             val confirmed = ConcurrentLinkedQueue<Confirmed>()
             val peeks = ConcurrentLinkedQueue<Long>()
             testActors {
@@ -162,7 +158,7 @@ object PersistentDeliverySuite : Suite<Unit>() {
             }
         }
 
-        test("a snapshot of an entity nothing was delivered to is the state's own bytes") { _ ->
+        test("a snapshot of an entity nothing was delivered to is the state's own bytes") {
             val remembered = Remembered(42, sequence = 3)
 
             val delivered = remembered.copy(delivered = mapOf("checkout" to 7L, "refunds" to 2L))
@@ -173,7 +169,7 @@ object PersistentDeliverySuite : Suite<Unit>() {
 
         // Was a Jupiter @ParameterizedTest over batch 1 and 4: one test for each.
         for (batch in listOf(1, 4)) {
-            test("a command stashed is neither confirmed nor remembered until it is handled, batch $batch") { _ ->
+            test("a command stashed is neither confirmed nor remembered until it is handled, batch $batch") {
                 val confirmed = ConcurrentLinkedQueue<Confirmed>()
                 val peeks = ConcurrentLinkedQueue<Long>()
                 testActors {

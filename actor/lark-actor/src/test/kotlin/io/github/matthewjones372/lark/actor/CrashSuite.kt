@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 
@@ -50,11 +48,9 @@ private fun courier(to: ActorRef<Drawer>): Behaviour<Int, Unit, Nothing> = behav
     stay()
 }
 
-object CrashSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CrashSuite : Suite() {
     init {
-        test("an actor crashed between two persists recovers the first and nothing more") { _ ->
+        test("an actor crashed between two persists recovers the first and nothing more") {
             testActors {
                 val crashing = AtomicReference<ActorRef<Drawer>>()
                 val till = spawn("till", drawer { crash(crashing.get()) }).also(crashing::set)
@@ -66,7 +62,7 @@ object CrashSuite : Suite<Unit>() {
             }
         }
 
-        test("a crash from the test loses the actor's timers, and its next message recovers it") { _ ->
+        test("a crash from the test loses the actor's timers, and its next message recovers it") {
             testActors {
                 val till = spawn("till", drawer())
                 val ticker = spawn(
@@ -92,7 +88,7 @@ object CrashSuite : Suite<Unit>() {
             }
         }
 
-        test("a crash on the way loses the message that caused it") { _ ->
+        test("a crash on the way loses the message that caused it") {
             testActors(order = Ordering.seeded(1), faults = Faults(crash = 1.0)) {
                 val till = spawn("till", drawer())
                 spawn("courier", courier(till)).tell(7)
@@ -100,7 +96,7 @@ object CrashSuite : Suite<Unit>() {
             }
         }
 
-        test("a stopped actor cannot crash") { _ ->
+        test("a stopped actor cannot crash") {
             testActors {
                 val done = spawn("done", behaviour<String, Unit>(Unit) { _, _, _ -> stop() })
                 done.tell("stop")

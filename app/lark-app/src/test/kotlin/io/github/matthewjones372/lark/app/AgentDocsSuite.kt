@@ -1,18 +1,14 @@
 package io.github.matthewjones372.lark.app
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 
 /** What an agent outside this repository reads about lark names every published module and nothing else (spec 0134). */
-object AgentDocsSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object AgentDocsSuite : Suite() {
     private fun modules(property: String): Set<String>? = System.getProperty(property)?.split(",")?.toSet()
 
     private fun page(root: String, path: String): String = File(root, path).readText()
@@ -25,13 +21,13 @@ object AgentDocsSuite : Suite<Unit>() {
             }
 
     init {
-        test("llms txt names every published module, and nothing else, under Modules") { _ ->
+        test("llms txt names every published module, and nothing else, under Modules") {
             modules("lark.app.publishedModules").shouldNotBeNull { published ->
                 repoRoot { root -> modulesIn(page(root, "llms.txt")) shouldBe published }
             }
         }
 
-        test("every published module has a description for its POM") { _ ->
+        test("every published module has a description for its POM") {
             modules("lark.app.publishedModules").shouldNotBeNull { published ->
                 modules("lark.app.describedModules").shouldNotBeNull { described ->
                     val undescribed = published - described
@@ -40,7 +36,7 @@ object AgentDocsSuite : Suite<Unit>() {
             }
         }
 
-        test("the lark skill names the same modules") { _ ->
+        test("the lark skill names the same modules") {
             modules("lark.app.publishedModules").shouldNotBeNull { published ->
                 repoRoot { root -> modulesIn(page(root, "plugins/lark/skills/lark/SKILL.md")) shouldBe published }
             }

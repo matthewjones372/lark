@@ -5,7 +5,7 @@ import io.github.matthewjones372.lark.fail.attempt
 import io.github.matthewjones372.lark.fail.left
 import io.github.matthewjones372.lark.fail.right
 import io.github.matthewjones372.lark.flock
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldThrow
@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 
 /** The one fold of an `Exit` into a `Raise`: what each case does to the scope waiting on it. */
-object AwaitExitSuite : Suite<PekkoSystem>() {
+object AwaitExitSuite : SharedSuite<PekkoSystem>() {
     override val shared: Resource<PekkoSystem> = pekkoSystem("lark-stream-awaitexit-test")
 
     private data class Declined(val id: Int)

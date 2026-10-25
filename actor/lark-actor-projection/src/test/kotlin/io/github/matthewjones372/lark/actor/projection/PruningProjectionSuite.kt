@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor.projection
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.EventCodec
 import io.github.matthewjones372.lark.actor.InMemoryJournal
 import io.github.matthewjones372.lark.actor.InMemoryOffsets
@@ -13,7 +12,6 @@ import io.github.matthewjones372.lark.actor.testActors
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.stream.Forks
 import io.github.matthewjones372.lark.stream.start
 import java.util.concurrent.CountDownLatch
@@ -46,11 +44,9 @@ private fun ledger(prune: Prune) = persistent<Post, Int, Long>(
     event = { sum, posted -> sum + posted },
 )
 
-object PruningProjectionSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object PruningProjectionSuite : Suite() {
     init {
-        test("a projection that starts late still reads every event of a kind that prunes after it") { _ ->
+        test("a projection that starts late still reads every event of a kind that prunes after it") {
             val journal = InMemoryJournal()
             val offsets = InMemoryOffsets()
             val handled = AtomicInteger()

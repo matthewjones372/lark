@@ -317,13 +317,13 @@ create topics and wait for what a group committed. A lark-junit suite shares
 one broker across its tests as a `Resource`:
 
 ```kotlin
-import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.SharedSuite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.kafka.KafkaBroker
 import io.github.matthewjones372.lark.kafka.Topic
 import io.github.matthewjones372.lark.kafka.kafkaBroker
 
-object OrdersSuite : Suite<KafkaBroker>() {
+object OrdersSuite : SharedSuite<KafkaBroker>() {
     override val shared = kafkaBroker()
 
     init {

@@ -1,28 +1,24 @@
 package io.github.matthewjones372.lark.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.app.testApp
 import io.github.matthewjones372.lark.app.use
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 private data class Wanted(val url: String, val poolSize: Int, val idle: Duration)
 
 /** Where a test's configuration comes from, and what it has to restate to change one key. */
-object SourcesSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object SourcesSuite : Suite() {
     private val section = config<Wanted>("database") {
         Wanted(string("url"), int("poolSize"), duration("idle"))
     }
 
     init {
-        test("a document written where the test is") { _ ->
+        test("a document written where the test is") {
             val app = configOf(
                 """
                 database { url = "jdbc:postgresql://db/app", poolSize = 2, idle = 1s }
@@ -32,13 +28,13 @@ object SourcesSuite : Suite<Unit>() {
             testApp(app) { wanted: Wanted -> wanted } shouldBe Wanted("jdbc:postgresql://db/app", 2, 1.seconds)
         }
 
-        test("a file on the classpath") { _ ->
+        test("a file on the classpath") {
             val app = configFromResource("application.conf") + section
 
             testApp(app) { wanted: Wanted -> wanted.poolSize } shouldBe 5
         }
 
-        test("one key changed, and the file keeping the rest") { _ ->
+        test("one key changed, and the file keeping the rest") {
             val service = configFromResource("application.conf") + section
 
             val underTest = service.overridingConfig(
@@ -55,7 +51,7 @@ object SourcesSuite : Suite<Unit>() {
                 }
         }
 
-        test("what the service itself reads") { _ ->
+        test("what the service itself reads") {
             val app = loadedConfig() + config<String>("petshop") { string("nothing") }
 
             withClue("application.conf on this classpath has no petshop section") {

@@ -2,7 +2,6 @@
 
 package io.github.matthewjones372.lark.kafka
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBe
@@ -11,7 +10,6 @@ import io.github.matthewjones372.lark.junit.shouldContainKey
 import io.github.matthewjones372.lark.junit.shouldNotContainKey
 import io.github.matthewjones372.lark.junit.withClue
 import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.resource
 import io.github.matthewjones372.lark.stream.Exit
 import io.github.matthewjones372.lark.stream.Stream
 import io.github.matthewjones372.lark.stream.TestStreams
@@ -21,9 +19,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.hours
 
 /** Spec 0167: a batch marks each record it holds handled, on a test's clock. */
-object GroupedRecordSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object GroupedRecordSuite : Suite() {
     /** What one test's records were marked handled at: made per test, since the suite's tests run together. */
     private class Marks {
         val handled = ConcurrentLinkedQueue<Position>()
@@ -40,7 +36,7 @@ object GroupedRecordSuite : Suite<Unit>() {
     }
 
     init {
-        test("a batch marks each of its records handled once it reaches the end") { _ ->
+        test("a batch marks each of its records handled once it reaches the end") {
             val marks = Marks()
             val read = listOf(
                 marks.record(0, 0),
@@ -57,7 +53,7 @@ object GroupedRecordSuite : Suite<Unit>() {
                 (marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position })
         }
 
-        test("a record still expanding at a batch's end is committed with the batch its last element is in") { _ ->
+        test("a record still expanding at a batch's end is committed with the batch its last element is in") {
             val marks = Marks()
             val read = listOf(marks.record(0, 0), marks.record(0, 1, last = false), marks.record(0, 1))
 
@@ -70,7 +66,7 @@ object GroupedRecordSuite : Suite<Unit>() {
                 }
         }
 
-        test("a batch's body logs no record's position, and a record's body still does") { _ ->
+        test("a batch's body logs no record's position, and a record's body still does") {
             val one = Marks().record(0, 1)
             val batch = Committed(listOf(one.value), one.position, Batched(listOf(one)))
 
@@ -83,7 +79,7 @@ object GroupedRecordSuite : Suite<Unit>() {
                 (annotationsOf(one) shouldContainKey "kafka.offset")
         }
 
-        test("a batch of batches marks each record handled once, as one batch would") { _ ->
+        test("a batch of batches marks each record handled once, as one batch would") {
             val marks = Marks()
             val read = listOf(marks.record(0, 0), marks.record(1, 0), marks.record(0, 1), marks.record(1, 1))
 

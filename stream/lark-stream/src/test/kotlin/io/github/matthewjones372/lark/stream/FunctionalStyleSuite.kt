@@ -1,13 +1,11 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.junit.Expectations
 import io.github.matthewjones372.lark.junit.Suite
 import io.github.matthewjones372.lark.junit.shouldBeEmpty
 import io.github.matthewjones372.lark.junit.shouldNotBeEmpty
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.withClue
-import io.github.matthewjones372.lark.resource
 import java.io.File
 
 /**
@@ -22,9 +20,7 @@ import java.io.File
  * declares the same directories as inputs of the task that runs this test. See
  * `lark-stream/build.gradle.kts`.
  */
-object FunctionalStyleSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object FunctionalStyleSuite : Suite() {
     // A description holds nothing that grows. What a backend keeps while it runs is that backend's.
     private val builders = emptyMap<String, String>()
 
@@ -55,7 +51,7 @@ object FunctionalStyleSuite : Suite<Unit>() {
         .flatMap { it.walkTopDown().filter { file -> file.isFile && file.extension == "kt" }.toList() }
 
     init {
-        test("the build hands this test the sources it judges") { _ ->
+        test("the build hands this test the sources it judges") {
             sourceRoots { roots ->
                 repoRoot { root ->
                     val named = withClue("the build named no source roots at all") { roots.shouldNotBeEmpty() }
@@ -79,7 +75,7 @@ object FunctionalStyleSuite : Suite<Unit>() {
             }
         }
 
-        test("mutable collections are built only where a builder was meant to be") { _ ->
+        test("mutable collections are built only where a builder was meant to be") {
             sourceRoots { roots ->
                 repoRoot { root ->
                     val found = mainSources(roots)
@@ -98,7 +94,7 @@ object FunctionalStyleSuite : Suite<Unit>() {
             }
         }
 
-        test("nothing in the library holds a var") { _ ->
+        test("nothing in the library holds a var") {
             sourceRoots { roots ->
                 repoRoot { root ->
                     val vars = mainSources(roots)

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.lark.actor
 
-import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.capturingLogs
 import io.github.matthewjones372.lark.flock
 import io.github.matthewjones372.lark.junit.Suite
@@ -9,7 +8,6 @@ import io.github.matthewjones372.lark.junit.shouldContain
 import io.github.matthewjones372.lark.junit.shouldNotContainKey
 import io.github.matthewjones372.lark.logAnnotated
 import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.resource
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -48,11 +46,9 @@ private fun listener() = behaviour<Listened, Boolean>(false) { ctx, released, me
 }
 
 /** Spec 0122: what a sender had bound rides its message to the handler. */
-object CarriedSuite : Suite<Unit>() {
-    override val shared: Resource<Unit> = resource { }
-
+object CarriedSuite : Suite() {
     init {
-        test("an ask made inside logAnnotated is handled with the asker's annotations") { _ ->
+        test("an ask made inside logAnnotated is handled with the asker's annotations") {
             val heard = flock<Nothing, Map<String, String>> {
                 val listener = spawn("listener", listener())
                 logAnnotated("request_id" to "r-1") { listener.ask(1.minutes) { AnnotationsAsked(it) }.getOrNull()!! }
@@ -61,7 +57,7 @@ object CarriedSuite : Suite<Unit>() {
             heard shouldContain ("request_id" to "r-1")
         }
 
-        test("a message told with nothing bound is handled with nothing") { _ ->
+        test("a message told with nothing bound is handled with nothing") {
             val heard = flock<Nothing, Map<String, String>> {
                 spawn("listener", listener()).ask(1.minutes) { AnnotationsAsked(it) }.getOrNull()!!
             }.getOrNull()!!
@@ -69,7 +65,7 @@ object CarriedSuite : Suite<Unit>() {
             heard shouldNotContainKey "request_id"
         }
 
-        test("a stashed message is replayed with what it carried, not with what released it") { _ ->
+        test("a stashed message is replayed with what it carried, not with what released it") {
             val answered = CompletableFuture<Map<String, String>>()
             val reply = object : Reply<Map<String, String>> {
                 override val address = Address("test", "/reply", 0)
@@ -89,7 +85,7 @@ object CarriedSuite : Suite<Unit>() {
             answered.get() shouldContain ("request_id" to "r-2")
         }
 
-        test("a burst kept for a busy entity is handled with what each message carried, not with the drain's") { _ ->
+        test("a burst kept for a busy entity is handled with what each message carried, not with the drain's") {
             val heard = ConcurrentHashMap<Int, String>()
             val open = CountDownLatch(1)
             flock<Nothing, Unit> {
