@@ -12,7 +12,7 @@ object ContractSuite : Suite<Unit>() {
 }
 ```
 
-Lark has 204 such suites against 76 that share something, and petshop has 23. The owner's review of petshop's
+Lark has 204 such suites against about 75 that share something, and petshop has 23. The owner's review of petshop's
 move called it a waste.
 
 ## Not doing
