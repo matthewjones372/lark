@@ -1,23 +1,17 @@
+@file:OptIn(FailureSeam::class)
+
 package io.github.matthewjones372.lark.assert
 
 /** Asserts this equals [expected], and returns it. */
-infix fun <A> A.shouldBe(expected: A): A {
-    if (this != expected) mismatch(expected, this)
-    return this
-}
+infix fun <A> A.shouldBe(expected: A): A = also { notEqual(expected)?.let(::thrown) }
 
 /** Runs [block], asserts it threw a [T], and returns what it threw. */
 inline fun <reified T : Throwable> shouldThrow(block: () -> Any?): T {
-    val thrown = try {
+    val caught = try {
         block()
         null
-    } catch (caught: Throwable) {
-        caught
+    } catch (any: Throwable) {
+        any
     }
-    val wanted = "a ${T::class.qualifiedName} thrown"
-    return when (thrown) {
-        is T -> thrown
-        null -> mismatch(expected = null, actual = "nothing thrown", expectedText = wanted)
-        else -> mismatch(expected = null, actual = thrown, expectedText = wanted, cause = thrown)
-    }
+    return if (caught is T) caught else thrown(notThrown("a ${T::class.qualifiedName} thrown", caught))
 }
