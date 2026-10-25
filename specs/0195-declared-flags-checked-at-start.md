@@ -88,7 +88,7 @@ with an explicit list.
       decodes and one that doesn't.
       Done when: `rejects` is null exactly when `value()` on a provider holding
       that value answers it without an error code.
-- [ ] **`spec-0195-flagd-declared`**: `flagdFlags(path, declared)`, the
+- [x] **`spec-0195-flagd-declared`** (#601): `flagdFlags(path, declared)`, the
       refusal with origins, and the `docs/flags.md` section. The wiring
       checker's `flagdFlags` rule accepts the second argument.
       Done when: a section with a mistyped variant, an enum variant with no
