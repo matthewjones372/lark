@@ -1,22 +1,25 @@
 package io.github.matthewjones372.lark.actor.journal.jdbc
 
+import io.github.matthewjones372.lark.Resource
 import io.github.matthewjones372.lark.actor.PersistenceId
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldContainOnly
-import org.junit.jupiter.api.Test
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.resource
 import javax.sql.DataSource
 
 /** The journal's tables as a Liquibase changelog (spec 0107). */
-class ChangelogTest {
+object ChangelogSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
-    @Test
-    fun `a fresh database takes the changelog once, with every string column text`() {
-        val source = Postgres.empty()
-        // The tables, then the metadata column (spec 0123).
-        source.migrate() shouldBe 2
-        source.migrate() shouldBe 0
-        JdbcJournal(source).append(PersistenceId("diary", "sam"), 0, listOf(byteArrayOf(1)))
-        source.stringColumns() shouldContainOnly setOf("text")
+    init {
+        test("a fresh database takes the changelog once, with every string column text") { _ ->
+            val source = Postgres.empty()
+            // The tables, then the metadata column (spec 0123).
+            val first = source.migrate() shouldBe 2
+            val again = source.migrate() shouldBe 0
+            JdbcJournal(source).append(PersistenceId("diary", "sam"), 0, listOf(byteArrayOf(1)))
+            first and again and (source.stringColumns() shouldBe setOf("text"))
+        }
     }
 
     /** The type of every column of lark's tables that holds a string. */
