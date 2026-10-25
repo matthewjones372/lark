@@ -122,7 +122,7 @@ The modules this spec moved, with any test task over 5 s on either side:
 | `:lark-stream-forks` | 10.8 s | 9.0 s (−16%) |
 | `:lark-app-typesafe` | 10.2 s | 7.7 s (−24%) |
 | `:lark-app` | 9.0 s | 7.8 s (−14%) |
-| `:lark-bank` | 7.4 s | 10.9 s (+48%) |
+| `:lark-bank` | 7.4 s | 10.9 s (+48%, noise: see below) |
 | `:lark-structured` | 5.3 s | 6.6 s (+26%) |
 
 - **The build is no faster.** The whole command is the longest chain of modules, not their sum. That chain is
@@ -132,9 +132,15 @@ The modules this spec moved, with any test task over 5 s on either side:
 - **Where it helped:** modules whose suites hold several slow tests, as specs 0193 and 0196 found:
   `lark-cluster`, `lark-stream-parity`, `lark-cluster-kubernetes`, `lark-app-typesafe`. A suite of one test,
   which many cluster classes are, gains nothing, because suites run one after another.
-- **Where it cost:** `lark-bank` (+3.6 s), not explained. Most of its tests need Docker, so here its time is
-  mostly how long they take to fail, and it started its nodes once per class before as it does once per suite
-  now. A few small modules, such as `lark-structured`, are slower by about a second each, within the noise.
+- **Where it cost: nowhere measured.** `lark-bank`'s +48% is noise.
+  - **Here.** Run on its own, 3 times a side, its task took 7.1, 5.6 and 5.8 s before, and 6.0, 5.6 and
+    5.7 s after. Its test bodies add up to 2.4 s before and 2.0 s after. Most of its tests need Docker, so
+    that is mostly how long they take to fail.
+  - **On CI with Docker.** The task, from its classes compiled to it reporting, took 30 s in each of three
+    runs: before on #623, after on #640 and #642.
+  - **Playwright's browsers.** 8 to 19 s of each CI run was Playwright downloading its browsers, about 470 MB,
+    which no CI cache keeps.
+  - **Other small modules,** such as `lark-structured`, are slower by about a second each, within the noise.
 - **`alone` and `concurrent = false`**, each a test that touches process-wide state:
   - `PostgresFeedGapSuite`, `concurrent = false`: a gap is read from `pg_current_snapshot()`, whose horizon
     spans every database on the server, and its tests hold transactions open. It failed on CI the first time
