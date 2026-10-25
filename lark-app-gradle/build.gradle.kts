@@ -44,6 +44,7 @@ dependencies {
     larkAppUnderTest(project(":lark-app-typesafe"))
     larkAppUnderTest(project(":lark-app-kotlinx"))
     larkAppUnderTest(project(":lark-app-openfeature"))
+    larkAppUnderTest(project(":lark-app-openfeature-flagd"))
     testImplementation(project(":lark-assert"))
 }
 

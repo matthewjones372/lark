@@ -292,7 +292,10 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
 
-        called == OPEN_FEATURE -> node(OPENFEATURE_CLIENT, emptyList(), at)
+        // openFeature { provider } needs nothing; openFeature { d: D -> provider } needs its D.
+        called == OPEN_FEATURE -> node(OPENFEATURE_CLIENT, arguments, at)
+
+        called == FLAGD_FLAGS -> node(OPENFEATURE_CLIENT, listOf(TYPESAFE_CONFIG), at)
 
         // A source provides its Layered and the merge of it, which is the Config: reaching one reaches both.
         called in SOURCES -> node(TYPESAFE_CONFIG, listOf(LAYERED), at) + node(LAYERED, emptyList(), at)
@@ -368,6 +371,7 @@ private val CONFIGS = setOf(
 private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
 private val MIGRATIONS = extension("liquibase", "migrations")
 private val OPEN_FEATURE = extension("openfeature", "openFeature")
+private val FLAGD_FLAGS = extension("flagd", "flagdFlags")
 
 /**
  * The factories lark ships whose bodies are not in the source being compiled.
