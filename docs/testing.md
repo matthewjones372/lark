@@ -366,7 +366,9 @@ Without the plugin, it quotes the source line instead. A diagram carries no
 expected and actual for IntelliJ's diff, so `lark-junit` also has `shouldBe`,
 `shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
 and carry both. Beside them are `shouldContain` and `shouldNotContain`, for a
-string or a collection, `shouldContainExactly`, `shouldContainExactlyInAnyOrder`,
+string or a collection, `shouldStartWith`, `shouldEndWith`, `shouldMatch`, a regex
+`shouldContain` and `shouldNotBeBlank` for a string, `shouldContainExactly`,
+`shouldContainExactlyInAnyOrder`, `shouldContainOnly`,
 `shouldContainAll`, for a collection or a map, `shouldHaveSize`, `shouldBeEmpty`
 and `shouldNotBeEmpty`, `shouldContainKey` and `shouldNotContainKey`,
 `shouldBeNull`, the comparisons `shouldBeLessThan`, `shouldBeLessThanOrEqual`,

@@ -14,6 +14,7 @@ import io.github.matthewjones372.lark.assert.missingKey
 import io.github.matthewjones372.lark.assert.notEmpty
 import io.github.matthewjones372.lark.assert.notExactly
 import io.github.matthewjones372.lark.assert.notOfSize
+import io.github.matthewjones372.lark.assert.notOnly
 
 // The matchers on a collection or a map, as Matchers.kt's: each returns Expectations on lark-assert's check.
 
@@ -37,6 +38,15 @@ infix fun <T> Iterable<T>.shouldContainExactly(elements: Iterable<T>): Expectati
 /** Holds if this has exactly [elements], in their order. */
 fun <T> Iterable<T>.shouldContainExactly(vararg elements: T): Expectations = shouldContainExactly(elements.asList())
 
+/** Holds if every element of this is one of [elements], and each of those is in this. */
+infix fun <T> Iterable<T>.shouldContainOnly(elements: Iterable<T>): Expectations = verdict(notOnly(elements))
+
+/** Holds if every element of this is one of [elements], and each of those is in this. */
+fun <T> Iterable<T>.shouldContainOnly(vararg elements: T): Expectations = shouldContainOnly(elements.asList())
+
+/** Holds if this has exactly the entries of [entries]; fails carrying both maps for an IDE's diff. */
+infix fun <K, V> Map<K, V>.shouldContainExactly(entries: Map<K, V>): Expectations = verdict(notExactly(entries))
+
 /** Holds if this has [size] elements; fails naming how many it has, and which. */
 infix fun Iterable<*>.shouldHaveSize(size: Int): Expectations = verdict(notOfSize(size))
 
@@ -48,6 +58,9 @@ fun Iterable<*>.shouldNotBeEmpty(): Expectations = verdict(empty())
 
 /** Holds if this has every one of [elements], in any order and among others; fails naming those missing. */
 infix fun <T> Iterable<T>.shouldContainAll(elements: Iterable<T>): Expectations = verdict(missingAny(elements))
+
+/** Holds if this has every one of [elements], in any order and among others. */
+fun <T> Iterable<T>.shouldContainAll(vararg elements: T): Expectations = shouldContainAll(elements.asList())
 
 /** Holds if this has an entry for [key]; fails carrying the map. */
 infix fun <K> Map<K, *>.shouldContainKey(key: K): Expectations = verdict(missingKey(key))

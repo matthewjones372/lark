@@ -30,13 +30,18 @@ import io.github.matthewjones372.lark.junit.shouldContainAll
 import io.github.matthewjones372.lark.junit.shouldContainExactly
 import io.github.matthewjones372.lark.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.lark.junit.shouldContainKey
+import io.github.matthewjones372.lark.junit.shouldContainOnly
+import io.github.matthewjones372.lark.junit.shouldEndWith
 import io.github.matthewjones372.lark.junit.shouldHaveSize
+import io.github.matthewjones372.lark.junit.shouldMatch
 import io.github.matthewjones372.lark.junit.shouldNotBe
+import io.github.matthewjones372.lark.junit.shouldNotBeBlank
 import io.github.matthewjones372.lark.junit.shouldNotBeEmpty
 import io.github.matthewjones372.lark.junit.shouldNotBeNull
 import io.github.matthewjones372.lark.junit.shouldNotBeSameInstanceAs
 import io.github.matthewjones372.lark.junit.shouldNotContain
 import io.github.matthewjones372.lark.junit.shouldNotContainKey
+import io.github.matthewjones372.lark.junit.shouldStartWith
 import io.github.matthewjones372.lark.junit.shouldThrow
 import io.github.matthewjones372.lark.junit.tag
 import io.github.matthewjones372.lark.junit.withClue
@@ -400,7 +405,13 @@ object GappedSuite : Suite<List<Int>>() {
                 (xs shouldContainExactly listOf(1, 2, 2, 3)) and xs.shouldContainExactly(1, 2, 2, 3) and
                 (xs shouldHaveSize 4) and null.shouldBeNull() and (2 shouldBeInRange 1..3) and
                 (mapOf("a" to 1, "b" to 2) shouldContainAll mapOf("b" to 2)) and
-                right.shouldBeRight { n -> n shouldBe 1 } and left.shouldBeLeft { e -> e shouldBe "no" }
+                right.shouldBeRight { n -> n shouldBe 1 } and left.shouldBeLeft { e -> e shouldBe "no" } and
+                ("lark-junit" shouldStartWith "lark") and ("lark-junit" shouldEndWith "junit") and
+                "lark".shouldNotBeBlank() and ("lark-0197" shouldMatch "lark-\\d+") and
+                ("lark-0197" shouldMatch Regex("[a-z]+-\\d+")) and
+                ("built at Suite.kt:3" shouldContain Regex(":\\d+$")) and
+                (xs shouldContainOnly listOf(3, 2, 1)) and xs.shouldContainAll(3, 1) and
+                (mapOf("a" to 1) shouldContainExactly mapOf("a" to 1))
         }
         test("fails in any order") { xs -> xs shouldContainExactlyInAnyOrder listOf(1, 2, 3) }
         test("fails shouldBeEmpty") { xs -> xs.shouldBeEmpty() }
@@ -428,6 +439,13 @@ object GappedSuite : Suite<List<Int>>() {
                 expect(true)
             }
         }
+        test("fails shouldContainOnly") { xs -> xs shouldContainOnly listOf(1, 2) }
+        test("fails shouldContainExactly on a map") { _ -> mapOf("a" to 1) shouldContainExactly mapOf("a" to 2) }
+        test("fails shouldStartWith") { _ -> "lark-junit" shouldStartWith "junit" }
+        test("fails shouldEndWith") { _ -> "lark-junit" shouldEndWith "lark" }
+        test("fails shouldNotBeBlank") { _ -> " ".shouldNotBeBlank() }
+        test("fails shouldMatch") { _ -> "lark-junit" shouldMatch "lark" }
+        test("fails shouldContain a match") { _ -> "lark-junit" shouldContain Regex("\\d") }
         test("fails shouldBeLeft") { _ ->
             right.shouldBeLeft {
                 thenRan.incrementAndGet()
