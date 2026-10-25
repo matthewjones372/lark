@@ -75,7 +75,9 @@ would mean different things under one name, and a block returning `Boolean` woul
 
 ## Open questions
 
-1. What should it be called: `holds { }`, `shouldNotThrow { }` or `asserting { }`? Recommended: `holds`.
-   `shouldNotThrow` reads as if any throw counts, and `asserting` reads as if it asserts something itself.
-2. Should an `AssertionError` thrown from another thread inside the block count? Recommended: no. Only what
-   the block itself throws.
+Taken as recommended (maintainer, 2026-10-25).
+
+1. ~~What should it be called?~~ `holds`. `shouldNotThrow` reads as if any throw counts, and `asserting` reads as
+   if it asserts something itself.
+2. ~~Should an `AssertionError` thrown from another thread inside the block count?~~ No. Only what the block
+   itself throws.
