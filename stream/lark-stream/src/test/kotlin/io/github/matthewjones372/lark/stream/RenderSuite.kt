@@ -1,11 +1,12 @@
 package io.github.matthewjones372.lark.stream
 
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldBeEmpty
-import io.github.matthewjones372.lark.assert.withClue
-import org.junit.jupiter.api.DynamicTest
-import org.junit.jupiter.api.DynamicTest.dynamicTest
-import org.junit.jupiter.api.TestFactory
+import io.github.matthewjones372.lark.Resource
+import io.github.matthewjones372.lark.junit.Expectations
+import io.github.matthewjones372.lark.junit.Suite
+import io.github.matthewjones372.lark.junit.shouldBe
+import io.github.matthewjones372.lark.junit.shouldBeEmpty
+import io.github.matthewjones372.lark.junit.withClue
+import io.github.matthewjones372.lark.resource
 import java.io.File
 
 /**
@@ -13,7 +14,8 @@ import java.io.File
  * golden file of the same name under `src/test/resources/render`. A rendering that differs is written to
  * `build/render-actual`, from where it can be read, and copied over the golden file if it is right.
  */
-class RenderTest {
+object RenderSuite : Suite<Unit>() {
+    override val shared: Resource<Unit> = resource { }
 
     private val pipelines = mapOf(
         "chain" to chain,
@@ -34,24 +36,6 @@ class RenderTest {
         """flowchart TD|    (n\d+|run)\["[^"]*"]|    (n\d+) --> (n\d+|run)""",
     )
 
-    @TestFactory
-    fun `every pipeline renders as its golden file says`(): List<DynamicTest> =
-        pipelines.flatMap { (name, run) ->
-            renderings.map { (suffix, render) ->
-                dynamicTest("$name.$suffix") { golden("$name.$suffix", render(run)) }
-            }
-        }
-
-    @TestFactory
-    fun `every Mermaid rendering is made of lines Mermaid's flowchart grammar reads`(): List<DynamicTest> =
-        pipelines.map { (name, run) ->
-            dynamicTest(name) {
-                val lines = run.render(Layout.Mermaid).lines()
-                lines.first() shouldBe "flowchart TD"
-                withClue("lines outside the grammar") { lines.filterNot { mermaidLine.matches(it) }.shouldBeEmpty() }
-            }
-        }
-
     /** A profile of `chain` with fixed numbers, so its rendering can be golden: step 2 took most of the time. */
     private val chainProfile = Profile(
         mapOf(
@@ -64,22 +48,40 @@ class RenderTest {
         ),
     )
 
-    @TestFactory
-    fun `a profiled rendering has each stage's numbers, and colours it by its share`(): List<DynamicTest> =
-        listOf(
-            dynamicTest("chain.profiled.txt") { golden("chain.profiled.txt", chain.render(profile = chainProfile)) },
-            dynamicTest("chain.profiled.mmd") {
-                golden("chain.profiled.mmd", chain.render(Layout.Mermaid, profile = chainProfile))
-            },
-        )
-
-    private fun golden(file: String, actual: String) {
+    private fun golden(file: String, actual: String): Expectations {
         val expected = javaClass.getResource("/render/$file")?.readText()
         if (expected?.trimEnd() != actual) {
             File("build/render-actual").apply { mkdirs() }.resolve(file).writeText(actual + "\n")
         }
-        withClue("render/$file; the rendering is in build/render-actual/$file") {
+        return withClue("render/$file; the rendering is in build/render-actual/$file") {
             expected?.trimEnd() shouldBe actual
+        }
+    }
+
+    init {
+        pipelines.forEach { (name, run) ->
+            renderings.forEach { (suffix, render) ->
+                test("every pipeline renders as its golden file says [$name.$suffix]") { _ ->
+                    golden("$name.$suffix", render(run))
+                }
+            }
+        }
+
+        pipelines.forEach { (name, run) ->
+            test("every Mermaid rendering is made of lines Mermaid's flowchart grammar reads [$name]") { _ ->
+                val lines = run.render(Layout.Mermaid).lines()
+                (lines.first() shouldBe "flowchart TD") and
+                    withClue("lines outside the grammar") {
+                        lines.filterNot { mermaidLine.matches(it) }.shouldBeEmpty()
+                    }
+            }
+        }
+
+        test("a profiled rendering has each stage's numbers, and colours it by its share [chain.profiled.txt]") { _ ->
+            golden("chain.profiled.txt", chain.render(profile = chainProfile))
+        }
+        test("a profiled rendering has each stage's numbers, and colours it by its share [chain.profiled.mmd]") { _ ->
+            golden("chain.profiled.mmd", chain.render(Layout.Mermaid, profile = chainProfile))
         }
     }
 }

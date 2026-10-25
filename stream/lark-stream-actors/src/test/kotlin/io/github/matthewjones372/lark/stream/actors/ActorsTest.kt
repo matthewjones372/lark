@@ -42,6 +42,11 @@ import kotlin.time.Duration.Companion.milliseconds
 /** A stream with no end: a run of it ends only when it is stopped. */
 private fun endless() = Stream.from(Iterable { generateSequence(1) { it + 1 }.iterator() })
 
+/**
+ * Runs on Actors, on Jupiter rather than lark-junit (spec 0197). "runs without end share the runners" keeps every
+ * virtual-thread carrier busy on purpose, and lark-junit runs a test's body on a virtual thread, so the body could not
+ * get back to close the runs, and their lists filled the heap.
+ */
 @OptIn(StreamSpi::class)
 class ActorsTest {
 
