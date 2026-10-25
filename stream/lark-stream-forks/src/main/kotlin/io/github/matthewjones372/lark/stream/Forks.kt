@@ -162,8 +162,8 @@ private class PullRun<E, R : Any>(
 
 /**
  * One run's pull loop, as far as it has got: what [Forks] pulls to the end in one go, and what a backend that
- * shares its threads between runs pulls a batch at a time. Each batch binds the run's resources and forks to
- * the thread that pulls it, so the batches may each be on a different thread, as long as it is one at a time.
+ * shares its threads between runs pulls a batch at a time. Its pulls carry the run's resources and forks with
+ * them, so the batches may each be on a different thread, as long as it is one at a time.
  */
 @StreamSpi
 class Pulling<E, R : Any> internal constructor(
@@ -206,13 +206,7 @@ class Pulling<E, R : Any> internal constructor(
      * Pulls up to [max] elements into the end: the exit once the run has ended, and null while it goes on. The
      * nodes built as it pulls are offered to the run's [Boundaries] first.
      */
-    fun pull(max: Int): Exit<E, R>? = within { Boundaries.within(boundaries) { pulled(max) } }
-
-    /**
-     * Runs [block] with the run's resources and forks bound to this thread, as a pull of the run's elsewhere than
-     * its loop needs: a node it builds is registered with the run, and let go of with it.
-     */
-    fun <T> within(block: () -> T): T = resources.around { Releases.within(releases) { block() } }
+    fun pull(max: Int): Exit<E, R>? = pulled(max)
 
     /** The exit of a run that stops where it is: `Done` with what the end has so far. */
     @Suppress("UNCHECKED_CAST")

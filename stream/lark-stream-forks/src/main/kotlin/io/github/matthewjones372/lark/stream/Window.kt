@@ -50,35 +50,6 @@ internal class Releases(val on: Executor, val clock: Clock) {
         }
         failures.firstOrNull()?.let { first -> failures.drop(1).forEach(first::addSuppressed); throw first }
     }
-
-    companion object {
-        private val current = ThreadLocal<Releases>()
-
-        /** Binds [releases] for the pulls [block] builds on this thread, and releases them after it. */
-        fun <A> around(releases: Releases, block: () -> A): A {
-            current.set(releases)
-            return try {
-                block()
-            } finally {
-                current.remove()
-                releases.releaseAll()
-            }
-        }
-
-        /** The run's releases, or none: a pull built off a Forks run has nothing to register with. */
-        fun here(): Releases? = current.get()
-
-        /** Runs [block] on a fork of the run with the run's [releases] bound, which the run lets go of itself. */
-        fun <A> within(releases: Releases?, block: () -> A): A {
-            if (releases == null) return block()
-            current.set(releases)
-            return try {
-                block()
-            } finally {
-                current.remove()
-            }
-        }
-    }
 }
 
 /**

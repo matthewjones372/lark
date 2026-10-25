@@ -92,14 +92,13 @@ internal class Input(
     private val up: Pull,
     private val into: Inflow,
     private val batch: Int,
-    private val run: Pulling<*, *>,
     private val ended: () -> Unit = {},
 ) {
     private var done = false
 
     fun behaviour(): Behaviour<Room, Unit, Nothing> =
         behaviour<Room, Unit>(Unit) { ctx, _, _ ->
-            run.within { feed(ctx.self) }
+            feed(ctx.self)
             stay()
         }.onStart { ctx -> ctx.self.tell(Room) }
 
@@ -145,7 +144,6 @@ internal class Outer(
     private val breadth: Int,
     private val into: Inflow,
     private val batch: Int,
-    private val run: Pulling<*, *>,
 ) {
     private val running = AtomicInteger()
     private var done = false
@@ -153,7 +151,7 @@ internal class Outer(
 
     fun behaviour(): Behaviour<Room, Unit, Nothing> =
         behaviour<Room, Unit>(Unit) { ctx, _, _ ->
-            run.within { startInners(ctx) }
+            startInners(ctx)
             stay()
         }.onStart { ctx -> ctx.self.tell(Room) }
 
@@ -170,7 +168,7 @@ internal class Outer(
                     val pull = inner(a)
                     running.incrementAndGet()
                     into.started()
-                    val input = Input(pull, into, batch, run) {
+                    val input = Input(pull, into, batch) {
                         running.decrementAndGet()
                         ctx.self.tell(Room)
                     }
@@ -220,11 +218,10 @@ internal class Folding(
     private val up: Pull,
     private val pile: Heap,
     private val batch: Int,
-    private val run: Pulling<*, *>,
 ) {
     fun behaviour(): Behaviour<Room, Unit, Nothing> =
         behaviour<Room, Unit>(Unit) { ctx, _, _ ->
-            if (run.within(::fold)) ctx.self.tell(Room)
+            if (fold()) ctx.self.tell(Room)
             stay()
         }.onStart { ctx -> ctx.self.tell(Room) }
 

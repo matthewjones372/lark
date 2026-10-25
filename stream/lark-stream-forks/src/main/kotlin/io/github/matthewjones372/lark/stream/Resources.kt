@@ -4,7 +4,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Every [Opened] resource of one run: woken by its `stop()`, closed when its loop ends. A source finds its
- * run's through [here] as it is pulled for the first time, which is on the run's own thread.
+ * run's in the [PullContext] it was built under.
  */
 internal class Resources {
 
@@ -52,23 +52,5 @@ internal class Resources {
             }
         }
         return attempts.fold(own) { first, attempt -> attempt.close()?.let { first ?: it } ?: first }
-    }
-
-    /** Runs [body] with this as the resources of the thread's run. */
-    fun <T> around(body: () -> T): T {
-        val outer = current.get()
-        current.set(this)
-        return try {
-            body()
-        } finally {
-            if (outer == null) current.remove() else current.set(outer)
-        }
-    }
-
-    companion object {
-        private val current = ThreadLocal<Resources>()
-
-        /** The resources of the run this thread is pulling, or none off a run's thread. */
-        fun here(): Resources? = current.get()
     }
 }
