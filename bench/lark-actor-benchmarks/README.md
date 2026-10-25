@@ -2,7 +2,7 @@
 
 What `lark-actor` costs, measured by JMH against the same actors written by hand on Pekko Typed. Each actor
 is written once per runtime doing the same work, in [`Actors.kt`](src/main/kotlin/io/github/matthewjones372/lark/actor/benchmarks/Actors.kt).
-This is the baseline spec [0059](../specs/0059-an-actor-without-an-actor-system.md) asked for.
+This is the baseline spec [0059](../../specs/0059-an-actor-without-an-actor-system.md) asked for.
 
 ```bash
 ./gradlew :lark-actor-benchmarks:jmh                                    # all of it, about 3 minutes
@@ -14,7 +14,7 @@ Results land in `build/jmh-result.json`. Compare numbers only against a baseline
 
 ## A cluster, to be measured
 
-After spec [0092](../specs/0092-cluster-numbers.md): three nodes of one cluster in one JVM on loopback on each side,
+After spec [0092](../../specs/0092-cluster-numbers.md): three nodes of one cluster in one JVM on loopback on each side,
 lark's `lark-cluster` over its own TCP transport and Pekko Cluster 1.2.1 over Artery's TCP transport, both with the
 probes and gossip at their defaults. The messages have the same fields on both sides, each written field by field
 over a `DataOutputStream`: a `MessageCodec` for lark and a `SerializerWithStringManifest` for Pekko, where a reply
@@ -67,7 +67,7 @@ iterations of 1 s, `-prof gc`), is one command, about 15 minutes:
 
 ## A runner that waits for the next message, 2026-10-15
 
-After spec [0143](../specs/0143-a-runner-that-waits-for-the-next-message.md): a runner that runs out of work parks
+After spec [0143](../../specs/0143-a-runner-that-waits-for-the-next-message.md): a runner that runs out of work parks
 and is woken instead of leaving, and a submit leaves work to a runner still spinning. JDK 25, 8 cores, the machine
 otherwise lightly loaded (load average 4 to 12), lark's rows only, before and after on the same run.
 
@@ -91,7 +91,7 @@ What the rows say:
 
 ## A journal across databases, 2026-09-27
 
-After spec [0088](../specs/0088-a-journal-across-databases.md): 10,000 payments spread round-robin over 256
+After spec [0088](../../specs/0088-a-journal-across-databases.md): 10,000 payments spread round-robin over 256
 persistent actors, one event and one append each (`batch = 1`), on a `ShardedJournal` over one or two Postgres 17
 servers. Each server runs in the benchmark's JVM with durable commits (`fsync` and `synchronous_commit` on) behind
 a HikariCP pool of 32. JDK 21 on a 4 vCPU shared cloud container, one fork, 5 warmup and 10 measured iterations.
@@ -111,7 +111,7 @@ The comparison needs each database on its own host.
 
 ## A journal written a batch at a time, 2026-09-27
 
-After spec [0086](../specs/0086-a-journal-written-a-batch-at-a-time.md): one persistent actor on `JdbcJournal`,
+After spec [0086](../../specs/0086-a-journal-written-a-batch-at-a-time.md): one persistent actor on `JdbcJournal`,
 against a Postgres 17 started in the benchmark's JVM with the embedded server's defaults, which are `fsync=off` and
 `synchronous_commit=off`, so a commit is a round trip rather than a flush to disk. It takes
 1,000 payments told at once. It is the one account every payment goes to, which sharding cannot spread. JDK 21 on
@@ -129,7 +129,7 @@ machine is. With 64, the payments waiting while one append is in flight go in th
 
 ## Across nodes, 2026-09-26
 
-After spec [0068](../specs/0068-an-actor-on-another-node.md): two nodes in one JVM on loopback, lark's over its own
+After spec [0068](../../specs/0068-an-actor-on-another-node.md): two nodes in one JVM on loopback, lark's over its own
 TCP transport and Pekko's over Artery's TCP transport, each with the codec its messages need (a hand-written one
 for lark, Pekko's built-in serializer for an `Integer`). JDK 21.0.10 on a 4 vCPU Intel Xeon @ 2.80GHz shared cloud
 container, 2 forks each. The raw results are in
@@ -149,7 +149,7 @@ container, 2 forks each. The raw results are in
 
 ## The cell at rest, tried and dropped, 2026-09-26
 
-Spec [0065](../specs/0065-closing-the-gaps.md)'s last entry: an emptied mailbox moved its tail back onto the cell
+Spec [0065](../../specs/0065-closing-the-gaps.md)'s last entry: an emptied mailbox moved its tail back onto the cell
 with one compare-and-set as each activation ended, so the next tell to an idle actor would link onto the cell it had
 already loaded rather than onto the last message's node, which had gone cold. Both sides were measured one after
 the other on the machine below, 2 forks each:
@@ -167,7 +167,7 @@ the other on the machine below, 2 forks each:
 
 ## The tells alone, 2026-09-26
 
-After spec [0065](../specs/0065-closing-the-gaps.md)'s `spec-0065-tell-row`: `FanOutBenchmark.larkTells` and
+After spec [0065](../../specs/0065-closing-the-gaps.md)'s `spec-0065-tell-row`: `FanOutBenchmark.larkTells` and
 `pekkoTells` time only the loop of 10,000 tells, and wait out the actors' handling untimed before the next
 invocation. Measured on a 4 vCPU Intel Xeon @ 2.80GHz shared cloud container, slower than the machine the rows
 below were taken on, so only the rows in this table compare with each other.
@@ -183,7 +183,7 @@ below were taken on, so only the rows in this table compare with each other.
 
 ## Runners and a leaner cell, 2026-09-26
 
-The same machine and settings, after spec [0064](../specs/0064-a-fan-out-that-keeps-up.md): woken actors share one
+The same machine and settings, after spec [0064](../../specs/0064-a-fan-out-that-keeps-up.md): woken actors share one
 runner per carrier instead of a thread each, a watcher adds runners while others are parked in blocking steps, and
 an actor's hot state lives in its cell. The raw results are in
 [`baseline/2026-09-26-jdk21-runners.json`](baseline/2026-09-26-jdk21-runners.json).
