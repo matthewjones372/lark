@@ -99,7 +99,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-stream-actors` | the backend that runs a stream as `lark-actor` actors | `lark-stream-forks`, `lark-actor` | none | yes |
 | `lark-stream-test` | `TestStreams`, a backend on a `TestClock` | `lark-stream-forks` | none | yes |
 | `lark-stream-parity` | tests only: one suite of pipelines every backend must pass | | | no |
-| `lark-stream-benchmarks` | JMH benchmarks of the backends ([results](../lark-stream-benchmarks/README.md)) | | JMH | no |
+| `lark-stream-benchmarks` | JMH benchmarks of the backends ([results](../bench/lark-stream-benchmarks/README.md)) | | JMH | no |
 
 ### Kafka
 
@@ -107,7 +107,7 @@ against; the library's own transitive dependencies come with it.
 |---|---|---|---|---|
 | `lark-kafka` | a topic as a `Stream` on any backend, producers, transactions ([guide](kafka.md)) | `lark-stream` | `kafka-clients` 4.3.0 | yes |
 | `lark-kafka-pekko` | the same through Pekko's Kafka connector, on Pekko Streams | `lark-kafka`, `lark-stream-pekko` | `pekko-connectors-kafka` 1.1.0 | yes |
-| `lark-kafka-benchmarks` | JMH benchmarks against the Java client ([results](../lark-kafka-benchmarks/README.md)) | | JMH, embedded-kafka | no |
+| `lark-kafka-benchmarks` | JMH benchmarks against the Java client ([results](../bench/lark-kafka-benchmarks/README.md)) | | JMH, embedded-kafka | no |
 
 ### Actors and clusters
 
@@ -123,7 +123,7 @@ against; the library's own transitive dependencies come with it.
 | `lark-cluster` | membership, downing, sharding, singletons, reliable delivery, topics ([guide](cluster.md#a-cluster)) | `lark-actor-remote` | none | yes |
 | `lark-cluster-kubernetes` | seeds from the pods API, and a `Lease` for an even split | `lark-cluster` | `io.fabric8:kubernetes-client-api` 7.9.0 | yes |
 | `lark-cluster-aws` | seeds from Cloud Map or ECS, and a DynamoDB lease | `lark-cluster` | AWS SDK 2.55.6 `servicediscovery`, `ecs`, `dynamodb` | yes |
-| `lark-actor-benchmarks` | JMH benchmarks against Pekko ([results](../lark-actor-benchmarks/README.md)) | | JMH, Pekko | no |
+| `lark-actor-benchmarks` | JMH benchmarks against Pekko ([results](../bench/lark-actor-benchmarks/README.md)) | | JMH, Pekko | no |
 
 ### Observability and testing
 
@@ -168,17 +168,17 @@ not published for that reason.
 Three JMH suites compare Lark with Pekko or the Kafka client written by hand. Their READMEs give
 the method and every number; a few headline results:
 
-- **Streams** ([results](../lark-stream-benchmarks/README.md)): a five-stage
+- **Streams** ([results](../bench/lark-stream-benchmarks/README.md)): a five-stage
   element-at-a-time chain costs about 91 ns per element on Pekko Streams after
   Lark fuses adjacent stages, against about 150 ns unfused, and about 29 ns on
   Forks. On the actors backend, `mapPar` is about 5.7 times faster than on
   Forks and starting a run about twice as fast, while a plain chain is about a
   quarter slower.
-- **Actors** ([results](../lark-actor-benchmarks/README.md)): against Pekko
+- **Actors** ([results](../bench/lark-actor-benchmarks/README.md)): against Pekko
   Typed, a remote ask round trip takes about 199 µs against 547 µs, and a burst
   of remote tells about 2.1 µs per tell against 4.0 µs. Idle actors take about
   56% of Pekko's heap each.
-- **Kafka** ([results](../lark-kafka-benchmarks/README.md)): zio-kafka's
+- **Kafka** ([results](../bench/lark-kafka-benchmarks/README.md)): zio-kafka's
   comparison of 50k records, against the Java client. lark on Forks takes 657 ms
   against 646 ms for the same hand-written loop and 557 ms for one that never
   commits; about 500 ms of each is the consumer's own close.

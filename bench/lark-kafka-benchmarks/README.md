@@ -3,7 +3,7 @@
 lark-kafka against the plain Java client, measured by JMH. The `ComparisonBenchmarks` are zio-kafka's
 [comparison benchmarks](https://github.com/zio/zio-kafka/tree/master/zio-kafka-bench), ported, as used in
 Erik van Oosten's [“Zio-kafka, faster than java-kafka”](https://day-to-day-stuff.blogspot.com/2024/12/zio-kafka-faster-than-java-kafka.html).
-Spec [0154](../specs/0154-kafka-faster-than-the-java-client.md) reports against this baseline.
+Spec [0154](../../specs/0154-kafka-faster-than-the-java-client.md) reports against this baseline.
 
 ```bash
 ./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"   # ~20 minutes
@@ -47,7 +47,7 @@ JDK 25.0.4, 4 vCPU / 16 GB (a shared cloud container), kafka-clients and embedde
 | `larkMapPar`: `mapParRecord(64)` | 50 ± 4 | 60 ± 20 | 136 ± 5 |
 
 `SkewBenchmarks` is that parallel pair at 1,000 µs, with partition 0's records handled `skew` times slower, as when
-one tenant's writes are slow (spec [0156](../specs/0156-ordered-per-partition.md)). With the default `fetch`, each
+one tenant's writes are slow (spec [0156](../../specs/0156-ordered-per-partition.md)). With the default `fetch`, each
 partition comes back whole, so a slow partition is one run of records; `interleaved` fetches 16 KB a partition,
 so each poll carries a little of every partition, as a topic with steady traffic does. Measured before
 `mapParKeyed`, `-f 2 -wi 3 -i 5` ([`2026-10-21-jdk25-skew.json`](baseline/2026-10-21-jdk25-skew.json)), in ms/op:
