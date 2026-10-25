@@ -75,7 +75,7 @@ class SequenceTest {
             pulled.get() shouldBe BUFFER + 1
         }
         repeat(BUFFER * 10) {
-            elements.next()
+            val _ = elements.next()
             read.incrementAndGet()
         }
         // Read before the close, which lets upstream run free until the stop reaches it.

@@ -99,7 +99,7 @@ class LateRegionTest {
             now.countDown()
             // The winner has asked the web node to release its shards, before there was a region there to hear it.
             val region = Sharding.path("ledger")
-            generateSequence { web.letters.poll(1, TimeUnit.MINUTES) }.first { it.recipient.path == region }
+            val _ = generateSequence { web.letters.poll(1, TimeUnit.MINUTES) }.first { it.recipient.path == region }
 
             val answered = CompletableFuture.supplyAsync { ledger.who("l-1") }
             later.countDown()

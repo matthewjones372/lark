@@ -1,14 +1,6 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 // lark-stream on Pekko Streams: the backend that compiles a description to Pekko's stages, and the
 // operators that take a Pekko Source, Flow or Sink. NoOtherDependenciesTest asserts what it brings, on
 // the classpath a consumer actually gets.
-
-// The suites that own an actor system are lark-junit suites (spec 0191): a failed `expect` draws its values.
-plugins {
-    kotlin("plugin.power-assert")
-}
 
 // Pekko publishes one artifact per Scala binary version, so the two spellings
 // are a single coordinate and live beside each other rather than in
@@ -40,18 +32,6 @@ dependencies {
     // The README's example starts one description on every backend, and is compiled against them.
     testImplementation(project(":lark-stream-test"))
     testImplementation(project(":lark-assert"))
-    testImplementation(project(":lark-junit"))
-}
-
-@OptIn(ExperimentalKotlinGradlePluginApi::class)
-powerAssert {
-    functions.add("io.github.matthewjones372.lark.junit.expect")
-    includedSourceSets.add("test")
-}
-
-// A suite's dropped Expectations is reported only under this flag; the main sources are not lark-junit's.
-tasks.named<KotlinCompile>("compileTestKotlin") {
-    compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
 }
 
 // Read at configuration time: a provider that reached for the project at

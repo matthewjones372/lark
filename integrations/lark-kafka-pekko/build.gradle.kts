@@ -1,13 +1,5 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 // lark-kafka through Pekko's own Kafka connector: lark-kafka, lark-stream-pekko and the connector, and nothing
 // else. NoOtherDependenciesTest asserts that on the classpath a consumer actually gets.
-
-// The tests are lark-junit suites (spec 0193): a failed `expect` draws its values.
-plugins {
-    kotlin("plugin.power-assert")
-}
 
 val pekkoVersion = "1.2.1"
 val scalaBinary = "2.13"
@@ -27,18 +19,6 @@ dependencies {
     // The compiler, so that which overload a call resolves to, and what does not compile, are tests.
     testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
     testImplementation(project(":lark-assert"))
-    testImplementation(project(":lark-junit"))
-}
-
-@OptIn(ExperimentalKotlinGradlePluginApi::class)
-powerAssert {
-    functions.add("io.github.matthewjones372.lark.junit.expect")
-    includedSourceSets.add("test")
-}
-
-// A suite's dropped Expectations is reported only under this flag; the main sources are not lark-junit's.
-tasks.named<KotlinCompile>("compileTestKotlin") {
-    compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
 }
 
 tasks.test {

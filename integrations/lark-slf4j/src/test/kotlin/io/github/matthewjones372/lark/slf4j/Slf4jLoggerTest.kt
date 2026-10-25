@@ -56,7 +56,7 @@ class Slf4jLoggerTest {
         val its = ListAppender<ILoggingEvent>().also { it.start() }
         named.addAppender(its)
         try {
-            block()
+            val _ = block()
         } finally {
             named.detachAppender(its)
         }

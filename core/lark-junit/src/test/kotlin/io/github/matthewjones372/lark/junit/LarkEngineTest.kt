@@ -191,6 +191,7 @@ class LarkEngineTest {
             "DefaultTimeoutSuite",
             "ExpectingSuite",
             "FailingSiblingSuite",
+            "ForAllSuite",
             "GappedSuite",
             "GatedSuite",
             "IgnoringSuite",
