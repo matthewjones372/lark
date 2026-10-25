@@ -6,7 +6,7 @@ scope, `flock`, that the core uses for forks, so there is no actor system to
 start and stop, and a step may block.
 
 This page covers actors in one process: failure and supervision, timers,
-finding and routing, persistence and testing. A second node, a cluster and
+finding and routing, persistence, batched writes and testing. A second node, a cluster and
 entities spread across it are covered in the [cluster guide](cluster.md).
 
 Every complete example below is compiled against the library by
@@ -25,7 +25,8 @@ dependencies {
 4. [Finding and routing](#finding-and-routing)
 5. [Remembering](#remembering)
 6. [Changing an event](#changing-an-event)
-7. [Testing](#testing)
+7. [A run at a time](#a-run-at-a-time)
+8. [Testing](#testing)
 
 ## An actor
 
@@ -533,6 +534,61 @@ fun order(id: String) = persistent<Long, PartPaid, Long>(
 
 A read model following the journal sees the upgraded events through the same
 codec, so it never meets an old shape.
+
+## A run at a time
+
+An actor that writes somewhere other than the journal can still write a batch
+at once. `batching(initial, batch = n)` hands its step the messages already
+waiting, up to `n`, as one `Run`: a list, in the order they came. The step
+decides them all against its state, writes once, replies to each, and answers
+one next state for the run. A lone message is never held back for a second; it
+is a run of one, as are a timer's message and a stashed one put back.
+
+Each message carries what its sender had bound, its trace and its
+annotations. The step runs inside none of it, since the run has many senders:
+`within(i) { … }` runs a block inside message `i`'s own, which is where a row
+that records its request's trace is written, and where its reply is sent. A
+run answered `unhandled()` sends all its messages to dead letters, and a
+failure fails the whole run.
+
+<!-- actors-batching -->
+```kotlin
+import io.github.matthewjones372.lark.actor.Reply
+import io.github.matthewjones372.lark.actor.ask
+import io.github.matthewjones372.lark.actor.batching
+import io.github.matthewjones372.lark.actor.become
+import io.github.matthewjones372.lark.actor.spawn
+import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.lark.logAnnotated
+import kotlin.time.Duration.Companion.seconds
+
+data class Admit(val name: String, val reply: Reply<Int>)
+
+/** Stands in for a database: one transaction per run, one row per message. */
+class Ledger {
+    val rows = mutableListOf<String>()
+
+    fun transaction(write: () -> Unit) = write()
+}
+
+fun kennel(ledger: Ledger) = batching<Admit, Int>(0, batch = 64) { _, admitted, admits ->
+    ledger.transaction {
+        admits.indices.forEach { i -> admits.within(i) { ledger.rows += admits[i].name } }
+    }
+    // Only once the write is done does anyone hear of it.
+    admits.indices.forEach { i -> admits.within(i) { admits[i].reply(admitted + i + 1) } }
+    become(admitted + admits.size)
+}
+
+fun main() {
+    val ledger = Ledger()
+    val number = flock<Nothing, Any> {
+        val kennel = spawn("kennel", kennel(ledger))
+        logAnnotated("request_id" to "r-1") { kennel.ask(1.seconds) { Admit("rex", it) } }
+    }
+    println(number) // Right(value=Right(value=1))
+}
+```
 
 ## Testing
 

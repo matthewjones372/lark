@@ -948,16 +948,18 @@ private class Cell<M : Any, S, E>(
 
     /** [first] and the plain messages waiting behind it, at most [most], as one run through [steps]. */
     @Suppress("UNCHECKED_CAST")
-    private fun ran(steps: Fail<E>.(Ctx<M>, S, List<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
-        val run = ArrayList<Any>(most)
-        run += bare(first)
-        while (run.size < most && isPlain(peek())) run += bare(checkNotNull(poll()))
-        releaseRoom(run.size)
+    private fun ran(steps: Fail<E>.(Ctx<M>, S, Run<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
+        val items = ArrayList<Any>(most)
+        items += first
+        while (items.size < most && isPlain(peek())) items += checkNotNull(poll())
+        releaseRoom(items.size)
+        val run = items.map(::bare)
+        // What each message carried, listed only when one carried something, so a run in no trace allocates none.
+        val carried = if (items.any { it is Carried }) items.map { (it as? Carried)?.carried.orEmpty() } else null
         var batched: Batched<S>? = null
-        // One step for the run, so one context: the first message's (spec 0122).
-        val carried = (first as? Carried)?.carried.orEmpty()
-        val next = Carriers.within(carried) {
-            supervised { steps(this, this@Cell, state, run as List<M>).also { batched = it }.next }
+        // One step for the run, inside no message's context: each is the step's to enter with `within` (spec 0196).
+        val next = supervised {
+            steps(this, this@Cell, state, Carrying(run as List<M>, carried)).also { batched = it }.next
         }
         batched?.let { done ->
             done.unhandled.forEach { dead(it, DeadLetter.Why.Unhandled) }
