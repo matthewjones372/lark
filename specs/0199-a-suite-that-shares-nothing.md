@@ -72,7 +72,9 @@ grep -rn 'Suite<Unit>' --include=*.kt .    # nothing
 
 ## Open questions
 
-1. Should `Suite`'s `test` also take a body with an argument, so a suite can move between the two forms
-   without editing its tests? Recommended: no. Two overloads of `test` make `{ ... }` ambiguous.
-2. What should the shared base be called? Recommended: `AnySuite`, public with an internal constructor so
-   only `lark-junit` extends it.
+Taken as recommended (maintainer, 2026-10-25: build it).
+
+1. ~~Should `Suite`'s `test` also take a body with an argument?~~ No: two overloads of `test` make `{ ... }`
+   ambiguous.
+2. ~~What should the shared base be called?~~ `AnySuite`, public with an internal constructor so only
+   `lark-junit` extends it.
