@@ -1,11 +1,9 @@
 package io.github.matthewjones372.surefold.stream
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
-import io.github.matthewjones372.surefold.junit.shouldNotBeNull
-import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.test.eventually
 import java.util.concurrent.CompletableFuture
@@ -98,16 +96,21 @@ object InTurnSuite : Suite() {
 
         test("an interrupt reaches a reader parked on every ring") {
             val reading = InTurn(Array(2) { Ring(2) })
-            val threw = CompletableFuture<Expectations>()
+            // A bare thread, so it can be interrupted; it hands back what it threw, and the test checks it.
+            val threw = CompletableFuture<Throwable>()
             val reader = Thread.ofVirtual().start {
-                threw.complete(shouldThrow<InterruptedException> { reading.next() })
+                try {
+                    val _ = reading.next()
+                } catch (interrupted: InterruptedException) {
+                    threw.complete(interrupted)
+                }
             }
             waitUntilParked(reader)
 
             reader.interrupt()
 
             reader.join(TimeUnit.SECONDS.toMillis(GENEROUS_SECONDS))
-            (reader.isAlive shouldBe false) and threw.getNow(null).shouldNotBeNull { it }
+            (reader.isAlive shouldBe false) and threw.getNow(null).shouldBeInstanceOf<InterruptedException>()
         }
     }
 }

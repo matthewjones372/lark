@@ -30,7 +30,7 @@ object SequenceSuite : SharedSuite<ActorSystem>() {
     private val backends: List<Backend> = listOf(OnPekko, OnForks, OnActors)
 
     /** Registers [name] once for each backend, named for it, with that backend made fresh for the test. */
-    private fun each(name: String, check: (StreamBackend) -> Expectations) =
+    private fun each(name: String, check: (StreamBackend) -> Unit) =
         backends.forEach { backend -> test("$name [${backend.name}]") { system -> check(backend.on(system)) } }
 
     private val naturals: Iterable<Int> = generateSequence(1) { it + 1 }.asIterable()

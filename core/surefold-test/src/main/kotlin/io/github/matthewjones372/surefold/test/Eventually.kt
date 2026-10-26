@@ -1,25 +1,58 @@
 package io.github.matthewjones372.surefold.test
 
 import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.SurefoldLocal
 import io.github.matthewjones372.surefold.retryOrElse
+import io.github.matthewjones372.surefold.surefoldLocal
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Runs [block] again every [every] until it returns a value that holds, and once [within] has passed on the inherited
  * clock gives up. A try that throws, or that returns a [Verdict] that did not hold, is not yet. Giving up on a throw
- * throws [GaveUp] with it; giving up on a [Verdict] answers its [Verdict.gaveUp]. Blocking, so it works inside `use`
- * and `testApp`, where `suspend` cannot.
+ * throws [GaveUp] with it; giving up on a [Verdict], returned or thrown, answers its [Verdict.gaveUp]. Each try runs
+ * through the bound [tries]. Blocking, so it works inside `use` and `testApp`, where `suspend` cannot.
  */
+@OptIn(TrySeam::class)
 fun <A> eventually(within: Duration, every: Duration = 20.milliseconds, block: () -> A): A =
     Schedule.spaced<Throwable>(every)
         .and(Schedule.upTo(within)) { retried, elapsed -> Waited(retried + 1, elapsed) }
-        .retryOrElse({ block().also { if (it is Verdict && !it.held) throw NotYet(it) } }) { last, waited ->
+        .retryOrElse({
+            tries.get().attempt(block).also {
+                if (it is Verdict &&
+                    !it.held
+                ) throw NotYet(it)
+            }
+        }) { last, w ->
             when (last) {
-                is NotYet -> last.verdict.gaveUpAs(waited)
-                else -> throw GaveUp(waited.tries, waited.elapsed, last)
+                is NotYet -> last.verdict.gaveUpAs(w)
+                is Verdict -> last.gaveUpAs(w)
+                else -> throw GaveUp(w.tries, w.elapsed, last)
             }
         }
+
+/** How [eventually] runs each of its tries; a test engine binds one to keep a try that did not hold out of its test. */
+@TrySeam
+interface Tries {
+
+    /** Runs one try of [block]; throwing, or answering a [Verdict] that did not hold, makes it not yet. */
+    fun <A> attempt(block: () -> A): A
+}
+
+/** The [Tries] [eventually] runs its tries through; unbound, each try is just [block]. */
+@TrySeam
+val tries: SurefoldLocal<Tries> = surefoldLocal { Plainly }
+
+/** A seam for surefold's own modules that keep a record of each try, such as a test engine. */
+@RequiresOptIn("A seam for surefold's own modules that keep a record of each try.")
+@Retention(AnnotationRetention.BINARY)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY)
+annotation class TrySeam
+
+@OptIn(TrySeam::class)
+private object Plainly : Tries {
+    override fun <A> attempt(block: () -> A): A = block()
+}
 
 /**
  * A result that can say it did not hold, such as a test's checks: [eventually] tries again until it holds, and when

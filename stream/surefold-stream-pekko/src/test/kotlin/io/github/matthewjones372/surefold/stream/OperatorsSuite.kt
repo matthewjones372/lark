@@ -302,10 +302,8 @@ object OperatorsSuite : SharedSuite<PekkoSystem>() {
             probe.ensureSubscription()
             probe.expectNoMessage(Duration.ofMillis(200))
 
-            val collapsed = probe.requestNext() shouldBe setOf(1, 2, 3, 4)
+            probe.requestNext() shouldBe setOf(1, 2, 3, 4)
             probe.expectComplete()
-
-            collapsed
         }
 
         // The aggregate runs only where a burst forms, so the withheld demand is what reaches it.

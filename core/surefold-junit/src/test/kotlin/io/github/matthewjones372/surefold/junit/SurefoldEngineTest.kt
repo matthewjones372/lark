@@ -201,6 +201,7 @@ class SurefoldEngineTest {
             "OrderSuite",
             "OrderedSuite",
             "PartlyTaggedSuite",
+            "RecordedSuite",
             "SequentialSuite",
             "StorySuite",
             "Surefold",
@@ -321,7 +322,7 @@ class SurefoldEngineTest {
             "fails one of two: 1 of 2 expectations failed",
             "expect(two == 3)",
         )
-        failed.getValue("fails a negated pass").message.orEmpty() shouldContain "!expect(two == 2)"
+        failed.getValue("fails a negated pass").message.orEmpty() shouldContain "not { expect(two == 2) }"
     }
 
     @Test

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
-/** A test that checks nothing does not compile, under the compiler options this module builds with. */
+/** Checks compile as statements, one after another, under the compiler options this module builds with. */
 class ExpectationsCompileTest {
 
     private fun suiteOf(body: String, vararg imports: String) = """
@@ -29,45 +29,20 @@ class ExpectationsCompileTest {
     """.trimIndent()
 
     @Test
-    fun `a body that returns its expectations compiles`(@TempDir workspace: File) {
-        val (exit, reported) = EmbeddedKotlin(workspace).compile(suiteOf("expect(one == 1) and expect(one > 0)"))
+    fun `checks written one after another compile, with nothing said`(@TempDir workspace: File) {
+        val source = suiteOf("expect(one == 1)\n one shouldBe 1", "io.github.matthewjones372.surefold.junit.shouldBe")
+        val (exit, reported) = EmbeddedKotlin(workspace).compile(source)
 
         withClue(reported.joinToString("\n")) { exit shouldBe ExitCode.OK }
         reported.shouldBeEmpty()
     }
 
     @Test
-    fun `a body that returns Unit does not compile`(@TempDir workspace: File) {
-        val (exit, reported) = EmbeddedKotlin(workspace).compile(suiteOf("println(one)"))
+    fun `a body that returns its expectations compiles`(@TempDir workspace: File) {
+        val (exit, reported) = EmbeddedKotlin(workspace).compile(suiteOf("expect(one == 1) and expect(one > 0)"))
 
-        exit shouldBe ExitCode.COMPILATION_ERROR
-        reported.joinToString("\n") shouldContain "Expectations"
-    }
-
-    @Test
-    fun `a dropped expect does not compile`(@TempDir workspace: File) {
-        val (exit, reported) = EmbeddedKotlin(workspace).compile(suiteOf("expect(one == 2); expect(true)"))
-
-        exit shouldBe ExitCode.COMPILATION_ERROR
-        reported shouldContain "Unused return value of 'expect'."
-    }
-
-    @Test
-    fun `a dropped and does not compile`(@TempDir workspace: File) {
-        val source = suiteOf("expect(one == 2) and expect(true); expect(true)")
-        val (exit, reported) = EmbeddedKotlin(workspace).compile(source)
-
-        exit shouldBe ExitCode.COMPILATION_ERROR
-        reported shouldContain "Unused return value of 'and'."
-    }
-
-    @Test
-    fun `a dropped shouldBe does not compile`(@TempDir workspace: File) {
-        val source = suiteOf("one shouldBe 2; expect(true)", "io.github.matthewjones372.surefold.junit.shouldBe")
-        val (exit, reported) = EmbeddedKotlin(workspace).compile(source)
-
-        exit shouldBe ExitCode.COMPILATION_ERROR
-        reported shouldContain "Unused return value of 'shouldBe'."
+        withClue(reported.joinToString("\n")) { exit shouldBe ExitCode.OK }
+        reported.shouldBeEmpty()
     }
 
     @Test

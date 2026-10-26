@@ -355,13 +355,15 @@ it is deleted with everything in it once the block returns or throws.
 
 ## Expectations
 
-A suite's test returns what its checks found as a value, `Expectations`, so a
-failed check does not hide the ones after it, and a test that checks nothing
-does not compile: a body that returns `Unit` is not `Expectations`.
-`expect(condition)` is the one check every other is built from. `a and b`
-keeps both sides' failures, `a or b` passes if either side does, and `!a`
-passes if `a` failed. One failure is reported alone, and several as one
-`MultipleFailuresError`.
+Every check a suite's test makes is recorded as it is made, on a fork or an
+actor too, and the record is the test's result. A failed check does not stop
+the test or hide the ones after it, and a test that records no check fails.
+Checks are written one after another, as statements. `expect(condition)` is the
+one check every other is built from. `anyOf({ … }, { … })` holds if any of its
+blocks does, and `not { … }` holds if its block fails; the checks inside count
+only through them. A check made on a thread surefold does not carry the test's
+context to, such as a bare `Thread`, throws there. One failure is reported
+alone, and several as one `MultipleFailuresError`.
 
 Built with JetBrains' power-assert plugin, a failed `expect` draws each value
 under the expression, then the test's file and line:
@@ -411,6 +413,7 @@ import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.expect
+import io.github.matthewjones372.surefold.junit.not
 import io.github.matthewjones372.surefold.junit.shouldBeLeft
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContain
@@ -441,10 +444,12 @@ object OrderSuite : SharedSuite<Database>(concurrent = false) {
     init {
         test("an order is saved once") { db ->
             repeat(2) { db.save("order-1") }
-            expect(db.count() == 1) and (db.find("order-1") shouldBeRight "order-1")
+            expect(db.count() == 1)
+            db.find("order-1") shouldBeRight "order-1"
         }
         test("an order never saved is not found") { db ->
-            (db.find("order-9") shouldBeLeft NotFound("order-9")) and !expect(db.count() == 0)
+            db.find("order-9") shouldBeLeft NotFound("order-9")
+            not { expect(db.count() == 0) }
         }
         test("an order without an id is refused") { db ->
             shouldThrow<IllegalArgumentException>({ db.save("") }) { refusal -> refusal.message shouldContain "an id" }

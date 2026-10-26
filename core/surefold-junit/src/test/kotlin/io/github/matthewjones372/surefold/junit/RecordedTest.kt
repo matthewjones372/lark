@@ -1,0 +1,50 @@
+package io.github.matthewjones372.surefold.junit
+
+import io.github.matthewjones372.surefold.assert.shouldBe
+import io.github.matthewjones372.surefold.junit.samples.RecordedSuite
+import org.junit.jupiter.api.Test
+import org.junit.platform.engine.TestExecutionResult
+import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
+import org.junit.platform.testkit.engine.EngineTestKit
+
+/** A test's result is every check it made, recorded as it was made. */
+class RecordedTest {
+
+    private val events by lazy {
+        EngineTestKit.engine("surefold").selectors(selectClass(RecordedSuite::class.java)).execute().testEvents()
+    }
+
+    private fun headingOf(test: String): String = events.failed().list()
+        .single { it.testDescriptor.displayName == test }
+        .getRequiredPayload(TestExecutionResult::class.java).throwable.get()
+        .message.orEmpty().lines().first()
+
+    @Test
+    fun `each check written as a statement counts, and each failure is reported`() {
+        headingOf("records each check written as a statement") shouldBe
+            "records each check written as a statement: 2 of 3 expectations failed (2 failures)"
+    }
+
+    @Test
+    fun `a test that checks nothing fails, saying so`() {
+        headingOf("fails a test that checks nothing") shouldBe "fails a test that checks nothing: no checks were made"
+    }
+
+    @Test
+    fun `a story step left out of any value still counts`() {
+        headingOf("counts a story step left out of any value") shouldBe
+            "counts a story step left out of any value: 1 of 2 expectations failed"
+    }
+
+    @Test
+    fun `a check made on a fork counts as the test's`() {
+        headingOf("records a check made on a fork") shouldBe
+            "records a check made on a fork: 1 of 1 expectations failed"
+    }
+
+    @Test
+    fun `a check made on a thread surefold does not carry throws there, and is not lost silently`() {
+        events.succeeded().list().map { it.testDescriptor.displayName } shouldBe
+            listOf("throws a check made on a thread surefold does not carry, there")
+    }
+}

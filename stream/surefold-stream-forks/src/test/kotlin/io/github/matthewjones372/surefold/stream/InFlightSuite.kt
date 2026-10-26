@@ -115,9 +115,8 @@ object InFlightSuite : Suite() {
 
             puller.interrupt()
 
-            val reached = outcome.get(GENEROUS_SECONDS, TimeUnit.SECONDS).shouldBeInstanceOf<InterruptedException>()
+            outcome.get(GENEROUS_SECONDS, TimeUnit.SECONDS).shouldBeInstanceOf<InterruptedException>()
             flight.cancel()
-            reached
         }
 
         test("cancel interrupts a running body and returns only once it has stopped") {

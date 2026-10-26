@@ -107,13 +107,11 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
 
     init {
         test("a defect reaches the system log though nobody reads the stage") { pekko ->
-            val (at, found) = siteOf(ASYNC_SITE)
+            val (at, _) = siteOf(ASYNC_SITE)
 
             LoggingTestKit.error("mapAsync died on Row(id=2), built at $at")
                 .withCause(NullPointerException::class.java)
                 .expect(pekko.typed) { counted().run(pekko.system) }
-
-            found
         }
 
         test("a null completion dies naming the operator, the element and the build site") { pekko ->

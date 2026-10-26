@@ -1,5 +1,3 @@
-@file:MustUseReturnValues
-
 package io.github.matthewjones372.surefold.junit
 
 import io.github.matthewjones372.surefold.assert.FailureSeam
@@ -12,20 +10,20 @@ import kotlin.time.Duration
 import io.github.matthewjones372.surefold.assert.withClue as clued
 
 /**
- * What a test's checks found, as a value: every failure is kept, and none is thrown until the test has returned.
- * Built with [expect] and the matchers beside it; the return-value checker rejects a call whose result is dropped.
+ * What a test's checks found: every failure is kept, and none is thrown until the test has returned. Each check made
+ * with [expect] and the matchers beside it is recorded as the test runs, and the record is the test's result.
  */
 class Expectations internal constructor(
     internal val failures: List<AssertionFailedError>,
-    private val checked: Int,
+    internal val checked: Int,
 ) : Verdict {
 
     /** Whether every check held, for [eventually] to stop trying. */
     override val held: Boolean get() = failures.isEmpty()
 
-    /** The same failures, each saying first that [eventually] gave up after [tries] tries in [elapsed]. */
+    /** The same failures, recorded, each saying first that [eventually] gave up after [tries] tries in [elapsed]. */
     override fun gaveUp(tries: Long, elapsed: Duration): Expectations =
-        Expectations(failures.map { it.headed("gave up after $tries tries in $elapsed") }, checked)
+        recordedIfInTest(Expectations(failures.map { it.headed("gave up after $tries tries in $elapsed") }, checked))
 
     /** The one failure, or all of them as one error; a story marks a step failed with it. */
     internal val failure: Throwable? by lazy {
@@ -36,19 +34,15 @@ class Expectations internal constructor(
         }
     }
 
-    /** Both sides' failures, so neither hides the other's. */
+    /** Both sides' failures, so neither hides the other's. Each side is already recorded; this is not again. */
     infix fun and(other: Expectations): Expectations = Expectations(failures + other.failures, checked + other.checked)
 
-    /** Passes if either side does, and otherwise fails with both sides' failures. */
-    infix fun or(other: Expectations): Expectations =
-        if (failures.isEmpty() || other.failures.isEmpty()) passed(checked + other.checked) else this and other
-
-    /** Passes if this failed, and fails at the line that negated it if this passed. */
-    operator fun not(): Expectations =
-        if (failures.isEmpty()) failedHere("expected: a failure\nbut was:  a pass") else passed(1)
-
-    /** Throws nothing if every expectation held, the one failure alone, or all of them as one error. */
+    /**
+     * Throws nothing if every expectation held, the one failure alone, or all of them as one error. A test that
+     * checked nothing fails too.
+     */
     internal fun verify(test: String) {
+        if (checked == 0) throw AssertionFailedError("$test: no checks were made")
         val heading = "$test: ${failures.size} of $checked expectations failed"
         when (failures.size) {
             0 -> Unit
@@ -60,11 +54,11 @@ class Expectations internal constructor(
 
 /** Holds if [condition] is true; otherwise fails, naming this line of the test and quoting its source. */
 fun expect(condition: Boolean): Expectations =
-    if (condition) passed(1) else failedHere("expected: true\nbut was:  false")
+    if (condition) held() else failedHere("expected: true\nbut was:  false")
 
 /** Holds if [condition] is true; otherwise fails with [message], naming this line. The power-assert plugin's target. */
 fun expect(condition: Boolean, message: () -> String): Expectations =
-    if (condition) passed(1) else failedHere(message().trim(), quoting = false)
+    if (condition) held() else failedHere(message().trim(), quoting = false)
 
 /**
  * One check of [block], for a library that checks by throwing: holds if [block] returns, and fails if it throws an
@@ -87,9 +81,25 @@ fun withClue(clue: () -> Any?, block: () -> Expectations): Expectations = clued(
 inline fun <T> Iterable<T>.forAll(check: (T) -> Expectations): Expectations =
     fold(nothingChecked()) { all, element -> all and check(element) }
 
-/** A check that passed, for the matchers that take a lambda. */
+/**
+ * Holds if any of [alternatives] does, each run as a check of its own whose checks count only here; otherwise fails
+ * with every alternative's failures, each saying first that none held.
+ */
+fun anyOf(vararg alternatives: () -> Unit): Expectations {
+    val tried = alternatives.map { recording(it).second }
+    return when {
+        tried.any { it.held } -> held()
+        else -> recorded(Expectations(tried.flatMap { it.failures }.map { it.headed("none of these held") }, 1))
+    }
+}
+
+/** Holds if [check] fails, its checks counting only here; fails at this line if [check] holds. */
+fun not(check: () -> Unit): Expectations =
+    if (recording(check).second.held) failedHere("expected: a failure\nbut was:  a pass") else held()
+
+/** A check that passed, recorded: for [expect] and the matchers that take a lambda. */
 @PublishedApi
-internal fun held(): Expectations = passed(1)
+internal fun held(): Expectations = recorded(passed(1))
 
 /** No checks at all, for [forAll] to start from. */
 @PublishedApi
@@ -117,7 +127,7 @@ private val own = setOf(
 
 @OptIn(FailureSeam::class)
 internal fun failedHere(message: String, quoting: Boolean = true): Expectations =
-    Expectations(listOf(failureAt(message, skipping = { it.className in own }, quoting)), 1)
+    recorded(Expectations(listOf(failureAt(message, skipping = { it.className in own }, quoting)), 1))
 
 /** [thrown]'s message, and its expected and actual where it has them, at the test's line; [thrown] is the cause. */
 @OptIn(FailureSeam::class)
@@ -129,7 +139,7 @@ private fun thrownHere(thrown: AssertionError): Expectations {
             AssertionFailedError(located, thrown)
         }
     }
-    return Expectations(listOf(failure), 1)
+    return recorded(Expectations(listOf(failure), 1))
 }
 
 @OptIn(FailureSeam::class)
@@ -138,11 +148,6 @@ internal fun mismatchedHere(
     actual: Any?,
     expectedText: String? = null,
     cause: Throwable? = null,
-): Expectations = Expectations(
-    listOf(
-        mismatchAt(expected, actual, skipping = {
-            it.className in own
-        }, expectedText, cause),
-    ),
-    1,
+): Expectations = recorded(
+    Expectations(listOf(mismatchAt(expected, actual, skipping = { it.className in own }, expectedText, cause)), 1),
 )

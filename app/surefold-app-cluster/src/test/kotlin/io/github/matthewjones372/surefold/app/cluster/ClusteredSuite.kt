@@ -13,7 +13,6 @@ import io.github.matthewjones372.surefold.cluster.Downing
 import io.github.matthewjones372.surefold.cluster.Gossiping
 import io.github.matthewjones372.surefold.cluster.Joining
 import io.github.matthewjones372.surefold.cluster.Status
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -61,13 +60,13 @@ object ClusteredSuite : Suite() {
             val allUp = CountDownLatch(3)
             val done = CountDownLatch(1)
             val names = listOf("a", "b", "c")
-            // Each node checks its readiness on a thread of its own, so the check comes back through a future.
-            val ready = names.map { CompletableFuture<Expectations>() }
+            // Each node reads its readiness on a thread of its own, so the reading comes back through a future.
+            val ready = names.map { CompletableFuture<Boolean>() }
             val nodes = names.zip(ports).mapIndexed { i, (name, port) ->
                 val module = configOf(hocon(name, port, ports)) + actors() + cluster("surefold.cluster")
                 Thread.ofPlatform().start {
                     testApp(module) { cluster: Cluster ->
-                        ready[i].complete(cluster.ready() shouldBe true)
+                        ready[i].complete(cluster.ready())
                         while (cluster.view.members.count { it.status == Status.Up } < 3) Thread.sleep(50)
                         allUp.countDown()
                         done.await(1, TimeUnit.MINUTES)
@@ -77,8 +76,8 @@ object ClusteredSuite : Suite() {
             val up = allUp.await(1, TimeUnit.MINUTES) shouldBe true
             done.countDown()
             nodes.forEach(Thread::join)
-            // A node that never reached its check never counted down, which fails the check above.
-            up and ready.mapNotNull { it.getNow(null) }.forAll { it }
+            // A node that never reached its reading never counted down, which fails the check above.
+            up and ready.mapNotNull { it.getNow(null) }.forAll { it shouldBe true }
         }
 
         test("a backend not on the classpath refuses the start, naming the module to add") {
@@ -105,8 +104,8 @@ object ClusteredSuite : Suite() {
             var joined: Cluster? = null
             var closed = false
             var statusAtClose: Status? = null
-            // The joining's release checks the cluster where the joining is closed; the check comes back through here.
-            val joinedAtClose = AtomicReference<Expectations>()
+            // The joining's release reads the cluster where the joining is closed; the reading comes back through here.
+            val joinedAtClose = AtomicReference<Cluster?>()
             val stays = CountDownLatch(1)
             val other = Thread.ofPlatform().start {
                 testApp(actors() + cluster(settings("stays", ports[0], seeds) {})) { _: Cluster ->
@@ -115,7 +114,7 @@ object ClusteredSuite : Suite() {
             }
             val leaving = settings("leaves", ports[1], seeds) {
                 val cluster = joined
-                joinedAtClose.set(cluster.shouldNotBeNull())
+                joinedAtClose.set(cluster)
                 if (cluster != null) {
                     statusAtClose = cluster.view.members.firstOrNull { it.node == cluster.self }?.status
                     closed = true
@@ -127,7 +126,7 @@ object ClusteredSuite : Suite() {
             }
             stays.countDown()
             other.join()
-            listOfNotNull(joinedAtClose.get()).forAll { it } and
+            joinedAtClose.get().shouldNotBeNull() and
                 (closed shouldBe true) and
                 // Leaving or already out: anything but still Up, which a joining closed before the leave would see.
                 (statusAtClose shouldNotBe Status.Up)
