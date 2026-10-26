@@ -133,7 +133,7 @@ private sealed interface OutboxEvent {
 /** One entity's commands in a durable producer: the number the next takes, and those kept, as the codec wrote them. */
 private data class Stored(val next: Long, val kept: List<Pair<Long, ByteArray>>)
 
-private typealias Outboxes = Map<String, Stored>
+private typealias StoredOutboxes = Map<String, Stored>
 
 private const val KEPT = 1
 private const val DONE = 2
@@ -153,9 +153,9 @@ private fun <M : Any> outbox(
     recovered: CountDownLatch,
     down: AtomicReference<Throwable?>,
     route: (String) -> ActorRef<M>,
-): Behaviour<Any, Remembered<Outboxes>, JournalConflict> {
+): Behaviour<Any, Remembered<StoredOutboxes>, JournalConflict> {
     val steps = OutboxSteps(producer, codec, room, keep, meters, down, route)
-    return persistent<Any, OutboxEvent, Outboxes>(
+    return persistent<Any, OutboxEvent, StoredOutboxes>(
         id = PersistenceId("surefold-producer", producer),
         empty = emptyMap(),
         codec = OutboxEventCodec,
@@ -233,7 +233,7 @@ private class OutboxSteps<M : Any>(
     private val holding = ConcurrentHashMap.newKeySet<Pair<String, Long>>()
 
     /** Takes room for each recovered command that holds none yet, as far as there is room. */
-    fun claim(outboxes: Outboxes) {
+    fun claim(outboxes: StoredOutboxes) {
         outboxes.forEach { (to, stored) ->
             stored.kept.forEach { (sequence, _) ->
                 if (to to sequence !in holding && room.tryAcquire()) holding += to to sequence
@@ -243,11 +243,11 @@ private class OutboxSteps<M : Any>(
     }
 
     fun keep(
-        effects: Effects<OutboxEvent, Outboxes>,
+        effects: Effects<OutboxEvent, StoredOutboxes>,
         ctx: Ctx<Any>,
-        outboxes: Outboxes,
+        outboxes: StoredOutboxes,
         asked: KeepDurably,
-    ): Effect<OutboxEvent, Outboxes> {
+    ): Effect<OutboxEvent, StoredOutboxes> {
         val sequence = outboxes[asked.to]?.next ?: 1
         return effects.persist(OutboxEvent.Kept(asked.to, sequence, asked.bytes)).then { after ->
             // Written: from here a throw leaves its room held, for the restart's replay to find it, and the caller
@@ -280,11 +280,11 @@ private class OutboxSteps<M : Any>(
     }
 
     fun confirmed(
-        effects: Effects<OutboxEvent, Outboxes>,
+        effects: Effects<OutboxEvent, StoredOutboxes>,
         ctx: Ctx<Any>,
-        outboxes: Outboxes,
+        outboxes: StoredOutboxes,
         confirmed: Confirmed,
-    ): Effect<OutboxEvent, Outboxes> {
+    ): Effect<OutboxEvent, StoredOutboxes> {
         if (outboxes[confirmed.to]?.kept?.firstOrNull()?.first != confirmed.sequence) return effects.none()
         return effects.persist(OutboxEvent.Done(confirmed.to, confirmed.sequence)).then { after ->
             if (holding.remove(confirmed.to to confirmed.sequence)) handOnRoom(after)
@@ -297,21 +297,21 @@ private class OutboxSteps<M : Any>(
      * The room a confirmed command held, passed to a recovered command that holds none yet, or freed when none is
      * left: passed, not freed and claimed, so a drain cannot take it in between and answer while one is unconfirmed.
      */
-    private fun handOnRoom(outboxes: Outboxes) {
+    private fun handOnRoom(outboxes: StoredOutboxes) {
         val waiting = outboxes.asSequence()
             .flatMap { (to, stored) -> stored.kept.asSequence().map { (sequence, _) -> to to sequence } }
             .firstOrNull { it !in holding }
         if (waiting == null) room.release() else holding += waiting
     }
 
-    fun resend(ctx: Ctx<Any>, outboxes: Outboxes) = outboxes.forEach { (to, stored) ->
+    fun resend(ctx: Ctx<Any>, outboxes: StoredOutboxes) = outboxes.forEach { (to, stored) ->
         if (stored.kept.isNotEmpty()) meters.resent.increment()
         ctx.sendFirst(outboxes, to)
     }
 
     private fun measure() = meters.unconfirmed.set((keep - room.availablePermits()).toDouble())
 
-    private fun Ctx<Any>.sendFirst(outboxes: Outboxes, to: String) =
+    private fun Ctx<Any>.sendFirst(outboxes: StoredOutboxes, to: String) =
         outboxes[to]?.kept?.firstOrNull()?.let { (sequence, bytes) -> send(to, sequence, bytes) }
 
     private fun Ctx<Any>.send(to: String, sequence: Long, bytes: ByteArray) {
@@ -324,7 +324,7 @@ private class OutboxSteps<M : Any>(
 }
 
 /** [outboxes] after [event]. */
-private fun applied(outboxes: Outboxes, event: OutboxEvent): Outboxes = when (event) {
+private fun applied(outboxes: StoredOutboxes, event: OutboxEvent): StoredOutboxes = when (event) {
     is OutboxEvent.Kept -> {
         val stored = outboxes[event.to] ?: Stored(1, emptyList())
         outboxes + (event.to to Stored(event.sequence + 1, stored.kept + (event.sequence to event.bytes)))
@@ -364,8 +364,8 @@ private object OutboxEventCodec : EventCodec<OutboxEvent> {
     }
 }
 
-private object OutboxesCodec : StateCodec<Outboxes> {
-    override fun encode(state: Outboxes): ByteArray = written { data ->
+private object OutboxesCodec : StateCodec<StoredOutboxes> {
+    override fun encode(state: StoredOutboxes): ByteArray = written { data ->
         data.writeInt(state.size)
         state.forEach { (to, stored) ->
             data.writeUTF(to)
@@ -379,7 +379,7 @@ private object OutboxesCodec : StateCodec<Outboxes> {
         }
     }
 
-    override fun decode(bytes: ByteArray): Outboxes = read(bytes) { data ->
+    override fun decode(bytes: ByteArray): StoredOutboxes = read(bytes) { data ->
         List(data.readInt()) {
             data.readUTF() to Stored(
                 data.readLong(),

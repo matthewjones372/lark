@@ -133,7 +133,7 @@ private class Numbering<M : Any>(private val producer: String, private val actor
 
         @Suppress("UNCHECKED_CAST")
         val built = command(Delivery(producer, to, sequence, actor as ActorRef<Confirmed>))
-        if (!actor.handed(KeepCommand(to, Unconfirmed(sequence, built)))) return null
+        if (!actor.handed(KeepCommand(to, KeptCommand(sequence, built)))) return null
         next[to] = sequence + 1
         HANDED
     }
@@ -202,7 +202,7 @@ internal fun room(keep: Int): Semaphore {
 private fun incarnation(id: String) = "$id/${UUID.randomUUID()}"
 
 /** A command to keep, built and numbered by [Producer.send]. */
-private class KeepCommand<M : Any>(val to: String, val kept: Unconfirmed<M>)
+private class KeepCommand<M : Any>(val to: String, val kept: KeptCommand<M>)
 
 /** A command to keep in the journal, encoded by a durable [Producer.send], which waits for its [answer]. */
 internal class KeepDurably(val to: String, val bytes: ByteArray) : Handed {
@@ -226,11 +226,6 @@ internal class KeepDurably(val to: String, val bytes: ByteArray) : Handed {
 /** Time to send every entity's unconfirmed command again. */
 internal data object ResendUnconfirmed
 
-/** One entity's commands kept, the first of them in flight. */
-private data class Outbox<M : Any>(val kept: List<Unconfirmed<M>>)
-
-private data class Unconfirmed<M : Any>(val sequence: Long, val command: M)
-
 /** A producer's instruments (spec 0081): what it keeps unconfirmed, what it sent again, each `Full` and `Unwritten`. */
 internal class ProducerMeters(val unconfirmed: Gauge, val resent: Counter, val full: Counter, val unwritten: Counter)
 
@@ -241,54 +236,43 @@ private fun <M : Any> producing(
     keep: Int,
     meters: ProducerMeters,
     route: (String) -> ActorRef<M>,
-): Behaviour<Any, Map<String, Outbox<M>>, Nothing> {
+): Behaviour<Any, Outboxes<M>, Nothing> {
     // A copy that finds the entity's mailbox full is not lost: it is sent again on the next resend.
-    fun send(to: String, kept: Unconfirmed<M>) = route(to).handed(kept.command)
+    fun perform(send: Send<M>?) = send?.let { route(it.to).handed(it.command) }
 
     // Room taken is what `send` has kept and no entity has confirmed yet.
     fun measure() = meters.unconfirmed.set((keep - room.availablePermits()).toDouble())
-    return behaviour<Any, Map<String, Outbox<M>>>(emptyMap()) { _, queues, message ->
+    return behaviour<Any, Outboxes<M>>(Outboxes()) { _, outboxes, message ->
         when (message) {
             is KeepCommand<*> -> {
                 @Suppress("UNCHECKED_CAST")
                 val asked = message as KeepCommand<M>
-                val queue = queues[asked.to] ?: Outbox(emptyList())
-                if (queue.kept.isEmpty()) send(asked.to, asked.kept)
+                val (after, send) = outboxes.kept(asked.to, asked.kept.sequence, asked.kept.command)
+                perform(send)
                 measure()
-                become(queues + (asked.to to Outbox(queue.kept + asked.kept)))
+                become(after)
             }
 
-            is Confirmed -> {
-                val queue = queues[message.to]
-                if (queue?.kept?.firstOrNull()?.sequence != message.sequence) {
-                    stay()
-                } else {
+            is Confirmed -> when (val confirmed = outboxes.confirmed(message.to, message.sequence)) {
+                null -> stay()
+
+                else -> {
                     room.release()
                     measure()
-                    val rest = queue.kept.drop(1)
-                    rest.firstOrNull()?.let { send(message.to, it) }
-                    become(queues + (message.to to Outbox(rest)))
+                    perform(confirmed.second)
+                    become(confirmed.first)
                 }
             }
 
             ResendUnconfirmed -> {
-                resendFirsts(queues, meters) { to, kept -> send(to, kept) }
+                outboxes.heads().forEach {
+                    meters.resent.increment()
+                    perform(it)
+                }
                 stay()
             }
 
             else -> unhandled()
         }
     }.onStart { ctx -> ctx.timers.every(ResendUnconfirmed, resendAfter, ResendUnconfirmed) }
-}
-
-/** Sends each entity's first unconfirmed command again, counting each. */
-private fun <M : Any> resendFirsts(
-    queues: Map<String, Outbox<M>>,
-    meters: ProducerMeters,
-    send: (String, Unconfirmed<M>) -> Unit,
-) = queues.forEach { (to, queue) ->
-    queue.kept.firstOrNull()?.let {
-        meters.resent.increment()
-        send(to, it)
-    }
 }
