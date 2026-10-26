@@ -1,0 +1,79 @@
+package io.github.matthewjones372.surefold.app.compiler
+
+import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
+import org.jetbrains.kotlin.diagnostics.reportOn
+import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
+import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
+import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirFunctionCallChecker
+import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
+import org.jetbrains.kotlin.fir.references.toResolvedCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
+import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+
+/**
+ * Calls inside a step that do something besides change `Shared` values (spec 0210). A step runs again whenever
+ * another commit beat it, so I/O, a blocking wait or a fork in its body happens once per run, not once per commit.
+ */
+internal class TransactChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
+
+    context(context: CheckerContext, reporter: DiagnosticReporter)
+    override fun check(expression: FirFunctionCall) {
+        val symbol = expression.calleeReference.toResolvedCallableSymbol() ?: return
+        val called = symbol.callableId ?: return
+        if (!refused(called) || !inStep()) return
+        val diagnostic = SurefoldDiagnostics.SUREFOLD_EFFECT_IN_TRANSACT
+        reporter.reportOn(expression.source, diagnostic, named(symbol, called), context)
+    }
+}
+
+// A transact block, a firstOf branch and a helper written as `fun Transaction.x()` all take Transaction as receiver.
+context(context: CheckerContext)
+private fun inStep(): Boolean =
+    context.containingDeclarations.any { (it as? FirCallableSymbol<*>)?.resolvedReceiverType?.classId == transaction }
+
+private fun refused(called: CallableId): Boolean {
+    val owner = called.classId?.packageFqName ?: called.packageName
+    return io.any { owner == it || owner.startsWith(it) } || called in blocking || called in forks
+}
+
+private val surefold = FqName("io.github.matthewjones372.surefold")
+
+private val transaction = ClassId(surefold, Name.identifier("Transaction"))
+
+private val io = listOf("java.io", "java.net", "java.nio.channels", "java.sql").map(::FqName)
+
+private fun member(pkg: String, cls: String, name: String) =
+    CallableId(ClassId(FqName(pkg), Name.identifier(cls)), Name.identifier(name))
+
+private val blocking = setOf(
+    member("java.lang", "Thread", "sleep"),
+    member("java.util.concurrent", "TimeUnit", "sleep"),
+    member("java.util.concurrent", "Future", "get"),
+    member("java.util.concurrent", "CompletableFuture", "get"),
+    member("java.util.concurrent", "CompletableFuture", "join"),
+    member("java.util.concurrent.locks", "Lock", "lock"),
+    member("java.util.concurrent.locks", "Lock", "lockInterruptibly"),
+    member("java.util.concurrent.locks", "ReentrantLock", "lock"),
+    member("java.util.concurrent.locks", "ReentrantLock", "lockInterruptibly"),
+    member(surefold.asString(), "Deferred", "await"),
+    CallableId(FqName("kotlin"), Name.identifier("synchronized")),
+)
+
+private val forks = listOf("flock", "parZip", "parMap", "raceN")
+    .map { CallableId(surefold, Name.identifier(it)) }
+    .toSet() + member(surefold.asString(), "Flock", "async")
+
+/** `Thread.sleep`, `Socket(..)` for a constructor, or `parMap` for a top-level function. */
+private fun named(symbol: FirCallableSymbol<*>, called: CallableId): String {
+    val owner = called.classId?.shortClassName
+    return when {
+        symbol is FirConstructorSymbol -> "$owner(..)"
+        owner == null -> called.callableName.asString()
+        else -> "$owner.${called.callableName}"
+    }
+}

@@ -489,6 +489,42 @@ class SurefoldWiringPluginTest {
 
         runner(dir, "compileTestKotlin").build().output shouldNotContain "waits a fixed time"
     }
+
+    @Test
+    fun `I-O, blocking and forks inside a step are errors, each named`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", EFFECTS_IN_A_STEP)
+
+        val result = runner(dir, "compileKotlin").buildAndFail()
+
+        listOf(
+            "FileInputStream(..)",
+            "Socket(..)",
+            "DriverManager.getConnection",
+            "Thread.sleep",
+            "TimeUnit.sleep",
+            "Future.get",
+            "Deferred.await",
+            "Lock.lock",
+            "synchronized",
+            "parMap",
+            "parZip",
+            "raceN",
+            "flock",
+            "Flock.async",
+        ).forEach { call -> result.output shouldContain "$call runs again each time the step does" }
+        withClue("a helper taking Transaction, and a firstOf branch, are inside the step too") {
+            result.output.split("Thread.sleep runs again").size shouldBe 4
+        }
+    }
+
+    @Test
+    fun `the same calls outside a step are left alone`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", EFFECTS_OUTSIDE_A_STEP)
+
+        runner(dir, "compileKotlin").build().output shouldNotContain "runs again each time the step does"
+    }
 }
 
 private const val IMPORTS = """
@@ -765,5 +801,85 @@ object Under : SurefoldApp<Pump>() {
     override val module: Module =
         single<Kind> { Kind.Small } + choice<Kind, Pump> { _ -> single<Pump> { Pump() } }
     override fun AppScope.run(root: Pump) = Unit
+}
+"""
+
+/** Every kind of call the step checker refuses, inside transact, a firstOf branch and a Transaction helper. */
+private const val EFFECTS_IN_A_STEP = """
+import io.github.matthewjones372.surefold.Deferred
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.Transaction
+import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.parMap
+import io.github.matthewjones372.surefold.parZip
+import io.github.matthewjones372.surefold.raceN
+import io.github.matthewjones372.surefold.transact
+import java.io.FileInputStream
+import java.net.Socket
+import java.sql.DriverManager
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+
+val seats = Shared(10)
+val guard = ReentrantLock()
+
+fun Transaction.take() {
+    Thread.sleep(1)
+    seats.update { it - 1 }
+}
+
+fun effects(future: Future<Int>, deferred: Deferred<Int>) = transact {
+    FileInputStream("seats.txt")
+    Socket("box-office", 80)
+    DriverManager.getConnection("jdbc:h2:mem:")
+    Thread.sleep(1)
+    TimeUnit.MILLISECONDS.sleep(1)
+    future.get()
+    deferred.await()
+    guard.lock()
+    synchronized(guard) { seats.get() }
+    parMap(listOf(1)) { it }
+    parZip({ 1 }, { 2 }) { a, b -> a + b }
+    raceN({ 1 }, { 2 })
+    flock<Nothing, Int> { async { 1 }.await() }
+    firstOf({ Thread.sleep(1) }, { take() })
+}
+"""
+
+/** The same calls, in a function that is not a step. */
+private const val EFFECTS_OUTSIDE_A_STEP = """
+import io.github.matthewjones372.surefold.Deferred
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.parMap
+import io.github.matthewjones372.surefold.parZip
+import io.github.matthewjones372.surefold.raceN
+import io.github.matthewjones372.surefold.transact
+import java.io.FileInputStream
+import java.net.Socket
+import java.sql.DriverManager
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+
+val seats = Shared(10)
+val guard = ReentrantLock()
+
+fun effects(future: Future<Int>, deferred: Deferred<Int>) {
+    FileInputStream("seats.txt")
+    Socket("box-office", 80)
+    DriverManager.getConnection("jdbc:h2:mem:")
+    Thread.sleep(1)
+    TimeUnit.MILLISECONDS.sleep(1)
+    future.get()
+    deferred.await()
+    guard.lock()
+    synchronized(guard) { seats.peek() }
+    parMap(listOf(1)) { it }
+    parZip({ 1 }, { 2 }) { a, b -> a + b }
+    raceN({ 1 }, { 2 })
+    flock<Nothing, Int> { async { 1 }.await() }
+    transact { seats.update { it - 1 } }
 }
 """
