@@ -70,10 +70,10 @@ story steps would need a third name. Recommended: the interface.
 
 ## Open questions
 
-1. Should a try that throws a non-assertion exception also count as not yet? Recommended: yes, as today. A
-   service still starting often throws, such as a refused connection.
-2. Some tests need the value read in the last try, after the wait. Should there be a form like
-   `eventually(within, read = { tally() }) { t -> t.events shouldBe 2 }` that hands the value back?
-   Recommended: no, not yet. Nest what needs the value inside the block, and spec a value-returning form only
-   if the loops in the second PR show a need.
-3. What should the interface be called? Recommended: `Verdict`, with `held` and `gaveUp(tries, elapsed)`.
+Taken as recommended (maintainer, 2026-10-26: build it).
+
+1. ~~Should a try that throws a non-assertion exception also count as not yet?~~ Yes, as today. A service still
+   starting often throws, such as a refused connection.
+2. ~~Should there be a form that hands back the last value read?~~ Not yet. Nest what needs the value inside the
+   block, and spec a value-returning form only if the loops in the second PR show a need.
+3. ~~What should the interface be called?~~ `Verdict`, with `held` and `gaveUp(tries, elapsed)`.
