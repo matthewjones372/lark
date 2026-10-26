@@ -67,6 +67,7 @@ module("integrations", "surefold-kafka-pekko")
 module("integrations", "surefold-kafka-test")
 
 module("data", "surefold-jobs")
+module("data", "surefold-app-jobs")
 
 module("bench", "surefold-stream-benchmarks")
 module("bench", "surefold-actor-benchmarks")
