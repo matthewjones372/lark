@@ -51,5 +51,5 @@ open class GroupedWithinBenchmark {
     fun forks(): Int = batchedPipeline(ints).run(forks).done()
 
     @Benchmark
-    fun actors(flocked: Flocked): Int = batchedPipeline(ints).run(flocked.actors).done()
+    fun actors(scoped: Scoped): Int = batchedPipeline(ints).run(scoped.actors).done()
 }

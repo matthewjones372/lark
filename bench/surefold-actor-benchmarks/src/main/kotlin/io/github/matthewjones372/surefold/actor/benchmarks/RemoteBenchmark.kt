@@ -1,7 +1,7 @@
 package io.github.matthewjones372.surefold.actor.benchmarks
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.Reply
@@ -28,7 +28,6 @@ import org.openjdk.jmh.annotations.Measurement
 import org.openjdk.jmh.annotations.Mode
 import org.openjdk.jmh.annotations.OperationsPerInvocation
 import org.openjdk.jmh.annotations.OutputTimeUnit
-import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.Setup
 import org.openjdk.jmh.annotations.State
 import org.openjdk.jmh.annotations.TearDown
@@ -40,6 +39,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.toKotlinDuration
 import org.apache.pekko.actor.ActorRef as PekkoRef
+import org.openjdk.jmh.annotations.Scope as JmhScope
 
 /** Under Pekko's outbound queue of 3,072 and surefold's of 8,192, so that neither side drops part of a burst. */
 private const val BURST = 2_000
@@ -78,9 +78,9 @@ private val wiredCodec = object : MessageCodec<Wired> {
     }
 }
 
-/** A flock held open for the trial on a thread of its own, as a node. */
+/** A scope held open for the trial on a thread of its own, as a node. */
 private class HeldNode(name: String, port: Int) {
-    lateinit var flock: Flock<Nothing>
+    lateinit var scope: Scope<Nothing>
     lateinit var node: RemoteNode
     private val release = CountDownLatch(1)
     private val holder: Thread
@@ -89,7 +89,7 @@ private class HeldNode(name: String, port: Int) {
         val ready = CountDownLatch(1)
         holder = Thread.ofPlatform().start {
             scope {
-                flock = this
+                scope = this
                 node = node(name, port)
                 ready.countDown()
                 release.await()
@@ -105,7 +105,7 @@ private class HeldNode(name: String, port: Int) {
 }
 
 /** Two surefold nodes on loopback: an echo and a counter exposed on one, reached from the other. */
-@State(Scope.Benchmark)
+@State(JmhScope.Benchmark)
 open class SurefoldNodes {
     internal lateinit var echo: ActorRef<Wired>
     private lateinit var near: HeldNode
@@ -116,7 +116,7 @@ open class SurefoldNodes {
         val farPort = freePort()
         far = HeldNode("far", farPort)
         near = HeldNode("near", freePort())
-        val served = far.flock.spawn(
+        val served = far.scope.spawn(
             "served",
             behaviour<Wired, Unit>(Unit) { _, _, message ->
                 when (message) {
@@ -151,7 +151,7 @@ class PekkoCounter : AbstractActor() {
 }
 
 /** Two Pekko systems on loopback with Artery over TCP, its documented remote transport without Aeron. */
-@State(Scope.Benchmark)
+@State(JmhScope.Benchmark)
 open class PekkoNodes {
     lateinit var echo: PekkoRef
     lateinit var counter: PekkoRef
@@ -193,7 +193,7 @@ open class PekkoNodes {
 }
 
 /** One ask to an actor on another node on loopback, and its answer back: the round trip. */
-@State(Scope.Benchmark)
+@State(JmhScope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @Warmup(iterations = 5, time = 1)
@@ -211,7 +211,7 @@ open class RemoteAskBenchmark {
 }
 
 /** A burst of [BURST] tells to an actor on another node, until it has counted every one. The row is one tell. */
-@State(Scope.Benchmark)
+@State(JmhScope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @OperationsPerInvocation(BURST)

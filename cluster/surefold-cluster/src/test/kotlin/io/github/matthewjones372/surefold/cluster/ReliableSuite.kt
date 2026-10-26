@@ -75,7 +75,7 @@ private fun openPort(): Int = ServerSocket(0).use { it.localPort }
 internal fun accountsDatabase(): DataSource = Postgres.fresh()
 
 /**
- * A node with the accounts sharded on it and [journal] as its flock's, on a thread of its own, until [close]. With a
+ * A node with the accounts sharded on it and [journal] as its scope's, on a thread of its own, until [close]. With a
  * [ledger] role, accounts run only on members that hold it, and this one holds it if [ledger] is true.
  */
 internal class Bank(

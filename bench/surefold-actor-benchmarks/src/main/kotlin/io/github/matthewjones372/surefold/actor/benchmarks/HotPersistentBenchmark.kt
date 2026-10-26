@@ -58,7 +58,7 @@ open class HotPersistentBenchmark {
         postgres = PostgresServer()
         val data = postgres.dataSource
         migrate(data, "surefold/journal/jdbc/postgres.sql")
-        surefold.flock.journal(JdbcJournal(data))
+        surefold.scope.journal(JdbcJournal(data))
         merchant = surefold.actor(
             "merchant-$batch",
             persistent<Pay, Int, Int>(

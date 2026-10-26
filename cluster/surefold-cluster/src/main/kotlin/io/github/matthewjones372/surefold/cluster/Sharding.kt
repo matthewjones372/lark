@@ -144,10 +144,10 @@ class Sharded<M : Any> internal constructor(
      * A producer on this node that sends to these entities at least once (spec 0079): a command lost to a move or a
      * passivation is sent again every [resendAfter] until its entity confirms it. The kind's codec writes each
      * command's `Delivery` with `WireOut.delivery`, and its entities are wrapped in `delivered`; a persistent one
-     * drops the duplicates a resend makes. See `Flock.producer` for [keep] and [within]. When the node's flock
+     * drops the duplicates a resend makes. See `Scope.producer` for [keep] and [within]. When the node's scope
      * closes, the producer waits for its commands to be confirmed as long as the cluster waits to leave, and before it.
      *
-     * A [durable] producer keeps its commands in the flock's journal rather than in memory (spec 0085), so one whose
+     * A [durable] producer keeps its commands in the scope's journal rather than in memory (spec 0085), so one whose
      * node crashes loses none. It is kept under this node's life as well as [producerId] (spec 0099), so each life
      * has an outbox of its own however often the node restarts. The cluster's `surefold-producers` singleton lists it,
      * waiting up to [within] for that, and once its life has left the cluster the singleton starts it again on its own
@@ -165,10 +165,10 @@ class Sharded<M : Any> internal constructor(
         val drainWithin = cluster.leaveWithin
         return if (durable) {
             val kept = "$id-${cluster.life}"
-            cluster.flock.durableProducer(kept, codec.outbox(), resendAfter, keep, within, drainWithin, ::entity)
+            cluster.scope.durableProducer(kept, codec.outbox(), resendAfter, keep, within, drainWithin, ::entity)
                 .also { producers?.register(kept, kind, within) }
         } else {
-            cluster.flock.producer(id, resendAfter, keep, within, drainWithin, ::entity)
+            cluster.scope.producer(id, resendAfter, keep, within, drainWithin, ::entity)
         }
     }
 }
@@ -205,7 +205,7 @@ fun <M : Any, S, E> Cluster.sharding(
     val path = Sharding.path(kind)
     require(shards > 0) { "shards must be positive, was $shards" }
     // Every shard's manager adds to one count of this kind's entities running here (spec 0081).
-    val running = flock.gauge("surefold.sharding.entities", "kind" to kind)
+    val running = scope.gauge("surefold.sharding.entities", "kind" to kind)
     val counting = ReentrantLock()
     var count = 0L
     val onRunning = { delta: Int -> counting.withLock { running.set((count + delta).also { count = it }.toDouble()) } }
@@ -237,14 +237,14 @@ internal fun <M : Any, H : Any> Cluster.region(
 ): ActorRef<Region<M>> {
     val wire = RegionCodec(codec)
     val meters = RegionMeters(
-        shards = flock.gauge("surefold.sharding.shards", "kind" to kind),
-        buffered = flock.gauge("surefold.sharding.buffered", "kind" to kind),
+        shards = scope.gauge("surefold.sharding.shards", "kind" to kind),
+        buffered = scope.gauge("surefold.sharding.buffered", "kind" to kind),
     )
     val placing = Placing(this, shards, wire, path, hosting, meters)
     // The newest view only, set by the cluster actor and taken by the region before its next step: the cluster actor
     // never waits on, or fails at, a full region, and a region that was full routes by the newest view (spec 0101).
     val latest = AtomicReference<Region.Viewed<M>?>()
-    val region = flock.spawn(
+    val region = scope.spawn(
         path.removePrefix("/user/"),
         behaviour<Region<M>, Unit>(Unit) { ctx, _, step ->
             stay().also {

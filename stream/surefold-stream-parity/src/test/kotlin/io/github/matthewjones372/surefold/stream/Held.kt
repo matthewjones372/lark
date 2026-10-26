@@ -1,16 +1,16 @@
 package io.github.matthewjones372.surefold.stream
 
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * One flock held open for the whole test JVM, for the backends that run on one. An invocation cannot sit inside a
- * flock's scope, so a daemon thread holds it, and the JVM's exit ends it.
+ * One scope held open for the whole test JVM, for the backends that run on one. An invocation cannot sit inside a
+ * scope's scope, so a daemon thread holds it, and the JVM's exit ends it.
  */
-internal val heldFlock: Flock<Nothing> by lazy {
-    val opened = AtomicReference<Flock<Nothing>>()
+internal val heldScope: Scope<Nothing> by lazy {
+    val opened = AtomicReference<Scope<Nothing>>()
     val ready = CountDownLatch(1)
     Thread.ofPlatform().daemon().start {
         scope {

@@ -80,7 +80,7 @@ open class SpreadPersistentBenchmark {
         }
         val grouped = if (groupCommit) GroupCommit() else null
         val journals = pools.mapIndexed { i, pool -> "db-$i" to JdbcJournal(pool, groupCommit = grouped) }
-        surefold.flock.journal(ShardedJournal(journals))
+        surefold.scope.journal(ShardedJournal(journals))
         val run = UUID.randomUUID()
         accounts = (1..ACCOUNTS).map { n ->
             surefold.actor(

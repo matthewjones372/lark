@@ -276,7 +276,7 @@ Each integration is a separate module that makes something a node:
 | `surefold-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
 | `surefold-app-openfeature` | `openFeature { provider }`, an OpenFeature provider set before anything reads a flag, keyed by `Client`, ready while the provider is, and shut down on release | [Feature flags](flags.md) |
 | `surefold-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
-| `surefold-app-actor` | `actors()`, a `surefold-actor` flock that lives as long as the application, and `actor("name") { … }`, keyed by Surefold's `ActorRef<M>` | [Surefold actor](cookbook.md#spawn-a-surefold-actor) |
+| `surefold-app-actor` | `actors()`, a `surefold-actor` scope that lives as long as the application, and `actor("name") { … }`, keyed by Surefold's `ActorRef<M>` | [Surefold actor](cookbook.md#spawn-a-surefold-actor) |
 | `surefold-app-cluster` | `cluster("path")`, a cluster membership joined as a HOCON section describes | [Joined from config](cluster.md#joined-from-config) |
 
 A choice between modules can also be made inside the graph:

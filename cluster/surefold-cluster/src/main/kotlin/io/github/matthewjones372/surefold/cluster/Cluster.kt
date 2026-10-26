@@ -1,6 +1,6 @@
 package io.github.matthewjones372.surefold.cluster
 
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.Ctx
@@ -72,8 +72,8 @@ enum class Ready {
 }
 
 /**
- * [node] as a member of a cluster whose seeds [discovery] finds, until the flock closes, when it leaves first:
- * waiting up to [leaveWithin] to be out, before the flock stops its actors (spec 0080). A [leaveWithin] of zero
+ * [node] as a member of a cluster whose seeds [discovery] finds, until the scope closes, when it leaves first:
+ * waiting up to [leaveWithin] to be out, before the scope stops its actors (spec 0080). A [leaveWithin] of zero
  * leaves nothing: the node goes as a crashed one does, and the others down it. [roles] say what this node was
  * started to do, and every member sees them in its view (spec 0083). With [ready] `WhenTold` it stays `Joining` until
  * [Cluster.admit], so nothing is placed on it before what it hosts is open (spec 0129). The membership runs in an
@@ -81,7 +81,7 @@ enum class Ready {
  * a watch on another node's actor ends. A partition is resolved by [downing]; a node downed stops that actor, and its
  * subscribers hear it downed and every other member removed: whether the process ends is theirs to decide.
  */
-fun <F> Flock<F>.cluster(
+fun <F> Scope<F>.cluster(
     node: RemoteNode,
     discovery: Discovery,
     gossiping: Gossiping = Gossiping(),
@@ -209,11 +209,11 @@ private class Steps(
     // Held once, and set on each step that publishes, by the one actor that owns the view (spec 0081).
     private val members =
         Status.entries.associateWith { status ->
-            cluster.flock.gauge("surefold.cluster.members", "status" to status.name)
+            cluster.scope.gauge("surefold.cluster.members", "status" to status.name)
         }
-    private val unreachable = cluster.flock.gauge("surefold.cluster.unreachable")
-    private val leader = cluster.flock.gauge("surefold.cluster.leader")
-    private val downed = cluster.flock.counter("surefold.cluster.downed")
+    private val unreachable = cluster.scope.gauge("surefold.cluster.unreachable")
+    private val leader = cluster.scope.gauge("surefold.cluster.leader")
+    private val downed = cluster.scope.counter("surefold.cluster.downed")
 
     private fun measure(view: View, events: List<MemberEvent>) {
         val counts = view.members.groupingBy { it.status }.eachCount()
@@ -257,7 +257,7 @@ private class Steps(
 class Cluster internal constructor(
     val self: Node,
     internal val remote: RemoteNode,
-    internal val flock: Flock<*>,
+    internal val scope: Scope<*>,
     internal val leaveWithin: Duration = Duration.ZERO,
     /** This life's, as its [Member] carries it: a restart at [self]'s address is a member with another. */
     val uid: Long = 0,
@@ -278,9 +278,9 @@ class Cluster internal constructor(
     /** The registry of durable producers, from this node's first sharding on (spec 0099); none without a journal. */
     internal val producers: Producers? by lazy { if (keepsJournal()) Producers(this) else null }
 
-    // The flock's journal is set before its cluster's first sharding, or its durable producers could not start.
+    // The scope's journal is set before its cluster's first sharding, or its durable producers could not start.
     private fun keepsJournal(): Boolean = try {
-        flock.journal()
+        scope.journal()
         true
     } catch (_: IllegalStateException) {
         false
@@ -321,7 +321,7 @@ class Cluster internal constructor(
     /**
      * Leaves, and waits up to [within] until this node is out of the cluster (spec 0080): removed by the others, or
      * downed, or with no other member `Up`, so nobody to hand its shards to or to remove it. While it is `Leaving` its
-     * shards move to their next owners. Whether it was out in time. The flock's close does this by itself, before its
+     * shards move to their next owners. Whether it was out in time. The scope's close does this by itself, before its
      * actors stop.
      */
     fun stop(within: Duration): Boolean {

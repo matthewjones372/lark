@@ -89,7 +89,7 @@ internal class Producers(private val cluster: Cluster) {
     private val registry = cluster.singleton(REGISTRY, RegistryCodec) { registry(Resuming(cluster, kinds), ::publish) }
 
     private val registrations by lazy {
-        cluster.flock.producer("$REGISTRY-${cluster.life}", drainWithin = cluster.leaveWithin) {
+        cluster.scope.producer("$REGISTRY-${cluster.life}", drainWithin = cluster.leaveWithin) {
             registry
         }
     }

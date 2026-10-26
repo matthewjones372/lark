@@ -56,7 +56,7 @@ private fun clock(on: String) = behaviour<Where, Unit>(Unit) { _, _, where -> st
 private val lively =
     Gossiping(probeEvery = 200.milliseconds, ackWithin = 60.milliseconds, formAfter = 1_000.milliseconds)
 
-/** A node with the clock on it, on a flock and a thread of its own, until [close]. */
+/** A node with the clock on it, on a scope and a thread of its own, until [close]. */
 private class Station(val name: String, port: Int, seeds: Discovery) : AutoCloseable {
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
