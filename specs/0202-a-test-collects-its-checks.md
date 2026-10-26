@@ -57,7 +57,9 @@ joins and the bracket trap in plain tests. Recommended: collect everywhere.
 ## Stack
 
 - [ ] **`spec-0202-record`** — the record, bodies returning `Unit`, `story` collecting, `anyOf` and `not`, the
-      empty-test failure, tests, and `docs/testing.md`. Old `a and b` bodies still pass.
+      empty-test failure, tests, and `docs/testing.md`. Old `a and b` bodies still pass. Its tests check that a
+      recorded failure reads as one reads today: the same heading, expected and actual, line, quoted source,
+      power-assert diagram and clues.
       Done when: `:surefold-junit:check` and `./gradlew build` pass with no suite changed.
 - [ ] **`spec-0202-unjoin`** — surefold's suites drop their joins and trailing values. This is test code only,
       split into PRs by module group, as spec 0197 was.
@@ -73,10 +75,9 @@ joins and the bracket trap in plain tests. Recommended: collect everywhere.
 
 ## Open questions
 
-1. A check made on a thread surefold doesn't carry, such as a bare `Thread`, has no record to add to. Should it
-   throw there? Recommended: yes, an `IllegalStateException` naming the check. A check lost silently is the
-   bug this spec removes.
-2. Should the empty-test failure stay, given that a test which only expects no exception would need
-   `holds { … }`? Recommended: yes.
-3. Should `Expectations` stay public once checks return `Unit`? Recommended: no, internal after
-   `spec-0202-retire`.
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~A check made on a thread surefold doesn't carry: should it throw there?~~ Yes, an `IllegalStateException`
+   naming the check. A check lost silently is the bug this spec removes.
+2. ~~Should the empty-test failure stay?~~ Yes. A test that only expects no exception uses `holds { … }`.
+3. ~~Should `Expectations` stay public once checks return `Unit`?~~ No, internal after `spec-0202-retire`.
