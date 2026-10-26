@@ -433,7 +433,7 @@ Each guard records metrics through surefold's [metrics](observability.md#metrics
 
 A `Shared<T>` is a value forks share, and `transact { }` changes several of them
 as one step: every write lands when the step commits, or none does. There is no
-lock to take and no lock order to get wrong (spec 0206).
+lock to take and no lock order to get wrong (spec 0209).
 
 Take a box office that sells seats in several sections, with many buyers
 checking out at once. One order holds seats in the stalls and the circle, and
