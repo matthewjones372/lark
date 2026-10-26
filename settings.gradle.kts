@@ -56,6 +56,7 @@ module("app", "surefold-app-actor")
 module("app", "surefold-app-cluster")
 
 module("integrations", "surefold-pekko")
+module("integrations", "surefold-actor-pekko")
 module("integrations", "surefold-otel")
 module("integrations", "surefold-openfeature")
 module("integrations", "surefold-slf4j")

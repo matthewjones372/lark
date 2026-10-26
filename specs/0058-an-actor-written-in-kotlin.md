@@ -85,6 +85,9 @@ wanted, it should be its own spec after this one.
       `NoOtherDependenciesTest`.
       Done when: `surefold-app-pekko` builds against it unchanged, and the
       dependency test names `surefold-pekko` and `pekko-actor-typed` only.
+      It lives in `integrations/` beside `surefold-pekko`, under `io.github.matthewjones372.surefold.actor.pekko`.
+      `ask` keeps its signature; only its import moves, in `AskTest` and the cookbook. The dependency test allows
+      what `pekko-actor-typed` brings with it (`pekko-slf4j`, `slf4j-api`), as `surefold-app-pekko`'s does.
 - [ ] **`spec-0058-receive`** — `receive`, `same`, `stopped` and `answer`, with
       `AskTest`'s ledger rewritten in them.
       Done when: a sealed protocol missing a branch fails to compile, and a
@@ -101,6 +104,8 @@ wanted, it should be its own spec after this one.
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-26: go with the recommendations).
 
 1. **A new module, or these helpers inside `surefold-app-pekko`?** Recommend a new
    module. An actor written in Kotlin does not need the wiring graph, and
