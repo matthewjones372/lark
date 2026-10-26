@@ -197,6 +197,10 @@ Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value 
   bytes and headers, plus `surefold.dead-letter.topic`, `.partition`, `.offset`,
   `.part` and `.cause`. It returns once the letter is acknowledged, so the bad
   record is never committed past a letter that was not written.
+- **A producer answers questions** (spec 0160). `producer.flush()` sends what is
+  lingering at once and returns when the broker has it. `producer.partitionsFor(topic)`
+  names a topic's partitions in order, each with its leader. `producer.metrics()` is
+  the client's own map, all of it.
 
 ## What happens when a write in a batch fails
 
