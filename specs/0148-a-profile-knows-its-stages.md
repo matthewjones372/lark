@@ -74,7 +74,7 @@ own.
       them and keys by pipeline; `profile(pipeline)`.
       Done when: a `ProfileTest` case with two pipelines on one profiler gets
       separate profiles, and `profile()` refuses with both names.
-- [ ] **`spec-0148-render`**: `render` checks identity and fails on mismatch.
+- [x] **`spec-0148-render`** ([#667](https://github.com/matthewjones372/lark/pull/667)): `render` checks identity and fails on mismatch.
       Done when: a test that renders a profile against an edited run fails
       with the stage named, and `RenderTest`'s goldens are unchanged.
 
