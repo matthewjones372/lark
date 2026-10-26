@@ -17,9 +17,9 @@ dependency is the whole setup.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-slf4j:0.10.1")
-    implementation("io.github.matthewjones372:surefold-micrometer:0.10.1")
-    implementation("io.github.matthewjones372:surefold-otel:0.10.1")
+    implementation("io.github.matthewjones372:surefold-slf4j:0.1.0")
+    implementation("io.github.matthewjones372:surefold-micrometer:0.1.0")
+    implementation("io.github.matthewjones372:surefold-otel:0.1.0")
 }
 ```
 

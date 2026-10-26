@@ -26,7 +26,7 @@ Before writing any of the code below, use the surefold call beside it.
 | a stream that dies on one bad dependency call | `restartOnDefect(schedule)` |
 | `ConfigFactory.load().getString(…)` in a node | `config<Settings>("section") { Settings(string(…), duration(…)) }` |
 | `string("password")` | `secret("password")`, a `Secret` that prints as a mask |
-| `if (config.getString("kind") == …)` choosing a module | `choice<Settings, Provided> { chosen -> … }` (unreleased, on `main`), or `conf.choosing("section", read) { chosen -> … }` |
+| `if (config.getString("kind") == …)` choosing a module | `choice<Settings, Provided> { chosen -> … }` or `conf.choosing("section", read) { chosen -> … }` |
 | `CREATE TABLE IF NOT EXISTS` at start-up | `migrations("db/changelog.sql")` from `surefold-app-liquibase`; readers take a `Migrated` |
 | a startup wait for a dependency | `.probe(name, timeout, attempts, interval) { … }` |
 | a logger or `MeterRegistry` passed into a class | `logInfo(…)`, `counter(…).increment()`, `timed(…) { … }`; put `surefold-slf4j` and `surefold-micrometer` on the classpath |

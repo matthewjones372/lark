@@ -113,10 +113,10 @@ Facts worth having before anything else:
 | a value built once and shared | `singleOf(::Thing)` |
 | a value that must be closed, and is `AutoCloseable` | `closingOf(::Thing)` |
 | a value given back some other way | `singleOf(::Thing, Thing::stop)` |
-| `main` | `object App : SurefoldApp<Root>()` and `exitProcess(runApp(App).code)`; `run` parks on `awaitShutdown()` (the default on `main`; write it out on 0.10.1) |
+| `main` | `object App : SurefoldApp<Root>()` and `exitProcess(runApp(App).code)`; `run` parks on `awaitShutdown()` by default |
 | configuration | `config<Settings>("section") { … }` from `surefold-app-typesafe` |
 | a password or token | `secret("password")`, never `string(…)` |
-| a setting that picks a module | `choice<Settings, Provided> { … }` inside the graph (unreleased, on `main`), or `conf.choosing("section", read) { … }` |
+| a setting that picks a module | `choice<Settings, Provided> { … }` inside the graph, or `conf.choosing("section", read) { … }` |
 | migrations | `migrations("db/changelog.sql")`, then take a `Migrated` |
 | readiness | `.probe(name, timeout, attempts, interval) { … }` |
 | background work on an interval | `Stream.tick(every)` started on the graph's `StreamBackend` |
