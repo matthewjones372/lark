@@ -25,6 +25,7 @@ import kotlin.time.toJavaDuration
  * partitions it loses in a rebalance, and when the run ends. A `stop()` wakes a poll that is waiting.
  * `enable.auto.commit` is always off.
  *
+ * Each partition it is assigned starts where [startAt] says: by default after what the group committed (spec 0159).
  * A rebalance that takes a partition away commits what was handled on it; with [Rebalance.waitFor] it first waits
  * for what was handed out on it to be handled, so the partition's new owner reads none of it again (spec 0158).
  *
@@ -37,9 +38,10 @@ fun <K, V> Kafka.consume(
     value: Deserializer<V>,
     pollTimeout: Duration = 100.milliseconds,
     rebalance: Rebalance = Rebalance.immediately,
+    startAt: StartAt = StartAt.Committed,
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
     val names = topics.map { it.name }
-    return consuming(properties, key, value, pollTimeout, rebalance) { consumer, listener ->
+    return consuming(properties, key, value, pollTimeout, rebalance, startAt) { consumer, listener ->
         consumer.subscribe(names, listener)
     }
 }
@@ -52,8 +54,9 @@ fun <K, V> Kafka.consume(
     value: Deserializer<V>,
     pollTimeout: Duration = 100.milliseconds,
     rebalance: Rebalance = Rebalance.immediately,
+    startAt: StartAt = StartAt.Committed,
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> =
-    consuming(properties, key, value, pollTimeout, rebalance) { consumer, listener ->
+    consuming(properties, key, value, pollTimeout, rebalance, startAt) { consumer, listener ->
         consumer.subscribe(topics.pattern.toPattern(), listener)
     }
 
@@ -63,13 +66,14 @@ private fun <K, V> consuming(
     value: Deserializer<V>,
     pollTimeout: Duration,
     rebalance: Rebalance,
+    startAt: StartAt,
     subscribe: (KafkaConsumer<K, V>, ConsumerRebalanceListener) -> Unit,
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
     val measuring = Measuring.here()
     return Stream.blocking(
         open = {
             val named = properties.named()
-            Loop(named, subscribe, key, value, pollTimeout, rebalance, measuring.consumer(named))
+            Loop(named, subscribe, key, value, pollTimeout, rebalance, startAt, measuring.consumer(named))
         },
         next = { loop -> loop.next() },
         ready = { loop -> loop.ready() },
@@ -89,6 +93,7 @@ fun <K, V> Kafka.consume(
     value: Decoder<V>,
     pollTimeout: Duration = 100.milliseconds,
     rebalance: Rebalance = Rebalance.immediately,
+    startAt: StartAt = StartAt.Committed,
 ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
     consume(
         properties,
@@ -97,6 +102,7 @@ fun <K, V> Kafka.consume(
         value = ByteArrayDeserializer(),
         pollTimeout = pollTimeout,
         rebalance = rebalance,
+        startAt = startAt,
     )
         .decodedWith(key, value)
 
@@ -108,6 +114,7 @@ fun <K, V> Kafka.consume(
     value: Decoder<V>,
     pollTimeout: Duration = 100.milliseconds,
     rebalance: Rebalance = Rebalance.immediately,
+    startAt: StartAt = StartAt.Committed,
 ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
     consume(
         properties,
@@ -116,6 +123,7 @@ fun <K, V> Kafka.consume(
         value = ByteArrayDeserializer(),
         pollTimeout = pollTimeout,
         rebalance = rebalance,
+        startAt = startAt,
     )
         .decodedWith(key, value)
 
@@ -142,6 +150,7 @@ private class Loop<K, V>(
     value: Deserializer<V>,
     private val pollTimeout: Duration,
     private val rebalance: Rebalance,
+    private val startAt: StartAt,
     private val meters: ConsumerMeters,
 ) : ConsumerRebalanceListener {
 
@@ -208,6 +217,7 @@ private class Loop<K, V>(
     }
 
     override fun onPartitionsAssigned(partitions: Collection<TopicPartition>) {
+        consumer.startAt(startAt, partitions.toSet())
         keeper.assigned(partitions)
         owned.addAll(partitions)
         meters.rebalanced("assigned", owned.size)

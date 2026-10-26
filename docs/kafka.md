@@ -59,6 +59,11 @@ group: once half that interval passes without a poll, the consumer pauses its
 partitions and polls anyway, reading nothing ahead, and resumes them when the
 stream asks for the next record. A `stop()` wakes a poll that is waiting on a quiet topic.
 
+Each partition a group assigns starts after what the group committed, or where `auto.offset.reset` says when nothing
+is. `startAt = StartAt.Time(nineAm)` starts a partition with nothing committed at the first record written at or after
+nine. `startAt = StartAt.Own { partitions -> store.offsets(partitions) }` seeks every assigned partition to the offset
+the caller's own store gives, whatever the group committed; a partition it gives none for starts as usual.
+
 A rebalance takes every partition from a member, the ones it is given back too. By default the records a run has
 handed out on them and not yet handled are then read again, by whichever member owns each partition next. With
 `rebalance = Rebalance.waitFor(30.seconds)`, the member holds the rebalance until each of those records is handled,
@@ -104,7 +109,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 | `Kafka.consume(properties, vararg topics, key: Deserializer<K>, value: Deserializer<V>)` | `Stream<Nothing, Committed<ConsumerRecord<K, V>>>` on any backend |
 | `Kafka.consume(properties, vararg topics, key: Decoder<K>, value: Decoder<V>)` | the same over bytes, each record decoded in the stream: `Committed<Either<DecodeError, ConsumerRecord<K, V>>>` |
 | `Kafka.consume(properties, Topics.matching(regex), key, value)`, either form | the same over every topic whose whole name `regex` matches, those created while it runs too: it finds them as it refreshes its metadata, every `metadata.max.age.ms` (five minutes unless set) |
-| `Kafka.read(properties, topic, partition, key, value, from, until)` | one partition, assigned rather than subscribed, so no rebalance can take it away; `from` is `Committed`, `Earliest`, `Latest` or an `Offset`, and `until` is `Never` or `EndAtStart`. With no `group.id`, nothing is committed |
+| `Kafka.read(properties, topic, partition, key, value, from, until)` | one partition, assigned rather than subscribed, so no rebalance can take it away; `from` is `Committed`, `Earliest`, `Latest`, an `Offset` or a `Time`, the first record written at or after it, and `until` is `Never` or `EndAtStart`. With no `group.id`, nothing is committed |
 | `Kafka.read(properties, topic, partitions = listOf(0, 1, 2), key, value, from, until)` | the same over many partitions, one consumer assigned them all: each starts at `from` and stops at `until` on its own, records of one partition keep their order, and the read ends once all have ended |
 | `Kafka.subscribe(settings, vararg topics)` and its `Decoder` form | the same two, through Pekko's connector |
 | `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | surefold-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside surefold-stream's would be ambiguous |

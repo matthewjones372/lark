@@ -11,6 +11,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 import org.apache.kafka.common.serialization.Deserializer
+import java.time.Instant
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.toJavaDuration
@@ -25,6 +26,9 @@ sealed interface From {
     data object Latest : From
 
     data class Offset(val offset: Long) : From
+
+    /** At the first record written at or after [time]; at the partition's end where none was (spec 0159). */
+    data class Time(val time: Instant) : From
 }
 
 /** Where a [Kafka.read] ends. */
@@ -140,6 +144,8 @@ private class Assigned<K, V>(
             From.Latest -> consumer.seekToEnd(partitions)
 
             is From.Offset -> partitions.forEach { consumer.seek(it, from.offset) }
+
+            is From.Time -> consumer.seekToTime(partitions, from.time)
         }
         ends = when (until) {
             Until.Never -> null
