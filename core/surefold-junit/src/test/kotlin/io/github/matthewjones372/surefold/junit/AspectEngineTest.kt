@@ -13,6 +13,7 @@ import io.github.matthewjones372.surefold.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.surefold.junit.samples.WrappedSuite
 import io.github.matthewjones372.surefold.junit.testkit.failures
 import io.github.matthewjones372.surefold.junit.testkit.names
+import io.github.matthewjones372.surefold.junit.testkit.reported
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveFailed
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSkipped
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
@@ -20,7 +21,6 @@ import io.github.matthewjones372.surefold.junit.testkit.tags
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.Filter
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
-import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.launcher.TagFilter.excludeTags
 import org.junit.platform.launcher.TagFilter.includeTags
 import org.junit.platform.testkit.engine.EngineTestKit
@@ -91,9 +91,7 @@ class AspectEngineTest {
         val events = EngineTestKit.engine("surefold").selectors(selectClass(TimingSuite::class.java)).execute()
         val tests = events.testEvents()
         val failures = tests.failures()
-        val attempts = events.allEvents().reportingEntryPublished().list().associate {
-            it.testDescriptor.displayName to it.getRequiredPayload(ReportEntry::class.java).keyValuePairs["attempts"]
-        }
+        val attempts = tests.reported("attempts")
 
         tests shouldHaveSucceeded listOf("passes on its third attempt")
         attempts shouldBe mapOf("passes on its third attempt" to "3 of 3", "fails both of its attempts" to "2 of 2")

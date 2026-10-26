@@ -22,6 +22,7 @@ import io.github.matthewjones372.surefold.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.surefold.junit.samples.UnreleasableSuite
 import io.github.matthewjones372.surefold.junit.testkit.failureOf
 import io.github.matthewjones372.surefold.junit.testkit.failures
+import io.github.matthewjones372.surefold.junit.testkit.logs
 import io.github.matthewjones372.surefold.junit.testkit.names
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveFailed
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
@@ -30,7 +31,6 @@ import org.junit.platform.engine.DiscoverySelector
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId
-import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.testkit.engine.EngineExecutionResults
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.junit.platform.testkit.engine.EventType
@@ -211,38 +211,33 @@ class SurefoldEngineTest {
         run(selectClass(NotAnObject::class.java)).testEvents().started().count() shouldBe 0L
     }
 
-    private fun logsOf(events: EngineExecutionResults): Map<String, List<String>> =
-        events.allEvents().reportingEntryPublished().list().groupBy(
-            { it.testDescriptor.displayName },
-            { it.getRequiredPayload(ReportEntry::class.java).keyValuePairs.getValue("logs") },
-        )
-
     @Test
     fun `a failing test's report entry holds its own log lines and none of a sibling's running beside it`() {
-        val logs = logsOf(run(selectClass(LoggingSuite::class.java)))
+        val logs = run(selectClass(LoggingSuite::class.java)).testEvents().logs()
 
-        logs.getValue("fails first").single().lines() shouldBe listOf(
+        logs.getValue("fails first") shouldBe listOf(
             "INFO ${LoggingSuite::class.java.name} fails first started",
             "WARN ${LoggingSuite::class.java.name} fails first is about to fail",
         )
-        logs.getValue("fails second").single() shouldContain "fails second is about to fail"
-        logs.getValue("fails second").single() shouldNotContain "fails first"
+        val second = logs.getValue("fails second").joinToString("\n")
+        second shouldContain "fails second is about to fail"
+        second shouldNotContain "fails first"
     }
 
     @Test
     fun `a passing test publishes no report entry`() {
-        logsOf(run(selectClass(LoggingSuite::class.java))).keys shouldNotContain "passes quietly"
+        run(selectClass(LoggingSuite::class.java)).testEvents().logs().keys shouldNotContain "passes quietly"
     }
 
     @Test
     fun `a line logged from a fork the test opened is the test's`() {
-        logsOf(run(selectClass(LoggingSuite::class.java))).getValue("fails after its fork logs").single() shouldBe
-            "INFO ${LoggingSuite::class.java.name} logged from a fork"
+        run(selectClass(LoggingSuite::class.java)).testEvents().logs().getValue("fails after its fork logs") shouldBe
+            listOf("INFO ${LoggingSuite::class.java.name} logged from a fork")
     }
 
     @Test
     fun `tests failed by a failed acquisition ran nothing and publish no report entry`() {
-        logsOf(run(selectClass(UnacquirableSuite::class.java))) shouldBe emptyMap()
+        run(selectClass(UnacquirableSuite::class.java)).testEvents().logs() shouldBe emptyMap()
     }
 
     @Test
