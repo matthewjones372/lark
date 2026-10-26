@@ -5,10 +5,8 @@ import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.fold
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executor
-import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.locks.LockSupport
 
 /** Whether `async` forks where it is written, or waits until something asks for the value. */
 enum class Start { Eager, Lazy }
@@ -160,10 +158,14 @@ private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : S
  */
 internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
 
-    private val ended = Semaphore(0)
     private val forks = mutableListOf<Fork<E, *>>()
 
-    fun <T> fork(block: Scope<E>.() -> T): Fork<E, T> = Fork(owner, on, block, ended::release).also { forks += it }
+    // The thread settling the forks, woken as each one ends; set before it first looks, so no end goes unseen.
+    @Volatile
+    private var settler: Thread? = null
+
+    fun <T> fork(block: Scope<E>.() -> T): Fork<E, T> =
+        Fork(owner, on, block, { Waiting.unpark(settler) }).also { forks += it }
 
     /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
     fun settleAll() {
@@ -200,7 +202,11 @@ internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
     private fun settle(waiting: () -> Boolean) {
         try {
             // Once the answer is in, the forks still running are interrupted below rather than waited out.
-            repeat(forks.size) { if (waiting()) ended.acquire() }
+            settler = Thread.currentThread()
+            while (waiting() && forks.any { !it.hasEnded() }) {
+                Waiting.park(this)
+                if (Thread.interrupted()) throw InterruptedException("interrupted while waiting on its forks")
+            }
         } finally {
             forks.forEach { it.interrupt() }
             forks.forEach { it.join() }
@@ -444,7 +450,7 @@ internal class Fork<E, T>(
     private fun parkUntilDone() {
         var interrupted = false
         while (state.get() !is ForkState.Done) {
-            LockSupport.park(this)
+            Waiting.park(this)
             if (Thread.interrupted()) interrupted = true
         }
         if (interrupted) Thread.currentThread().interrupt()
@@ -489,7 +495,7 @@ internal class Fork<E, T>(
     private fun settled(): Outcome<E, T> = checkNotNull(outcome()) { "a joined fork always has an outcome" }
 
     private fun wake(waiters: Waiter?) =
-        generateSequence(waiters) { it.next }.forEach { LockSupport.unpark(it.thread) }
+        generateSequence(waiters) { it.next }.forEach { Waiting.unpark(it.thread) }
 
     private fun beforeStart() = Thrown(InterruptedException("cancelled before it was started"))
 }

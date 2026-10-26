@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold
 
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.locks.LockSupport
 
 /**
  * A value forks share, changed only inside [transact] (spec 0209). [name] is what a step that lost to a change in it
@@ -147,7 +146,7 @@ class Transaction internal constructor() {
         reads.keys.forEach { it.waiters.add(me) }
         try {
             while (!changed()) {
-                LockSupport.park(this)
+                Waiting.park(this)
                 if (Thread.interrupted()) throw InterruptedException()
             }
         } finally {
@@ -185,7 +184,7 @@ class Transaction internal constructor() {
             val unwritten = reads.filterKeys { it !in writes }.map { (read, held) -> unchanged(read, held) }
             val written = writes.map { (shared, value) -> written(shared, reads[shared], value, next.n) }
             if (swapAll(listOf(Change(commits, now, next)) + unwritten + written)) {
-                writes.keys.forEach { shared -> shared.waiters.forEach(LockSupport::unpark) }
+                writes.keys.forEach { shared -> shared.waiters.forEach(Waiting::unpark) }
                 return true
             }
             lostTo()?.let { lose(it); return false }

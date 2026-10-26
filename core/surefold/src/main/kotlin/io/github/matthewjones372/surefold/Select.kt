@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold
 
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.locks.LockSupport
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -30,7 +29,7 @@ fun <R> select(clauses: Select<R>.() -> Unit): R {
 private fun <R> entered(clauses: List<Clause<R>>, selection: Selection): Any? {
     clauses.forEachIndexed { at, clause ->
         when (val now = clause.enter(selection, at)) {
-            Waiting -> {}
+            Pending -> {}
             Lost -> return null
             else -> return now
         }
@@ -61,7 +60,7 @@ class Select<R> internal constructor() {
     fun <T> Deferred<T>.onAwait(block: (T) -> R) {
         val fork = requireNotNull(this as? Fork<*, T>) { "only a fork opened by async can be selected on" }
         clauses += Clause(
-            enter = { selection, at -> if (fork.wakesMe()) Waiting else ended(selection, at) },
+            enter = { selection, at -> if (fork.wakesMe()) Pending else ended(selection, at) },
             leave = { fork.forgetMe() },
             watch = { selection, at -> if (fork.hasEnded() && ended(selection, at) !== Lost) selection.deliver(Ended) },
         ) { block(fork.await()) }
@@ -125,7 +124,7 @@ internal class Selection {
     /** The answer for whichever clause was claimed, waking the selecting thread. */
     fun deliver(with: Any) {
         answer = with
-        LockSupport.unpark(thread)
+        Waiting.unpark(thread)
     }
 
     /**
@@ -137,7 +136,7 @@ internal class Selection {
         while (answer === Unanswered) {
             watch()
             if (answer !== Unanswered) break
-            LockSupport.park(this)
+            Waiting.park(this)
             if (Thread.interrupted()) {
                 if (claim(INTERRUPTED)) return Interrupted
                 interrupted = true
@@ -156,7 +155,7 @@ private const val OPEN = -1
 private const val INTERRUPTED = -2
 
 /** A clause registered and waiting. */
-internal object Waiting
+internal object Pending
 
 /** A selection something else has already won. */
 internal object Lost
