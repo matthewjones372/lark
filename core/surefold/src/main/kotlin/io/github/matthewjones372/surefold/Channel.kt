@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold
 
-import java.util.concurrent.locks.LockSupport
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -32,64 +31,148 @@ class Channel<A : Any> internal constructor(val capacity: Int) : Iterable<A> {
      */
     fun send(value: A): Boolean {
         val parked = lock.withLock {
-            if (cancelled) return false
-            check(!closed) { "a value was sent on a closed channel" }
-            receivers.removeFirstOrNull()?.let { receiver ->
-                receiver.answer(value)
-                return true
+            when (offer(value, null, 0)) {
+                Taken -> return true
+                Stopped -> return false
             }
-            if (buffer.size < capacity) {
-                buffer.addLast(value)
-                return true
-            }
-            Parked(value).also(senders::addLast)
+            Parked(value, Selection(), 0).also(senders::addLast)
         }
-        return when (val answer = parked.await(senders)) {
-            Taken -> true
-            Stopped -> false
-            else -> error("a sender is answered taken or stopped, not $answer")
-        }
+        return sent(await(parked, senders))
     }
 
     /** The next value, parking while the channel is empty: null once it is closed and drained, or cancelled. */
     fun receive(): A? {
         val parked = lock.withLock {
-            buffer.removeFirstOrNull()?.let { value ->
-                // Room was made: the first sender waiting for it puts its value in.
-                senders.removeFirstOrNull()?.let { sender ->
-                    buffer.addLast(checkNotNull(sender.value) { "a parked sender brings a value" })
-                    sender.answer(Taken)
-                }
-                return value
+            when (val now = poll(null, 0)) {
+                Empty -> Parked(null, Selection(), 0).also(receivers::addLast)
+                else -> return received(now)
             }
-            senders.removeFirstOrNull()?.let { sender ->
-                sender.answer(Taken)
-                return sender.value
-            }
-            if (closed || cancelled) return null
-            Parked(null).also(receivers::addLast)
         }
-        @Suppress("UNCHECKED_CAST")
-        return when (val answer = parked.await(receivers)) {
-            Stopped -> null
-            else -> answer as A
-        }
+        return received(await(parked, receivers))
     }
 
     /** No more values: a later [send] throws, and a receiver gets what was already sent, then null. */
     fun close() = lock.withLock {
         closed = true
         // A receiver parks only on an empty channel with no sender waiting: nothing more will reach it.
-        generateSequence { receivers.removeFirstOrNull() }.forEach { it.answer(Stopped) }
+        generateSequence { receivers.match(null, 0) as Parked? }.forEach { it.selection.deliver(Stopped) }
     }
 
     /** The consumer has stopped: what waits is dropped, and every parked or later send answers false. */
     fun cancel() = lock.withLock {
         cancelled = true
         buffer.clear()
-        generateSequence { senders.removeFirstOrNull() }.forEach { it.answer(Stopped) }
-        generateSequence { receivers.removeFirstOrNull() }.forEach { it.answer(Stopped) }
+        generateSequence { senders.match(null, 0) as Parked? }.forEach { it.selection.deliver(Stopped) }
+        generateSequence { receivers.match(null, 0) as Parked? }.forEach { it.selection.deliver(Stopped) }
     }
+
+    /**
+     * [value] put in a receiver's hands or the buffer now, claiming [ours] for [clause] first if a select offers it:
+     * [Taken], [Stopped] if the consumer cancelled, [Full], or [Lost] if [ours] was already won. Called under the lock.
+     */
+    private fun offer(value: A, ours: Selection?, clause: Int): Any {
+        if (cancelled) return if (ours.claims(clause)) Stopped else Lost
+        check(!closed) { "a value was sent on a closed channel" }
+        val receiver = receivers.match(ours, clause)
+        return when {
+            receiver === Lost -> Lost
+            receiver is Parked -> Taken.also { receiver.selection.deliver(value) }
+            buffer.size >= capacity -> Full
+            !ours.claims(clause) -> Lost
+            else -> Taken.also { buffer.addLast(value) }
+        }
+    }
+
+    /**
+     * A value taken now, claiming [ours] for [clause] first if a select asks: the value, [Stopped] once the channel is
+     * closed and drained or cancelled, [Empty], or [Lost] if [ours] was already won. Called under the lock.
+     */
+    private fun poll(ours: Selection?, clause: Int): Any {
+        if (buffer.isNotEmpty()) return if (ours.claims(clause)) takeBuffered() else Lost
+        val sender = senders.match(ours, clause)
+        return when {
+            sender === Lost -> Lost
+
+            sender is Parked -> checkNotNull(sender.value) { "a parked sender brings a value" }
+                .also { sender.selection.deliver(Taken) }
+
+            !closed && !cancelled -> Empty
+
+            ours.claims(clause) -> Stopped
+
+            else -> Lost
+        }
+    }
+
+    /** The first value buffered; the room it leaves goes to the first sender waiting for it. */
+    private fun takeBuffered(): A {
+        (senders.match(null, 0) as? Parked)?.let { sender ->
+            @Suppress("UNCHECKED_CAST")
+            buffer.addLast(checkNotNull(sender.value as A?) { "a parked sender brings a value" })
+            sender.selection.deliver(Taken)
+        }
+        return buffer.removeFirst()
+    }
+
+    /** Whether a plain call, or a select's [clause] as it claims, may go ahead. */
+    private fun Selection?.claims(clause: Int): Boolean = this == null || claim(clause)
+
+    /**
+     * The first thread parked here that is not [ours]'s own, claimed together with [ours] for [clause] and taken off
+     * the queue: null if there is none, or [Lost] if [ours] was already won. One whose select was won elsewhere is
+     * dropped on the way, as its select would drop it.
+     */
+    private fun ArrayDeque<Parked>.match(ours: Selection?, clause: Int): Any? {
+        val each = iterator()
+        while (each.hasNext()) {
+            val parked = each.next()
+            if (parked.selection === ours) continue
+            val claim = ours?.claimWith(clause, parked.selection, parked.clause)
+                ?: if (parked.selection.claim(parked.clause)) Claim.Both else Claim.TheirsGone
+            when (claim) {
+                Claim.OursGone -> return Lost
+                Claim.TheirsGone -> each.remove()
+                Claim.Both -> return parked.also { each.remove() }
+            }
+        }
+        return null
+    }
+
+    /** A select's receive: the answer now, or [Waiting] once parked here, or [Lost]. */
+    internal fun enterReceive(selection: Selection, clause: Int): Any = lock.withLock {
+        when (val now = poll(selection, clause)) {
+            Empty -> Waiting.also { receivers.addLast(Parked(null, selection, clause)) }
+            else -> now
+        }
+    }
+
+    /** A select's send: the answer now, or [Waiting] once parked here, or [Lost]. */
+    internal fun enterSend(value: A, selection: Selection, clause: Int): Any = lock.withLock {
+        when (val now = offer(value, selection, clause)) {
+            Full -> Waiting.also { senders.addLast(Parked(value, selection, clause)) }
+            else -> now
+        }
+    }
+
+    /** Whatever [selection] left parked here, gone. */
+    internal fun leaveSelection(selection: Selection) = lock.withLock {
+        receivers.removeAll { it.selection === selection }
+        senders.removeAll { it.selection === selection }
+    }
+
+    /** What a receive was answered with, as the value or null. */
+    @Suppress("UNCHECKED_CAST")
+    internal fun received(answer: Any): A? = if (answer === Stopped) null else answer as A
+
+    /** What a send was answered with, as whether its value was taken. */
+    internal fun sent(answer: Any): Boolean = when (answer) {
+        Taken -> true
+        Stopped -> false
+        else -> error("a sender is answered taken or stopped, not $answer")
+    }
+
+    /** How many threads are parked on the channel, for a test that says a select left none behind. */
+    internal fun parked(): Int = lock.withLock { receivers.size + senders.size }
 
     /** How many values wait in the channel now, for a test that says it never holds more than [capacity]. */
     internal fun buffered(): Int = lock.withLock { buffer.size }
@@ -113,45 +196,31 @@ class Channel<A : Any> internal constructor(val capacity: Int) : Iterable<A> {
     }
 
     /**
-     * A thread parked on the channel, with the value it brings as a sender. It is answered with a value, [Taken] or
-     * [Stopped] under the channel's lock, and unparked.
+     * Parks until [parked] is answered. Interrupted first, it leaves [queue] and throws, so a sender's value is never
+     * taken by a receiver after the sender gave up on it; answered first, the interrupt is kept for the caller.
      */
-    private inner class Parked(val value: A?) {
-        private val thread = Thread.currentThread()
-
-        @Volatile
-        private var answer: Any? = Unanswered
-
-        fun answer(with: Any) {
-            answer = with
-            LockSupport.unpark(thread)
+    private fun await(parked: Parked, queue: ArrayDeque<Parked>): Any {
+        val answer = parked.selection.await {}
+        if (answer === Interrupted) {
+            lock.withLock { queue.remove(parked) }
+            throw InterruptedException("interrupted while parked on a channel")
         }
-
-        /**
-         * Parks until answered. Interrupted first, it leaves [queue] and throws, so a sender's value is never taken
-         * by a receiver after the sender gave up on it; answered first, the interrupt is kept for the caller.
-         */
-        fun await(queue: ArrayDeque<Parked>): Any {
-            while (answer === Unanswered) {
-                LockSupport.park(this@Channel)
-                if (Thread.interrupted()) {
-                    val left = lock.withLock { answer === Unanswered && queue.remove(this) }
-                    if (left) throw InterruptedException("interrupted while parked on a channel")
-                    Thread.currentThread().interrupt()
-                }
-            }
-            return checkNotNull(answer) { "a parked thread is answered with something" }
-        }
+        return answer
     }
 }
+
+/** A [selection]'s thread parked on a channel for its [clause], with the value it brings as a sender. */
+private class Parked(val value: Any?, val selection: Selection, val clause: Int)
 
 /** A channel of [capacity] between this scope's forks, cancelled when the scope closes (spec 0038). */
 fun <A : Any> Scope<*>.channel(capacity: Int): Channel<A> = Channel<A>(capacity).also { channel ->
     onClose { channel.cancel() }
 }
 
-private object Unanswered
-
 private object Taken
 
 private object Stopped
+
+private object Empty
+
+private object Full

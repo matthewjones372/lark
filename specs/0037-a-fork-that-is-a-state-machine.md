@@ -69,7 +69,7 @@ fork has nothing to wait on. Recommended: the compare-and-set version.
 - [x] **`spec-0037-states`** ([#722](https://github.com/matthewjones372/surefold/pull/722)) — `Fork` on `State`, same behaviour.
       Done when: every test in `surefold` passes unedited, and no `ReentrantLock` or
       `CountDownLatch` is left in `Flock.kt`.
-- [ ] **`spec-0037-help`** — `await` claims and runs a fork still `Submitted`.
+- [x] **`spec-0037-help`** ([#729](https://github.com/matthewjones372/surefold/pull/729)) — `await` claims and runs a fork still `Submitted`.
       Done when: on a one-thread executor, a fork awaiting a fork queued behind
       it answers instead of hanging, and an interrupt never outlives its fork.
 

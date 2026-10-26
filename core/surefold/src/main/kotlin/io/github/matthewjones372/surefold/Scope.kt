@@ -416,6 +416,31 @@ internal class Fork<E, T>(
         }
     }
 
+    /** Starts the fork if it waits to be, and has it wake this thread when it ends: false if it already has. */
+    fun wakesMe(): Boolean {
+        startOnce()
+        return waitsOn()
+    }
+
+    /** This thread, waiting by [wakesMe], no longer waits: a `select` another clause won leaves nothing behind. */
+    fun forgetMe() {
+        val me = Thread.currentThread()
+        while (true) {
+            val now = state.get()
+            if (generateSequence(now.waiters) { it.next }.none { it.thread === me }) return
+            if (state.compareAndSet(now, now.waitedBy(without(now.waiters, me)))) return
+        }
+    }
+
+    /** How many threads wait for the fork to end, for a test that says a select left none behind. */
+    fun waiting(): Int = generateSequence(state.get().waiters) { it.next }.count()
+
+    private fun without(waiters: Waiter?, thread: Thread): Waiter? = when {
+        waiters == null -> null
+        waiters.thread === thread -> waiters.next
+        else -> Waiter(waiters.thread, without(waiters.next, thread))
+    }
+
     private fun parkUntilDone() {
         var interrupted = false
         while (state.get() !is ForkState.Done) {
@@ -480,37 +505,37 @@ private sealed interface ForkState<out E, out T> {
     val waiters: Waiter?
 
     /** This state, with [waiters] waiting on it instead. */
-    fun waitedBy(waiters: Waiter): ForkState<E, T>
+    fun waitedBy(waiters: Waiter?): ForkState<E, T>
 
     class Unstarted(override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
-        override fun waitedBy(waiters: Waiter) = Unstarted(waiters)
+        override fun waitedBy(waiters: Waiter?) = Unstarted(waiters)
     }
 
     /** Queued on the executor; [cancelled] once a cancel came before its turn, so its body starts interrupted. */
     class Submitted(override val waiters: Waiter?, val cancelled: Boolean) : ForkState<Nothing, Nothing> {
-        override fun waitedBy(waiters: Waiter) = Submitted(waiters, cancelled)
+        override fun waitedBy(waiters: Waiter?) = Submitted(waiters, cancelled)
 
         fun cancelledFirst() = Submitted(waiters, cancelled = true)
     }
 
     class Running(val thread: Thread, override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
-        override fun waitedBy(waiters: Waiter) = Running(thread, waiters)
+        override fun waitedBy(waiters: Waiter?) = Running(thread, waiters)
     }
 
     /** A cancel is sending [thread] its interrupt; the body cannot end until it has. */
     class Interrupting(val thread: Thread, override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
-        override fun waitedBy(waiters: Waiter) = Interrupting(thread, waiters)
+        override fun waitedBy(waiters: Waiter?) = Interrupting(thread, waiters)
     }
 
     class Interrupted(val thread: Thread, override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
-        override fun waitedBy(waiters: Waiter) = Interrupted(thread, waiters)
+        override fun waitedBy(waiters: Waiter?) = Interrupted(thread, waiters)
     }
 
     /** Ended, with [outcome]; [started] is false for a lazy fork cancelled before anyone asked for it. */
     class Done<E, T>(val outcome: Outcome<E, T>, val started: Boolean) : ForkState<E, T> {
         override val waiters: Waiter? get() = null
 
-        override fun waitedBy(waiters: Waiter) = this
+        override fun waitedBy(waiters: Waiter?) = this
     }
 }
 

@@ -66,7 +66,7 @@ own.
 
 ## Stack
 
-- [ ] **`spec-0038-channel`** — `channel`, `send`, `receive`, `close`, `cancel`,
+- [x] **`spec-0038-channel`** ([#730](https://github.com/matthewjones372/surefold/pull/730)) — `channel`, `send`, `receive`, `close`, `cancel`,
       iteration, and the scope closing it.
       Done when: a producer 1000 rows ahead of a slow consumer never holds more
       than `capacity`, and a consumer that cancels ends its producer without an
@@ -79,6 +79,12 @@ own.
 0037's `Fork` does. A send and a receive each touch a buffer and up to two queues at once, and a lock keeps that simple
 and plainly correct. Each waiter is a parked thread with its own answer, which `select` (the next entry) can register
 on several channels at once.
+
+`spec-0038-select` makes every thread parked on a channel a selection, a plain `send` or `receive` being one with a
+single clause, and whoever answers a selection first claims it. A select sending meets a select receiving by claiming
+both selections together, under their two locks taken in the order the selections were made. `onReceive` hands its
+block null once the channel is closed and drained, as `receive` does. `onAwait` takes only a fork `async` opened,
+since a `Deferred` from elsewhere (an actor's `watch`) has no waiters to join.
 
 ## Acceptance
 
