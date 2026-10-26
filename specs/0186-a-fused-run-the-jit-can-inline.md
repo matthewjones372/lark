@@ -5,7 +5,7 @@
 A million ints through `map`, `filter`, `map` and a fold on Forks take 25.5 ms and allocate 56 MB, where Reactor's
 `Flux.range` takes 18.3 ms and allocates 28 MB
 ([blocking-vs-reactive](https://github.com/matthewjones372/blocking-vs-reactive) `CpuChainBenchmark`, JMH, same
-machine). That is Lark's own overhead, with no thread boundary and no I/O in it, and every pipeline pays it.
+machine). That is Surefold's own overhead, with no thread boundary and no I/O in it, and every pipeline pays it.
 
 The three stages are already one `Node.Fused`, so fusing is not what is missing. A profile says where the time goes:
 
@@ -14,7 +14,7 @@ The three stages are already one `Node.Fused`, so fusing is not what is missing.
   every map, filter and fold body in the process, so the JIT inlines none of them, and each element pays a megamorphic
   call per step.
 - Allocation is the four boxes the caller's own types make: the source's `Integer`, `map`'s `Integer`, and on the half
-  the filter keeps, `map`'s `Long` and the fold's `Long` (24 B each). None of the 56 B is Lark's own object.
+  the filter keeps, `map`'s `Long` and the fold's `Long` (24 B each). None of the 56 B is Surefold's own object.
 
 ## Not doing
 
@@ -44,24 +44,24 @@ Recommended: the loop.
 
 - [x] **`cpu-chain-overhead`** ([#528](https://github.com/matthewjones372/lark/pull/528)) — the links above, a test that a defect in each kind of fused step still names it,
       and the benchmark rows before and after.
-      Done when: blocking-vs-reactive's `CpuChainBenchmark.lark` is within 1.2× of `reactor`, or the PR says what is
+      Done when: blocking-vs-reactive's `CpuChainBenchmark.surefold` is within 1.2× of `reactor`, or the PR says what is
       left and why.
 
 ## Acceptance
 
 ```bash
-./gradlew spotlessApply && ./gradlew :lark-stream-forks:build :lark-stream-parity:build
-bench/lark-stream-benchmarks/gate.sh origin/main "ChainBenchmark|MapParBenchmark|HandOffBenchmark|EnrichThroughputBenchmark"
+./gradlew spotlessApply && ./gradlew :surefold-stream-forks:build :surefold-stream-parity:build
+bench/surefold-stream-benchmarks/gate.sh origin/main "ChainBenchmark|MapParBenchmark|HandOffBenchmark|EnrichThroughputBenchmark"
 ```
 
 ## Open questions
 
-- **What about a run with three bodies of one kind?** Lark's own `ChainBenchmark.forks` has three `map`s, so its
+- **What about a run with three bodies of one kind?** Surefold's own `ChainBenchmark.forks` has three `map`s, so its
   `Mapped` call site sees three bodies, is megamorphic again, and the row does not move (38.4 → 40.8 ns, within
   noise). Reactor has the same limit, since each of its operators has one call site. Recommended: say so, and leave
   per-position call sites, or code generated per pipeline, to a later spec if a real pipeline needs them.
 - **Should the unfused single-stage pulls get the same treatment?** Recommended: yes, in a follow-up with a benchmark
   that has a lone `map`, since nothing measures it today.
 - **Is the boxing worth chasing?** Reactor's 28 B is its source's `Integer` and its fold's `Long`: the JIT takes its two
-  `map` boxes away and does not take Lark's. Recommended: not here; the remaining bytes are the caller's boxes, and
+  `map` boxes away and does not take Surefold's. Recommended: not here; the remaining bytes are the caller's boxes, and
   taking them away needs either per-pipeline code or primitive specialisations of the API.

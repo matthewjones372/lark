@@ -8,7 +8,7 @@ and the commit writes that output again. A service whose downstream cannot
 tell a duplicate apart needs the output and the offset to be committed
 together, which only a Kafka transaction does.
 
-Writing one by hand around `lark-kafka` is easy to get wrong:
+Writing one by hand around `surefold-kafka` is easy to get wrong:
 
 - **Group metadata.** A transaction commits offsets with the consumer's group
   metadata (`sendOffsetsToTransaction`). The consumer is not thread-safe, and
@@ -100,7 +100,7 @@ and a record dropped by `filterRecord` would leave nothing to wait for.
 ## Acceptance
 
 ```bash
-./gradlew :lark-kafka:check :lark-kafka-pekko:check
+./gradlew :surefold-kafka:check :surefold-kafka-pekko:check
 ```
 
 ## Open questions

@@ -15,7 +15,7 @@ fourth that matters more than any of them:
 - **A tell to a cold actor is slower than Pekko's** in the probe that times
   the tells apart from the actors (about 180 ns against 130 ns). On the 4-core
   machine this was drafted on, the probe does not reproduce it: three runs
-  gave lark's tells 1.6–2.8 ms per 10,000 and Pekko's 1.7–3.5 ms, depending on
+  gave surefold's tells 1.6–2.8 ms per 10,000 and Pekko's 1.7–3.5 ms, depending on
   which system ran first. The probe is too noisy to decide anything.
 - **No test on threads shows a router passing over a full routee**; only the
   test actors' version is covered.
@@ -24,7 +24,7 @@ fourth that matters more than any of them:
 
 - **Transport, membership, sharding.** Still their own specs, renumbered
   0067–0069, after 0066's stream on actors.
-- **A scheduler of lark's own**, or an intrusive ready queue. 0064 tried a
+- **A scheduler of surefold's own**, or an intrusive ready queue. 0064 tried a
   swap-only ready queue, and it was slower.
 - **Changing what a stop does.** Only who still holds the cell afterwards.
 
@@ -67,8 +67,8 @@ the change is judged on JMH's error bars and not on the probe.
 - [x] **`spec-0065-router-full`** ([#144](https://github.com/matthewjones372/lark/pull/144)) — the threads test for a pool passing over
       a full routee. Done when: the test fails with the pass-over removed.
 - [x] **`spec-0065-tell-row`** ([#145](https://github.com/matthewjones372/lark/pull/145)) — the tells-only rows in `FanOutBenchmark`,
-      and a README line with where lark stands. Done when: both rows run
-      under `:lark-actor-benchmarks:jmh`.
+      and a README line with where surefold stands. Done when: both rows run
+      under `:surefold-actor-benchmarks:jmh`.
 - [x] **`spec-0065-cell-at-rest`** ([#146](https://github.com/matthewjones372/lark/pull/146), dropped) — the mailbox rests on the cell. Done
       when: the tells-only row is no slower than Pekko's within its error,
       and fan-out, ping-pong, tell and footprint are within their error of
@@ -79,7 +79,7 @@ the change is judged on JMH's error bars and not on the probe.
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs=FanOutBenchmark
+./gradlew :surefold-actor-benchmarks:jmh -PbenchmarkArgs=FanOutBenchmark
 ```
 
 ## Open questions

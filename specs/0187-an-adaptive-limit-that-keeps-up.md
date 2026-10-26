@@ -2,7 +2,7 @@
 
 ## Problem
 
-Spec 0171 defined "Lark wins" in `blocking-vs-reactive`'s `overload` scenario as equal throughput and a lower p99
+Spec 0171 defined "Surefold wins" in `blocking-vs-reactive`'s `overload` scenario as equal throughput and a lower p99
 after the dependency loses capacity. `Limit.adaptive` meets half of that. Its p99 after the drop is 10 ms, against
 Reactor's best fixed concurrency at 30 ms, but it finishes 13% later (7.23 s against 6.26 s). The README puts that
 down to ramping up from 20. A per-window trace (`Vegas` printing each decision) shows the ramp is not the main
@@ -59,18 +59,18 @@ ms. A rate-based estimate (calls per unit time) needs a clock and reads wrong wh
 ## Acceptance
 
 ```bash
-./gradlew spotlessApply && ./gradlew :lark:build :lark-stream-forks:build :lark-stream-parity:build
+./gradlew spotlessApply && ./gradlew :surefold:build :surefold-stream-forks:build :surefold-stream-parity:build
 # in blocking-vs-reactive, against this branch published to mavenLocal
-build/install/blocking-vs-reactive/bin/blocking-vs-reactive overload lark-adaptive
+build/install/blocking-vs-reactive/bin/blocking-vs-reactive overload surefold-adaptive
 ```
 
 ## Open questions
 
 - **Is within 3% of the best fixed concurrency reachable?** Not quite. The adaptive limit now finishes in 6.44 s
-  (median of four) against 6.17 s for `reactor-tuned` and `lark-1000`, 4.4% behind, with p99 after the drop at
-  10.2 ms. Lark with its limit pinned at 500, 550 or 600 takes 6.41–6.47 s, so the limit now matches Lark at the
+  (median of four) against 6.17 s for `reactor-tuned` and `surefold-1000`, 4.4% behind, with p99 after the drop at
+  10.2 ms. Surefold with its limit pinned at 500, 550 or 600 takes 6.41–6.47 s, so the limit now matches Surefold at the
   right fixed number. The rest is the time a freed permit takes to be taken up, which only a queue of hundreds
-  inside the dependency hides (`lark-1000`'s p99 before the drop is 12 ms against 9.5). Deferred to a spec on
+  inside the dependency hides (`surefold-1000`'s p99 before the drop is 12 ms against 9.5). Deferred to a spec on
   `Limit`'s hand-off.
 - **How much queue should the limit hold?** Answered by measuring: up to 15% of the limit before it cuts. Raising
   the bands to 10% and 25% left throughput unchanged and raised p99 after the drop to 11–15 ms.

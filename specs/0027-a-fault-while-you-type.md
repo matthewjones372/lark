@@ -20,7 +20,7 @@ comparison this library invites.
   Gradle model and runs their FIR checkers in the editor. A checker that stays
   on FIR and emits no IR needs nothing installed — but see **What the editor
   costs** below, because it is not free.
-- **No replacement for `larkWiring`.** The task stays the gate, because it sees
+- **No replacement for `surefoldWiring`.** The task stays the gate, because it sees
   the graph by running it.
 - **No cross-module analysis.** A `Module` from another Gradle module is a
   compiled symbol with no initialiser to read.
@@ -31,11 +31,11 @@ comparison this library invites.
 One apply, and the graph is analysed as it is typed.
 
 ```kotlin
-object Petshop : LarkApp<PelicanServer>() {
+object Petshop : SurefoldApp<PelicanServer>() {
     override val module: Module =
         singleOf(::ActorPetShop).boundTo<PetShop>() + web
     //  ~~~~~~~~~~~~~~~~~~~~~~~
-    //  lark-app: PetShop needs ActorRef<Shop>, and nothing builds it
+    //  surefold-app: PetShop needs ActorRef<Shop>, and nothing builds it
 }
 ```
 
@@ -91,7 +91,7 @@ code that compiles.
 The rule that decides whether this is worth having is **give up quietly**. A
 false positive in an editor is worse than no editor support, because the reader
 learns to ignore the colour; a false negative costs nothing, because
-`larkWiring` fails the build thirty seconds later. So an unknown sub-expression
+`surefoldWiring` fails the build thirty seconds later. So an unknown sub-expression
 abandons the application rather than guessing.
 
 The alternative is an IntelliJ plugin with an external annotator shelling out to
@@ -103,13 +103,13 @@ can.
 The cost worth stating is `kotlin-compiler-embeddable`, which has no stable API.
 FIR checker signatures move between Kotlin minors, and this module will break on
 upgrades nothing else here notices. Hence one module that can be dropped, rather
-than something `lark-app` depends on.
+than something `surefold-app` depends on.
 
 ## Stack
 
-- [x] **`spec-0027-plugin-shell`** ([#49](https://github.com/matthewjones372/lark/pull/49)) — `lark-app-compiler`:
-      registrar, FIR extension, a checker that finds `LarkApp` subclasses and
-      reports nothing. `lark-app-gradle` becomes a
+- [x] **`spec-0027-plugin-shell`** ([#49](https://github.com/matthewjones372/lark/pull/49)) — `surefold-app-compiler`:
+      registrar, FIR extension, a checker that finds `SurefoldApp` subclasses and
+      reports nothing. `surefold-app-gradle` becomes a
       `KotlinCompilerPluginSupportPlugin`.
       Done when: a TestKit build proves the extension ran, and the editor shows
       the same warning. Both hold; what it cost is above.
@@ -134,17 +134,17 @@ than something `lark-app` depends on.
 
 1. **Which Kotlin versions does it promise?** Recommend the one this repo
    builds with, no range: a range is a test matrix against an unstable API.
-2. **Own artifact, or inside `lark-app-gradle`?** Recommend its own: one jar for
+2. **Own artifact, or inside `surefold-app-gradle`?** Recommend its own: one jar for
    both drags `gradleApi()` into the compiler's classloader.
 3. **Report the unreachable-node warning too?** Recommend no, first pass — it
    depends on the root, which is the part FIR can least confirm.
-4. **What if the checker and `larkWiring` disagree?** Recommend a test that they
+4. **What if the checker and `surefoldWiring` disagree?** Recommend a test that they
    cannot, in the second entry. If it is hard to write, the reader is too clever
    and should give up sooner.
 5. **Is an editor behind a registry key worth two more branches?** Answered by
    building them: it works, and the three quiet failures above are the running
    cost to expect on every Kotlin upgrade. The
-   answer that would kill this spec is that `larkWiring` already fails the build
+   answer that would kill this spec is that `surefoldWiring` already fails the build
    on the same fault, with a line the IDE links, for everyone and with no
    setting to change. Recommend deciding it before the second entry rather than
    after the third.

@@ -2,7 +2,7 @@
 
 ## Problem
 
-Backpressure in Lark today means choosing a number: `mapPar(64)`, `Bulkhead(name, 100)`, a `Semaphore`. Reactor
+Backpressure in Surefold today means choosing a number: `mapPar(64)`, `Bulkhead(name, 100)`, a `Semaphore`. Reactor
 and Pekko ask for the same number (`flatMap(f, 256)`, `mapAsync(16)`). The right number depends on a downstream
 whose capacity nobody knows, and which changes under load, during an incident or after a deploy. Set it too low
 and the service is slow while the dependency sits idle. Set it too high and the dependency drowns, latency climbs,
@@ -12,7 +12,7 @@ Separately, core `parMap(items) { }` has no limit at all. In `blocking-vs-reacti
 (`vt-naive`) let 19,989 elements pile up where every bounded contestant held 17.
 
 No Reactor or Pekko operator adjusts its own concurrency. A limit that finds the right number by itself would be
-something Lark offers that they do not.
+something Surefold offers that they do not.
 
 ## Not doing
 
@@ -44,8 +44,8 @@ val guarded = policy("orders-db") { guard(orders) }
   dependency is queueing, so the limit shrinks. A call that failed or timed out counts as a rise.
 - A shared `Limit` (one per dependency) bounds every caller of that dependency together: a stream, a `parMap` and
   a request handler all draw from one budget.
-- The current limit and in-flight count are published through Lark's metrics, as `Bulkhead` publishes
-  `lark.bulkhead.in_use`.
+- The current limit and in-flight count are published through Surefold's metrics, as `Bulkhead` publishes
+  `surefold.bulkhead.in_use`.
 
 ## Why this shape
 
@@ -80,7 +80,7 @@ scripts/run-io.sh
 ```
 
 The `overload` scenario compares `Limit.adaptive` with Reactor and Pekko at their best fixed concurrency for the
-first half. "Lark wins" is defined in advance: equal throughput, and lower p99 latency after the drop.
+first half. "Surefold wins" is defined in advance: equal throughput, and lower p99 latency after the drop.
 
 ## Open questions
 

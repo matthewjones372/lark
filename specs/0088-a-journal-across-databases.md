@@ -2,9 +2,9 @@
 
 ## Problem
 
-`JdbcJournal` writes every event, from every node, into one `lark_journal`
+`JdbcJournal` writes every event, from every node, into one `surefold_journal`
 table in one database. Adding nodes spreads entities out, but not their writes:
-one Postgres primary is the ceiling for the whole cluster. lark-bank on one
+one Postgres primary is the ceiling for the whole cluster. surefold-bank on one
 shared 4-CPU machine reaches about 2,700 journal writes a second before that
 machine gives out. A tuned primary would go further, but still to a fixed
 number, and a transfer costs about five rows.
@@ -43,7 +43,7 @@ journal.feeds.map { (database, feed) ->
 ```
 
 - **`Slices`**: an id's slice is murmur3 (x86, 32-bit, seed 0) of the UTF-8
-  bytes of `"$kind|$id"`, modulo 1,024. The hash is copied into lark and pinned
+  bytes of `"$kind|$id"`, modulo 1,024. The hash is copied into surefold and pinned
   by a test of known values, so an id's slice can never change under it. Each
   database owns a contiguous range of slices, in the order given.
 - **`ShardedJournal`** is a `Journal` and a `JournalPruning`. `append`, `read`
@@ -92,13 +92,13 @@ over.
       Built, and the Postgres tests pass. The 1.6× is not shown yet: on one
       4 vCPU machine, two servers share its cores and its disk, and write no
       faster than one (about 9,500 events a second either way; see
-      `lark-actor-benchmarks/README.md`). It needs each database on its own host.
+      `surefold-actor-benchmarks/README.md`). It needs each database on its own host.
 
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:check :lark-actor-journal-jdbc:check
-./gradlew :lark-actor-benchmarks:jmh -PbenchmarkArgs="SpreadPersistentBenchmark"
+./gradlew :surefold-actor:check :surefold-actor-journal-jdbc:check
+./gradlew :surefold-actor-benchmarks:jmh -PbenchmarkArgs="SpreadPersistentBenchmark"
 ```
 
 ## Open questions

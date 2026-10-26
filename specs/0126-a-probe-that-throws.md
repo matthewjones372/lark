@@ -75,7 +75,7 @@ the thing saying it is not, which is what `false` means. The alternative is
 documenting that a probe must not throw. That puts a `try` in every probe that
 touches the network, and the petshop shows what happens when one is missed:
 the health endpoint fails at exactly the moment it is needed. Recommended:
-catch in Lark, once.
+catch in Surefold, once.
 
 ## Stack
 
@@ -95,7 +95,7 @@ catch in Lark, once.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app:check
+./gradlew :surefold-app:check
 ```
 
 Then the petshop's `database` probe drops its `try`, and stopping Postgres
@@ -110,5 +110,5 @@ still gives `/health` `{"ready": false, "failing": ["database"]}`.
   a health endpoint may reveal.
 - **`Exception` or `Throwable`, less `Error`s?** Kotlin code throws
   `Exception`s, but a Java driver could throw anything. Recommended:
-  `Exception`, matching the rest of Lark's recovery code, and an `Error`
+  `Exception`, matching the rest of Surefold's recovery code, and an `Error`
   stays fatal.

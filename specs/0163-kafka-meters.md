@@ -1,20 +1,20 @@
-# 0163 — lark-kafka's own meters
+# 0163 — surefold-kafka's own meters
 
 ## Problem
 
-lark-kafka records nothing. A service running `Kafka.consume(…).runCommitting()` cannot see how far behind it
+surefold-kafka records nothing. A service running `Kafka.consume(…).runCommitting()` cannot see how far behind it
 is, how long a record waits between being written and being handled, how often it commits or rebalances, or how
-often its producer fails, without wiring the Kafka client's metrics up itself, and lark hides the client.
+often its producer fails, without wiring the Kafka client's metrics up itself, and surefold hides the client.
 
-Every other lark module records under `lark.*` through core's `counter`, `gauge`, `histogram` and `timed`
-(`docs/observability.md`, *Lark's own metrics*): installing `lark-micrometer` exports them, and with no backend
+Every other surefold module records under `surefold.*` through core's `counter`, `gauge`, `histogram` and `timed`
+(`docs/observability.md`, *Surefold's own metrics*): installing `surefold-micrometer` exports them, and with no backend
 bound they cost nothing. zio-kafka exposes the client's metrics and its own run-loop metrics
 (`withMetricsLabels`, `withRunloopMetricsSchedule`).
 
 ## Not doing
 
-- A new dependency: lark-kafka records through `lark`'s API; Micrometer stays `lark-micrometer`'s.
-- Traces: `lark-otel` already carries a span across a record (`TraceCarrier`); spans per poll would be their own
+- A new dependency: surefold-kafka records through `surefold`'s API; Micrometer stays `surefold-micrometer`'s.
+- Traces: `surefold-otel` already carries a span across a record (`TraceCarrier`); spans per poll would be their own
   spec.
 - Every one of the client's ~100 metrics. A curated set below; the rest stay readable through 0160's `metrics()`.
 
@@ -25,22 +25,22 @@ Tagged `topic` and `partition` where the meter is about a partition, and `group`
 
 | Meter | Kind | Read from |
 |---|---|---|
-| `lark.kafka.consumer.records`, `.bytes` | counter | each poll |
-| `lark.kafka.consumer.lag` | gauge | the client's `records-lag`, per partition, after each poll |
-| `lark.kafka.consumer.latency` | histogram, s | now − the record's timestamp, when it is handled |
-| `lark.kafka.consumer.in.flight` | gauge | records handed to the stream and not yet handled |
-| `lark.kafka.consumer.poll`, `.commit`, `.close` | timer | around each |
-| `lark.kafka.consumer.commit.failures`, `.rebalances` | counter | the commit callback, the rebalance listener |
-| `lark.kafka.consumer.assigned`, `.paused` | gauge | the assignment, 0157's pause |
-| `lark.kafka.producer.records`, `.bytes`, `.failures` | counter | `publish` |
-| `lark.kafka.producer.ack` | histogram, s | send to acknowledgement |
-| `lark.kafka.dead.letters` | counter | `deadLetters` |
-| `lark.kafka.transactions`, `.aborts` | counter, timer | `transacted` |
+| `surefold.kafka.consumer.records`, `.bytes` | counter | each poll |
+| `surefold.kafka.consumer.lag` | gauge | the client's `records-lag`, per partition, after each poll |
+| `surefold.kafka.consumer.latency` | histogram, s | now − the record's timestamp, when it is handled |
+| `surefold.kafka.consumer.in.flight` | gauge | records handed to the stream and not yet handled |
+| `surefold.kafka.consumer.poll`, `.commit`, `.close` | timer | around each |
+| `surefold.kafka.consumer.commit.failures`, `.rebalances` | counter | the commit callback, the rebalance listener |
+| `surefold.kafka.consumer.assigned`, `.paused` | gauge | the assignment, 0157's pause |
+| `surefold.kafka.producer.records`, `.bytes`, `.failures` | counter | `publish` |
+| `surefold.kafka.producer.ack` | histogram, s | send to acknowledgement |
+| `surefold.kafka.dead.letters` | counter | `deadLetters` |
+| `surefold.kafka.transactions`, `.aborts` | counter, timer | `transacted` |
 
 ## Why this shape
 
-Through lark's API rather than Micrometer's `KafkaClientMetrics` binder: the binder needs the client instance,
-which lark keeps to one thread, and it would make lark-kafka depend on Micrometer. Lag from the client's own
+Through surefold's API rather than Micrometer's `KafkaClientMetrics` binder: the binder needs the client instance,
+which surefold keeps to one thread, and it would make surefold-kafka depend on Micrometer. Lag from the client's own
 `records-lag` rather than asking the broker for end offsets: it is already computed on every fetch, so reading it
 costs no request. Latency from the record's timestamp, because it is the number an alert is written on: how stale
 the work is, not how fast one call is.
@@ -58,7 +58,7 @@ the work is, not how fast one call is.
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
+./gradlew :surefold-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
 ```
 
 ## Open questions

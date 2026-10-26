@@ -20,7 +20,7 @@ statements happen to be written in.
 
 ## Shape
 
-A module, `lark-app-liquibase`, on `lark-app` and `liquibase-core`.
+A module, `surefold-app-liquibase`, on `surefold-app` and `liquibase-core`.
 
 ```kotlin
 val database: Module =
@@ -62,7 +62,7 @@ reason.
 
 ## Open questions
 
-1. **Does `Migrated` belong in `lark-app` so a Flyway module could provide the
+1. **Does `Migrated` belong in `surefold-app` so a Flyway module could provide the
    same key?** Recommend not yet: two implementations of one marker is a
    decision to make when the second exists, not before.
 2. **Should the node be able to refuse rather than throw when a changelog

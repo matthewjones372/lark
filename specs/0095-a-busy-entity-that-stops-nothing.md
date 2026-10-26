@@ -4,7 +4,7 @@
 
 A tell from inside an actor's step never waits for room: when the receiver's
 mailbox is full, the tell throws, and the sender's step fails (0059). For a
-service's own actors that is a choice they can see and handle. For lark's own
+service's own actors that is a choice they can see and handle. For surefold's own
 plumbing it is a trap:
 
 - **A sharding region** tells each message to its shard's entity manager.
@@ -40,11 +40,11 @@ A topic's actor (0082) has the same shape when one subscriber is slow.
 - **Bounded, then a dead letter.** Each keeps at most `KEEP_AT_MOST` messages
   per shard, entity or subscriber (the bound a region already has for a shard
   with no owner). Past it a message is a dead letter with a new reason,
-  `DeadLetter.Why.Full`, and `lark.actor.dead_letters{reason="full"}` counts
+  `DeadLetter.Why.Full`, and `surefold.actor.dead_letters{reason="full"}` counts
   it. Nothing stops.
 - **Order holds.** While anything is kept for an entity, everything after it
   for that entity is kept too, so a burst arrives in the order it was sent.
-- **Seen.** `lark.sharding.buffered` (0081) already gauges what a region
+- **Seen.** `surefold.sharding.buffered` (0081) already gauges what a region
   keeps. It now counts these too.
 
 ## Why this shape
@@ -77,7 +77,7 @@ letter.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:test :lark-cluster:test
+./gradlew :surefold-actor:test :surefold-cluster:test
 ```
 
 ## Open questions
@@ -112,9 +112,9 @@ Decided while building `spec-0095-entities`:
   trivially.
 
 Decided while building `spec-0095-region`:
-- **One seam.** The keeping is `HandOn` in `lark-actor`, behind an opt-in
-  `@PlumbingSeam`, as `lark-stream` and `lark-kafka` expose their seams.
-  `lark-cluster` cannot see `lark-actor`'s internals. The entity manager moved
+- **One seam.** The keeping is `HandOn` in `surefold-actor`, behind an opt-in
+  `@PlumbingSeam`, as `surefold-stream` and `surefold-kafka` expose their seams.
+  `surefold-cluster` cannot see `surefold-actor`'s internals. The entity manager moved
   onto it, so there is one mechanism.
 - **Keyed by entity, not shard.** The region keeps per entity id. Order holds
   per entity, which is all a sender is promised. When the region lets a shard

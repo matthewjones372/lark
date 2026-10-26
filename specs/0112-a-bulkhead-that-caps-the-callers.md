@@ -5,7 +5,7 @@
 Virtual threads make a request cheap, so nothing upstream limits how many handlers call one dependency at once. A
 slow partner API with a pool of 20 connections gets 5,000 callers queued on it. Each waits out its own timeout while
 holding the memory of its request, and other dependencies on the same node starve. Pekko gets bounded concurrency
-from its dispatcher's size; resilience4j has a `Bulkhead`. A Lark service writes a `Semaphore` by hand, and so it
+from its dispatcher's size; resilience4j has a `Bulkhead`. A Surefold service writes a `Semaphore` by hand, and so it
 has no metric and no declared error.
 
 ## Not doing
@@ -27,14 +27,14 @@ val quote = partner { http.quote(id) }                 // throws Rejected.Bulkhe
 bulkhead.available // permits free now
 ```
 
-- The runner calls `acquire(maxWait)`, which is `internal` to `lark`. It answers a permit or null, and the policy
+- The runner calls `acquire(maxWait)`, which is `internal` to `surefold`. It answers a permit or null, and the policy
   (spec 0110) caps `maxWait` at its remaining budget.
 - It is a **fair** `java.util.concurrent.Semaphore` with `maxConcurrent` permits. Callers are admitted in the order
   they arrived.
 - `maxWait` defaults to `ZERO`, which means admit or reject at once. A positive wait is `tryAcquire(maxWait)`, which
   can be interrupted, so the policy's deadline ends it.
 - The permit is released in a `finally`. A throw, a `raise` or an interrupt in the block never leaks one.
-- Metrics: `lark.bulkhead.in_use` (gauge) and `lark.bulkhead.calls` (counter tagged `outcome=admitted|rejected`),
+- Metrics: `surefold.bulkhead.in_use` (gauge) and `surefold.bulkhead.calls` (counter tagged `outcome=admitted|rejected`),
   both tagged with `name`.
 
 ## Why this shape
@@ -51,7 +51,7 @@ sits inside the rate limiter, so a caller waiting for a token holds no permit.
 
 ## Stack
 
-- [ ] **`spec-0112-bulkhead`** — `Bulkhead`, its `Step`, and its runner row, in `lark`.
+- [ ] **`spec-0112-bulkhead`** — `Bulkhead`, its `Step`, and its runner row, in `surefold`.
       Done when: with `maxConcurrent = 2`, a third concurrent caller on a virtual thread is rejected at once when
       `maxWait = ZERO` and admitted when a permit frees within `maxWait`, and a block that throws, raises or is
       interrupted gives its permit back, and a refusal inside a policy refunds the limiter's

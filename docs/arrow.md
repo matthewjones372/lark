@@ -1,31 +1,31 @@
 # Coming from Arrow
 
-**Code written with Arrow moves to Lark with a few renames, and code that keeps
-both runs through `lark-arrow`.** Lark's typed errors follow the model Arrow
+**Code written with Arrow moves to Surefold with a few renames, and code that keeps
+both runs through `surefold-arrow`.** Surefold's typed errors follow the model Arrow
 made familiar in Kotlin, and its combinators keep the names and shapes of
-`arrow-fx-coroutines`. Lark's own types are written for blocking code on
+`arrow-fx-coroutines`. Surefold's own types are written for blocking code on
 virtual threads, so its core depends on nothing but the Kotlin standard library.
 
 ## The renames
 
-| Arrow | Lark |
+| Arrow | Surefold |
 |---|---|
 | `either { }` | `attempt { }` |
 | `raise(error)` | `fail(error)` |
 | `Raise<E>` | `Fail<E>` |
 | `context(_: Raise<E>)` | `context(_: Fail<E>)` |
-| `ensure`, `ensureNotNull`, `bind`, `recover` | the same names, from `io.github.matthewjones372.lark.fail` |
-| `arrow.core.Either`, `NonEmptyList` | `io.github.matthewjones372.lark.fail.Either`, `NonEmptyList` |
+| `ensure`, `ensureNotNull`, `bind`, `recover` | the same names, from `io.github.matthewjones372.surefold.fail` |
+| `arrow.core.Either`, `NonEmptyList` | `io.github.matthewjones372.surefold.fail.Either`, `NonEmptyList` |
 | `Option<A>` | `A?` |
-| `Either.catch { }` | the same, from `io.github.matthewjones372.lark.fail` |
-| `parZip`, `parMap`, `raceN`, `parZipOrAccumulate`, `parMapOrAccumulate` | the same names in `io.github.matthewjones372.lark`, without `suspend` |
+| `Either.catch { }` | the same, from `io.github.matthewjones372.surefold.fail` |
+| `parZip`, `parMap`, `raceN`, `parZipOrAccumulate`, `parMapOrAccumulate` | the same names in `io.github.matthewjones372.surefold`, without `suspend` |
 
 <!-- arrow-renames -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.parZip
 
 data class Missing(val id: Int)
 
@@ -36,7 +36,7 @@ fun pair(a: Int, b: Int): Either<Missing, Pair<String, String>> = attempt {
 }
 ```
 
-## Where Lark differs
+## Where Surefold differs
 
 - **`catch (e: Exception)` cannot swallow a failure.** A `fail` leaves its block
   as a `Throwable` that is not an `Exception`, and `nonFatalOrThrow()` rethrows
@@ -50,50 +50,50 @@ fun pair(a: Int, b: Int): Either<Missing, Pair<String, String>> = attempt {
 
 ## Using both
 
-`lark-arrow` adds `arrow-core` and nothing else:
+`surefold-arrow` adds `arrow-core` and nothing else:
 
 | Call | What it does |
 |---|---|
-| `either.toArrow()`, `either.toLark()` | an `Either` from one library to the other |
-| `nel.toArrow()`, `nel.toLark()` | the same for `NonEmptyList` |
-| `raise.lark { … }` | Lark code inside an Arrow `Raise`: a `fail` in it raises there |
-| `arrow { … }` inside a `Fail` | Arrow code inside Lark: a `raise` in it fails there |
+| `either.toArrow()`, `either.toSurefold()` | an `Either` from one library to the other |
+| `nel.toArrow()`, `nel.toSurefold()` | the same for `NonEmptyList` |
+| `raise.surefold { … }` | Surefold code inside an Arrow `Raise`: a `fail` in it raises there |
+| `arrow { … }` inside a `Fail` | Arrow code inside Surefold: a `raise` in it fails there |
 
 <!-- arrow-both -->
 ```kotlin
 import arrow.core.raise.Raise
 import arrow.core.raise.either
-import io.github.matthewjones372.lark.arrow.arrow
-import io.github.matthewjones372.lark.arrow.lark
-import io.github.matthewjones372.lark.arrow.toArrow
-import io.github.matthewjones372.lark.arrow.toLark
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.Fail
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.fail
-import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.surefold.arrow.arrow
+import io.github.matthewjones372.surefold.arrow.surefold
+import io.github.matthewjones372.surefold.arrow.toArrow
+import io.github.matthewjones372.surefold.arrow.toSurefold
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.Fail
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.fail
+import io.github.matthewjones372.surefold.parZip
 
 data class NotFound(val id: Int)
 
-// Moved to Lark: the function asks its caller for a Fail.
+// Moved to Surefold: the function asks its caller for a Fail.
 context(_: Fail<NotFound>)
 fun user(id: Int): String = if (id > 0) "user-$id" else fail(NotFound(id))
 
 // Not moved yet: still on Arrow's Raise.
 fun Raise<NotFound>.orders(id: Int): List<String> = if (id > 0) listOf("order-1") else raise(NotFound(id))
 
-// Lark calling Arrow: arrow { } fails the Lark scope with what the Arrow code raised.
+// Surefold calling Arrow: arrow { } fails the Surefold scope with what the Arrow code raised.
 fun dashboard(id: Int): Either<NotFound, Pair<String, List<String>>> = attempt {
     parZip({ user(id) }, { arrow { orders(id) } }) { user, orders -> user to orders }
 }
 
-// Arrow calling Lark: lark { } raises into the Arrow scope what the Lark code failed with.
-fun name(id: Int): arrow.core.Either<NotFound, String> = either { lark { user(id) } }
+// Arrow calling Surefold: surefold { } raises into the Arrow scope what the Surefold code failed with.
+fun name(id: Int): arrow.core.Either<NotFound, String> = either { surefold { user(id) } }
 
 // An answer handed across as a value, either way.
 fun forArrow(id: Int): arrow.core.Either<NotFound, Pair<String, List<String>>> = dashboard(id).toArrow()
 
-fun forLark(id: Int): Either<NotFound, String> = name(id).toLark()
+fun forSurefold(id: Int): Either<NotFound, String> = name(id).toSurefold()
 ```
 
 That lets a service move one function at a time, with each side calling the

@@ -2,17 +2,17 @@
 
 ## Problem
 
-Lark's `Metrics` is write-only: `counter`, `gauge` and `histogram` hand a measurement to a backend, and nothing asks
+Surefold's `Metrics` is write-only: `counter`, `gauge` and `histogram` hand a measurement to a backend, and nothing asks
 the backend what it now holds. A service that shows its own numbers (the bank's live ops page shows asks a second,
-ask p99, command rates and its shards and entities) has to reach past Lark to the backend's registry: the bank reads
-Micrometer's `registry.find(...)` for its own `bank.*` meters and for Lark's own `lark.sharding.*` gauges. The call
-sites that write through Lark then read through Micrometer, and a test binding `capturingMetrics` cannot see what the
+ask p99, command rates and its shards and entities) has to reach past Surefold to the backend's registry: the bank reads
+Micrometer's `registry.find(...)` for its own `bank.*` meters and for Surefold's own `surefold.sharding.*` gauges. The call
+sites that write through Surefold then read through Micrometer, and a test binding `capturingMetrics` cannot see what the
 page would show.
 
 ## Not doing
 
 - **Aggregation, rates or quantiles.** A reading is what the backend holds now; a rate is two readings apart, and a
-  quantile over an interval is a caller's arithmetic on two histograms' buckets. Lark does not keep history.
+  quantile over an interval is a caller's arithmetic on two histograms' buckets. Surefold does not keep history.
 - **Gauges read on a callback.** A gauge is still set. A value that is expensive to read is read on a timer by the
   service and set, which is one line of `Stream.tick`, not a new instrument.
 - **A query language.** A reading is found by exact name, every tag set of it returned.
@@ -59,9 +59,9 @@ val applied = readings("bank.account.commands").filterIsInstance<Reading.Total>(
 ## Why this shape
 
 Readings by name, with every tag set, cover what a page or a probe asks ("the p99 of this", "these by outcome")
-without Lark holding anything it does not already hand to the backend: the backend is the store, as it is for
+without Surefold holding anything it does not already hand to the backend: the backend is the store, as it is for
 writing. A default method on `Metrics` keeps every adapter written before this compiling, answering nothing. The
-alternative, Lark keeping its own copy of every instrument, would double what a busy node holds, to answer a
+alternative, Surefold keeping its own copy of every instrument, would double what a busy node holds, to answer a
 question the backend already can.
 
 ## Depends on
@@ -70,9 +70,9 @@ Nothing.
 
 ## Stack
 
-- [x] **`spec-0109-readings`** — `Reading`, `Metrics.read` and `readings`, in `lark`, `CapturedMetrics` and
-      `lark-micrometer`.
-      Done when: a counter, a gauge and a bucketed histogram written through Lark read back through Lark, from
+- [x] **`spec-0109-readings`** — `Reading`, `Metrics.read` and `readings`, in `surefold`, `CapturedMetrics` and
+      `surefold-micrometer`.
+      Done when: a counter, a gauge and a bucketed histogram written through Surefold read back through Surefold, from
       Micrometer and from `capturingMetrics` alike, each tag set its own reading.
 
 ## Acceptance
@@ -83,5 +83,5 @@ Nothing.
 
 ## Settled
 
-1. **Rates and quantiles in Lark?** No: a reading is now; the caller subtracts.
+1. **Rates and quantiles in Surefold?** No: a reading is now; the caller subtracts.
 2. **Callback gauges?** No: a gauge is set, on a timer where reading its value costs something.

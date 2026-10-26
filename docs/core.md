@@ -1,15 +1,15 @@
 # Core: concurrency, errors and resources
 
-`lark` is the module everything else builds on. It provides structured
-concurrency on virtual threads, typed errors through Lark's own `Fail`, resource
+`surefold` is the module everything else builds on. It provides structured
+concurrency on virtual threads, typed errors through Surefold's own `Fail`, resource
 safety, schedules, timeouts and call policies, and the context that forks
 inherit. Everything on this page is in the package
-`io.github.matthewjones372.lark`.
+`io.github.matthewjones372.surefold`.
 
 ```kotlin
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:lark:0.10.1")
+    implementation("io.github.matthewjones372:surefold:0.10.1")
 }
 ```
 
@@ -34,13 +34,13 @@ or `fail` with an error, and the first failure becomes the block's `Left`:
 
 <!-- core-forking -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.flock
-import io.github.matthewjones372.lark.parMap
-import io.github.matthewjones372.lark.parZip
-import io.github.matthewjones372.lark.raceN
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.parMap
+import io.github.matthewjones372.surefold.parZip
+import io.github.matthewjones372.surefold.raceN
 
 data class Err(val why: String)
 
@@ -86,7 +86,7 @@ fun report(id: Int) = flock<Err, Dashboard> {
   has more forks than its `max`. One limit shared with a stream's `mapPar` and
   a policy bounds all three together.
 - `flock { }` is the scope that `async` forks in. On its own it returns
-  Lark's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
+  Surefold's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
   it returns `A` and a failure propagates to the enclosing scope.
 
 By default each fork is a new virtual thread. Every forking combinator also
@@ -132,7 +132,7 @@ still running.
 
 <!-- core-cancel -->
 ```kotlin
-import io.github.matthewjones372.lark.flock
+import io.github.matthewjones372.surefold.flock
 
 data class Credit(val hasCredit: Boolean)
 
@@ -168,14 +168,14 @@ and return all the failures instead of only the first, which suits validation:
 
 <!-- core-accumulate -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.NonEmptyList
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.fail.ensure
-import io.github.matthewjones372.lark.fail.mapLeft
-import io.github.matthewjones372.lark.parMapOrAccumulate
-import io.github.matthewjones372.lark.parZipOrAccumulate
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.NonEmptyList
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.fail.ensure
+import io.github.matthewjones372.surefold.fail.mapLeft
+import io.github.matthewjones372.surefold.parMapOrAccumulate
+import io.github.matthewjones372.surefold.parZipOrAccumulate
 
 data class Form(val name: String, val email: String)
 
@@ -211,13 +211,13 @@ release is told how the scope ended:
 
 <!-- core-resources -->
 ```kotlin
-import io.github.matthewjones372.lark.ExitCase
-import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.resource
-import io.github.matthewjones372.lark.resourceScope
-import io.github.matthewjones372.lark.use
+import io.github.matthewjones372.surefold.ExitCase
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.resource
+import io.github.matthewjones372.surefold.resourceScope
+import io.github.matthewjones372.surefold.use
 
 class Connection {
     fun rows(id: Int): List<String> = listOf("row-$id")
@@ -265,7 +265,7 @@ throws. A release that throws when nothing else failed becomes the exception
 the caller sees; one that throws after another failure is added to it as
 suppressed.
 
-In an application, the graph in [`lark-app`](app.md) uses the same `install`
+In an application, the graph in [`surefold-app`](app.md) uses the same `install`
 for each node, and releases nodes in reverse dependency order.
 
 ## Schedules, retries and timeouts
@@ -278,14 +278,14 @@ an interrupt ends the schedule where it is and a test can skip the waiting.
 
 <!-- core-schedule -->
 ```kotlin
-import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.retry
-import io.github.matthewjones372.lark.retrying
-import io.github.matthewjones372.lark.timeout
-import io.github.matthewjones372.lark.timeoutOrNull
+import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.retry
+import io.github.matthewjones372.surefold.retrying
+import io.github.matthewjones372.surefold.timeout
+import io.github.matthewjones372.surefold.timeoutOrNull
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -341,14 +341,14 @@ one value. It is checked when it is built and applied as a whole on every call:
 
 <!-- core-policy -->
 ```kotlin
-import io.github.matthewjones372.lark.Bulkhead
-import io.github.matthewjones372.lark.CircuitBreaker
-import io.github.matthewjones372.lark.RateLimiter
-import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.guarded
-import io.github.matthewjones372.lark.policy
+import io.github.matthewjones372.surefold.Bulkhead
+import io.github.matthewjones372.surefold.CircuitBreaker
+import io.github.matthewjones372.surefold.RateLimiter
+import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.guarded
+import io.github.matthewjones372.surefold.policy
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -413,31 +413,31 @@ built, not on the first call. Each step is optional.
 Called as `partner { … }`, a refusal throws its `Rejected`, which is a
 `RuntimeException`. `guarded(policy, ifRejected) { }` turns it into a fail.
 
-Each guard records metrics through lark's [metrics](observability.md#metrics):
+Each guard records metrics through surefold's [metrics](observability.md#metrics):
 
 | Metric | Kind | Tags |
 |---|---|---|
-| `lark.policy.calls` | counter | `policy`, `outcome` (`success`, `failure`, `rejected`), `refused_by` (`deadline`, a guard's name, or `none`) |
-| `lark.breaker.state` | gauge | `name`; 0 closed, 1 half-open, 2 open |
-| `lark.breaker.calls` | counter | `name`, `outcome` (`success`, `failure`, `rejected`) |
-| `lark.bulkhead.in_use` | gauge | `name` |
-| `lark.bulkhead.calls` | counter | `name`, `outcome` (`admitted`, `rejected`) |
-| `lark.limit.current`, `lark.limit.in_use` | gauge | `name` |
-| `lark.ratelimiter.calls` | counter | `name`, `outcome` (`immediate`, `waited`, `rejected`) |
-| `lark.ratelimiter.wait` | histogram, seconds | `name` |
+| `surefold.policy.calls` | counter | `policy`, `outcome` (`success`, `failure`, `rejected`), `refused_by` (`deadline`, a guard's name, or `none`) |
+| `surefold.breaker.state` | gauge | `name`; 0 closed, 1 half-open, 2 open |
+| `surefold.breaker.calls` | counter | `name`, `outcome` (`success`, `failure`, `rejected`) |
+| `surefold.bulkhead.in_use` | gauge | `name` |
+| `surefold.bulkhead.calls` | counter | `name`, `outcome` (`admitted`, `rejected`) |
+| `surefold.limit.current`, `surefold.limit.in_use` | gauge | `name` |
+| `surefold.ratelimiter.calls` | counter | `name`, `outcome` (`immediate`, `waited`, `rejected`) |
+| `surefold.ratelimiter.wait` | histogram, seconds | `name` |
 
 ## What a fork inherits
 
 A plain virtual thread inherits nothing from the thread that started it. A
-`LarkLocal` is a value that does cross: it is read on the thread that forks and
+`SurefoldLocal` is a value that does cross: it is read on the thread that forks and
 bound again inside the fork, whichever executor the fork runs on.
 
 <!-- core-local -->
 ```kotlin
-import io.github.matthewjones372.lark.larkLocal
-import io.github.matthewjones372.lark.parMap
+import io.github.matthewjones372.surefold.parMap
+import io.github.matthewjones372.surefold.surefoldLocal
 
-val requestId = larkLocal { "none" }
+val requestId = surefoldLocal { "none" }
 
 fun tagged(rows: List<String>): List<String> =
     requestId.locally("abc-123") {
@@ -445,17 +445,17 @@ fun tagged(rows: List<String>): List<String> =
     }
 ```
 
-Lark's own context uses the same mechanism:
+Surefold's own context uses the same mechanism:
 
-- **The clock.** `clock` is a `LarkLocal<Clock>`. `Schedule`, `timeout`, probes,
+- **The clock.** `clock` is a `SurefoldLocal<Clock>`. `Schedule`, `timeout`, probes,
   timers and stream operators all wait on it, so binding `fixedClock()` makes
   a five-retry backoff finish immediately, and a `TestClock` moves only when a
   test calls `adjust`. See [Testing](testing.md#time).
 - **Log annotations and metric tags.** `logAnnotated` and `metricTagged` bind
   values that every log line and measurement inside the block carries,
   including on forks. See [Observability](observability.md).
-- **Trace context.** With `lark-otel` on the classpath, OpenTelemetry's
-  `Context` is kept in a `LarkLocal`.
+- **Trace context.** With `surefold-otel` on the classpath, OpenTelemetry's
+  `Context` is kept in a `SurefoldLocal`.
 
 The same context also travels with an actor message, local or remote, and is
 stored with journal events, so a correlation id or trace follows a request
@@ -464,14 +464,14 @@ through an actor system.
 ## Running forks on Pekko
 
 A Pekko application already has one place that names, sizes and instruments
-its threads: the dispatcher configuration. `lark-pekko` makes a dispatcher
-configured there the executor Lark forks on, and lets a fork wait for Pekko's
+its threads: the dispatcher configuration. `surefold-pekko` makes a dispatcher
+configured there the executor Surefold forks on, and lets a fork wait for Pekko's
 `CompletionStage`s and Scala `Future`s.
 
 ```kotlin
 dependencies {
-    // brings lark and pekko-actor
-    implementation("io.github.matthewjones372:lark-pekko:0.10.1")
+    // brings surefold and pekko-actor
+    implementation("io.github.matthewjones372:surefold-pekko:0.10.1")
 }
 ```
 
@@ -479,19 +479,19 @@ The dispatcher is configured beside Pekko's own, and named by the part after
 `pekko.actor.`:
 
 ```hocon
-pekko.actor.lark {
+pekko.actor.surefold {
   executor = "virtual-thread-executor"
 }
 ```
 
 <!-- core-pekko -->
 ```kotlin
-import io.github.matthewjones372.lark.await
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.parZip
-import io.github.matthewjones372.lark.pekko.larkDispatcher
+import io.github.matthewjones372.surefold.await
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.parZip
+import io.github.matthewjones372.surefold.pekko.surefoldDispatcher
 import org.apache.pekko.actor.ActorSystem
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
@@ -503,24 +503,24 @@ fun price(id: Int): CompletionStage<Long> = CompletableFuture.completedFuture(10
 fun stock(id: Int): Either<Missing, Int> = Either.Right(3)
 
 fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = attempt {
-    val lark = system.larkDispatcher()   // pekko.actor.lark; larkDispatcher("other") for another
-    parZip(on = lark, { price(id).await() }, { stock(id).bind() }) { p, s -> p to s }
+    val surefold = system.surefoldDispatcher()   // pekko.actor.surefold; surefoldDispatcher("other") for another
+    parZip(on = surefold, { price(id).await() }, { stock(id).bind() }) { p, s -> p to s }
 }
 ```
 
-- `larkDispatcher` accepts a dispatcher whose executor is
+- `surefoldDispatcher` accepts a dispatcher whose executor is
   `virtual-thread-executor`, or one with `type = PinnedDispatcher`, whose thread
   is not shared. It rejects any other executor, including Pekko's default
   fork-join pool, with an `IllegalArgumentException` naming the setting: a
-  Lark fork blocks, and blocking the pool Pekko sizes for its actors starves
+  Surefold fork blocks, and blocking the pool Pekko sizes for its actors starves
   them. Both the classic and the typed `ActorSystem` can call it.
 - `await()` parks the calling fork until the stage completes. A failed stage
   rethrows the original cause, not the `CompletionException` around it. An
   interrupt cancels the stage with `cancel(true)` and rethrows the
   `InterruptedException`, so a value that arrives later is dropped.
-- `await()` is in `lark` and takes any `CompletionStage` or `Future`, Pekko's
-  or not; Pekko's Scala futures have one of their own in `lark-pekko`.
-- The other way round, `larkFuture { }` hands lark to a caller that wants a
+- `await()` is in `surefold` and takes any `CompletionStage` or `Future`, Pekko's
+  or not; Pekko's Scala futures have one of their own in `surefold-pekko`.
+- The other way round, `surefoldFuture { }` hands surefold to a caller that wants a
   future: the block runs on a virtual thread of its own, with the caller's
   bindings as a fork has them, and the future's `cancel` interrupts it, so its
   forks stop. `CompletableFuture.supplyAsync` would ignore the cancel. A
@@ -531,14 +531,14 @@ fun offer(system: ActorSystem, id: Int): Either<Missing, Pair<Long, Int>> = atte
 
 ## Futures and coroutines
 
-A fork waits for a future with `await()`, and hands lark to a caller that
-wants one with `larkFuture { }`. Both are in `lark`.
+A fork waits for a future with `await()`, and hands surefold to a caller that
+wants one with `surefoldFuture { }`. Both are in `surefold`.
 
 ### Wait for a future
 
 <!-- core-await -->
 ```kotlin
-import io.github.matthewjones372.lark.await
+import io.github.matthewjones372.surefold.await
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -560,15 +560,15 @@ A fork cancelled while it waits cancels the future too.
 
 ### Hand back a future
 
-<!-- core-lark-future -->
+<!-- core-surefold-future -->
 ```kotlin
-import io.github.matthewjones372.lark.larkFuture
-import io.github.matthewjones372.lark.parMap
+import io.github.matthewjones372.surefold.parMap
+import io.github.matthewjones372.surefold.surefoldFuture
 import java.util.concurrent.CompletableFuture
 
 class Profiles(private val find: (Long) -> String?) {
     fun profilesAsync(ids: List<Long>): CompletableFuture<List<String?>> =
-        larkFuture { parMap(ids) { id -> find(id) } }
+        surefoldFuture { parMap(ids) { id -> find(id) } }
 }
 ```
 
@@ -583,7 +583,7 @@ on one `async` runs on until that fork ends. Reach for the combinators.
 ### Call a coroutine library
 
 Some libraries have only a `suspend` API: Ktor's client, the AWS SDK for
-Kotlin. From lark code, `runBlocking` is the right call, and nothing more is
+Kotlin. From surefold code, `runBlocking` is the right call, and nothing more is
 needed:
 
 ```kotlin
@@ -612,8 +612,8 @@ class Chips(private val registry: ChipRegistry) {
 
 `runBlocking` parks one virtual thread, which is cheap. The block resumes on
 that thread, so code in it keeps the log annotations and span the fork had. A
-lark cancel interrupts the thread, which cancels the coroutine. Log lines the
-library writes on threads of its own go without lark's annotations.
+surefold cancel interrupts the thread, which cancels the coroutine. Log lines the
+library writes on threads of its own go without surefold's annotations.
 
 Don't `fail` inside the block. A coroutine can resume on a thread of its own,
 and a `fail` from a thread the scope did not fork is refused. Get the value
@@ -623,25 +623,25 @@ out first, then fail.
 
 <!-- core-from-coroutines -->
 ```kotlin
-import io.github.matthewjones372.lark.larkFuture
-import io.github.matthewjones372.lark.parZip
+import io.github.matthewjones372.surefold.parZip
+import io.github.matthewjones372.surefold.surefoldFuture
 import kotlinx.coroutines.future.await
 
 class Dashboard(private val users: (Long) -> String, private val orders: (Long) -> List<String>) {
     suspend fun load(id: Long): Pair<String, List<String>> =
-        larkFuture { parZip({ users(id) }, { orders(id) }) { user, bought -> user to bought } }.await()
+        surefoldFuture { parZip({ users(id) }, { orders(id) }) { user, bought -> user to bought } }.await()
 }
 ```
 
-A Ktor route or any other `suspend` caller hands lark its work with
-`larkFuture`, and waits with kotlinx's `await`, which suspends rather than
-blocks. Calling lark straight from a coroutine would block a
+A Ktor route or any other `suspend` caller hands surefold its work with
+`surefoldFuture`, and waits with kotlinx's `await`, which suspends rather than
+blocks. Calling surefold straight from a coroutine would block a
 `Dispatchers.Default` thread, of which there is one per core. When the
 coroutine is cancelled, by a client that hung up for instance, kotlinx cancels
-the future and lark stops the branches.
+the future and surefold stops the branches.
 
-Import kotlinx's `await` and not lark's in a file like this. With both
-imported, lark's is the closer match for a `CompletableFuture` and wins, and it
+Import kotlinx's `await` and not surefold's in a file like this. With both
+imported, surefold's is the closer match for a `CompletableFuture` and wins, and it
 blocks.
 
 ## Requirements and limitations
@@ -653,12 +653,12 @@ blocks.
   it. The Gradle and compiler plugins are built for JDK 21, because they run
   inside the build tools.
 - **No `suspend`.** No published module uses coroutines or depends on
-  `kotlinx-coroutines`. Calling Lark from coroutine code works as any blocking
-  call does, on a dispatcher that tolerates blocking, or through `larkFuture`
+  `kotlinx-coroutines`. Calling Surefold from coroutine code works as any blocking
+  call does, on a dispatcher that tolerates blocking, or through `surefoldFuture`
   (see [Futures and coroutines](#futures-and-coroutines)).
 - **Cancellation is cooperative.** It relies on interruption, so code that
   swallows `InterruptedException` or never blocks cannot be stopped early.
-- **`lark-structured`** is an unpublished variant of `parZip` (two and three
+- **`surefold-structured`** is an unpublished variant of `parZip` (two and three
   branches), `parMap`, `raceN` (two branches) and `timeout` built on the JDK's
   `StructuredTaskScope`, so that forks appear under their caller in a thread
   dump and inherit `ScopedValue` bindings. It compiles against JDK 27, where

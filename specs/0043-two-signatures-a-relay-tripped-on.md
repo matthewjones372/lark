@@ -12,7 +12,7 @@ Stream.tick(every = 1.seconds, element = Unit)
 ```
 
 `mapPar` is a pair
-([MapPar.kt](../lark-stream/src/main/kotlin/io/github/matthewjones372/lark/stream/MapPar.kt)).
+([MapPar.kt](../surefold-stream/src/main/kotlin/io/github/matthewjones372/surefold/stream/MapPar.kt)).
 On a `Stream<Nothing, A>` the one that reads the failure out of the body wins,
 because its receiver is more specific. A body that never raises gives it
 nothing to read. The caller writes `mapPar<Nothing, _, _>(1)`. The common case,
@@ -21,8 +21,8 @@ annotating.
 
 The second is smaller. `groupedWithin` and its `Pipe` forms take a
 `java.time.Duration`
-([Batching.kt](../lark-stream/src/main/kotlin/io/github/matthewjones372/lark/stream/Batching.kt)),
-while `tick` and lark's own `timeout` take `kotlin.time.Duration`, and
+([Batching.kt](../surefold-stream/src/main/kotlin/io/github/matthewjones372/surefold/stream/Batching.kt)),
+while `tick` and surefold's own `timeout` take `kotlin.time.Duration`, and
 `docs/stream.md` says `Duration` without saying which.
 
 ## Not doing
@@ -31,7 +31,7 @@ while `tick` and lark's own `timeout` take `kotlin.time.Duration`, and
   with a body that never fails is calling the wrong operator: `map` is there.
 - **No deprecation cycle for `mapPar`.** A deprecated overload still takes part
   in resolution and still wins, so it would keep the bug it is deprecated for.
-  Lark is `0.x`, and this is a break in the changelog.
+  Surefold is `0.x`, and this is a break in the changelog.
 - **No other `java.time` sweep.** `groupedWithin` is the only public signature
   taking one.
 

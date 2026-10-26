@@ -4,7 +4,7 @@
 
 0068's transport is plain TCP. Anything on the network between two nodes can
 read every message, including 0072's events on their way to an entity, and
-anything that can reach a node's port can speak lark to it: send a frame to
+anything that can reach a node's port can speak surefold to it: send a frame to
 any exposed actor, join the cluster through gossip, or claim to be another
 node by giving its name in the hello. A node listens on loopback by default
 for exactly that reason, so a real deployment today either runs on a network
@@ -92,7 +92,7 @@ join. Recommended: mutual TLS.
   Recommended: checked in as PKCS12 files valid for a century, with the
   script that made them beside them, so the tests need no process and no
   clock.
-- **TLS 1.3 only?** Recommended: yes; every JDK lark supports has it, and it
+- **TLS 1.3 only?** Recommended: yes; every JDK surefold supports has it, and it
   leaves no cipher list to choose.
 
 Decided (2026-09-26): every open question goes as recommended. Mutual TLS, not
@@ -114,7 +114,7 @@ names. The name must be a DNS subject alternative name; the subject's CN is not
 read.
 
 Decided while building `spec-0073-node`: the test certificates moved to
-`lark-actor-remote`'s test fixtures, as `TestCertificates`, so `lark-cluster`'s
+`surefold-actor-remote`'s test fixtures, as `TestCertificates`, so `surefold-cluster`'s
 tests use the same ones. The fourth node starts only once the three have
 formed, so the same test without TLS fails on the fourth joining rather than
 on the three never settling.

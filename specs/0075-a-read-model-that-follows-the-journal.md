@@ -26,7 +26,7 @@ an offset stored once each is handled.
 ## Shape
 
 ```kotlin
-// lark-actor-projection
+// surefold-actor-projection
 val totals = Projection.follow(journal as JournalFeed, kind = "order", codec = OrderEvent.codec,
                                offsets = JdbcOffsets(dataSource), name = "order-totals")
     .mapOrFail { event -> store.apply(event.id, event.value) }   // idempotent, keyed by event.id and event.sequence
@@ -45,7 +45,7 @@ totals.start(Forks())
   stops at a gap and waits up to `gapTimeout` (10 s by default) for it to fill
   before passing it. A rolled-back append, such as a conflict, leaves a gap
   that never fills.
-- **`follow`** is a `Stream<Nothing, Followed<E>>` on any lark-stream
+- **`follow`** is a `Stream<Nothing, Followed<E>>` on any surefold-stream
   backend. It polls the feed every `every` (1 s by default) when it has
   caught up, on the run's clock, and never ends by itself.
 - **`OffsetStore`** keeps the last handled offset per read model's name:
@@ -66,7 +66,7 @@ database. Recommended: at-least-once, with idempotent handlers.
 ## Stack
 
 - [x] **`spec-0075-feed`** — `JournalFeed`, `Followed`, the in-memory feed,
-      and `FeedContract` in `lark-actor`'s test fixtures. Done when: the
+      and `FeedContract` in `surefold-actor`'s test fixtures. Done when: the
       in-memory journal passes the contract.
       ([#190](https://github.com/matthewjones372/lark/pull/190))
 - [x] **`spec-0075-jdbc-feed`** — the `ordering` column and the JDBC feed
@@ -74,7 +74,7 @@ database. Recommended: at-least-once, with idempotent handlers.
       append whose transaction is still open is not passed until it commits
       or `gapTimeout` runs out.
       ([#191](https://github.com/matthewjones372/lark/pull/191))
-- [x] **`spec-0075-follow`** — `lark-actor-projection`: `follow`,
+- [x] **`spec-0075-follow`** — `surefold-actor-projection`: `follow`,
       `OffsetStore`, `InMemoryOffsets` and `runProjecting`. Done when: on
       `TestStreams`, a projection stopped after 30 of 50 events and started
       again handles events 31 to 50, and an event appended while it runs
@@ -119,17 +119,17 @@ across every kind, so a gap is an `ordering` missing from the whole table. The
 feed reads a kind's rows and then the orderings below the last of them; a row
 of the kind that committed between the two reads is held back like a gap, or
 it would be skipped. The contract's follower caught that as 196 events of 200.
-The gap timeout runs on lark's clock, so a test moves it rather than waits.
+The gap timeout runs on surefold's clock, so a test moves it rather than waits.
 
 Decided while building `spec-0075-follow`: `follow` is a `Stream.blocking`
 source, and a run's `stop()` interrupts its wait for the next poll. An element
 is a `Followed`, which carries its offset through `mapFollowed` and
-`mapFollowedOrFail`, as lark-kafka's `Committed` does, and whose body sees the
+`mapFollowedOrFail`, as surefold-kafka's `Committed` does, and whose body sees the
 id and sequence number as well as the value, for idempotency. The tests run on
 Forks with a `TestClock`, since a blocking source waits on its own thread.
 
 Decided while building `spec-0075-offsets-jdbc`: `OffsetStore` and
-`InMemoryOffsets` moved to `lark-actor`, beside `JournalFeed`, so
-`lark-actor-journal-jdbc` implements the store without depending on
-`lark-stream`; `OffsetContract` is in `lark-actor`'s test fixtures. A save
+`InMemoryOffsets` moved to `surefold-actor`, beside `JournalFeed`, so
+`surefold-actor-journal-jdbc` implements the store without depending on
+`surefold-stream`; `OffsetContract` is in `surefold-actor`'s test fixtures. A save
 replaces the row, or inserts it and replaces it again if another insert won.

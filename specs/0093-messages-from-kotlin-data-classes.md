@@ -5,7 +5,7 @@
 0071 gives a service whose messages are described in `.proto` a codec it does
 not write. The price is that the `.proto` is the source: `protoc` generates
 Java classes, and the service maps them to and from its own Kotlin data classes
-by hand. lark-bank's mapping is 170 lines for 148 lines of `.proto`, and every
+by hand. surefold-bank's mapping is 170 lines for 148 lines of `.proto`, and every
 new field is written three times. 0071 left Kotlin's serialization plugin to
 each service. Such a service now writes the same tag table and reply order that
 0071 was written to spare it.
@@ -47,7 +47,7 @@ val ask = Kotlinx.asked(Open.serializer(), answers, ::OpenAsk, OpenAsk::request,
 val proto: String = Kotlinx.proto(events, package = "bank.v1")
 ```
 
-- **A new module, `lark-actor-remote-kotlinx`**, depending on `lark-actor-remote`
+- **A new module, `surefold-actor-remote-kotlinx`**, depending on `surefold-actor-remote`
   and `kotlinx-serialization-protobuf`, and nothing else.
 - **`codec`, `state` and `events`** write one class's own bytes in the format.
 - **`oneOf`** writes the tag and then the class's bytes. Like `Protobuf.oneOf`,
@@ -64,11 +64,11 @@ val proto: String = Kotlinx.proto(events, package = "bank.v1")
 ## Why this shape
 
 The data class is the only definition: the fields, their numbers and their
-types are written once, where the code uses them. The tag table stays lark's,
+types are written once, where the code uses them. The tag table stays surefold's,
 as in 0071, and not kotlinx's own polymorphism. kotlinx writes a class's name
 on the wire, so a rename breaks every stored event. Its `@ProtoOneOf` needs a
 wrapper class per case, which a domain type should not carry. A number that
-never changes is the rule every lark codec already follows.
+never changes is the rule every surefold codec already follows.
 
 ## Stack
 
@@ -86,14 +86,14 @@ never changes is the rule every lark codec already follows.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor-remote-kotlinx:check
+./gradlew :surefold-actor-remote-kotlinx:check
 ```
 
 ## Open questions
 
 Answered 2026-09-27, taking each recommendation:
 
-1. **Lark tags, or kotlinx's own polymorphism?** Lark tags. A class's name
+1. **Surefold tags, or kotlinx's own polymorphism?** Surefold tags. A class's name
    never reaches the wire, and a domain class needs no wrapper class.
 2. **One module, or the journal codecs in a second?** One module.
 3. **Pin kotlinx's version, or take the service's?** It is declared as `api`

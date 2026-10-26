@@ -76,7 +76,7 @@ that refactor.
 ## Acceptance
 
 ```bash
-./gradlew :lark-stream-forks:test :lark-stream-parity:test
+./gradlew :surefold-stream-forks:test :surefold-stream-parity:test
 ```
 
 ## Open questions

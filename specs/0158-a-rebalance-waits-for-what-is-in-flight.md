@@ -10,7 +10,7 @@ deploy and every scale-out re-processes up to a window's worth of records per pa
 zio-kafka's `rebalanceSafeCommits` holds the rebalance, inside the revoke callback, until the records already
 handed out for that partition are committed or `maxRebalanceDuration` passes.
 
-`stop()` already drains (`docs/stream.md`: what the source sent still reaches the sink, and lark-kafka commits it
+`stop()` already drains (`docs/stream.md`: what the source sent still reaches the sink, and surefold-kafka commits it
 on close), so shutdown itself is not the gap; a rebalance is.
 
 ## Not doing
@@ -22,7 +22,7 @@ on close), so shutdown itself is not the gap; a rebalance is.
 ## Shape
 
 ```kotlin
-// lark-kafka: off by default, as zio-kafka's.
+// surefold-kafka: off by default, as zio-kafka's.
 Kafka.consume(properties, topic, key, value, rebalance = Rebalance.waitFor(30.seconds))
 ```
 
@@ -54,6 +54,6 @@ Depends on 0157: with the poll held inside the callback, nothing else may need i
 ## Open questions
 
 1. **Off by default?** Recommended: yes, as zio-kafka's.
-2. **A parameter, or a consumer property?** Recommended: a parameter; it is lark's behaviour, not the client's.
+2. **A parameter, or a consumer property?** Recommended: a parameter; it is surefold's behaviour, not the client's.
 3. **What the bound's expiry does:** commit what was handled and let the rest be re-delivered, as today.
    Recommended: yes.

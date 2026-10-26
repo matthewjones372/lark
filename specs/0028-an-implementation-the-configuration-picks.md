@@ -30,7 +30,7 @@ written there is nothing to `when` over.
 
 ## Shape
 
-In `lark-app-typesafe`. The section is read once, at assembly, and is still a
+In `surefold-app-typesafe`. The section is read once, at assembly, and is still a
 node afterwards:
 
 ```kotlin
@@ -39,7 +39,7 @@ fun persistence(conf: Config): Module =
         if (repo.useCache) cachingRepo else plainRepo
     }
 
-object Shop : LarkApp<Server>() {
+object Shop : SurefoldApp<Server>() {
     override val module = ConfigFactory.load().let { conf -> configOf(conf) + persistence(conf) + web }
 }
 ```
@@ -90,7 +90,7 @@ Answered in the draft rather than by a reviewer, on the author's say-so.
 2. **Should `overridingConfig` refuse where a choice was already made?** No — it
    cannot tell. Documented under the testing section instead.
 3. **Does a `Config`-free `Module.choosing(flag: Boolean)` belong in
-   `lark-app`?** No: that is `if`, and 0023's objection to it stands.
+   `surefold-app`?** No: that is `if`, and 0023's objection to it stands.
 4. **Is `RepoConf` still a node when only the choice reads it?** Yes, always. An
    overload that drops it is an API for saving one key.
 

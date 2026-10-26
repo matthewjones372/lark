@@ -23,13 +23,13 @@ reader of a distributed system opens first.
 
 ## Shape
 
-A module, `lark-otel`, on `lark` and `opentelemetry-api`.
+A module, `surefold-otel`, on `surefold` and `opentelemetry-api`.
 
 ```kotlin
-val otelContext: LarkLocal<Context> = larkLocal { Context.root() }
+val otelContext: SurefoldLocal<Context> = surefoldLocal { Context.root() }
 
-class LarkContextStorage : ContextStorage
-class LarkContextStorageProvider : ContextStorageProvider
+class SurefoldContextStorage : ContextStorage
+class SurefoldContextStorageProvider : ContextStorageProvider
 ```
 
 Registered through `META-INF/services`, so nothing in a service's own code
@@ -47,7 +47,7 @@ tracer.span("register") {
 tracer.tracedSpan("register") { logInfo("started") }   // trace_id=… span_id=…
 ```
 
-`LarkLocal` grows the pair an attach-and-detach API needs:
+`SurefoldLocal` grows the pair an attach-and-detach API needs:
 
 ```kotlin
 fun attach(value: A): Detach
@@ -55,7 +55,7 @@ fun attach(value: A): Detach
 
 ## Why this shape
 
-The `ContextStorage` SPI rather than a lark-shaped span API. A service's spans
+The `ContextStorage` SPI rather than a surefold-shaped span API. A service's spans
 mostly are not written by its own code — they come from an agent, a client
 library, a framework — and only the storage reaches those. A `span { }` of our
 own would fix the spans we wrote and leave every other one rooted at the fork.
@@ -63,15 +63,15 @@ own would fix the spans we wrote and leave every other one rooted at the fork.
 The cost is that the SPI is process-wide: with this module on the classpath,
 every library using OpenTelemetry's context in the JVM reads and writes it
 here. That is the point, and it is why this is a module a service opts into
-rather than anything in `lark`.
+rather than anything in `surefold`.
 
-`attach` on `LarkLocal` is the smallest thing that makes the SPI implementable:
+`attach` on `SurefoldLocal` is the smallest thing that makes the SPI implementable:
 `locally` takes a block and `ContextStorage.attach` hands back a `Scope` to be
 closed later.
 
 ## Stack
 
-- [x] **`spec-0021-context`** — `LarkLocal.attach`, `LarkContextStorage`, the
+- [x] **`spec-0021-context`** — `SurefoldLocal.attach`, `SurefoldContextStorage`, the
       service registration, `span`, `tracedSpan`, and the dependency test.
       Done when: a span opened before a `parMap` is the parent of what each
       branch opens, and the storage OpenTelemetry finds is this one.

@@ -19,7 +19,7 @@ same flag differently.
 
 ## Shape
 
-In `lark-openfeature`, beside 0181's factories:
+In `surefold-openfeature`, beside 0181's factories:
 
 ```kotlin
 object AdoptionFlags {
@@ -45,7 +45,7 @@ exception's message in `details()`, and one warning through 0180's hook.
 
 ## Why this shape
 
-This is where Lark adds something OpenFeature does not: the call site gets a
+This is where Surefold adds something OpenFeature does not: the call site gets a
 `Duration`, not a string it has to trust, and the parsing lives once, next to
 the key and default. Derived types are read as strings because that is how
 flagd and HOCON carry them. Decoding is a function, not a library, so the
@@ -62,7 +62,7 @@ module keeps its one dependency.
 ## Acceptance
 
 ```bash
-./gradlew :lark-openfeature:test
+./gradlew :surefold-openfeature:test
 ./gradlew spotlessApply && ./gradlew build
 ```
 

@@ -1,14 +1,14 @@
 {
-  "name": "lark",
-  "description": "The lark plugin: what lark ships, for an agent writing code on it.",
+  "name": "surefold",
+  "description": "The surefold plugin: what surefold ships, for an agent writing code on it.",
   "owner": {
     "name": "matthewjones372"
   },
   "plugins": [
     {
-      "name": "lark",
-      "source": "./plugins/lark",
-      "description": "What lark ships and when to reach for it, so code on lark uses the library instead of rewriting it."
+      "name": "surefold",
+      "source": "./plugins/surefold",
+      "description": "What surefold ships and when to reach for it, so code on surefold uses the library instead of rewriting it."
     }
   ]
 }

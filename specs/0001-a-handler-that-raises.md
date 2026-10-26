@@ -42,7 +42,7 @@ thread hop — leaves the blocking call where it was by default.
 ## Stack
 
 - [x] **`spec-0001-scaffold`** ([#1](https://github.com/matthewjones372/lark/pull/1)) —
-      Gradle build, the `lark` module on `arrow-core`, `NoOtherDependenciesTest`, README.
+      Gradle build, the `surefold` module on `arrow-core`, `NoOtherDependenciesTest`, README.
       Done when: `./gradlew build` is green and the classpath test lists Arrow
       and nothing else.
 - [x] ~~**`spec-0001-rising`**, **`spec-0001-naming`**, **`spec-0001-executor`**~~
@@ -50,7 +50,7 @@ thread hop — leaves the blocking call where it was by default.
       [#4](https://github.com/matthewjones372/lark/pull/4),
       [#5](https://github.com/matthewjones372/lark/pull/5)) — built as a
       request-handler binder for a web framework and withdrawn by spec 0003:
-      lark is a library for Arrow code, not a server. What survives of them is
+      surefold is a library for Arrow code, not a server. What survives of them is
       the executor knob, as `on:` in spec 0004.
 
 ## Acceptance

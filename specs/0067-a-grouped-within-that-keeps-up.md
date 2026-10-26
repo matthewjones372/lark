@@ -4,7 +4,7 @@
 
 0066's comparison measured `groupedWithin(100, 1.seconds)` at 25 µs an element
 on Forks and 24 µs on Actors, against 184 ns for the same description on
-Pekko: 130 times slower, and the only row where either lark backend loses to
+Pekko: 130 times slower, and the only row where either surefold backend loses to
 Pekko. The cost is the feed, not the backend. On real time, upstream is pulled
 on a fork of its own into a one-element handoff, and every element is two
 parks and two wakes: the feed waits for the reader to take it, and the reader
@@ -47,7 +47,7 @@ other option. Not recommended: each element would still cross threads alone.
 
 ```bash
 ./gradlew build
-./gradlew :lark-stream-benchmarks:jmh -PbenchmarkArgs=GroupedWithinBenchmark
+./gradlew :surefold-stream-benchmarks:jmh -PbenchmarkArgs=GroupedWithinBenchmark
 ```
 
 ## Open questions

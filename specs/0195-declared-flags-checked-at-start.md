@@ -29,7 +29,7 @@ already gives the start a place to refuse.
 
 ## Shape
 
-`lark-openfeature`: each `Flag` can say whether a raw value would decode as
+`surefold-openfeature`: each `Flag` can say whether a raw value would decode as
 its type. It uses the same decoding that `value()` uses, so the check and the
 read cannot disagree.
 
@@ -45,7 +45,7 @@ Flag.duration("checkout.registry-timeout", 2.seconds).rejects(Value("5x"))
 Flag.enum("checkout.mode", Checkout.Classic).rejects(Value("Classic"))   // null
 ```
 
-`lark-app-openfeature-flagd`: `flagdFlags` takes the declared flags, and checks
+`surefold-app-openfeature-flagd`: `flagdFlags` takes the declared flags, and checks
 every variant of each before the provider starts:
 
 ```kotlin
@@ -84,7 +84,7 @@ with an explicit list.
 ## Stack
 
 - [x] **`spec-0195-flag-rejects`** (#599): `Flag.rejects(Value)` for every factory in
-      `lark-openfeature`, with tests per factory. Each test has one value that
+      `surefold-openfeature`, with tests per factory. Each test has one value that
       decodes and one that doesn't.
       Done when: `rejects` is null exactly when `value()` on a provider holding
       that value answers it without an error code.
@@ -99,7 +99,7 @@ with an explicit list.
 ## Acceptance
 
 ```bash
-./gradlew :lark-openfeature:test :lark-app-openfeature-flagd:test :lark-app-gradle:test
+./gradlew :surefold-openfeature:test :surefold-app-openfeature-flagd:test :surefold-app-gradle:test
 ./gradlew spotlessApply && ./gradlew build
 ```
 

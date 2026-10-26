@@ -4,7 +4,7 @@
 
 A long-lived pipeline, such as an outbox relay or a subscriber, meets a defect
 eventually: a timed-out ask, a client that threw, a bug on one element. The run
-ends `Died`, lark logs it, and nothing starts it again. The petshop relay would
+ends `Died`, surefold logs it, and nothing starts it again. The petshop relay would
 stop draining its outbox until the process restarted.
 
 There is no `resume` on purpose (spec [0010](0010-a-defect-is-never-silent.md)),
@@ -22,7 +22,7 @@ carrying `E` has to give its failure type up to get it.
   purpose.
 - **No resume, and no per-element supervision.** A restart starts the whole
   stream again, from its first element.
-- **No new schedule vocabulary.** It is lark's `Schedule<Throwable, *>`, the one
+- **No new schedule vocabulary.** It is surefold's `Schedule<Throwable, *>`, the one
   `retry` takes.
 - **No restart on completion.** A stream that ended `Done` stays done.
 
@@ -41,7 +41,7 @@ val relay: Stream<Nothing, Event> =
   it. `Continue(delay)` materialises the same description again after `delay`.
   `Done` lets the defect through, and the run is `Died` with that cause.
 - A declared failure passes through untouched, as `Failed(e)`.
-- Every restart is logged at warn through lark's logger, with the cause and the
+- Every restart is logged at warn through surefold's logger, with the cause and the
   delay, because a defect that was restarted is still a defect.
 - What was emitted before the defect stays emitted. A restarted `Stream.from`
   emits its elements again.
@@ -51,7 +51,7 @@ val relay: Stream<Nothing, Event> =
 An operator on `Stream` keeps `E` in the type, which is the thing
 `RestartSource` cannot do from here. The description being a value is what
 makes "the same stream again" mean something, so no factory lambda is needed.
-Taking a `Schedule` reuses the backoff, jitter and limits lark already has,
+Taking a `Schedule` reuses the backoff, jitter and limits surefold already has,
 rather than Pekko's `RestartSettings` beside them. The alternative, restarting
 on any failure, would turn a declared `Failed` into a loop nobody asked for and
 leave the `E` in the type as a lie.
@@ -76,8 +76,8 @@ leave the `E` in the type as a lie.
 1. **Should the `Pipe` form exist?** Recommend not yet. A restart is a property
    of a whole source, and a `Pipe` restarted in the middle of someone else's
    stream would not replay the elements it lost.
-2. **Name: `restartOnDefect`, or `retry` to match lark's?** Recommend
-   `restartOnDefect`. lark's `retry` re-runs a body. This re-materialises a
+2. **Name: `restartOnDefect`, or `retry` to match surefold's?** Recommend
+   `restartOnDefect`. surefold's `retry` re-runs a body. This re-materialises a
    pipeline, and the name should say which failures count.
-3. **Where does the warn line go when no lark logger is bound?** Recommend
-   lark's default, as every other lark line does.
+3. **Where does the warn line go when no surefold logger is bound?** Recommend
+   surefold's default, as every other surefold line does.

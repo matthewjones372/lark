@@ -2,7 +2,7 @@
 
 ## Problem
 
-`lark-actor-journal-jdbc` ships DDL for Postgres and H2, and its tests run on
+`surefold-actor-journal-jdbc` ships DDL for Postgres and H2, and its tests run on
 H2 alone. The parts most likely to differ between the two are also the parts
 that matter most:
 - the duplicate-key SQL state that tells one writer from two;
@@ -19,7 +19,7 @@ run on its database.
 - **Other databases.** MySQL, Oracle and SQL Server keep no DDL here and get no
   tests; a user who needs one reports it, as 0072 said.
 - **Postgres in the main build's dependencies.** The driver and the database
-  are test scope; the module's runtime classpath stays `lark-actor` and the JDK.
+  are test scope; the module's runtime classpath stays `surefold-actor` and the JDK.
 - **Performance tests.** Correctness on Postgres only.
 
 ## Shape
@@ -65,7 +65,7 @@ are written. Recommended: embedded Postgres.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor-journal-jdbc:build
+./gradlew :surefold-actor-journal-jdbc:build
 ```
 
 ## Open questions

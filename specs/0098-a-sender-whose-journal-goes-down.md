@@ -63,13 +63,13 @@ when (val sent = payments.send("w-42") { Pay(10, it) }) {
 - **A lost confirmation is harmless.** A `Done` write that throws leaves the
   command unconfirmed. After the restart it is resent, and the entity drops
   the duplicate (0079).
-- **Seen.** `lark.delivery.unwritten` counts each `Unwritten`. A warning is
+- **Seen.** `surefold.delivery.unwritten` counts each `Unwritten`. A warning is
   logged once when the journal first fails, and one line when it recovers,
   not once per send.
 
 ## Why this shape
 
-The producer is lark's actor, not the service's, so lark has to supervise it;
+The producer is surefold's actor, not the service's, so surefold has to supervise it;
 a stopped outbox that nobody restarts is never the right answer. Answering
 `Unwritten` rather than blocking follows 0079's rule that a producer's back
 pressure is answered, never hidden. A separate case, rather than `Full`, lets
@@ -96,14 +96,14 @@ restarting outbox.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:test --tests '*DurableProducer*' :lark-cluster:test --tests '*GuideExample*'
+./gradlew :surefold-actor:test --tests '*DurableProducer*' :surefold-cluster:test --tests '*GuideExample*'
 ```
 
 ## Open questions
 
 1. **`Either<NotSent, Unit>`, or keep `Full` and throw for a journal
    failure?** Recommended: `NotSent`. Code that names `Either<Full, Unit>`
-   has to change its type, and lark-bank's `BankNode.transfer` is one such
+   has to change its type, and surefold-bank's `BankNode.transfer` is one such
    place. Code that matches on `Left` keeps compiling.
 2. **How long is the backoff?** Recommended: 100 ms doubling to 5 s, and
    not configurable yet. That is short enough that a blip costs little, and
@@ -126,8 +126,8 @@ Decided while building `spec-0098-survive`:
 Decided while building `spec-0098-unwritten`:
 - **Down.** The producer and its actor share one reference to the journal's last throw. A throw sets it before the waiting `send` is answered, so the next `send` already sees it. A start that reads the journal clears it. A throw from a start sets it too, so a producer whose journal is down when it first starts answers at once as well.
 - **The answer.** `KeepDurably` carries its own answer: written, or refused with the cause. A command is answered `Unwritten` only if its write had not landed, so a throw after the write does not refuse a kept command.
-- **Seen.** `lark.delivery.unwritten` is counted where `send` answers, prompt or not. The warning names the cause, and the recovery line is at info.
-- **The guide.** Its reliable example returns `Either<NotSent, Unit>`, since `Either<Full, Unit>` no longer compiles, and its metrics table lists `lark.delivery.unwritten`.
+- **Seen.** `surefold.delivery.unwritten` is counted where `send` answers, prompt or not. The warning names the cause, and the recovery line is at info.
+- **The guide.** Its reliable example returns `Either<NotSent, Unit>`, since `Either<Full, Unit>` no longer compiles, and its metrics table lists `surefold.delivery.unwritten`.
 - **The test.** On a flock, six sends while appends throw each answer `Unwritten` in under 500 ms, a tenth of `within`, and after the journal is back a send is written, delivered and drained. Without the prompt answer, the fifth send took 803 ms. Without the answer from the failed step, the first answered `Full` after `within`. On `testActors`, one throw logs one warning and one recovery line.
 
 Decided while building `spec-0098-guide`:

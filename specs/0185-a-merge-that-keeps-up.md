@@ -51,8 +51,8 @@ Recommended: a ring per input, with the other two measured as probes and reporte
 ## Acceptance
 
 ```bash
-./gradlew spotlessApply && ./gradlew :lark-stream-forks:build :lark-stream-parity:build
-bench/lark-stream-benchmarks/gate.sh origin/main "HandOffBenchmark|MapParBenchmark|EnrichThroughputBenchmark"
+./gradlew spotlessApply && ./gradlew :surefold-stream-forks:build :surefold-stream-parity:build
+bench/surefold-stream-benchmarks/gate.sh origin/main "HandOffBenchmark|MapParBenchmark|EnrichThroughputBenchmark"
 ```
 
 ## Open questions

@@ -5,7 +5,7 @@
 `Kafka.consume` polls only when the stream pulls (`Consume.kt`, `Loop.next`). A handler slower than
 `max.poll.interval.ms` (5 minutes by default) for one poll's worth of records stops the polling, the broker
 removes the consumer from its group, every partition is rebalanced, and the records it was working on are read
-again by someone else. Nothing in lark-kafka mentions
+again by someone else. Nothing in surefold-kafka mentions
 `max.poll.interval.ms`, pauses a partition, or polls without a pull.
 
 zio-kafka polls on its own loop and pauses the partitions whose buffer is full (`FetchStrategy`,
@@ -52,7 +52,7 @@ Recommended: (a) first. It closes the correctness gap; (b) is a throughput chang
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
+./gradlew :surefold-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
 ```
 
 ## Open questions

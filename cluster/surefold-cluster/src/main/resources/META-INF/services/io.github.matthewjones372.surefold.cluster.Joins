@@ -1,0 +1,3 @@
+io.github.matthewjones372.surefold.cluster.StaticJoins
+io.github.matthewjones372.surefold.cluster.DnsJoins
+io.github.matthewjones372.surefold.cluster.SrvJoins

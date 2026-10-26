@@ -10,7 +10,7 @@ take a `Semaphore` permit per element, and the puller parks on each head's futur
 
 Measured against Reactor on the same machine (`blocking-vs-reactive`, JDK 25, 4 cores):
 
-| | Lark | Reactor |
+| | Surefold | Reactor |
 |---|--:|--:|
 | one million elements across a thread boundary (`buffer` / `publishOn`) | 520 ms | 25 ms |
 | `mapAsync` at 10k in flight, ops/s | 390–520k | 549k |
@@ -22,7 +22,7 @@ before it sleeps, and a producer is told about room only in chunks (prefetch, re
 ## Not doing
 
 - No change to any operator's API or semantics: order, failure, `stop()` and release behave as today.
-- No lock-free queue from a library: `lark-stream-forks` adds no dependency.
+- No lock-free queue from a library: `surefold-stream-forks` adds no dependency.
 - Not Actors, Pekko or TestStreams: they have their own hand-offs.
 - Not unordered variants (0170) or adaptive limits (0171).
 
@@ -52,7 +52,7 @@ cost in place, and that cost is what the profile shows. Recommended: the primiti
 - [x] **`handoff-ring`** ([#479](https://github.com/matthewjones372/lark/pull/479)) — `Ring` with its batching rule, end marker and interrupt behaviour, and unit tests.
       Done when: its tests pass, including a producer interrupted while parked on a full ring.
 - [x] **`buffer-on-handoff`** ([#480](https://github.com/matthewjones372/lark/pull/480)) — `buffer` on Forks moves to `Ring`.
-      Done when: `lark-stream-parity` is green and a new hand-off row in `lark-stream-benchmarks` is at least 5×
+      Done when: `surefold-stream-parity` is green and a new hand-off row in `surefold-stream-benchmarks` is at least 5×
       faster than today's baseline.
 - [x] **`mapasync-on-handoff`** ([#481](https://github.com/matthewjones372/lark/pull/481)) — the `mapAsync` window uses slots and batched room.
       Done when: parity is green and `MapParBenchmark`'s `mapAsync` rows pass the regression gate (`gate.sh`).
@@ -64,7 +64,7 @@ cost in place, and that cost is what the profile shows. Recommended: the primiti
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-bench/lark-stream-benchmarks/gate.sh
+bench/surefold-stream-benchmarks/gate.sh
 # in blocking-vs-reactive, against a locally published snapshot:
 scripts/run-jmh.sh && scripts/run-io.sh
 ```

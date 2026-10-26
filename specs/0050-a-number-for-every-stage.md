@@ -2,8 +2,8 @@
 
 ## Problem
 
-A slow pipeline has one slow stage, and nothing says which. lark's `Metrics`
-(0034) is how a service counts things, and `lark-micrometer` backs it. A
+A slow pipeline has one slow stage, and nothing says which. surefold's `Metrics`
+(0034) is how a service counts things, and `surefold-micrometer` backs it. A
 pipeline reaches it only through a `wireTap` or a counter written into a `map`
 body by hand, and neither can see time spent between stages.
 
@@ -14,7 +14,7 @@ number with.
 ## Not doing
 
 - **No tracing.** One span per element costs more than most stage bodies.
-  `lark-otel`'s spans stay at the handler and run level.
+  `surefold-otel`'s spans stay at the handler and run level.
 - **No always-on instrumentation.** A run is measured only when asked. An
   unmeasured run compiles exactly as it does today.
 - **No per-element tags.** The tags are the stage and the pipeline, and
@@ -30,9 +30,9 @@ For each stage, tagged `pipeline` and `stage` (the name and site from 0049):
 
 | Metric | Kind | What |
 |---|---|---|
-| `lark.stream.elements` | counter | elements a stage has emitted |
-| `lark.stream.busy` | histogram | time inside the stage body, per element |
-| `lark.stream.waiting` | histogram | time a stage waited for downstream demand |
+| `surefold.stream.elements` | counter | elements a stage has emitted |
+| `surefold.stream.busy` | histogram | time inside the stage body, per element |
+| `surefold.stream.waiting` | histogram | time a stage waited for downstream demand |
 
 - A `Fused` stage (0047) is measured once for the whole segment, and each
   merged step is counted. A timer around every step would cost more than the
@@ -56,7 +56,7 @@ flowchart TD
     tick --> par --> fold
 ```
 
-- The same profile can come from a JMH run instead: `lark-stream-benchmarks`
+- The same profile can come from a JMH run instead: `surefold-stream-benchmarks`
   runs a benchmark's pipeline measured and writes the diagram beside its numbers,
   so a baseline says where its time went as well as how much there was.
 
@@ -75,7 +75,7 @@ they suspect, not the one that is slow.
 - [ ] **`spec-0050-waiting`**: `waiting`.
       Done when: the stage upstream of the slow one has the highest `waiting`.
 - [ ] **`spec-0050-diagram`**: `profile()`, `render(profile = …)`, and a profiled diagram per
-      benchmark in `lark-stream-benchmarks`. Done when: the `mapPar` baseline's diagram
+      benchmark in `surefold-stream-benchmarks`. Done when: the `mapPar` baseline's diagram
       marks `mapPar` hottest, and a golden file holds one rendering.
 
 ## Acceptance

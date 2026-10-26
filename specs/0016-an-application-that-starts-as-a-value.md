@@ -2,7 +2,7 @@
 
 ## Problem
 
-A service on lark wires itself by hand in `main`, so nested `resourceScope`
+A service on surefold wires itself by hand in `main`, so nested `resourceScope`
 blocks *are* its dependency graph: moving a dependency means moving a brace,
 release order is right by accident, and nothing starts in parallel because a
 `resourceScope` body is one thread. A test that needs one repository starts the
@@ -14,10 +14,10 @@ missing is a value saying which service needs which, to point them at.
 ## Not doing
 
 - **No Pekko.** Actor nodes, `CoordinatedShutdown` order and `ask` readiness
-  are `lark-pekko`'s, in their own spec.
+  are `surefold-pekko`'s, in their own spec.
 - **No built-in services.** `Clock`, `Random`, `Sys` and their doubles are
   later; this spec has no opinion on what a node holds.
-- **No ambient context.** `logInfo`, annotations and a test clock need lark to
+- **No ambient context.** `logInfo`, annotations and a test clock need surefold to
   rebind context across a fork. Separate spec.
 - **No config decoding and no reflection** beyond `typeOf<A>()`.
 - **No annotation processor.** KSP models declarations, not bodies, and a graph
@@ -31,7 +31,7 @@ missing is a value saying which service needs which, to point them at.
 
 ## Shape
 
-A module, `lark-app`, on `lark` and the Arrow that arrives with it.
+A module, `surefold-app`, on `surefold` and the Arrow that arrives with it.
 
 ```kotlin
 interface Wiring : ResourceScope                        // install, and refuse to start
@@ -80,7 +80,7 @@ there, and it is what a test should reach for.
 
 Release order is reverse **topological**, not reverse acquisition: under
 `parMap` acquisition order is nondeterministic, and `Resources` is written for a
-single installing thread. So `lark-app` keeps its own guarded release list keyed
+single installing thread. So `surefold-app` keeps its own guarded release list keyed
 by node. One `resourceScope` for the whole graph is fewer lines and races on
 install.
 

@@ -36,7 +36,7 @@ brings the behaviour home.
 // A stream run for its effect, its stage discarded. The defect still lands.
 Stream.from(rows).mapAsync(4) { ledger.settle(it) }.runFold(0) { n, _ -> n + 1 }.run(system)
 
-// [ERROR] lark-stream: mapAsync died on Row(id=3, customer=null), built at IngestService.kt:41:
+// [ERROR] surefold-stream: mapAsync died on Row(id=3, customer=null), built at IngestService.kt:41:
 //         the stage completed with null
 ```
 

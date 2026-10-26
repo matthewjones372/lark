@@ -2,8 +2,8 @@
 
 ## Problem
 
-A node that closes its flock simply stops answering. Nothing in lark calls
-`Cluster.leave()` on the way out, `lark-app-actor` included, so to the rest of
+A node that closes its flock simply stops answering. Nothing in surefold calls
+`Cluster.leave()` on the way out, `surefold-app-actor` included, so to the rest of
 the cluster every deploy, scale-down and restart looks like a crash. The
 others wait for the probes to fail, then for `stableAfter` (20 s by default)
 before downing the node, then as long again before removing it. For that whole
@@ -20,7 +20,7 @@ itself, and guess how long to wait before closing.
   is all the ordering there is.
 - **Handing over a singleton's state.** A singleton (0070) moves as it does
   now: it stops, and starts on its next owner.
-- **Signals.** Catching SIGTERM is the application's: `lark-app` already turns
+- **Signals.** Catching SIGTERM is the application's: `surefold-app` already turns
   it into a release of its nodes, and that release is what this hooks into.
 - **Waiting for mailboxes to empty.** An entity's messages that arrive during
   the handover are the region's to keep or forward, as in a move today.
@@ -50,7 +50,7 @@ cluster.stop(within = 30.seconds)                       // or explicitly, e.g. b
 - **Timing out.** A leave that has not finished by the deadline is logged and
   the flock closes anyway: the others then treat the node as crashed, which is
   where every service is today.
-- **`lark-app-actor`.** Its `Actors` node closes the flock this way, so an
+- **`surefold-app-actor`.** Its `Actors` node closes the flock this way, so an
   application that releases its nodes on SIGTERM leaves the cluster first.
 
 ## Why this shape
@@ -66,7 +66,7 @@ service that wants to do it earlier.
 
 ## Stack
 
-- [x] **`spec-0080-closing`** — `onClose` hooks on a flock, in `lark`'s
+- [x] **`spec-0080-closing`** — `onClose` hooks on a flock, in `surefold`'s
       `Flock`, run in reverse order of registration before any fork is
       interrupted or actor stopped. Done when: a hook that tells an actor and
       waits for its answer gets it, and a hook that throws is logged and the
@@ -82,7 +82,7 @@ service that wants to do it earlier.
       that sends payments to 200 accounts and closes straight away has every
       one applied once, wherever its account runs.
       ([#213](https://github.com/matthewjones372/lark/pull/213))
-- [x] **`spec-0080-app`** — `lark-app-actor` closes through the hooks. Done
+- [x] **`spec-0080-app`** — `surefold-app-actor` closes through the hooks. Done
       when: an application released while its node is in a cluster leaves it
       before its flock is gone.
       ([#214](https://github.com/matthewjones372/lark/pull/214))
@@ -103,20 +103,20 @@ service that wants to do it earlier.
   too?** Recommended: yes; a flock's close is the one moment its unconfirmed
   commands are about to be lost, cluster or not.
 - **Hooks on every flock, or only on a cluster's?** Recommended: every flock,
-  as `onClose` in `lark-actor`; the cluster is one user of it, and a service
+  as `onClose` in `surefold-actor`; the cluster is one user of it, and a service
   gets the same place for its own last step.
 
 Decided (2026-09-27): every open question goes as recommended. A cluster
 leaves on its flock's close, with `stop()` for a service that wants to leave
 earlier; one deadline, `leaveWithin`, covers leaving and draining; a producer
 drains on close whether or not its flock is in a cluster; and close hooks are
-`onClose` on every flock, in `lark-actor`.
+`onClose` on every flock, in `surefold-actor`.
 
 
 Decided while building `spec-0080-closing`: the hooks live on `Flock` in
-`lark` itself, not in `lark-actor`. A flock interrupts every fork at once as
+`surefold` itself, not in `surefold-actor`. A flock interrupts every fork at once as
 it closes, and a remote node's transport runs in forks of the same flock as
-the actors, so a hook in `lark-actor`'s guardian would find the transport
+the actors, so a hook in `surefold-actor`'s guardian would find the transport
 already interrupted and could never tell the cluster it is leaving. A hook
 runs on the closing thread before any interrupt, so every fork, actor and
 timer is still running for it. Running the hooks after the interrupt, or in

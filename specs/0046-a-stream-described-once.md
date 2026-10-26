@@ -7,22 +7,22 @@ library. `pelican-pekko` is one interpreter of it, and a backend-specific type
 such as `StreamIn<T>` only becomes a Pekko `Source` at the edge
 (`StreamIn.toSource()` in `pelican-pekko`).
 
-A lark `Stream<E, A>` is the opposite. It *is* a Pekko `Source`
-([Stream.kt](../lark-stream/src/main/kotlin/io/github/matthewjones372/lark/stream/Stream.kt)),
+A surefold `Stream<E, A>` is the opposite. It *is* a Pekko `Source`
+([Stream.kt](../surefold-stream/src/main/kotlin/io/github/matthewjones372/surefold/stream/Stream.kt)),
 and every operator builds a Pekko stage the moment it is called. A pipeline
-written against lark's operators is Pekko code, however little of Pekko it
+written against surefold's operators is Pekko code, however little of Pekko it
 names. 0039 wanted a stream on forks for services without Pekko. It had to
 propose `Feed`, a second type with its own operators, and it rejected a second
 backend because `toSource` and `Stream.from(Source)` keep Pekko in the API.
 
 ## Not doing
 
-- **No new operators.** Every one `lark-stream` has today keeps its name and
+- **No new operators.** Every one `surefold-stream` has today keeps its name and
   signature. `buffer`'s `OverflowStrategy` is the one exception (question 3).
 - **No materialised values beyond today's.** `Run` still answers `Exit`, and
   `Running` still only stops.
 - **No backend picked at runtime.** The interpreter is chosen where the run
-  starts, and not from configuration. A lark-app node can do that choosing
+  starts, and not from configuration. A surefold-app node can do that choosing
   later (0028).
 - **No change to pelican or the petshop** beyond a coordinate bump, made in
   their own repositories.
@@ -30,7 +30,7 @@ backend because `toSource` and `Stream.from(Source)` keep Pekko in the API.
 ## Shape
 
 ```kotlin
-// orders.kt — imports lark-stream only; no Pekko on its classpath
+// orders.kt — imports surefold-stream only; no Pekko on its classpath
 val tally: Run<BadRow, Tally> =
     Stream.from(rows)
         .mapOrFail { parse(it).bind() }
@@ -39,16 +39,16 @@ val tally: Run<BadRow, Tally> =
         .runFold(Tally(0)) { t, batch -> t + batch.size }
 
 // the edge picks the backend
-tally.run(PekkoStreams(system))    // lark-stream-pekko
-tally.run(Forks(executor))         // lark-stream-forks: virtual threads and 0038's channels
+tally.run(PekkoStreams(system))    // surefold-stream-pekko
+tally.run(Forks(executor))         // surefold-stream-forks: virtual threads and 0038's channels
 ```
 
-- `lark-stream` depends on `lark` alone. `Stream`, `Pipe` and `Run` become
+- `surefold-stream` depends on `surefold` alone. `Stream`, `Pipe` and `Run` become
   sealed trees of nodes: `FromIterable`, `Map`, `MapPar`, `GroupedWithin`,
   `Collect`, `Fold` and so on. Operators allocate nodes and nothing else.
 - `interface StreamBackend { fun <E, R : Any> start(run: Run<E, R>): Running<E, R> }`.
   `run` and `start` take a backend where they take a system today.
-- A Pekko type enters or leaves only through `lark-stream-pekko`:
+- A Pekko type enters or leaves only through `surefold-stream-pekko`:
   `Stream.from(Source)`, `toSource()`, `runWith(Sink)`, `alsoTo(Sink)`. Each is
   a `Native` node. It holds the Pekko value, and only that backend reads it.
 - The Pekko interpreter compiles the tree into the `Source` that today's code
@@ -58,7 +58,7 @@ tally.run(Forks(executor))         // lark-stream-forks: virtual threads and 003
   immutable blueprint, so a pipeline described once and run per request pays
   for the tree walk once, as it pays for building its stages once today.
 - A service depends on the backend it runs on, and the core arrives with it:
-  `lark-stream-pekko` and `lark-stream-forks` each take `lark-stream` as `api`.
+  `surefold-stream-pekko` and `surefold-stream-forks` each take `surefold-stream` as `api`.
   Only a library that describes pipelines for others depends on the core alone.
 
 ## Why this shape
@@ -78,7 +78,7 @@ builder and where it was built (0010's build site).
 
 ## Stack
 
-- [ ] **`spec-0046-baseline`**: `lark-stream-benchmarks` (JMH), measuring today's `lark-stream`
+- [ ] **`spec-0046-baseline`**: `surefold-stream-benchmarks` (JMH), measuring today's `surefold-stream`
       on four pipelines: a `map`/`filter` chain, `mapPar`, `groupedWithin`, and one described
       once and run 1,000 times. No production code changes.
       Done when: the numbers are committed, and every later entry reports against them.
@@ -88,10 +88,10 @@ builder and where it was built (0010's build site).
       the baseline rows are within noise of their committed numbers.
 - [ ] **`spec-0046-operators`**: the remaining operators become nodes, one PR per file group
       if a PR goes past 200 lines. Done when: the whole existing suite passes unchanged.
-- [ ] **`spec-0046-split`**: `lark-stream-pekko`, `StreamBackend`, the `Native` edges moved,
-      and `NoOtherDependenciesTest` saying `lark-stream` is `lark` and Arrow only.
+- [ ] **`spec-0046-split`**: `surefold-stream-pekko`, `StreamBackend`, the `Native` edges moved,
+      and `NoOtherDependenciesTest` saying `surefold-stream` is `surefold` and Arrow only.
       Done when: a `Native` node started on another backend is `Died` before any element flows.
-- [ ] **`spec-0046-forks`**: `lark-stream-forks`, taking over 0039's `spec-0039-feed`
+- [ ] **`spec-0046-forks`**: `surefold-stream-forks`, taking over 0039's `spec-0039-feed`
       entries as an interpreter. Done when: a raise in `map` is `Failed`, and `take(3)` on an
       infinite stream ends.
 - [ ] **`spec-0046-parity`**: the operator suites parameterised over both backends, as
@@ -111,17 +111,17 @@ builder and where it was built (0010's build site).
    leave it out of the core. `conflateWithSeed` and `wireTap` are the likely
    candidates.
 2. **`buffer(size, OverflowStrategy)`.** Pekko's enum can't stay in the core.
-   Recommended: lark's own `Overflow { Backpressure, DropHead, DropTail, Fail }`,
+   Recommended: surefold's own `Overflow { Backpressure, DropHead, DropTail, Fail }`,
    with the Pekko module mapping it.
 3. **0039.** Recommended: supersede it by this spec. `Feed` is no longer a
    separate type, and its `mapPar`/`buffer` entry becomes the second half of
    `spec-0046-forks`.
 
-Decided (2026-09-25): `lark-stream` is the core, and a service depends on the
+Decided (2026-09-25): `surefold-stream` is the core, and a service depends on the
 backend module, which brings the core with it.
 
 Decided while building `spec-0046-split` (2026-09-25), for editing: question 1
 went as recommended. `buffer(OverflowStrategy)`, `alsoTo`, `wireTap` and
-`divertLefts` take Pekko's types, so they live in `lark-stream-pekko` and build
+`divertLefts` take Pekko's types, so they live in `surefold-stream-pekko` and build
 Pekko-native stages. Question 2 is still open: `buffer` keeps Pekko's enum
-there until a second backend needs one of lark's own.
+there until a second backend needs one of surefold's own.

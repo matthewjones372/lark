@@ -4,7 +4,7 @@
 
 A projection follows one database's feed and runs in one place, usually a cluster singleton. Its throughput is one
 writer's: one query, one batch and one transaction at a time. However many nodes the cluster has, a read model
-falls behind once the events it follows outpace that writer. lark-bank's statements, ledger and transfer status
+falls behind once the events it follows outpace that writer. surefold-bank's statements, ledger and transfer status
 each run this way, one per journal database, so read freshness cannot grow with the cluster. Pekko Projections
 splits a projection by slice range across the cluster for the same reason.
 
@@ -71,7 +71,7 @@ oldest node, and entities never passivated would need a message to start and aga
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:check :lark-actor-journal-jdbc:check :lark-actor-projection:check :lark-cluster:check
+./gradlew :surefold-actor:check :surefold-actor-journal-jdbc:check :surefold-actor-projection:check :surefold-cluster:check
 ```
 
 ## Settled

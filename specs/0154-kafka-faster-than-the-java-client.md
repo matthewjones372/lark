@@ -1,19 +1,19 @@
-# 0154 — lark-kafka measured against the Java client, and the three costs it adds
+# 0154 — surefold-kafka measured against the Java client, and the three costs it adds
 
 ## Problem
 
 zio-kafka's comparison benchmarks (50k × 512 B records, 6 partitions, `max.poll.records=1000`, broker in
-the JVM, a handler that counts) ported to lark, JMH `-wi 10 -i 10 -f 5`, 4 vCPU:
+the JVM, a handler that counts) ported to surefold, JMH `-wi 10 -i 10 -f 5`, 4 vCPU:
 
 | row | ms/op |
 |---|---|
 | Java `kafkaClients`, one consumer per trial, no commits | 557 ± 3 |
 | Java, a fresh consumer per run | 571 ± 4 |
-| Java, fresh, `commitSync()` before each poll (what lark does) | 646 ± 7 |
+| Java, fresh, `commitSync()` before each poll (what surefold does) | 646 ± 7 |
 | `Kafka.consume(…).runCommitting()` on Forks | 657 ± 5 |
 | the same on Pekko | 854 ± 9 |
 
-lark's own streaming costs ~0.2 ms a poll over its hand-written twin. It loses on two choices, and every
+surefold's own streaming costs ~0.2 ms a poll over its hand-written twin. It loses on two choices, and every
 run pays a third cost that Kafka adds:
 
 - **`commitSync` before every poll: 86 ms of 135 ms polling** (`commitAsync`: 49 ms, plus 22 ms in the
@@ -26,7 +26,7 @@ run pays a third cost that Kafka adds:
 
 ## Not doing
 
-- Virtual-thread wake-up cost (+70 µs per blocking call, measured): the JDK's, not lark's.
+- Virtual-thread wake-up cost (+70 µs per blocking call, measured): the JDK's, not surefold's.
 - Per-partition substreams (zio-kafka's shape). A new API, its own spec.
 - Per-record allocations (~170 B over the Java loop). Measured, too small to lead with.
 
@@ -45,19 +45,19 @@ fun <R : Any, A : Any> Stream.Companion.blocking(
 ```
 
 Pekko reads `next` into one batch while `ready` is true and crosses the boundary once per batch; Forks
-ignores `ready`. lark-kafka answers it with `polled.hasNext()`.
+ignores `ready`. surefold-kafka answers it with `polled.hasNext()`.
 
 ## Why this shape
 
-Batching inside lark-kafka (one element per poll, then `mapConcat`) needs no new API, but it puts up to
+Batching inside surefold-kafka (one element per poll, then `mapConcat`) needs no new API, but it puts up to
 1,000 records past the revoke filter at once. `ready` keeps the filter per record and helps every
 blocking source on Pekko. **Recommended: `ready`.** Either way, reading further ahead makes a guard
 necessary (entry 3).
 
 ## Stack
 
-- [x] **`spec-0154-benchmarks`** ([#442](https://github.com/matthewjones372/lark/pull/442)): `lark-kafka-benchmarks`, the ported comparison, the handler-latency
-      sweep, timelines, a README with the baseline. Done when: `:lark-kafka-benchmarks:jmh` reproduces
+- [x] **`spec-0154-benchmarks`** ([#442](https://github.com/matthewjones372/lark/pull/442)): `surefold-kafka-benchmarks`, the ported comparison, the handler-latency
+      sweep, timelines, a README with the baseline. Done when: `:surefold-kafka-benchmarks:jmh` reproduces
       the table above.
 - [x] **`spec-0154-commit-async`** ([#443](https://github.com/matthewjones372/lark/pull/443)): `commitAsync` before each poll; `commitSync` on revoke and close; a
       non-retriable async failure is thrown on the next commit, on the polling thread. Done when: a test
@@ -65,14 +65,14 @@ necessary (entry 3).
       `TransactTest` pass unchanged.
 - [x] **`spec-0154-revoked-handles`** ([#444](https://github.com/matthewjones372/lark/pull/444)): a record handled after its partition was revoked commits nothing.
       Done when: a test that handles a record after its revoke sees no offset for that partition.
-- [ ] **`spec-0154-blocking-ready`**: the overload above; Pekko batches; lark-kafka answers it. Done
-      when: `larkPekko` is within 10% of `larkForks`.
+- [ ] **`spec-0154-blocking-ready`**: the overload above; Pekko batches; surefold-kafka answers it. Done
+      when: `surefoldPekko` is within 10% of `surefoldForks`.
 
 ## Acceptance
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
+./gradlew :surefold-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
 ```
 
 ## Open questions

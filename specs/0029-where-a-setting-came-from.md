@@ -34,7 +34,7 @@ layeredConfig().origins().report()     // the same, and what each setting overro
 ```
 
 ```
-lark-app configuration
+surefold-app configuration
 
 petshop.port                 9090          application.conf:2
                                            overrides 8080 at reference.conf:1
@@ -112,7 +112,7 @@ All three landed in one pull request rather than as a stack.
 ## Open questions
 
 1. **Where does the report come out?** Recommend on demand — a value a service
-   can log at start-up or a test can assert on. Not the `larkWiring` task: the
+   can log at start-up or a test can assert on. Not the `surefoldWiring` task: the
    configuration it would read is the build machine's, which is the wrong
    answer stated confidently.
 2. ~~**Does `secret(path)` land in this spec or the next?**~~ Answered: this

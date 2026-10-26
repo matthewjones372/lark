@@ -7,7 +7,7 @@ returns, and only then does the next message get a step. Each append is a round 
 persistent actor handles at most one command per journal round trip. On a local Postgres that is about
 1–2 ms, or 500–1,000 commands a second, however idle the machine is.
 
-lark-bank hits this on its `hot` scenario: every payment goes to one merchant account, and the account is one
+surefold-bank hits this on its `hot` scenario: every payment goes to one merchant account, and the account is one
 actor, so it has one writer by design. Sharding cannot help, because it is one id. The alternatives today are to
 split the account into sub-accounts in application code, or to give up the single writer. Both abandon what
 `persistent` is for.
@@ -75,14 +75,14 @@ user until something else needs it.
       Done when: 1,000 commands told at once to a `batch = 64` actor on `JdbcJournal` make ≤ 20 appends; its state
       and journal equal the unbatched actor's; a conflicted batch is lost as a failed step's message is, and the
       actor recovers to what the journal holds.
-- [x] **`spec-0086-numbers`** — the benchmark in `lark-actor-benchmarks` and its README row.
+- [x] **`spec-0086-numbers`** — the benchmark in `surefold-actor-benchmarks` and its README row.
       Done when: one hot persistent actor on embedded Postgres is measured at batch 1 and 64.
 
 ## Acceptance
 
 ```bash
 ./gradlew build
-./gradlew :lark-actor-journal-jdbc:test --tests '*Batch*'
+./gradlew :surefold-actor-journal-jdbc:test --tests '*Batch*'
 ```
 
 ## Open questions

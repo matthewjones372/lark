@@ -2,10 +2,10 @@
 
 ## Problem
 
-Lark has `Schedule`, `retry`, `timeout` and `raceN`, which cover one call that fails. Nothing covers a dependency
+Surefold has `Schedule`, `retry`, `timeout` and `raceN`, which cover one call that fails. Nothing covers a dependency
 that is down: every handler still calls it, waits out its timeout and retries, so a dead database costs each request
 its full timeout and multiplies the load on whatever is trying to recover. Pekko and Akka give this a `CircuitBreaker`.
-A Lark service today writes its own failure counter in an `AtomicReference`, or goes without one.
+A Surefold service today writes its own failure counter in an `AtomicReference`, or goes without one.
 
 ## Not doing
 
@@ -30,7 +30,7 @@ breaker.state // Closed(failures = 2) | Open(until: Instant) | HalfOpen
 ```
 
 - The runner calls `admit()`, which answers `retryAt` while the breaker is open, and `record(outcome)`. These are
-  `internal` to `lark`, and the open case surfaces as `Rejected.CircuitOpen(name, retryAt)`.
+  `internal` to `surefold`, and the open case surfaces as `Rejected.CircuitOpen(name, retryAt)`.
 - **Closed** counts consecutive failures. A success resets the count. At `maxFailures` the breaker opens.
 - **Open** rejects every call at once, without running it, until the next delay from `resetAfter` has passed.
 - **HalfOpen** lets exactly one trial call through, and rejects the rest. If the trial succeeds the breaker closes
@@ -39,12 +39,12 @@ breaker.state // Closed(failures = 2) | Open(until: Instant) | HalfOpen
 - A **failure** is a non-fatal throw that `countsAsFailure(t)` accepts. By default that is every throw except a
   `Rejected` from a guard inside this one, which is a refusal, not an outage. A `raise` never counts (spec 0110).
 - Time is read from `clock.get()`, so `TestClock` drives every transition in tests.
-- Metrics: `lark.breaker.state` (gauge: 0 closed, 1 half-open, 2 open) and `lark.breaker.calls` (counter tagged
+- Metrics: `surefold.breaker.state` (gauge: 0 closed, 1 half-open, 2 open) and `surefold.breaker.calls` (counter tagged
   `outcome=success|failure|rejected`), both tagged with `name`.
 
 ## Why this shape
 
-Making `resetAfter` a `Schedule` reuses what Lark already has for backoff and jitter. This gives Pekko's
+Making `resetAfter` a `Schedule` reuses what Surefold already has for backoff and jitter. This gives Pekko's
 `withExponentialBackoff` and `withRandomFactor` without adding parameters. The breaker is a value held in a
 `single`, with one `AtomicReference<State>` and no thread of its own: an open breaker expires when the next call
 reads the clock, not on a timer. There is no `callTimeout` parameter. An `attemptTimeout` inside the breaker in the policy
@@ -57,7 +57,7 @@ gives the same effect, and the breaker counts the `TimeoutException` as a failur
 ## Stack
 
 - [ ] **`spec-0111-breaker`** — `CircuitBreaker`, `State` and `countsAsFailure`, its `Step`, and its runner row, in
-      `lark`.
+      `surefold`.
       Done when: on a `TestClock`, the breaker goes closed → open → half-open → closed and half-open → open, with
       exactly one trial let through under concurrent callers on virtual threads, an inner `Rejected` is not
       counted, and a policy waits for half-open only when `retryAt` falls within its deadline.
@@ -77,4 +77,4 @@ gives the same effect, and the breaker counts the `TimeoutException` as a failur
    later constructor.
 2. **Does a `raise` ever count as a failure?** No. A declared failure is an answer, not an outage. A caller who
    disagrees throws instead.
-3. **Where does it live?** In `lark`, next to `Retry.kt`. It needs only the JDK and `Clock`.
+3. **Where does it live?** In `surefold`, next to `Retry.kt`. It needs only the JDK and `Clock`.

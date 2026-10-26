@@ -2,7 +2,7 @@
 
 ## Problem
 
-Lark's docs teach the graph as the way to test one class. `docs/app.md#testing`
+Surefold's docs teach the graph as the way to test one class. `docs/app.md#testing`
 and the cookbook's "Test one thing, not everything" both show:
 
 ```kotlin
@@ -70,7 +70,7 @@ wiring they do not test.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app:test
+./gradlew :surefold-app:test
 ./gradlew spotlessApply && ./gradlew build
 ```
 

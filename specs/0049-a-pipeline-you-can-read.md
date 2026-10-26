@@ -41,12 +41,12 @@ tick(1s)                      Relay.kt:18
 ## Why this shape
 
 This is pelican's move: one description, many views. Text is for logs and test
-failures. Mermaid is for docs. A format of lark's own is not recommended,
+failures. Mermaid is for docs. A format of surefold's own is not recommended,
 because nothing reads it.
 
 ## Stack
 
-- [ ] **`spec-0049-render`**: `render()` as text and as Mermaid, in `lark-stream`.
+- [ ] **`spec-0049-render`**: `render()` as text and as Mermaid, in `surefold-stream`.
       Done when: a golden-file test holds the rendering of the four 0046 baseline
       pipelines, and the Mermaid output parses.
 

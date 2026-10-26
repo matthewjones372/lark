@@ -1,4 +1,4 @@
-# lark
+# surefold
 
 Structured concurrency, streams, actors and clustering for Kotlin. These are the
 words the code, the specs and the docs use for its concepts.
@@ -47,7 +47,7 @@ _Avoid_: drain (draining is waiting for confirmation, not stopping)
 ## Applications
 
 **Wiring graph**:
-What each module of an application provides and needs. lark-app and the compiler
+What each module of an application provides and needs. surefold-app and the compiler
 plugin both read it for missing, cyclic and unreached keys.
 _Avoid_: dependency graph, plan
 

@@ -2,8 +2,8 @@
 
 ## Problem
 
-`lark-kafka` hands a body one record at a time. A service that wants a bulk insert, say, has no way to take a list
-of records and still have their offsets committed by `runCommitting`: `groupedWithin` from lark-stream gives
+`surefold-kafka` hands a body one record at a time. A service that wants a bulk insert, say, has no way to take a list
+of records and still have their offsets committed by `runCommitting`: `groupedWithin` from surefold-stream gives
 `List<Committed<A>>`, which nothing commits.
 
 Writing has the opposite gap. `publishRecord` treats a record the producer gives up on as a defect, so the stream
@@ -14,7 +14,7 @@ it, fail, or skip it and commit. ZIO Kafka has this as `produceChunkAsyncWithFai
 ## Not doing
 
 - **A batch in, a batch out.** The writer emits one result per record, not one per batch (see Why this shape).
-- **Retrying inside the writer.** The producer already retries for `delivery.timeout.ms`; what reaches lark is final.
+- **Retrying inside the writer.** The producer already retries for `delivery.timeout.ms`; what reaches surefold is final.
 - **Per-partition omission.** Once a record fails, the rest of its batch is omitted, on any partition, as in ZIO.
 - **Changing `publishRecord` or `transacted`.** Both keep their defect behaviour.
 - **A dead-letter helper for `PublishFailed`.** `divertLefts` takes any function; a helper can follow.
@@ -28,7 +28,7 @@ Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), v
     .mapRecord { records -> db.insertAll(records.map { it.value() }) }
     .runCommitting()
 
-// Write: one result per record, in order; the caller picks the policy with operators lark already has.
+// Write: one result per record, in order; the caller picks the policy with operators surefold already has.
 Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), value = StringDeserializer())
     .publishBatch(orders) { cart -> Topic("orders").record(cart.key(), cart.value()) }
     // Stream<Nothing, Committed<Either<PublishFailed, ConsumerRecord<String, String>>>>

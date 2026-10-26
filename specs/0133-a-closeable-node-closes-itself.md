@@ -7,7 +7,7 @@ them is given back the same way. Petshop's graph has fourteen releases and
 eleven only call `close()`: seven on the node itself (the pool, two Kafka
 producers, two hubs, the GC binder, the OpenTelemetry SDK) and four on the
 `Running` a stream's node wraps. The other three remove a registry, terminate
-an actor system and stop a server. lark's own cookbook writes `singleOf(::Hikari, Hikari::close)`. The release is boilerplate
+an actor system and stop a server. surefold's own cookbook writes `singleOf(::Hikari, Hikari::close)`. The release is boilerplate
 whenever the type is already `AutoCloseable`, and forgetting it is silent: a
 `singleOf(::Pool)` compiles, starts, and leaks the pool on every stop.
 
@@ -48,9 +48,9 @@ node's type once it is a `Module`; recommend the function.
 ## Stack
 
 - [ ] **`spec-0133-closing-of`**: `closingOf` for zero to nine dependencies in
-      `lark-app`, the `.api` dump, and tests that a node built by it is closed
+      `surefold-app`, the `.api` dump, and tests that a node built by it is closed
       on release, in reverse order, and that a throwing `close` is reported.
-      Done when: `./gradlew :lark-app:build` passes with the new tests.
+      Done when: `./gradlew :surefold-app:build` passes with the new tests.
 - [ ] **`spec-0133-docs`**: the cookbook's `singleOf(::Hikari, Hikari::close)`
       and the other `close` releases in `docs/` become `closingOf`, and the
       reference table at the end of the cookbook gains a row.
@@ -59,7 +59,7 @@ node's type once it is a `Module`; recommend the function.
 ## Acceptance
 
 ```bash
-./gradlew :lark-app:build :lark-app-pekko:test
+./gradlew :surefold-app:build :surefold-app-pekko:test
 ```
 
 ## Open questions

@@ -2,10 +2,10 @@
 
 ## Problem
 
-A lark-kafka run hides its `KafkaConsumer`: `Kafka.partitions` is the only question a caller can ask. zio-kafka
+A surefold-kafka run hides its `KafkaConsumer`: `Kafka.partitions` is the only question a caller can ask. zio-kafka
 answers `assignment`, `position`, `committed`, `beginningOffsets`, `endOffsets`, `listTopics`, `partitionsFor`
 and `metrics` on its consumer, and `flush`, `partitionsFor` and `metrics` on its producer. Lag (end offset minus
-committed), the number every Kafka dashboard starts from, cannot be read from a lark run at all.
+committed), the number every Kafka dashboard starts from, cannot be read from a surefold run at all.
 
 Meters are spec 0163; this spec is the questions code asks.
 
@@ -52,7 +52,7 @@ second consumer that only asks, sees the group but not this member's position.
 ## Open questions
 
 1. **Where the handle hangs:** `running.kafka`, or a value the caller passes in to be filled? Recommended: a
-   value passed in, since `Running` belongs to lark-stream, which knows nothing of Kafka.
-2. **Blocking or `CompletionStage`?** Recommended: blocking, on the caller's virtual thread, as lark is.
+   value passed in, since `Running` belongs to surefold-stream, which knows nothing of Kafka.
+2. **Blocking or `CompletionStage`?** Recommended: blocking, on the caller's virtual thread, as surefold is.
 3. **`metrics()` returns the client's own map, all of it?** Recommended: yes; 0163 records a curated set, and
    this is where the rest is read.

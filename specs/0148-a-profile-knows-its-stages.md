@@ -81,8 +81,8 @@ own.
 ## Acceptance
 
 ```bash
-./gradlew :lark-stream:test :lark-stream-parity:test
-./gradlew :lark-stream-benchmarks:compileKotlin
+./gradlew :surefold-stream:test :surefold-stream-parity:test
+./gradlew :surefold-stream-benchmarks:compileKotlin
 ```
 
 ## Open questions
@@ -93,4 +93,4 @@ Answered (maintainer, 2026-10-25: the recommendations stand).
    mismatch message only says what went wrong.
 2. ~~Should `profile()` refuse when it sees several pipelines, or return the one that reported last?~~ Refuse,
    naming them.
-3. ~~Should `ProfileTest` move from lark-stream-parity to lark-stream?~~ No: it needs a backend to run a stream.
+3. ~~Should `ProfileTest` move from surefold-stream-parity to surefold-stream?~~ No: it needs a backend to run a stream.

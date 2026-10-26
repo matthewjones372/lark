@@ -4,12 +4,12 @@
 
 [blocking-vs-reactive](https://github.com/matthewjones372/blocking-vs-reactive)'s `backpressure-native` row (16 calls
 in flight, 1 ms each) has `mapAsync` at 4,988 ops/s against Reactor's 14,650, and `fanout-1k-native` has it at 81k
-against 98k. Most of that is not Lark's. The row's async call for Lark is `Patterns.after` on Pekko's scheduler,
+against 98k. Most of that is not Surefold's. The row's async call for Surefold is `Patterns.after` on Pekko's scheduler,
 which ticks every millisecond, and the timer alone, with no stream around it, does 4,880 ops/s at 16 in flight and
 81k at 1,000. Pekko's contestant waits on the same timer, which is why it scores the same. On a JDK timer
 (`ScheduledThreadPoolExecutor`), `mapAsync` does 12.6k at 16 in flight and 95.6k at 1,000.
 
-The ~10% that's left is Lark's. It shows on the shared device as well (12.5k against Reactor's 13.8k). A trace of
+The ~10% that's left is Surefold's. It shows on the shared device as well (12.5k against Reactor's 13.8k). A trace of
 each element at 16 in flight shows the bare timer starting a new call 0.3 µs after a completion, and `mapAsync`
 taking a median of 122–157 µs. That time goes on two wake-ups in a row, each of a parked virtual thread:
 
@@ -59,13 +59,13 @@ is under the benchmark's own 20% noise caveat, and the change adds a second prod
 ## Acceptance
 
 ```bash
-./gradlew spotlessApply && ./gradlew :lark-stream-forks:build :lark-stream-parity:build
-bench/lark-stream-benchmarks/gate.sh origin/main "MapParBenchmark|HandOffBenchmark|EnrichThroughputBenchmark"
+./gradlew spotlessApply && ./gradlew :surefold-stream-forks:build :surefold-stream-parity:build
+bench/surefold-stream-benchmarks/gate.sh origin/main "MapParBenchmark|HandOffBenchmark|EnrichThroughputBenchmark"
 ```
 
 ## Open questions
 
-- **Should blocking-vs-reactive's native row give Lark a JDK timer?** Recommended: yes. Lark has no timer of its
+- **Should blocking-vs-reactive's native row give Surefold a JDK timer?** Recommended: yes. Surefold has no timer of its
   own, and `CompletableFuture.completeOnTimeout` is the JDK's. Pekko keeps its own scheduler. The README already says
   the row is "partly Pekko's scheduler"; the summary table doesn't.
 - **May `mapAsync`'s function run on the pull's thread?** Recommended: no promise either way. Nothing documents or

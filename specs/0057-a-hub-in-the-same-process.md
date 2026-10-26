@@ -7,7 +7,7 @@ process has no backend-neutral way to do it. Pekko's `BroadcastHub` needs a
 materializer, so it only runs on Pekko. Petshop moved to Forks and had to write
 its own bus instead: about 80 lines of queues, a lock and a marker object.
 
-That bus has a leak lark would have to avoid too. A subscriber whose run stops
+That bus has a leak surefold would have to avoid too. A subscriber whose run stops
 is never removed. Its queue fills, and after that every publish is refused as
 "full", even though nobody is reading that queue.
 
@@ -37,7 +37,7 @@ tally.runFold(Tally()) { t, e -> t + e }.start(Forks())
 hub.close()                   // subscriptions end Done once they've read what they were sent
 ```
 
-- `Hub<A>(capacity)` in `lark-stream`. Each subscriber gets its own bounded
+- `Hub<A>(capacity)` in `surefold-stream`. Each subscriber gets its own bounded
   queue of `capacity`.
 - `publish` is all-or-nothing, under one lock. If any subscriber's queue is
   full, the element is refused for everyone, and nobody gets a copy.

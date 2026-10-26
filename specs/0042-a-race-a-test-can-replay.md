@@ -5,11 +5,11 @@
 A test of concurrent code runs one interleaving, and it's the one the JVM's
 scheduler happens to pick on that machine. A race between two forks passes
 thousands of times and fails once in CI, and the only reproduction is rerunning
-the test and hoping. lark's own suites work around this with latches and
-`Sleeper` (`lark/src/test/.../Sleeper.kt`) to force an order by hand. A service
+the test and hoping. surefold's own suites work around this with latches and
+`Sleeper` (`surefold/src/test/.../Sleeper.kt`) to force an order by hand. A service
 testing its own handlers has neither.
 
-Every place a lark fork waits goes through lark: `await`, `cancel`, a fork
+Every place a surefold fork waits goes through surefold: `await`, `cancel`, a fork
 starting and ending (0037), `send`, `receive` and `select` (0038), and a sleep on
 `Clock`. If those are the only places a fork can give way to another, a test
 can choose the order — and write it down.
@@ -17,9 +17,9 @@ can choose the order — and write it down.
 ## Not doing
 
 - **No bytecode instrumentation.** JetBrains' Lincheck does model checking by
-  rewriting bytecode, aimed at concurrent data structures. This works at lark's
+  rewriting bytecode, aimed at concurrent data structures. This works at surefold's
   own waiting points only, aimed at application code, with nothing rewritten.
-- **No determinism outside lark.** A body blocked in JDBC or `Thread.sleep`
+- **No determinism outside surefold.** A body blocked in JDBC or `Thread.sleep`
   holds the turn. The run then says it left determinism, and where, rather than
   pretending.
 - **No production cost beyond one check** per wait: a thread with no replay
@@ -41,7 +41,7 @@ fun `the cache and the reconciler never both write`() {
 fun `the order that broke it`() = replay(seed = 0x3f2a91c4) { … }
 ```
 
-- A new test-scope module, `lark-replay`, depending on `lark` and nothing else.
+- A new test-scope module, `surefold-replay`, depending on `surefold` and nothing else.
   It has no JUnit dependency: `explore` throws an `AssertionError` naming the
   seed.
 - Under `explore` or `replay`, forks still run on real virtual threads, but only
@@ -51,15 +51,15 @@ fun `the order that broke it`() = replay(seed = 0x3f2a91c4) { … }
   priorities with a few seeded change points. That finds a bug that needs `d`
   specific orderings with a known lower bound on probability, which uniform
   random choice doesn't give.
-- A fork that holds the turn while parked outside lark for longer than a
+- A fork that holds the turn while parked outside surefold for longer than a
   threshold ends the run. The failure names that fork's stack, and says the run
   left determinism there.
 
 ## Why this shape
 
-Taking turns at lark's own waiting points is what makes this affordable. There
+Taking turns at surefold's own waiting points is what makes this affordable. There
 are no continuations and no instrumentation, and the order is fully decided by
-the seed whenever the code waits only through lark. The price is honesty about
+the seed whenever the code waits only through surefold. The price is honesty about
 code that waits elsewhere, which the run reports instead of hiding.
 
 The alternative is to run every fork on one platform thread. That is simpler,
@@ -68,11 +68,11 @@ threads taking turns.
 
 ## Stack
 
-- [ ] **`spec-0042-seam`** — in `lark`, every park and unpark in `Fork`, `Channel` and `Clock`
+- [ ] **`spec-0042-seam`** — in `surefold`, every park and unpark in `Fork`, `Channel` and `Clock`
       goes through one internal `Waiting` function. No change in behaviour.
-      Done when: every `lark` test passes unedited, and `LockSupport` is called
+      Done when: every `surefold` test passes unedited, and `LockSupport` is called
       from one file.
-- [ ] **`spec-0042-replay`** — `lark-replay`: turns, `explore`, `replay`, PCT, for forks.
+- [ ] **`spec-0042-replay`** — `surefold-replay`: turns, `explore`, `replay`, PCT, for forks.
       Done when: a planted lost-update race between two `async`s is found within
       1,000 runs, and its seed fails 100 times out of 100 under `replay`.
 - [ ] **`spec-0042-channels`** — channels, `select` and `TestClock` sleeps as waiting points,

@@ -7,7 +7,7 @@ Some checks report by throwing, and return nothing:
 - pelican's `Golden` and `StubFile.writeTo`;
 - WireMock's `verify`.
 
-A `lark-junit` test must return its `Expectations`, so a test built on these has nothing to return. Today it
+A `surefold-junit` test must return its `Expectations`, so a test built on these has nothing to return. Today it
 returns a check that checks nothing:
 
 ```kotlin
@@ -16,7 +16,7 @@ assertThat(page.locator("#load")).hasText("Start load")
 expect(true)
 ```
 
-`lark-bank`'s two page suites do this, and so do petshop's `GoldenSuite` and `DemoStubsSuite`. `expect(true)`
+`surefold-bank`'s two page suites do this, and so do petshop's `GoldenSuite` and `DemoStubsSuite`. `expect(true)`
 gets past the return-value checker without checking anything, which is the hole the checker exists to close
 (spec 0175). It also loses failures: the first throw ends the test, so a second check in it never runs.
 
@@ -61,16 +61,16 @@ would mean different things under one name, and a block returning `Boolean` woul
 
 ## Stack
 
-- [ ] **`spec-0200-holds`** — `holds { }` in `lark-junit`, with tests and a sample: a block that returns, one
+- [ ] **`spec-0200-holds`** — `holds { }` in `surefold-junit`, with tests and a sample: a block that returns, one
       that throws an `AssertionError`, one that throws `AssertionFailedError` with expected and actual, and one
-      that throws something else. Also a line in `docs/testing.md`'s matcher list, and `lark-bank`'s two page
+      that throws something else. Also a line in `docs/testing.md`'s matcher list, and `surefold-bank`'s two page
       suites on it, without their `expect(true)`.
-      Done when: `:lark-junit:check` passes, and `grep -rn 'expect(true)' examples/lark-bank` finds nothing.
+      Done when: `:surefold-junit:check` passes, and `grep -rn 'expect(true)' examples/surefold-bank` finds nothing.
 
 ## Acceptance
 
 ```bash
-./gradlew :lark-junit:check :lark-bank:check
+./gradlew :surefold-junit:check :surefold-bank:check
 ```
 
 ## Open questions

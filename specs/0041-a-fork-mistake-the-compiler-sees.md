@@ -2,7 +2,7 @@
 
 ## Problem
 
-lark's structure rules are written down but only partly enforced, and all of
+surefold's structure rules are written down but only partly enforced, and all of
 the enforcement happens at runtime:
 - a `Deferred` is awaited and cancelled only by the thread that opened it
   (0035);
@@ -32,14 +32,14 @@ repo only, and a consumer's build never runs it.
 - **No data-flow analysis.** Each check reads one call and the lambdas nested
   in it. A `Deferred` passed through three functions and awaited elsewhere is
   not caught.
-- **No IR and no code generation.** Checkers only, as in `lark-app-compiler`,
+- **No IR and no code generation.** Checkers only, as in `surefold-app-compiler`,
   so the editor runs them with nothing installed (0027).
 - **No check that needs the runtime.** Whether a fork actually blocks, or on
   which executor, is 0042's job.
 
 ## Shape
 
-A new module, `lark-compiler`: FIR checkers, no IR. A Gradle plugin applies it.
+A new module, `surefold-compiler`: FIR checkers, no IR. A Gradle plugin applies it.
 
 | Diagnostic | Severity | Fires on |
 |---|---|---|
@@ -62,14 +62,14 @@ people to ignore it.
 No Java or Scala library can do this. The JDK's own structured concurrency
 reports these mistakes as exceptions when the code runs.
 
-The alternative is to put the checks into `lark-app-compiler`. It is already
+The alternative is to put the checks into `surefold-app-compiler`. It is already
 loaded in the editor, but it would tie structured-concurrency checks to the
 application DSL. Recommended: a separate module, sharing `Versions.kt` for the
 compiler-version guard.
 
 ## Stack
 
-- [ ] **`spec-0041-module`** — `lark-compiler`, its Gradle plugin, `DEFERRED_ESCAPES_SCOPE`.
+- [ ] **`spec-0041-module`** — `surefold-compiler`, its Gradle plugin, `DEFERRED_ESCAPES_SCOPE`.
       Done when: a compile test shows the error on a returned `Deferred` and
       none on a returned `await()` value.
 - [ ] **`spec-0041-threads`** — `AWAIT_ACROSS_FORK` and `RAISE_ACROSS_FORK`.

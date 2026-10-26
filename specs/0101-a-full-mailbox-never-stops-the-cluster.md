@@ -5,14 +5,14 @@
 The cluster actor tells two kinds of actor what changed: each region, with the new view, and each subscriber, with
 the member events. A tell from a step to a full mailbox throws, and the throw stopped the cluster actor. That node
 then kept serving, but its view never moved again. It could not hear itself downed, so `whenDowned = exit` never
-ran, and it stayed out of the cluster until something restarted it. lark-bank's Docker chaos run found this. bank-2
+ran, and it stayed out of the cluster until something restarted it. surefold-bank's Docker chaos run found this. bank-2
 was frozen for 20 s under load, and the others downed it. When it thawed, its account region's mailbox was full of
 the messages that had queued behind the freeze. The next view it published threw "the mailbox of
 /user/sharding-account is full", and bank-2 stayed Down, as a zombie, for the rest of the run.
 
 ## Not doing
 
-- **No unbounded mailboxes.** A full mailbox is how backpressure works everywhere else in lark.
+- **No unbounded mailboxes.** A full mailbox is how backpressure works everywhere else in surefold.
 - **No supervision of the cluster actor.** A restart would lose its subscribers and gain nothing. The cause is
   removed instead.
 - **No change to what subscribers hear, or in what order.**
@@ -45,13 +45,13 @@ must not block its runner, and the cluster actor is what gossip depends on.
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:check :lark-cluster:check
+./gradlew :surefold-actor:check :surefold-cluster:check
 ```
 
 ## Open questions
 
 1. **Should a cluster actor that stops for any other reason end the process?** Recommended: yes, as a follow-up.
-   `lark-app-cluster` could watch it and treat an unexpected stop as being downed. Not done here, because this spec
+   `surefold-app-cluster` could watch it and treat an unexpected stop as being downed. Not done here, because this spec
    removes the only known cause.
 2. **Should a subscriber past `KEEP_AT_MOST` events behind be dropped rather than lose events?** Recommended: no.
    10,000 member events is far past any real cluster, and a dead letter is what happens today.

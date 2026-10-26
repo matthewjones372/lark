@@ -20,9 +20,9 @@ stop after `n` tries and cannot stop after a duration.
 
 ## Not doing
 
-- A `suspend` anything. `lark-app` stays without coroutines (docs/app.md, "No
+- A `suspend` anything. `surefold-app` stays without coroutines (docs/app.md, "No
   effect type").
-- An `eventually` of lark's own in this spec. It is an open question below.
+- An `eventually` of surefold's own in this spec. It is an open question below.
 - Changing `retry`, `recurs` or `spaced`.
 
 ## Shape
@@ -42,7 +42,7 @@ whichever schedule it is paired with.
 
 One combinator gives every schedule a deadline, retries in production code
 included, and the test case is just one use of it. The alternative is
-`eventually(timeout) { }` in a `lark-test` module, which reads better in a test
+`eventually(timeout) { }` in a `surefold-test` module, which reads better in a test
 and hides the schedule. Recommended: `upTo` first. An `eventually` would be a
 one-line wrapper over it, if one is wanted later.
 
@@ -61,7 +61,7 @@ drives it. `adjust(5.seconds)` ends it without anything sleeping, the way
 ## Acceptance
 
 ```bash
-./gradlew :lark:test --tests '*Schedule*'
+./gradlew :surefold:test --tests '*Schedule*'
 ./gradlew build
 ```
 

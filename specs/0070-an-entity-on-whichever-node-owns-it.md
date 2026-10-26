@@ -92,13 +92,13 @@ flexible and far more state to keep consistent. Recommended: rendezvous.
   yes, default 256; changing it is a full restart, as in Pekko.
 - **Do `Joining` members host shards?** Recommended: no, only `Up` ones, so
   placement changes only when the leader moves a member.
-- **Where does sharding live?** Recommended: in `lark-cluster`, since it needs
+- **Where does sharding live?** Recommended: in `surefold-cluster`, since it needs
   nothing beyond the view and the transport.
 
 Decided (2026-09-26): every open question goes as recommended. Placement is
 rendezvous hashing over the agreed view, with no coordinator; the number of
 shards is fixed per kind, 256 by default and the same on every node; only `Up`
-members host shards; and sharding lives in `lark-cluster`.
+members host shards; and sharding lives in `surefold-cluster`.
 
 Decided while building `spec-0070-handoff`: a node that wins a shard asks every
 other `Up` or `Leaving` member to release it, rather than only the one it

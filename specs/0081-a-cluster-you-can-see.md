@@ -2,8 +2,8 @@
 
 ## Problem
 
-Since 0059, lark's actors, transport, cluster, sharding and reliable delivery
-have recorded nothing. `lark` has a `Metrics` facade, which `lark-micrometer`
+Since 0059, surefold's actors, transport, cluster, sharding and reliable delivery
+have recorded nothing. `surefold` has a `Metrics` facade, which `surefold-micrometer`
 connects to Prometheus and the rest, but no counter or gauge is ever asked
 for outside the stream operators. An operator running a sharded service today
 cannot see:
@@ -22,13 +22,13 @@ the service polls `cluster.view` itself and exports what it thinks matters.
 ## Not doing
 
 - **Tracing across nodes.** Carrying a trace context in a frame is its own
-  spec; `lark-otel` already carries one across forks.
+  spec; `surefold-otel` already carries one across forks.
 - **Per-actor or per-message metrics.** Nothing counts each tell or times each
-  step. That would put a map hit on the hottest path lark has, and 0059's
+  step. That would put a map hit on the hottest path surefold has, and 0059's
   benchmarks are its reason to exist. Every metric here is per flock, per
   node, per peer, per kind or per producer.
 - **A metrics endpoint or dashboard.** The backend is the service's, through
-  `lark-micrometer` or any other `Metrics`.
+  `surefold-micrometer` or any other `Metrics`.
 - **Mailbox depth.** Reading every mailbox's size to publish it is the
   per-actor cost above; the shards' buffers stand in for it where it matters.
 
@@ -36,23 +36,23 @@ the service polls `cluster.view` itself and exports what it thinks matters.
 
 ```kotlin
 // Nothing to call: every flock, node, cluster, region and producer records
-// through lark's `metrics`, so a service that installed lark-micrometer sees:
+// through surefold's `metrics`, so a service that installed surefold-micrometer sees:
 //
-// lark.actor.dead_letters{reason}                        counter
-// lark.actor.restarts                                    counter
-// lark.remote.frames{peer, direction}                    counter
-// lark.remote.dropped{peer}                              counter
-// lark.remote.connected{peer}                            gauge 0/1
-// lark.cluster.members{status}                           gauge
-// lark.cluster.unreachable                               gauge
-// lark.cluster.leader                                    gauge 0/1
-// lark.cluster.downed                                    counter
-// lark.sharding.shards{kind}                             gauge, hosted here
-// lark.sharding.entities{kind}                           gauge, running here
-// lark.sharding.buffered{kind}                           gauge, waiting for an owner
-// lark.delivery.unconfirmed{producer}                    gauge
-// lark.delivery.resent{producer}                         counter
-// lark.delivery.full{producer}                           counter
+// surefold.actor.dead_letters{reason}                        counter
+// surefold.actor.restarts                                    counter
+// surefold.remote.frames{peer, direction}                    counter
+// surefold.remote.dropped{peer}                              counter
+// surefold.remote.connected{peer}                            gauge 0/1
+// surefold.cluster.members{status}                           gauge
+// surefold.cluster.unreachable                               gauge
+// surefold.cluster.leader                                    gauge 0/1
+// surefold.cluster.downed                                    counter
+// surefold.sharding.shards{kind}                             gauge, hosted here
+// surefold.sharding.entities{kind}                           gauge, running here
+// surefold.sharding.buffered{kind}                           gauge, waiting for an owner
+// surefold.delivery.unconfirmed{producer}                    gauge
+// surefold.delivery.resent{producer}                         counter
+// surefold.delivery.full{producer}                           counter
 
 val app = actors() +
     single { actors: Actors -> actors.within { cluster(node("shop-1", 25520), seeds) } }
@@ -63,13 +63,13 @@ val app = actors() +
   its own step: the membership actor after each change, a region when a shard
   starts or stops, a producer when a command is kept or confirmed. A gauge is
   never read by walking actors.
-- **Names and tags.** Dotted names under `lark.`, with tags for the dimension
+- **Names and tags.** Dotted names under `surefold.`, with tags for the dimension
   and a node tag bound once per flock through `metricTagged`. A kind's or a
   producer's name is the tag value as given.
 - **`Cluster.ready()`** answers true once this node is `Up`, every member it
   sees is reachable, and its view has a leader. It answers false while the
   node is `Joining`, `Leaving`, downed, or in a minority waiting to be decided.
-  It is the answer to `/ready`, through `lark-app`'s `probe`.
+  It is the answer to `/ready`, through `surefold-app`'s `probe`.
 
 ## Why this shape
 
@@ -84,12 +84,12 @@ richer.
 ## Stack
 
 - [x] **`spec-0081-actors`** — dead letters by reason and restarts, per flock,
-      in `lark-actor`. Done when: on `capturingMetrics`, a tell to a stopped
+      in `surefold-actor`. Done when: on `capturingMetrics`, a tell to a stopped
       actor and a restart are each counted once, and a tell's allocation in
       the ping-pong benchmark is unchanged.
       ([#216](https://github.com/matthewjones372/lark/pull/216))
 - [x] **`spec-0081-remote`** — frames, dropped frames and connection state per
-      peer, in `lark-actor-remote`. Done when: two nodes exchanging ten
+      peer, in `surefold-actor-remote`. Done when: two nodes exchanging ten
       frames count ten each way, and a peer that goes away reads 0 and counts
       what was dropped for it.
       ([#217](https://github.com/matthewjones372/lark/pull/217))

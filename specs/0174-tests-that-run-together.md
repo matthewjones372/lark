@@ -3,8 +3,8 @@
 ## Problem
 
 The repo's tests run one at a time on JUnit Jupiter. Each class starts its own fixtures, such as an
-`ActorSystem` or a broker. The tests use none of Lark's own concurrency, resources or log capture, and
-every test's logs reach stderr whether it passed or not. Users of `lark-test` hit the same limits.
+`ActorSystem` or a broker. The tests use none of Surefold's own concurrency, resources or log capture, and
+every test's logs reach stderr whether it passed or not. Users of `surefold-test` hit the same limits.
 
 ## Not doing
 
@@ -12,13 +12,13 @@ every test's logs reach stderr whether it passed or not. Users of `lark-test` hi
   JUnit XML, the IDE's test tree and CI parsers read them unchanged.
 - **No expectations here.** Expectations as values, and how they render, are spec 0175. Until it lands,
   a test body returns `Unit` and fails by throwing.
-- **No moving the repo's own tests**, and no change to `story`, `lark-assert` or `lark`'s API.
-  Making `lark-test` depend on `lark-assert` is a follow-up spec.
+- **No moving the repo's own tests**, and no change to `story`, `surefold-assert` or `surefold`'s API.
+  Making `surefold-test` depend on `surefold-assert` is a follow-up spec.
 - **No resources shared across suites**, no property testing, and no `eventually` rewrite.
 
 ## Shape
 
-A new module, `core/lark-junit`, depends on `lark` and `junit-platform-engine`. Its `TestEngine` is
+A new module, `core/surefold-junit`, depends on `surefold` and `junit-platform-engine`. Its `TestEngine` is
 registered in `META-INF/services`, so `useJUnitPlatform()` and the IDE find it next to Jupiter.
 
 ```kotlin
@@ -36,7 +36,7 @@ object OrderSuite : Suite<Database>(limit = Limit.fixed(8)) {
 - **Running:** `resourceScope { shared.bind() }` runs once per suite. Each test is a fork in a `flock`,
   capped by the suite's `Limit`, which defaults to `Limit.fixed(availableProcessors)`. Suites run one
   after another.
-- **Isolation:** each fork binds its own `logger`, `metrics` and `clock`. They are `LarkLocal`s, so
+- **Isolation:** each fork binds its own `logger`, `metrics` and `clock`. They are `SurefoldLocal`s, so
   concurrent tests can't see each other's bindings.
 - **Logs:** a failed test's captured lines go out as a `ReportEntry` and to stdout. A passing test
   prints nothing.
@@ -58,14 +58,14 @@ class OrderTest {
 }
 ```
 
-| | JUnit Jupiter | `lark-junit` |
+| | JUnit Jupiter | `surefold-junit` |
 |---|---|---|
 | Threads | a `ForkJoinPool` of platform threads | a fork per test, on a virtual thread |
 | Cap | one global `parallelism` property | a `Limit` per suite, fixed or adaptive |
 | Shared resource | a `lateinit` static, set in `@BeforeAll` | a `Resource`, handed to each test |
 | Acquire fails | the class fails, and its tests aren't run | every test fails with that cause |
 | Partial release | written by hand in `@AfterAll` | in reverse order, by `resourceScope` |
-| Clock, logger, metrics | process-wide, shared by every concurrent test | a `LarkLocal` binding per fork |
+| Clock, logger, metrics | process-wide, shared by every concurrent test | a `SurefoldLocal` binding per fork |
 | Logs | interleaved on stdout, pass or fail | per test, and only on failure |
 
 A `TestEngine` runs a suite's tests as forks and still reports each one as an ordinary JUnit test. A
@@ -94,7 +94,7 @@ suites, keeps the per-class `ActorSystem` thread assertions reliable.
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-ls core/lark-junit/build/test-results/test/*.xml   # sample suites reported as JUnit XML
+ls core/surefold-junit/build/test-results/test/*.xml   # sample suites reported as JUnit XML
 ```
 
 ## Open questions
@@ -106,5 +106,5 @@ Answered (maintainer, 2026-10-23).
 3. ~~Shared resource lifetime?~~ One suite. Global resources would be a separate spec.
 4. ~~Opting out?~~ Tests run concurrently by default. One test opts out with `alone = true`, and a
    whole suite with `concurrent = false`.
-5. ~~Does `lark-test`'s promise stand?~~ Revisit it, in a separate spec.
-6. ~~Do the repo's own tests move here after 0169?~~ Decide after a pilot in `lark-pekko`.
+5. ~~Does `surefold-test`'s promise stand?~~ Revisit it, in a separate spec.
+6. ~~Do the repo's own tests move here after 0169?~~ Decide after a pilot in `surefold-pekko`.
