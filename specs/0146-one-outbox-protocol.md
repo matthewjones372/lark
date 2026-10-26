@@ -86,7 +86,7 @@ room.
       folds through it.
       Done when: `DurableProducerTest` passes, and a journal written before
       this change replays (a fixture test).
-- [ ] **`spec-0146-holding`**: `Holding` with direct tests: claim past room,
+- [x] **`spec-0146-holding`** ([#690](https://github.com/matthewjones372/surefold/pull/690)): `Holding` with direct tests: claim past room,
       hand-on, and a drain never answering while a recovered command waits.
       Done when: `OutboxSteps` is gone.
 
