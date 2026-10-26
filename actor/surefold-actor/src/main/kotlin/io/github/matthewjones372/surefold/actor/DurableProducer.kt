@@ -130,10 +130,11 @@ private sealed interface OutboxEvent {
     data class Done(val to: String, val sequence: Long) : OutboxEvent
 }
 
-/** One entity's commands in a durable producer: the number the next takes, and those kept, as the codec wrote them. */
-private data class Stored(val next: Long, val kept: List<Pair<Long, ByteArray>>)
-
-private typealias StoredOutboxes = Map<String, Stored>
+/**
+ * A durable producer's state: its outboxes, each command as the codec wrote it, and the number each entity's next
+ * command takes, which outlives the commands confirmed before it.
+ */
+private data class Stored(val outboxes: Outboxes<ByteArray> = Outboxes(), val next: Map<String, Long> = emptyMap())
 
 private const val KEPT = 1
 private const val DONE = 2
@@ -153,18 +154,18 @@ private fun <M : Any> outbox(
     recovered: CountDownLatch,
     down: AtomicReference<Throwable?>,
     route: (String) -> ActorRef<M>,
-): Behaviour<Any, Remembered<StoredOutboxes>, JournalConflict> {
+): Behaviour<Any, Remembered<Stored>, JournalConflict> {
     val steps = OutboxSteps(producer, codec, room, keep, meters, down, route)
-    return persistent<Any, OutboxEvent, StoredOutboxes>(
+    return persistent<Any, OutboxEvent, Stored>(
         id = PersistenceId("surefold-producer", producer),
-        empty = emptyMap(),
+        empty = Stored(),
         codec = OutboxEventCodec,
         snapshots = every(SNAPSHOT_EVERY, OutboxesCodec, prune = Prune.always),
-        command = { ctx, outboxes, message ->
+        command = { ctx, stored, message ->
             when (message) {
-                is KeepDurably -> steps.keep(this, ctx, outboxes, message)
+                is KeepDurably -> steps.keep(this, ctx, stored, message)
 
-                is Confirmed -> steps.confirmed(this, ctx, outboxes, message)
+                is Confirmed -> steps.confirmed(this, ctx, stored, message)
 
                 ResendUnconfirmed -> none().then { now -> steps.resend(ctx, now) }
 
@@ -233,9 +234,9 @@ private class OutboxSteps<M : Any>(
     private val holding = ConcurrentHashMap.newKeySet<Pair<String, Long>>()
 
     /** Takes room for each recovered command that holds none yet, as far as there is room. */
-    fun claim(outboxes: StoredOutboxes) {
-        outboxes.forEach { (to, stored) ->
-            stored.kept.forEach { (sequence, _) ->
+    fun claim(stored: Stored) {
+        stored.outboxes.queues.forEach { (to, kept) ->
+            kept.forEach { (sequence, _) ->
                 if (to to sequence !in holding && room.tryAcquire()) holding += to to sequence
             }
         }
@@ -243,19 +244,20 @@ private class OutboxSteps<M : Any>(
     }
 
     fun keep(
-        effects: Effects<OutboxEvent, StoredOutboxes>,
+        effects: Effects<OutboxEvent, Stored>,
         ctx: Ctx<Any>,
-        outboxes: StoredOutboxes,
+        stored: Stored,
         asked: KeepDurably,
-    ): Effect<OutboxEvent, StoredOutboxes> {
-        val sequence = outboxes[asked.to]?.next ?: 1
-        return effects.persist(OutboxEvent.Kept(asked.to, sequence, asked.bytes)).then { after ->
+    ): Effect<OutboxEvent, Stored> {
+        val sequence = stored.next[asked.to] ?: 1
+        val (_, send) = stored.outboxes.kept(asked.to, sequence, asked.bytes)
+        return effects.persist(OutboxEvent.Kept(asked.to, sequence, asked.bytes)).then {
             // Written: from here a throw leaves its room held, for the restart's replay to find it, and the caller
             // hears so before the send, which cannot take it back.
             holding += asked.to to sequence
             asked.written()
             measure()
-            if (after.getValue(asked.to).kept.size == 1) ctx.send(asked.to, sequence, asked.bytes)
+            send?.let { ctx.send(it) }
         }
     }
 
@@ -280,16 +282,16 @@ private class OutboxSteps<M : Any>(
     }
 
     fun confirmed(
-        effects: Effects<OutboxEvent, StoredOutboxes>,
+        effects: Effects<OutboxEvent, Stored>,
         ctx: Ctx<Any>,
-        outboxes: StoredOutboxes,
+        stored: Stored,
         confirmed: Confirmed,
-    ): Effect<OutboxEvent, StoredOutboxes> {
-        if (outboxes[confirmed.to]?.kept?.firstOrNull()?.first != confirmed.sequence) return effects.none()
+    ): Effect<OutboxEvent, Stored> {
+        val (_, next) = stored.outboxes.confirmed(confirmed.to, confirmed.sequence) ?: return effects.none()
         return effects.persist(OutboxEvent.Done(confirmed.to, confirmed.sequence)).then { after ->
             if (holding.remove(confirmed.to to confirmed.sequence)) handOnRoom(after)
             measure()
-            ctx.sendFirst(after, confirmed.to)
+            next?.let { ctx.send(it) }
         }
     }
 
@@ -297,24 +299,22 @@ private class OutboxSteps<M : Any>(
      * The room a confirmed command held, passed to a recovered command that holds none yet, or freed when none is
      * left: passed, not freed and claimed, so a drain cannot take it in between and answer while one is unconfirmed.
      */
-    private fun handOnRoom(outboxes: StoredOutboxes) {
-        val waiting = outboxes.asSequence()
-            .flatMap { (to, stored) -> stored.kept.asSequence().map { (sequence, _) -> to to sequence } }
+    private fun handOnRoom(stored: Stored) {
+        val waiting = stored.outboxes.queues.asSequence()
+            .flatMap { (to, kept) -> kept.asSequence().map { (sequence, _) -> to to sequence } }
             .firstOrNull { it !in holding }
         if (waiting == null) room.release() else holding += waiting
     }
 
-    fun resend(ctx: Ctx<Any>, outboxes: StoredOutboxes) = outboxes.forEach { (to, stored) ->
-        if (stored.kept.isNotEmpty()) meters.resent.increment()
-        ctx.sendFirst(outboxes, to)
+    fun resend(ctx: Ctx<Any>, stored: Stored) = stored.outboxes.heads().forEach {
+        meters.resent.increment()
+        ctx.send(it)
     }
 
     private fun measure() = meters.unconfirmed.set((keep - room.availablePermits()).toDouble())
 
-    private fun Ctx<Any>.sendFirst(outboxes: StoredOutboxes, to: String) =
-        outboxes[to]?.kept?.firstOrNull()?.let { (sequence, bytes) -> send(to, sequence, bytes) }
-
-    private fun Ctx<Any>.send(to: String, sequence: Long, bytes: ByteArray) {
+    private fun Ctx<Any>.send(send: Send<ByteArray>) {
+        val (to, sequence, bytes) = send
         val kept = codec.decode(bytes)
         check(kept is Delivered) { "a durable producer sends only Delivered commands, not $kept" }
         // A copy that finds the entity's mailbox full is not lost: it is sent again on the next resend.
@@ -323,17 +323,18 @@ private class OutboxSteps<M : Any>(
     }
 }
 
-/** [outboxes] after [event]. */
-private fun applied(outboxes: StoredOutboxes, event: OutboxEvent): StoredOutboxes = when (event) {
-    is OutboxEvent.Kept -> {
-        val stored = outboxes[event.to] ?: Stored(1, emptyList())
-        outboxes + (event.to to Stored(event.sequence + 1, stored.kept + (event.sequence to event.bytes)))
-    }
+/** [stored] after [event], through the same [Outboxes] steps a live command takes. */
+private fun applied(stored: Stored, event: OutboxEvent): Stored = when (event) {
+    is OutboxEvent.Kept -> Stored(
+        stored.outboxes.kept(event.to, event.sequence, event.bytes).first,
+        stored.next + (event.to to event.sequence + 1),
+    )
 
-    is OutboxEvent.Done -> {
-        val stored = outboxes.getValue(event.to)
-        outboxes + (event.to to stored.copy(kept = stored.kept.filterNot { it.first == event.sequence }))
-    }
+    // Only a head is confirmed, so a Done the journal holds is for a head; any other is passed over, and what it
+    // names is sent again, never lost.
+    is OutboxEvent.Done -> stored.copy(
+        outboxes = stored.outboxes.confirmed(event.to, event.sequence)?.first ?: stored.outboxes,
+    )
 }
 
 private object OutboxEventCodec : EventCodec<OutboxEvent> {
@@ -364,14 +365,16 @@ private object OutboxEventCodec : EventCodec<OutboxEvent> {
     }
 }
 
-private object OutboxesCodec : StateCodec<StoredOutboxes> {
-    override fun encode(state: StoredOutboxes): ByteArray = written { data ->
-        data.writeInt(state.size)
-        state.forEach { (to, stored) ->
+private object OutboxesCodec : StateCodec<Stored> {
+    // Each entity numbered so far, its next number, and what it keeps: as before spec 0146, so snapshots read back.
+    override fun encode(state: Stored): ByteArray = written { data ->
+        data.writeInt(state.next.size)
+        state.next.forEach { (to, next) ->
+            val kept = state.outboxes.queues[to].orEmpty()
             data.writeUTF(to)
-            data.writeLong(stored.next)
-            data.writeInt(stored.kept.size)
-            stored.kept.forEach { (sequence, bytes) ->
+            data.writeLong(next)
+            data.writeInt(kept.size)
+            kept.forEach { (sequence, bytes) ->
                 data.writeLong(sequence)
                 data.writeInt(bytes.size)
                 data.write(bytes)
@@ -379,13 +382,18 @@ private object OutboxesCodec : StateCodec<StoredOutboxes> {
         }
     }
 
-    override fun decode(bytes: ByteArray): StoredOutboxes = read(bytes) { data ->
-        List(data.readInt()) {
-            data.readUTF() to Stored(
+    override fun decode(bytes: ByteArray): Stored = read(bytes) { data ->
+        val entities = List(data.readInt()) {
+            Triple(
+                data.readUTF(),
                 data.readLong(),
-                List(data.readInt()) { data.readLong() to ByteArray(data.readInt()).also(data::readFully) },
+                List(data.readInt()) { KeptCommand(data.readLong(), ByteArray(data.readInt()).also(data::readFully)) },
             )
-        }.toMap()
+        }
+        Stored(
+            Outboxes(entities.filter { it.third.isNotEmpty() }.associate { (to, _, kept) -> to to kept }),
+            entities.associate { (to, next, _) -> to to next },
+        )
     }
 }
 
