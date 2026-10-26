@@ -16,16 +16,25 @@ import kotlin.reflect.KClass
 object ForkDiagnostics : KtDiagnosticsContainer() {
 
     /** A `Deferred`, `Channel` or `Scope` that outlives the scope that ends it. */
-    val DEFERRED_ESCAPES_SCOPE: KtDiagnosticFactory1<String> = KtDiagnosticFactory1(
-        "DEFERRED_ESCAPES_SCOPE",
-        Severity.ERROR,
-        SourceElementPositioningStrategies.DEFAULT,
-        psiElement,
-        Renderers,
-    )
+    val DEFERRED_ESCAPES_SCOPE: KtDiagnosticFactory1<String> = fault("DEFERRED_ESCAPES_SCOPE")
+
+    /** `await` or `cancel` inside an `async` block on a `Deferred` from outside it. */
+    val AWAIT_ACROSS_FORK: KtDiagnosticFactory1<String> = fault("AWAIT_ACROSS_FORK")
+
+    /** A labelled `this@x` of a `Fail` from outside an `async` block, used inside it. */
+    val RAISE_ACROSS_FORK: KtDiagnosticFactory1<String> = fault("RAISE_ACROSS_FORK")
 
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 }
+
+/** An error with one sentence, reported where the offending expression is. */
+private fun fault(name: String) = KtDiagnosticFactory1<String>(
+    name,
+    Severity.ERROR,
+    SourceElementPositioningStrategies.DEFAULT,
+    psiElement,
+    Renderers,
+)
 
 /**
  * `PsiElement`, under whichever name it has where this is running: `kotlin-compiler-embeddable` relocates IntelliJ's
@@ -52,5 +61,7 @@ private object Renderers : BaseDiagnosticRendererFactory() {
     @Suppress("ktlint:standard:property-naming")
     override val MAP: KtDiagnosticFactoryToRendererMap by KtDiagnosticFactoryToRendererMap("SurefoldForks") { map ->
         map.put(ForkDiagnostics.DEFERRED_ESCAPES_SCOPE, "surefold: {0}", CommonRenderers.STRING)
+        map.put(ForkDiagnostics.AWAIT_ACROSS_FORK, "surefold: {0}", CommonRenderers.STRING)
+        map.put(ForkDiagnostics.RAISE_ACROSS_FORK, "surefold: {0}", CommonRenderers.STRING)
     }
 }
