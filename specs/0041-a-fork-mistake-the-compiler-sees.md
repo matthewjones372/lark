@@ -84,7 +84,7 @@ compiler-version guard.
       block and stops at the `async` calls nested in it, so an await two forks deep is reported once, by the
       innermost. Only a local or a parameter is judged: a `Deferred` reached through a property is the
       `DEFERRED_ESCAPES_SCOPE` case already.
-- [ ] **`spec-0041-catch`** — `CATCH_EATS_RAISE`.
+- [x] **`spec-0041-catch`** ([#741](https://github.com/matthewjones372/surefold/pull/741)) — `CATCH_EATS_RAISE`.
       Done when: the example warns, a `catch` that rethrows doesn't, and
       `catch (e: IOException)` doesn't.
       `fail` leaves through a `Throwable` that is not an `Exception`, so the warning follows what each catch can

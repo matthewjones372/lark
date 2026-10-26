@@ -3,8 +3,6 @@ package io.github.matthewjones372.surefold
 import java.time.Instant
 import kotlin.time.Duration
 
-private const val NANOS_PER_MILLI = 1_000_000L
-
 /** Time as a value: what a schedule waits on, and what a service reads the hour from. */
 interface Clock {
 
@@ -19,10 +17,7 @@ object SystemClock : Clock {
 
     override fun now(): Instant = Instant.now()
 
-    override fun sleep(duration: Duration) {
-        val nanos = duration.inWholeNanoseconds
-        Thread.sleep(nanos / NANOS_PER_MILLI, (nanos % NANOS_PER_MILLI).toInt())
-    }
+    override fun sleep(duration: Duration) = Waiting.sleep(duration)
 }
 
 /** A clock that does not move and does not wait, which is what most tests of a backoff want. */

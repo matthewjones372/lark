@@ -138,18 +138,18 @@ class Channel<A : Any> internal constructor(val capacity: Int) : Iterable<A> {
         return null
     }
 
-    /** A select's receive: the answer now, or [Waiting] once parked here, or [Lost]. */
+    /** A select's receive: the answer now, or [Pending] once parked here, or [Lost]. */
     internal fun enterReceive(selection: Selection, clause: Int): Any = lock.withLock {
         when (val now = poll(selection, clause)) {
-            Empty -> Waiting.also { receivers.addLast(Parked(null, selection, clause)) }
+            Empty -> Pending.also { receivers.addLast(Parked(null, selection, clause)) }
             else -> now
         }
     }
 
-    /** A select's send: the answer now, or [Waiting] once parked here, or [Lost]. */
+    /** A select's send: the answer now, or [Pending] once parked here, or [Lost]. */
     internal fun enterSend(value: A, selection: Selection, clause: Int): Any = lock.withLock {
         when (val now = offer(value, selection, clause)) {
-            Full -> Waiting.also { senders.addLast(Parked(value, selection, clause)) }
+            Full -> Pending.also { senders.addLast(Parked(value, selection, clause)) }
             else -> now
         }
     }

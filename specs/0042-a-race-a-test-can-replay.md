@@ -72,6 +72,10 @@ threads taking turns.
       goes through one internal `Waiting` function. No change in behaviour.
       Done when: every `surefold` test passes unedited, and `LockSupport` is called
       from one file.
+      The seam is `Waiting.kt`: `park`, `unpark` and `sleep`. It also takes `Transact`'s wait for a change and the
+      combinators' wait for their forks, which was a `Semaphore` and is now a park the ending forks wake.
+      `SystemClock.sleep` parks to its deadline there, so main code has no `Thread.sleep` left. `TestClock` still
+      waits on its own lock's conditions: making those waiting points is `spec-0042-channels`.
 - [ ] **`spec-0042-replay`** — `surefold-replay`: turns, `explore`, `replay`, PCT, for forks.
       Done when: a planted lost-update race between two `async`s is found within
       1,000 runs, and its seed fails 100 times out of 100 under `replay`.
@@ -87,6 +91,8 @@ threads taking turns.
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-26: go with the recommendations).
 
 1. **Does it wait for 0037 and 0038?** The seam needs one place to park.
    Recommended: yes. On today's `Fork`, with its latch and lock, the seam would

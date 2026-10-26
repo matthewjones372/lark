@@ -214,10 +214,9 @@ style:
     # and the timing tests sleep to make a gap they can measure. Schedule.kt is
     # where "schedule instead" lands: it holds the one sleep, waited out on the
     # calling virtual thread so an interrupt ends the schedule where it is.
-    # Clock.kt is where the waiting is implemented rather than reached for:
-    # SystemClock.sleep is the one that has to call it, and everything else
-    # waits through whichever Clock the calling thread inherited.
-    excludes: ['**/test/**', '**/example/**', '**/Clock.kt']
+    # SystemClock.sleep parks in Waiting.kt (spec 0042) rather than calling it,
+    # and everything else waits through whichever Clock the thread inherited.
+    excludes: ['**/test/**', '**/example/**']
   # A second instance of the rule, for main and test sources alike: the first excludes tests, which may sleep.
   ForbiddenMethodCall/runCatching:
     active: true
