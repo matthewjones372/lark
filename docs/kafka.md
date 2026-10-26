@@ -59,6 +59,17 @@ group: once half that interval passes without a poll, the consumer pauses its
 partitions and polls anyway, reading nothing ahead, and resumes them when the
 stream asks for the next record. A `stop()` wakes a poll that is waiting on a quiet topic.
 
+A rebalance takes every partition from a member, the ones it is given back too. By default the records a run has
+handed out on them and not yet handled are then read again, by whichever member owns each partition next. With
+`rebalance = Rebalance.waitFor(30.seconds)`, the member holds the rebalance until each of those records is handled,
+commits them, and only then lets the group go on, so none is read again. The stream runs on meanwhile; only the poll
+waits. It is off by default because a stuck handler then holds the whole group's rebalance, up to that bound.
+
+```kotlin
+Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), value = StringDeserializer(),
+    rebalance = Rebalance.waitFor(30.seconds))
+```
+
 `Kafka.subscribe` is Pekko's own Kafka connector, in `surefold-kafka-pekko`: a
 backpressured prefetch, commits batched by its committer sink, and a `stop()`
 that drains. Pekko runs it and nothing else does, and it ends on
