@@ -66,7 +66,7 @@ own.
 
 ## Stack
 
-- [ ] **`spec-0038-channel`** — `channel`, `send`, `receive`, `close`, `cancel`,
+- [x] **`spec-0038-channel`** ([#730](https://github.com/matthewjones372/surefold/pull/730)) — `channel`, `send`, `receive`, `close`, `cancel`,
       iteration, and the scope closing it.
       Done when: a producer 1000 rows ahead of a slow consumer never holds more
       than `capacity`, and a consumer that cancels ends its producer without an
