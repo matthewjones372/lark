@@ -81,8 +81,9 @@ Recommended: drop the flag now. Retire stays as planned.
 
 ## Open questions
 
-1. Should `surefold-junit`'s own main sources keep the flag, to catch a dropped standard-library value in the
-   engine? Recommended: no. Nothing in them is marked for it now, and the other modules' main sources never
-   had it.
-2. Should the 17 helpers typed `-> Expectations` move to `-> Unit` in this PR? Recommended: no. They work once
-   the flag is gone, and `spec-0202-retire` retypes them when `Expectations` goes internal.
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~Should `surefold-junit`'s own main sources keep the flag, to catch a dropped standard-library value in the
+   engine?~~ No. Nothing in them is marked for it now, and the other modules' main sources never had it.
+2. ~~Should the 17 helpers typed `-> Expectations` move to `-> Unit` in this PR?~~ No. They work once the flag is
+   gone, and `spec-0202-retire` retypes them when `Expectations` goes internal.
