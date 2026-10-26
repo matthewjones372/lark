@@ -41,6 +41,8 @@ val handlers = JobHandlers.of(
 val worker: Module = jobWorker(handlers)   // takes DataSource, Migrated and a JobSettings section
 ```
 
+- **Two modules** in a new `data/` family: `surefold-jobs` on `surefold` alone, and `surefold-app-jobs` for the node,
+  on `surefold-app-liquibase` and `surefold-jobs`. No `CHANGELOG.md`; the ticked stack is the record.
 - **One table**, `surefold_jobs`, and `surefold_jobs_history`, as `surefold/jobs/postgres.sql`, a formatted-SQL
   changelog the service includes, as the journal ships its own. Columns as briefed: id is a UUIDv7 made in Kotlin
   (Postgres 17 has no generator), payload is `jsonb` beside `payload_version`, and a `carried jsonb` holds
@@ -83,7 +85,8 @@ decide who wins.
       "crashed" worker is claimed again after the `TestClock` passes `locked_until`.
 - [ ] **`spec-0216-handlers`** — `JobKind`, `JobResult`, registry, deadline, backoff, expiry, decode failures.
       Done when: a throwing handler is retried with growing delays and fails at `max_attempts`.
-- [ ] **`spec-0216-worker`** — the polling worker, per-kind concurrency, the graph node, graceful release.
+- [ ] **`spec-0216-worker`** — the polling worker, per-kind concurrency, and `surefold-app-jobs` with the graph
+      node and graceful release.
       Done when: release with a run in flight lets it finish within `drain`, and claims nothing after.
 - [ ] **`spec-0216-docs`** — metrics, `docs/jobs.md` with a compiled fence, `modules.md`, `llms.txt`, `SKILL.md`.
       Done when: the `<!-- jobs -->` fence compiles and `AgentDocsSuite` passes.
@@ -95,6 +98,8 @@ decide who wins.
 ```
 
 ## Open questions
+
+Taken as recommended (maintainer, 2026-10-26). Each answer is the question's recommendation.
 
 1. **One module or two?** The node needs `surefold-app-liquibase`, which brings `liquibase-core`. Recommended: two,
    `surefold-jobs` on `surefold` alone and `surefold-app-jobs` for the node, as `surefold-app-actor` sits over
