@@ -26,7 +26,8 @@ internal class TransactChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
         val symbol = expression.calleeReference.toResolvedCallableSymbol() ?: return
         val called = symbol.callableId ?: return
         if (!refused(called) || !inStep()) return
-        reporter.reportOn(expression.source, SurefoldDiagnostics.SUREFOLD_EFFECT_IN_TRANSACT, named(symbol, called), context)
+        val diagnostic = SurefoldDiagnostics.SUREFOLD_EFFECT_IN_TRANSACT
+        reporter.reportOn(expression.source, diagnostic, named(symbol, called), context)
     }
 }
 
