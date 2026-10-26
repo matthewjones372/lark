@@ -22,6 +22,7 @@ import io.github.matthewjones372.surefold.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.surefold.junit.samples.UnreleasableSuite
 import io.github.matthewjones372.surefold.junit.testkit.failureOf
 import io.github.matthewjones372.surefold.junit.testkit.failures
+import io.github.matthewjones372.surefold.junit.testkit.finishOrder
 import io.github.matthewjones372.surefold.junit.testkit.logs
 import io.github.matthewjones372.surefold.junit.testkit.names
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveFailed
@@ -33,7 +34,6 @@ import org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId
 import org.junit.platform.testkit.engine.EngineExecutionResults
 import org.junit.platform.testkit.engine.EngineTestKit
-import org.junit.platform.testkit.engine.EventType
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.MultipleFailuresError
 import java.io.ByteArrayOutputStream
@@ -130,12 +130,10 @@ class SurefoldEngineTest {
 
     @Test
     fun `every started test is finished before its suite is`() {
-        val events = run(selectClass(GatedSuite::class.java)).allEvents().list()
-        val suiteFinished = events.indexOfLast { it.testDescriptor.displayName == "GatedSuite" }
+        val finished = run(selectClass(GatedSuite::class.java)).allEvents().finishOrder()
 
-        events.count { it.type == EventType.STARTED && it.testDescriptor.isTest } shouldBe 8
-        events.withIndex().filter { (_, e) -> e.type == EventType.FINISHED && e.testDescriptor.isTest }
-            .map { it.index }.all { it < suiteFinished } shouldBe true
+        finished.take(8) shouldContainExactlyInAnyOrder (1..8).map { "gated $it" }
+        finished.drop(8) shouldBe listOf("GatedSuite", "Surefold")
     }
 
     @Test

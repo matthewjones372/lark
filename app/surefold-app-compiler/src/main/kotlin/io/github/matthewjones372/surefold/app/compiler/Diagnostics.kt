@@ -66,6 +66,10 @@ object SurefoldDiagnostics : KtDiagnosticsContainer() {
     val SUREFOLD_RUN_NEVER_RETURNS_ON_SHUTDOWN: KtDiagnosticFactory1<String> =
         factory("SUREFOLD_RUN_NEVER_RETURNS_ON_SHUTDOWN", Severity.WARNING, SourceElementPositioningStrategies.DEFAULT)
 
+    /** I/O, a blocking wait or a fork inside a step, which runs again each time the step does (spec 0210). */
+    val SUREFOLD_EFFECT_IN_TRANSACT: KtDiagnosticFactory1<String> =
+        factory("SUREFOLD_EFFECT_IN_TRANSACT", Severity.ERROR, SourceElementPositioningStrategies.DEFAULT)
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private fun factory(
@@ -127,6 +131,11 @@ private object Renderers : BaseDiagnosticRendererFactory() {
         map.put(
             SurefoldDiagnostics.SUREFOLD_SECRET_AS_STRING,
             "surefold: string(\"{0}\") reads a secret as a String that prints itself; read it with secret(\"{0}\")",
+            CommonRenderers.STRING,
+        )
+        map.put(
+            SurefoldDiagnostics.SUREFOLD_EFFECT_IN_TRANSACT,
+            "surefold: {0} runs again each time the step does, not once per commit; do it before or after transact",
             CommonRenderers.STRING,
         )
         map.put(

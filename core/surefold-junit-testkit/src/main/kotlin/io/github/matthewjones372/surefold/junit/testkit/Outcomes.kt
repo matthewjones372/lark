@@ -10,6 +10,13 @@ import org.opentest4j.AssertionFailedError
 /** The display names of these events' tests, in the order the events happened. */
 fun Events.names(): List<String> = map { it.testDescriptor.displayName }.toList()
 
+/**
+ * The display names of everything that finished, tests and containers, in the order they finished. A skipped test
+ * never finishes, so it is absent.
+ */
+fun Events.finishOrder(): List<String> =
+    list().filter { it.type == EventType.FINISHED }.map { it.testDescriptor.displayName }
+
 /** Passes if exactly [tests] succeeded, in any order; a miss shows how each of the others ended, and why. */
 infix fun Events.shouldHaveSucceeded(tests: Iterable<String>) = shouldHaveEnded(Ended.Succeeded, tests)
 

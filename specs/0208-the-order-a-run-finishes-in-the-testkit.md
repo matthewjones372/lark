@@ -60,7 +60,7 @@ finishes after the suite. Recommended: the list.
 
 ## Stack
 
-- [ ] **`spec-0208-finish-order`** — `finishOrder()` in the testkit, with a test that a suite's tests finish before
+- [x] **`spec-0208-finish-order`** — `finishOrder()` in the testkit, with a test that a suite's tests finish before
       it, using a sample whose tests finish in a known order.
       `SurefoldEngineTest`'s ordering test and `WaitTest`'s `failureOf` move to the testkit, and `docs/testing.md`
       names the call.
