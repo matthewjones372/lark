@@ -66,7 +66,7 @@ fork has nothing to wait on. Recommended: the compare-and-set version.
 
 - [x] **`spec-0037-jdk25`** ([#306](https://github.com/matthewjones372/lark/pull/306)) — toolchain 25, CI matrix `25` only, badge and README.
       Done when: `./gradlew build` is green on 25, and the README says why 25.
-- [ ] **`spec-0037-states`** — `Fork` on `State`, same behaviour.
+- [x] **`spec-0037-states`** ([#722](https://github.com/matthewjones372/surefold/pull/722)) — `Fork` on `State`, same behaviour.
       Done when: every test in `surefold` passes unedited, and no `ReentrantLock` or
       `CountDownLatch` is left in `Flock.kt`.
 - [ ] **`spec-0037-help`** — `await` claims and runs a fork still `Submitted`.

@@ -55,10 +55,10 @@ local 4.2 / 4.1 against 4.6 / 3.7 µs, Tell one-to-one 64 / 72 against 61 / 63 n
 
 ## Stack
 
-- [ ] **`spec-0144-paced-ask`** — an `askCpu` task in `surefold-actor-benchmarks` that prints process CPU per ask,
+- [x] **`spec-0144-paced-ask`** ([#716](https://github.com/matthewjones372/surefold/pull/716)) — an `askCpu` task in `surefold-actor-benchmarks` that prints process CPU per ask,
       closed loop and paced to 50,000 a second, for surefold and Pekko.
       Done when: `./gradlew :surefold-actor-benchmarks:askCpu` prints four rows.
-- [ ] **`spec-0144-adaptive-spin`** — each runner halves its spin after a wasted one; a `RunnersTest` that fails
+- [x] **`spec-0144-adaptive-spin`** ([#719](https://github.com/matthewjones372/surefold/pull/719)) — each runner halves its spin after a wasted one; a `RunnersTest` that fails
       on main.
       Done when: activations submitted 50 µs apart spin for less than a quarter of 10 µs each, and
       `./gradlew build` is green.
