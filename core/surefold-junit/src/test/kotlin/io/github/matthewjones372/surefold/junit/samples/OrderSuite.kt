@@ -12,7 +12,8 @@ object OrderSuite : SharedSuite<Database>(concurrent = false) {
     init {
         test("an order is saved once") { db ->
             repeat(2) { db.save("order-1") }
-            expect(db.count() == 1) and expect(db.find("order-1") == "order-1")
+            expect(db.count() == 1)
+            expect(db.find("order-1") == "order-1")
         }
     }
 }

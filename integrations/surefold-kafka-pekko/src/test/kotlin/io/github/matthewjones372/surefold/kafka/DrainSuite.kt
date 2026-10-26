@@ -44,17 +44,16 @@ object DrainSuite : SharedSuite<KafkaKit>() {
                 }
                 .runCommitting(CommitterSettings.create(kit.system))
                 .start(kit.system)
-            val reached = second.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            second.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.stop()
             release.countDown()
             running.close()
 
-            val exited = running.exit.toCompletableFuture().getNow(null) shouldBe Exit.Done(Done.getInstance())
-            reached and exited and
-                withClue("the kill switch would have dropped record 2 between the stages; a drain commits it") {
-                    kit.broker.committed("draining", Topic("slow")) shouldBe 2L
-                }
+            running.exit.toCompletableFuture().getNow(null) shouldBe Exit.Done(Done.getInstance())
+            withClue("the kill switch would have dropped record 2 between the stages; a drain commits it") {
+                kit.broker.committed("draining", Topic("slow")) shouldBe 2L
+            }
         }
     }
 }

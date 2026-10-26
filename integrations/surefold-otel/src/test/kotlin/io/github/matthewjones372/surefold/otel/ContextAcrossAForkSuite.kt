@@ -44,7 +44,8 @@ object ContextAcrossAForkSuite : Suite() {
 
             val seen = otelContext.locally(outside) { parMap(listOf(1, 2, 3)) { Context.current() } }
 
-            (seen shouldHaveSize 3) and seen.forAll { branch -> branch shouldBe outside }
+            seen shouldHaveSize 3
+            seen.forAll { branch -> branch shouldBe outside }
         }
 
         test("a span opened before a fork is the parent of what each branch opens") {
@@ -58,10 +59,10 @@ object ContextAcrossAForkSuite : Suite() {
             val outer = spans.single { it.name == "outer" }
             val branches = spans.filter { it.name.startsWith("branch-") }
 
-            (branches shouldHaveSize 2) and
-                withClue("a ThreadLocal would have made each branch a root of its own") {
-                    branches.forAll { branch -> branch.parentSpanId shouldBe outer.spanId }
-                }
+            branches shouldHaveSize 2
+            withClue("a ThreadLocal would have made each branch a root of its own") {
+                branches.forAll { branch -> branch.parentSpanId shouldBe outer.spanId }
+            }
         }
 
         test("attach puts back what it replaced") {
@@ -69,10 +70,10 @@ object ContextAcrossAForkSuite : Suite() {
             val before = Context.current()
 
             val detach = otelContext.attach(first)
-            val attached = Context.current() shouldBe first
+            Context.current() shouldBe first
             detach.detach()
 
-            attached and (Context.current() shouldBe before)
+            Context.current() shouldBe before
         }
 
         test("a traced span puts the trace on every line, including a branch's") {
@@ -82,11 +83,11 @@ object ContextAcrossAForkSuite : Suite() {
                 logs.all()
             }
 
-            (lines shouldHaveSize 2) and
-                lines.forAll { line ->
-                    expect(line.annotations["trace_id"].orEmpty().isNotBlank()) and
-                        expect(line.annotations["span_id"].orEmpty().isNotBlank())
-                }
+            lines shouldHaveSize 2
+            lines.forAll { line ->
+                expect(line.annotations["trace_id"].orEmpty().isNotBlank())
+                expect(line.annotations["span_id"].orEmpty().isNotBlank())
+            }
         }
     }
 }

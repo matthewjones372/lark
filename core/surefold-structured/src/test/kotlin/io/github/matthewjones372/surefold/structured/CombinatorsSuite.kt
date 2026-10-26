@@ -50,7 +50,8 @@ object CombinatorsSuite : Suite() {
                     fail(Boom)
                 }) { a, _ -> a }
             }
-            (answer shouldBe Boom.left()) and (blocker.wasInterrupted() shouldBe true)
+            answer shouldBe Boom.left()
+            blocker.wasInterrupted() shouldBe true
         }
 
         test("a branch's throw reaches the caller as itself, not an ExecutionException") {
@@ -75,7 +76,8 @@ object CombinatorsSuite : Suite() {
                     "fast"
                 })
             }
-            (answer shouldBe "fast".right().right()) and (blocker.wasInterrupted() shouldBe true)
+            answer shouldBe "fast".right().right()
+            blocker.wasInterrupted() shouldBe true
         }
 
         test("a branch that fails first loses the race for everyone") {
@@ -95,7 +97,8 @@ object CombinatorsSuite : Suite() {
         test("past the deadline, timeout fails with the typed error and the block was interrupted") {
             val blocker = Blocker()
             val answer = attempt<Slow, String> { timeout(100.milliseconds, onTimeout = { Slow }) { blocker.body() } }
-            (answer shouldBe Slow.left()) and (blocker.wasInterrupted() shouldBe true)
+            answer shouldBe Slow.left()
+            blocker.wasInterrupted() shouldBe true
         }
 
         test("without an error to fail with, timeout throws as surefold's does") {

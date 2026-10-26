@@ -338,9 +338,12 @@ object ContainingSuite : SharedSuite<List<String>>() {
 
     init {
         test("passes every matcher") { words ->
-            (words shouldContain "two") and (words shouldNotContain "three") and
-                (words.first() shouldContain "ne") and (words.first() shouldNotContain "w") and
-                (words shouldBeSameInstanceAs words) and (words shouldNotBeSameInstanceAs words.toList())
+            words shouldContain "two"
+            words shouldNotContain "three"
+            words.first() shouldContain "ne"
+            words.first() shouldNotContain "w"
+            words shouldBeSameInstanceAs words
+            words shouldNotBeSameInstanceAs words.toList()
         }
         test("fails a string shouldContain") { words -> words.first() shouldContain "w" }
         test("fails a null string") { _ -> null shouldContain "w" }
@@ -368,7 +371,10 @@ object CluedSuite : SharedSuite<Any>() {
             withClue("the outer clue") { withClue("the inner clue") { two shouldBe 3 } }
         }
         test("fails one of two under a clue") { two ->
-            withClue("only once") { (two shouldBe "two") and (two shouldBe 3) }
+            withClue("only once") {
+                two shouldBe "two"
+                two shouldBe 3
+            }
         }
         test("fails a narrowing") { two ->
             two.shouldBeInstanceOf<Int> {
@@ -399,24 +405,39 @@ object GappedSuite : SharedSuite<List<Int>>() {
 
     init {
         test("passes every matcher") { xs ->
-            (xs shouldContainExactlyInAnyOrder listOf(2, 3, 1, 2)) and xs.shouldContainExactlyInAnyOrder(3, 2, 2, 1) and
-                emptyList<Int>().shouldBeEmpty() and xs.shouldNotBeEmpty() and
-                emptyMap<String, Int>().shouldBeEmpty() and mapOf("a" to 1).shouldNotBeEmpty() and
-                xs.firstOrNull().shouldNotBeNull { first -> first shouldBe 1 } and xs.shouldNotBeNull() and
-                (1 shouldBeLessThan 2) and (2 shouldBeLessThanOrEqual 2) and
-                (3 shouldBeGreaterThan 2) and (2 shouldBeGreaterThanOrEqual 2) and
-                (xs shouldContainAll listOf(3, 1)) and (mapOf("a" to 1) shouldContainKey "a") and
-                (mapOf("a" to 1) shouldNotContainKey "b") and (mapOf("a" to 1) shouldContain ("a" to 1)) and
-                (xs shouldContainExactly listOf(1, 2, 2, 3)) and xs.shouldContainExactly(1, 2, 2, 3) and
-                (xs shouldHaveSize 4) and null.shouldBeNull() and (2 shouldBeInRange 1..3) and
-                (mapOf("a" to 1, "b" to 2) shouldContainAll mapOf("b" to 2)) and
-                right.shouldBeRight { n -> n shouldBe 1 } and left.shouldBeLeft { e -> e shouldBe "no" } and
-                ("surefold-junit" shouldStartWith "surefold") and ("surefold-junit" shouldEndWith "junit") and
-                "surefold".shouldNotBeBlank() and ("surefold-0197" shouldMatch "surefold-\\d+") and
-                ("surefold-0197" shouldMatch Regex("[a-z]+-\\d+")) and
-                ("built at Suite.kt:3" shouldContain Regex(":\\d+$")) and
-                (xs shouldContainOnly listOf(3, 2, 1)) and xs.shouldContainAll(3, 1) and
-                (mapOf("a" to 1) shouldContainExactly mapOf("a" to 1))
+            xs shouldContainExactlyInAnyOrder listOf(2, 3, 1, 2)
+            xs.shouldContainExactlyInAnyOrder(3, 2, 2, 1)
+            emptyList<Int>().shouldBeEmpty()
+            xs.shouldNotBeEmpty()
+            emptyMap<String, Int>().shouldBeEmpty()
+            mapOf("a" to 1).shouldNotBeEmpty()
+            xs.firstOrNull().shouldNotBeNull { first -> first shouldBe 1 }
+            xs.shouldNotBeNull()
+            1 shouldBeLessThan 2
+            2 shouldBeLessThanOrEqual 2
+            3 shouldBeGreaterThan 2
+            2 shouldBeGreaterThanOrEqual 2
+            xs shouldContainAll listOf(3, 1)
+            mapOf("a" to 1) shouldContainKey "a"
+            mapOf("a" to 1) shouldNotContainKey "b"
+            mapOf("a" to 1) shouldContain ("a" to 1)
+            xs shouldContainExactly listOf(1, 2, 2, 3)
+            xs.shouldContainExactly(1, 2, 2, 3)
+            xs shouldHaveSize 4
+            null.shouldBeNull()
+            2 shouldBeInRange 1..3
+            mapOf("a" to 1, "b" to 2) shouldContainAll mapOf("b" to 2)
+            right.shouldBeRight { n -> n shouldBe 1 }
+            left.shouldBeLeft { e -> e shouldBe "no" }
+            "surefold-junit" shouldStartWith "surefold"
+            "surefold-junit" shouldEndWith "junit"
+            "surefold".shouldNotBeBlank()
+            "surefold-0197" shouldMatch "surefold-\\d+"
+            "surefold-0197" shouldMatch Regex("[a-z]+-\\d+")
+            "built at Suite.kt:3" shouldContain Regex(":\\d+$")
+            xs shouldContainOnly listOf(3, 2, 1)
+            xs.shouldContainAll(3, 1)
+            mapOf("a" to 1) shouldContainExactly mapOf("a" to 1)
         }
         test("fails in any order") { xs -> xs shouldContainExactlyInAnyOrder listOf(1, 2, 3) }
         test("fails shouldBeEmpty") { xs -> xs.shouldBeEmpty() }

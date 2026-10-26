@@ -4,7 +4,6 @@ import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.capturingMetrics
 import io.github.matthewjones372.surefold.fail.fold
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.expect
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -55,9 +54,6 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
     private fun <E, R> CompletionStage<Exit<E, R>>.settled(): Exit<E, R> =
         toCompletableFuture().get(GENEROUS_SECONDS, TimeUnit.SECONDS)
 
-    /** Every check in [checks], each failure kept. */
-    private fun all(checks: List<Expectations>): Expectations = checks.reduce(Expectations::and)
-
     init {
         backends.forEach { on ->
             test(
@@ -66,22 +62,22 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                 val topic = Topic("orders-$on")
                 kit.broker.send(topic, "1", "2", "3", "4", "5")
 
-                val first = strings(kit, "placing-$on", topic).take(5).runCommitting().run(kit.backend(on))
+                strings(kit, "placing-$on", topic).take(5).runCommitting().run(kit.backend(on))
                     .settled() shouldBe Exit.Done(5L)
 
-                val committed = withClue("the exit completes after the consumer committed and closed") {
+                withClue("the exit completes after the consumer committed and closed") {
                     kit.broker.committed("placing-$on", topic) shouldBe 5L
                 }
 
                 kit.broker.send(topic, "6")
                 val seen = ConcurrentLinkedQueue<String>()
-                val next = strings(kit, "placing-$on", topic)
+                strings(kit, "placing-$on", topic)
                     .mapRecord { it.value().also(seen::add) }
                     .take(1)
                     .runCommitting()
                     .run(kit.backend(on))
                     .settled() shouldBe Exit.Done(1L)
-                first and committed and next and (seen.toList() shouldBe listOf("6"))
+                seen.toList() shouldBe listOf("6")
             }
 
             test("a batch over two partitions commits each one's last offset in it [$on]") { kit ->
@@ -99,29 +95,29 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                     .run(kit.backend(on))
                     .settled()
 
-                (exit shouldBe Exit.Done(1L)) and
-                    (sizes.toList() shouldBe listOf(5)) and
-                    (kit.broker.committed("inserting-$on", topic, number = 0) shouldBe 3L) and
-                    (kit.broker.committed("inserting-$on", topic, number = 1) shouldBe 2L)
+                exit shouldBe Exit.Done(1L)
+                sizes.toList() shouldBe listOf(5)
+                kit.broker.committed("inserting-$on", topic, number = 0) shouldBe 3L
+                kit.broker.committed("inserting-$on", topic, number = 1) shouldBe 2L
             }
 
             test("the next run in the group starts after the last batch committed [$on]") { kit ->
                 val topic = Topic("batches-$on")
                 kit.broker.send(topic, "1", "2", "3", "4", "5")
 
-                val first = strings(kit, "bulk-$on", topic).groupedRecord(3, 10.seconds).take(1).runCommitting()
+                strings(kit, "bulk-$on", topic).groupedRecord(3, 10.seconds).take(1).runCommitting()
                     .run(kit.backend(on))
                     .settled() shouldBe Exit.Done(1L)
 
                 val seen = ConcurrentLinkedQueue<String>()
-                val next = strings(kit, "bulk-$on", topic)
+                strings(kit, "bulk-$on", topic)
                     .groupedRecord(2, 10.seconds)
                     .mapRecord { records -> records.forEach { seen.add(it.value()) } }
                     .take(1)
                     .runCommitting()
                     .run(kit.backend(on))
                     .settled() shouldBe Exit.Done(1L)
-                first and next and (seen.toList() shouldBe listOf("4", "5"))
+                seen.toList() shouldBe listOf("4", "5")
             }
 
             test(
@@ -137,7 +133,8 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                     .run(kit.backend(on))
                     .settled()
 
-                (exit shouldBe Exit.Done(3L)) and (kit.broker.committed("handling-$on", topic) shouldBe 3L)
+                exit shouldBe Exit.Done(3L)
+                kit.broker.committed("handling-$on", topic) shouldBe 3L
             }
 
             test(
@@ -151,12 +148,12 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                     .mapRecord { it.value().also { handled.countDown() } }
                     .runCommitting()
                     .start(kit.backend(on))
-                val reached = handled.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+                handled.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
                 running.stop()
 
-                val exited = running.exit.settled() shouldBe Exit.Done(1L)
-                reached and exited and (kit.broker.committed("stopping-$on", topic) shouldBe 1L)
+                running.exit.settled() shouldBe Exit.Done(1L)
+                kit.broker.committed("stopping-$on", topic) shouldBe 1L
             }
 
             test("a record that fails to decode is a Left, and is still committed [$on]") { kit ->
@@ -179,10 +176,10 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                     .run(kit.backend(on))
                     .settled()
 
-                (exit shouldBe Exit.Done(2L)) and
-                    (seen.first() shouldBe "fine") and
-                    seen.last().shouldBeInstanceOf<DecodeError> { error -> error.offset shouldBe 1L } and
-                    (kit.broker.committed("decoding-$on", topic) shouldBe 2L)
+                exit shouldBe Exit.Done(2L)
+                seen.first() shouldBe "fine"
+                seen.last().shouldBeInstanceOf<DecodeError> { error -> error.offset shouldBe 1L }
+                kit.broker.committed("decoding-$on", topic) shouldBe 2L
             }
 
             test("divertLefts hands a bad record on before anything after it is committed [$on]") { kit ->
@@ -205,9 +202,9 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                     .run(kit.backend(on))
                     .settled()
 
-                (exit shouldBe Exit.Done(2L)) and
-                    (dead.toList() shouldBe listOf(1L)) and
-                    (kit.broker.committed("diverting-$on", topic) shouldBe 3L)
+                exit shouldBe Exit.Done(2L)
+                dead.toList() shouldBe listOf(1L)
+                kit.broker.committed("diverting-$on", topic) shouldBe 3L
             }
 
             test("a registry that is down restarts the consumer, which reads the same record again [$on]") { kit ->
@@ -233,9 +230,9 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                     .run(kit.backend(on))
                     .settled()
 
-                (exit shouldBe Exit.Done(1L)) and
-                    (asked.get() shouldBe 2) and
-                    (kit.broker.committed("restarting-$on", topic) shouldBe 1L)
+                exit shouldBe Exit.Done(1L)
+                asked.get() shouldBe 2
+                kit.broker.committed("restarting-$on", topic) shouldBe 1L
             }
 
             test(
@@ -260,15 +257,15 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                     .settled()
 
                 val order = arrived.toList()
-                (exit shouldBe Exit.Done(4L)) and
-                    withClue("partition 1 was not held behind partition 0's slow record: $order") {
-                        order.indexOf("b") shouldBeLessThan order.indexOf("slow")
-                    } and
-                    (order.filter { it in setOf("slow", "after slow") } shouldBe listOf("slow", "after slow")) and
-                    (order.filter { it in setOf("a", "b") } shouldBe listOf("a", "b")) and
-                    withClue("partition 0's two records") {
-                        kit.broker.committed("partitioned-$on", topic) shouldBe 2L
-                    }
+                exit shouldBe Exit.Done(4L)
+                withClue("partition 1 was not held behind partition 0's slow record: $order") {
+                    order.indexOf("b") shouldBeLessThan order.indexOf("slow")
+                }
+                order.filter { it in setOf("slow", "after slow") } shouldBe listOf("slow", "after slow")
+                order.filter { it in setOf("a", "b") } shouldBe listOf("a", "b")
+                withClue("partition 0's two records") {
+                    kit.broker.committed("partitioned-$on", topic) shouldBe 2L
+                }
             }
 
             test(
@@ -305,23 +302,21 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
 
                 // On Pekko the source reads ahead on a thread of its own, which keeps polling: the keeper has nothing
                 // to do.
-                val kept = if (on == "Forks") {
+                if (on == "Forks") {
                     withClue("the keeper paused the partitions it polled for, and its polls were timed") {
-                        (pausedDuring.get() shouldBe 1.0) and (pollsAfter.get() shouldBeGreaterThan pollsBefore.get())
-                    } and withClue("nothing is paused once the consumer has closed") {
+                        pausedDuring.get() shouldBe 1.0
+                        pollsAfter.get() shouldBeGreaterThan pollsBefore.get()
+                    }
+                    withClue("nothing is paused once the consumer has closed") {
                         captured.gauge("surefold.kafka.consumer.paused") shouldBe 0.0
                     }
-                } else {
-                    expect(true)
                 }
                 val twice = "no record was handed to this consumer twice, as it would be once its group had moved on"
-                val once = withClue(twice) {
+                withClue(twice) {
                     seen.toList() shouldBe listOf("1", "2", "3")
                 }
-                (exit shouldBe Exit.Done(3L)) and
-                    kept and
-                    once and
-                    (kit.broker.committed("slow-$on", topic) shouldBe 3L)
+                exit shouldBe Exit.Done(3L)
+                kit.broker.committed("slow-$on", topic) shouldBe 3L
             }
 
             test(
@@ -344,8 +339,9 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                             .settled()
                     } to captured
                 }
-                val handled = withClue("each record was in flight while it was handled: $inFlight") {
-                    (inFlight.size shouldBe 3) and expect(inFlight.all { count -> count >= 1.0 })
+                withClue("each record was in flight while it was handled: $inFlight") {
+                    inFlight.size shouldBe 3
+                    expect(inFlight.all { count -> count >= 1.0 })
                 }
 
                 val expectedTags = mapOf(
@@ -356,30 +352,27 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                 )
                 val meters =
                     listOf("records", "bytes", "poll", "commit", "close", "rebalances", "assigned", "in.flight")
-                handled and
-                    (exit shouldBe Exit.Done(3L)) and
-                    (captured.counter("surefold.kafka.consumer.records") shouldBe 3.0) and
-                    withClue("each value's bytes, and no key") {
-                        captured.counter("surefold.kafka.consumer.bytes") shouldBe 11.0
-                    } and
-                    captured.histogram("surefold.kafka.consumer.poll").shouldNotBeEmpty() and
-                    withClue("the close commits what was handled, and waits for it") {
-                        captured.histogram("surefold.kafka.consumer.commit").shouldNotBeEmpty()
-                    } and
-                    (captured.histogram("surefold.kafka.consumer.close").size shouldBe 1) and
-                    (captured.counter("surefold.kafka.consumer.rebalances") shouldNotBe 0.0) and
-                    withClue("nothing is owned or in flight once the consumer has left") {
-                        (captured.gauge("surefold.kafka.consumer.assigned") shouldBe 0.0) and
-                            (captured.gauge("surefold.kafka.consumer.in.flight") shouldBe 0.0)
-                    } and
-                    (captured.tags("surefold.kafka.consumer.records").entries shouldContainAll expectedTags.entries) and
-                    all(
-                        meters.map { meter ->
-                            withClue("$meter reads back") {
-                                captured.read("surefold.kafka.consumer.$meter").shouldNotBeEmpty()
-                            }
-                        },
-                    )
+                exit shouldBe Exit.Done(3L)
+                captured.counter("surefold.kafka.consumer.records") shouldBe 3.0
+                withClue("each value's bytes, and no key") {
+                    captured.counter("surefold.kafka.consumer.bytes") shouldBe 11.0
+                }
+                captured.histogram("surefold.kafka.consumer.poll").shouldNotBeEmpty()
+                withClue("the close commits what was handled, and waits for it") {
+                    captured.histogram("surefold.kafka.consumer.commit").shouldNotBeEmpty()
+                }
+                captured.histogram("surefold.kafka.consumer.close").size shouldBe 1
+                captured.counter("surefold.kafka.consumer.rebalances") shouldNotBe 0.0
+                withClue("nothing is owned or in flight once the consumer has left") {
+                    captured.gauge("surefold.kafka.consumer.assigned") shouldBe 0.0
+                    captured.gauge("surefold.kafka.consumer.in.flight") shouldBe 0.0
+                }
+                captured.tags("surefold.kafka.consumer.records").entries shouldContainAll expectedTags.entries
+                meters.forEach { meter ->
+                    withClue("$meter reads back") {
+                        captured.read("surefold.kafka.consumer.$meter").shouldNotBeEmpty()
+                    }
+                }
             }
 
             test("two consumers in one group with no client id each keep their own meters [$on]") { kit ->
@@ -388,16 +381,17 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                 fun clientOfOneRun() = capturingMetrics { captured ->
                     val exit = strings(kit, "sharing-$on", topic).take(1).runCommitting().run(kit.backend(on))
                         .settled()
-                    (exit shouldBe Exit.Done(1L)) to captured.tags("surefold.kafka.consumer.assigned")["client"]
+                    exit shouldBe Exit.Done(1L)
+                    captured.tags("surefold.kafka.consumer.assigned")["client"]
                 }
 
-                val (firstRan, first) = clientOfOneRun()
-                val (secondRan, second) = clientOfOneRun()
+                val first = clientOfOneRun()
+                val second = clientOfOneRun()
 
-                val named = withClue("each consumer is named, so its gauges are its own: $first, $second") {
-                    (first.isNullOrEmpty() shouldBe false) and (first shouldNotBe second)
+                withClue("each consumer is named, so its gauges are its own: $first, $second") {
+                    first.isNullOrEmpty() shouldBe false
+                    first shouldNotBe second
                 }
-                firstRan and secondRan and named
             }
 
             test(
@@ -419,18 +413,17 @@ object ConsumeSuite : SharedSuite<KafkaKit>() {
                 }
 
                 // Pekko's source reads ahead of the handler, so only the last record's reading is the same on both.
-                val firstLag = if (on == "Forks") lags.first() shouldBe 4.0 else expect(true)
+                if (on == "Forks") lags.first() shouldBe 4.0
                 val latencies = captured.histogram("surefold.kafka.consumer.latency")
                 val lagTags = mapOf("topic" to topic.name, "partition" to "0")
-                (exit shouldBe Exit.Done(5L)) and
-                    firstLag and
-                    (lags.last() shouldBe 0.0) and
-                    (captured.tags("surefold.kafka.consumer.lag").entries shouldContainAll lagTags.entries) and
-                    withClue("a partition this consumer has left lags nothing here") {
-                        captured.gauge("surefold.kafka.consumer.lag") shouldBe 0.0
-                    } and
-                    (latencies.size shouldBe 5) and
-                    expect(latencies.all { seconds -> seconds < GENEROUS_SECONDS.toDouble() })
+                exit shouldBe Exit.Done(5L)
+                lags.last() shouldBe 0.0
+                captured.tags("surefold.kafka.consumer.lag").entries shouldContainAll lagTags.entries
+                withClue("a partition this consumer has left lags nothing here") {
+                    captured.gauge("surefold.kafka.consumer.lag") shouldBe 0.0
+                }
+                latencies.size shouldBe 5
+                expect(latencies.all { seconds -> seconds < GENEROUS_SECONDS.toDouble() })
             }
         }
     }

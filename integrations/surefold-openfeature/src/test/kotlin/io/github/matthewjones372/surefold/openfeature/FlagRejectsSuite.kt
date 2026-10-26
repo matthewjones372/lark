@@ -53,8 +53,8 @@ object FlagRejectsSuite : Suite() {
         test("each factory passes a value it reads and names what is wrong with one it does not") {
             cases.forAll { case ->
                 withClue(case.flag.key) {
-                    (case.flag.rejects(case.good) shouldBe null) and
-                        ((case.flag.rejects(case.bad) ?: "passed") shouldContain case.says)
+                    case.flag.rejects(case.good) shouldBe null
+                    (case.flag.rejects(case.bad) ?: "passed") shouldContain case.says
                 }
             }
         }
@@ -82,11 +82,11 @@ object FlagRejectsSuite : Suite() {
             val limit = Flag.int("rejects.limit", 1)
             val total = Flag.long("rejects.total", 1L)
 
-            (limit.rejects(Value(5.0)) shouldBe null) and
-                (limit.rejects(Value(5.5)) shouldBe "5.5 is not a whole number") and
-                (limit.rejects(Value(5_000_000_000L)) shouldBe "5000000000 is outside an Int's range") and
-                (total.rejects(Value(9_007_199_254_740_991L)) shouldBe null) and
-                (total.rejects(Value(9_007_199_254_740_992L)) shouldBe "9007199254740992 is outside a Long's range")
+            limit.rejects(Value(5.0)) shouldBe null
+            limit.rejects(Value(5.5)) shouldBe "5.5 is not a whole number"
+            limit.rejects(Value(5_000_000_000L)) shouldBe "5000000000 is outside an Int's range"
+            total.rejects(Value(9_007_199_254_740_991L)) shouldBe null
+            total.rejects(Value(9_007_199_254_740_992L)) shouldBe "9007199254740992 is outside a Long's range"
         }
     }
 }

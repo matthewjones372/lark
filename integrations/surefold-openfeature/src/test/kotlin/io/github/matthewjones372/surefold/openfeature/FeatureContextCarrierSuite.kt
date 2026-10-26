@@ -36,12 +36,12 @@ object FeatureContextCarrierSuite : Suite() {
 
             val arrived = across(sent)
 
-            (arrived.targetingKey shouldBe "ada") and
-                (arrived.getValue("tier").asObject() shouldBe "gold") and
-                (arrived.getValue("limit").asObject() shouldBe 3) and
-                (arrived.getValue("since").asObject() shouldBe 1_700_000_000_000L) and
-                (arrived.getValue("ratio").asObject() shouldBe 0.5) and
-                (arrived.getValue("beta").asObject() shouldBe true)
+            arrived.targetingKey shouldBe "ada"
+            arrived.getValue("tier").asObject() shouldBe "gold"
+            arrived.getValue("limit").asObject() shouldBe 3
+            arrived.getValue("since").asObject() shouldBe 1_700_000_000_000L
+            arrived.getValue("ratio").asObject() shouldBe 0.5
+            arrived.getValue("beta").asObject() shouldBe true
         }
 
         test("a structure or a list is left behind, and the scalars beside it still cross") {

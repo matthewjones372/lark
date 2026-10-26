@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold.structured
 
 import com.sun.management.HotSpotDiagnosticMXBean
 import io.github.matthewjones372.surefold.fail.attempt
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainAll
@@ -24,7 +23,7 @@ object ThreadDumpSuite : Suite() {
     // A scope is named after the function that opened it, and a test's lambda has no name of its own: the test
     // forks from a function named as the test is, as a Jupiter method was, so the name is what the check reads.
     @Suppress("ktlint:standard:function-naming")
-    private fun `a thread dump shows each branch under the scope of the call that forked it`(): Expectations {
+    private fun `a thread dump shows each branch under the scope of the call that forked it`() {
         val waiting = CountDownLatch(1)
         val dumped = CountDownLatch(1)
         val dump = attempt<Nothing, String> {
@@ -45,9 +44,9 @@ object ThreadDumpSuite : Suite() {
         val outer = parents.keys.single { it.startsWith("$caller\\/jdk") }
         val nested = parents.keys.single { it.startsWith("$caller\\/2\\/jdk") }
         val names = Regex(""""name": "([^"]+)"""").findAll(dump).map { it.groupValues[1] }.toList()
-        return withClue(dump) {
-            (parents[nested] shouldBe outer) and
-                (names shouldContainAll listOf("$caller\\/1", "$caller\\/2", "$caller\\/2\\/1"))
+        withClue(dump) {
+            parents[nested] shouldBe outer
+            names shouldContainAll listOf("$caller\\/1", "$caller\\/2", "$caller\\/2\\/1")
         }
     }
 

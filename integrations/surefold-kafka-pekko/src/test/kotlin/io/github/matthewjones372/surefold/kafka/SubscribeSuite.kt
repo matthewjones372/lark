@@ -46,13 +46,13 @@ object SubscribeSuite : SharedSuite<KafkaKit>() {
         test("the records a run handles are committed, and the group starts after them next time") { kit ->
             kit.broker.send(Topic("orders"), "1", "2", "3", "4", "5")
 
-            val first = Kafka.subscribe(consumer(kit, "placing"), Topic("orders"))
+            Kafka.subscribe(consumer(kit, "placing"), Topic("orders"))
                 .take(5)
                 .runCommitting(committer(kit))
                 .run(kit.system)
                 .settled() shouldBe Exit.Done(Done.getInstance())
 
-            val committed = kit.broker.committed("placing", Topic("orders")) shouldBe 5L
+            kit.broker.committed("placing", Topic("orders")) shouldBe 5L
 
             kit.broker.send(Topic("orders"), "6")
             val next = Kafka.subscribe(consumer(kit, "placing"), Topic("orders"))
@@ -62,7 +62,7 @@ object SubscribeSuite : SharedSuite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            first and committed and withClue("a second run in the same group sees none of the five again") {
+            withClue("a second run in the same group sees none of the five again") {
                 next shouldBe Exit.Done(listOf("6"))
             }
         }
@@ -77,8 +77,8 @@ object SubscribeSuite : SharedSuite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(Done.getInstance())) and
-                (kit.broker.committed("bulk", Topic("bulk-orders")) shouldBe 3L)
+            exit shouldBe Exit.Done(Done.getInstance())
+            kit.broker.committed("bulk", Topic("bulk-orders")) shouldBe 3L
         }
 
         test("a declared failure in the stream is the committing run's exit") { kit ->

@@ -65,14 +65,15 @@ object SurefoldDispatcherSuite : SharedSuite<ActorSystem>() {
                 { Thread.currentThread().name },
             ) { first, second -> first to second }
 
-            (names.first shouldBe names.second) and (names.first shouldContain "one-thread")
+            names.first shouldBe names.second
+            names.first shouldContain "one-thread"
         }
 
         test("a fork-join-executor dispatcher is refused, and the message names the config key") { system ->
             shouldThrow<IllegalArgumentException>({ system.surefoldDispatcher("pooled") }) { refusal ->
-                (refusal.message shouldContain "pekko.actor.pooled.executor") and
-                    (refusal.message shouldContain "virtual-thread-executor") and
-                    (refusal.message shouldContain "PinnedDispatcher")
+                refusal.message shouldContain "pekko.actor.pooled.executor"
+                refusal.message shouldContain "virtual-thread-executor"
+                refusal.message shouldContain "PinnedDispatcher"
             }
         }
 
