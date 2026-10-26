@@ -3,8 +3,11 @@ package io.github.matthewjones372.surefold
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.LockSupport
 
-/** A value forks share, changed only inside [transact] (spec 0209). */
-class Shared<T>(initial: T) {
+/**
+ * A value forks share, changed only inside [transact] (spec 0209). [name] is what a step that lost to a change in it
+ * reports as the cause of its retry (spec 0212); keep it to a bounded set, as it becomes a metric tag.
+ */
+class Shared<T>(initial: T, val name: String? = null) {
     internal val word = Word(Versioned(initial, 0))
 
     // Threads parked in waitForChange on a step that read this value. Each takes itself off when it wakes.
@@ -19,12 +22,14 @@ class Shared<T>(initial: T) {
  * reads were changed by another commit first runs again, so [block] can run more than once. Inside another step, it
  * joins that step. Effects queued with [Transaction.afterCommit] run once it has committed, before this returns.
  */
-fun <A> transact(block: Transaction.() -> A): A {
+fun <A> transact(name: String? = null, block: Transaction.() -> A): A {
     running.get()?.let { return it.block() }
     while (true) {
         val step = Transaction()
         val answer = step.attempt(block)
-        if (answer !== Again) {
+        if (answer === Again) {
+            retried.get().retried(name ?: UNNAMED, step.cause)
+        } else {
             // Outside the step, so an effect that calls transact starts a step of its own.
             step.runEffects()
             // Only Again is not the block's answer, so this is an A.
@@ -43,6 +48,7 @@ private fun <A> Transaction.attempt(block: Transaction.() -> A): Any? {
     } catch (_: Conflict) {
         Again
     } catch (_: Wait) {
+        cause = WAITED
         awaitChange()
         Again
     } finally {
@@ -51,6 +57,17 @@ private fun <A> Transaction.attempt(block: Transaction.() -> A): Any? {
 }
 
 private object Again
+
+private const val UNNAMED = "unnamed"
+
+private const val WAITED = "waited"
+
+/** Told why each run of a step gave up: the step's name, and the value it lost to or `waited` (spec 0212). */
+internal fun interface Retried {
+    fun retried(step: String, cause: String)
+}
+
+internal val retried: SurefoldLocal<Retried> = surefoldLocal { Retried { _, _ -> } }
 
 // A thread local rather than a SurefoldLocal: a fork must not inherit the step it was started in.
 private val running = ThreadLocal<Transaction?>()
@@ -61,6 +78,9 @@ class Transaction internal constructor() {
     private val reads = HashMap<Shared<*>, Versioned<*>>()
     private val writes = HashMap<Shared<*>, Any?>()
     private val effects = ArrayList<() -> Unit>()
+
+    // Why this run gave up: the name of the first value it read that changed, or waited.
+    internal var cause: String = UNNAMED
 
     fun <T> Shared<T>.get(): T {
         // Only a set on this same Shared put it there, so it is a T.
@@ -135,7 +155,13 @@ class Transaction internal constructor() {
         }
     }
 
-    private fun changed() = reads.any { (read, held) -> read.word.read() !== held }
+    private fun changed() = lostTo() != null
+
+    private fun lostTo(): Shared<*>? = reads.entries.firstOrNull { (read, held) -> read.word.read() !== held }?.key
+
+    private fun lose(to: Shared<*>) {
+        cause = to.name ?: UNNAMED
+    }
 
     // A value written after readAt is taken only once every earlier read is shown to hold at a later count, so a body
     // never sees values that were never current together.
@@ -144,7 +170,7 @@ class Transaction internal constructor() {
             val seen = shared.word.read()
             if (seen.version <= readAt.n) return seen
             val now = commits.read()
-            if (changed()) throw Conflict
+            lostTo()?.let { lose(it); throw Conflict }
             readAt = now
         }
     }
@@ -162,7 +188,7 @@ class Transaction internal constructor() {
                 writes.keys.forEach { shared -> shared.waiters.forEach(LockSupport::unpark) }
                 return true
             }
-            if (changed()) return false
+            lostTo()?.let { lose(it); return false }
         }
     }
 }
