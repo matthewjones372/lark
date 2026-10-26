@@ -45,17 +45,17 @@ entry): [`docs/agents/stacking.md`](docs/agents/stacking.md).
 
 Modules are grouped by family into `core/`, `stream/`, `actor/`, `cluster/`, `app/`,
 `integrations/`, `bench/` and `examples/` (spec 0139). A module keeps its flat Gradle path,
-`:lark-stream` rather than `:stream:lark-stream`; `settings.gradle.kts` says which folder it is in.
+`:surefold-stream` rather than `:stream:surefold-stream`; `settings.gradle.kts` says which folder it is in.
 A new module goes in its family's folder and gets a `module(...)` line there.
 
 One Gradle module per capability, listed in `settings.gradle.kts`;
-[`docs/modules.md`](docs/modules.md) says what each is for. `lark` depends on
+[`docs/modules.md`](docs/modules.md) says what each is for. `surefold` depends on
 the Kotlin standard library and on the JDK, and on nothing else: no HTTP library, no JSON
 library, no coroutines, and virtual threads come from `java.lang.Thread`. Every
-other module depends on the Lark modules it builds on and, at most, the one
-external library or SDK its name says it integrates: `lark-pekko` adds
-`pekko-actor`, `lark-stream` adds nothing, `lark-stream-pekko` adds
-`pekko-stream`, `lark-kafka` adds `kafka-clients`, and so on.
+other module depends on the Surefold modules it builds on and, at most, the one
+external library or SDK its name says it integrates: `surefold-pekko` adds
+`pekko-actor`, `surefold-stream` adds nothing, `surefold-stream-pekko` adds
+`pekko-stream`, `surefold-kafka` adds `kafka-clients`, and so on.
 
 Each claim is a test. `NoOtherDependenciesTest` asserts the module's main
 runtime classpath, in every module alike.
@@ -77,7 +77,7 @@ between the route, the document, the test client and the generated client, and
 a test written afterwards asserts what the implementation does rather than what
 the description promised.
 
-Test names are sentences in backticks. `lark-assert` matchers, JUnit 5, `withClue`
+Test names are sentences in backticks. `surefold-assert` matchers, JUnit 5, `withClue`
 where a bare boolean would not explain itself.
 
 Work out which of these a change can break:
@@ -98,7 +98,7 @@ when editing an example, and add one to a new complete example. Each module's
 
 ### An actor system belongs to the test class
 
-`lark-pekko` and `lark-stream-pekko` tests need an `ActorSystem`. It is created in a
+`surefold-pekko` and `surefold-stream-pekko` tests need an `ActorSystem`. It is created in a
 `companion object` from a config string and stopped in `@AfterAll`, never by
 hand inside a test and never shared across classes — a system left running
 holds threads that make the next suite's thread assertions lie.
@@ -134,7 +134,7 @@ Before saying it is done:
 
 - The failing test came first, and fails without the change.
 - `./gradlew build` is green, gates included.
-- No new dependency in `lark`.
+- No new dependency in `surefold`.
 - The README reflects the change, or the change is invisible from outside.
 
 ## Agent skills

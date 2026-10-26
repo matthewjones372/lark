@@ -5,7 +5,7 @@
 Specs 0059 to 0083 built actors that cross nodes, a cluster with sharding and
 singletons, persistent entities on JDBC with snapshots and pruning, read
 models, reliable delivery, graceful stopping, metrics, topics and roles. None
-of it has a page a service author would read. `docs/` covers `lark-app`, the
+of it has a page a service author would read. `docs/` covers `surefold-app`, the
 streams and Kafka. The README's module table has one line per module and links
 to specs, which argue for a change rather than teach it. A reader who wants
 "three nodes, orders sharded across them, remembered in Postgres" today has to
@@ -19,7 +19,7 @@ reconstruct it from a dozen specs and the tests.
   `docs/stream.md`'s do; a runnable service is its own piece of work if asked.
 - **Pekko migration notes.** A comparison where it explains a choice, not a
   porting guide.
-- **Documenting `lark-actor` on one node.** Behaviours, supervision, timers
+- **Documenting `surefold-actor` on one node.** Behaviours, supervision, timers
   and `testActors` get their own page later; this one starts where a second
   node comes in, and links back to the README for the rest.
 
@@ -39,7 +39,7 @@ service meets things:
    and what each one tells an operator, topics.
 
 Every complete example is a fenced block marked `<!-- cluster-… -->`, with its
-imports written out as AGENTS.md asks. `GuideExampleTest` in `lark-cluster`
+imports written out as AGENTS.md asks. `GuideExampleTest` in `surefold-cluster`
 compiles each marked fence with the embedded Kotlin compiler, as
 `ReadmeExampleTest` does for the streams page, so an API change that breaks
 the guide fails the build. The README's module table links to the page.
@@ -69,16 +69,16 @@ module tests already prove the behaviour. Recommended: a compiled guide.
 ## Acceptance
 
 ```bash
-./gradlew :lark-cluster:test --tests '*GuideExampleTest*'
+./gradlew :surefold-cluster:test --tests '*GuideExampleTest*'
 ```
 
 ## Open questions
 
 - **Compiled examples only, or also a runnable project?** Recommended:
   compiled only, as above.
-- **Where does the compile test live?** Recommended: `lark-cluster`'s tests,
+- **Where does the compile test live?** Recommended: `surefold-cluster`'s tests,
   which already have every module the guide uses on their classpath; the
-  embedded compiler is added there in test scope, as `lark-stream-pekko` has
+  embedded compiler is added there in test scope, as `surefold-stream-pekko` has
   it. The examples take a `DataSource`, so no database driver is needed to
   compile them.
 - **One page or several?** Recommended: one, with a contents list; it is
@@ -86,20 +86,20 @@ module tests already prove the behaviour. Recommended: a compiled guide.
 
 Decided (2026-09-27): every open question goes as recommended. The guide's
 examples are compiled, with no runnable project; the compile test lives in
-`lark-cluster`'s tests; and the guide is one page with a contents list.
+`surefold-cluster`'s tests; and the guide is one page with a contents list.
 
 Decided while building `spec-0084-nodes`: each example is an extension on the
 service's own `Flock<Nothing>`, so it compiles alone and says nothing about
 where the flock comes from, which `flock { }` and `Actors.within` answer
-differently. The compiler is `lark-stream-pekko`'s `EmbeddedKotlin`, copied
-into `lark-cluster`'s tests, and the page is an input of the test task, so an
+differently. The compiler is `surefold-stream-pekko`'s `EmbeddedKotlin`, copied
+into `surefold-cluster`'s tests, and the page is an input of the test task, so an
 edit to it reruns the test. The test also compiles one example with a call
 renamed and expects errors, so a harness that compiled nothing would fail.
 
-Decided while building `spec-0084-state`: `lark-cluster`'s tests take
-`lark-actor-projection` and `lark-stream-forks`, so the read model's example
+Decided while building `spec-0084-state`: `surefold-cluster`'s tests take
+`surefold-actor-projection` and `surefold-stream-forks`, so the read model's example
 compiles with the rest. The DDL paths are checked rather than compiled: the
-test reads every `lark/journal/jdbc/….sql` the page names and finds each on the
+test reads every `surefold/journal/jdbc/….sql` the page names and finds each on the
 journal's classpath, so renaming a file without the page fails it.
 
 Decided while building `spec-0084-operating`: the last section is "stopping,
@@ -107,6 +107,6 @@ watching and telling everyone", so topics sit with the other things an
 operator meets once a cluster runs. The metrics are a table of what each tells
 an operator, not only what it counts. The README's links are held by the same
 test, which reads the three rows and finds the page in each, and the README is
-an input of the test task beside the page. `lark-cluster`'s tests take
-`lark-app-actor` for the example that wires a cluster into an application;
-that module takes `lark-cluster` only in its own tests, so nothing is circular.
+an input of the test task beside the page. `surefold-cluster`'s tests take
+`surefold-app-actor` for the example that wires a cluster into an application;
+that module takes `surefold-cluster` only in its own tests, so nothing is circular.

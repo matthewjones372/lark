@@ -5,8 +5,8 @@ subscription is a `Stream` of `Committed` elements, each carrying its record's
 offset, and the only way to run one is `runCommitting`. Forgetting to commit,
 or committing before the work, does not compile.
 
-Everything below is in `io.github.matthewjones372.lark.kafka`. A Kafka
-pipeline is an ordinary [lark-stream](stream.md) `Stream`, so the operators,
+Everything below is in `io.github.matthewjones372.surefold.kafka`. A Kafka
+pipeline is an ordinary [surefold-stream](stream.md) `Stream`, so the operators,
 backends and test support described there apply here too.
 
 ## Delivery at a glance
@@ -26,14 +26,14 @@ The pipeline is written once. Which backend runs it is named where the run
 starts, as for any other stream:
 
 ```kotlin
-import io.github.matthewjones372.lark.kafka.Kafka
-import io.github.matthewjones372.lark.kafka.Topic
-import io.github.matthewjones372.lark.kafka.consume
-import io.github.matthewjones372.lark.kafka.mapRecordOrFail
-import io.github.matthewjones372.lark.kafka.runCommitting
-import io.github.matthewjones372.lark.stream.Forks
-import io.github.matthewjones372.lark.stream.PekkoStreams
-import io.github.matthewjones372.lark.stream.start
+import io.github.matthewjones372.surefold.kafka.Kafka
+import io.github.matthewjones372.surefold.kafka.Topic
+import io.github.matthewjones372.surefold.kafka.consume
+import io.github.matthewjones372.surefold.kafka.mapRecordOrFail
+import io.github.matthewjones372.surefold.kafka.runCommitting
+import io.github.matthewjones372.surefold.stream.Forks
+import io.github.matthewjones372.surefold.stream.PekkoStreams
+import io.github.matthewjones372.surefold.stream.start
 import org.apache.kafka.common.serialization.StringDeserializer
 
 val placing = Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), value = StringDeserializer())
@@ -45,7 +45,7 @@ placing.start(PekkoStreams(system))     // the same description on Pekko Streams
 ```
 
 `Kafka.consume` is one `KafkaConsumer` per run, read through
-`Stream.blocking`, and it is in `lark-kafka`, which brings no backend at all.
+`Stream.blocking`, and it is in `surefold-kafka`, which brings no backend at all.
 Only the thread that polls touches the consumer. It commits what
 `runCommitting()` marked handled before each poll, without waiting for the
 broker's answer, so the poll is not held up by it. For the partitions it loses
@@ -59,21 +59,21 @@ group: once half that interval passes without a poll, the consumer pauses its
 partitions and polls anyway, reading nothing ahead, and resumes them when the
 stream asks for the next record. A `stop()` wakes a poll that is waiting on a quiet topic.
 
-`Kafka.subscribe` is Pekko's own Kafka connector, in `lark-kafka-pekko`: a
+`Kafka.subscribe` is Pekko's own Kafka connector, in `surefold-kafka-pekko`: a
 backpressured prefetch, commits batched by its committer sink, and a `stop()`
 that drains. Pekko runs it and nothing else does, and it ends on
 `runCommitting(settings)`.
 
 ```kotlin
 dependencies {
-    // Any backend: lark-stream and kafka-clients come with it, and the backend is the service's own choice.
-    implementation("io.github.matthewjones372:lark-kafka:0.10.1")
-    // Or Pekko's connector: lark-kafka, lark-stream-pekko and pekko-connectors-kafka come with it.
-    implementation("io.github.matthewjones372:lark-kafka-pekko:0.10.1")
+    // Any backend: surefold-stream and kafka-clients come with it, and the backend is the service's own choice.
+    implementation("io.github.matthewjones372:surefold-kafka:0.10.1")
+    // Or Pekko's connector: surefold-kafka, surefold-stream-pekko and pekko-connectors-kafka come with it.
+    implementation("io.github.matthewjones372:surefold-kafka-pekko:0.10.1")
 }
 ```
 
-`lark-kafka` brings `kafka-clients` 4.3, the client Confluent 8.3's
+`surefold-kafka` brings `kafka-clients` 4.3, the client Confluent 8.3's
 serializers are built on, which needs a broker at 2.1 or later. Pekko's
 connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 2.0 milestone.
@@ -94,7 +94,7 @@ connector is built against 3.8 and runs on 4.3: its own Kafka 4 build is a
 | `Kafka.consume(properties, vararg topics, key: Decoder<K>, value: Decoder<V>)` | the same over bytes, each record decoded in the stream: `Committed<Either<DecodeError, ConsumerRecord<K, V>>>` |
 | `Kafka.read(properties, topic, partition, key, value, from, until)` | one partition, assigned rather than subscribed, so no rebalance can take it away; `from` is `Committed`, `Earliest`, `Latest` or an `Offset`, and `until` is `Never` or `EndAtStart`. With no `group.id`, nothing is committed |
 | `Kafka.subscribe(settings, vararg topics)` and its `Decoder` form | the same two, through Pekko's connector |
-| `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | lark-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside lark-stream's would be ambiguous |
+| `mapRecord`, `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`, `mapConcatRecord` | surefold-stream's operator of the same stem, with the body on the value and the offset carried. `Record` because the same names beside surefold-stream's would be ambiguous |
 | `groupedRecord(n, within)` | up to `n` records, or what came within `within`, as one `Committed<List<A>>`; see [Reading in batches](#reading-in-batches) |
 | `mapParPartitioned(parallelism) { value -> }` | `mapParRecord` in order only within each partition, through `mapParKeyed`: a slow record holds back only its own partition's later records. Each partition's offsets still commit in order. On Forks and Pekko; Actors and TestStreams keep full order |
 | `divertLefts(to: (L) -> Unit)` | each `Left` to a function, in order, before anything after it moves on; a throw from it is a defect and the record is not committed |
@@ -113,7 +113,7 @@ its log lines.
 bulk, such as one insert for many rows:
 
 ```kotlin
-import io.github.matthewjones372.lark.kafka.groupedRecord
+import io.github.matthewjones372.surefold.kafka.groupedRecord
 import kotlin.time.Duration.Companion.milliseconds
 
 Kafka.consume(consumerProperties, Topic("orders"), key = StringDeserializer(), value = StringDeserializer())
@@ -140,13 +140,13 @@ thread-safe, and it batches what every caller sends. Whoever opens it closes
 it, which sends what is pending.
 
 ```kotlin
-import io.github.matthewjones372.lark.kafka.Kafka
-import io.github.matthewjones372.lark.kafka.Topic
-import io.github.matthewjones372.lark.kafka.deadLetters
-import io.github.matthewjones372.lark.kafka.divertLefts
-import io.github.matthewjones372.lark.kafka.producer
-import io.github.matthewjones372.lark.kafka.publishRecord
-import io.github.matthewjones372.lark.kafka.record
+import io.github.matthewjones372.surefold.kafka.Kafka
+import io.github.matthewjones372.surefold.kafka.Topic
+import io.github.matthewjones372.surefold.kafka.deadLetters
+import io.github.matthewjones372.surefold.kafka.divertLefts
+import io.github.matthewjones372.surefold.kafka.producer
+import io.github.matthewjones372.surefold.kafka.publishRecord
+import io.github.matthewjones372.surefold.kafka.record
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.common.serialization.StringSerializer
 
@@ -171,7 +171,7 @@ Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value 
   `delivery.timeout.ms`. `producer.publish(record)` answers
   `Either<PublishFailed, Published>` for a caller that wants to route it.
 - **`deadLetters(topic)`** is `divertLefts`' function: the unreadable record's
-  bytes and headers, plus `lark.dead-letter.topic`, `.partition`, `.offset`,
+  bytes and headers, plus `surefold.dead-letter.topic`, `.partition`, `.offset`,
   `.part` and `.cause`. It returns once the letter is acknowledged, so the bad
   record is never committed past a letter that was not written.
 
@@ -182,8 +182,8 @@ Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value 
 what comes after picks what to do:
 
 ```kotlin
-import io.github.matthewjones372.lark.kafka.absolve
-import io.github.matthewjones372.lark.kafka.publishBatch
+import io.github.matthewjones372.surefold.kafka.absolve
+import io.github.matthewjones372.surefold.kafka.publishBatch
 
 Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), value = carts)
     .mapRecord { cart -> cart.value().checkout() }
@@ -220,8 +220,8 @@ the outputs and the offset in one Kafka transaction instead, so a reader
 with `isolation.level=read_committed` sees each record's outputs once.
 
 ```kotlin
-import io.github.matthewjones372.lark.kafka.transacted
-import io.github.matthewjones372.lark.kafka.transactionalProducer
+import io.github.matthewjones372.surefold.kafka.transacted
+import io.github.matthewjones372.surefold.kafka.transactionalProducer
 
 val orders = Kafka.transactionalProducer(producerProperties, transactionalId = "checkout-1", StringSerializer(), orderSerializer)
 
@@ -259,30 +259,30 @@ Kafka.consume(consumerProperties, Topic("carts"), key = StringDeserializer(), va
 
 ## Meters
 
-`Kafka.consume`, the producers and `runTransactionally` record through lark's
-metrics API, so installing `lark-micrometer` exports them, and with no backend
-bound they cost nothing measurable (`larkForks` against `larkForksMetered` in
-`lark-kafka-benchmarks`). A consumer records to the metrics in scope, with the
+`Kafka.consume`, the producers and `runTransactionally` record through surefold's
+metrics API, so installing `surefold-micrometer` exports them, and with no backend
+bound they cost nothing measurable (`surefoldForks` against `surefoldForksMetered` in
+`surefold-kafka-benchmarks`). A consumer records to the metrics in scope, with the
 `metricTagged` tags bound, where it is described; a producer where it is
 opened. Every meter carries `group` (consumers) and `client`; a consumer whose
-properties name no `client.id` is given one, `lark-consumer-<group>-<n>`, so two
+properties name no `client.id` is given one, `surefold-consumer-<group>-<n>`, so two
 consumers of one group in one process keep their own gauges. A producer's `client`
 is empty where its properties name none. Durations are in seconds.
 
 | Meter | Kind | Tags | Recorded |
 |---|---|---|---|
-| `lark.kafka.consumer.records`, `.bytes` | counter | `topic`, `partition` | each poll |
-| `lark.kafka.consumer.lag` | gauge | `topic`, `partition` | after each poll, from the client's last fetch; 0 once the partition is lost |
-| `lark.kafka.consumer.latency` | histogram | `topic`, `partition` | when a record is marked handled: now less its timestamp |
-| `lark.kafka.consumer.in.flight` | gauge | | records handed to the stream and not yet handled, at each poll |
-| `lark.kafka.consumer.poll`, `.commit`, `.close` | timer | | around each; `commit` is the commit a rebalance or close waits for |
-| `lark.kafka.consumer.commit.failures` | counter | | a commit the broker refused |
-| `lark.kafka.consumer.rebalances` | counter | `kind`: `assigned` or `revoked` | each rebalance |
-| `lark.kafka.consumer.assigned`, `.paused` | gauge | | the partitions owned, and those paused while the stream is slow |
-| `lark.kafka.producer.records`, `.bytes`, `.failures` | counter | `topic` | each acknowledgement, or each record given up on |
-| `lark.kafka.producer.ack` | timer | `topic` | send to acknowledgement |
-| `lark.kafka.dead.letters` | counter | `topic` read from | each `deadLetters` write |
-| `lark.kafka.transactions`, `.aborts` | timer, counter | | each `runTransactionally` commit, and each abort |
+| `surefold.kafka.consumer.records`, `.bytes` | counter | `topic`, `partition` | each poll |
+| `surefold.kafka.consumer.lag` | gauge | `topic`, `partition` | after each poll, from the client's last fetch; 0 once the partition is lost |
+| `surefold.kafka.consumer.latency` | histogram | `topic`, `partition` | when a record is marked handled: now less its timestamp |
+| `surefold.kafka.consumer.in.flight` | gauge | | records handed to the stream and not yet handled, at each poll |
+| `surefold.kafka.consumer.poll`, `.commit`, `.close` | timer | | around each; `commit` is the commit a rebalance or close waits for |
+| `surefold.kafka.consumer.commit.failures` | counter | | a commit the broker refused |
+| `surefold.kafka.consumer.rebalances` | counter | `kind`: `assigned` or `revoked` | each rebalance |
+| `surefold.kafka.consumer.assigned`, `.paused` | gauge | | the partitions owned, and those paused while the stream is slow |
+| `surefold.kafka.producer.records`, `.bytes`, `.failures` | counter | `topic` | each acknowledgement, or each record given up on |
+| `surefold.kafka.producer.ack` | timer | `topic` | send to acknowledgement |
+| `surefold.kafka.dead.letters` | counter | `topic` read from | each `deadLetters` write |
+| `surefold.kafka.transactions`, `.aborts` | timer, counter | | each `runTransactionally` commit, and each abort |
 
 `Kafka.read` records none yet.
 
@@ -299,7 +299,7 @@ rule that missed it would send every record to the dead-letter topic.
 ```kotlin
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException
 import io.confluent.kafka.serializers.KafkaAvroDeserializer
-import io.github.matthewjones372.lark.kafka.Decoder
+import io.github.matthewjones372.surefold.kafka.Decoder
 import java.io.IOException
 
 fun registryDown(thrown: Throwable): Boolean =
@@ -311,17 +311,17 @@ fun orders(configured: KafkaAvroDeserializer): Decoder<Any> = Decoder(configured
 
 ## Testing against a broker
 
-`lark-kafka-test` runs a Kafka broker in the test JVM, so a test needs no
+`surefold-kafka-test` runs a Kafka broker in the test JVM, so a test needs no
 Docker. Add it as a test dependency. `KafkaBroker` has helpers that send, read,
-create topics and wait for what a group committed. A lark-junit suite shares
+create topics and wait for what a group committed. A surefold-junit suite shares
 one broker across its tests as a `Resource`:
 
 ```kotlin
-import io.github.matthewjones372.lark.junit.SharedSuite
-import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.kafka.KafkaBroker
-import io.github.matthewjones372.lark.kafka.Topic
-import io.github.matthewjones372.lark.kafka.kafkaBroker
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.kafka.KafkaBroker
+import io.github.matthewjones372.surefold.kafka.Topic
+import io.github.matthewjones372.surefold.kafka.kafkaBroker
 
 object OrdersSuite : SharedSuite<KafkaBroker>() {
     override val shared = kafkaBroker()

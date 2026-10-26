@@ -47,8 +47,8 @@ one first.
 ## Acceptance
 
 ```bash
-./gradlew spotlessApply && ./gradlew :lark-stream-forks:build :lark-stream-parity:build
-bench/lark-stream-benchmarks/gate.sh origin/main "HandOffBenchmark"
+./gradlew spotlessApply && ./gradlew :surefold-stream-forks:build :surefold-stream-parity:build
+bench/surefold-stream-benchmarks/gate.sh origin/main "HandOffBenchmark"
 ```
 
 ## Open questions

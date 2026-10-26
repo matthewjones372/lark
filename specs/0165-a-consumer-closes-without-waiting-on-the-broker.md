@@ -8,7 +8,7 @@ a few milliseconds. The second sends a fetch-session close, which queues behind 
 `fetch.max.wait.ms` (500 ms by default), and waits up to the rest of the close timeout (30 s by default) for it.
 
 Since 0154's async commit, a run that ends early hits it too: a `take` or a stop interrupts the read-ahead
-poll with its fetch already sent, where a `commitSync` used to absorb the interrupt. `larkMapPar` handles 5k
+poll with its fetch already sent, where a `commitSync` used to absorb the interrupt. `surefoldMapPar` handles 5k
 records in 135 ms and then closes for 500 ms (136 → 640 ms).
 
 Measured (`closeProbe`, embedded broker, five runs each, after an interrupted read-ahead poll):
@@ -50,13 +50,13 @@ before the close either way, so the worst case is that wait, never a lost commit
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
+./gradlew :surefold-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 10 -i 10 -r 1 -w 1 -t 1 -f 5 .*ComparisonBenchmarks.*"
 ```
 
 ## Open questions
 
 1. **Five times, and what floor?** Five times the round trip bounds the leave; the floor only matters where the
-   round trip is tiny, as on an embedded broker. A 50 ms floor cost `larkMapPar` 50 ms a run where the round trip
+   round trip is tiny, as on an embedded broker. A 50 ms floor cost `surefoldMapPar` 50 ms a run where the round trip
    was 5 ms. **Answered:** five times, 10 ms floor.
 2. **Should the Java rows in the benchmark close the same way?** They show what a hand-written loop pays.
-   Recommended: no, and the README says how lark's close differs. **Answered:** no.
+   Recommended: no, and the README says how surefold's close differs. **Answered:** no.

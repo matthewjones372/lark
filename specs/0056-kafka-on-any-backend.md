@@ -2,7 +2,7 @@
 
 ## Problem
 
-`lark-kafka` (0053, 0054) is Pekko-only. `Kafka.subscribe` wraps Pekko's
+`surefold-kafka` (0053, 0054) is Pekko-only. `Kafka.subscribe` wraps Pekko's
 connector `Source`, and `runCommitting` ends on its `Committer.sink`, so a
 pipeline over Kafka is refused by Forks and by TestStreams. A service that
 chose Forks for its speed (0051), or a test that wants `TestStreams`, cannot
@@ -28,9 +28,9 @@ val placed: Run<ShopError, Done> =
 placed.start(Forks())                                    // or PekkoStreams(system), or TestStreams(clock)
 ```
 
-- Two modules. **`lark-kafka`** depends on `lark-stream` and `kafka-clients`
+- Two modules. **`surefold-kafka`** depends on `surefold-stream` and `kafka-clients`
   only: `Committed`, the operators, `Decoder`, and the consumer loop.
-  **`lark-kafka-pekko`** adds the connector: today's `Kafka.subscribe`, its
+  **`surefold-kafka-pekko`** adds the connector: today's `Kafka.subscribe`, its
   `runCommitting(CommitterSettings)` and draining stop.
 - `Kafka.consume(props, topics, key, value)` is `Stream.blocking` (0055)
   over one `KafkaConsumer`. `next` hands out the last poll's records one at a
@@ -41,7 +41,7 @@ placed.start(Forks())                                    // or PekkoStreams(syst
   `close`, which the run's exit waits for (0055). Only the thread that polls
   touches the consumer.
 - `Committed` holds a neutral `Position` and a `Handle`, behind a `@KafkaSpi`
-  opt-in, so `lark-kafka-pekko` brings the connector's offsets in. Each
+  opt-in, so `surefold-kafka-pekko` brings the connector's offsets in. Each
   source's records end on their own `runCommitting`; the other one is a
   defect naming the right one.
 - The bytes form with a `Decoder` pair (0054) is written once, over either
@@ -57,7 +57,7 @@ commits they would otherwise lose.
 
 ## Stack
 
-- [x] **`spec-0056-split`** ([#90](https://github.com/matthewjones372/lark/pull/90)): move the connector to `lark-kafka-pekko`, leaving
+- [x] **`spec-0056-split`** ([#90](https://github.com/matthewjones372/lark/pull/90)): move the connector to `surefold-kafka-pekko`, leaving
       the neutral core. Done when: every 0053/0054 test passes unchanged there.
 - [x] **`spec-0056-consume`** ([#90](https://github.com/matthewjones372/lark/pull/90)): `Kafka.consume`, `runCommitting()`, the
       rebalance listener. Done when: the subscribe, operator, decode and
@@ -71,7 +71,7 @@ commits they would otherwise lose.
 
 ## Open questions
 
-1. **Keep the connector at all?** Answered: yes, as `lark-kafka-pekko`.
+1. **Keep the connector at all?** Answered: yes, as `surefold-kafka-pekko`.
 2. **`mapParRecord` on Forks?** Answered: shipped anyway, and 0051 has since
    landed, so Forks runs it and `divertLefts`, which ConsumeTest holds.
 3. **`restartOnDefect` on Forks?** Answered: 0052 has since given Forks a

@@ -4,12 +4,12 @@
 
 `mapPar` and `mapAsync` answer in the input's order, so one slow call holds back every call behind it, even when
 they finished long ago. Reactor's `flatMap` and Pekko's `mapAsyncUnordered` pass each answer on as it completes.
-Where order does not matter (independent writes, fan-out to a sink, a Kafka topic with no key), a Lark user today
+Where order does not matter (independent writes, fan-out to a sink, a Kafka topic with no key), a Surefold user today
 either pays for head-of-line blocking or falls back to `mapParKeyed` with a unique key, which tracks a tail per key
 for no reason.
 
-In `blocking-vs-reactive`, Reactor's contestant uses unordered `flatMap` and Lark's uses ordered `mapPar`. Until
-Lark has an unordered operator, that comparison is not like for like.
+In `blocking-vs-reactive`, Reactor's contestant uses unordered `flatMap` and Surefold's uses ordered `mapPar`. Until
+Surefold has an unordered operator, that comparison is not like for like.
 
 ## Not doing
 
@@ -40,11 +40,11 @@ val fetched: Stream<Nothing, Body> =
 
 Separate operators with Pekko's names, rather than an `ordered = false` flag on the existing ones. A flag doubles
 every overload of `mapPar` and hides a semantic difference behind a boolean. The names already exist in Pekko,
-which `lark-stream-pekko` users know. Recommended: separate operators.
+which `surefold-stream-pekko` users know. Recommended: separate operators.
 
 ## Stack
 
-- [x] **`unordered-description`** ([#483](https://github.com/matthewjones372/lark/pull/483)) — the two operators and their `Node`s in `lark-stream`, with Pekko,
+- [x] **`unordered-description`** ([#483](https://github.com/matthewjones372/lark/pull/483)) — the two operators and their `Node`s in `surefold-stream`, with Pekko,
       Actors and TestStreams compiling them.
       Done when: a parity test asserts the multiset of answers matches the ordered operator's on every backend.
 - [x] **`unordered-on-forks`** ([#484](https://github.com/matthewjones372/lark/pull/484)) — Forks runs them on `Ring`.

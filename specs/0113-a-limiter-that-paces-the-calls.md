@@ -3,15 +3,15 @@
 ## Problem
 
 A partner API that allows 50 requests a second answers 429 at the 51st, and some APIs ban a client that keeps
-going. A Lark service can `retry` after the 429, but it cannot avoid sending the request in the first place. Pekko
-paces with `Source.throttle` and resilience4j with `RateLimiter`. A Lark handler, which is plain blocking code on a
+going. A Surefold service can `retry` after the 429, but it cannot avoid sending the request in the first place. Pekko
+paces with `Source.throttle` and resilience4j with `RateLimiter`. A Surefold handler, which is plain blocking code on a
 virtual thread, has nothing to use and writes its own token bucket.
 
 ## Not doing
 
 - **Distributed limits.** Each process has its own bucket. A per-node share is `rate / nodes`, set by the caller.
 - **Per-key limits** (per tenant). As in 0112, a map of limiters is the caller's choice of key.
-- **A stream `throttle`.** `lark-stream` can call a limiter from a `map`. A native operator is a stream spec.
+- **A stream `throttle`.** `surefold-stream` can call a limiter from a `map`. A native operator is a stream spec.
 - **Server-side admission** (answering 429 to our own callers). That belongs to the HTTP layer, built on this.
 
 ## Shape
@@ -26,7 +26,7 @@ val quote = partner { http.quote(id) }                 // waits up to maxWait, e
 limiter.tryAcquire()        // a token now, or false; never waits
 ```
 
-- The runner calls `reserve(maxWait)` and `refund(token)`, which are `internal` to `lark`. The policy (spec 0110)
+- The runner calls `reserve(maxWait)` and `refund(token)`, which are `internal` to `surefold`. The policy (spec 0110)
   caps `maxWait` at its remaining budget. A refusal surfaces as `Rejected.RateLimited(name, retryAfter)`.
 - A **token bucket**. It refills at `rate / per` and holds at most `burst` tokens, which defaults to
   `rate`. The state is one
@@ -37,8 +37,8 @@ limiter.tryAcquire()        // a token now, or false; never waits
   to poll. A reservation that would wait longer than `maxWait` is not taken: the caller is rejected at once with its
   `retryAfter`, and the bucket is unchanged.
 - The sleep is `clock.get().sleep`, so `TestClock` drives pacing in tests and an interrupt ends the wait.
-- Metrics: `lark.ratelimiter.calls` (counter tagged `outcome=immediate|waited|rejected`) and
-  `lark.ratelimiter.wait` (histogram, in milliseconds), both tagged with `name`.
+- Metrics: `surefold.ratelimiter.calls` (counter tagged `outcome=immediate|waited|rejected`) and
+  `surefold.ratelimiter.wait` (histogram, in milliseconds), both tagged with `name`.
 
 ## Why this shape
 
@@ -56,7 +56,7 @@ order spec 0110 checks.
 ## Stack
 
 - [x] **`spec-0113-ratelimiter`** ([#336](https://github.com/matthewjones372/lark/pull/336)) — `RateLimiter`, `tryAcquire`, `refund`, `cost`, its `Step`, and its runner row, in
-      `lark`.
+      `surefold`.
       Done when: on a `TestClock`, `burst` calls pass at once, the next waits exactly `per / rate`, a wait past
       `maxWait` is rejected with the right `retryAfter` and leaves the bucket unchanged, and concurrent callers are
       served in reservation order, and a policy rejects at once when `retryAfter` exceeds its remaining budget.

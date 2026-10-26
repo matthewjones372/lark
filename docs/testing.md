@@ -1,6 +1,6 @@
 # Testing
 
-Lark's test support sits with the thing it tests. This page collects it in one
+Surefold's test support sits with the thing it tests. This page collects it in one
 place and links to the detail. Most of it shares one idea: time and context
 are values bound for a block, so a test can replace the clock, the logger or
 the metrics registry without touching the code under test, and nothing has to
@@ -8,28 +8,28 @@ sleep.
 
 | Need | Use | Module |
 |---|---|---|
-| a backoff, timeout or timer that does not wait | `clock.locally(fixedClock()) { }` or a `TestClock` | `lark` |
-| assertions on log lines or metrics | `capturingLogs { }`, `capturingMetrics { }` | `lark` |
-| a service test written as steps | `story { Given / When / Then }` | `lark-test` |
-| waiting for something to become true | `eventually(within) { }` | `lark-test` |
-| checks that name the test's line on failure | `shouldBe`, `shouldBeRight`, `withClue { }` | `lark-assert` |
-| tests that run concurrently | `object … : Suite()` | `lark-junit` |
-| tests that share a resource and run concurrently | `object … : SharedSuite<R>()` | `lark-junit` |
-| a story as a suite's test, returning its expectations | `story { }` | `lark-junit` |
+| a backoff, timeout or timer that does not wait | `clock.locally(fixedClock()) { }` or a `TestClock` | `surefold` |
+| assertions on log lines or metrics | `capturingLogs { }`, `capturingMetrics { }` | `surefold` |
+| a service test written as steps | `story { Given / When / Then }` | `surefold-test` |
+| waiting for something to become true | `eventually(within) { }` | `surefold-test` |
+| checks that name the test's line on failure | `shouldBe`, `shouldBeRight`, `withClue { }` | `surefold-assert` |
+| tests that run concurrently | `object … : Suite()` | `surefold-junit` |
+| tests that share a resource and run concurrently | `object … : SharedSuite<R>()` | `surefold-junit` |
+| a story as a suite's test, returning its expectations | `story { }` | `surefold-junit` |
 | one class | its constructor, with fakes as arguments | nothing |
-| several nodes together, one faked | `testApp(module.subgraph<Root>().overriding(…)) { }` | `lark-app` |
-| configuration for one test | `overridingConfig("key = value")` | `lark-app-typesafe` |
-| a stream on a clock the test moves | `TestStreams(clock)` and `emitted()` | `lark-stream-test` |
-| actors stepped on the calling thread | `behaviour.test()`, `testActors { }` | `lark-actor` |
+| several nodes together, one faked | `testApp(module.subgraph<Root>().overriding(…)) { }` | `surefold-app` |
+| configuration for one test | `overridingConfig("key = value")` | `surefold-app-typesafe` |
+| a stream on a clock the test moves | `TestStreams(clock)` and `emitted()` | `surefold-stream-test` |
+| actors stepped on the calling thread | `behaviour.test()`, `testActors { }` | `surefold-actor` |
 
 The Gradle plugin's compiler checks also warn about `Thread.sleep` and
-`TimeUnit.sleep` in test code (`LARK_SLEEP_IN_TEST`); see
+`TimeUnit.sleep` in test code (`SUREFOLD_SLEEP_IN_TEST`); see
 [Applications](app.md#what-the-compiler-plugin-warns-about).
 
 ## Time
 
-`clock` is a [`LarkLocal`](core.md#what-a-fork-inherits), and every wait in
-Lark goes through it: `Schedule` delays, `timeout`, probe retries, actor
+`clock` is a [`SurefoldLocal`](core.md#what-a-fork-inherits), and every wait in
+Surefold goes through it: `Schedule` delays, `timeout`, probe retries, actor
 timers and the time-based stream operators.
 
 - **`fixedClock()`** never advances, and a sleep on it returns at once. A
@@ -44,10 +44,10 @@ timers and the time-based stream operators.
 
 <!-- testing-clock -->
 ```kotlin
-import io.github.matthewjones372.lark.Schedule
-import io.github.matthewjones372.lark.clock
-import io.github.matthewjones372.lark.fixedClock
-import io.github.matthewjones372.lark.retry
+import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.clock
+import io.github.matthewjones372.surefold.fixedClock
+import io.github.matthewjones372.surefold.retry
 import kotlin.time.Duration.Companion.seconds
 
 val backoff = Schedule.exponential<Throwable>(1.seconds) and Schedule.recurs(5)
@@ -67,16 +67,16 @@ values:
 
 <!-- testing-capture -->
 ```kotlin
-import io.github.matthewjones372.lark.LogLine
-import io.github.matthewjones372.lark.capturingLogs
-import io.github.matthewjones372.lark.capturingMetrics
-import io.github.matthewjones372.lark.clock
-import io.github.matthewjones372.lark.counter
-import io.github.matthewjones372.lark.fixedClock
-import io.github.matthewjones372.lark.increment
-import io.github.matthewjones372.lark.logAnnotated
-import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.parMap
+import io.github.matthewjones372.surefold.LogLine
+import io.github.matthewjones372.surefold.capturingLogs
+import io.github.matthewjones372.surefold.capturingMetrics
+import io.github.matthewjones372.surefold.clock
+import io.github.matthewjones372.surefold.counter
+import io.github.matthewjones372.surefold.fixedClock
+import io.github.matthewjones372.surefold.increment
+import io.github.matthewjones372.surefold.logAnnotated
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.parMap
 
 fun linesLogged(): List<LogLine> = capturingLogs { logs ->
     logAnnotated("correlation_id" to "abc-123") { logInfo("registered") }
@@ -97,15 +97,15 @@ fun stampedTogether(): List<LogLine> = clock.locally(fixedClock()) {
 }
 ```
 
-Both are in the core `lark` module.
+Both are in the core `surefold` module.
 
 ## Stories and waiting
 
-`lark-test` is for tests of a whole service. `story { }` writes a test as
+`surefold-test` is for tests of a whole service. `story { }` writes a test as
 `Given`, `When`, `Then`, `And` and `But` steps that return values. When a step
 fails, the message shows the story up to that step and what it threw, in
 colour under IntelliJ or with `FORCE_COLOR` set (`NO_COLOR` turns it off, and
-`-Dlark.test.colour=always|never` overrides both).
+`-Dsurefold.test.colour=always|never` overrides both).
 
 `eventually(within) { }` retries a block every 20 ms by default until it stops
 throwing, and gives up with `GaveUp`, an `AssertionError`, once `within` has
@@ -114,13 +114,13 @@ passed on the inherited clock. A step can wait the same way with
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:lark-test:0.10.1")
+    testImplementation("io.github.matthewjones372:surefold-test:0.10.1")
 }
 ```
 
 ```kotlin
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.test.story
+import io.github.matthewjones372.surefold.assert.shouldBe
+import io.github.matthewjones372.surefold.test.story
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
@@ -137,14 +137,14 @@ class AdoptionTest {
 }
 ```
 
-`lark-test` depends only on `lark`. It brings no assertion library; the
-example uses [`lark-assert`](#assertions)'s, but any assertion that throws works.
+`surefold-test` depends only on `surefold`. It brings no assertion library; the
+example uses [`surefold-assert`](#assertions)'s, but any assertion that throws works.
 In a suite, a story returns its expectations instead: see
 [Stories in a suite](#stories-in-a-suite).
 
 ## Assertions
 
-`lark-assert` holds the checks Lark's own tests use. Each one throws
+`surefold-assert` holds the checks Surefold's own tests use. Each one throws
 opentest4j's `AssertionFailedError` when it fails, so any JUnit runner reports
 it, and returns the value it checked when it holds. The failure says what was
 expected, what was found, and the file, line and source of the check, and its
@@ -160,7 +160,7 @@ at FlockTest.kt:322
 | Checks | On |
 |---|---|
 | `shouldBe`, `shouldNotBe`, `shouldBeNull`, `shouldNotBeNull`, `shouldBeInstanceOf<T>`, `shouldBeSameInstanceAs` | any value |
-| `shouldBeRight`, `shouldBeLeft` | Lark's `Either`, naming the side it found |
+| `shouldBeRight`, `shouldBeLeft` | Surefold's `Either`, naming the side it found |
 | `shouldBeLessThan`, `shouldBeGreaterThanOrEqual`, `shouldBeInRange`, … | anything `Comparable` |
 | `shouldContain`, `shouldStartWith`, `shouldEndWith`, `shouldMatch`, `shouldNotBeBlank` | a string, or a `Regex` match within it |
 | `shouldContain`, `shouldContainAll`, `shouldContainExactly`, `shouldContainExactlyInAnyOrder`, `shouldContainOnly`, `shouldHaveSize`, `shouldBeEmpty` | a collection |
@@ -170,12 +170,12 @@ at FlockTest.kt:322
 `shouldBe` and `shouldContainExactly` carry both sides, so an IDE can show
 them side by side. `withClue(clue) { }` puts the clue above any failure inside
 its block; a clue written as a lambda is only worked out if something fails.
-*Unreleased: `lark-assert` is on `main` and not in 0.10.1.*
+*Unreleased: `surefold-assert` is on `main` and not in 0.10.1.*
 
 ## Suites
 
-`lark-junit` runs tests on the JUnit Platform with Lark's own concurrency. A
-suite is a Kotlin `object`, which the `lark` engine finds with no annotation. A
+`surefold-junit` runs tests on the JUnit Platform with Surefold's own concurrency. A
+suite is a Kotlin `object`, which the `surefold` engine finds with no annotation. A
 test is registered from `init` and returns [`Expectations`](#expectations).
 
 - **`Suite`:** tests that share nothing, registered with `test(name) { … }`.
@@ -207,7 +207,7 @@ object SortingSuite : Suite() {
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:lark-junit:0.10.1")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.10.1")
 }
 
 tasks.test { useJUnitPlatform() }
@@ -215,13 +215,13 @@ tasks.test { useJUnitPlatform() }
 
 <!-- testing-junit-suite -->
 ```kotlin
-import io.github.matthewjones372.lark.Limit
-import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.SharedSuite
-import io.github.matthewjones372.lark.junit.alone
-import io.github.matthewjones372.lark.junit.expect
-import io.github.matthewjones372.lark.logInfo
-import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.surefold.Limit
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.alone
+import io.github.matthewjones372.surefold.junit.expect
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.resource
 import java.util.concurrent.ConcurrentHashMap
 
 // Stands in for the service under test.
@@ -265,11 +265,11 @@ when the test ends.
 
 <!-- testing-junit-resources -->
 ```kotlin
-import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.SharedSuite
-import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.resource
-import io.github.matthewjones372.lark.use
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.resource
+import io.github.matthewjones372.surefold.use
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -374,7 +374,7 @@ at OrderSuite.kt:32
 ```
 
 Without the plugin, it quotes the source line instead. A diagram carries no
-expected and actual for IntelliJ's diff, so `lark-junit` also has `shouldBe`,
+expected and actual for IntelliJ's diff, so `surefold-junit` also has `shouldBe`,
 `shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
 and carry both. Beside them are `shouldContain` and `shouldNotContain`, for a
 string or a collection, `shouldStartWith`, `shouldEndWith`, `shouldMatch`, a regex
@@ -398,22 +398,22 @@ Playwright's `assertThat`: it holds if the block returns, and fails at its line
 if the block throws an `AssertionError`.
 Anything else it throws errors the test. Infix calls share one precedence and group to the left, so
 `a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
-parenthesise each matcher. Import these from `lark-junit`, not `lark-assert`,
+parenthesise each matcher. Import these from `surefold-junit`, not `surefold-assert`,
 whose matchers throw and return the value; a file importing both can call
-neither. A throwing check, such as `lark-assert`'s, is still allowed in a
+neither. A throwing check, such as `surefold-assert`'s, is still allowed in a
 test: it stops the test, which is reported as an error.
 
 <!-- testing-junit-expect -->
 ```kotlin
-import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.junit.SharedSuite
-import io.github.matthewjones372.lark.junit.expect
-import io.github.matthewjones372.lark.junit.shouldBeLeft
-import io.github.matthewjones372.lark.junit.shouldBeRight
-import io.github.matthewjones372.lark.junit.shouldContain
-import io.github.matthewjones372.lark.junit.shouldThrow
-import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.expect
+import io.github.matthewjones372.surefold.junit.shouldBeLeft
+import io.github.matthewjones372.surefold.junit.shouldBeRight
+import io.github.matthewjones372.surefold.junit.shouldContain
+import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.resource
 
 data class NotFound(val id: String)
 
@@ -467,7 +467,7 @@ plugins {
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 powerAssert {
-    functions.add("io.github.matthewjones372.lark.junit.expect")
+    functions.add("io.github.matthewjones372.surefold.junit.expect")
     includedSourceSets.add("test")
 }
 
@@ -481,7 +481,7 @@ kotlin {
 
 ## Stories in a suite
 
-`lark-junit` has a `story` of its own, for a suite's test: its block returns
+`surefold-junit` has a `story` of its own, for a suite's test: its block returns
 `Expectations`, and so does the story. A step returns what its block does, so
 `Then("…") { a shouldBe b }` is `Expectations`, and joins the next step with
 `and`. A step whose expectations failed is marked `✗` and the story goes on,
@@ -491,24 +491,24 @@ with a `StoryFailed`.
 - **Title:** an untitled story takes its test's name.
 - **Transcript:** it is one of the test's [log lines](#suites), so a passing
   test prints nothing, and a failed test's transcript is printed and published
-  with the rest of its `logs`. Outside a suite, `lark-test`'s `story` prints to
+  with the rest of its `logs`. Outside a suite, `surefold-test`'s `story` prints to
   stdout as before.
-- **Imports:** import `story` from `lark-junit`, which brings `lark-test` with
-  it. `lark-test`'s `story` returns `Unit`; a file importing both can call
+- **Imports:** import `story` from `surefold-junit`, which brings `surefold-test` with
+  it. `surefold-test`'s `story` returns `Unit`; a file importing both can call
   neither until one is imported under another name.
 
 The return-value checker does not catch a `Then` on a line of its own: the
-steps are `lark-test`'s, generic over what their block returns, so their
+steps are `surefold-test`'s, generic over what their block returns, so their
 results are not marked for it. Join every `Then` with `and`, or end the story
 with it.
 
 <!-- testing-junit-story -->
 ```kotlin
-import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.SharedSuite
-import io.github.matthewjones372.lark.junit.shouldBe
-import io.github.matthewjones372.lark.junit.story
-import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.junit.story
+import io.github.matthewjones372.surefold.resource
 import java.util.concurrent.ConcurrentHashMap
 
 // Stands in for the service under test.
@@ -553,7 +553,7 @@ so discovery reads tags and `ignore` without running anything.
 |---|---|---|
 | `flaky(n)` | runs the test up to `n` times, until an attempt passes | passed if one does, with an `attempts` report entry such as `2 of 3`, given on failure too |
 | `nonFlaky(n)` | runs the test `n` times, and every run must pass | failed at the first failing run: `run 7 of 50 failed: …` |
-| `timeout(d)` | interrupts the test if it runs longer than `d`, on Lark's `timeout` | failed with a `TimeoutException`, `no answer within d` |
+| `timeout(d)` | interrupts the test if it runs longer than `d`, on Surefold's `timeout` | failed with a `TimeoutException`, `no answer within d` |
 | `ignore(why)` | does not run the test | skipped, with `why` |
 | `tag(name)` | a JUnit tag, which Gradle's `includeTags` and the IDE filter by | — |
 | `alone` | nothing else in the suite runs beside the test | — |
@@ -567,23 +567,23 @@ test is `alone` if either side is, and an `ignore` on the left gives its reason
 before one on the right.
 
 A test with no `timeout` of its own, nor one from its suite, is held to the
-`lark.junit.timeout.default` configuration parameter or system property, if
+`surefold.junit.timeout.default` configuration parameter or system property, if
 set: a duration such as `60s`, as Jupiter's
 `junit.jupiter.execution.timeout.default` is. This repository's build sets both
 to 60 seconds.
 
 <!-- testing-junit-aspects -->
 ```kotlin
-import io.github.matthewjones372.lark.Resource
-import io.github.matthewjones372.lark.junit.SharedSuite
-import io.github.matthewjones372.lark.junit.alone
-import io.github.matthewjones372.lark.junit.expect
-import io.github.matthewjones372.lark.junit.flaky
-import io.github.matthewjones372.lark.junit.ignore
-import io.github.matthewjones372.lark.junit.nonFlaky
-import io.github.matthewjones372.lark.junit.tag
-import io.github.matthewjones372.lark.junit.timeout
-import io.github.matthewjones372.lark.resource
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.alone
+import io.github.matthewjones372.surefold.junit.expect
+import io.github.matthewjones372.surefold.junit.flaky
+import io.github.matthewjones372.surefold.junit.ignore
+import io.github.matthewjones372.surefold.junit.nonFlaky
+import io.github.matthewjones372.surefold.junit.tag
+import io.github.matthewjones372.surefold.junit.timeout
+import io.github.matthewjones372.surefold.resource
 import kotlin.time.Duration.Companion.seconds
 
 // Stands in for a connection to the service under test.
@@ -622,7 +622,7 @@ needs none of this: it calls the class's constructor.
 
 ## Streams
 
-`lark-stream-test` provides `TestStreams`, a backend that runs every stage on
+`surefold-stream-test` provides `TestStreams`, a backend that runs every stage on
 the calling thread in a fixed order, with `tick`, `groupedWithin`,
 `restartOnDefect` and `mapPar` waiting only on the test's `TestClock`. `start`
 returns once the run is over or waiting on a later time, and `emitted()` reads
@@ -648,7 +648,7 @@ timers. `testActors` can also reorder deliveries from a seed and inject lost,
 duplicated, delayed and crashed messages. See
 [Testing actors](actors.md#testing), whose examples the build runs.
 
-## Lark's own documentation tests
+## Surefold's own documentation tests
 
 The guides' examples are compiled against the library by tests that read the
 Markdown files: `ReadmeExampleSuite`, `CoreGuideTest`, `CookbookTest`,

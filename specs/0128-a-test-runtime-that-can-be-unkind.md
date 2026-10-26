@@ -2,15 +2,15 @@
 
 ## Problem
 
-`testActors` (lark-actor) steps actors on the test's thread with an in-memory journal, timers in test time and a
+`testActors` (surefold-actor) steps actors on the test's thread with an in-memory journal, timers in test time and a
 `TestClock`, so a service's real behaviours run in memory, deterministically. But it is always kind: every message
 arrives, once, in the order it was told, and an actor only stops when it fails. The bugs that matter in a
 distributed system are about the unkind cases: an answer lost and the request retried, a retry's twin arriving
 second, a node dying between two steps and its entity recovering from the journal elsewhere. Today the only way to
-reach those is a real cluster, which is slow (lark-bank: five minutes a check, 23 of 26 app specs) and can't replay a
+reach those is a real cluster, which is slow (surefold-bank: five minutes a check, 23 of 26 app specs) and can't replay a
 failing ordering.
 
-lark-bank needs this for its transfer saga (bank spec 0028), and any Lark service with sagas or retries does too.
+surefold-bank needs this for its transfer saga (bank spec 0028), and any Surefold service with sagas or retries does too.
 
 ## Not doing
 
@@ -43,7 +43,7 @@ actors.trace                                   // every delivery, drop, duplicat
 ## Why this shape
 
 Faults belong in the runtime because only it sees every tell, reply and timer; a service wrapping its own refs
-(lark-bank's workaround) misses replies and timers. One seed for the order and the faults makes a failure one number to
+(surefold-bank's workaround) misses replies and timers. One seed for the order and the faults makes a failure one number to
 replay. FoundationDB's and TigerBeetle's deterministic simulation are the model, scaled down to one process's actors.
 
 ## Stack
@@ -58,7 +58,7 @@ replay. FoundationDB's and TigerBeetle's deterministic simulation are the model,
 ## Acceptance
 
 ```bash
-./gradlew :lark-actor:test
+./gradlew :surefold-actor:test
 ```
 
 ## Open questions

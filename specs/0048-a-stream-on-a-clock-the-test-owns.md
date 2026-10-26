@@ -5,11 +5,11 @@
 A pipeline with time in it cannot be tested quickly. `tick`, `groupedWithin`
 and `restartOnDefect` wait on real time through Pekko's scheduler. So a test of
 the petshop relay either sleeps or shrinks every duration until the test
-measures the machine's speed rather than the pipeline. lark already has
+measures the machine's speed rather than the pipeline. surefold already has
 `TestClock` for `Schedule`, but a Pekko stage never asks it the time.
 
 Once 0046 lands, a backend is a value. A backend that runs the tree on the
-calling thread, on lark's `Clock`, gives a test full control of time without
+calling thread, on surefold's `Clock`, gives a test full control of time without
 touching the pipeline.
 
 ## Not doing
@@ -23,7 +23,7 @@ touching the pipeline.
 
 ## Shape
 
-In a new module `lark-stream-test`, depending on `lark-stream` and nothing else:
+In a new module `surefold-stream-test`, depending on `surefold-stream` and nothing else:
 
 ```kotlin
 val clock = TestClock()
@@ -51,7 +51,7 @@ and still runs on real threads. Recommended against.
 
 ## Stack
 
-- [x] **`spec-0048-backend`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `lark-stream-test`, `TestStreams`, and every operator
+- [x] **`spec-0048-backend`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `surefold-stream-test`, `TestStreams`, and every operator
       without time on the calling thread.
       Done when: the 0046 parity suite passes on it for every operator it supports.
 - [x] **`spec-0048-time`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `tick`, `groupedWithin` and restart on the test clock.
@@ -78,8 +78,8 @@ and still runs on real threads. Recommended against.
 Decided while building `spec-0048-backend` (2026-09-25), for editing:
 `TestStreams` is the Forks pull loop run on the calling thread under its own
 name, not a second runner, so it runs and refuses exactly the operators Forks
-does. `lark-stream-test` therefore depends on `lark-stream-forks`, which brings
-nothing but `lark-stream`. It takes its `TestClock` now, and `spec-0048-time`
+does. `surefold-stream-test` therefore depends on `surefold-stream-forks`, which brings
+nothing but `surefold-stream`. It takes its `TestClock` now, and `spec-0048-time`
 is what reads it. Until then, a stream that never ends and never meets a `take`
 blocks the test that runs it.
 
@@ -99,7 +99,7 @@ furthest upstream goes first. Windows are Pekko's: one every `within` from the
 first pull, and a full group starts the next from the instant it was emitted.
 A tick that falls due while nothing is asking is dropped, as Pekko's is.
 `restartOnDefect` waits its schedule's delay on the test's clock and logs at
-the test's time. Stage bodies read the test's clock as lark's `clock`.
+the test's time. Stage bodies read the test's clock as surefold's `clock`.
 `running.emitted()` reads what reached the end so far.
 
 Decided while moving the petshop relay onto it (2026-09-25), for editing:

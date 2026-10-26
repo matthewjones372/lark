@@ -2,7 +2,7 @@
 
 ## Problem
 
-A service that reads a Kafka topic with lark today builds its source from Pekko
+A service that reads a Kafka topic with surefold today builds its source from Pekko
 Connectors Kafka. It passes that source to `Stream.from` and keeps the
 `CommittableOffset` beside every element by hand, as a `Pair`, through every
 `map` and `mapPar`. Then it has to remember to end the stream on
@@ -19,7 +19,7 @@ cannot drain: in-flight work is cut off, and none of it is committed.
 - **No exactly-once or transactions.** Nobody has asked for them.
 - **No broker-free fake.** A test runs against a real broker until the producing spec adds
   the fake.
-- **No lark-app node type.** `singleOf(start, Running::close)` already does the
+- **No surefold-app node type.** `singleOf(start, Running::close)` already does the
   job, as in 0044.
 - **No manual partition assignment or seek.** A subscription is only a group
   and topics.
@@ -37,7 +37,7 @@ val placed: Running<ShopError, Done> =
 placed.close()   // stop fetching, finish what is in flight, commit it, then wait for the exit
 ```
 
-- A new module, `lark-kafka`. It depends on `lark-stream-pekko` and
+- A new module, `surefold-kafka`. It depends on `surefold-stream-pekko` and
   `pekko-connectors-kafka`, and on nothing else. Its own
   `NoOtherDependenciesTest` holds that.
 - `Kafka.subscribe(settings: ConsumerSettings<K, V>, vararg topics: Topic):
@@ -57,8 +57,8 @@ placed.close()   // stop fetching, finish what is in flight, commit it, then wai
 - `Stream<E, Committed<*>>.runCommitting(settings: CommitterSettings):
   Run<E, Done>` is the only way to run a stream of `Committed` elements.
   `runCollect`, `runFold` and `runWith` over `Committed` do not compile. They
-  are overloads deprecated at `ERROR` in lark-stream's package, so importing
-  lark-stream's `runCollect` imports them too.
+  are overloads deprecated at `ERROR` in surefold-stream's package, so importing
+  surefold-stream's `runCollect` imports them too.
 - On a `Running` from `runCommitting`, `stop()` is the consumer's
   `drainAndShutdown`. The consumer stops fetching, the elements already in
   flight finish and are committed, and the exit completes after that.
@@ -80,7 +80,7 @@ at-least-once, but every shutdown sends those records again.
 
 ## Stack
 
-- [x] **`spec-0053-subscribe`** ([#90](https://github.com/matthewjones372/lark/pull/90)): the `lark-kafka` module, `Committed`,
+- [x] **`spec-0053-subscribe`** ([#90](https://github.com/matthewjones372/lark/pull/90)): the `surefold-kafka` module, `Committed`,
       `Kafka.subscribe`, `runCommitting` over `Committer.sink`, and the dependency test.
       Done when: against a broker in the test JVM, the records a run handles
       are committed, and a second run in the same group sees none of them again.
@@ -103,18 +103,18 @@ at-least-once, but every shutdown sends those records again.
 
 ## Open questions
 
-1. **How does `lark-kafka` reach inside a `Stream`?** Answered: through
-   `Stream.hooked` in `lark-stream-pekko`, which needs the `@SourceSeam`
+1. **How does `surefold-kafka` reach inside a `Stream`?** Answered: through
+   `Stream.hooked` in `surefold-stream-pekko`, which needs the `@SourceSeam`
    opt-in. Each Pekko run hands the
    source a `RunHooks`, carried as a Pekko attribute so a restarted source gets
    it too. `onStop` drains in place of the kill switch, and `onEnd` shuts the
    consumer down once the exit has completed. Everything else is built on
-   lark-stream's public API.
+   surefold-stream's public API.
 2. **Do the `Committed` overloads resolve without annotations?** Answered:
    no. With both packages imported, every overload was ambiguous, because
    the lambda's parameter type differs between the two and so neither is more
    specific. The operators carry a `Record` suffix instead, and a compile test
-   pins them beside lark-stream's own.
+   pins them beside surefold-stream's own.
 3. **Does `grouped` belong here?** When many records become one element, the
    batch has to carry every partition's highest offset. Recommend a later
    spec: the offset batch needs its own design.

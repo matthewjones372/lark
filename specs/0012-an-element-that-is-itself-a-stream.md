@@ -22,7 +22,7 @@ per-element sub-query is.
 The escape hatch is shut. `toSource()` is declared on `Stream<Nothing, A>`, so
 a stream carrying an `E` has to `either()` before it can leave — which hands
 back a `Source<Either<E, A>, NotUsed>`, exactly the shape the helper exists
-for. Reaching for flattening in lark today means writing that helper again,
+for. Reaching for flattening in surefold today means writing that helper again,
 over a stretch with no defect guard.
 
 ## Not doing

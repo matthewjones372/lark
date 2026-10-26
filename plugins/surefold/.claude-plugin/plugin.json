@@ -1,0 +1,9 @@
+{
+  "name": "surefold",
+  "description": "What surefold ships and when to reach for it, so code on surefold uses the library instead of rewriting it.",
+  "author": {
+    "name": "matthewjones372"
+  },
+  "homepage": "https://github.com/matthewjones372/lark",
+  "license": "Apache-2.0"
+}

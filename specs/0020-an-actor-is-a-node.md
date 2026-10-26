@@ -20,7 +20,7 @@ Spec 0016 left this out on purpose, and named it a spec of its own.
 
 ## Shape
 
-A module, `lark-app-pekko`, on `lark-app`, `lark-pekko` and `pekko-actor-typed`.
+A module, `surefold-app-pekko`, on `surefold-app`, `surefold-pekko` and `pekko-actor-typed`.
 
 ```kotlin
 val actors =
@@ -71,7 +71,7 @@ that ordering mean anything.
 
 ## Open questions
 
-1. **Does `lark-app-pekko` accept `pekko-slf4j` and `slf4j-api` arriving with
+1. **Does `surefold-app-pekko` accept `pekko-slf4j` and `slf4j-api` arriving with
    `pekko-actor-typed`?** Recommend yes, and say so in the dependency test:
    typed Pekko logs through slf4j rather than the classic event bus, so
    excluding the bridge trades a shorter classpath for a logger that may not

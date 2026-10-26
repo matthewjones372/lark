@@ -5,11 +5,11 @@
 A fork ends when its combinator says so. The first branch to fail interrupts
 its siblings, `raceN` interrupts the losers, and `close` interrupts whatever is
 left at scope exit
-([Flock.kt:114](../lark/src/main/kotlin/io/github/matthewjones372/lark/Flock.kt)).
+([Flock.kt:114](../surefold/src/main/kotlin/io/github/matthewjones372/surefold/Flock.kt)).
 A handler that works out for itself that one particular fork is no longer worth
 waiting for has no move: `Deferred` is `await()` and nothing else, and its KDoc
 says why — "not a `Future`, because there is nothing to cancel by hand"
-([Deferred.kt](../lark/src/main/kotlin/io/github/matthewjones372/lark/Deferred.kt)).
+([Deferred.kt](../surefold/src/main/kotlin/io/github/matthewjones372/surefold/Deferred.kt)).
 What a caller does instead is hold the `Thread` and interrupt it, which is a
 raise on a fork landing as an exception on the wrong thread — the bug spec
 [0002](0002-a-handler-that-forks.md) built `Flock` to make impossible.
@@ -31,7 +31,7 @@ fork whose turn on the executor has not come start its body interrupted. It is
   awaited still answers the scope with the interrupt it was sent; `AwaitTest`
   and `AwaitExitTest` assert that, and it stays asserted.
 - **No cooperative cancellation.** Interrupt is what the JDK has, a body that
-  ignores it is still joined, and lark says so out loud already.
+  ignores it is still joined, and surefold says so out loud already.
 
 ## Shape
 
@@ -60,7 +60,7 @@ A cancel that returned the instant the interrupt was sent would put that promise
 one fork out of reach for as long as the block ran on. The alternative is
 Java's shape — `Future.cancel(true)` returns at once and you join separately —
 which is two calls to get one guarantee, and the guarantee is the reason this is
-in lark rather than in the caller.
+in surefold rather than in the caller.
 
 **A cancel nobody awaits must not fail the scope, and today it would.**
 `Fork.unnoticedFailure()` reads `settled()` unfiltered, where `ownFailure()`
@@ -97,8 +97,8 @@ will remember.
 
 1. **What does `await()` after `cancel()` answer, for a body that did not
    swallow the interrupt?** Today it rethrows the `InterruptedException`.
-   Recommend keeping that: lark's story is that interrupt is the only
-   cancellation there is, and a `CancellationException` of lark's own is a
+   Recommend keeping that: surefold's story is that interrupt is the only
+   cancellation there is, and a `CancellationException` of surefold's own is a
    second vocabulary for one event. The alternative is worth a sentence of
    argument, not a paragraph.
 2. **Is `cancel()` idempotent, and what does it do to a fork that already

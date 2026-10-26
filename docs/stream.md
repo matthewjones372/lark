@@ -1,6 +1,6 @@
 # Streams
 
-`lark-stream` provides `Stream<E, A>`, a pipeline whose declared failure is
+`surefold-stream` provides `Stream<E, A>`, a pipeline whose declared failure is
 part of its type. Elements can never be null, and running a stream answers an
 `Exit` that is one of three cases:
 
@@ -14,7 +14,7 @@ The backend is a value passed in where the run starts, so the same pipeline
 can run on a virtual thread in production, on Pekko Streams beside existing
 Pekko code, and on a test clock in a unit test.
 
-Everything on this page is in `io.github.matthewjones372.lark.stream`,
+Everything on this page is in `io.github.matthewjones372.surefold.stream`,
 whichever module it ships in.
 
 1. [Modules and backends](#modules-and-backends)
@@ -34,25 +34,25 @@ whichever module it ships in.
 
 | Module | Provides | Backend value |
 |---|---|---|
-| `lark-stream` | `Stream`, `Pipe`, `Run`, `Exit`, every backend-neutral operator, `Hub` | none |
-| `lark-stream-forks` | a run as a pull loop on a virtual thread | `Forks()` |
-| `lark-stream-pekko` | a run as Pekko Streams stages, and the operators that take Pekko's types | `PekkoStreams(system)` |
-| `lark-stream-actors` | a run as `lark-actor` actors | `Actors(flock)` |
-| `lark-stream-test` | every stage on the calling thread, on a `TestClock` | `TestStreams(clock)` |
+| `surefold-stream` | `Stream`, `Pipe`, `Run`, `Exit`, every backend-neutral operator, `Hub` | none |
+| `surefold-stream-forks` | a run as a pull loop on a virtual thread | `Forks()` |
+| `surefold-stream-pekko` | a run as Pekko Streams stages, and the operators that take Pekko's types | `PekkoStreams(system)` |
+| `surefold-stream-actors` | a run as `surefold-actor` actors | `Actors(flock)` |
+| `surefold-stream-test` | every stage on the calling thread, on a `TestClock` | `TestStreams(clock)` |
 
-Each backend module brings `lark-stream` with it:
+Each backend module brings `surefold-stream` with it:
 
 ```kotlin
 dependencies {
-    // a pull loop on a virtual thread: brings lark-stream and nothing else
-    implementation("io.github.matthewjones372:lark-stream-forks:0.10.1")
-    // or Pekko Streams: brings lark-stream, lark-pekko and pekko-stream
-    // implementation("io.github.matthewjones372:lark-stream-pekko:0.10.1")
-    // or actors of a lark-actor flock
-    // implementation("io.github.matthewjones372:lark-stream-actors:0.10.1")
+    // a pull loop on a virtual thread: brings surefold-stream and nothing else
+    implementation("io.github.matthewjones372:surefold-stream-forks:0.10.1")
+    // or Pekko Streams: brings surefold-stream, surefold-pekko and pekko-stream
+    // implementation("io.github.matthewjones372:surefold-stream-pekko:0.10.1")
+    // or actors of a surefold-actor flock
+    // implementation("io.github.matthewjones372:surefold-stream-actors:0.10.1")
 
     // time a test owns
-    testImplementation("io.github.matthewjones372:lark-stream-test:0.10.1")
+    testImplementation("io.github.matthewjones372:surefold-stream-test:0.10.1")
 }
 ```
 
@@ -66,18 +66,18 @@ backends. `ReadmeExampleSuite` compiles this against all three:
 
 <!-- backend-example -->
 ```kotlin
-import io.github.matthewjones372.lark.TestClock
-import io.github.matthewjones372.lark.stream.Exit
-import io.github.matthewjones372.lark.stream.Forks
-import io.github.matthewjones372.lark.stream.PekkoStreams
-import io.github.matthewjones372.lark.stream.Run
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.TestStreams
-import io.github.matthewjones372.lark.stream.filter
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapOrFail
-import io.github.matthewjones372.lark.stream.run
-import io.github.matthewjones372.lark.stream.runFold
+import io.github.matthewjones372.surefold.TestClock
+import io.github.matthewjones372.surefold.stream.Exit
+import io.github.matthewjones372.surefold.stream.Forks
+import io.github.matthewjones372.surefold.stream.PekkoStreams
+import io.github.matthewjones372.surefold.stream.Run
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.TestStreams
+import io.github.matthewjones372.surefold.stream.filter
+import io.github.matthewjones372.surefold.stream.from
+import io.github.matthewjones372.surefold.stream.mapOrFail
+import io.github.matthewjones372.surefold.stream.run
+import io.github.matthewjones372.surefold.stream.runFold
 import org.apache.pekko.actor.ActorSystem
 import java.util.concurrent.CompletionStage
 
@@ -109,7 +109,7 @@ of an [application node](app.md).
 
 ## Backends
 
-All four backends pass the same suite of pipelines in `lark-stream-parity`,
+All four backends pass the same suite of pipelines in `surefold-stream-parity`,
 which checks that each gives the same answers. They differ in how a run uses
 threads and in what they accept.
 
@@ -117,7 +117,7 @@ threads and in what they accept.
   concurrency, `mapPar`, `mapAsync`, `buffer`, `merge`, `flatMapMerge`,
   `conflateWithSeed`, start further forks on the executor given as `on`
   (virtual threads by default). Time-based operators (`tick`,
-  `groupedWithin`, `restartOnDefect`) wait on Lark's [clock](core.md#what-a-fork-inherits).
+  `groupedWithin`, `restartOnDefect`) wait on Surefold's [clock](core.md#what-a-fork-inherits).
 - **`PekkoStreams(system)`** compiles each operator to the Pekko stage it
   names, so Pekko's fusion, backpressure and materialisation apply. It is the
   only backend that runs the Pekko-specific operators.
@@ -126,7 +126,7 @@ threads and in what they accept.
   measured faster than Forks for `mapPar`, starting runs, `buffer` and `merge`,
   and about a quarter slower for a plain element-at-a-time chain, but those
   numbers predate spec 0172, which rebuilt Forks' `buffer`, `mapPar` and
-  `mapAsync`; re-run the [benchmarks](../bench/lark-stream-benchmarks/README.md)
+  `mapAsync`; re-run the [benchmarks](../bench/surefold-stream-benchmarks/README.md)
   before choosing between them on speed.
 - **`TestStreams(clock)`** runs one stage at a time on the calling thread, in
   the same order every time, with every wait on the test's `TestClock`. See
@@ -143,7 +143,7 @@ reaches it. No backend runs a value that belongs to another.
 ## Operators
 
 Every operator below works on every backend except those marked *(Pekko)*,
-which are in `lark-stream-pekko` and run only on `PekkoStreams`. Every
+which are in `surefold-stream-pekko` and run only on `PekkoStreams`. Every
 operator also exists on `Pipe`, a reusable middle section of a pipeline.
 
 | Operator | Answers |
@@ -155,14 +155,14 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Stream.empty(): Stream<Nothing, Nothing>` | no elements and no failure |
 | `Stream.single(element: A): Stream<Nothing, A>` | the one element named; `A : Any`, so a nullable does not compile |
 | `Stream.of(vararg elements: A): Stream<Nothing, A>` | the elements named, in order; with none of them, `empty()` |
-| `Stream.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A>` | `element` every `every`, the first one `after` the run starts; `kotlin.time.Duration`, as lark's own `timeout` takes |
+| `Stream.tick(every: Duration, element: A, after: Duration = every): Stream<Nothing, A>` | `element` every `every`, the first one `after` the run starts; `kotlin.time.Duration`, as surefold's own `timeout` takes |
 | `Stream.fromStage(stage: CompletionStage<A>): Stream<Nothing, A>` | the stage's value as one element; a `null` completion is `Died(NullPointerException)`, never `Done` with nothing |
 | `Stream.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A>` | the same, with the absence named: a `null` completion is `Failed(ifNull)` |
 | `Stream.blocking(open, next, wake, close): Stream<Nothing, A>` | a resource opened per run and read by blocking, on any backend: `next` answering `null` ends it, `stop()` calls `wake` to reach a `next` that is blocked, and `close` runs once however the run ended. Pekko reads it on its blocking-IO dispatcher |
 | `Stream.blocking(open, next, ready, wake, close)` | the same, with `ready` saying the next `next` will not block. Pekko reads those along with the read before them and hands them to the stream together; Forks never asks |
 | `Hub<A>(capacity).subscribe(): Stream<Nothing, A>` | everything a `Hub` is sent while a run of it lasts, on any backend; the first run ever also gets what was published before it. See [one publisher, many readers](#one-publisher-many-readers) |
 | `Stream<Nothing, A>.publishTo(hub: Hub<A>): Stream<HubRefused, A>` | each element published to the hub as it passes; a refusal, `Full` or `Closed`, ends the stream with it |
-| `Stream.hooked(source: (RunHooks) -> Source<A, *>): Stream<Nothing, A>` | opt-in (`@SourceSeam`), for a module adding a source of its own: each run hands the source hooks, so it can drain on `stop()` and clean up once the run has ended. `lark-kafka-pekko`'s `Kafka.subscribe` is built on it *(Pekko)* |
+| `Stream.hooked(source: (RunHooks) -> Source<A, *>): Stream<Nothing, A>` | opt-in (`@SourceSeam`), for a module adding a source of its own: each run hands the source hooks, so it can drain on `stop()` and clean up once the run has ended. `surefold-kafka-pekko`'s `Kafka.subscribe` is built on it *(Pekko)* |
 | `Stream<E, A>.orFailIfEmpty(error: E2): Stream<E2, A>` | a stream that emitted nothing fails with `error`, for `E : E2`; one that emitted is untouched |
 | **Element by element** | |
 | `Stream<E, A>.map(f: (A) -> B): Stream<E, B>` | `B` is bound to `Any`, so a nullable body does not compile |
@@ -217,7 +217,7 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Run<E, R>.start(backend: StreamBackend): Running<E, R>` | the same run with a handle: `exit` is what `run` answers, `stop()` ends it now as `Done` with what the sink has, and `close()` stops and waits. A source that drains, such as a Kafka consumer, is stopped by draining, so what it already sent still reaches the end |
 | `Run<E, R>.run(system: ClassicActorSystemProvider): CompletionStage<Exit<E, R>>` | `run(PekkoStreams(system))` *(Pekko)* |
 | `Run<E, R>.start(system: ClassicActorSystemProvider): Running<E, R>` | `start(PekkoStreams(system))` *(Pekko)* |
-| `Fail<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Fail`: `Done` is the value, `Failed` fails, `Died` throws. In `lark-stream-pekko`, but it waits for a run on any backend |
+| `Fail<E>.awaitExit(stage: CompletionStage<Exit<E, R>>): R` | the run waited for inside a `Fail`: `Done` is the value, `Failed` fails, `Died` throws. In `surefold-stream-pekko`, but it waits for a run on any backend |
 | **Pipes** | |
 | `Pipe.from(flow: Flow<In, Out, NotUsed>): Pipe<Nothing, In, Out>` | the way in from Pekko's `Flow` *(Pekko)* |
 | `Pipe.identity(): Pipe<Nothing, A, A>` | the pipe that changes nothing, where a chain starts |
@@ -239,11 +239,11 @@ returning. Each element in flight gets a virtual thread of its own, at most
 
 <!-- mappar-example -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.bind
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapParOrFail
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.from
+import io.github.matthewjones372.surefold.stream.mapParOrFail
 
 data class Row(val id: Int, val customer: String?)
 
@@ -285,9 +285,9 @@ independent writes or a fan-out to a sink, `mapParUnordered` and
 
 <!-- unordered-example -->
 ```kotlin
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapParUnordered
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.from
+import io.github.matthewjones372.surefold.stream.mapParUnordered
 
 data class Record(val id: Int)
 
@@ -318,10 +318,10 @@ caller of a dependency bounds them all together:
 
 <!-- limit-example -->
 ```kotlin
-import io.github.matthewjones372.lark.Limit
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapPar
+import io.github.matthewjones372.surefold.Limit
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.from
+import io.github.matthewjones372.surefold.stream.mapPar
 
 data class Order(val id: Int)
 
@@ -338,7 +338,7 @@ val written: Stream<Nothing, Int> =
 
 The same limit goes to `parMap(ids, orders) { … }` and to a policy's
 `guard(orders)`, so all three draw on one budget. It publishes
-`lark.limit.current` and `lark.limit.in_use`, so a dashboard shows where it
+`surefold.limit.current` and `surefold.limit.in_use`, so a dashboard shows where it
 settled.
 
 ## Missing is a failure, not an empty stream
@@ -346,17 +346,17 @@ settled.
 A stage that completed with `null`, an empty `Optional`, a lookup that found
 nothing: a builder that reads absence as emptiness turns a miss into a source
 with no elements, and a run over it answers `Done` having processed nothing,
-which is also what a run with nothing to process answers. Lark's builders make
+which is also what a run with nothing to process answers. Surefold's builders make
 the absence a failure with a name instead:
 
 <!-- missing-example -->
 ```kotlin
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.fail
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.fromStage
-import io.github.matthewjones372.lark.stream.orFailIfEmpty
-import io.github.matthewjones372.lark.stream.single
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.fail
+import io.github.matthewjones372.surefold.stream.from
+import io.github.matthewjones372.surefold.stream.fromStage
+import io.github.matthewjones372.surefold.stream.orFailIfEmpty
+import io.github.matthewjones372.surefold.stream.single
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Source
 import java.util.concurrent.CompletableFuture
@@ -371,7 +371,7 @@ fun lookup(id: Int): Customer? = if (id == 1) Customer(1, "ada") else null
 
 val id = 1
 val stage: CompletionStage<Customer> = CompletableFuture.completedFuture(Customer(id, "ada"))
-val rows: Source<Customer, NotUsed> = Source.empty()                    // a source lark did not build
+val rows: Source<Customer, NotUsed> = Source.empty()                    // a source surefold did not build
 
 val one: Stream<Missing, Customer> =
     lookup(id)?.let { Stream.single(it) } ?: Stream.fail(Missing(id))   // absence is a failure with a name
@@ -391,7 +391,7 @@ val declared: Stream<Missing, Customer> =
   `null` whatever its type argument says. The first form dies with a
   `NullPointerException` naming the builder; the second fails with the error
   given.
-- `orFailIfEmpty` is for a source Lark did not build: zero elements is all
+- `orFailIfEmpty` is for a source Surefold did not build: zero elements is all
   there is to go on, so saying it is a failure is a decision for the caller.
 - There is no `fromNullable`, because a builder that turns absence into
   emptiness is the mistake this avoids.
@@ -407,7 +407,7 @@ e: Return type mismatch: expected 'Any', actual 'String?'.
 every build and asserts the compiler's own message.
 
 Code that calls Pekko's absence-to-emptiness builders directly never enters
-Lark. detekt's `ForbiddenMethodCall` can catch it, with type resolution on
+Surefold. detekt's `ForbiddenMethodCall` can catch it, with type resolution on
 (`detektMain` rather than `detekt`). This repository uses the list in
 [`config/detekt/detekt.yml`](../config/detekt/detekt.yml), which you can copy:
 
@@ -437,8 +437,8 @@ what those two entries are for.
 ## How a failure travels
 
 `fail(e)` or a `bind()` on a `Left` ends a stream with the `E` it
-names. In an element body, `Failing<E>` is a Lark `Fail<E>`, so anything a
-Lark handler writes, `ensure`, `parZip`, a fork awaited, works there too.
+names. In an element body, `Failing<E>` is a Surefold `Fail<E>`, so anything a
+Surefold handler writes, `ensure`, `parZip`, a fork awaited, works there too.
 Every other throwable is a defect and arrives as `Exit.Died(cause)`.
 
 There is no supervision strategy and no `resume`, so an element leaves a
@@ -453,7 +453,7 @@ the operator, the element it was processing and the line of your code that
 built the operator:
 
 ```
-[ERROR] lark-stream: mapAsync died on Row(id=3, customer=null), built at IngestService.kt:41: java.lang.IllegalStateException: ledger down
+[ERROR] surefold-stream: mapAsync died on Row(id=3, customer=null), built at IngestService.kt:41: java.lang.IllegalStateException: ledger down
 ```
 
 The cause carries the same three facts. Where your lambda threw or a stage
@@ -532,9 +532,9 @@ runFold                                  Pipelines.kt:20
 ```
 
 `run.measured(Measured("ingest"))` reports each stage's element count, the
-time spent in its body and the time it waited for demand through Lark's
-[metrics](observability.md#metrics), as `lark.stream.elements`,
-`lark.stream.busy` and `lark.stream.waiting`. A `Profiler` keeps those
+time spent in its body and the time it waited for demand through Surefold's
+[metrics](observability.md#metrics), as `surefold.stream.elements`,
+`surefold.stream.busy` and `surefold.stream.waiting`. A `Profiler` keeps those
 numbers, and `render(profile = profiler.profile())` shows where the time went:
 
 ```
@@ -550,7 +550,7 @@ no name, it refuses once it has seen more than one, rather than sum them.
 ## Time a test owns
 
 `tick`, `groupedWithin`, `restartOnDefect` and `mapPar` wait on time or on
-other threads. On `TestStreams`, from `lark-stream-test`, they wait only on a
+other threads. On `TestStreams`, from `surefold-stream-test`, they wait only on a
 `TestClock`, so a test moves time instead of sleeping through it:
 
 ```kotlin
@@ -566,12 +566,12 @@ one element at a time. `start` returns once the run is over or waiting on a
 later time. Each `adjust` stops at every instant the run waits for on the way,
 so what falls due runs in time order before `adjust` returns. `emitted()`
 reads what a collecting run on `TestStreams` has produced so far. A stage body
-that reads Lark's `clock` reads the test's; a body that blocks on anything
+that reads Surefold's `clock` reads the test's; a body that blocks on anything
 else blocks the test with it.
 
 ## On Pekko Streams
 
-`lark-stream-pekko` is both a backend and a typed layer over Pekko's own
+`surefold-stream-pekko` is both a backend and a typed layer over Pekko's own
 API. `Stream.from(source)` and `toSource()` convert in and out, `runWith(sink)`
 runs into a Pekko `Sink`, `divertLefts(to = sink)` splits a stream of `Either`
 into two sinks, and `run(system)` is short for `run(PekkoStreams(system))`.
@@ -596,15 +596,15 @@ The same ingest written both ways, from shared fixtures:
 
 <!-- example-fixtures -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.fail.fold
-import io.github.matthewjones372.lark.fail.mapLeft
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.divertLefts
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapAsync
-import io.github.matthewjones372.lark.stream.mapOrFail
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.fold
+import io.github.matthewjones372.surefold.fail.mapLeft
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.divertLefts
+import io.github.matthewjones372.surefold.stream.from
+import io.github.matthewjones372.surefold.stream.mapAsync
+import io.github.matthewjones372.surefold.stream.mapOrFail
 import org.apache.pekko.NotUsed
 import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
@@ -654,7 +654,7 @@ val receipts: Source<Either<IngestError, Receipt>, NotUsed> =
         )                                                    // and a NoCustomer Left is still in the stream
 ```
 
-With `lark-stream`:
+With `surefold-stream`:
 
 <!-- after-example -->
 ```kotlin
@@ -673,7 +673,7 @@ predicate on the error's subtype, so a `NoCustomer` that should end the run
 keeps flowing to the consumer, and the element type at the end is still
 `Either<IngestError, Receipt>`.
 
-With `lark-stream` the failure is on the stream, not in the element:
+With `surefold-stream` the failure is on the stream, not in the element:
 `mapAsync` sees a `Customer` and passes on the ledger's own `Either`,
 `divertLefts` splits on that without a predicate, and what reaches the end is
 a `Receipt`. Pekko runs the same three stages either way; what changes is
@@ -686,16 +686,16 @@ turned back into an `Either` in the handler that started it:
 
 <!-- readme-example -->
 ```kotlin
-import io.github.matthewjones372.lark.fail.Either
-import io.github.matthewjones372.lark.fail.attempt
-import io.github.matthewjones372.lark.stream.Stream
-import io.github.matthewjones372.lark.stream.awaitExit
-import io.github.matthewjones372.lark.stream.divertLefts
-import io.github.matthewjones372.lark.stream.from
-import io.github.matthewjones372.lark.stream.mapAsync
-import io.github.matthewjones372.lark.stream.mapOrFail
-import io.github.matthewjones372.lark.stream.run
-import io.github.matthewjones372.lark.stream.runWith
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.awaitExit
+import io.github.matthewjones372.surefold.stream.divertLefts
+import io.github.matthewjones372.surefold.stream.from
+import io.github.matthewjones372.surefold.stream.mapAsync
+import io.github.matthewjones372.surefold.stream.mapOrFail
+import io.github.matthewjones372.surefold.stream.run
+import io.github.matthewjones372.surefold.stream.runWith
 import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.javadsl.Sink
@@ -742,16 +742,16 @@ val settled: Either<IngestError, Done> = attempt {
 ```
 
 `awaitExit` waits for the run inside a `Fail`: `Done` is the value, `Failed`
-fails, and `Died` throws. It waits through `lark-pekko`'s
+fails, and `Died` throws. It waits through `surefold-pekko`'s
 [`await`](core.md#running-forks-on-pekko), so an interrupt cancels the run
 rather than abandoning it.
 
 ## Dependencies
 
-`lark-stream` puts only the Kotlin standard library and `lark` on
-a consumer's classpath: a description names no backend. `lark-stream-forks`
-and `lark-stream-test` add nothing beyond Lark modules, and
-`lark-stream-actors` adds `lark-actor`. `lark-stream-pekko` adds `lark-pekko`
+`surefold-stream` puts only the Kotlin standard library and `surefold` on
+a consumer's classpath: a description names no backend. `surefold-stream-forks`
+and `surefold-stream-test` add nothing beyond Surefold modules, and
+`surefold-stream-actors` adds `surefold-actor`. `surefold-stream-pekko` adds `surefold-pekko`
 and `pekko-stream`, with the Scala runtime, Typesafe Config, the Reactive
 Streams interfaces and `ssl-config-core` that Pekko brings. Each module's
 `NoOtherDependenciesTest` checks this list against its real runtime classpath.

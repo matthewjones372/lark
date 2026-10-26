@@ -4,14 +4,14 @@
 
 [0115](0115-a-test-that-reads-as-a-story.md)'s `story` ends a failed story
 with `StoryFailed`, thrown from `story()` itself. Its stack trace starts in
-`Story.kt`, so the first line an IDE links to is lark's, and the assertion that
+`Story.kt`, so the first line an IDE links to is surefold's, and the assertion that
 failed is further down, under "Caused by":
 
 ```
   ✗ And the other nineteen are told she is taken    5 ms
       expected:<32> but was:<19>
-	at io.github.matthewjones372.lark.test.StoryKt.story(Story.kt:25)
-	at io.github.matthewjones372.lark.test.StoryKt.story$default(Story.kt:19)
+	at io.github.matthewjones372.surefold.test.StoryKt.story(Story.kt:25)
+	at io.github.matthewjones372.surefold.test.StoryKt.story$default(Story.kt:19)
 	at petshop.app.AdoptionSpec.twenty people adopt one tortoise…(AdoptionSpec.kt:39)
 ```
 
@@ -31,12 +31,12 @@ failed. The petshop's prototype has the fix, matthewjones372/petshop#28.
       expected:<32> but was:<19>
       at petshop.app.AdoptionSpec.…(AdoptionSpec.kt:49)
 	at petshop.app.AdoptionSpec.…(AdoptionSpec.kt:49)
-	at io.github.matthewjones372.lark.test.Story.step(Story.kt:69)
+	at io.github.matthewjones372.surefold.test.Story.step(Story.kt:69)
 	…
 ```
 
 - **Where it failed** is the first frame of the step's throw that is not
-  the story's or `eventually`'s, lark's core, an assertion library's (Kotest,
+  the story's or `eventually`'s, surefold's core, an assertion library's (Kotest,
   opentest4j), Kotlin's, Arrow's or the JDK's. For a
   `GaveUp`, it is the last failure's.
 - **The transcript prints that frame** under the failing step's message, as
@@ -67,14 +67,14 @@ with the frame.
 ## Acceptance
 
 ```bash
-./gradlew :lark-test:test
+./gradlew :surefold-test:test
 ```
 
 ## Open questions
 
-- **Which frames are lark's?** Not the whole `io.github.matthewjones372.lark.`
-  prefix: `lark-test`'s own tests are under it, and would point past
-  themselves. Recommended: lark's core package itself (schedules, retry, the
-  clock), and `lark-test`'s `Story` and `eventually` classes.
+- **Which frames are surefold's?** Not the whole `io.github.matthewjones372.surefold.`
+  prefix: `surefold-test`'s own tests are under it, and would point past
+  themselves. Recommended: surefold's core package itself (schedules, retry, the
+  clock), and `surefold-test`'s `Story` and `eventually` classes.
 - **Kotest's own frames.** Kotest trims its frames by default; others may not.
   Recommended: skip `io.kotest.` and `org.opentest4j.` whatever the setting.

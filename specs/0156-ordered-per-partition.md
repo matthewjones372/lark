@@ -5,7 +5,7 @@
 `mapParRecord(n)` keeps the stream's order: a record's result waits for every record read before it, from every
 partition. Kafka promises order only within a partition, so one slow call holds back records of the other five
 partitions that have nothing to wait for, and with them the window: a body that is done cannot give its slot
-back until the head is. With a uniform handler that costs little (spec 0154: `larkMapPar` 136 ms against the
+back until the head is. With a uniform handler that costs little (spec 0154: `surefoldMapPar` 136 ms against the
 hand-written fan-out loop's 142 ms at 1 ms a record); with a skewed one, every partition runs at the slow one's
 pace.
 
@@ -19,11 +19,11 @@ pace.
 ## Shape
 
 ```kotlin
-// lark-stream: up to `parallelism` bodies at once; each result passes on once every earlier element with the
+// surefold-stream: up to `parallelism` bodies at once; each result passes on once every earlier element with the
 // same key has. Elements with different keys pass each other.
 fun <E, A : Any, B : Any> Stream<E, A>.mapParKeyed(parallelism: Int, key: (A) -> Any, f: Raise<E>.(A) -> B): Stream<E, B>
 
-// lark-kafka: keyed by topic and partition.
+// surefold-kafka: keyed by topic and partition.
 fun <E, A : Any, B : Any> Stream<E, Committed<A>>.mapParPartitioned(parallelism: Int, f: Raise<E>.(A) -> B): Stream<E, Committed<B>>
 ```
 
@@ -36,9 +36,9 @@ every key's order too: correct, and no faster.
 
 Two ways:
 
-- **(a) A keyed `mapPar` in lark-stream**, which lark-kafka keys by partition. It is general (a keyed stream of
+- **(a) A keyed `mapPar` in surefold-stream**, which surefold-kafka keys by partition. It is general (a keyed stream of
   anything), and only the two backends that hand out results across threads need new code.
-- **(b) lark-kafka only.** lark-stream has no unordered operator to build it on; it would need one anyway.
+- **(b) surefold-kafka only.** surefold-stream has no unordered operator to build it on; it would need one anyway.
 
 Recommended and answered: (a).
 
@@ -50,13 +50,13 @@ Recommended and answered: (a).
       slow element on one key does not delay another key's results, and every key's order holds on every backend.
 - [x] **`spec-0156-keyed-pekko`** ([#453](https://github.com/matthewjones372/lark/pull/453)): the same on Pekko. Done when: the parity test's no-delay case runs on Pekko too.
 - [x] **`spec-0156-kafka`** ([#458](https://github.com/matthewjones372/lark/pull/458)): `mapParPartitioned`, its docs, and a skewed row for it. Done when: on the skewed row
-      lark beats `javaParallelBatch` by more than on the uniform one.
+      surefold beats `javaParallelBatch` by more than on the uniform one.
 
 ## Acceptance
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 3 -i 5 -r 1 -w 1 -t 1 -f 2 .*ProcessingBenchmarks.*"
+./gradlew :surefold-kafka-benchmarks:jmh -PbenchmarkArgs="-wi 3 -i 5 -r 1 -w 1 -t 1 -f 2 .*ProcessingBenchmarks.*"
 ```
 
 ## Open questions

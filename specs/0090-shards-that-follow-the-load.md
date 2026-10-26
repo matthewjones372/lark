@@ -6,7 +6,7 @@ Since 0070 a shard's owner is the `Up` member that scores highest for it by
 rendezvous hash. Shards spread evenly by count, but not by work. A kind whose
 ids are skewed, such as one customer with most of the traffic, or a node that
 is slower than the rest, leaves some members with far more running entities
-and far more messages than others. 0081's `lark.sharding.entities` gauge shows
+and far more messages than others. 0081's `surefold.sharding.entities` gauge shows
 it. The only lever a service has is to add nodes, which moves shards at random
 with respect to load, and the busy shard may land on the new node's busy
 neighbour anyway.
@@ -18,7 +18,7 @@ neighbour anyway.
 - **A coordinator that owns placement.** Placement stays computed on every
   node from what they already agree on, plus what this spec adds to the
   gossip.
-- **Load measured by CPU or latency.** A node's load is what lark can count
+- **Load measured by CPU or latency.** A node's load is what surefold can count
   without sampling: running entities and messages handled per shard.
 - **Automatic moves by default.** Rebalancing is asked for per kind; a kind
   that does not ask places by hash alone, as now.
@@ -51,7 +51,7 @@ view, which is the property 0070 depends on. Two nodes with the same view
 always agree on the owner, and the handoff protocol needs no change. The
 alternative is Pekko's shard coordinator: a singleton that allocates every
 shard and is asked on every move. It is more flexible, but it is a single
-point that must be recovered on failover, and lark avoided it in 0070 on
+point that must be recovered on failover, and surefold avoided it in 0070 on
 purpose. Recommended: leader-proposed overrides in the gossip.
 
 ## Stack
@@ -74,7 +74,7 @@ purpose. Recommended: leader-proposed overrides in the gossip.
 ## Acceptance
 
 ```bash
-./gradlew :lark-cluster:build
+./gradlew :surefold-cluster:build
 ```
 
 ## Open questions

@@ -3,21 +3,21 @@
 ## Problem
 
 An Arrow codebase on coroutines writes `either { parZip(…) }` and imports
-`arrow.fx.coroutines`. Lark asks that code to wrap itself in `flock { }` and
+`arrow.fx.coroutines`. Surefold asks that code to wrap itself in `flock { }` and
 to take a `Flock<E>` receiver, and its README leads with a request-handler
 binder for a web framework. So it is a library with an idea in it rather than
 a drop-in: a service that wants Arrow on virtual threads has to learn a scope
 and take on a framework's shape of the world. The maintainer's direction
-(chat, 2026-09-03): lark is what you reach for *when using Arrow*, and nothing
+(chat, 2026-09-03): surefold is what you reach for *when using Arrow*, and nothing
 in it is tied to any framework.
 
 ## Not doing
 
 - **No framework binding in this repository.** The handler binder built
-  under specs 0001–0002 leaves. A framework that wants one depends on lark —
+  under specs 0001–0002 leaves. A framework that wants one depends on surefold —
   the specific on the general, never the reverse.
 - **No coroutine interop.** Nothing `suspend`, no `Flow`, no dispatcher. A
-  codebase adopting lark drops `suspend` on the way in.
+  codebase adopting surefold drops `suspend` on the way in.
 - **No `Atomic`, `CountDownLatch`, `CyclicBarrier`.** The JDK has them.
 - **No `withTimeout` beyond a `timeout` over `raceN`.** A cancellation is an
   interrupt, and that stays said out loud.
@@ -30,7 +30,7 @@ suspend fun dashboard(id: Id): Either<Err, Dashboard> = either {
     parZip({ users.find(id).bind() }, { orders.forUser(id).bind() }) { u, o -> Dashboard(u, o) }
 }
 
-// lark: drop the `suspend`, swap the import, nothing else moves
+// surefold: drop the `suspend`, swap the import, nothing else moves
 fun dashboard(id: Id): Either<Err, Dashboard> = either {
     parZip({ users.find(id).bind() }, { orders.forUser(id).bind() }) { u, o -> Dashboard(u, o) }
 }
@@ -57,7 +57,7 @@ fun dashboard(id: Id): Either<Err, Dashboard> = either {
 
 Same names, same signatures, same semantics as the library being replaced:
 that is what "drop-in" means, and it is why the receiver has to be `Raise<E>`
-rather than a scope of lark's own. The alternative — keep `Flock` as the
+rather than a scope of surefold's own. The alternative — keep `Flock` as the
 front door and document the wrapper — is a smaller change and a worse
 library, because every adopter pays the wrapper on every function. The
 implementation under the surface does not change: `Flight` already owns the

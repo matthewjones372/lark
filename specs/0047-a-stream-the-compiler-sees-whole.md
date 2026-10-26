@@ -26,7 +26,7 @@ knowing where each segment starts and ends.
 
 ## Shape
 
-An internal pass in `lark-stream`, run by `start` before a backend compiles the
+An internal pass in `surefold-stream`, run by `start` before a backend compiles the
 tree. Each backend sees the rewritten tree.
 
 | Rule | Before | After |
@@ -50,14 +50,14 @@ tree. Each backend sees the rewritten tree.
 ## Why this shape
 
 Pekko already runs neighbouring stages on one actor, but it never merges them,
-and a hand-off per stage is the cost that remains. Merging in lark's own tree
+and a hand-off per stage is the cost that remains. Merging in surefold's own tree
 is only possible because 0046 made the tree data. The alternative is Pekko's
 own `Flow.fromFunction` chains, which still pay the hand-off. Recommended
 against.
 
 The rules are deliberately few. Each one is a pattern and a proof that nothing
 observable moved. A general optimiser would need a semantics for side effects
-that lark does not have.
+that surefold does not have.
 
 ## Stack
 
@@ -74,7 +74,7 @@ that lark does not have.
 ## Acceptance
 
 ```bash
-./gradlew spotlessApply && ./gradlew build && ./gradlew :lark-stream-benchmarks:jmh
+./gradlew spotlessApply && ./gradlew build && ./gradlew :surefold-stream-benchmarks:jmh
 ```
 
 ## Open questions

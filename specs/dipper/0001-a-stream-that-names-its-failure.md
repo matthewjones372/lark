@@ -1,7 +1,7 @@
 # 0001 — A stream that names its failure
 
 *Dipper's spec 0001, imported with the code it describes; the module it
-names is `lark-stream` here.*
+names is `surefold-stream` here.*
 
 ## Problem
 

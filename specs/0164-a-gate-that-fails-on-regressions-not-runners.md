@@ -30,7 +30,7 @@ The 43 tables the gate has uploaded (39 runs, re-runs included) say why:
 - **A wider tolerance for every row.** At 10% the gate already misses nothing that
   matters. The noise is the problem, not the threshold.
 - **Subtracting the table's median shift.** It cancels drift, but it would also hide
-  a change that slows every row, which is exactly a regression in `lark-stream`'s core.
+  a change that slows every row, which is exactly a regression in `surefold-stream`'s core.
 
 ## Shape
 
@@ -38,8 +38,8 @@ The 43 tables the gate has uploaded (39 runs, re-runs included) say why:
 order A B B A A B …, so drift hits both sides equally:
 
 ```bash
-bench/lark-stream-benchmarks/gate.sh origin/main               # 3 rounds, every row
-GATE_ROUNDS=5 bench/lark-stream-benchmarks/gate.sh HEAD Chain   # more rounds, one class
+bench/surefold-stream-benchmarks/gate.sh origin/main               # 3 rounds, every row
+GATE_ROUNDS=5 bench/surefold-stream-benchmarks/gate.sh HEAD Chain   # more rounds, one class
 ```
 
 `jmhCompare` takes each side's round files and pairs them by round. A row is SLOWER
@@ -86,7 +86,7 @@ after this change (stack entry 3).
 ```bash
 # in Actions: benchmarks → Run workflow, base = <this branch>, five times: all green
 # a throwaway branch with Blackhole.consumeCPU in ChainBenchmark.forks (+30%):
-bench/lark-stream-benchmarks/gate.sh origin/main ChainBenchmark   # red, on forks only
+bench/surefold-stream-benchmarks/gate.sh origin/main ChainBenchmark   # red, on forks only
 ```
 
 ## Open questions

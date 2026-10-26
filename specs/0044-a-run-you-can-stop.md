@@ -3,7 +3,7 @@
 ## Problem
 
 `Run.run(system)` answers a `CompletionStage<Exit<E, R>>` and nothing else
-([Run.kt](../lark-stream/src/main/kotlin/io/github/matthewjones372/lark/stream/Run.kt)).
+([Run.kt](../surefold-stream/src/main/kotlin/io/github/matthewjones372/surefold/stream/Run.kt)).
 A pipeline that never ends on its own, such as a `Stream.tick` feed or a
 subscriber to a hub, has no way to be ended by whoever started it. Pekko's
 `KillSwitch` is the tool for that. It is a materialised value, and a `Stream`
@@ -21,7 +21,7 @@ it.
   call for a second need.
 - **No materialised values in general.** The kill switch is the only one this
   exposes, as a method rather than a type parameter.
-- **No lark-app node type.** `lark-app-pekko` does not depend on `pekko-stream`,
+- **No surefold-app node type.** `surefold-app-pekko` does not depend on `pekko-stream`,
   and `singleOf(start, release)` with the handle's `close` already does the job.
 - **No abort with a failure.** `KillSwitch.abort(t)` would be a way to end a run
   `Died` on purpose, and nobody has asked.
@@ -75,7 +75,7 @@ not a failure, and the value the sink has is the value there is.
 
 ## Open questions
 
-1. **Does `close()` wait forever?** Recommend yes, through lark-pekko's
+1. **Does `close()` wait forever?** Recommend yes, through surefold-pekko's
    `await`, so an interrupt of the closing thread cancels the wait rather than
    the run. A sink that never completes after `shutdown` is a sink bug, and a
    timeout here would hide it.

@@ -10,33 +10,33 @@ questions only such an application raises have not been asked:
 - does a transfer that touches two entities on two nodes stay correct when a
   node dies;
 - can an operator see that happen, live, without a metrics stack beside it;
-- what does it take to serve lark over HTTP at all?
+- what does it take to serve surefold over HTTP at all?
 
-A reader choosing lark has the guides and nothing to run.
+A reader choosing surefold has the guides and nothing to run.
 
 ## Not doing
 
 - **A real bank.** No authentication, no currencies, no interest, no limits
   beyond "the balance cannot go below zero". An account is picked by id on the
   page.
-- **An HTTP library in lark.** The server is the JDK's
+- **An HTTP library in surefold.** The server is the JDK's
   `com.sun.net.httpserver`, and it lives in the example, not in a published
-  module. A general `lark-http` is a spec of its own if this one shows it is
+  module. A general `surefold-http` is a spec of its own if this one shows it is
   wanted.
 - **A frontend build.** Plain HTML, CSS and JavaScript served from resources:
   no npm, no bundler, no framework. Charts are drawn on a `<canvas>` by hand.
-- **Grafana, Prometheus or OpenTelemetry.** The admin page reads lark's own
+- **Grafana, Prometheus or OpenTelemetry.** The admin page reads surefold's own
   metrics, streamed from the nodes; exporting them elsewhere is
-  `lark-micrometer`'s and `lark-otel`'s already.
-- **Publishing.** `lark-bank` is built and tested with the rest and never
+  `surefold-micrometer`'s and `surefold-otel`'s already.
+- **Publishing.** `surefold-bank` is built and tested with the rest and never
   published, like the benchmarks.
 
 ## Shape
 
-A new module, `lark-bank`: an application you run.
+A new module, `surefold-bank`: an application you run.
 
 ```bash
-./gradlew :lark-bank:run          # three nodes in one JVM, on ports 8081–8083
+./gradlew :surefold-bank:run          # three nodes in one JVM, on ports 8081–8083
 ```
 
 **The platform.** Three cluster nodes (0069, 0073) with H2 in memory as their
@@ -99,7 +99,7 @@ can write with no library. The alternative, a WebSocket, needs an upgrade the
 JDK server does not do, and a library to do it. Stats travel over a cluster
 topic rather than the page asking each node, because that is the pattern a
 real service would use and it exercises 0082; the alternative, the admin node
-scraping the others over HTTP, is simpler but shows nothing of lark.
+scraping the others over HTTP, is simpler but shows nothing of surefold.
 Recommended: SSE, fed by topics.
 
 ## Stack
@@ -131,8 +131,8 @@ Recommended: SSE, fed by topics.
 ## Acceptance
 
 ```bash
-./gradlew :lark-bank:build
-./gradlew :lark-bank:run    # then open http://localhost:8081 and /admin
+./gradlew :surefold-bank:build
+./gradlew :surefold-bank:run    # then open http://localhost:8081 and /admin
 ```
 
 ## Open questions
@@ -172,7 +172,7 @@ Decided while building `spec-0094-bank`:
 Decided while building `spec-0094-bank-cluster`:
 - **Producers by incarnation.** Each node's two durable producers are named by its name and its member uid, so a node started again under the same name never shares a producer with its earlier life.
 - **Adopted on removal.** When a member is removed, the oldest `Up` member left starts that member's producers again, and they send what it kept. A node that is closing adopts nothing.
-- **Waiting without `Cluster.await`.** That is internal to `lark-cluster`, so each node keeps its own view from its `MemberEvent`s, with a condition to wait on.
+- **Waiting without `Cluster.await`.** That is internal to `surefold-cluster`, so each node keeps its own view from its `MemberEvent`s, with a condition to wait on.
 - **Waiting for transfers.** An ask can be dead-lettered while a crashed node's shards move, so the test does not ask each transfer how it ended. Each node reports every transfer that ends, and the test waits on a blocking queue until all 1,000 have. A repeated answer reports the end again, so a report lost to a crash is made again.
 - **The crash bites.** One sender per node runs at once, and n3 goes halfway through its share. Without adoption, transfers never end, and the test fails. An account that debits a repeat again ends with 1,713 of the 20,000.
 - **Postgres is cheap.** `--jdbc URL` takes a Postgres or H2 URL, and creates the journal's tables if they are missing. The Postgres driver is one jar on the classpath, and embedded Postgres is used only in the tests. `--node n2 --jdbc URL` runs one node alone. The cluster ports are 25521 to 25523.
@@ -204,7 +204,7 @@ Decided while building `spec-0094-sse`:
 - **What the tests catch.** A queue that drops its oldest event of any kind fails them. So does a stream whose writer leaves the hub in place when it ends.
 
 Decided while building `spec-0094-stats`:
-- **The recorder.** Each node's thread binds a `Recorder`, lark's `Metrics` kept in memory, with `metrics.locally`, so its flock's own metrics land there. The sampler reads shards, entities, unconfirmed deliveries and dead letters from it, each summed over its tags.
+- **The recorder.** Each node's thread binds a `Recorder`, surefold's `Metrics` kept in memory, with `metrics.locally`, so its flock's own metrics land there. The sampler reads shards, entities, unconfirmed deliveries and dead letters from it, each summed over its tags.
 - **The bank's own numbers.** A transfer that ends is counted by outcome and timed through the same recorder. The time runs from the start the API sent, which now carries `at`. `transfersPerSecond` and `refused` are per sample; `p99Ms` is over the transfers that ended in that second.
 - **Who tells of a member.** Every node sees each change, so one tells: the oldest `Up` member that every other can reach. When that member is the one that crashed, the next oldest tells instead.
 - **Ids.** Stats carry an `id:` line counting up on each node, as the spec's example does. Member and transfer events carry none.
@@ -222,5 +222,5 @@ Decided while building `spec-0094-admin`:
 - **Past the soft cap.** About 400 lines, most of them the page's HTML, CSS and script.
 
 Decided after shipping ([#313](https://github.com/matthewjones372/lark/pull/313)):
-- **JSON through a library.** The hand-written writer and reader are gone. The bodies are `@Serializable` classes, read and written by `kotlinx-serialization-json`, and so are the stats and events on `/admin/stream`. What goes over the wire is unchanged. The library is a dependency of `lark-bank` alone, so the published modules still take no JSON library.
+- **JSON through a library.** The hand-written writer and reader are gone. The bodies are `@Serializable` classes, read and written by `kotlinx-serialization-json`, and so are the stats and events on `/admin/stream`. What goes over the wire is unchanged. The library is a dependency of `surefold-bank` alone, so the published modules still take no JSON library.
 - **A body the route cannot read.** A body that is not JSON, or not the shape its route takes, is a 400 naming what was expected, as in `the body is not an account`. A field of the wrong type, as in `"amount":"lots"`, is refused by the decoder, not by the route.

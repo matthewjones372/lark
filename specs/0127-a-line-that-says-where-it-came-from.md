@@ -4,8 +4,8 @@
 
 `logInfo("registering $id")` builds a `LogLine` of level, message, time, cause
 and annotations. Nothing records who called it. `StderrLogger` prints no source,
-and `Slf4jLogger` writes every line to one SLF4J logger, `"lark"`, so `%logger`
-reads `lark` on every line and a backend's `%C`/`%L` resolve to
+and `Slf4jLogger` writes every line to one SLF4J logger, `"surefold"`, so `%logger`
+reads `surefold` on every line and a backend's `%C`/`%L` resolve to
 `Slf4jLogger.say`. A service cannot tell which class wrote a line, and it cannot
 set a level for one package's lines without setting it for all of them.
 
@@ -16,7 +16,7 @@ for it, and neither one reaches the backend's logger name.
 
 - **No change at the call site.** `logInfo` stays a top-level function with no
   logger argument, and the 41 call sites stay as they are.
-- **No named-logger API.** There will be no `larkLogger<Registry>()`.
+- **No named-logger API.** There will be no `surefoldLogger<Registry>()`.
 - **No method or line number.** Only the class.
 - **No level check before the line is built.** Spec 0032 Q1 still applies.
 
@@ -83,10 +83,10 @@ callers until they recompile.
       Done when: each site's existing test asserts its `origin`.
 - [x] **`spec-0127-slf4j-by-origin`** — `Slf4jLogger` names its SLF4J logger by
       `origin` unless it was given a name. README and cookbook say so, including
-      the change for anyone who configured `<logger name="lark">`.
+      the change for anyone who configured `<logger name="surefold">`.
       Done when: a line from `Registry` reaches the logger named `…Registry`, a
       `Slf4jLogger("app")` still writes to `app`, and a line with no origin
-      reaches `lark`.
+      reaches `surefold`.
 
 ## Acceptance
 
@@ -97,13 +97,13 @@ callers until they recompile.
 ## Open questions
 
 1. **Should the `ClassValue` hold the SLF4J logger too?** It would save
-   `getLogger`'s own cache lookup, but `lark` cannot name an SLF4J type.
+   `getLogger`'s own cache lookup, but `surefold` cannot name an SLF4J type.
    Recommend not doing it unless a profile shows it matters.
 2. **Should a top-level function report `RegistryKt`, or the file name without
    the `Kt`?** Recommend `RegistryKt`, the class as the JVM names it, so it
    matches what a stack trace prints.
 3. **What about Java callers?** Java does not inline Kotlin functions, so a call
-   from Java reports `LoggerKt`. Recommend accepting that: lark's API is
+   from Java reports `LoggerKt`. Recommend accepting that: surefold's API is
    Kotlin-first.
 4. **What about a call inside someone's own inline helper?** It reports the
    class where the helper is used, not where it is defined. Recommend accepting

@@ -32,7 +32,7 @@ jobs:
           # checkout has no tags to derive it from.
           fetch-depth: 0
 
-      # The same two as release.yml: 27 for lark-structured's toolchain, 25 for Gradle.
+      # The same two as release.yml: 27 for surefold-structured's toolchain, 25 for Gradle.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

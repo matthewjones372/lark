@@ -29,7 +29,7 @@ Kafka.read(properties, Topic("orders"), partitions = listOf(0, 1, 2), key, value
 ```
 
 `From` gains `Time(Instant)`. `startAt` on `consume` applies at each assignment to a partition with nothing
-committed, or always for `Own`. The hooks run on the polling thread, after lark's own revoke handling.
+committed, or always for `Own`. The hooks run on the polling thread, after surefold's own revoke handling.
 
 ## Why this shape
 

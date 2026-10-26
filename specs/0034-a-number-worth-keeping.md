@@ -5,7 +5,7 @@
 `logInfo` writes to whichever `Logger` the thread has bound, and
 [0032](0032-a-logger-someone-else-already-configured.md) made the backend a
 dependency rather than a line in `main`. There is nothing of the kind for a
-number. A service that wants to count adoptions reaches past `lark` for a
+number. A service that wants to count adoptions reaches past `surefold` for a
 `MeterRegistry`, threads it through the graph as a node, and takes a dependency
 on Micrometer in its domain to do it.
 
@@ -21,7 +21,7 @@ becomes of it is somebody else's dependency.
   Every backend this targets has spent years on that.
 - **No summary or frequency** in a first pass, and no exporter or scrape
   endpoint: a service already has one.
-- **No dependency in `lark`.** JDK and Arrow, as ever.
+- **No dependency in `surefold`.** JDK and Arrow, as ever.
 
 ## Shape
 
@@ -40,10 +40,10 @@ metricTagged("species" to "tortoise") {   // scoped, and a fork inherits it
 Setup is a dependency and nothing else, as it is for logging:
 
 ```kotlin
-implementation("io.github.matthewjones372:lark-micrometer:$larkVersion")
+implementation("io.github.matthewjones372:surefold-micrometer:$surefoldVersion")
 ```
 
-- `Metrics` is the seam, bound in a `LarkLocal` and found on the classpath
+- `Metrics` is the seam, bound in a `SurefoldLocal` and found on the classpath
   through a `ServiceLoader` — the shape `Logger` has after 0032.
 - The default records nothing and fails at nothing. `capturingMetrics { }` binds
   one a test can read, as `capturingLogs` does.
@@ -67,7 +67,7 @@ is a second thing with a second scope on purpose, and the rule — few values,
 known in advance — belongs in its KDoc.
 
 The alternative is tags at every call site and no scope. Safer, and it loses the
-reason to put this in `lark` at all: a tag bound once is on every measurement a
+reason to put this in `surefold` at all: a tag bound once is on every measurement a
 fork takes underneath it, which a `ThreadLocal` cannot do.
 
 ## Stack
@@ -77,13 +77,13 @@ fork takes underneath it, which a `ThreadLocal` cannot do.
       `capturingMetrics`.
       Done when: a counter incremented three times reads as 3 in a capture,
       nothing bound records nothing and throws nothing, and
-      `NoOtherDependenciesTest` in `lark` is unchanged.
+      `NoOtherDependenciesTest` in `surefold` is unchanged.
 - [x] **`spec-0034-tags-and-timing`** ([#76](https://github.com/matthewjones372/lark/pull/76)) — `metricTagged`, inherited by a fork, and
       `timed`.
       Done when: a measurement on a `parMap` fork carries the tag its opener
       bound, one outside the block does not, and `timed` records a duration and
       returns the block's value.
-- [x] **`spec-0034-micrometer`** ([#77](https://github.com/matthewjones372/lark/pull/77)) — `lark-micrometer`: the adapter, the service
+- [x] **`spec-0034-micrometer`** ([#77](https://github.com/matthewjones372/lark/pull/77)) — `surefold-micrometer`: the adapter, the service
       file, and a `NoOtherDependenciesTest` naming `micrometer-core` and no more.
       Done when: with the module on the classpath and nothing bound, a counter
       appears in a `SimpleMeterRegistry` with its tags.

@@ -17,7 +17,7 @@ missing.
   library types the `Either` split and nothing else.
 - **No second materialised value on `Run`.** `Run<E, R>` carries one; the
   sink's is it.
-- **No sinks of lark's own.** Every destination is a Pekko `Sink`.
+- **No sinks of surefold's own.** Every destination is a Pekko `Sink`.
 
 ## Shape
 

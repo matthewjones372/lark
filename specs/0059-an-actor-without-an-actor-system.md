@@ -2,19 +2,19 @@
 
 ## Problem
 
-An actor is lark's best tool for one writer over some state: the petshop's
+An actor is surefold's best tool for one writer over some state: the petshop's
 `Shop` (`Adoptions.kt`) exists so two adoptions of one tortoise cannot both
 succeed. Today that means Pekko. A step must not block, so a repository call
 becomes `pipeToSelf`, an extra state and a stash. The test needs an
 `ActorSystem`, probes and timed `expectMessage`. And a failure crosses into
-`Throwable`, beside lark's declared errors. 0058 smooths the Kotlin surface but
+`Throwable`, beside surefold's declared errors. 0058 smooths the Kotlin surface but
 cannot change any of that, because it is Pekko's runtime.
 
 ## Not doing
 
 - **Lifecycle, time, topology:** signals, supervision, `watch`, children (0060);
   timers, receive timeout, stash (0061); routers, receptionist, dead letters and
-  lark-app nodes (0062).
+  surefold-app nodes (0062).
 - **Keyed entities, persistence, transport, membership and sharding** (0063–0066).
   This spec only keeps them possible; see the last bullets of Shape.
 - **Seeded interleavings.** `.test()` runs actors in a fixed order; exploring
@@ -23,7 +23,7 @@ cannot change any of that, because it is Pekko's runtime.
 
 ## Shape
 
-A module, `lark-actor`, on `lark` and nothing else.
+A module, `surefold-actor`, on `surefold` and nothing else.
 
 ```kotlin
 sealed interface Shop
@@ -98,7 +98,7 @@ Recommended: the context.
 
 ## Stack
 
-- [x] **`spec-0059-module`** ([#108](https://github.com/matthewjones372/lark/pull/108)) — `lark-actor`, `Behaviour`, `Next`, `Reply`,
+- [x] **`spec-0059-module`** ([#108](https://github.com/matthewjones372/lark/pull/108)) — `surefold-actor`, `Behaviour`, `Next`, `Reply`,
       `.test()` for one actor, `ProtocolTest`, `NoOtherDependenciesTest`.
       Done when: the `Shop` above passes its tests with no thread started.
 - [x] **`spec-0059-runtime`** ([#109](https://github.com/matthewjones372/lark/pull/109)) — mailbox, activation, `spawn`, `tell`, `ask`.
@@ -107,9 +107,9 @@ Recommended: the context.
 - [x] **`spec-0059-idle`** ([#110](https://github.com/matthewjones372/lark/pull/110)) — the test scope for many actors, and `awaitIdle()`.
       Done when: the same scenarios pass under both runtimes, with no
       `eventually`, sleep or timed expectation (a detekt rule says so).
-- [x] **`spec-0059-bench`** ([#112](https://github.com/matthewjones372/lark/pull/112)) — `lark-actor-benchmarks`, JMH against Pekko:
+- [x] **`spec-0059-bench`** ([#112](https://github.com/matthewjones372/lark/pull/112)) — `surefold-actor-benchmarks`, JMH against Pekko:
       tell 1→1 and N→1, ping-pong p50/p99, heap per idle actor, a 1 ms blocking
-      step. Laid out as `lark-stream-benchmarks` is. Done when: a baseline is
+      step. Laid out as `surefold-stream-benchmarks` is. Done when: a baseline is
       committed and the README quotes it, gaps included.
 - [x] **`spec-0059-throughput`** ([#113](https://github.com/matthewjones372/lark/pull/113)) — the runtime tuned against that baseline: a
       busy actor yields its carrier rather than starting a thread, the backlog
@@ -125,7 +125,7 @@ Recommended: the context.
 
 ```bash
 ./gradlew spotlessApply && ./gradlew build
-./gradlew :lark-actor-benchmarks:jmh
+./gradlew :surefold-actor-benchmarks:jmh
 ```
 
 ## Open questions

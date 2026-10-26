@@ -2,17 +2,17 @@
 
 ## Problem
 
-A `lark-actor` actor can only reach another through a ref someone handed it.
+A `surefold-actor` actor can only reach another through a ref someone handed it.
 Spreading work over four workers means spawning four and writing the
 round-robin by hand, and the same key reaching the same worker means writing
 the hash by hand too. An actor that wants "whoever handles adoptions" has to be
 given that ref at construction, so everything is wired in `main` in dependency
 order. A message told to an actor that has stopped, or one its step answers
 with `unhandled()`, disappears without a trace, so a typo'd protocol or a race
-with a stop looks like a hang. An application built with `lark-app` cannot
-declare an actor as a node at all: `lark-app-pekko` can, for Pekko's.
+with a stop looks like a hang. An application built with `surefold-app` cannot
+declare an actor as a node at all: `surefold-app-pekko` can, for Pekko's.
 
-0059 put routers, the receptionist, dead letters and `lark-app` nodes off to
+0059 put routers, the receptionist, dead letters and `surefold-app` nodes off to
 here.
 
 ## Not doing
@@ -68,7 +68,7 @@ testActors {
     deadLetters shouldBe listOf(DeadLetter(desk.address, Adopt(sam), DeadLetter.Why.Stopped))
 }
 
-// lark-app-actor: actors as nodes, keyed by the ref of their protocol.
+// surefold-app-actor: actors as nodes, keyed by the ref of their protocol.
 val app = actors() + actor<Adoption, AdoptionRepository>("desk") { repo -> desk(repo) }
 app.use { desk: ActorRef<Adoption> -> … }
 ```
@@ -97,17 +97,17 @@ app.use { desk: ActorRef<Adoption> -> … }
   `Stopped` or `Unhandled`: a message told to a stopped actor, or one its step
   answers `unhandled()`. A full mailbox is not one; it still fails the step,
   so a backpressure bug stays a failure rather than a log line. A flock hands each to the handler set with
-  `onDeadLetter`, which by default logs it at debug through lark's `Logger`;
-  it is `lark-actor`'s, as an extension, so `lark`'s `flock` does not change. `.test()` and
+  `onDeadLetter`, which by default logs it at debug through surefold's `Logger`;
+  it is `surefold-actor`'s, as an extension, so `surefold`'s `flock` does not change. `.test()` and
   `testActors` keep them in `deadLetters`, in order.
-- **`lark-app-actor`.** `actors()` is a node holding a flock for the
+- **`surefold-app-actor`.** `actors()` is a node holding a flock for the
   application's life, opened on a thread of its own that waits until release,
-  since `lark-app`'s resource scope has no forks to lend; every actor still
-  lives in a flock and `lark` needs nothing new, and releasing it closes the
+  since `surefold-app`'s resource scope has no forks to lend; every actor still
+  lives in a flock and `surefold` needs nothing new, and releasing it closes the
   flock, stopping every actor after its running step. `actors(onDeadLetter)`
   sets the flock's dead-letter handler. `Flock.stop(ref)` is new in
-  `lark-actor`, so a node can stop its one actor and wait for it. `actor<M, D…>(name) { deps -> behaviour }` is a node
-  keyed by `ActorRef<M>`, as in `lark-app-pekko`, stopped before anything it
+  `surefold-actor`, so a node can stop its one actor and wait for it. `actor<M, D…>(name) { deps -> behaviour }` is a node
+  keyed by `ActorRef<M>`, as in `surefold-app-pekko`, stopped before anything it
   depends on is released.
 
 ## Why this shape
@@ -134,7 +134,7 @@ and can say "this was lost" exactly once.
 - [x] **`spec-0062-routers`** ([#131](https://github.com/matthewjones372/lark/pull/131)) — `pool` with `roundRobin` and `hashing`, and
       `group`. Done when: a pool of four hands eight messages two to each, one
       key always reaches one routee, and a failed routee restarts alone.
-- [x] **`spec-0062-app`** ([#132](https://github.com/matthewjones372/lark/pull/132)) — `lark-app-actor`: `actors()` and `actor<M>()`.
+- [x] **`spec-0062-app`** ([#132](https://github.com/matthewjones372/lark/pull/132)) — `surefold-app-actor`: `actors()` and `actor<M>()`.
       Done when: an application with an actor node starts, and on the way out
       the actor has stopped before the node it depends on is released.
 

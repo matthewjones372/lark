@@ -4,7 +4,7 @@
 
 `Forks` refuses `mapPar`, so a pipeline with a slow call in it runs one call at a
 time, or runs on Pekko. The two backends were measured side by side
-(`lark-stream-benchmarks`), and per element Forks is 29.9 ns and Pekko 91.1 ns.
+(`surefold-stream-benchmarks`), and per element Forks is 29.9 ns and Pekko 91.1 ns.
 The gap is too large to give up for the sake of one blocking stage.
 
 `buffer` is Pekko-only. It takes Pekko's `OverflowStrategy`, so a description
@@ -35,7 +35,7 @@ Stream.from(ids)
   input order, and pulls upstream only while fewer than `n` are in flight. Only
   the bodies run elsewhere, so upstream stays on one thread and its fused stages
   need no locks.
-- **`buffer(size)` in `lark-stream`.** It is a new node, `Node.Buffer`.
+- **`buffer(size)` in `surefold-stream`.** It is a new node, `Node.Buffer`.
   - Forks runs its upstream on a fork of its own, into a bounded queue.
   - Pekko compiles it to `buffer(size, backpressure)`.
   - `TestStreams` runs it as a worker taking turns, as `groupedWithin` does.
@@ -72,7 +72,7 @@ single producer and consumer need only a bounded queue.
 
 ```bash
 ./gradlew build
-lark-stream-benchmarks/gate.sh origin/main "MapParBenchmark|ChainBenchmark"
+surefold-stream-benchmarks/gate.sh origin/main "MapParBenchmark|ChainBenchmark"
 ```
 
 ## Open questions
@@ -81,7 +81,7 @@ lark-stream-benchmarks/gate.sh origin/main "MapParBenchmark|ChainBenchmark"
 2. **Honour `MapPar.on`, the executor a caller gave, on Forks?** Recommended: yes,
    so a body that must stay on a given pool still does.
 3. **In-flight bodies at an early end: interrupt them, or let them finish and
-   drop the results?** Recommended: interrupt, which is what lark's forks do.
+   drop the results?** Recommended: interrupt, which is what surefold's forks do.
 4. **Should `buffer` on Pekko also add an async boundary?** Otherwise upstream
    does not run ahead concurrently there, as it does on Forks. Recommended: yes,
    `buffer(size, backpressure).async()`, so `buffer` means the same on every

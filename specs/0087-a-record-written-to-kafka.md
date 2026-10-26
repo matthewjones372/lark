@@ -2,7 +2,7 @@
 
 ## Problem
 
-`lark-kafka` reads Kafka and nothing else. A service that consumes, transforms
+`surefold-kafka` reads Kafka and nothing else. A service that consumes, transforms
 and produces holds a `KafkaProducer` of its own, calls `send(...).get()` inside
 `mapRecord`, and gets these wrong:
 
@@ -26,7 +26,7 @@ The petshop's `KafkaBus` is one such hand-written producer.
   consumer's group metadata inside the producer's transaction, which is a
   change to the consumer loop too. At-least-once, with the offset committed
   only after the output is acknowledged, is what this gives.
-- **No Pekko connector producer.** `lark-kafka-pekko` stays a consumer. The
+- **No Pekko connector producer.** `surefold-kafka-pekko` stays a consumer. The
   producer here is `KafkaProducer` behind `mapAsync`, which Pekko runs as it
   runs Forks.
 - **No producer per run.** Unlike the consumer, a `KafkaProducer` is
@@ -65,7 +65,7 @@ Kafka.consume(consumerProperties, Topic("carts"), key = Decoder.string(), value 
   `restartOnDefect` applies, and nothing from it on is committed.
 - **`Producer<ByteArray?, ByteArray?>.deadLetters(topic)`** is a
   `(DecodeError) -> Unit` for `divertLefts`: the record's bytes and headers as
-  read, plus `lark.dead-letter.topic`, `.partition`, `.offset`, `.part` and
+  read, plus `surefold.dead-letter.topic`, `.partition`, `.offset`, `.part` and
   `.cause`. It returns only once the broker has the letter, and throws what the
   producer gave up with, so the bad record is not committed past an unwritten
   letter.
@@ -105,7 +105,7 @@ pulled the same way, and now starts its bodies from a feeding fork too.
 ## Acceptance
 
 ```bash
-./gradlew :lark-kafka:check :lark-stream-forks:check :lark-stream-parity:check
+./gradlew :surefold-kafka:check :surefold-stream-forks:check :surefold-stream-parity:check
 ```
 
 ## Open questions

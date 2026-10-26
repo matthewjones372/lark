@@ -6,9 +6,9 @@ Every module's tests depend on `io.kotest:kotest-assertions-core`, set once in
 the root build. 303 test files import from it, mostly `shouldBe`, `withClue`,
 `shouldThrow`, `shouldNotBeNull` and the collection and string matchers.
 That is a sizeable library for about forty one-line checks, and its
-failure messages and version bumps are not Lark's to decide. Spec 0168
-already moves Lark off Arrow. The maintainer's direction (chat, 2026-10-22):
-Lark has its own assertions, and the build drops Kotest.
+failure messages and version bumps are not Surefold's to decide. Spec 0168
+already moves Surefold off Arrow. The maintainer's direction (chat, 2026-10-22):
+Surefold has its own assertions, and the build drops Kotest.
 
 ## Not doing
 
@@ -22,8 +22,8 @@ Lark has its own assertions, and the build drops Kotest.
 
 ## Shape
 
-A new module, `core/lark-assert`, depends on `lark`, opentest4j and the Kotlin
-stdlib and nothing else. It needs `lark` for `Either`, and opentest4j so that
+A new module, `core/surefold-assert`, depends on `surefold`, opentest4j and the Kotlin
+stdlib and nothing else. It needs `surefold` for `Either`, and opentest4j so that
 IDEs can compare expected and actual (maintainer, 2026-10-23).
 
 A failure names what was expected, what was found, the test's file and line,
@@ -39,16 +39,16 @@ at FlockTest.kt:322
 message gives the expected value, the actual value and the clue:
 
 ```kotlin
-import io.github.matthewjones372.lark.assert.shouldBe
-import io.github.matthewjones372.lark.assert.shouldThrow
-import io.github.matthewjones372.lark.assert.withClue
+import io.github.matthewjones372.surefold.assert.shouldBe
+import io.github.matthewjones372.surefold.assert.shouldThrow
+import io.github.matthewjones372.surefold.assert.withClue
 
 attempt<NotFound, String> { find(2) } shouldBe NotFound(2).left()
 withClue("the loser is interrupted") { loser.wasInterrupted() shouldBe true }
 shouldThrow<IllegalStateException> { leaked.fail("late") }.message shouldContain "returned"
 ```
 
-Lark's own `Either` gets matchers that say which side was expected and show
+Surefold's own `Either` gets matchers that say which side was expected and show
 the whole actual value, in place of `getOrNull() shouldBe`:
 
 ```kotlin
@@ -72,33 +72,33 @@ is a few hundred lines, and it frees the build of a dependency.
   vocabulary of Kotlin test DSLs, not one library's design. This is
   recommended. New names would make the migration hand-written across 303
   files.
-- **Module: new or inside `lark-test`?** `lark-test` promises users it
-  doesn't choose an assertion library for them. A separate `lark-assert`
+- **Module: new or inside `surefold-test`?** `surefold-test` promises users it
+  doesn't choose an assertion library for them. A separate `surefold-assert`
   keeps that promise, and users can opt in.
 
 ## Stack
 
 - [x] **`spec-0169-either-matchers`** ([#488](https://github.com/matthewjones372/lark/pull/488)) — the new module, with
-      `shouldBeRight` and `shouldBeLeft` for Lark's `Either`, plus
+      `shouldBeRight` and `shouldBeLeft` for Surefold's `Either`, plus
       `shouldBe` and `shouldThrow` so that its own tests use nothing else,
       and its `NoOtherDependenciesTest`. It lands first because spec 0168's
       `flock-on-fail` needs it.
       Done when: each matcher has a passing and a failing test, and the
       failing test asserts the message.
-- [x] **`spec-0169-lark-assert-values`** ([#530](https://github.com/matthewjones372/lark/pull/530)) — `shouldNotBe`, the null, type and
+- [x] **`spec-0169-surefold-assert-values`** ([#530](https://github.com/matthewjones372/lark/pull/530)) — `shouldNotBe`, the null, type and
       identity checks, `withClue`, the comparisons and the string matchers.
-- [x] **`spec-0169-lark-assert-collections`** ([#531](https://github.com/matthewjones372/lark/pull/531)) — the collection and map
-      matchers. Split from one `spec-0169-lark-assert` entry (maintainer,
+- [x] **`spec-0169-surefold-assert-collections`** ([#531](https://github.com/matthewjones372/lark/pull/531)) — the collection and map
+      matchers. Split from one `spec-0169-surefold-assert` entry (maintainer,
       2026-10-24), as the two run past the cap together.
       Done when, for both: every check has a passing and a failing test, and
       the failing test asserts the message.
-- [x] **`spec-0169-core-tests`** ([#544](https://github.com/matthewjones372/lark/pull/544)) — `core/` tests move to `lark-assert`.
+- [x] **`spec-0169-core-tests`** ([#544](https://github.com/matthewjones372/lark/pull/544)) — `core/` tests move to `surefold-assert`.
 - [x] **`spec-0169-stream-actor-tests`** ([#546](https://github.com/matthewjones372/lark/pull/546)) — `stream/` and `actor/` tests
       move.
 - [x] **`spec-0169-app-kafka-tests`** ([#549](https://github.com/matthewjones372/lark/pull/549)) — the remaining modules' tests move,
       and Kotest leaves the root build.
-      `lark-app-gradle` and `lark-app-compiler` stay at 21 for their main code,
-      but their tests compile and run on 25 to use `lark-assert` (maintainer,
+      `surefold-app-gradle` and `surefold-app-compiler` stay at 21 for their main code,
+      but their tests compile and run on 25 to use `surefold-assert` (maintainer,
       2026-10-24).
       Done when: `grep -r io.kotest` finds nothing outside the docs.
 - [x] **`spec-0169-docs`** ([#573](https://github.com/matthewjones372/lark/pull/573)) — `docs/testing.md`, `docs/actors.md`, AGENTS.md
@@ -120,9 +120,9 @@ Answered (maintainer, 2026-10-23: the recommendations stand).
 1. ~~Should failures throw opentest4j's `AssertionFailedError`?~~ Revised
    (2026-10-23): yes. Failures carry expected and actual for IDEs to compare,
    plus the test's location and source line.
-2. ~~Is the order 0168 then 0169, or interleaved?~~ The `lark-assert`
+2. ~~Is the order 0168 then 0169, or interleaved?~~ The `surefold-assert`
    module can land at any time. The test migrations wait until each
    module's 0168 entry has landed, so each test file is rewritten once.
-3. ~~Should `lark-assert` be published?~~ Yes.
+3. ~~Should `surefold-assert` be published?~~ Yes.
 4. ~~Should `shouldBe` show a field-by-field diff for data classes?~~ Not in
    the first entry. `toString()` on both sides for now.

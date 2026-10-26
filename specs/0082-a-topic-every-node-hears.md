@@ -47,8 +47,8 @@ prices.publish(PriceChanged("sku-1", 499))               // every subscriber, on
   whether or not it has subscribers. At a few dozen members that is cheaper
   than keeping a registry agreed, and a node that has none drops it on
   arrival.
-- **Metrics.** `lark.topic.published{topic}`, `lark.topic.delivered{topic}` and
-  `lark.topic.subscribers{topic}`, through 0081's flock metrics.
+- **Metrics.** `surefold.topic.published{topic}`, `surefold.topic.delivered{topic}` and
+  `surefold.topic.subscribers{topic}`, through 0081's flock metrics.
 
 ## Why this shape
 

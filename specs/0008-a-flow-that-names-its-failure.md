@@ -2,7 +2,7 @@
 
 ## Problem
 
-`lark-stream` types the source side only. `Stream<E, A>` wraps a
+`surefold-stream` types the source side only. `Stream<E, A>` wraps a
 `Source<A, NotUsed>` and every operator is written on it, so a reusable
 middle piece — Pekko's `Flow<In, Out, Mat>`, the thing a team `via`s into
 several sources — has no typed spelling. Pekko's `divertTo` lives on both

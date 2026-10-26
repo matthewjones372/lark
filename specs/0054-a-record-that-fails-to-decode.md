@@ -23,7 +23,7 @@ record.
 
 ## Not doing
 
-- **No Avro in lark.** `lark-kafka` depends on no Avro library and no registry
+- **No Avro in surefold.** `surefold-kafka` depends on no Avro library and no registry
   client. It takes any `Deserializer`, and Confluent's, Apicurio's and avro4k's
   are all one.
 - **No dead-letter producer.** `divertLefts` takes a function. Publishing to a
@@ -51,7 +51,7 @@ fun registryDown(t: Throwable): Boolean =
 
 - **The connector reads bytes.** `subscribe` takes
   `ConsumerSettings<ByteArray, ByteArray>` and decodes in the stream, not in
-  the poll. That puts the decision about each failure in lark's hands.
+  the poll. That puts the decision about each failure in surefold's hands.
 - **`Decoder(deserializer, transient)` classifies each throw.** A throw that
   `transient` accepts stays a defect, so the run dies and restarts. Any other
   throw is `Left(DecodeError)`.

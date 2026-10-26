@@ -14,7 +14,7 @@ that means Pekko Cluster, or ZooKeeper, etcd or Consul run beside the service.
 - **An external coordinator.** No ZooKeeper, etcd or Consul in the core. A
   platform can still break a split through a `Lease` (below).
 - **Sharding and singletons.** They are 0070, built on the member events here.
-- **A gRPC or HTTP gateway** for callers that are not lark. Later, on its own.
+- **A gRPC or HTTP gateway** for callers that are not surefold. Later, on its own.
 - **Multi-datacentre awareness.** One cluster is one network.
 
 ## Shape
@@ -33,8 +33,8 @@ flock<Nothing, Unit> {
 
 - **Discovery** finds seed nodes and nothing more. `Discovery.static(…)` and
   `Discovery.dns(…)` (A/AAAA or SRV) are in the core; they cover a Kubernetes
-  headless service and ECS Service Connect or Cloud Map. `lark-cluster-kubernetes`
-  (the pods API) and `lark-cluster-aws` (Cloud Map and ECS APIs) are optional.
+  headless service and ECS Service Connect or Cloud Map. `surefold-cluster-kubernetes`
+  (the pods API) and `surefold-cluster-aws` (Cloud Map and ECS APIs) are optional.
 - **Membership** is gossip, as SWIM does it, over 0068's transport: each node
   probes a random member each round, asks others to probe one that does not
   answer, and spreads what it learns with every message. A member is `Joining`,
@@ -49,7 +49,7 @@ flock<Nothing, Unit> {
 ## Split brain
 
 A partition leaves each side seeing the other as unreachable. If both carried
-on, both would run the same singleton and the same entities. lark resolves it
+on, both would run the same singleton and the same entities. surefold resolves it
 the way Pekko's split brain resolver does:
 
 1. **Wait for a stable view.** Nothing is decided until reachability has not
@@ -62,8 +62,8 @@ the way Pekko's split brain resolver does:
      address stays.
    - `staticQuorum(n)`: a side with at least `n` members stays.
    - `lease(lease)`: the side that acquires a `Lease` stays. It is for two
-     nodes or an even split, where a majority cannot decide. `lark-cluster-kubernetes`
-     ships a Kubernetes `Lease`, and `lark-cluster-aws` a DynamoDB one.
+     nodes or an even split, where a majority cannot decide. `surefold-cluster-kubernetes`
+     ships a Kubernetes `Lease`, and `surefold-cluster-aws` a DynamoDB one.
 3. **The losing side stops first.** It downs itself at once: its flock stops
    its cluster actors and leaves. The winning side waits `stableAfter` again
    before it removes the unreachable members and takes over their work, so
@@ -107,11 +107,11 @@ Recommended: gossip, with downing deciding splits.
       the losing side downing itself. Done when: a 3–2 partition leaves the
       three up and the two stopped, with no moment where both sides are up.
       ([#164](https://github.com/matthewjones372/lark/pull/164))
-- [x] **`spec-0069-kubernetes`** — `lark-cluster-kubernetes`: discovery from
+- [x] **`spec-0069-kubernetes`** — `surefold-cluster-kubernetes`: discovery from
       the pods API and a `Lease` object. Done when: tested against a fake of
       its API.
       ([#165](https://github.com/matthewjones372/lark/pull/165))
-- [x] **`spec-0069-aws`** — `lark-cluster-aws`: discovery from Cloud Map and
+- [x] **`spec-0069-aws`** — `surefold-cluster-aws`: discovery from Cloud Map and
       ECS, and a DynamoDB lease. Done when: tested against a fake of its API.
       ([#166](https://github.com/matthewjones372/lark/pull/166))
 
@@ -123,7 +123,7 @@ Recommended: gossip, with downing deciding splits.
 
 ## Open questions
 
-- **Its own module (`lark-cluster`) on top of `lark-actor-remote`?**
+- **Its own module (`surefold-cluster`) on top of `surefold-actor-remote`?**
   Recommended: yes.
 - **Default `stableAfter`?** Recommended: 20 seconds, as Pekko's, and shorter
   in tests.
@@ -134,7 +134,7 @@ Recommended: gossip, with downing deciding splits.
   once every reachable member has seen the joiner.
 
 Decided (2026-09-26): every open question goes as recommended. The cluster is
-its own module, `lark-cluster`, on top of `lark-actor-remote`; `stableAfter`
+its own module, `surefold-cluster`, on top of `surefold-actor-remote`; `stableAfter`
 is 20 seconds by default; a losing side stops what the cluster started and
 tells the service, which decides whether the process ends; and the oldest
 reachable member moves a joiner to `Up` once every reachable member has seen it.

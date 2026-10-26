@@ -2,7 +2,7 @@
 
 ## Problem
 
-Specs 0111–0113 add a circuit breaker, a rate limiter and a bulkhead, and Lark already has `retry` and `timeout`.
+Specs 0111–0113 add a circuit breaker, a rate limiter and a bulkhead, and Surefold already has `retry` and `timeout`.
 Nested as closures, no guard can see the others, so two costs follow. The order matters, but only a cookbook says
 what it should be. Each guard also wastes what the others know: a retry sleeps on its own schedule into a limiter
 that knew when the next token was due, or into a breaker that will not half-open before the caller gives up. A token
@@ -50,16 +50,16 @@ either { guarded(partner, ifRejected = { QuoteError.Unavailable(it) }) { quote(i
 | Call throws | The breaker records it, and retry follows its schedule. Stop early if the next delay would overrun the deadline. |
 | Each attempt | One fork, for whichever is shorter: `attemptTimeout` or the remaining budget. |
 
-- Metrics: `lark.policy.calls` (a counter tagged `policy`, `outcome=success|failure|rejected` and
+- Metrics: `surefold.policy.calls` (a counter tagged `policy`, `outcome=success|failure|rejected` and
   `refused_by=breaker|limiter|bulkhead|deadline`). Each guard keeps its own meters as well.
 
 ## Why this shape
 
-A description compiled once is how Lark already treats streams and endpoints, and it is what lets the runner act on
+A description compiled once is how Surefold already treats streams and endpoints, and it is what lets the runner act on
 what each guard knows. The wins are fewer wasted attempts, tokens and waits, not CPU: a guard costs nanoseconds next
 to a network call. Checking the order rather than taking named fields keeps the code reading in the order it runs,
 and lets a policy hold a `Custom` guard. The alternative, `policy(retry = …, breaker = …)`, cannot be written in a
-wrong order, but it hides the order from the reader and has no place for a guard Lark does not know. The guards
+wrong order, but it hides the order from the reader and has no place for a guard Surefold does not know. The guards
 themselves (0111–0113) expose only what the runner calls, such as `admit`, `record`, `reserve`, `refund` and
 `acquire`, so all of the cross-guard behaviour lives in one file.
 
@@ -70,11 +70,11 @@ Nothing. 0111–0113 each depend on this one. Each guard's PR adds its `Step` an
 ## Stack
 
 - [x] **`spec-0110-policy`** ([#315](https://github.com/matthewjones372/lark/pull/315)) — `Policy`, `Step`, the `policy { }` builder and its order check, `Rejected`,
-      `guarded`, and a runner for `deadline`, `retry`, `attemptTimeout` and `Custom`, in `lark`.
+      `guarded`, and a runner for `deadline`, `retry`, `attemptTimeout` and `Custom`, in `surefold`.
       Done when: a policy built in the wrong order throws naming the expected order; on a `TestClock`, retry stops
       before a delay that would overrun the deadline, each attempt is cut to the remaining budget, and a raise
       passes through uncounted.
-- [x] **`spec-0110-policy-metrics`** ([#316](https://github.com/matthewjones372/lark/pull/316)) — `lark.policy.calls`, plus a cookbook section "Guard a call to something
+- [x] **`spec-0110-policy-metrics`** ([#316](https://github.com/matthewjones372/lark/pull/316)) — `surefold.policy.calls`, plus a cookbook section "Guard a call to something
       unreliable".
       Done when: `capturingMetrics` reads back each outcome and `refused_by` by name.
 
@@ -88,6 +88,6 @@ Nothing. 0111–0113 each depend on this one. Each guard's PR adds its `Step` an
 
 1. **Does a wait for a token or for half-open use up a retry attempt?** No. The call was never made, and the
    deadline already bounds the wait.
-2. **Where can a `Custom` step go?** Anywhere, unchecked. A guard Lark cannot see into cannot be ordered by it.
+2. **Where can a `Custom` step go?** Anywhere, unchecked. A guard Surefold cannot see into cannot be ordered by it.
 3. **Is a policy without `deadline` allowed?** Yes. The budget is then unbounded, and each guard's own `maxWait` is
    its only limit.

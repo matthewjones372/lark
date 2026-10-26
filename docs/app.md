@@ -1,11 +1,11 @@
 # Applications
 
-`lark-app` describes an application as a value: a dependency graph you can
+`surefold-app` describes an application as a value: a dependency graph you can
 check, draw, subset, override and start. Each node says what it builds and
 takes what it needs as parameters, so the whole graph is known before any of it
 is constructed.
 
-With the graph as a value, Lark can:
+With the graph as a value, Surefold can:
 
 - report every missing dependency and cycle before anything starts, at build
   time through a Gradle plugin and in the editor through a compiler plugin;
@@ -18,12 +18,12 @@ A node is a function, and a module is an ordinary Kotlin expression.
 
 ```kotlin
 dependencies {
-    // brings lark, and through it nothing else
-    implementation("io.github.matthewjones372:lark-app:0.10.1")
+    // brings surefold, and through it nothing else
+    implementation("io.github.matthewjones372:surefold-app:0.10.1")
 }
 ```
 
-Everything here is in `io.github.matthewjones372.lark.app`. This page explains
+Everything here is in `io.github.matthewjones372.surefold.app`. This page explains
 how the graph behaves. The [cookbook](cookbook.md) has one compiled recipe per
 task, including configuration, migrations and actors.
 
@@ -40,11 +40,11 @@ task, including configuration, migrations and actors.
 ## Nodes and modules
 
 ```kotlin
-import io.github.matthewjones372.lark.app.Module
-import io.github.matthewjones372.lark.app.boundTo
-import io.github.matthewjones372.lark.app.closingOf
-import io.github.matthewjones372.lark.app.single
-import io.github.matthewjones372.lark.app.singleOf
+import io.github.matthewjones372.surefold.app.Module
+import io.github.matthewjones372.surefold.app.boundTo
+import io.github.matthewjones372.surefold.app.closingOf
+import io.github.matthewjones372.surefold.app.single
+import io.github.matthewjones372.surefold.app.singleOf
 
 val persistence: Module =
     closingOf { cfg: DbConfig -> HikariDataSource(cfg) }.boundTo<DataSource>() +
@@ -86,10 +86,10 @@ returns a platform type such as `Tracer!`, which matches no node asking for
 ## Checking a graph
 
 ```kotlin
-import io.github.matthewjones372.lark.app.findings
-import io.github.matthewjones372.lark.app.render
-import io.github.matthewjones372.lark.app.report
-import io.github.matthewjones372.lark.app.validate
+import io.github.matthewjones372.surefold.app.findings
+import io.github.matthewjones372.surefold.app.render
+import io.github.matthewjones372.surefold.app.report
+import io.github.matthewjones372.surefold.app.validate
 
 app.validate()                                    // Either<NonEmptyList<WiringError>, Plan>
 app.findings(root = typeOf<HttpServer>()).report() // every error and warning, as text
@@ -104,7 +104,7 @@ Each node records the file and line it was written on, so a report names the
 recipe to edit:
 
 ```
-lark-app wiring
+surefold-app wiring
 
 ❯ error: missing DataSource
 ❯     for OrderRepo          Wiring.kt:42
@@ -135,12 +135,12 @@ example.
 An application declares its graph and the node it starts from:
 
 ```kotlin
-import io.github.matthewjones372.lark.app.LarkApp
-import io.github.matthewjones372.lark.app.Module
-import io.github.matthewjones372.lark.app.runApp
+import io.github.matthewjones372.surefold.app.Module
+import io.github.matthewjones372.surefold.app.SurefoldApp
+import io.github.matthewjones372.surefold.app.runApp
 import kotlin.system.exitProcess
 
-object Petshop : LarkApp<HttpServer>() {
+object Petshop : SurefoldApp<HttpServer>() {
     override val module: Module = config + persistence + domain + web
 }
 
@@ -148,7 +148,7 @@ fun main(): Unit = exitProcess(runApp(Petshop).code)
 ```
 
 Starting runs the graph one topological layer at a time. Nodes in the same
-layer start in parallel on [Lark forks](core.md#forking), so the first refusal
+layer start in parallel on [Surefold forks](core.md#forking), so the first refusal
 or failure interrupts its siblings, and everything already acquired is
 released before `runApp` returns.
 
@@ -175,9 +175,9 @@ which is no order to release in.
   stderr; it never ends the process itself. The `exitProcess` is yours, and
   worth calling: a stray non-daemon thread would otherwise keep the JVM alive.
 
-The root is a type argument of `LarkApp` so that a build tool can read it from
+The root is a type argument of `SurefoldApp` so that a build tool can read it from
 the class file without running `main`. `runApp(module) { root: HttpServer -> … }`
-is the same without a `LarkApp`, for tests and one-file programs.
+is the same without a `SurefoldApp`, for tests and one-file programs.
 
 ### Reading the environment
 
@@ -185,8 +185,8 @@ is the same without a `LarkApp`, for tests and one-file programs.
 `sys.property(name)` answer `String?`. Provide `single<Sys> { RealSys }` in the
 application and `FakeSys(mapOf("DB_URL" to "jdbc:…"))` in a test, so no test
 has to set a JVM-wide environment variable. For configuration files, use
-[`lark-app-typesafe`](cookbook.md#configuration-a-module-owns), or
-`lark-app-kotlinx` to read a section from its `@Serializable` class.
+[`surefold-app-typesafe`](cookbook.md#configuration-a-module-owns), or
+`surefold-app-kotlinx` to read a section from its `@Serializable` class.
 
 ## Readiness and health
 
@@ -195,8 +195,8 @@ connection, or a consumer with no partition assignment. A probe makes "started"
 mean "ready":
 
 ```kotlin
-import io.github.matthewjones372.lark.app.closingOf
-import io.github.matthewjones372.lark.app.probe
+import io.github.matthewjones372.surefold.app.closingOf
+import io.github.matthewjones372.surefold.app.probe
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -234,9 +234,9 @@ A test of one class calls its constructor; a test whose claim spans wiring
 uses the graph.
 
 ```kotlin
-import io.github.matthewjones372.lark.app.overriding
-import io.github.matthewjones372.lark.app.subgraph
-import io.github.matthewjones372.lark.app.testApp
+import io.github.matthewjones372.surefold.app.overriding
+import io.github.matthewjones372.surefold.app.subgraph
+import io.github.matthewjones372.surefold.app.testApp
 
 // One class, its collaborators as arguments.
 RegisterUser(InMemoryUsers()).register("ada") shouldBe Registered("ada")
@@ -272,13 +272,13 @@ Each integration is a separate module that makes something a node:
 
 | Module | Provides | Recipe |
 |---|---|---|
-| `lark-app-typesafe` | `config<T>("section") { … }`, a HOCON section read into a type, with every fault in a bad file reported at once; `secret(path)`; where each setting came from | [Configuration](cookbook.md#configuration-a-module-owns) |
-| `lark-app-kotlinx` | `config<T>("section")`, the section read from `T`'s own `@Serializable` properties, every fault at once | [Configuration](cookbook.md#configuration-a-module-owns) |
-| `lark-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
-| `lark-app-openfeature` | `openFeature { provider }`, an OpenFeature provider set before anything reads a flag, keyed by `Client`, ready while the provider is, and shut down on release | [Feature flags](flags.md) |
-| `lark-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
-| `lark-app-actor` | `actors()`, a `lark-actor` flock that lives as long as the application, and `actor("name") { … }`, keyed by Lark's `ActorRef<M>` | [Lark actor](cookbook.md#spawn-a-lark-actor) |
-| `lark-app-cluster` | `cluster("path")`, a cluster membership joined as a HOCON section describes | [Joined from config](cluster.md#joined-from-config) |
+| `surefold-app-typesafe` | `config<T>("section") { … }`, a HOCON section read into a type, with every fault in a bad file reported at once; `secret(path)`; where each setting came from | [Configuration](cookbook.md#configuration-a-module-owns) |
+| `surefold-app-kotlinx` | `config<T>("section")`, the section read from `T`'s own `@Serializable` properties, every fault at once | [Configuration](cookbook.md#configuration-a-module-owns) |
+| `surefold-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
+| `surefold-app-openfeature` | `openFeature { provider }`, an OpenFeature provider set before anything reads a flag, keyed by `Client`, ready while the provider is, and shut down on release | [Feature flags](flags.md) |
+| `surefold-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
+| `surefold-app-actor` | `actors()`, a `surefold-actor` flock that lives as long as the application, and `actor("name") { … }`, keyed by Surefold's `ActorRef<M>` | [Surefold actor](cookbook.md#spawn-a-surefold-actor) |
+| `surefold-app-cluster` | `cluster("path")`, a cluster membership joined as a HOCON section describes | [Joined from config](cluster.md#joined-from-config) |
 
 A choice between modules can also be made inside the graph:
 `choice<Settings, Provided> { settings -> if (…) moduleA else moduleB }` is a
@@ -288,7 +288,7 @@ on `main` and not in 0.10.1.* See the [cookbook](cookbook.md#a-setting-that-pick
 
 ## Checking the graph in the build
 
-`lark-app-gradle` is a Gradle plugin that checks every `LarkApp` in a project
+`surefold-app-gradle` is a Gradle plugin that checks every `SurefoldApp` in a project
 as it compiles. It is published to Maven Central, not the Gradle Plugin Portal,
 so the plugin repositories must include Maven Central:
 
@@ -306,37 +306,37 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.4.10"
-    id("io.github.matthewjones372.lark.wiring") version "0.10.1"
+    id("io.github.matthewjones372.surefold.wiring") version "0.10.1"
 }
 
 repositories { mavenCentral() }
 
-larkWiring {
+surefoldWiring {
     failOn = "WARN"                                  // "FAIL" (the default) or "WARN"
-    diagrams = layout.buildDirectory.dir("wiring")   // default build/reports/lark
+    diagrams = layout.buildDirectory.dir("wiring")   // default build/reports/surefold
 }
 ```
 
-The plugin registers a `larkWiring` task once the Kotlin JVM plugin is
+The plugin registers a `surefoldWiring` task once the Kotlin JVM plugin is
 applied. The task finalizes `classes` and is a dependency of `check`, so it
 runs whenever the IDE or a run configuration builds the project. It:
 
-- finds every `LarkApp` in the project's own class output, loading classes
+- finds every `SurefoldApp` in the project's own class output, loading classes
   without initialising them, so unrelated static state is not run;
 - initialises each match, which runs the expression that assembles its graph
   but none of the nodes in it;
 - checks the graph against the root it declares, and writes `<Name>.mmd`, a
   Mermaid diagram, for each.
 
-A project with no `LarkApp` passes, so a library module in an application
+A project with no `SurefoldApp` passes, so a library module in an application
 build needs no opt-out. Faults are printed in the compiler's format, which the
 IDE turns into entries in its Build window that open the node's source:
 
 ```
-e: file:///…/petshop/app/src/main/kotlin/petshop/app/Wiring.kt:92:1 lark-app: PetShop needs ActorRef<Shop>, and nothing builds it
+e: file:///…/petshop/app/src/main/kotlin/petshop/app/Wiring.kt:92:1 surefold-app: PetShop needs ActorRef<Shop>, and nothing builds it
 ```
 
-Because `single` is inline, the JVM reports a synthetic line for a node; Lark
+Because `single` is inline, the JVM reports a synthetic line for a node; Surefold
 reads the class file's SMAP to map it back to the line the node was written on.
 
 The task runs the graph-building expression, so it sees everything: nodes
@@ -345,31 +345,31 @@ the authoritative check.
 
 ## Checking the graph in the editor
 
-Applying the Gradle plugin also applies `lark-app-compiler`, a K2 compiler
+Applying the Gradle plugin also applies `surefold-app-compiler`, a K2 compiler
 checker that reports the same faults while you type, with no build:
 
 ![IntelliJ underlining `singleOf(::ActorPetShop)` in red, with the tooltip
-"lark-app: PetShop needs ActorRef<Shop>, and nothing builds it".](editor-error.png)
+"surefold-app: PetShop needs ActorRef<Shop>, and nothing builds it".](editor-error.png)
 
 It reads the source rather than running it, so it follows only the shapes it
 knows:
 
 - `single`, `singleOf`, `closingOf` and `choice`;
-- `lark-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
-  `configFromResource` and `configFromFile`; `lark-app-kotlinx`'s `config`;
-  `lark-app-liquibase`'s `migrations`; `lark-app-openfeature`'s `openFeature`; `lark-app-openfeature-flagd`'s `flagdFlags`;
-  `lark-app-pekko`'s `actor`;
-  `lark-app-actor`'s `actors` and `actor`;
+- `surefold-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
+  `configFromResource` and `configFromFile`; `surefold-app-kotlinx`'s `config`;
+  `surefold-app-liquibase`'s `migrations`; `surefold-app-openfeature`'s `openFeature`; `surefold-app-openfeature-flagd`'s `flagdFlags`;
+  `surefold-app-pekko`'s `actor`;
+  `surefold-app-actor`'s `actors` and `actor`;
 - `plus`, `overriding`, `overridingConfig`, `boundTo` and `probe`;
 - references to `val`s and single-expression functions in the same
   compilation, `if` and `when` with single-expression branches, and `as`.
 
-When it meets anything else, including `lark-app-cluster`'s `cluster` and a
+When it meets anything else, including `surefold-app-cluster`'s `cluster` and a
 module defined in another Gradle module, it does not guess: it reports the
-warning `LARK_APP_UNREAD` and leaves that application to the `larkWiring` task.
+warning `SUREFOLD_APP_UNREAD` and leaves that application to the `surefoldWiring` task.
 A false error on working code would be worse than a fault reported a moment
 later. It also reports
-`LARK_APP_UNREAD` when the Kotlin compiler's version differs from the one the
+`SUREFOLD_APP_UNREAD` when the Kotlin compiler's version differs from the one the
 checker was built for.
 
 IntelliJ runs third-party compiler plugins in the editor only after
@@ -378,17 +378,17 @@ IntelliJ runs third-party compiler plugins in the editor only after
 
 ### What the compiler plugin warns about
 
-The same plugin warns where code hand-rolls something Lark provides:
+The same plugin warns where code hand-rolls something Surefold provides:
 
 | Warning | On | Use instead |
 |---|---|---|
-| `LARK_RUN_NEVER_RETURNS_ON_SHUTDOWN` | a `LarkApp`'s `run` that calls a zero-argument `block()`, `join()` or `await()` and never `awaitShutdown()` | `awaitShutdown()`, so a SIGTERM releases the graph |
-| `LARK_SCHEDULER_BY_HAND` | `Executors.newScheduledThreadPool`, `newSingleThreadScheduledExecutor`, `ScheduledThreadPoolExecutor` or `java.util.Timer` in main code | `Stream.tick(every)` started on a [stream backend](stream.md#backends) |
-| `LARK_SECRET_AS_STRING` | `string("…")` in a `config` reading, where the path ends in a secret-like name such as `password`, `token` or `apiKey`, in main code | `secret(path)` |
-| `LARK_SLEEP_IN_TEST` | `Thread.sleep` or `TimeUnit.sleep` in test code | `eventually(within)` from `lark-test`, or a [test clock](testing.md#time) |
+| `SUREFOLD_RUN_NEVER_RETURNS_ON_SHUTDOWN` | a `SurefoldApp`'s `run` that calls a zero-argument `block()`, `join()` or `await()` and never `awaitShutdown()` | `awaitShutdown()`, so a SIGTERM releases the graph |
+| `SUREFOLD_SCHEDULER_BY_HAND` | `Executors.newScheduledThreadPool`, `newSingleThreadScheduledExecutor`, `ScheduledThreadPoolExecutor` or `java.util.Timer` in main code | `Stream.tick(every)` started on a [stream backend](stream.md#backends) |
+| `SUREFOLD_SECRET_AS_STRING` | `string("…")` in a `config` reading, where the path ends in a secret-like name such as `password`, `token` or `apiKey`, in main code | `secret(path)` |
+| `SUREFOLD_SLEEP_IN_TEST` | `Thread.sleep` or `TimeUnit.sleep` in test code | `eventually(within)` from `surefold-test`, or a [test clock](testing.md#time) |
 
 Each is a warning, silenced where it is intended by name, for example
-`@Suppress("LARK_SLEEP_IN_TEST")`.
+`@Suppress("SUREFOLD_SLEEP_IN_TEST")`.
 
 ## Limitations
 

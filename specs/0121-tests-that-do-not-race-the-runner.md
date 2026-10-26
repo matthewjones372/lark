@@ -8,10 +8,10 @@ only one of them is in the test alone:
 
 | Test | Line | Why it fails on a slow runner |
 |---|---|---|
-| `ParTest` › when two branches fail, the one started first surfaces | `lark` | **A library race.** If the second branch's raise is seen first, `Flight.settle` cancels the first before it has recorded its own raise. `Fork.cancel` then marks it `cutShort`, and `ownFailure` drops its genuine raise, so "second" surfaces. 2 failures in 28 local runs. |
-| `TopicTest` › a stalled subscriber stops nothing… | `lark-actor`:123 | `KEEP_AT_MOST + 2_001` publishes go out at once. The healthy subscriber `"a"` has to drain faster than the topic publishes, or its own bounded mailbox fills and it loses messages too. |
-| `MeasuredTest` › stages upstream of the slow one wait… | `lark-stream-parity`:136 | The "slow" stage sleeps 2 ms. Scheduling noise on a loaded runner is the same size, so neither the `0.9 × SLOW` bound nor the 10× ratio is reliable. |
-| `LeaveOnReleaseTest` › a cluster … leaves it as the application is released | `lark-app-actor`:68 | It asserts the release took under 10 s of wall-clock time, to tell "removed by the other node" apart from "downed itself after 20 s". With `ackWithin = 60 ms`, a loaded runner suspects nodes and slows the leave. |
+| `ParTest` › when two branches fail, the one started first surfaces | `surefold` | **A library race.** If the second branch's raise is seen first, `Flight.settle` cancels the first before it has recorded its own raise. `Fork.cancel` then marks it `cutShort`, and `ownFailure` drops its genuine raise, so "second" surfaces. 2 failures in 28 local runs. |
+| `TopicTest` › a stalled subscriber stops nothing… | `surefold-actor`:123 | `KEEP_AT_MOST + 2_001` publishes go out at once. The healthy subscriber `"a"` has to drain faster than the topic publishes, or its own bounded mailbox fills and it loses messages too. |
+| `MeasuredTest` › stages upstream of the slow one wait… | `surefold-stream-parity`:136 | The "slow" stage sleeps 2 ms. Scheduling noise on a loaded runner is the same size, so neither the `0.9 × SLOW` bound nor the 10× ratio is reliable. |
+| `LeaveOnReleaseTest` › a cluster … leaves it as the application is released | `surefold-app-actor`:68 | It asserts the release took under 10 s of wall-clock time, to tell "removed by the other node" apart from "downed itself after 20 s". With `ackWithin = 60 ms`, a loaded runner suspects nodes and slows the leave. |
 
 ## Not doing
 
@@ -50,9 +50,9 @@ Nothing.
 
 ## Stack
 
-- [x] **`spec-0121-flock-start-order`** ([#339](https://github.com/matthewjones372/lark/pull/339)) — `Fork.ownFailure` keeps a cut-short fork's raise, in `lark`.
+- [x] **`spec-0121-flock-start-order`** ([#339](https://github.com/matthewjones372/lark/pull/339)) — `Fork.ownFailure` keeps a cut-short fork's raise, in `surefold`.
       Done when: a new test, in which the first branch's raise is deliberately delayed until after the cancel,
-      surfaces "first"; `ParTest` passes 200 runs out of 200 under `stress` (below); every other `lark` test still
+      surfaces "first"; `ParTest` passes 200 runs out of 200 under `stress` (below); every other `surefold` test still
       passes.
 - [x] **`spec-0121-timing-tests`** ([#340](https://github.com/matthewjones372/lark/pull/340)) — the `TopicTest`, `MeasuredTest` and `LeaveOnReleaseTest` changes above, tests
       only.
@@ -63,7 +63,7 @@ Nothing.
 ```bash
 # stress: two busy cores beside the test JVM, as on a GitHub runner under load
 ( for i in 1 2; do timeout 900 sh -c 'while :; do :; done' & done )
-for n in $(seq 1 50); do ./gradlew :lark-actor:test --tests '*TopicTest*' --rerun -q || exit 1; done
+for n in $(seq 1 50); do ./gradlew :surefold-actor:test --tests '*TopicTest*' --rerun -q || exit 1; done
 ./gradlew spotlessApply && ./gradlew build
 ```
 

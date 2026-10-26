@@ -13,7 +13,7 @@ sends from it — the loop 0079 was meant to spare it.
 ## Not doing
 
 - **A transaction shared with the service's own writes.** The outbox is
-  lark's journal. A service that needs "my row and the command, or neither"
+  surefold's journal. A service that needs "my row and the command, or neither"
   writes its row first, then sends; exactly-once across two stores is not
   offered.
 - **Commands that cannot be encoded.** A durable producer keeps bytes, so its
@@ -29,7 +29,7 @@ payments.send("w-42") { Pay(10, it) }                          // returns once t
 ```
 
 - **Kept as events.** A durable producer is a persistent actor with
-  `PersistenceId("lark-producer", id)`. `send` returns once a `Kept(to,
+  `PersistenceId("surefold-producer", id)`. `send` returns once a `Kept(to,
   sequence, bytes)` event is written, and a confirmation writes
   `Confirmed(to, sequence)`. Started again, on this node or another, it
   replays both and resends what is still unconfirmed.
@@ -64,7 +64,7 @@ the journal.
       when: a command stored and read back with a new delivery equals the
       original but for the delivery.
       ([#233](https://github.com/matthewjones372/lark/pull/233))
-- [x] **`spec-0085-durable`** — the durable producer in `lark-actor`: events,
+- [x] **`spec-0085-durable`** — the durable producer in `surefold-actor`: events,
       replay, resend with a rebuilt delivery, snapshots and pruning. Done
       when: on `testActors`, a producer stopped with 50 unconfirmed commands
       and started again under the same id delivers all 50 once, and numbers
@@ -107,7 +107,7 @@ Decided while building `spec-0085-redeliver`: `Delivered.redeliver` has a
 default that throws, naming the command, so every command sent only by a
 producer in memory compiles unchanged. A blank delivery confirms to
 `Delivery.NoOne`. The helper is `MessageCodec.outbox()`, in
-`lark-actor-remote` beside `delivery`, and it answers an `EventCodec`, which
+`surefold-actor-remote` beside `delivery`, and it answers an `EventCodec`, which
 is what a persistent actor's events need. It refuses a kept command that
 carries a reply or any ref but a blank delivery's, since nothing would answer
 either after a crash. Storing a command without blanking it fails the tests.

@@ -3,13 +3,13 @@
 ## Problem
 
 `Kafka.consume` reads a whole topic as one member of a group. Kafka chooses which partitions the consumer gets,
-and moves them during a rebalance. That suits a service. It does not suit lark-job (spec 0004 in that repository),
+and moves them during a rebalance. That suits a service. It does not suit surefold-job (spec 0004 in that repository),
 whose Kafka connector plans one split per partition, places each split itself, and must read exactly that
 partition. A job also needs to replay a topic as data that ends, reading each partition up to the offset that was
-its end when the read began. A consumer group can do neither: nothing in lark-kafka assigns a partition, or knows
+its end when the read began. A consumer group can do neither: nothing in surefold-kafka assigns a partition, or knows
 where one ends.
 
-Without this, lark-job either copies a consumer loop out of lark-kafka, which its own rules forbid, or builds on
+Without this, surefold-job either copies a consumer loop out of surefold-kafka, which its own rules forbid, or builds on
 `@KafkaSpi`, which is marked as not for pipelines.
 
 ## Not doing
@@ -21,7 +21,7 @@ Without this, lark-job either copies a consumer loop out of lark-kafka, which it
 ## Shape
 
 ```kotlin
-Kafka.partitions(properties, Topic("clicks"))                        // [0, 1, 2, ...]: what lark-job plans from
+Kafka.partitions(properties, Topic("clicks"))                        // [0, 1, 2, ...]: what surefold-job plans from
 
 Kafka.read(
     properties, Topic("clicks"), partition = 3, key = StringDeserializer(), value = clickDeserializer,
@@ -57,7 +57,7 @@ rebalance-only behaviour into a mode where it cannot happen. Recommended: a sepa
 ## Acceptance
 
 ```bash
-./gradlew spotlessApply && ./gradlew :lark-kafka:check && ./gradlew build
+./gradlew spotlessApply && ./gradlew :surefold-kafka:check && ./gradlew build
 ```
 
 ## Settled
@@ -67,8 +67,8 @@ short-lived consumer.
 
 ## Open questions
 
-1. **Should `Until.EndAtStart` be the replay default for lark-job, or should the caller always choose?** Recommend
-   that lark-kafka has no default, so `until` is a required argument. lark-job's `Dataset.kafka` picks a default
+1. **Should `Until.EndAtStart` be the replay default for surefold-job, or should the caller always choose?** Recommend
+   that surefold-kafka has no default, so `until` is a required argument. surefold-job's `Dataset.kafka` picks a default
    for itself.
 2. **Should this ship in 0.8.x or 0.9.0?** Recommend 0.9.0: it adds API, and 0.8.0 is already tagged.
 3. **Should `Kafka.partitions` take an admin client or a consumer?** Recommend a short-lived consumer built from the
