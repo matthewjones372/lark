@@ -67,22 +67,24 @@ class ResourceTest {
         val exit = AtomicReference<ExitCase?>(null)
         val started = CountDownLatch(1)
 
-        val outcome = flock<Bad, String> {
-            async {
-                // Caught here, or the scope would close with the interrupt it sent rather than a value.
-                try {
-                    resourceScope {
-                        install({ Held("held") }) { _, case -> exit.set(case) }
-                        started.countDown()
-                        Thread.sleep(NEVER_FINISHES_MILLIS)
-                        "slept"
+        val outcome = attempt<Bad, String> {
+            scope {
+                async {
+                    // Caught here, or the scope would close with the interrupt it sent rather than a value.
+                    try {
+                        resourceScope {
+                            install({ Held("held") }) { _, case -> exit.set(case) }
+                            started.countDown()
+                            Thread.sleep(NEVER_FINISHES_MILLIS)
+                            "slept"
+                        }
+                    } catch (stop: InterruptedException) {
+                        "interrupted"
                     }
-                } catch (stop: InterruptedException) {
-                    "interrupted"
                 }
+                started.await()
+                "returned"
             }
-            started.await()
-            "returned"
         }
 
         outcome shouldBeRight "returned"
@@ -197,13 +199,15 @@ class ResourceTest {
     }
 
     @Test
-    fun `a fail in a flock releases with Completed, as a raise does`() {
+    fun `a fail in a scope releases with Completed, as a raise does`() {
         val exit = AtomicReference<ExitCase?>(null)
 
-        val failed = flock<Bad, Int> {
-            resourceScope {
-                install({ Held("held") }) { _, case -> exit.set(case) }
-                fail(Bad("declared"))
+        val failed = attempt<Bad, Int> {
+            scope {
+                resourceScope {
+                    install({ Held("held") }) { _, case -> exit.set(case) }
+                    fail(Bad("declared"))
+                }
             }
         }
 

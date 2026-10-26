@@ -38,10 +38,10 @@ or `fail` with an error, and the first failure becomes the block's `Left`:
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.bind
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.parMap
 import io.github.matthewjones372.surefold.parZip
 import io.github.matthewjones372.surefold.raceN
+import io.github.matthewjones372.surefold.scope
 
 data class Err(val why: String)
 
@@ -70,10 +70,12 @@ fun users(ids: List<Int>): Either<Err, List<User>> = attempt { parMap(ids) { fin
 fun quote(): Either<Long, Long> = raceN({ quoteFrom("primary") }, { quoteFrom("fallback") })
 
 // async and await, for forks the combinators do not shape.
-fun report(id: Int) = flock<Err, Dashboard> {
-    val user = async { findUser(id).bind() }
-    val orders = async { ordersFor(id).bind() }
-    Dashboard(user.await(), orders.await())
+fun report(id: Int): Either<Err, Dashboard> = attempt {
+    scope {
+        val user = async { findUser(id).bind() }
+        val orders = async { ordersFor(id).bind() }
+        Dashboard(user.await(), orders.await())
+    }
 }
 ```
 
@@ -86,17 +88,15 @@ fun report(id: Int) = flock<Err, Dashboard> {
   `parMap(ids, limit = ordersDb) { … }` keeps every call inside it, and never
   has more forks than its `max`. One limit shared with a stream's `mapPar` and
   a policy bounds all three together.
-- `flock { }` is the scope that `async` forks in. On its own it returns
-  Surefold's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
-  it returns `A` and a failure propagates to the enclosing scope.
-- `scope { }` is a `flock` nothing can raise in, for one held for its forks
-  rather than for a typed error. It returns `A`, with no `Either` to unwrap,
-  and only a throw leaves it early.
+- `scope { }` is the scope that `async` forks in. On its own nothing in it can
+  raise, so it returns `A`. Inside an existing `Fail<E>`, such as `attempt { }`,
+  it is that `Fail`'s scope: a failure in it, or in any fork, becomes the
+  enclosing `Left`.
 
 By default each fork is a new virtual thread. Every forking combinator also
 has an overload that takes the executor to fork on as its first argument, for
 example `parZip(on = pool, { … }, { … }) { … }` or `timeout(on = pool, 2.seconds) { … }`.
-`flock(on = pool) { }` and `async(on = pool) { }` take it as a defaulted
+`scope(on = pool) { }` and `async(on = pool) { }` take it as a defaulted
 parameter.
 
 ### Lazy forks
@@ -111,7 +111,7 @@ sequential code.
 ## Failure and cancellation
 
 A scope does not return until every fork it started has ended. That is the
-property everything else on this page relies on: when `parZip`, `flock` or
+property everything else on this page relies on: when `parZip`, `scope` or
 `timeout` returns, normally or by raising or throwing, none of its work is
 still running.
 
@@ -120,7 +120,7 @@ still running.
   failure. If several branches fail on their own, the one started first wins;
   an exception thrown only because a branch was interrupted is not reported.
 - **Unawaited forks still count.** A `Deferred` that nobody awaits is joined
-  when its `flock` closes, and if it failed, the failure becomes the block's
+  when its `scope` closes, and if it failed, the failure becomes the block's
   `Left`. If it threw, the exception is rethrown.
 - **Cancellation is interruption.** The JDK has no other cancellation, so a
   cancelled branch stops at its next interruptible blocking call: a sleep, a

@@ -53,12 +53,12 @@ families above. Spec 0211 gives each family a legal way to run after commit, so 
 
 ## Stack
 
-- [ ] **`spec-0210-checker`** — `TransactChecker` in `surefold-app-compiler`, with I/O, blocking and forks.
+- [x] **`spec-0210-checker`** ([#724](https://github.com/matthewjones372/surefold/pull/724)) — `TransactChecker` in `surefold-app-compiler`, with I/O, blocking and forks.
       Done when: a test compiling each forbidden call inside `transact` gets the diagnostic, and the same call
       outside it gets none.
-- [ ] **`spec-0210-captures`** — captured `var` writes, `peek()`, and functions taking `Transaction`.
+- [x] **`spec-0210-captures`** ([#725](https://github.com/matthewjones372/surefold/pull/725)) — captured `var` writes, `peek()`, and functions taking `Transaction`.
       Done when: `count += 1` on a captured `var` is reported, a local `var` declared inside the body is not.
-- [ ] **`spec-0210-surefold-effects`** — `Logger`, `Metrics`, `tell` and `publish`, each with a message naming
+- [x] **`spec-0210-surefold-effects`** ([#731](https://github.com/matthewjones372/surefold/pull/731)) — `Logger`, `Metrics`, `tell` and `publish`, each with a message naming
       0211's after-commit form. A section in `docs/core.md`.
       Done when: the diagnostic for `ref.tell(m)` inside `transact` suggests `afterCommit { ref.tell(m) }`.
 

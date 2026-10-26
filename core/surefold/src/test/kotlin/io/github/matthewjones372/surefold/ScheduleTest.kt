@@ -243,20 +243,22 @@ class ScheduleTest {
         val started = CountDownLatch(1)
         val interrupted = AtomicBoolean(false)
 
-        flock<Bad, String> {
-            async {
-                try {
-                    Schedule.spaced<Throwable>(1.seconds).retry {
-                        started.countDown()
-                        throw Boom()
+        attempt<Bad, String> {
+            scope {
+                async {
+                    try {
+                        Schedule.spaced<Throwable>(1.seconds).retry {
+                            started.countDown()
+                            throw Boom()
+                        }
+                    } catch (stop: InterruptedException) {
+                        interrupted.set(true)
+                        "interrupted"
                     }
-                } catch (stop: InterruptedException) {
-                    interrupted.set(true)
-                    "interrupted"
                 }
+                started.await()
+                "returned"
             }
-            started.await()
-            "returned"
         } shouldBeRight "returned"
 
         withClue("the delay is waited on the calling thread, so an interrupt lands in it") {

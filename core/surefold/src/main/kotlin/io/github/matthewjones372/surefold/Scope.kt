@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold
 
-import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.Fail
 import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.fold
@@ -15,7 +14,7 @@ import java.util.concurrent.locks.LockSupport
 enum class Start { Eager, Lazy }
 
 /** A [Fail] scope that owns every thread forked in it: no fork outlives the block that opened it. */
-interface Flock<E> : Fail<E> {
+interface Scope<E> : Fail<E> {
     /** The executor this scope's forks run on when a call does not name another. */
     val on: Executor
 
@@ -23,7 +22,7 @@ interface Flock<E> : Fail<E> {
      * Forks [block] onto [on] under a nested scope of its own. A [Start.Lazy] fork waits for `await`, and
      * one nobody awaits never runs at all, so its raise is never the scope's `Left`.
      */
-    fun <T> async(on: Executor = this.on, start: Start = Start.Eager, block: Flock<E>.() -> T): Deferred<T>
+    fun <T> async(on: Executor = this.on, start: Start = Start.Eager, block: Scope<E>.() -> T): Deferred<T>
 
     /**
      * Runs [hook] on the closing thread when this scope starts to close, before any fork is interrupted, so the
@@ -34,24 +33,21 @@ interface Flock<E> : Fail<E> {
     fun onClose(hook: () -> Unit)
 }
 
-/**
- * Opens a scope on the calling thread and closes it when [block] leaves — by return, raise or throw —
- * interrupting every fork still running and joining all of them before this returns.
- */
-fun <E, A> flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A): Either<E, A> =
-    attempt { this.flock(on, block) }
+/** The name [Scope] had, kept only while the modules built on it move over (spec 0214). */
+typealias Flock<E> = Scope<E>
 
 /**
- * A [flock] nothing in [block] can raise in, so it answers [block]'s value rather than an `Either` that is never a
- * `Left`: only a throw leaves it early. It closes as any flock does.
+ * Opens a scope nothing in [block] can raise in, on the calling thread, and closes it when [block] leaves — by
+ * return or throw — interrupting every fork still running and joining all of them before this returns. It answers
+ * [block]'s value: a scope with an error to raise is opened inside `attempt { }`, by the [Fail] form below.
  */
-fun <A> scope(on: Executor = VirtualThreads, block: Flock<Nothing>.() -> A): A = Unraisable.flock(on, block)
+fun <A> scope(on: Executor = VirtualThreads, block: Scope<Nothing>.() -> A): A = Unraisable.scope(on, block)
 
 /**
- * The same scope inside a [Fail] already in hand, so `attempt { flock { async { } } }` needs no second
- * boundary; a fork still opens one of its own, because a scope never crosses a thread.
+ * The same scope inside a [Fail] already in hand, raising into it, so `attempt { scope { async { } } }` answers an
+ * `Either`; a fork still opens a boundary of its own, because a scope never crosses a thread.
  */
-fun <E, A> Fail<E>.flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A): A {
+fun <E, A> Fail<E>.scope(on: Executor = VirtualThreads, block: Scope<E>.() -> A): A {
     val nest = Nest(this, on)
     val value = try {
         nest.block()
@@ -67,9 +63,9 @@ fun <E, A> Fail<E>.flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A)
  * A fork's body opens its own boundary and its outcome is held until `await`; a throw has to be caught
  * here, or it would end the fork's thread with nobody left to answer for it.
  */
-private fun <E, T> capture(on: Executor, block: Flock<E>.() -> T): Outcome<E, T> =
+private fun <E, T> capture(on: Executor, block: Scope<E>.() -> T): Outcome<E, T> =
     try {
-        attempt { this.flock(on, block) }.fold({ Raised(it) }, { Returned(it) })
+        attempt { this.scope(on, block) }.fold({ Raised(it) }, { Returned(it) })
     } catch (t: Throwable) {
         Thrown(t)
     }
@@ -109,7 +105,7 @@ private fun Thread.joinFully() {
     if (interrupted) Thread.currentThread().interrupt()
 }
 
-private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : Flock<E> {
+private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : Scope<E> {
 
     override fun fail(error: E): Nothing = owner.fail(error)
 
@@ -123,7 +119,7 @@ private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : F
         hooks += hook
     }
 
-    override fun <T> async(on: Executor, start: Start, block: Flock<E>.() -> T): Deferred<T> {
+    override fun <T> async(on: Executor, start: Start, block: Scope<E>.() -> T): Deferred<T> {
         val fork = Fork(this, on, block, start = start)
         forks += fork
         return fork
@@ -154,7 +150,7 @@ private class Nest<E>(private val owner: Fail<E>, override val on: Executor) : F
             } catch (stop: InterruptedException) {
                 interrupted = true
             } catch (thrown: Exception) {
-                logError("a close hook failed; the flock closes all the same", thrown)
+                logError("a close hook failed; the scope closes all the same", thrown)
             }
         }
         if (interrupted) Thread.currentThread().interrupt()
@@ -170,7 +166,7 @@ internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
     private val ended = Semaphore(0)
     private val forks = mutableListOf<Fork<E, *>>()
 
-    fun <T> fork(block: Flock<E>.() -> T): Fork<E, T> = Fork(owner, on, block, ended::release).also { forks += it }
+    fun <T> fork(block: Scope<E>.() -> T): Fork<E, T> = Fork(owner, on, block, ended::release).also { forks += it }
 
     /** Waits for every fork, or for the first of them to fail, then ends the rest and surfaces that failure. */
     fun settleAll() {
@@ -232,7 +228,7 @@ internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
 internal class Fork<E, T>(
     private val owner: Fail<E>,
     private val on: Executor,
-    private val block: Flock<E>.() -> T,
+    private val block: Scope<E>.() -> T,
     private val ended: () -> Unit = {},
     start: Start = Start.Eager,
 ) : Deferred<T> {
