@@ -235,7 +235,7 @@ subprojects {
             functions.add("io.github.matthewjones372.surefold.junit.expect")
             includedSourceSets.add("test")
         }
-        // A suite's dropped Expectations is reported only under this flag; the main sources are not surefold-junit's.
+        // The checker reports the standard library's dropped must-use values, and only under it does `val _ =` compile.
         tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileTestKotlin") {
             compilerOptions.freeCompilerArgs.add("-Xreturn-value-checker=check")
         }
