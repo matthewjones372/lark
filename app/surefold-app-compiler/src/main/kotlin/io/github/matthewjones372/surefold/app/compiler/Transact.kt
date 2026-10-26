@@ -5,10 +5,19 @@ import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirFunctionCallChecker
+import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirVariableAssignmentChecker
+import org.jetbrains.kotlin.fir.expressions.FirDesugaredAssignmentValueReferenceExpression
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
+import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
+import org.jetbrains.kotlin.fir.expressions.FirThisReceiverExpression
+import org.jetbrains.kotlin.fir.expressions.FirVariableAssignment
 import org.jetbrains.kotlin.fir.references.toResolvedCallableSymbol
+import org.jetbrains.kotlin.fir.references.toResolvedVariableSymbol
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirLocalPropertySymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
@@ -25,16 +34,67 @@ internal class TransactChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
     override fun check(expression: FirFunctionCall) {
         val symbol = expression.calleeReference.toResolvedCallableSymbol() ?: return
         val called = symbol.callableId ?: return
-        if (!refused(called) || !inStep()) return
-        val diagnostic = SurefoldDiagnostics.SUREFOLD_EFFECT_IN_TRANSACT
-        reporter.reportOn(expression.source, diagnostic, named(symbol, called), context)
+        val said = when {
+            called == peek -> "${named(symbol, called)} reads outside the step; read it with get()"
+
+            refused(called) ->
+                "${named(symbol, called)} runs again each time the step does, not once per commit; " +
+                    "do it before or after transact"
+
+            else -> return
+        }
+        if (step() != null) report(expression.source, said)
     }
 }
 
+/**
+ * A write inside a step to a `var` the step did not declare: a local from the enclosing function, a property of the
+ * enclosing object, or a top-level one. Each run of the step writes it again, and a run that retries keeps its write.
+ */
+internal class TransactAssignmentChecker : FirVariableAssignmentChecker(MppCheckerKind.Common) {
+
+    context(context: CheckerContext, reporter: DiagnosticReporter)
+    override fun check(expression: FirVariableAssignment) {
+        // `x += 1` and `x++` wrap their target in a reference to the access they desugared from.
+        val target = (expression.lValue as? FirDesugaredAssignmentValueReferenceExpression)?.expressionRef?.value
+        val access = (target ?: expression.lValue) as? FirQualifiedAccessExpression ?: return
+        val variable = access.calleeReference.toResolvedVariableSymbol() as? FirPropertySymbol ?: return
+        val step = step() ?: return
+        val outside = when (variable) {
+            is FirLocalPropertySymbol -> !variable.declaredIn(step)
+
+            // `this.x` or a bare `x` is the enclosing object's; a property of something else the step was handed is not
+            // judged, since the checker cannot see where that object came from.
+            else -> access.explicitReceiver.let { it == null || it is FirThisReceiverExpression }
+        }
+        if (outside) {
+            report(
+                expression.source,
+                "${variable.name} is a var from outside the step, written again each time the step runs; " +
+                    "keep it in a Shared",
+            )
+        }
+    }
+}
+
+context(context: CheckerContext, reporter: DiagnosticReporter)
+private fun report(source: org.jetbrains.kotlin.KtSourceElement?, said: String) =
+    reporter.reportOn(source, SurefoldDiagnostics.SUREFOLD_EFFECT_IN_TRANSACT, said, context)
+
+private fun FirBasedSymbol<*>.declaredIn(step: FirBasedSymbol<*>): Boolean {
+    val at = source?.startOffset ?: return false
+    val within = step.source ?: return false
+    return at in within.startOffset until within.endOffset
+}
+
 // A transact block, a firstOf branch and a helper written as `fun Transaction.x()` all take Transaction as receiver.
+// The outermost is the step: a var declared anywhere inside it is the step's own.
 context(context: CheckerContext)
-private fun inStep(): Boolean =
-    context.containingDeclarations.any { (it as? FirCallableSymbol<*>)?.resolvedReceiverType?.classId == transaction }
+private fun step(): FirBasedSymbol<*>? =
+    context.containingDeclarations.firstOrNull {
+        (it as? FirCallableSymbol<*>)?.resolvedReceiverType?.classId ==
+            transaction
+    }
 
 private fun refused(called: CallableId): Boolean {
     val owner = called.classId?.packageFqName ?: called.packageName
@@ -44,6 +104,8 @@ private fun refused(called: CallableId): Boolean {
 private val surefold = FqName("io.github.matthewjones372.surefold")
 
 private val transaction = ClassId(surefold, Name.identifier("Transaction"))
+
+private val peek = CallableId(ClassId(surefold, Name.identifier("Shared")), Name.identifier("peek"))
 
 private val io = listOf("java.io", "java.net", "java.nio.channels", "java.sql").map(::FqName)
 
