@@ -21,17 +21,19 @@ did not mean to. And "nothing arrived" looks the same as "not yet".
 
 ## Shape
 
-A new module, `surefold-kafka-test`, depending on `surefold-kafka` (and so
-`kafka-clients`) and nothing else:
+In `surefold-kafka-test`, the module spec 0161 made for its in-JVM broker. The
+reader takes only a bootstrap string, so it reads any broker, that one or a
+container:
 
 ```kotlin
-val events = TopicReader(Topic("shop-events"), kafka.bootstrap, StringDeserializer(), ShopEventDeserializer(registry))
+val events = Kafka.reading(Topic("shop-events"), kafka.bootstrap, StringDeserializer(), ShopEventDeserializer(registry))
 
 events.records()          // List<ConsumerRecord<String, ShopEvent>>, every partition, oldest first per partition
 events.values()           // List<ShopEvent>
 events.keys()             // List<String>
 
 committedOffset(kafka.bootstrap, group = "projection", Topic("shop-events"))   // summed over partitions; 0 for none
+committedOffsets(kafka.bootstrap, group = "projection", Topic("shop-events"))  // partition to offset
 
 // with 0115
 eventually(5.seconds) { events.values().filterIsInstance<PetAdopted>().single().by shouldBe "Ada" }
@@ -58,13 +60,18 @@ repeats 0115. Recommended: snapshot here, wait there.
 
 ## Stack
 
-- [ ] **`spec-0117-topic-reader`** — `TopicReader`, `committedOffset`, and a
-      `NoOtherDependenciesTest`.
+- [ ] **`spec-0117-topic-reader`** — `Kafka.reading`, `TopicReader`,
+      `committedOffset` and `committedOffsets`.
       Done when: against an embedded broker, `records()` on a topic holding
       three records across two partitions answers all three and returns
       without waiting; on an empty topic it answers an empty list at once; a
       reader's reads leave `committedOffset` for every group unchanged; an
       undecodable record throws naming its offset.
+      The module's `NoOtherDependenciesTest` already holds it to its
+      dependencies (spec 0161), so nothing is added for that. The reader
+      decodes with its own deserializers after a byte-level poll, so a bad
+      record throws `IllegalStateException` naming `topic-partition@offset`,
+      the deserializer's throw as cause, and the consumer is left usable.
 
 ## Acceptance
 
@@ -77,12 +84,16 @@ client.
 
 ## Open questions
 
+Answered (maintainer, 2026-10-26: go with the recommendations).
+
 - **`committedOffset` summed, or per partition?** The petshop's topics have one
   partition. Recommended: summed, plus `committedOffsets` answering a map, for
   a test that cares which.
 - **Ship a JUnit extension for a broker?** embedded-kafka is a Scala artifact
   with its own Kafka build. Recommended: no; a broker is a choice the test
   makes.
+  Since overtaken: spec 0161 ships `KafkaBroker` in this module. The reader
+  still takes a bootstrap string, so it does not depend on that broker.
 - **A snapshot of a topic still being written** can read a partition up to an
   end offset that has already moved. Fine for `eventually`, which asks again.
   Say so in the KDoc? Recommended: yes.
