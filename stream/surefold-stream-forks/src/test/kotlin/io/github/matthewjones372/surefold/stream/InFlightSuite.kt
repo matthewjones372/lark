@@ -8,6 +8,7 @@ import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.test.eventually
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -15,6 +16,8 @@ import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.LockSupport
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private const val GENEROUS_SECONDS = 30L
 private const val PAUSE_NANOS = 20_000L
@@ -23,13 +26,10 @@ private const val BODY_PAUSES_EVERY = 7
 private const val PULL_PAUSES_EVERY = 11
 private const val ROUNDS = 2_000
 
-private fun waitUntilParked(thread: Thread) {
-    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(GENEROUS_SECONDS)
-    while (thread.state != Thread.State.WAITING) {
-        check(System.nanoTime() < deadline) { "$thread never parked" }
-        Thread.onSpinWait()
+private fun waitUntilParked(thread: Thread) =
+    eventually(GENEROUS_SECONDS.seconds, every = 1.milliseconds) {
+        check(thread.state == Thread.State.WAITING) { "$thread never parked" }
     }
-}
 
 // The catch is as wide as the body: whatever it threw is what the test reads from the future.
 @Suppress("TooGenericExceptionCaught")

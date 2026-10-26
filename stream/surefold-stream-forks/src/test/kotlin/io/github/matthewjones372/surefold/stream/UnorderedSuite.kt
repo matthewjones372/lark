@@ -3,24 +3,22 @@ package io.github.matthewjones372.surefold.stream
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.test.eventually
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private const val SETTLE_SECONDS = 10L
 
 private fun <E, R> Running<E, R>.settled(): Exit<E, R> =
     exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-private fun waitFor(what: String, condition: () -> Boolean) {
-    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(SETTLE_SECONDS)
-    while (!condition()) {
-        check(System.nanoTime() < deadline) { "never saw $what" }
-        Thread.sleep(1)
-    }
-}
+private fun waitFor(what: String, condition: () -> Boolean) =
+    eventually(SETTLE_SECONDS.seconds, every = 1.milliseconds) { check(condition()) { "never saw $what" } }
 
 /** Forks' unordered windows: each answer passes on as soon as it is done, and nothing waits on the oldest. */
 object UnorderedSuite : Suite() {

@@ -9,10 +9,13 @@ import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.test.eventually
 import org.apache.pekko.actor.ActorSystem
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /** A hub on every backend: what reaches whom, what is refused, and when a subscription ends. */
 object HubSuite : SharedSuite<ActorSystem>() {
@@ -30,13 +33,10 @@ object HubSuite : SharedSuite<ActorSystem>() {
         toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
     /** Waits until [n] runs have subscribed: a run registers when it starts, not when it is described. */
-    private fun Hub<*>.awaitSubscribers(n: Int) {
-        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(SETTLE_SECONDS)
-        while (subscribers != n) {
-            check(System.nanoTime() < until) { "$subscribers subscribed, waiting for $n" }
-            Thread.onSpinWait()
+    private fun Hub<*>.awaitSubscribers(n: Int) =
+        eventually(SETTLE_SECONDS.seconds, every = 1.milliseconds) {
+            check(subscribers == n) { "$subscribers subscribed, waiting for $n" }
         }
-    }
 
     init {
         onEvery("what is published before anyone subscribes goes to the first subscriber, in order") { backend ->

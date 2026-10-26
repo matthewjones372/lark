@@ -7,6 +7,7 @@ import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldBeLessThan
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.test.eventually
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import java.sql.Connection
@@ -18,6 +19,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /** Spec 0108: appends from many ids share a commit, and each still answers as it would have alone. */
 object GroupCommitSuite : Suite() {
@@ -101,13 +104,8 @@ object GroupCommitSuite : Suite() {
         return done
     }
 
-    private fun waitUntil(condition: () -> Boolean) {
-        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
-        while (!condition()) {
-            check(System.nanoTime() < until) { "never came true" }
-            Thread.sleep(5)
-        }
-    }
+    private fun waitUntil(condition: () -> Boolean) =
+        eventually(10.seconds, every = 5.milliseconds) { check(condition()) { "never came true" } }
 }
 
 /**
