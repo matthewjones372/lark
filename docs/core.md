@@ -88,6 +88,9 @@ fun report(id: Int) = flock<Err, Dashboard> {
 - `flock { }` is the scope that `async` forks in. On its own it returns
   Surefold's `Either<E, A>`; inside an existing `Fail<E>`, such as `attempt { }`,
   it returns `A` and a failure propagates to the enclosing scope.
+- `scope { }` is a `flock` nothing can raise in, for one held for its forks
+  rather than for a typed error. It returns `A`, with no `Either` to unwrap,
+  and only a throw leaves it early.
 
 By default each fork is a new virtual thread. Every forking combinator also
 has an overload that takes the executor to fork on as its first argument, for
@@ -132,7 +135,7 @@ still running.
 
 <!-- core-cancel -->
 ```kotlin
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 
 data class Credit(val hasCredit: Boolean)
 
@@ -144,7 +147,7 @@ fun buildReport(id: Int): String {
 fun creditFor(id: Int): Credit = Credit(hasCredit = id % 2 == 0)
 
 // Start the expensive work early, and stop it if the cheap check says it is not wanted.
-fun page(id: Int) = flock<Nothing, String> {
+fun page(id: Int) = scope {
     val report = async { buildReport(id) }
     if (creditFor(id).hasCredit) {
         report.await()

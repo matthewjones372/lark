@@ -7,7 +7,7 @@ import io.github.matthewjones372.surefold.actor.Behaviour
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.apache.pekko.actor.ActorSystem
 import org.openjdk.jmh.annotations.Level
 import org.openjdk.jmh.annotations.Scope
@@ -40,7 +40,7 @@ open class Surefold {
         val opened = AtomicReference<Flock<Nothing>>()
         val ready = CountDownLatch(1)
         holder = Thread.ofPlatform().start {
-            flock<Nothing, Unit> {
+            scope {
                 spawn("guardian", idle())
                 opened.set(this)
                 ready.countDown()

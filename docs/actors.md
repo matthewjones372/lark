@@ -58,7 +58,6 @@ and a step that tells a full mailbox fails. `ask` sends a message carrying a
 
 <!-- actors-actor -->
 ```kotlin
-import io.github.matthewjones372.surefold.actor.AskFailure
 import io.github.matthewjones372.surefold.actor.Reply
 import io.github.matthewjones372.surefold.actor.ask
 import io.github.matthewjones372.surefold.actor.become
@@ -67,8 +66,7 @@ import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.actor.stop
 import io.github.matthewjones372.surefold.actor.unhandled
-import io.github.matthewjones372.surefold.fail.Either
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.seconds
 
 sealed interface Till
@@ -92,13 +90,13 @@ fun till() = behaviour<Till, Int>(0) { _, total, message ->
 }
 
 fun main() {
-    val total = flock<Nothing, Either<AskFailure, Int>> {
+    val total = scope {
         val till = spawn("till", till())
         till.tell(Ring(250))
         till.tell(Ring(120))
         till.ask(1.seconds) { Total(it) }
     }
-    println(total) // Right(value=Right(value=370))
+    println(total) // Right(value=370)
 }
 ```
 
@@ -224,7 +222,7 @@ import io.github.matthewjones372.surefold.actor.stop
 import io.github.matthewjones372.surefold.actor.unhandled
 import io.github.matthewjones372.surefold.actor.watch
 import io.github.matthewjones372.surefold.clock
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
@@ -264,7 +262,7 @@ fun basket(shopper: ActorRef<String>) = behaviour<Basket, Stage>(Shopping(emptyL
 fun main() {
     val moving = TestClock()
     clock.locally(moving) {
-        flock<Nothing, Unit> {
+        scope {
             val shopper = spawn("shopper", behaviour<String, Unit>(Unit) { _, _, note -> stay().also { println(note) } })
             val basket = spawn("basket", basket(shopper))
             basket.tell(Add("sku-1"))
@@ -402,7 +400,6 @@ are the [cluster guide](cluster.md#state-that-survives)'s.
 
 <!-- actors-persistent -->
 ```kotlin
-import io.github.matthewjones372.surefold.actor.AskFailure
 import io.github.matthewjones372.surefold.actor.EventCodec
 import io.github.matthewjones372.surefold.actor.InMemoryJournal
 import io.github.matthewjones372.surefold.actor.InMemorySnapshots
@@ -416,8 +413,7 @@ import io.github.matthewjones372.surefold.actor.persistent
 import io.github.matthewjones372.surefold.actor.snapshots
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stop
-import io.github.matthewjones372.surefold.fail.Either
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import java.nio.ByteBuffer
 import kotlin.time.Duration.Companion.seconds
 
@@ -465,7 +461,7 @@ fun account(id: String) = persistent<Account, Moved, Long>(
 )
 
 fun main() {
-    val balance = flock<Nothing, Either<AskFailure, Long>> {
+    val balance = scope {
         journal(InMemoryJournal())
         snapshots(InMemorySnapshots())
         val first = spawn("a-1", account("a-1"))
@@ -477,7 +473,7 @@ fun main() {
         val again = spawn("a-1-again", account("a-1"))
         again.ask(1.seconds) { Balance(it) }
     }
-    println(balance) // Right(value=Right(value=300))
+    println(balance) // Right(value=300)
 }
 ```
 
@@ -567,8 +563,8 @@ import io.github.matthewjones372.surefold.actor.ask
 import io.github.matthewjones372.surefold.actor.batching
 import io.github.matthewjones372.surefold.actor.become
 import io.github.matthewjones372.surefold.actor.spawn
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.logAnnotated
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.seconds
 
 data class Admit(val name: String, val reply: Reply<Int>)
@@ -591,11 +587,11 @@ fun kennel(ledger: Ledger) = batching<Admit, Int>(0, batch = 64) { _, admitted, 
 
 fun main() {
     val ledger = Ledger()
-    val number = flock<Nothing, Any> {
+    val number = scope {
         val kennel = spawn("kennel", kennel(ledger))
         logAnnotated("request_id" to "r-1") { kennel.ask(1.seconds) { Admit("rex", it) } }
     }
-    println(number) // Right(value=Right(value=1))
+    println(number) // Right(value=1)
 }
 ```
 

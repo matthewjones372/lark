@@ -9,7 +9,7 @@ import io.github.matthewjones372.surefold.assert.shouldNotContain
 import io.github.matthewjones372.surefold.assert.shouldStartWith
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.clock
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -88,7 +88,7 @@ class StoryTest {
         val last = AssertionError("expected:<0L> but was:<3L>")
 
         val failed = clock.locally(moving) {
-            flock<Nothing, StoryFailed> {
+            scope {
                 val telling = async {
                     shouldThrow<StoryFailed> {
                         story("draining") {
@@ -99,7 +99,7 @@ class StoryTest {
                 repeat(5) { moving.adjustWhenBlocked(1.seconds) }
                 telling.await()
             }
-        }.getOrNull()!!
+        }
 
         val lines = failed.message!!.lines()
         lines[1] shouldContain "✗ And the outbox drains"

@@ -257,6 +257,33 @@ class FlockTest {
     }
 
     @Test
+    fun `scope answers its block's value, with every fork ended by the time it does`() {
+        val forkEnded = AtomicBoolean(false)
+
+        val sum: Int = scope {
+            async { forkEnded.set(true) }
+            async { 20 }.await() + 22
+        }
+
+        sum shouldBe 42
+        forkEnded.get() shouldBe true
+    }
+
+    @Test
+    fun `a fork that threw and was never awaited rethrows from scope`() {
+        val boom = Boom()
+
+        val thrown = shouldThrow<Boom> {
+            scope {
+                async { throw boom }
+                "returned anyway"
+            }
+        }
+
+        thrown shouldBeSameInstanceAs boom
+    }
+
+    @Test
     fun `when two unawaited forks fail, the first in start order is the scope's failure`() {
         val secondStarted = CountDownLatch(1)
         val bothAtTheRaise = CountDownLatch(2)
@@ -350,7 +377,7 @@ class FlockTest {
         val asks = SynchronousQueue<Int>()
         val answers = SynchronousQueue<Int>()
 
-        val closed = flock<Nothing, String> {
+        val closed = scope {
             async {
                 try {
                     while (true) answers.put(asks.take() * 2)
@@ -366,7 +393,7 @@ class FlockTest {
             "done"
         }
 
-        closed shouldBeRight "done"
+        closed shouldBe "done"
         ran shouldBe listOf("second, answered 42", "first", "fork interrupted")
     }
 
@@ -374,7 +401,7 @@ class FlockTest {
     fun `a close hook registered while the flock closes runs too, after the one that registered it`() {
         val ran = mutableListOf<String>()
 
-        flock<Nothing, Unit> {
+        scope {
             onClose { ran += "first" }
             onClose {
                 ran += "second"
@@ -390,7 +417,7 @@ class FlockTest {
         val ran = mutableListOf<String>()
 
         shouldThrow<AssertionError> {
-            flock<Nothing, Int> {
+            scope {
                 async {
                     try {
                         CountDownLatch(1).await()
@@ -410,13 +437,13 @@ class FlockTest {
     fun `a close hook that throws is logged, and the hooks after it and the close still run`() {
         val ran = mutableListOf<String>()
 
-        val closed = flock<Nothing, Int> {
+        val closed = scope {
             onClose { ran += "earlier" }
             onClose { error("the hook broke") }
             7
         }
 
-        closed shouldBeRight 7
+        closed shouldBe 7
         ran shouldBe listOf("earlier")
     }
 
@@ -424,7 +451,7 @@ class FlockTest {
     fun `an interrupted close hook ends, the rest run, and the closing thread is interrupted afterwards`() {
         val ran = mutableListOf<String>()
 
-        flock<Nothing, Unit> {
+        scope {
             onClose { ran += "earlier" }
             onClose { throw InterruptedException("stop waiting") }
         }

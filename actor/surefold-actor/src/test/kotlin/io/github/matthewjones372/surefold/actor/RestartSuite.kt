@@ -4,12 +4,11 @@ import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.left
-import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -95,7 +94,7 @@ object RestartSuite : Suite() {
         test("on threads, a restart waits on the flock's clock and the mailbox is intact") {
             val time = TestClock()
             val stamped = clock.locally(time) {
-                flock<Nothing, Any> {
+                scope {
                     val press = spawn("press", press(), restart = Schedule.spaced(1.hours))
                     press.tell(Stamp(1))
                     press.tell(Jam)
@@ -106,17 +105,17 @@ object RestartSuite : Suite() {
                 }
             }
 
-            stamped shouldBeRight listOf(2, 3).right()
+            stamped shouldBeRight listOf(2, 3)
         }
 
         test("on threads, a schedule that is done stops the actor") {
-            val answer = flock<Nothing, Any> {
+            val answer = scope {
                 val press = spawn("press", press(), restart = Schedule.recurs(0))
                 press.tell(Jam)
                 press.ask(1.minutes) { Stamped(it) }
             }
 
-            answer shouldBeRight AskFailure.Stopped.left()
+            answer shouldBe AskFailure.Stopped.left()
         }
     }
 }

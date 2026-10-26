@@ -11,10 +11,10 @@ import io.github.matthewjones372.surefold.actor.onStart
 import io.github.matthewjones372.surefold.actor.persistent
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.fail.Either
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -47,7 +47,7 @@ object BatchedAppendSuite : Suite() {
                 batch = 64,
             ).onStart { opened.await() }
 
-            flock<Nothing, Unit> {
+            scope {
                 journal(journal)
                 val ref = spawn("merchant", merchant)
                 (1..1_000).forEach(ref::tell)

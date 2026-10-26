@@ -7,11 +7,11 @@ import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.capturingLogs
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.logAnnotated
 import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -42,7 +42,7 @@ object RemoteCarriedSuite : Suite() {
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
             val other = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     val node = node("answering", port)
                     node.expose(spawn("answer", answering()), whoAskedCodec)
                     ready.countDown()
@@ -51,11 +51,11 @@ object RemoteCarriedSuite : Suite() {
             }
             ready.await()
             try {
-                val heard = flock<Nothing, String> {
+                val heard = scope {
                     val asking = node("asking", freePort())
                     val answer = asking.remote(Address("answering@127.0.0.1:$port", "/user/answer", 0), whoAskedCodec)
                     logAnnotated("request_id" to "r-9") { answer.ask(1.minutes) { WhoAsked(it) }.getOrNull()!! }
-                }.getOrNull()
+                }
 
                 heard shouldBe "r-9"
             } finally {
@@ -98,7 +98,7 @@ object RemoteReplyCarriedSuite : Suite() {
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
             val other = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     node("answering", port).expose(spawn("answer", answeringTo()), answerToCodec)
                     ready.countDown()
                     done.await()
@@ -107,7 +107,7 @@ object RemoteReplyCarriedSuite : Suite() {
             ready.await()
             try {
                 val heard = CompletableFuture<String>()
-                flock<Nothing, Unit> {
+                scope {
                     val asking = node("asking", freePort())
                     val answer = asking.remote(Address("answering@127.0.0.1:$port", "/user/answer", 0), answerToCodec)
                     logAnnotated("request_id" to "r-10") { answer.tell(AnswerTo(Telling(heard))) }

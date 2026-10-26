@@ -2,11 +2,11 @@ package io.github.matthewjones372.surefold.cluster
 
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.metrics
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -28,7 +28,7 @@ private class MeasuredNode(val name: String, port: Int, seeds: Discovery) : Auto
     private val joined = AtomicReference<Cluster>()
     private val thread = Thread.ofPlatform().start {
         metrics.locally(measured) {
-            flock<Nothing, Unit> {
+            scope {
                 val downing = Downing.keepMajority(2.seconds)
                 joined.set(cluster(node(name, port), seeds, brisk, downing, leaveWithin = Duration.ZERO))
                 ready.countDown()

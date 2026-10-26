@@ -13,10 +13,10 @@ import io.github.matthewjones372.surefold.cluster.Gossiping
 import io.github.matthewjones372.surefold.cluster.MemberEvent
 import io.github.matthewjones372.surefold.cluster.Status
 import io.github.matthewjones372.surefold.cluster.cluster
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeLessThan
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -39,7 +39,7 @@ object LeaveOnReleaseSuite : Suite() {
             val bothUp = CountDownLatch(2)
             val removed = CountDownLatch(1)
             val stays = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     val cluster = cluster(node("stays", ports[0]), seeds, quick)
                     val listener = spawn(
                         "listener",

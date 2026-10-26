@@ -4,7 +4,7 @@ import io.github.matthewjones372.surefold.Deferred
 import io.github.matthewjones372.surefold.LogLine
 import io.github.matthewjones372.surefold.capturingLogs
 import io.github.matthewjones372.surefold.capturingMetrics
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import io.github.matthewjones372.surefold.use
 import org.junit.platform.engine.EngineDiscoveryRequest
 import org.junit.platform.engine.EngineExecutionListener
@@ -74,7 +74,7 @@ class SurefoldEngine : TestEngine {
         val outcome = outcomeOf {
             suite.toAcquire.use { shared ->
                 acquired = true
-                flock<Nothing, Unit> {
+                scope {
                     val running = mutableListOf<Deferred<Unit>>()
                     cases.forEach { test ->
                         val registered = tests.getValue(test.displayName)

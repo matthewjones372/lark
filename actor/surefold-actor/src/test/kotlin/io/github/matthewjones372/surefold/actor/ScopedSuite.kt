@@ -2,12 +2,12 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -134,7 +134,7 @@ object ScopedSuite : Suite() {
             val log = freshLog()
             val moving = TestClock()
             clock.locally(moving) {
-                val _ = flock<Nothing, Unit> {
+                val _ = scope {
                     val lamp = spawn("lamp", lamp(log))
                     lamp.tell(On)
                     lamp.tell(Brighter)

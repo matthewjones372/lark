@@ -12,10 +12,10 @@ import io.github.matthewjones372.surefold.actor.remote.WireIn
 import io.github.matthewjones372.surefold.actor.remote.WireOut
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -52,7 +52,7 @@ private class LateNode(val name: String, port: Int, seeds: Discovery, roles: Set
     private val member = AtomicReference<Cluster>()
     private val ledgers = AtomicReference<Sharded<WhoAnswers>>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             onDeadLetter(letters::add)
             member.set(cluster(node(name, port), seeds, prompt, roles = roles))
             joined.countDown()

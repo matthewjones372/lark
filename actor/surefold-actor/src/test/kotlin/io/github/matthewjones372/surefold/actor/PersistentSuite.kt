@@ -4,11 +4,11 @@ import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes
 
@@ -148,7 +148,7 @@ object PersistentSuite : Suite() {
             val moving = TestClock()
             val journal = InMemoryJournal()
             val weight = clock.locally(moving) {
-                flock<Nothing, Any> {
+                scope {
                     journal(journal)
                     val kennel = spawn("kennel", entities(passivateAfter = 10.minutes) { id -> hound(id, log) })
                     kennel.entity("rex").tell(Eat(50))
@@ -161,13 +161,13 @@ object PersistentSuite : Suite() {
                 }
             }
 
-            weight shouldBeRight 75.right()
+            weight shouldBeRight 75
             journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25))
         }
 
         test("on threads, a conflict restarts the actor, and its start recovers what the other writer wrote") {
             val journal = InMemoryJournal()
-            val weight = flock<Nothing, Any> {
+            val weight = scope {
                 journal(journal)
                 val first = spawn("first", hound("rex"))
                 val second = spawn("second", hound("rex"), restart = Schedule.recurs(1))
@@ -180,7 +180,7 @@ object PersistentSuite : Suite() {
                 second.ask(1.minutes) { Weigh(it) }
             }
 
-            weight shouldBeRight 60.right()
+            weight shouldBeRight 60
             journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(10))
         }
     }

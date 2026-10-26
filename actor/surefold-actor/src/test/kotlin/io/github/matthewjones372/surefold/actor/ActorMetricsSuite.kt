@@ -2,9 +2,9 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.capturingMetrics
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.scope
 
 /** Fails once when told to. */
 private data object MeteredTrip
@@ -13,7 +13,7 @@ object ActorMetricsSuite : Suite() {
     init {
         test("a tell to a stopped actor and a restart are each counted once, with the flock's tags") {
             capturingMetrics { captured ->
-                flock<Nothing, Unit> {
+                scope {
                     tagMetrics("node" to "shop-1")
                     val quiet = spawn("quiet", behaviour<MeteredTrip, Unit>(Unit) { _, _, _ -> stay() })
                     stop(quiet).await()
@@ -38,7 +38,7 @@ object ActorMetricsSuite : Suite() {
 
         test("a dead letter counted before the flock is tagged is counted with the tags once it is") {
             capturingMetrics { captured ->
-                flock<Nothing, Unit> {
+                scope {
                     val quiet = spawn("quiet", behaviour<MeteredTrip, Unit>(Unit) { _, _, _ -> stay() })
                     stop(quiet).await()
                     quiet.tell(MeteredTrip)

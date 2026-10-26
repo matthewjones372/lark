@@ -10,11 +10,10 @@ import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.onDeadLetter
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.metrics
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -70,7 +69,7 @@ object RemoteMetricsSuite : Suite() {
             val done = CountDownLatch(1)
             val other = Thread.ofPlatform().start {
                 metrics.locally(there) {
-                    flock<Nothing, Unit> {
+                    scope {
                         val node = node("there", therePort)
                         node.expose(
                             spawn(
@@ -92,7 +91,7 @@ object RemoteMetricsSuite : Suite() {
             val dropped = CountDownLatch(3)
 
             metrics.locally(here) {
-                flock<Nothing, Unit> {
+                scope {
                     onDeadLetter { letter -> if (letter.why == DeadLetter.Why.Unreachable) dropped.countDown() }
                     val node = node("here", herePort)
                     val peer = Node("there", "127.0.0.1", therePort)
@@ -120,7 +119,7 @@ object RemoteMetricsSuite : Suite() {
                     val out = arrayOf("node" to "here", "peer" to "$peer", "lane" to "data")
                     here.counter("surefold.remote.frames", *out, "direction" to "out") shouldBe 13.0
                     here.counter("surefold.remote.dropped", *out) shouldBe 3.0
-                } shouldBeRight Unit
+                }
             }
             val from = Node("here", "127.0.0.1", herePort)
             val into = arrayOf("node" to "there", "peer" to "$from", "direction" to "in", "lane" to "data")

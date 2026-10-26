@@ -22,13 +22,12 @@ import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.actor.testActors
-import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContain
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.cbor.Cbor
 import kotlinx.serialization.serializer
@@ -160,7 +159,7 @@ object KotlinxSuite : Suite() {
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
             val tillNode = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     // Answers with twice what was paid.
                     val doubling = behaviour<Quote, Unit>(Unit) { _, _, asked ->
                         stay().also { asked.reply(asked.request.amount.count * 2) }
@@ -172,12 +171,12 @@ object KotlinxSuite : Suite() {
             }
             ready.await()
             try {
-                val answer = flock<Nothing, Any> {
+                val answer = scope {
                     val till = node("shop", ServerSocket(0).use(ServerSocket::getLocalPort))
                         .remote(Address("till@127.0.0.1:$port", "/user/till", 0), quote)
                     till.ask(1.minutes) { Quote(Till.Paid(Pence(21), "q"), it) }
                 }
-                answer shouldBeRight 42L.right()
+                answer shouldBeRight 42L
             } finally {
                 done.countDown()
                 tillNode.join()

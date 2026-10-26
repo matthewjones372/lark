@@ -2,13 +2,12 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.fail.left
-import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.minutes
 
 private sealed interface Call
@@ -93,7 +92,7 @@ object StashSuite : Suite() {
         }
 
         test("on threads, unstashed messages are handled before the mailbox, in the order kept") {
-            val heard = flock<Nothing, Any> {
+            val heard = scope {
                 val phone = spawn("phone", phone())
                 phone.tell(Say(1))
                 phone.tell(Say(2))
@@ -103,17 +102,17 @@ object StashSuite : Suite() {
                 phone.ask(1.minutes) { Transcript(it) }
             }
 
-            heard shouldBeRight listOf(1, 2, 99).right()
+            heard shouldBeRight listOf(1, 2, 99)
         }
 
         test("on threads, stashing into a full stash fails the step") {
-            val heard = flock<Nothing, Any> {
+            val heard = scope {
                 val phone = spawn("phone", phone(), stash = 2)
                 (1..3).forEach { phone.tell(Say(it)) }
                 phone.ask(1.minutes) { Transcript(it) }
             }
 
-            heard shouldBeRight AskFailure.Stopped.left()
+            heard shouldBe AskFailure.Stopped.left()
         }
     }
 }

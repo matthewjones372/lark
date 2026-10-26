@@ -17,12 +17,11 @@ import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.actor.stop
 import io.github.matthewjones372.surefold.actor.unhandled
 import io.github.matthewjones372.surefold.actor.watch
-import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -100,7 +99,7 @@ private fun <A> withWardNode(block: (Hospital) -> A): A {
     val done = CountDownLatch(1)
     val hospital = AtomicReference<Hospital>()
     val other = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
             onDeadLetter(letters::add)
             val node = node("hospital", port)
@@ -132,7 +131,7 @@ object RemoteSuite : Suite() {
     init {
         test("a message told to an actor on another node reaches it, and an ask comes back with its answer") {
             val charted = withWardNode { hospital ->
-                flock<Nothing, Any> {
+                scope {
                     val ward =
                         clinic().remote(Address("hospital@127.0.0.1:${hospital.port}", "/user/ward", 0), wardCodec)
                     ward.tell(Admit(50))
@@ -141,13 +140,13 @@ object RemoteSuite : Suite() {
                 }
             }
 
-            charted shouldBeRight 75.right()
+            charted shouldBeRight 75
         }
 
         test("a ref inside a message crosses, and what is told to it comes back to the actor it names") {
             val heard = ConcurrentLinkedQueue<String>()
             withWardNode { hospital ->
-                flock<Nothing, Unit> {
+                scope {
                     val ward = clinic().remote(hospital.ward, wardCodec)
                     val listener = spawn(
                         "listener",
@@ -170,7 +169,7 @@ object RemoteSuite : Suite() {
         ) {
             val (charted, letters, earlier) = withWardNode { hospital ->
                 val earlier = hospital.ward.copy(incarnation = hospital.ward.incarnation + 1)
-                val charted = flock<Nothing, Any> {
+                val charted = scope {
                     val node = clinic()
                     node.remote(earlier, wardCodec).tell(Admit(50))
                     node.remote(hospital.ward, wardCodec).ask(1.minutes) { Chart(it) }
@@ -178,13 +177,13 @@ object RemoteSuite : Suite() {
                 Triple(charted, hospital.letters.toList(), earlier)
             }
 
-            charted shouldBeRight 0.right()
+            charted shouldBeRight 0
             letters shouldContainExactly listOf(DeadLetter(earlier, Admit(50), DeadLetter.Why.NoSuchActor))
         }
 
         test("a message for a path no actor is at is a dead letter on the node it reached") {
             val letters = withWardNode { hospital ->
-                val _ = flock<Nothing, Any> {
+                val _ = scope {
                     val node = clinic()
                     node.remote(hospital.ward.copy(path = "/user/nobody"), wardCodec).tell(Admit(5))
                     // One connection, in order: once the ward answers, the frame before it has been dealt with.
@@ -201,16 +200,16 @@ object RemoteSuite : Suite() {
         test("a message told to a node nobody answers for is a dead letter here, with the message in it") {
             val letters = LinkedBlockingQueue<DeadLetter>()
             val nowhere = Address("nowhere@127.0.0.1:${freePort()}", "/user/ward", 0)
-            flock<Nothing, Unit> {
+            scope {
                 onDeadLetter(letters::add)
                 clinic().remote(nowhere, wardCodec).tell(Admit(5))
                 letters.poll(1, TimeUnit.MINUTES) shouldBe DeadLetter(nowhere, Admit(5), DeadLetter.Why.Unreachable)
-            } shouldBeRight Unit
+            }
         }
 
         test("an actor watching one on another node hears Terminated when it stops") {
             val heard = withWardNode { hospital ->
-                flock<Nothing, Any> {
+                scope {
                     val ward = clinic().remote(hospital.ward, wardCodec)
                     val lookout = spawn("lookout", lookout())
                     lookout.tell(ward)
@@ -224,12 +223,12 @@ object RemoteSuite : Suite() {
                 }
             }
 
-            heard shouldBeRight listOf("Terminated").right()
+            heard shouldBeRight listOf("Terminated")
         }
 
         test("a watch handed to a membership ends when it says the node is gone, while the actor still runs") {
             val heard = withWardNode { hospital ->
-                flock<Nothing, Any> {
+                scope {
                     val node = clinic()
                     val gone = node.takeOverWatches()
                     val ward = node.remote(hospital.ward, wardCodec)
@@ -242,7 +241,7 @@ object RemoteSuite : Suite() {
                 }
             }
 
-            heard shouldBeRight 0.right()
+            heard shouldBeRight 0
         }
 
         test("a watch on an actor whose node goes away ends once the node has been unreachable long enough") {
@@ -250,14 +249,14 @@ object RemoteSuite : Suite() {
             val ready = CountDownLatch(1)
             val gone = CountDownLatch(1)
             val hospital = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     node("hospital", port).expose(spawn("ward", ward()), wardCodec)
                     ready.countDown()
                     gone.await()
                 }
             }
             ready.await()
-            val ended = flock<Nothing, Any> {
+            val ended = scope {
                 val ward = node("clinic", freePort(), unreachableAfter = 100.milliseconds)
                     .remote(Address("hospital@127.0.0.1:$port", "/user/ward", 0), wardCodec)
                 val _ = ward.ask(1.minutes) { Chart(it) }
@@ -267,7 +266,7 @@ object RemoteSuite : Suite() {
                 watched.await()
             }
 
-            ended.shouldBeRight { it.javaClass.simpleName shouldBe "Terminated" }
+            ended.javaClass.simpleName shouldBe "Terminated"
         }
     }
 }

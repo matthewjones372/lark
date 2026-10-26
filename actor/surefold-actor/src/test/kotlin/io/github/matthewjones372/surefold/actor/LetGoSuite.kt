@@ -3,12 +3,11 @@ package io.github.matthewjones372.surefold.actor
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.minutes
 
 private sealed interface Brood
@@ -92,7 +91,7 @@ object LetGoSuite : Suite() {
         }
 
         test("on threads, a child that has stopped is let go by its parent, and stopping it again does nothing") {
-            val parent = flock<Nothing, Int> {
+            val parent = scope {
                 val parent = spawn("nest", nest())
                 parent.tell(Hatch("rex"))
                 parent.tell(Fledge("rex"))
@@ -102,22 +101,22 @@ object LetGoSuite : Suite() {
                 parent.childCount
             }
 
-            parent shouldBeRight 0
+            parent shouldBe 0
         }
 
         test("on threads, a flock that spawned and stopped a thousand actors holds none of them") {
-            val held = flock<Nothing, Int> {
+            val held = scope {
                 repeat(1_000) { stop(spawn("passing-$it", idle())).await() }
                 actorCount
             }
 
-            held shouldBeRight 0
+            held shouldBe 0
         }
 
         test("on threads, an entity passivated a thousand times is one child of its manager") {
             val moving = TestClock()
             val seen = clock.locally(moving) {
-                flock<Nothing, Any> {
+                scope {
                     val kennel = spawn("kennel", entities(passivateAfter = 10.minutes) { kept() })
                     repeat(1_000) { _ ->
                         kennel.entity("rex").ask(1.minutes) { Visit(it) }
@@ -129,7 +128,7 @@ object LetGoSuite : Suite() {
                 }
             }
 
-            seen shouldBeRight (1.right() to 1)
+            seen shouldBe (1.right() to 1)
         }
     }
 }

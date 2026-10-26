@@ -3,8 +3,7 @@ package io.github.matthewjones372.surefold.actor.benchmarks
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.surefold.actor.awaitIdle
 import io.github.matthewjones372.surefold.actor.spawn
-import io.github.matthewjones372.surefold.fail.fold
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.javadsl.Adapter
 import java.util.concurrent.CountDownLatch
@@ -17,7 +16,7 @@ private const val SETTLE_GCS = 5
  * heap is measured. A whole-heap difference after GC, so it counts everything an actor keeps alive.
  */
 fun main() {
-    val surefold = flock<Nothing, Long> {
+    val surefold = scope {
         measured {
             val refs = (1..IDLE_ACTORS).map { spawn("idle-$it", surefoldCounter()) }
             val done = CountDownLatch(IDLE_ACTORS)
@@ -26,7 +25,7 @@ fun main() {
             awaitIdle()
             refs
         }
-    }.fold({ it }, { it })
+    }
     val system = ActorSystem.create("footprint", ConfigFactory.load())
     val pekko = measured {
         val refs = (1..IDLE_ACTORS).map { Adapter.spawn(system, pekkoCounter(), "idle-$it") }

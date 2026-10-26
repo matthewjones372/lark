@@ -1,9 +1,9 @@
 package io.github.matthewjones372.surefold.actor
 
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -19,14 +19,14 @@ private interface Runtime {
 }
 
 private val threads = object : Runtime {
-    override fun <A> run(scenario: Actors.() -> A): A = flock<Nothing, A> {
+    override fun <A> run(scenario: Actors.() -> A): A = scope {
         val flock = this
         object : Actors {
             override fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S, *>) = flock.spawn(name, behaviour)
 
             override fun awaitIdle() = flock.awaitIdle()
         }.scenario()
-    }.getOrNull()!!
+    }
 
     override fun toString() = "threads"
 }

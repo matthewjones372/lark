@@ -5,7 +5,6 @@ import io.github.matthewjones372.surefold.Reading
 import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.counter
 import io.github.matthewjones372.surefold.fail.Either
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.increment
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.Suite
@@ -52,6 +51,7 @@ import io.github.matthewjones372.surefold.logInfo
 import io.github.matthewjones372.surefold.logWarn
 import io.github.matthewjones372.surefold.readings
 import io.github.matthewjones372.surefold.resource
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -231,7 +231,7 @@ object LoggingSuite : SharedSuite<CountDownLatch>(limit = Limit.fixed(4)) {
             expect(true)
         }
         test("fails after its fork logs") {
-            flock<Nothing, Unit> { async { logInfo("logged from a fork") } }
+            scope { async { logInfo("logged from a fork") } }
             error("the fork's line is mine")
         }
     }

@@ -15,7 +15,7 @@ import io.github.matthewjones372.surefold.actor.remote.WireOut
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.apache.pekko.actor.AbstractActor
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.Props
@@ -88,7 +88,7 @@ private class HeldNode(name: String, port: Int) {
     init {
         val ready = CountDownLatch(1)
         holder = Thread.ofPlatform().start {
-            flock<Nothing, Unit> {
+            scope {
                 flock = this
                 node = node(name, port)
                 ready.countDown()

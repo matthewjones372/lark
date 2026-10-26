@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold
 
 import io.github.matthewjones372.surefold.assert.shouldBe
-import io.github.matthewjones372.surefold.assert.shouldNotBeNull
 import io.github.matthewjones372.surefold.assert.withClue
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -49,7 +48,7 @@ class TestClockTest {
         val ticks = AtomicInteger()
 
         val ran = clock.locally(moving) {
-            flock<Nothing, Int> {
+            scope {
                 val poller = async {
                     repeat(2) { clock.get().sleep(60.minutes); ticks.incrementAndGet() }
                     ticks.get()
@@ -61,7 +60,7 @@ class TestClockTest {
             }
         }
 
-        ran.getOrNull().shouldNotBeNull() shouldBe 2
+        ran shouldBe 2
     }
 
     @Test

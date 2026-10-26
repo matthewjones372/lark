@@ -9,7 +9,6 @@ import io.github.matthewjones372.surefold.actor.ask
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContain
@@ -17,6 +16,7 @@ import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.parZip
 import io.github.matthewjones372.surefold.resource
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.minutes
 
 private data class Who(val reply: Reply<Pair<String, Int>>)
@@ -64,7 +64,7 @@ object FeatureContextSuite : SharedSuite<Client>() {
         }
 
         test("an actor handler answers for the key and attributes the message was sent under") { client ->
-            val handled = flock<Nothing, Pair<String, Int>> {
+            val handled = scope {
                 val actor = spawn(
                     "reader",
                     behaviour<Who, Unit>(Unit) { _, _, message ->
@@ -74,7 +74,7 @@ object FeatureContextSuite : SharedSuite<Client>() {
                     },
                 )
                 evaluatedFor("ada", "limit" to 3) { actor.ask(1.minutes) { Who(it) }.getOrNull()!! }
-            }.getOrNull()
+            }
 
             withClue("an actor spawned outside the block sees the context only if it rides the message") {
                 handled shouldBe ("ada" to 3)

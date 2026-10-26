@@ -11,11 +11,11 @@ import io.github.matthewjones372.surefold.actor.remote.WireOut
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.capturingLogs
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.logAnnotated
 import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -50,7 +50,7 @@ private class LedgerNode(name: String, port: Int, seeds: Discovery, roles: Set<S
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Pair<Cluster, Sharded<WhoAsked>>>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             val cluster = cluster(node(name, port), seeds, brisk, roles = roles)
             opened.set(cluster to cluster.sharding("ledger", whoAskedCodec, 1.minutes, role = "ledger") { answering() })
             ready.countDown()

@@ -4,7 +4,7 @@ import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldContain
 import io.github.matthewjones372.surefold.assert.shouldNotContain
 import io.github.matthewjones372.surefold.assert.shouldThrow
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -69,7 +69,7 @@ class StoryLocalsTest {
 
         storyTitle.locally("from the opener") {
             storyTranscript.locally({ told += it }) {
-                flock<Nothing, Unit> { async { story { } } }
+                scope { async { story { } } }
             }
         }
 

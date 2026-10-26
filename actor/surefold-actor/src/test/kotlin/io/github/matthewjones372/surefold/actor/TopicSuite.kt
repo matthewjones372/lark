@@ -1,11 +1,10 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.capturingMetrics
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -37,7 +36,7 @@ object TopicSuite : Suite() {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
             capturingMetrics { captured ->
-                val during = flock<Nothing, Unit> {
+                scope {
                     onDeadLetter(letters::add)
                     val prices = topic<Int>("prices")
                     val listeners = listOf("a", "b", "c").map { spawn(it, listener(heard, it)) }
@@ -55,7 +54,6 @@ object TopicSuite : Suite() {
                     captured.gauge("surefold.topic.subscribers") shouldBe 1.0
                 }
 
-                during shouldBeRight Unit
                 heard.getValue("a").toList() shouldContainExactly (1..70).toList()
                 heard.getValue("b").toList() shouldContainExactly (1..60).toList()
                 heard.getValue("c").toList() shouldContainExactly (1..50).toList()
@@ -69,7 +67,7 @@ object TopicSuite : Suite() {
             val heard = HeardByName()
             val forwarded = ConcurrentLinkedQueue<Int>()
 
-            flock<Nothing, Unit> {
+            scope {
                 val prices = topic<Int>("prices") { forwarded += it }
                 prices.subscribe(spawn("a", listener(heard, "a")))
                 prices.publish(1)
@@ -87,7 +85,7 @@ object TopicSuite : Suite() {
             val heard = HeardByName()
             val elsewhere = Elsewhere(ConcurrentLinkedQueue())
 
-            flock<Nothing, Unit> {
+            scope {
                 val prices = topic<Int>("prices")
                 prices.subscribe(elsewhere)
                 prices.subscribe(spawn("a", listener(heard, "a")))
@@ -110,7 +108,7 @@ object TopicSuite : Suite() {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
             val stalled = ConcurrentLinkedQueue<Int>()
 
-            val during = flock<Nothing, Unit> {
+            scope {
                 onDeadLetter(letters::add)
                 val prices = topic<Int>("prices")
                 val slow = spawn(
@@ -151,7 +149,6 @@ object TopicSuite : Suite() {
             }
 
             val full = letters.filter { it.why == DeadLetter.Why.Full }
-            during shouldBeRight Unit
             heard.getValue("a").toList() shouldContainExactly (0..KEEP_AT_MOST + 2_000).toList() + -1
             full.map { it.recipient.path }.toSet() shouldBe setOf("/user/slow")
             (stalled.size + full.size) shouldBe KEEP_AT_MOST + 2_001

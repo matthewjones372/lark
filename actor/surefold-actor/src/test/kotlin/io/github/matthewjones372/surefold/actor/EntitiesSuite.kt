@@ -3,12 +3,11 @@ package io.github.matthewjones372.surefold.actor
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeGreaterThan
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -135,7 +134,7 @@ object EntitiesSuite : Suite() {
             val moving = TestClock()
             val kennel = AtomicReference<ActorRef<Entities<Kennel>>>()
             val weights = clock.locally(moving) {
-                flock<Nothing, Any> {
+                scope {
                     val running =
                         spawn("kennel", entities(passivateAfter = 10.minutes) { id -> pup(id, log, kennel) })
                     kennel.set(running)
@@ -152,7 +151,7 @@ object EntitiesSuite : Suite() {
                 }
             }
 
-            weights.getOrNull() shouldBe
+            weights shouldBe
                 Triple(listOf("bo stopped", "rex stopped"), ("rex" to 0).right(), ("bo" to 1).right())
         }
 
@@ -165,7 +164,7 @@ object EntitiesSuite : Suite() {
             // The manager makes an entity inside its own step, so "made" is written the moment it decides to start one.
             val made = entities(passivateAfter = 10.minutes) { id -> pup(id, log).also { log += "$id made" } }
             val seen = clock.locally(moving) {
-                flock<Nothing, Any> {
+                scope {
                     val running = spawn("kennel", made)
                     val rex = running.entity("rex")
                     rex.tell(Busy(began, gate, interrupted))
@@ -185,7 +184,7 @@ object EntitiesSuite : Suite() {
                 }
             }
 
-            seen shouldBeRight (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right())
+            seen shouldBe (listOf("rex made", "rex stopped", "rex made") to ("rex" to 1).right())
         }
 
         test("a burst to a busy entity is kept in order, and its manager goes on") {
@@ -194,7 +193,7 @@ object EntitiesSuite : Suite() {
             val open = CountDownLatch(1)
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
-            flock<Nothing, Unit> {
+            scope {
                 onDeadLetter(letters::add)
                 val kennel = spawn("kennel", entities(passivateAfter = 10.minutes) { id -> held(open, heardBy(id)) })
                 val rex = kennel.entity("rex")
@@ -215,7 +214,7 @@ object EntitiesSuite : Suite() {
             val open = CountDownLatch(1)
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
-            flock<Nothing, Unit> {
+            scope {
                 onDeadLetter(letters::add)
                 val rex =
                     spawn("kennel", entities(passivateAfter = 10.minutes) { _ -> held(open, heard) }).entity("rex")
@@ -239,7 +238,7 @@ object EntitiesSuite : Suite() {
             val leaving = behaviour<String, Unit>(Unit) { _, _, message -> if (message == "leave") stop() else stay() }
 
             clock.locally(moving) {
-                flock<Nothing, Unit> {
+                scope {
                     val manager =
                         spawn("kennel", entities(10.minutes, onRunning = { running.addAndGet(it) }) { leaving })
                     fun counted() {

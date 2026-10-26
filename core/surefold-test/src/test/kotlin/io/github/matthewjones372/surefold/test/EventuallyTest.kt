@@ -7,7 +7,7 @@ import io.github.matthewjones372.surefold.assert.shouldContain
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.assert.withClue
 import io.github.matthewjones372.surefold.clock
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration
@@ -35,12 +35,12 @@ class EventuallyTest {
         val last = AssertionError("expected:<0L> but was:<3L>")
 
         val gaveUp = clock.locally(moving) {
-            flock<Nothing, GaveUp> {
+            scope {
                 val waiting = async { shouldThrow<GaveUp> { eventually(5.seconds, every = 1.seconds) { throw last } } }
                 repeat(5) { moving.adjustWhenBlocked(1.seconds) }
                 waiting.await()
             }
-        }.getOrNull()!!
+        }
 
         gaveUp.cause shouldBeSameInstanceAs last
         withClue("a try at each second from 0 to 5, and the one at 5 finds five seconds gone") {
@@ -74,12 +74,12 @@ class EventuallyTest {
         val moving = TestClock()
 
         val answer = clock.locally(moving) {
-            flock<Nothing, Checked> {
+            scope {
                 val waiting = async { eventually(5.seconds, every = 1.seconds) { Checked(held = false) } }
                 repeat(5) { moving.adjustWhenBlocked(1.seconds) }
                 waiting.await()
             }
-        }.getOrNull()!!
+        }
 
         answer shouldBe Checked(held = false, gaveUpAfter = 6L to 5.seconds)
     }

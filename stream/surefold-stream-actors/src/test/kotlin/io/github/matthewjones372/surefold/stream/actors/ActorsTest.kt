@@ -3,9 +3,8 @@ package io.github.matthewjones372.surefold.stream.actors
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
-import io.github.matthewjones372.surefold.assert.shouldBeRight
 import io.github.matthewjones372.surefold.assert.shouldThrow
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import io.github.matthewjones372.surefold.stream.Actors
 import io.github.matthewjones372.surefold.stream.Exit
 import io.github.matthewjones372.surefold.stream.Stream
@@ -52,17 +51,17 @@ class ActorsTest {
 
     @Test
     fun `a run pulls its whole chain on an actor, in batches, and ends with the answer`() {
-        val exit = flock<Nothing, Any> {
+        val exit = scope {
             Stream.from(1..1_000).map { it * 2 }.filter { it % 3 == 0 }.runFold(0) { sum, n -> sum + n }
                 .run(Actors(this, batch = 7)).toCompletableFuture().join()
         }
 
-        exit shouldBeRight Exit.Done((1..1_000).map { it * 2 }.filter { it % 3 == 0 }.sum())
+        exit shouldBe Exit.Done((1..1_000).map { it * 2 }.filter { it % 3 == 0 }.sum())
     }
 
     @Test
     fun `a declared failure ends the run Failed, and a throw ends it Died`() {
-        val exits = flock<Nothing, Pair<Any, Any>> {
+        val exits = scope {
             val actors = Actors(this)
             val failed = Stream.from(1..10).mapOrFail { if (it == 5) fail("five") else it }.runCollect()
                 .run(actors).toCompletableFuture().join()
@@ -71,13 +70,13 @@ class ActorsTest {
             failed to died
         }
 
-        exits.getOrNull()!!.first shouldBe Exit.Failed("five")
-        exits.getOrNull()!!.second.shouldBeInstanceOf<Exit.Died>()
+        exits.first shouldBe Exit.Failed("five")
+        exits.second.shouldBeInstanceOf<Exit.Died>()
     }
 
     @Test
     fun `runs without end share the runners, so a short run started after them still ends`() {
-        val answer = flock<Nothing, Any> {
+        val answer = scope {
             val actors = Actors(this)
             val endless = (1..Runtime.getRuntime().availableProcessors() * 4).map {
                 endless().runCollect().start(actors)
@@ -87,12 +86,12 @@ class ActorsTest {
             short to actors.running
         }
 
-        answer shouldBeRight (Exit.Done(listOf(1, 2, 3)) to 0)
+        answer shouldBe (Exit.Done(listOf(1, 2, 3)) to 0)
     }
 
     @Test
     fun `a stop wakes a source it is blocked in, and the run is Done with what it had`() {
-        val answer = flock<Nothing, Any> {
+        val answer = scope {
             val actors = Actors(this)
             val given = LinkedBlockingQueue<Int>()
             val taken = CountDownLatch(2)
@@ -110,7 +109,7 @@ class ActorsTest {
             running.exit.toCompletableFuture().join() to actors.running
         }
 
-        answer shouldBeRight (Exit.Done(listOf(1, 2)) to 0)
+        answer shouldBe (Exit.Done(listOf(1, 2)) to 0)
     }
 
     @Test
@@ -119,7 +118,7 @@ class ActorsTest {
         val most = AtomicInteger()
         // Three bodies meet at the barrier each time, so a mapPar(3) that ran them one at a time would never pass it.
         val together = CyclicBarrier(3)
-        val exit = flock<Nothing, Any> {
+        val exit = scope {
             Stream.from(1..9).mapPar(3) { n ->
                 most.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
                 together.await(1, TimeUnit.MINUTES)
@@ -128,13 +127,13 @@ class ActorsTest {
             }.runCollect().run(Actors(this)).toCompletableFuture().join()
         }
 
-        exit shouldBeRight Exit.Done((1..9).map { it * 10 })
+        exit shouldBe Exit.Done((1..9).map { it * 10 })
         most.get() shouldBe 3
     }
 
     @Test
     fun `a mapPar body that raises ends the run Failed, and one that throws ends it Died`() {
-        val exits = flock<Nothing, Pair<Any, Any>> {
+        val exits = scope {
             val actors = Actors(this)
             val numbers: Stream<String, Int> = Stream.from(1..10)
             val failed = numbers.mapPar(2) { if (it == 4) fail("four") else it }.runCollect()
@@ -144,13 +143,13 @@ class ActorsTest {
             failed to died
         }
 
-        exits.getOrNull()!!.first shouldBe Exit.Failed("four")
-        exits.getOrNull()!!.second.shouldBeInstanceOf<Exit.Died>()
+        exits.first shouldBe Exit.Failed("four")
+        exits.second.shouldBeInstanceOf<Exit.Died>()
     }
 
     @Test
     fun `a buffer hands on every element in order, and what upstream threw after what came before it`() {
-        val exits = flock<Nothing, Pair<Any, Any>> {
+        val exits = scope {
             val actors = Actors(this, batch = 2)
             val all = Stream.from(1..100).buffer(3).runCollect().run(actors).toCompletableFuture().join()
             val threw = Stream.from(1..10).map { check(it < 6) { "six" } }.buffer(3).runCollect()
@@ -158,8 +157,8 @@ class ActorsTest {
             all to threw
         }
 
-        exits.getOrNull()!!.first shouldBe Exit.Done((1..100).toList())
-        exits.getOrNull()!!.second.shouldBeInstanceOf<Exit.Died>().cause.message shouldBe "six"
+        exits.first shouldBe Exit.Done((1..100).toList())
+        exits.second.shouldBeInstanceOf<Exit.Died>().cause.message shouldBe "six"
     }
 
     @Test
@@ -169,14 +168,14 @@ class ActorsTest {
             started.incrementAndGet()
             Thread.ofVirtual().start(task)
         }
-        val exit = flock<Nothing, Any> {
+        val exit = scope {
             Stream.from(1..50).mapPar(4) { it + 1 }.buffer(8)
                 .merge(Stream.from(1..3).flatMapMerge(2) { Stream.of(it * 1000) })
                 .conflateWithSeed({ listOf(it) }, { batch, n -> batch + n })
                 .runCollect().run(Actors(this, on = counting)).toCompletableFuture().join()
         }
 
-        exit.getOrNull()!!.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value.flatten().sorted() shouldBe
+        exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value.flatten().sorted() shouldBe
             ((2..51) + listOf(1000, 2000, 3000)).toList()
         started.get() shouldBe 0
     }
@@ -186,7 +185,7 @@ class ActorsTest {
         val inFlight = AtomicInteger()
         val most = AtomicInteger()
         val together = CyclicBarrier(3)
-        val exits = flock<Nothing, Pair<Any, Any>> {
+        val exits = scope {
             val actors = Actors(this, batch = 3)
             val merged = Stream.from(1..50).merge(Stream.from(101..150)).runCollect()
                 .run(actors).toCompletableFuture().join()
@@ -201,24 +200,24 @@ class ActorsTest {
             merged to flat
         }
 
-        val merged = exits.getOrNull()!!.first.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
+        val merged = exits.first.shouldBeInstanceOf<Exit.Done<List<Int>>>().value
         merged.filter { it <= 50 } shouldBe (1..50).toList()
         merged.filter { it > 100 } shouldBe (101..150).toList()
-        exits.getOrNull()!!.second.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.sorted() shouldBe (1..9).toList()
+        exits.second.shouldBeInstanceOf<Exit.Done<List<Int>>>().value.sorted() shouldBe (1..9).toList()
         most.get() shouldBe 3
     }
 
     @Test
     fun `conflate folds what upstream sent while the reader was busy, and loses nothing`() {
         val sent = CountDownLatch(200)
-        val exit = flock<Nothing, Any> {
+        val exit = scope {
             Stream.from(1..200).map { it.also { sent.countDown() } }
                 .conflateWithSeed({ listOf(it) }, { batch, n -> batch + n })
                 .map { batch -> batch.also { sent.await() } }
                 .runCollect().run(Actors(this)).toCompletableFuture().join()
         }
 
-        val batches = exit.getOrNull()!!.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
+        val batches = exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>>().value
         batches.flatten() shouldBe (1..200).toList()
         (batches.size < 200) shouldBe true
     }
@@ -226,7 +225,7 @@ class ActorsTest {
     @Test
     fun `tick, groupedWithin and restartOnDefect run on the run's clock, as on Forks`() {
         val tries = AtomicInteger()
-        val exits = flock<Nothing, Triple<Any, Any, Any>> {
+        val exits = scope {
             val actors = Actors(this)
             val ticks = Stream.tick(1.milliseconds, "tick").take(3).runCollect()
                 .run(actors).toCompletableFuture().join()
@@ -238,7 +237,7 @@ class ActorsTest {
             Triple(ticks, groups, restarted)
         }
 
-        exits shouldBeRight Triple(
+        exits shouldBe Triple(
             Exit.Done(listOf("tick", "tick", "tick")),
             Exit.Done(listOf(listOf(1, 2), listOf(3, 4), listOf(5))),
             Exit.Done(listOf(1)),
@@ -247,7 +246,7 @@ class ActorsTest {
 
     @Test
     fun `a batch of no elements is refused`() {
-        flock<Nothing, Unit> {
+        scope {
             shouldThrow<IllegalArgumentException> { Actors(this, batch = 0) }
         }
     }

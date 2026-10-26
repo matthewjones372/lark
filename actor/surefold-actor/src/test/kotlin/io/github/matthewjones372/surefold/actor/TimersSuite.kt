@@ -4,13 +4,13 @@ import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
@@ -173,7 +173,7 @@ object TimersSuite : Suite() {
         test("on threads, a timer falls due when the flock's clock moves, and a cancelled one never does") {
             val moving = TestClock()
             val heard = clock.locally(moving) {
-                flock<Nothing, Any> {
+                scope {
                     val alarm = spawn("alarm", alarm())
                     alarm.tell(Arm("wake", 5.seconds, "wake"))
                     alarm.tell(Arm("snooze", 6.seconds, "snooze"))
@@ -187,13 +187,13 @@ object TimersSuite : Suite() {
                 }
             }
 
-            heard shouldBeRight (emptyList<String>().right() to listOf("wake").right())
+            heard shouldBe (emptyList<String>().right() to listOf("wake").right())
         }
 
         test(
             "on threads, a cancelled or replaced timer's message never arrives, even one already in the mailbox",
         ) {
-            val heard = flock<Nothing, Any> {
+            val heard = scope {
                 val alarm = spawn("alarm", alarm())
                 alarm.tell(Flicker("now"))
                 alarm.tell(Swap("now"))
@@ -201,18 +201,18 @@ object TimersSuite : Suite() {
                 alarm.heard()
             }
 
-            heard shouldBeRight listOf("second").right()
+            heard shouldBeRight listOf("second")
         }
 
         test("on the wall clock, a sooner timer is not held behind a later one") {
-            val heard = flock<Nothing, Any> {
+            val heard = scope {
                 val alarm = spawn("alarm", alarm())
                 alarm.tell(Arm("later", 1.hours, "later"))
                 alarm.tell(Arm("sooner", 1.milliseconds, "sooner"))
                 alarm.ask(1.minutes) { Rung(1, it) }
             }
 
-            heard shouldBeRight listOf("sooner").right()
+            heard shouldBeRight listOf("sooner")
         }
     }
 }

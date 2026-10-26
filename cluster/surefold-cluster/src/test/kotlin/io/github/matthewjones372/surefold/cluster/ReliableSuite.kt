@@ -18,12 +18,12 @@ import io.github.matthewjones372.surefold.actor.remote.WireOut
 import io.github.matthewjones372.surefold.actor.remote.delivery
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeGreaterThan
 import io.github.matthewjones372.surefold.metrics
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -98,7 +98,7 @@ internal class Bank(
     }
 
     private fun open(port: Int, seeds: Discovery, journal: Journal, leaveWithin: Duration) {
-        flock<Nothing, Unit> {
+        scope {
             journal(journal)
             val cluster = cluster(node(name, port), seeds, calm, downing, leaveWithin, roles)
             val accounts =

@@ -1,7 +1,7 @@
 package io.github.matthewjones372.surefold.stream.benchmarks
 
 import io.github.matthewjones372.surefold.Flock
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import io.github.matthewjones372.surefold.stream.Actors
 import org.openjdk.jmh.annotations.Level
 import org.openjdk.jmh.annotations.Scope
@@ -28,7 +28,7 @@ open class Flocked {
         val opened = AtomicReference<Flock<Nothing>>()
         val ready = CountDownLatch(1)
         holder = Thread.ofPlatform().start {
-            flock<Nothing, Unit> {
+            scope {
                 opened.set(this)
                 ready.countDown()
                 release.await()

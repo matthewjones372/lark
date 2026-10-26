@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold
 
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldContainExactly
-import io.github.matthewjones372.surefold.assert.shouldNotBeNull
 import io.github.matthewjones372.surefold.assert.withClue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
@@ -40,7 +39,7 @@ class SurefoldLocalTest {
         val forked = CountDownLatch(1)
         val bound = CountDownLatch(1)
 
-        val seen = flock<Nothing, String> {
+        val seen = scope {
             val branch = async {
                 forked.countDown()
                 bound.await()
@@ -51,7 +50,7 @@ class SurefoldLocalTest {
             branch.await()
         }
 
-        seen.getOrNull().shouldNotBeNull() shouldBe "initial"
+        seen shouldBe "initial"
     }
 
     @Test

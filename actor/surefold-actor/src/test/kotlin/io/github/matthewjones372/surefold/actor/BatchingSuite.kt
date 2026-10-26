@@ -1,11 +1,11 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.capturingLogs
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.logAnnotated
 import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration
@@ -27,7 +27,7 @@ object BatchingSuite : Suite() {
                 seen += run.toList()
                 stay()
             }.onStart { opened.await() }
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 val actor = spawn("runs", runs)
                 (1..3).forEach(actor::tell)
                 opened.countDown()
@@ -45,7 +45,7 @@ object BatchingSuite : Suite() {
                 run.indices.forEach { i -> inside += run.within(i) { requestHere() } }
                 stay()
             }.onStart { opened.await() }
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 val actor = spawn("runs", runs)
                 logAnnotated("request_id" to "r-1") { actor.tell(1) }
                 actor.tell(2)
@@ -63,7 +63,7 @@ object BatchingSuite : Suite() {
                 seen += run.toList() to requestHere()
                 stay()
             }
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 val actor = spawn("runs", runs)
                 (1..3).forEach { n -> logAnnotated("request_id" to "r-$n") { actor.tell(n) } }
                 awaitIdle()
@@ -77,7 +77,7 @@ object BatchingSuite : Suite() {
                 seen += run.toList()
                 stop()
             }.onStart { ctx -> ctx.timers.after("soon", Duration.ZERO, 7) }
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 watch(spawn("runs", runs)).await()
             }
             seen shouldBe listOf(listOf(7))
@@ -87,7 +87,7 @@ object BatchingSuite : Suite() {
             val heard = CopyOnWriteArrayList<Signal>()
             val runs = batching<Int, Unit>(Unit, batch = 64) { _, _, _ -> stop() }
                 .onSignal { _, _, signal -> stay().also { heard += signal } }
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 val actor = spawn("runs", runs)
                 actor.tell(1)
                 watch(actor).await()
@@ -99,7 +99,7 @@ object BatchingSuite : Suite() {
             val letters = CopyOnWriteArrayList<DeadLetter>()
             val opened = CountDownLatch(1)
             val runs = batching<Int, Unit>(Unit, batch = 64) { _, _, _ -> unhandled() }.onStart { opened.await() }
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 onDeadLetter(letters::add)
                 val actor = spawn("runs", runs)
                 (1..3).forEach(actor::tell)

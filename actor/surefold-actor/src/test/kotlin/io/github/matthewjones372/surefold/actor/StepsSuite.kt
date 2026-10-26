@@ -1,8 +1,8 @@
 package io.github.matthewjones372.surefold.actor
 
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration
@@ -46,7 +46,7 @@ object StepsSuite : Suite() {
     init {
         test("the messages already waiting are handed over as one run, in order") {
             val runs = Runs(batch = 64)
-            flock<Nothing, Unit> {
+            scope {
                 val actor = spawn("runs", runs.behaviour())
                 (1..3).forEach(actor::tell)
                 runs.opened.countDown()
@@ -57,7 +57,7 @@ object StepsSuite : Suite() {
 
         test("a run is no longer than the batch") {
             val runs = Runs(batch = 2)
-            flock<Nothing, Unit> {
+            scope {
                 val actor = spawn("runs", runs.behaviour())
                 (1..5).forEach(actor::tell)
                 runs.opened.countDown()
@@ -68,7 +68,7 @@ object StepsSuite : Suite() {
 
         test("a timer between messages ends the run, and is handled alone") {
             val runs = Runs(batch = 64, armed = CountDownLatch(1), told = CountDownLatch(1))
-            flock<Nothing, Unit> {
+            scope {
                 val actor = spawn("runs", runs.behaviour())
                 actor.tell(1)
                 actor.tell(2)
@@ -96,7 +96,7 @@ object StepsSuite : Suite() {
                     stay()
                 },
             )
-            flock<Nothing, Unit> {
+            scope {
                 val actor = spawn("one", one)
                 (1..3).forEach(actor::tell)
                 opened.countDown()
@@ -119,7 +119,7 @@ object StepsSuite : Suite() {
                 steps = { _, _, run -> Batched(stop(), unhandled = listOf(run[0]), unrun = run.drop(2)) },
                 batch = 64,
             )
-            flock<Nothing, Unit> {
+            scope {
                 onDeadLetter(letters::add)
                 val actor = spawn("stopping", stopping)
                 (1..4).forEach(actor::tell)

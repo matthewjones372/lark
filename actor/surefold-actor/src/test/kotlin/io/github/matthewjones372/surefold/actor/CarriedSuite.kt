@@ -1,13 +1,13 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.capturingLogs
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContain
 import io.github.matthewjones372.surefold.junit.shouldNotContainKey
 import io.github.matthewjones372.surefold.logAnnotated
 import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -49,18 +49,18 @@ private fun listener() = behaviour<Listened, Boolean>(false) { ctx, released, me
 object CarriedSuite : Suite() {
     init {
         test("an ask made inside logAnnotated is handled with the asker's annotations") {
-            val heard = flock<Nothing, Map<String, String>> {
+            val heard = scope {
                 val listener = spawn("listener", listener())
                 logAnnotated("request_id" to "r-1") { listener.ask(1.minutes) { AnnotationsAsked(it) }.getOrNull()!! }
-            }.getOrNull()!!
+            }
 
             heard shouldContain ("request_id" to "r-1")
         }
 
         test("a message told with nothing bound is handled with nothing") {
-            val heard = flock<Nothing, Map<String, String>> {
+            val heard = scope {
                 spawn("listener", listener()).ask(1.minutes) { AnnotationsAsked(it) }.getOrNull()!!
-            }.getOrNull()!!
+            }
 
             heard shouldNotContainKey "request_id"
         }
@@ -74,7 +74,7 @@ object CarriedSuite : Suite() {
                     answered.complete(answer)
                 }
             }
-            flock<Nothing, Unit> {
+            scope {
                 val listener = spawn("listener", listener())
                 // Told from one thread, so in this order: kept, then released by a message that carries nothing.
                 logAnnotated("request_id" to "r-2") { listener.tell(KeptUntilLetThrough(reply)) }
@@ -88,7 +88,7 @@ object CarriedSuite : Suite() {
         test("a burst kept for a busy entity is handled with what each message carried, not with the drain's") {
             val heard = ConcurrentHashMap<Int, String>()
             val open = CountDownLatch(1)
-            flock<Nothing, Unit> {
+            scope {
                 // The first message holds the entity's step until the burst is sent, so its manager keeps most of it.
                 val held = behaviour<Int, Unit>(Unit) { _, _, n ->
                     stay().also { if (n == 0) open.await() else heard[n] = annotationsHere()["request_id"].orEmpty() }

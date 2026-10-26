@@ -1,13 +1,12 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.fail.left
-import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.minutes
 
@@ -106,7 +105,7 @@ object WatchSuite : Suite() {
         }
 
         test("on threads, a watcher hears Terminated once") {
-            val seen = flock<Nothing, Any> {
+            val seen = scope {
                 val worker = spawn("worker", worker(AtomicReference(emptyList())))
                 val lookout = spawn("lookout", counted())
                 lookout.tell(Watch(worker))
@@ -118,30 +117,30 @@ object WatchSuite : Suite() {
                 lookout.ask(1.minutes) { Seen(it) }
             }
 
-            seen shouldBeRight 1.right()
+            seen shouldBeRight 1
         }
 
         test("on threads, watch from outside answers once the actor has stopped") {
             val stopping = AtomicReference<List<String>>(emptyList())
-            val heard = flock<Nothing, Signal.Terminated> {
+            val heard = scope {
                 val worker = spawn("worker", worker(stopping))
                 worker.tell(Leave)
                 watch(worker).await()
             }
 
-            heard.getOrNull()?.ref?.address?.path shouldBe "/user/worker"
+            heard.ref.address.path shouldBe "/user/worker"
             stopping.get() shouldBe listOf("stopping")
         }
 
         test("on threads, stop from outside ends the actor, and answers once it has") {
             val stopping = AtomicReference<List<String>>(emptyList())
-            val heard = flock<Nothing, Any> {
+            val heard = scope {
                 val worker = spawn("worker", worker(stopping))
                 stop(worker).await().ref shouldBe worker
                 worker.ask(1.minutes) { _: Reply<Unit> -> Leave }
             }
 
-            heard.shouldBeRight { asked -> asked shouldBe AskFailure.Stopped.left() }
+            heard shouldBe AskFailure.Stopped.left()
             stopping.get() shouldBe listOf("stopping")
         }
 
@@ -149,7 +148,7 @@ object WatchSuite : Suite() {
             "on threads, a ref that is not an actor here can be watched, by an actor and by the flock, once it says so",
         ) {
             val far = Faraway()
-            val seen = flock<Nothing, Any> {
+            val seen = scope {
                 val lookout = spawn("lookout", counted())
                 lookout.tell(Watch(far))
                 lookout.ask(1.minutes) { Seen(it) }
@@ -160,13 +159,13 @@ object WatchSuite : Suite() {
                 lookout.ask(1.minutes) { Seen(it) }
             }
 
-            seen shouldBeRight 1.right()
+            seen shouldBeRight 1
         }
 
         test("on threads, a letter a transport found reaches the flock's dead-letter handler") {
             val letters = java.util.concurrent.ConcurrentLinkedQueue<DeadLetter>()
             val far = Faraway()
-            flock<Nothing, Unit> {
+            scope {
                 onDeadLetter(letters::add)
                 deadLetter(DeadLetter(far.address, "hello", DeadLetter.Why.Unreachable))
             }
