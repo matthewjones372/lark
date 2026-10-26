@@ -9,7 +9,7 @@ import io.opentelemetry.sdk.trace.export.SpanExporter
 import java.util.Collections
 
 /**
- * A [tracer] that keeps every span it ends, for a test to read (spec 0216). Make one per test, so a test reads only
+ * A [tracer] that keeps every span it ends, for a test to read (spec 0221). Make one per test, so a test reads only
  * its own spans, and close it with `use`.
  */
 class Spans : AutoCloseable {

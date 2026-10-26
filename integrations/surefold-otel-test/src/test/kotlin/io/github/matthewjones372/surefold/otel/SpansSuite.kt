@@ -7,7 +7,7 @@ import io.github.matthewjones372.surefold.junit.withClue
 import io.opentelemetry.api.trace.SpanKind
 import io.opentelemetry.context.ContextStorage
 
-/** The collector a service's tests read spans from (spec 0216). */
+/** The collector a service's tests read spans from (spec 0221). */
 object SpansSuite : Suite() {
     init {
         test("the spans a tracer ends are kept in the order they ended, and named picks out one name") {
