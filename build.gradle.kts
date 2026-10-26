@@ -105,7 +105,7 @@ val moduleDescriptions = mapOf(
     "surefold-app-gradle" to "surefold-app as a build gate: every graph in a project checked and drawn as it compiles.",
     "surefold-app-compiler" to
         "surefold-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
-    "surefold-structured" to "surefold over the JDK's StructuredTaskScope: a flock the thread dump can see.",
+    "surefold-structured" to "surefold over the JDK's StructuredTaskScope: a scope the thread dump can see.",
     "surefold-kafka" to
         "Kafka as a surefold Stream on any backend: a record is committed only after the work on it is done.",
     "surefold-kafka-pekko" to
@@ -132,7 +132,7 @@ val moduleDescriptions = mapOf(
     "surefold-cluster-kubernetes" to
         "surefold-cluster on Kubernetes: seeds from the pods API, and a Lease to break an even split.",
     "surefold-app-actor" to
-        "surefold-app on surefold-actor: a flock is a node, and an actor is a node keyed by its protocol.",
+        "surefold-app on surefold-actor: a scope is a node, and an actor is a node keyed by its protocol.",
     "surefold-app-cluster" to "surefold-app on surefold-cluster: a cluster is a node, joined as a HOCON section says.",
     "surefold-openfeature" to
         "surefold on OpenFeature: who a flag is evaluated for, bound once and read in every fork and actor.",

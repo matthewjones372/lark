@@ -93,7 +93,7 @@ object ActorSuite : Suite() {
             log.toList() shouldContainExactly listOf("added 1", "tally stopped", "ledger released")
         }
 
-        test("an actor spawned on the flock rather than as a node stops when the application does") {
+        test("an actor spawned on the scope rather than as a node stops when the application does") {
             val log = ConcurrentLinkedQueue<String>()
             testApp(actors()) { actors: Actors ->
                 actors.spawn("stray", tally(log = log))

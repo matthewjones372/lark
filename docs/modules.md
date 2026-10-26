@@ -84,7 +84,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-app-openfeature` | an OpenFeature provider as a node, keyed by `Client`, in readiness and shut down on release ([guide](flags.md)) | `surefold-app`, `surefold-openfeature` | none | yes |
 | `surefold-app-openfeature-flagd` | flags in flagd's schema as a section of the service's HOCON, evaluated in-process ([guide](flags.md#flags-in-the-services-config)) | `surefold-app-openfeature`, `surefold-app-typesafe` | `dev.openfeature.contrib.providers:flagd` 0.15.0, with gRPC and netty | yes |
 | `surefold-app-pekko` | a Pekko typed actor as a node ([cookbook](cookbook.md#spawn-a-pekko-actor)) | `surefold-app`, `surefold-pekko` | `pekko-actor-typed` 1.2.1 | yes |
-| `surefold-app-actor` | a `surefold-actor` flock and actors as nodes ([cookbook](cookbook.md#spawn-a-surefold-actor)) | `surefold-app`, `surefold-actor` | none | yes |
+| `surefold-app-actor` | a `surefold-actor` scope and actors as nodes ([cookbook](cookbook.md#spawn-a-surefold-actor)) | `surefold-app`, `surefold-actor` | none | yes |
 | `surefold-app-cluster` | a cluster membership as a node, joined from HOCON ([guide](cluster.md#joined-from-config)) | `surefold-app-actor`, `surefold-app-typesafe`, `surefold-cluster` | none beyond Typesafe Config | yes |
 | `surefold-app-gradle` | the Gradle plugin `io.github.matthewjones372.surefold.wiring` ([guide](app.md#checking-the-graph-in-the-build)) | none | Gradle API | yes |
 | `surefold-app-compiler` | the K2 compiler checker the plugin applies ([guide](app.md#checking-the-graph-in-the-editor)) | none | the Kotlin compiler, already present | yes |

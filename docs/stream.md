@@ -37,7 +37,7 @@ whichever module it ships in.
 | `surefold-stream` | `Stream`, `Pipe`, `Run`, `Exit`, every backend-neutral operator, `Hub` | none |
 | `surefold-stream-forks` | a run as a pull loop on a virtual thread | `Forks()` |
 | `surefold-stream-pekko` | a run as Pekko Streams stages, and the operators that take Pekko's types | `PekkoStreams(system)` |
-| `surefold-stream-actors` | a run as `surefold-actor` actors | `Actors(flock)` |
+| `surefold-stream-actors` | a run as `surefold-actor` actors | `Actors(scope)` |
 | `surefold-stream-test` | every stage on the calling thread, on a `TestClock` | `TestStreams(clock)` |
 
 Each backend module brings `surefold-stream` with it:
@@ -48,7 +48,7 @@ dependencies {
     implementation("io.github.matthewjones372:surefold-stream-forks:0.12.0")
     // or Pekko Streams: brings surefold-stream, surefold-pekko and pekko-stream
     // implementation("io.github.matthewjones372:surefold-stream-pekko:0.12.0")
-    // or actors of a surefold-actor flock
+    // or actors of a surefold-actor scope
     // implementation("io.github.matthewjones372:surefold-stream-actors:0.12.0")
 
     // time a test owns
@@ -121,7 +121,7 @@ threads and in what they accept.
 - **`PekkoStreams(system)`** compiles each operator to the Pekko stage it
   names, so Pekko's fusion, backpressure and materialisation apply. It is the
   only backend that runs the Pekko-specific operators.
-- **`Actors(flock)`** runs each run as an actor that pulls a batch per step,
+- **`Actors(scope)`** runs each run as an actor that pulls a batch per step,
   with `mapPar`, `buffer` and the fan-in operators as child actors. It was
   measured faster than Forks for `mapPar`, starting runs, `buffer` and `merge`,
   and about a quarter slower for a plain element-at-a-time chain, but those

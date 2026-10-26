@@ -157,7 +157,7 @@ stack starts at the test's own frame:
 ```
 expected: Right(value=42)
 but was:  Left(value=Bad(why=broken))
-at FlockTest.kt:322
+at ScopeTest.kt:322
     bound shouldBeRight 42
 ```
 

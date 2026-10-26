@@ -250,6 +250,6 @@ internal class Placing<M : Any, H : Any>(
     private fun keep(envelope: Region.Envelope<M>) {
         if (kept.size < Sharding.KEEP_AT_MOST) return kept.addLast(Kept(envelope, Carriers.capture()))
         val recipient = Address(self.toString(), "$path/${envelope.id}", 0)
-        cluster.flock.deadLetter(DeadLetter(recipient, envelope.message, DeadLetter.Why.Unreachable))
+        cluster.scope.deadLetter(DeadLetter(recipient, envelope.message, DeadLetter.Why.Unreachable))
     }
 }

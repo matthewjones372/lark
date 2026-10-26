@@ -1,8 +1,8 @@
 package io.github.matthewjones372.surefold.app.actor
 
 import io.github.matthewjones372.surefold.Deferred
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Behaviour
 import io.github.matthewjones372.surefold.actor.DeadLetter
@@ -33,11 +33,11 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 /**
- * A flock held open for the application's life, for its actors to live in. It is opened on a thread of its own that
- * waits until the node is released, and releasing it closes the flock: its close hooks run first, and then every
- * actor stops after its running step. Everything here is the flock's own call.
+ * A scope held open for the application's life, for its actors to live in. It is opened on a thread of its own that
+ * waits until the node is released, and releasing it closes the scope: its close hooks run first, and then every
+ * actor stops after its running step. Everything here is the scope's own call.
  */
-class Actors internal constructor(private val flock: Flock<Nothing>, private val tasks: BlockingQueue<Runnable>) {
+class Actors internal constructor(private val scope: Scope<Nothing>, private val tasks: BlockingQueue<Runnable>) {
 
     fun <M : Any, S, E> spawn(
         name: String,
@@ -46,28 +46,28 @@ class Actors internal constructor(private val flock: Flock<Nothing>, private val
         throughput: Int = 64,
         restart: Schedule<Failure<E>, *>? = null,
         stash: Int = 1024,
-    ): ActorRef<M> = flock.spawn(name, behaviour, capacity, throughput, restart, stash)
+    ): ActorRef<M> = scope.spawn(name, behaviour, capacity, throughput, restart, stash)
 
-    fun stop(ref: ActorRef<*>): Signal.Terminated = flock.stop(ref).await()
+    fun stop(ref: ActorRef<*>): Signal.Terminated = scope.stop(ref).await()
 
-    fun watch(ref: ActorRef<*>): Deferred<Signal.Terminated> = flock.watch(ref)
+    fun watch(ref: ActorRef<*>): Deferred<Signal.Terminated> = scope.watch(ref)
 
-    fun <M : Any> find(key: ServiceKey<M>): Set<ActorRef<M>> = flock.find(key)
+    fun <M : Any> find(key: ServiceKey<M>): Set<ActorRef<M>> = scope.find(key)
 
-    fun awaitIdle() = flock.awaitIdle()
+    fun awaitIdle() = scope.awaitIdle()
 
     /**
-     * Runs [block] on the flock's own thread and answers what it returned, or throws what it threw: for what must be
-     * started in the flock itself, such as a remote node or a cluster. What it starts closes with the flock, through
+     * Runs [block] on the scope's own thread and answers what it returned, or throws what it threw: for what must be
+     * started in the scope itself, such as a remote node or a cluster. What it starts closes with the scope, through
      * its close hooks, so a cluster made here leaves before the application's actors stop (spec 0080). Asked from the
-     * flock's own thread, as from inside another [within], it runs [block] there and then.
+     * scope's own thread, as from inside another [within], it runs [block] there and then.
      */
-    fun <A> within(block: Flock<Nothing>.() -> A): A {
-        if (Thread.currentThread() === holder) return flock.block()
-        val task = FutureTask { flock.block() }
+    fun <A> within(block: Scope<Nothing>.() -> A): A {
+        if (Thread.currentThread() === holder) return scope.block()
+        val task = FutureTask { scope.block() }
         // Checked and queued under the lock close takes, so no task is queued behind Close and never run.
         lock.withLock {
-            check(!closed) { "the actors' flock has closed" }
+            check(!closed) { "the actors' scope has closed" }
             tasks.put(task)
         }
         return try {
@@ -77,13 +77,13 @@ class Actors internal constructor(private val flock: Flock<Nothing>, private val
         }
     }
 
-    // The thread holding the flock open, set as soon as it has started.
+    // The thread holding the scope open, set as soon as it has started.
     internal lateinit var holder: Thread
 
     private val lock = ReentrantLock()
     private var closed = false
 
-    /** Lets the flock close, and waits for it to have: every actor has stopped once this returns. */
+    /** Lets the scope close, and waits for it to have: every actor has stopped once this returns. */
     internal fun close() {
         lock.withLock {
             closed = true
@@ -93,7 +93,7 @@ class Actors internal constructor(private val flock: Flock<Nothing>, private val
     }
 }
 
-/** What the flock's thread takes to stop running tasks and let the flock close. */
+/** What the scope's thread takes to stop running tasks and let the scope close. */
 private val Close = Runnable { }
 
 /**
@@ -104,8 +104,8 @@ fun actors(onDeadLetter: (DeadLetter) -> Unit = { logDebug("dead letter: $it") }
 }
 
 /**
- * Opens a flock on a thread of its own, with the clock, metrics, metric tags and logger of the thread that asked, and
- * hands it back once it stands: a thread the flock did not fork inherits none of them.
+ * Opens a scope on a thread of its own, with the clock, metrics, metric tags and logger of the thread that asked, and
+ * hands it back once it stands: a thread the scope did not fork inherits none of them.
  */
 private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
     val waits = clock.get()
@@ -120,10 +120,10 @@ private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
                 metricTags.locally(tags) {
                     logger.locally(logs) {
                         scope {
-                            // The guardian stands up here, on the flock's own thread, before any spawn from elsewhere.
+                            // The guardian stands up here, on the scope's own thread, before any spawn from elsewhere.
                             onDeadLetter(onDeadLetter)
                             opened.complete(Actors(this, tasks))
-                            // The flock's thread runs what `within` hands it until the node is released.
+                            // The scope's thread runs what `within` hands it until the node is released.
                             generateSequence { tasks.take() }.takeWhile { it !== Close }.forEach(Runnable::run)
                         }
                     }

@@ -33,9 +33,6 @@ interface Scope<E> : Fail<E> {
     fun onClose(hook: () -> Unit)
 }
 
-/** The name [Scope] had, kept only while the modules built on it move over (spec 0214). */
-typealias Flock<E> = Scope<E>
-
 /**
  * Opens a scope nothing in [block] can raise in, on the calling thread, and closes it when [block] leaves — by
  * return or throw — interrupting every fork still running and joining all of them before this returns. It answers

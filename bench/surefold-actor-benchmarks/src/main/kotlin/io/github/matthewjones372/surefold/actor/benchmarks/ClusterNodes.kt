@@ -2,7 +2,7 @@ package io.github.matthewjones372.surefold.actor.benchmarks
 
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.Behaviour
 import io.github.matthewjones372.surefold.actor.become
 import io.github.matthewjones372.surefold.actor.behaviour
@@ -39,10 +39,10 @@ internal fun nodeName(index: Int) = "n${index + 1}"
 private val gossiping = Gossiping(formAfter = 1.seconds)
 
 /**
- * Three surefold nodes of one cluster in this JVM on loopback, each a flock held open on a thread of its own, with what
+ * Three surefold nodes of one cluster in this JVM on loopback, each a scope held open on a thread of its own, with what
  * [build] started on each. It returns once every node sees all three `Up`.
  */
-internal class SurefoldTrio<T>(build: Flock<Nothing>.(cluster: Cluster, name: String) -> T) {
+internal class SurefoldTrio<T>(build: Scope<Nothing>.(cluster: Cluster, name: String) -> T) {
     val parts: List<T>
     private val release = CountDownLatch(1)
     private val holders: List<Thread>

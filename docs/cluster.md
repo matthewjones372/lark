@@ -8,7 +8,7 @@ way a service meets these things.
 
 Every complete example below is compiled against the library by
 `GuideExampleTest`, so what you read is what builds. Each is written as an
-extension on the flock your service already has, since where that flock comes
+extension on the scope your service already has, since where that scope comes
 from, `scope { }` or `surefold-app-actor`'s `Actors.within`, is the service's
 business.
 
@@ -30,7 +30,7 @@ dependencies {
 
 ## Two nodes
 
-A node is a flock that listens on a port, on loopback unless you give it a
+A node is a scope that listens on a port, on loopback unless you give it a
 `host`. An actor becomes reachable from other nodes when you expose it with a
 codec, and another node reaches it through a ref made from its address. Tell
 and ask work as they do in one process, with one difference: across a network
@@ -68,7 +68,7 @@ build codecs from classes you already have instead:
 
 <!-- cluster-remote -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.AskFailure
 import io.github.matthewjones372.surefold.actor.Reply
@@ -122,13 +122,13 @@ fun stock() = behaviour<Stock, Map<String, Int>>(emptyMap()) { _, counts, messag
 }
 
 /** On the warehouse node: the stock actor, where other nodes can reach it. */
-fun Flock<Nothing>.warehouse() {
+fun Scope<Nothing>.warehouse() {
     val node = node("warehouse", 25520, host = "10.0.0.7")
     node.expose(spawn("stock", stock()), StockCodec)
 }
 
 /** On a shop node: a ref to the warehouse's stock, told and asked as if it were here. */
-fun Flock<Nothing>.shop(): Either<AskFailure, Int> {
+fun Scope<Nothing>.shop(): Either<AskFailure, Int> {
     val node = node("shop-1", 25520, host = "10.0.0.8")
     val warehouse = Node("warehouse", "10.0.0.7", 25520)
     val stock = node.remote(Address(warehouse.toString(), "/user/stock", 0), StockCodec)
@@ -151,7 +151,7 @@ before it can send anything.
 
 <!-- cluster-tls -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.remote.RemoteNode
 import io.github.matthewjones372.surefold.actor.remote.Tls
 import io.github.matthewjones372.surefold.actor.remote.node
@@ -159,7 +159,7 @@ import java.io.File
 import java.security.KeyStore
 
 /** This node's key and certificate, and the CA that signed every node's, from PKCS12 files the platform mounts. */
-fun Flock<Nothing>.secured(password: CharArray): RemoteNode {
+fun Scope<Nothing>.secured(password: CharArray): RemoteNode {
     fun store(path: String) =
         KeyStore.getInstance("PKCS12").apply { File(path).inputStream().use { load(it, password) } }
     val tls = Tls.mutual(keys = store("/etc/surefold/node.p12"), password = password, trusted = store("/etc/surefold/ca.p12"))
@@ -201,7 +201,7 @@ seed and nobody answers. Membership is agreed by gossip, with no coordinator.
 
 <!-- cluster-membership -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
@@ -215,7 +215,7 @@ import io.github.matthewjones372.surefold.logInfo
 import kotlin.time.Duration.Companion.seconds
 
 /** A node of the shop's cluster, whose seeds are every address the headless service's name resolves to. */
-fun Flock<Nothing>.joinShop(): Cluster {
+fun Scope<Nothing>.joinShop(): Cluster {
     val node = node("shop-1", 25520, host = "0.0.0.0")
     val cluster = cluster(
         node,
@@ -284,7 +284,7 @@ built, so no shard is placed on it before its regions are open.
 A node that needs the `Cluster`, such as `Orders` above, is therefore built
 while this one is still `Joining`: sharding holds what it tells until there is
 an owner, but anything that needs this node `Up` waits for `use`'s block, which
-runs only once `cluster.ready()`. The flock leaves the cluster before the
+runs only once `cluster.ready()`. The scope leaves the cluster before the
 application's actors stop. `cluster(ClusterSettings(...))`
 takes the same settings from code, for an application that reads its
 configuration its own way.
@@ -323,7 +323,7 @@ the others lack, and place by it.
 
 <!-- cluster-entities -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Reply
 import io.github.matthewjones372.surefold.actor.ask
@@ -377,7 +377,7 @@ fun basket() = behaviour<Basket, List<String>>(emptyList()) { _, skus, message -
 }
 
 /** Runs on every node of the shop: baskets on the nodes that serve them, one daily report in the whole cluster. */
-fun Flock<Nothing>.shopFloor(roles: Set<String>): Pair<Sharded<Basket>, ActorRef<Basket>> {
+fun Scope<Nothing>.shopFloor(roles: Set<String>): Pair<Sharded<Basket>, ActorRef<Basket>> {
     val node = node("shop-1", 25520, host = "0.0.0.0")
     val cluster = cluster(node, Discovery.srv("_surefold._tcp.shop.internal"), roles = roles)
     val baskets = cluster.sharding("basket", BasketCodec, passivateAfter = 10.minutes, role = "baskets") { basket() }
@@ -399,7 +399,7 @@ the entity persistent: the next section.
 ## State that survives
 
 A persistent behaviour is remembered by its events. A command answers an
-effect: `persist` writes events to the flock's journal and then applies them,
+effect: `persist` writes events to the scope's journal and then applies them,
 `none` writes nothing, and `then` runs once they are written. On start, and on
 every move, the entity replays its events before its first command. Two writers for
 one entity cannot both succeed: the second append is a conflict, which becomes the
@@ -426,7 +426,7 @@ for your changelog to include (or `surefold-app-liquibase`'s
 
 <!-- cluster-persistent -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.EventCodec
 import io.github.matthewjones372.surefold.actor.PersistenceId
 import io.github.matthewjones372.surefold.actor.Prune
@@ -506,7 +506,7 @@ fun account(id: String, offsets: JdbcOffsets) = persistent<Account, Long, Long>(
 )
 
 /** Every node of the bank: one Postgres every node reaches, holding the journal, the snapshots and the offsets. */
-fun Flock<Nothing>.bank(database: DataSource): Sharded<Account> {
+fun Scope<Nothing>.bank(database: DataSource): Sharded<Account> {
     journal(JdbcJournal(database))
     snapshots(JdbcSnapshots(database))
     val offsets = JdbcOffsets(database)
@@ -687,7 +687,7 @@ fun Cluster.payments(): (wallet: String, pence: Long) -> Either<NotSent, Unit> {
 What the producer has not had confirmed lives in its memory: a producer that
 crashes loses it, and one that stops properly waits for it first (the next
 section). Where a crash must lose nothing, pass `durable = true`: the producer
-keeps each command in the flock's journal before `send` returns, and one started
+keeps each command in the scope's journal before `send` returns, and one started
 again under the same id sends what is still unconfirmed. Its commands implement
 `Delivered.redeliver`, usually as `copy(delivery = delivery)`. The journal
 keeps it under the node's life as well as the id, its name and `Cluster.uid`,
@@ -726,19 +726,19 @@ fun status(sent: Either<NotSent, Unit>): Int = when (sent) {
 
 ### Stopping
 
-A node whose flock closes leaves its cluster first. Its close hooks run before
+A node whose scope closes leaves its cluster first. Its close hooks run before
 any actor stops, so the node is still whole while it leaves. First a producer
 on it waits for what it keeps to be confirmed: up to `drainWithin` for
-`flock.producer`, and up to the cluster's `leaveWithin` for `reliable`. Then
+`scope.producer`, and up to the cluster's `leaveWithin` for `reliable`. Then
 the node leaves, waiting up to `leaveWithin` (30 seconds by default) to be
 removed. Its shards move to their next owners while it is `Leaving`. The
 others see it leave and remove it, rather than finding it unreachable and
 downing it `stableAfter` later.
-`cluster.stop(within)` does the same before the flock closes, for a service
+`cluster.stop(within)` does the same before the scope closes, for a service
 that has something of its own to do after. A `leaveWithin` of zero leaves
 nothing, and the node goes as a crashed one does.
 
-In a `surefold-app` application, start the cluster in the actors' flock with
+In a `surefold-app` application, start the cluster in the actors' scope with
 `Actors.within`, so that releasing the application on SIGTERM leaves the
 cluster before its actors stop. The same node answers `/ready` through a probe
 on `ready()`.
@@ -756,7 +756,7 @@ import io.github.matthewjones372.surefold.cluster.Discovery
 import io.github.matthewjones372.surefold.cluster.cluster
 import kotlin.time.Duration.Companion.seconds
 
-/** The cluster as a node of the application: in the actors' flock, left on release, and ready once it is in. */
+/** The cluster as a node of the application: in the actors' scope, left on release, and ready once it is in. */
 val clusterNode: Module = actors() +
     single { actors: Actors ->
         actors.within {
@@ -773,7 +773,7 @@ as crashed.
 
 ### Watching
 
-Every flock records through surefold's `metrics`, so a service with
+Every scope records through surefold's `metrics`, so a service with
 `surefold-micrometer` installed exports these with nothing more to write. Each
 carries a `node` tag naming the node it was recorded on.
 
@@ -814,7 +814,7 @@ same name and codec.
 
 <!-- cluster-topic -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.Topic
 import io.github.matthewjones372.surefold.actor.become
 import io.github.matthewjones372.surefold.actor.behaviour
@@ -837,7 +837,7 @@ object PriceCodec : MessageCodec<PriceChanged> {
 }
 
 /** Every node's price cache hears every change, wherever it was published. */
-fun Flock<Nothing>.prices(cluster: Cluster): Topic<PriceChanged> {
+fun Scope<Nothing>.prices(cluster: Cluster): Topic<PriceChanged> {
     val prices = cluster.topic("prices", PriceCodec)
     val cache = behaviour<PriceChanged, Map<String, Long>>(emptyMap()) { _, known, change ->
         become(known + (change.sku to change.pence))
@@ -847,4 +847,4 @@ fun Flock<Nothing>.prices(cluster: Cluster): Topic<PriceChanged> {
 }
 ```
 
-`flock.topic(name)` is the same on one node, with nothing sent to others.
+`scope.topic(name)` is the same on one node, with nothing sent to others.

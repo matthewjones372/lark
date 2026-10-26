@@ -70,7 +70,7 @@ open class ChainBenchmark {
 
     /** The same description on `Actors`: the same loop, a batch at a time on an actor. */
     @Benchmark
-    fun actors(flocked: Flocked): Long = chain().run(flocked.actors).done()
+    fun actors(scoped: Scoped): Long = chain().run(scoped.actors).done()
 
     @Benchmark
     fun pekko(pekko: Pekko): Long =

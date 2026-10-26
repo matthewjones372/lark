@@ -63,7 +63,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-app-openfeature`: `openFeature { provider }`, a flag provider as a node.
 - `surefold-app-openfeature-flagd`: `flagdFlags(path)`, flags in the service's HOCON; `flagdFlags(path, declared)` checks their variants against the declared `Flag`s at start.
 - `surefold-app-pekko`: a Pekko typed actor as a node.
-- `surefold-app-actor`: a `surefold-actor` flock and actors as nodes.
+- `surefold-app-actor`: a `surefold-actor` scope and actors as nodes.
 - `surefold-app-cluster`: a cluster membership as a node.
 - `surefold-app-gradle`: the wiring plugin.
 - `surefold-app-compiler`: the checker behind the wiring plugin.

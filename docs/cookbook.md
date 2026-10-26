@@ -747,7 +747,7 @@ absence has to be modelled as an `Option`, a sealed reply or an empty list.
 ## Spawn a Surefold actor
 
 `surefold-app-actor` does the same for [`surefold-actor`](actors.md). `actors()` is a
-node providing `Actors`, a flock that lives as long as the application, and
+node providing `Actors`, a scope that lives as long as the application, and
 `actor` spawns a behaviour in it, keyed by Surefold's own `ActorRef<M>`:
 
 ```kotlin
@@ -763,7 +763,7 @@ val tills: Module =
 
 An actor node takes up to two dependencies and is stopped, and awaited,
 before anything it depends on is released. `Actors.within { }` runs code in
-the application's flock, which is how a [cluster](cluster.md#stopping) joins
+the application's scope, which is how a [cluster](cluster.md#stopping) joins
 as a node.
 
 ## What to reach for

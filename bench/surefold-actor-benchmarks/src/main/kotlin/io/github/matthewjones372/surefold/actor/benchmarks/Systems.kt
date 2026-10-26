@@ -1,7 +1,7 @@
 package io.github.matthewjones372.surefold.actor.benchmarks
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Behaviour
 import io.github.matthewjones372.surefold.actor.behaviour
@@ -10,12 +10,12 @@ import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.scope
 import org.apache.pekko.actor.ActorSystem
 import org.openjdk.jmh.annotations.Level
-import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.Setup
 import org.openjdk.jmh.annotations.State
 import org.openjdk.jmh.annotations.TearDown
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
+import org.openjdk.jmh.annotations.Scope as JmhScope
 
 /** Larger than any burst a benchmark tells, so neither side waits on a full mailbox: Pekko's is unbounded. */
 internal const val CAPACITY = 1 shl 17
@@ -24,20 +24,20 @@ internal const val CAPACITY = 1 shl 17
 private const val BLOCKING_POOL = 16
 
 /**
- * A flock held open for the whole trial on a thread of its own, since an invocation cannot sit inside one. A
- * first actor is spawned on that thread, so the flock's guardian exists before any other thread spawns.
+ * A scope held open for the whole trial on a thread of its own, since an invocation cannot sit inside one. A
+ * first actor is spawned on that thread, so the scope's guardian exists before any other thread spawns.
  */
-@State(Scope.Benchmark)
+@State(JmhScope.Benchmark)
 open class Surefold {
 
-    lateinit var flock: Flock<Nothing>
+    lateinit var scope: Scope<Nothing>
 
     private val release = CountDownLatch(1)
     private lateinit var holder: Thread
 
     @Setup(Level.Trial)
     fun start() {
-        val opened = AtomicReference<Flock<Nothing>>()
+        val opened = AtomicReference<Scope<Nothing>>()
         val ready = CountDownLatch(1)
         holder = Thread.ofPlatform().start {
             scope {
@@ -48,7 +48,7 @@ open class Surefold {
             }
         }
         ready.await()
-        flock = opened.get()
+        scope = opened.get()
     }
 
     @TearDown(Level.Trial)
@@ -58,13 +58,13 @@ open class Surefold {
     }
 
     fun <M : Any, S> actor(name: String, behaviour: Behaviour<M, S, *>): ActorRef<M> =
-        flock.spawn(name, behaviour, capacity = CAPACITY)
+        scope.spawn(name, behaviour, capacity = CAPACITY)
 }
 
 private fun idle(): Behaviour<Unit, Unit, Nothing> = behaviour(Unit) { _, _, _ -> stay() }
 
 /** One actor system per fork, as a service has, with the blocking dispatcher Pekko's documentation shows. */
-@State(Scope.Benchmark)
+@State(JmhScope.Benchmark)
 open class Pekko {
 
     lateinit var system: ActorSystem

@@ -25,4 +25,4 @@ internal class Backend(val name: String, private val make: (ActorSystem) -> Stre
 internal val OnPekko = Backend("Pekko") { PekkoStreams(it) }
 internal val OnForks = Backend("Forks") { Forks() }
 internal val OnTestStreams = Backend("TestStreams") { TestStreams() }
-internal val OnActors = Backend("Actors") { Actors(heldFlock) }
+internal val OnActors = Backend("Actors") { Actors(heldScope) }
