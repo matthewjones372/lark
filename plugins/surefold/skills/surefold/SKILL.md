@@ -55,6 +55,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-stream-test`: `TestStreams` and `TestClock`.
 - `surefold-test`: `story`, `eventually`.
 - `surefold-junit`: `Suite` objects run by a JUnit Platform engine.
+- `surefold-junit-testkit`: `shouldHaveSucceeded`, `shouldHaveFailed` and `failureOf` on a suite's run.
 - `surefold-app`: the graph, `SurefoldApp`, `closingOf`, probes, `testApp`.
 - `surefold-app-typesafe`: `config`, `secret`, `choosing`, `overridingConfig`.
 - `surefold-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.

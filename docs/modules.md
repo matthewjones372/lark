@@ -138,6 +138,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-assert` | checks for tests, failing at the test's own line: `shouldBe`, `shouldBeRight` and `shouldBeLeft` for Surefold's `Either`, the string, collection and map matchers, and `withClue` ([guide](testing.md#assertions)) | `surefold` | `opentest4j` 1.3.0 | yes |
 | `surefold-test` | `story` and `eventually` ([guide](testing.md#stories-and-waiting)) | `surefold` | none | yes |
 | `surefold-junit` | `Suite` objects whose tests share one `Resource` and record their checks, run by a JUnit Platform engine | `surefold`, `surefold-assert`, `surefold-test` | `junit-platform-engine` 6.1.3 | yes |
+| `surefold-junit-testkit` | checks on a suite's run, read from `EngineTestKit`: `shouldHaveSucceeded`, `shouldHaveFailed`, `shouldHaveSkipped`, `failureOf` ([guide](testing.md#testing-an-aspect)) | none | `junit-platform-testkit` 6.1.3, `opentest4j` 1.3.0 | yes |
 
 ### Example
 

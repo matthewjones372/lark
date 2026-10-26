@@ -89,6 +89,7 @@ val moduleDescriptions = mapOf(
     "surefold-test" to
         "For tests of a surefold service: eventually on surefold's clock, and a test that reads as a story.",
     "surefold-junit" to "Surefold's tests on the JUnit Platform: a suite is an object, its tests share one resource.",
+    "surefold-junit-testkit" to "Checks on a suite's run, read from EngineTestKit: which tests passed, failed or were skipped.",
     "surefold-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
     "surefold-app-pekko" to "surefold-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "surefold-otel" to "surefold on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
@@ -149,7 +150,7 @@ val gradlePluginModules = setOf("surefold-app-gradle")
 val testedByRunningABuild = gradlePluginModules + "surefold-app-compiler"
 
 // surefold-junit and what it runs on keep their tests on Jupiter: a runner cannot report on its own parts (spec 0197).
-val surefoldJunitRunsOn = setOf("surefold", "surefold-assert", "surefold-test", "surefold-junit")
+val surefoldJunitRunsOn = setOf("surefold", "surefold-assert", "surefold-test", "surefold-junit", "surefold-junit-testkit")
 
 // Measured, not tested: a benchmark has no assertions for a coverage floor to count.
 val benchmarkModules = setOf("surefold-stream-benchmarks", "surefold-actor-benchmarks", "surefold-kafka-benchmarks")

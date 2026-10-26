@@ -19,6 +19,7 @@ module("core", "surefold-test")
 module("core", "surefold-arrow")
 module("core", "surefold-assert")
 module("core", "surefold-junit")
+module("core", "surefold-junit-testkit")
 module("core", "surefold-structured")
 
 module("stream", "surefold-stream")
