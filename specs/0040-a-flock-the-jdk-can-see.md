@@ -77,9 +77,9 @@ the user opts into.
       well as `flock`, and pass with only the scope factory changed.
       Built instead: the module's own suite of 22 tests. The shared suites
       are still to do.
-- [ ] **`spec-0040-locals`** — `SurefoldLocal` on `ScopedValue` inside `structured`.
-      Done when: a value bound before `structured` is read in a fork of a fork
-      with no `Bindings` snapshot taken.
+- ~~**`spec-0040-locals`** — `SurefoldLocal` on `ScopedValue` inside `structured`.~~
+      Dropped (maintainer, 2026-10-26): the `structured` scope it would bind inside no longer exists, and
+      `SurefoldLocal` stays on `Bindings`.
 
 ## Acceptance
 
