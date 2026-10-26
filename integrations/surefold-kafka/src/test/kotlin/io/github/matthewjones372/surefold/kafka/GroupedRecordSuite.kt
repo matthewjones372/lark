@@ -49,8 +49,8 @@ object GroupedRecordSuite : Suite() {
             val exit = Stream.from(read).groupedRecord(5, 1.hours).runCommitting().run(TestStreams())
                 .toCompletableFuture().join()
 
-            (exit shouldBe Exit.Done(1L)) and
-                (marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position })
+            exit shouldBe Exit.Done(1L)
+            marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position }
         }
 
         test("a record still expanding at a batch's end is committed with the batch its last element is in") {
@@ -60,10 +60,10 @@ object GroupedRecordSuite : Suite() {
             val exit = Stream.from(read).groupedRecord(2, 1.hours).runCommitting().run(TestStreams())
                 .toCompletableFuture().join()
 
-            (exit shouldBe Exit.Done(2L)) and
-                withClue("the first batch commits offset 0 only; offset 1 waits for its last element, in the second") {
-                    marks.handled.toList() shouldBe listOf(Position("orders", 0, 0), Position("orders", 0, 1))
-                }
+            exit shouldBe Exit.Done(2L)
+            withClue("the first batch commits offset 0 only; offset 1 waits for its last element, in the second") {
+                marks.handled.toList() shouldBe listOf(Position("orders", 0, 0), Position("orders", 0, 1))
+            }
         }
 
         test("a batch's body logs no record's position, and a record's body still does") {
@@ -75,8 +75,8 @@ object GroupedRecordSuite : Suite() {
                 logs.all().single().annotations
             }
 
-            (annotationsOf(batch) shouldNotContainKey "kafka.offset") and
-                (annotationsOf(one) shouldContainKey "kafka.offset")
+            annotationsOf(batch) shouldNotContainKey "kafka.offset"
+            annotationsOf(one) shouldContainKey "kafka.offset"
         }
 
         test("a batch of batches marks each record handled once, as one batch would") {
@@ -86,8 +86,8 @@ object GroupedRecordSuite : Suite() {
             val exit = Stream.from(read).groupedRecord(2, 1.hours).groupedRecord(2, 1.hours).runCommitting()
                 .run(TestStreams()).toCompletableFuture().join()
 
-            (exit shouldBe Exit.Done(1L)) and
-                (marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position })
+            exit shouldBe Exit.Done(1L)
+            marks.handled.toList() shouldContainExactlyInAnyOrder read.map { it.position }
         }
     }
 }

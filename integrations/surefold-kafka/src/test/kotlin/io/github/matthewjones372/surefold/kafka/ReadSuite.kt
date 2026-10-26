@@ -34,11 +34,11 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
             listOfNotNull(group?.let { ConsumerConfig.GROUP_ID_CONFIG to it }) +
             (ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest")
 
-    /** The values a read gave, and whether it ended having handled each of them. */
-    private class Seen(val ended: Expectations, val values: List<String?>) {
+    /** The values a read gave; it is checked to have ended having handled each of them. */
+    private class Seen(val values: List<String?>) {
 
-        /** The read ended as it should, and gave [expected]. */
-        infix fun gives(expected: List<String?>): Expectations = ended and (values shouldBe expected)
+        /** The read gave [expected]. */
+        infix fun gives(expected: List<String?>): Expectations = values shouldBe expected
     }
 
     /** The values [partition] of [topic] gives from [from] until [until], each seen by [each] as it is handled. */
@@ -61,7 +61,8 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
             .run(backend)
             .toCompletableFuture()
             .get(GENEROUS_SECONDS, TimeUnit.SECONDS)
-        return Seen(exit shouldBe Exit.Done(seen.size.toLong()), seen.toList())
+        exit shouldBe Exit.Done(seen.size.toLong())
+        return Seen(seen.toList())
     }
 
     init {
@@ -73,8 +74,7 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
 
             val reads = (0..2).map { values(kafka, "replay", it, From.Earliest, Until.EndAtStart) }
 
-            reads.map { it.ended }.reduce(Expectations::and) and
-                (reads.map { it.values } shouldBe listOf(listOf("a", "b"), listOf("c"), listOf("d", "e", "f")))
+            reads.map { it.values } shouldBe listOf(listOf("a", "b"), listOf("c"), listOf("d", "e", "f"))
         }
 
         test("a record written after the read opened is not read when it ends at start") { kafka ->
@@ -85,16 +85,16 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
                 if (it == "a") kafka.sendTo(Topic("late"), 0, "late")
             }
 
-            (written gives listOf("a", "b")) and
-                (values(kafka, "late", 0, From.Earliest, Until.EndAtStart) gives listOf("a", "b", "late"))
+            written gives listOf("a", "b")
+            values(kafka, "late", 0, From.Earliest, Until.EndAtStart) gives listOf("a", "b", "late")
         }
 
         test("a partition already at its end gives nothing, at once") { kafka ->
             kafka.create(Topic("empty"), partitions = 2)
             kafka.sendTo(Topic("empty"), 0, "a")
 
-            (values(kafka, "empty", 1, From.Earliest, Until.EndAtStart) gives emptyList()) and
-                (values(kafka, "empty", 0, From.Latest, Until.EndAtStart) gives emptyList())
+            values(kafka, "empty", 1, From.Earliest, Until.EndAtStart) gives emptyList()
+            values(kafka, "empty", 0, From.Latest, Until.EndAtStart) gives emptyList()
         }
 
         test("a read from an offset starts there") { kafka ->
@@ -109,12 +109,12 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
             kafka.sendTo(Topic("resume"), 0, "1", "2", "3", "4")
 
             val stopped = values(kafka, "resume", 0, From.Committed, Until.Never, group = "resumer", take = 2)
-            val first = stopped gives listOf("1", "2")
-            val committed = kafka.committed("resumer", Topic("resume")) shouldBe 2L
+            stopped gives listOf("1", "2")
+            kafka.committed("resumer", Topic("resume")) shouldBe 2L
             kafka.sendTo(Topic("resume"), 0, "5")
             val resumed = values(kafka, "resume", 0, From.Committed, Until.EndAtStart, group = "resumer")
 
-            first and committed and (resumed gives listOf("3", "4", "5"))
+            resumed gives listOf("3", "4", "5")
         }
 
         test("a grouped read whose handler outlasts the poll interval keeps its place and commits") { kafka ->
@@ -138,9 +138,9 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
                 .toCompletableFuture()
                 .get(GENEROUS_SECONDS, TimeUnit.SECONDS)
 
-            (exit shouldBe Exit.Done(3L)) and
-                (seen.toList() shouldBe listOf("1", "2", "3")) and
-                (kafka.committed("slow-reader", topic) shouldBe 3L)
+            exit shouldBe Exit.Done(3L)
+            seen.toList() shouldBe listOf("1", "2", "3")
+            kafka.committed("slow-reader", topic) shouldBe 3L
         }
 
         test("a read from the committed offset with no group is refused where it is built") { kafka ->
@@ -169,11 +169,9 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
                 .toCompletableFuture()
                 .get(GENEROUS_SECONDS, TimeUnit.SECONDS)
 
-            (exit shouldBe Exit.Done(3L)) and
-                (
-                    seen.map { either -> either.fold({ "error at ${it.offset}" }, { "$it" }) } shouldBe
-                        listOf("1", "error at 1", "3")
-                    )
+            exit shouldBe Exit.Done(3L)
+            seen.map { either -> either.fold({ "error at ${it.offset}" }, { "$it" }) } shouldBe
+                listOf("1", "error at 1", "3")
         }
     }
 }

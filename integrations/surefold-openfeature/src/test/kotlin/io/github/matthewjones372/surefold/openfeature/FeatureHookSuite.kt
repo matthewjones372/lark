@@ -48,45 +48,41 @@ object FeatureHookSuite : SharedSuite<OpenFeatureAPI>() {
         test(
             "an evaluation against a failing provider warns once, counts one error, and answers with the default",
         ) { api ->
-            val (answered, lines) = capturingLogs { logs ->
+            val (answer, lines) = capturingLogs { logs ->
                 capturingMetrics { measured ->
                     val answer = api.getClient("down").getBooleanValue("adoption.registry-check", true)
-                    val counted = withClue("one reading, tagged with the flag and the error code") {
-                        (measured.counter("openfeature.errors") shouldBe 1.0) and
-                            (
-                                measured.tags("openfeature.errors") shouldBe
-                                    mapOf("flag" to "adoption.registry-check", "code" to "GENERAL")
-                                )
+                    withClue("one reading, tagged with the flag and the error code") {
+                        measured.counter("openfeature.errors") shouldBe 1.0
+                        measured.tags("openfeature.errors") shouldBe
+                            mapOf("flag" to "adoption.registry-check", "code" to "GENERAL")
                     }
-                    answer to counted
+                    answer
                 } to logs.all().filter { it.level == LogLevel.Warn }
             }
-            val (answer, counted) = answered
 
-            counted and
-                (answer shouldBe true) and
-                (lines shouldHaveSize 1) and
-                (lines.single().message shouldContain "adoption.registry-check") and
-                (lines.single().message shouldContain "GENERAL")
+            answer shouldBe true
+            lines shouldHaveSize 1
+            lines.single().message shouldContain "adoption.registry-check"
+            lines.single().message shouldContain "GENERAL"
         }
 
         test("every evaluation is counted under its flag, variant and reason") { api ->
             capturingMetrics { measured ->
                 val _ = evaluatedFor("ada") { api.client.getStringValue("who", "nobody") }
 
-                (measured.counter("openfeature.evaluations") shouldBe 1.0) and
-                    (measured.tags("openfeature.evaluations").keys shouldBe setOf("flag", "variant", "reason")) and
-                    (measured.tags("openfeature.evaluations")["flag"] shouldBe "who")
+                measured.counter("openfeature.evaluations") shouldBe 1.0
+                measured.tags("openfeature.evaluations").keys shouldBe setOf("flag", "variant", "reason")
+                measured.tags("openfeature.evaluations")["flag"] shouldBe "who"
             }
         }
 
         test("an evaluation that answered writes no warning and counts no error") { api ->
             capturingLogs { logs ->
-                val counted = capturingMetrics { measured ->
+                capturingMetrics { measured ->
                     val _ = api.client.getStringValue("who", "nobody")
                     measured.counter("openfeature.errors") shouldBe 0.0
                 }
-                counted and (logs.all().filter { it.level == LogLevel.Warn } shouldHaveSize 0)
+                logs.all().filter { it.level == LogLevel.Warn } shouldHaveSize 0
             }
         }
 

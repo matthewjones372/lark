@@ -106,8 +106,8 @@ object Slf4jLoggerSuite : SharedSuite<LoggerContext>(concurrent = false) {
                 lines = backend.capturing("app") { logger.locally(Slf4jLogger("app")) { logInfo("named") } }
             }
 
-            (lines.map { it.loggerName to it.message } shouldBe listOf("app" to "named")) and
-                suites.shouldBe(emptyList())
+            lines.map { it.loggerName to it.message } shouldBe listOf("app" to "named")
+            suites.shouldBe(emptyList())
         }
 
         test("a line with no origin reaches surefold") { backend ->
@@ -128,10 +128,10 @@ object Slf4jLoggerSuite : SharedSuite<LoggerContext>(concurrent = false) {
 
             withClue("a pattern of %X{pet_id} and a field search both read this and not the message") {
                 inside.mdcPropertyMap["pet_id"] shouldBe "tortoise-1"
-            } and
-                withClue("a pooled thread hands itself to something else next, and must carry nothing over") {
-                    outside.mdcPropertyMap["pet_id"].shouldBeNull()
-                }
+            }
+            withClue("a pooled thread hands itself to something else next, and must carry nothing over") {
+                outside.mdcPropertyMap["pet_id"].shouldBeNull()
+            }
         }
 
         test("a line written on a fork carries what its opener bound") { backend ->
@@ -153,12 +153,11 @@ object Slf4jLoggerSuite : SharedSuite<LoggerContext>(concurrent = false) {
 
             val lines = backend.appended { logging { logAnnotated("pet_id" to "tortoise-1") { logInfo("both") } } }
 
-            val kept = withClue("put back rather than cleared: what surefold did not set is not surefold's to drop") {
+            withClue("put back rather than cleared: what surefold did not set is not surefold's to drop") {
                 MDC.get("service") shouldBe "petshop"
             }
-            val carried = lines.single().mdcPropertyMap["service"] shouldBe "petshop"
+            lines.single().mdcPropertyMap["service"] shouldBe "petshop"
             MDC.clear()
-            kept and carried
         }
 
         test("every level surefold has is one this knows") { _ ->
