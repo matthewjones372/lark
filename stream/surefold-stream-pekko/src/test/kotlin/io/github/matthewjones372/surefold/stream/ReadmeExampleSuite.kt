@@ -4,7 +4,6 @@ import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -64,33 +63,33 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
     private fun marked(marker: String) = Regex("""$marker\s*```kotlin\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
 
     /** The build hands the root over, so the pages read here are the ones the repository ships. */
-    private fun page(name: String, then: (File) -> Expectations): Expectations {
+    private fun page(name: String, then: (File) -> Unit) {
         val root: String? = System.getProperty("surefold.stream.repoRoot")
         return withClue("the build must pass -Dsurefold.stream.repoRoot; see surefold-stream-pekko/build.gradle.kts") {
             root.shouldNotBeNull { path -> then(File(path, name)) }
         }
     }
 
-    private fun document(then: (File) -> Expectations): Expectations = page("docs/stream.md", then)
+    private fun document(then: (File) -> Unit) = page("docs/stream.md", then)
 
-    private fun readme(then: (File) -> Expectations): Expectations = page("README.md", then)
+    private fun readme(then: (File) -> Unit) = page("README.md", then)
 
     private fun examples(page: File, marker: String): List<String> =
         marked(marker).findAll(page.readText()).map { match -> match.groupValues[1] }.toList()
 
-    private fun marksOne(page: File, marker: String): Expectations =
+    private fun marksOne(page: File, marker: String) =
         withClue("$page must hold one kotlin fence marked $marker") {
             examples(page, marker).size shouldBe 1
         }
 
     /** The one fence [page] marks with [marker], checked by [then] only if there is exactly one. */
-    private fun only(page: File, marker: String, then: (String) -> Expectations): Expectations {
-        val one = marksOne(page, marker)
-        return examples(page, marker).singleOrNull()?.let { one and then(it) } ?: one
+    private fun only(page: File, marker: String, then: (String) -> Unit) {
+        marksOne(page, marker)
+        examples(page, marker).singleOrNull()?.let(then)
     }
 
     /** Compiled in a workspace of its own, as `@TempDir` gave each test, and removed after. */
-    private fun compiles(source: String): Expectations {
+    private fun compiles(source: String) {
         val (exit, errors) = withTempDirectory("surefold-stream-readme") { workspace ->
             EmbeddedKotlin(workspace.toFile()).compile(source)
         }

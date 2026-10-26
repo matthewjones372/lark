@@ -352,7 +352,8 @@ object InventorySuite : SharedSuite<Inventory>(limit = Limit.fixed(8), aspects =
         test("stock adds up") { db ->
             db.add("apples", 2)
             db.add("apples", 3)
-            (db.count("apples") shouldBe 5) and expect(db.count("pears") == 0)
+            db.count("apples") shouldBe 5
+            expect(db.count("pears") == 0)
         }
         test("a missing item has none", flaky(3)) { db -> db.count("plums") shouldBe 0 }
     }

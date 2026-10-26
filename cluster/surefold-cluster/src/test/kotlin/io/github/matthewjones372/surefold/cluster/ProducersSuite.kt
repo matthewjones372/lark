@@ -9,7 +9,6 @@ import io.github.matthewjones372.surefold.actor.journal.jdbc.JdbcJournal
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.fail.onLeft
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -46,10 +45,10 @@ object ProducersSuite : Suite() {
             fun Bank.up() = cluster.await(1.minutes) { view ->
                 view.members.count { it.status == Status.Up } == 3 && view.members.any { cluster.isSelf(it) }
             }
-            fun Bank.pay(pence: Int): Expectations {
+            fun Bank.pay(pence: Int) {
                 val payments = accounts.reliable("checkout", durable = true)
-                return ids.forAll { id -> payments.send(id) { PayInto(pence, it) } shouldBe Unit.right() } and
-                    (payments.drain(1.minutes) shouldBe true)
+                ids.forAll { id -> payments.send(id) { PayInto(pence, it) } shouldBe Unit.right() }
+                payments.drain(1.minutes) shouldBe true
             }
             try {
                 banks.forAll { it.up() shouldBe true }

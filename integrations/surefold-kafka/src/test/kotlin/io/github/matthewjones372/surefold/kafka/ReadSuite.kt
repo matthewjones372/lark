@@ -4,7 +4,6 @@ import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.fold
 import io.github.matthewjones372.surefold.fail.map
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldThrow
@@ -38,7 +37,7 @@ object ReadSuite : SharedSuite<KafkaBroker>() {
     private class Seen(val values: List<String?>) {
 
         /** The read gave [expected]. */
-        infix fun gives(expected: List<String?>): Expectations = values shouldBe expected
+        infix fun gives(expected: List<String?>) = values shouldBe expected
     }
 
     /** The values [partition] of [topic] gives from [from] until [until], each seen by [each] as it is handled. */

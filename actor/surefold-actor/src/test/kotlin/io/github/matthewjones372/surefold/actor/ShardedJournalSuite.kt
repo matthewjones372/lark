@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.fail.Either
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
@@ -11,10 +10,6 @@ import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
 
 private fun two() = listOf("db-a" to InMemoryJournal(), "db-b" to InMemoryJournal())
-
-/** Every check made for each of these, kept together. */
-private inline fun <T> Iterable<T>.allOf(check: (T) -> Expectations): Expectations =
-    map(check).reduce(Expectations::and)
 
 /** Spec 0088: a journal split across databases by id. */
 object ShardedJournalSuite : Suite() {
@@ -30,7 +25,7 @@ object ShardedJournalSuite : Suite() {
                 "account|acc-1" to 1232564952,
                 "transfer|7f3c0e2a-1b4d-4c55-9e0e-1f2a3b4c5d6e" to -1796319154,
                 "The quick brown fox jumps over the lazy dog" to 776992547,
-            ).entries.allOf { (text, hash) -> withClue(text) { murmur3(text.toByteArray()) shouldBe hash } }
+            ).entries.forEach { (text, hash) -> withClue(text) { murmur3(text.toByteArray()) shouldBe hash } }
         }
 
         test("an id's events are written to one database, and read back from it") {
@@ -60,14 +55,14 @@ object ShardedJournalSuite : Suite() {
         }
 
         test("ten thousand ids split within five percent of even") {
-            listOf(2, 3, 4).allOf { n ->
+            listOf(2, 3, 4).forEach { n ->
                 val journal = ShardedJournal((1..n).map { "db-$it" to InMemoryJournal() })
                 val counts =
                     (1..10_000).groupingBy { journal.database(PersistenceId("account", "acc-$it")) }.eachCount()
                 val even = 10_000 / n
                 withClue("$n databases: $counts") {
                     counts.size shouldBe n
-                    counts.values.allOf { it shouldBeInRange (even * 95 / 100)..(even * 105 / 100) }
+                    counts.values.forEach { it shouldBeInRange (even * 95 / 100)..(even * 105 / 100) }
                 }
             }
         }
@@ -76,7 +71,7 @@ object ShardedJournalSuite : Suite() {
             val stores = listOf("db-a" to InMemorySnapshots(), "db-b" to InMemorySnapshots())
             val journal = ShardedJournal(two())
             val snapshots = ShardedSnapshots(stores)
-            (1..50).map { PersistenceId("account", "acc-$it") }.allOf { id ->
+            (1..50).map { PersistenceId("account", "acc-$it") }.forEach { id ->
                 snapshots.save(id, 3, byteArrayOf(3))
                 snapshots.latest(id)?.sequence shouldBe 3
                 stores.single { it.first == journal.database(id) }.second.latest(id)?.sequence shouldBe 3
@@ -92,11 +87,11 @@ object ShardedJournalSuite : Suite() {
         }
 
         test("the formula's ranges, as a slice map, own each slice where spec 0088's formula put it") {
-            listOf(1, 2, 3, 4, 7).allOf { n ->
+            listOf(1, 2, 3, 4, 7).forEach { n ->
                 val names = (1..n).map { "db-$it" }
                 val map = SliceMap.even(names)
                 map.ranges.size shouldBe n
-                (0 until Slices.COUNT).allOf { slice -> map.owner(slice) shouldBe names[slice * n / Slices.COUNT] }
+                (0 until Slices.COUNT).forEach { slice -> map.owner(slice) shouldBe names[slice * n / Slices.COUNT] }
             }
         }
 
@@ -141,10 +136,10 @@ object ShardedJournalSuite : Suite() {
 
         test("every slice is in exactly the partition partitionOf names, for any count of partitions") {
             val ids = (1..5_000).map { PersistenceId("account", "acc-$it") }
-            listOf(1, 2, 3, 7, 8, 100, 1023, 1024).allOf { n ->
+            listOf(1, 2, 3, 7, 8, 100, 1023, 1024).forEach { n ->
                 val slices = (0 until n).flatMap { Slices.partition(it, n) }
                 slices shouldContainExactly (0 until Slices.COUNT).toList()
-                ids.allOf { id ->
+                ids.forEach { id ->
                     withClue("$id of $n") {
                         Slices.of(id) shouldBeInRange
                             Slices.partition(Slices.partitionOf(id, n), n)

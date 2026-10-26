@@ -37,9 +37,12 @@ class ExpectationsCompileTest {
         reported.shouldBeEmpty()
     }
 
+    // A block of checks returns Unit, so a helper calls the one it is handed as a statement (spec 0203).
     @Test
-    fun `a body that returns its expectations compiles`(@TempDir workspace: File) {
-        val (exit, reported) = EmbeddedKotlin(workspace).compile(suiteOf("expect(one == 1) and expect(one > 0)"))
+    fun `a helper calls the block of checks it is handed as a statement, with nothing said`(@TempDir workspace: File) {
+        val source = suiteOf("twice { expect(one == 1) }\n val check = { expect(one > 0) }\n check()")
+            .replace("object Fixture", "fun twice(check: () -> Unit) {\n check()\n check()\n}\n\nobject Fixture")
+        val (exit, reported) = EmbeddedKotlin(workspace).compile(source)
 
         withClue(reported.joinToString("\n")) { exit shouldBe ExitCode.OK }
         reported.shouldBeEmpty()

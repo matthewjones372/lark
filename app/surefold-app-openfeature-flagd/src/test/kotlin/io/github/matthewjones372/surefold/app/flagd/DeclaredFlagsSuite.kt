@@ -5,7 +5,6 @@ import dev.openfeature.sdk.Value
 import io.github.matthewjones372.surefold.app.StartupError
 import io.github.matthewjones372.surefold.app.typesafe.configOf
 import io.github.matthewjones372.surefold.app.use
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
@@ -44,7 +43,7 @@ private val matching = """
     }
 """.trimIndent()
 
-private inline fun refusal(conf: String, declared: List<Flag<*>>, check: (String) -> Expectations): Expectations =
+private inline fun refusal(conf: String, declared: List<Flag<*>>, check: (String) -> Unit) =
     (configOf(conf) + flagdFlags("flags", declared)).use { _: Client -> }
         .leftOrNull()
         .shouldNotBeNull { error -> error.shouldBeInstanceOf<StartupError.Refused> { check(it.reason) } }

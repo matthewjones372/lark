@@ -56,15 +56,15 @@ joins and the bracket trap in plain tests. Recommended: collect everywhere.
 
 ## Stack
 
-- [ ] **`spec-0202-record`** — the record, bodies returning `Unit`, `story` collecting, `anyOf` and `not`, the
+- [x] **`spec-0202-record`** — the record, bodies returning `Unit`, `story` collecting, `anyOf` and `not`, the
       empty-test failure, tests, and `docs/testing.md`. Old `a and b` bodies still pass. Its tests check that a
       recorded failure reads as one reads today: the same heading, expected and actual, line, quoted source,
       power-assert diagram and clues.
       Done when: `:surefold-junit:check` and `./gradlew build` pass with no suite changed.
-- [ ] **`spec-0202-unjoin`** — surefold's suites drop their joins and trailing values. This is test code only,
+- [x] **`spec-0202-unjoin`** — surefold's suites drop their joins and trailing values. This is test code only,
       split into PRs by module group, as spec 0197 was.
       Done when: `grep -rn ') and$' --include=*Suite.kt .` finds nothing.
-- [ ] **`spec-0202-retire`** — `and`, `or` and `!` on `Expectations` are removed, and checks return `Unit`.
+- [x] **`spec-0202-retire`** — `and`, `or` and `!` on `Expectations` are removed, and checks return `Unit`.
       So do the narrowing checks' blocks, and helpers' blocks typed `-> Expectations`. A `surefold-junit` suite
       proves that a helper can call the block it is handed as a statement (spec 0203).
       Done when: `./gradlew build` passes.

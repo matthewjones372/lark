@@ -11,7 +11,6 @@ import io.github.matthewjones372.surefold.actor.projection.runProjecting
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -108,7 +107,7 @@ private class Spread {
         }
     }
 
-    fun run(): Expectations {
+    fun run() {
         val ids = (1..IDS).map { PersistenceId("till", "t-$it") }
         ids.forEach { id -> journal.append(id, 0, (1..EACH).map { "$it".toByteArray() }) }
         val total = IDS * EACH
@@ -117,7 +116,7 @@ private class Spread {
         val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
         val members = ports.mapIndexed { i, port -> Member("n${i + 1}", port, seeds) }.toMutableList()
         try {
-            val up = members.forAll { member ->
+            members.forAll { member ->
                 member.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe
                     true
             }
@@ -127,7 +126,7 @@ private class Spread {
             // Where each worker runs now: the last start of each, since workers move as members join.
             val startsBefore = started.toList()
             val placed = startsBefore.toMap()
-            val spread = withClue("workers spread over the members: $placed") {
+            withClue("workers spread over the members: $placed") {
                 placed.values.toSet().size shouldBeGreaterThan 1
             }
 
@@ -137,24 +136,23 @@ private class Spread {
             members -= leaving
             await { handled.get() >= total && times.size == total }
 
-            val every = withClue("every event is handled") { times.size shouldBe total }
+            withClue("every event is handled") { times.size shouldBe total }
             val restarted = started.toList().drop(startsBefore.size)
-            val resumed = withClue("the leaving member's partitions started elsewhere: $restarted") {
+            withClue("the leaving member's partitions started elsewhere: $restarted") {
                 restarted.map { it.first }.toSet() shouldContainAll moved
                 restarted.none { it.second == leaving.name } shouldBe true
             }
             // Only a moved partition can see an event twice: those it handled and had not yet saved when it stopped.
             val twice = times.filterValues { it.get() > 1 }.keys
             println("placed $placed; ${leaving.name} left; restarted $restarted; ${twice.size} handled twice")
-            val fewTwice = withClue("${twice.size} events handled twice") {
+            withClue("${twice.size} events handled twice") {
                 twice.all { (id, _) -> partitionOf(id) in moved } shouldBe true
                 twice.size shouldBeLessThanOrEqual moved.size * 256
             }
-            return up and spread and every and resumed and fewTwice and
-                ids.forAll { id ->
-                    val first = order.getValue(id).distinct()
-                    withClue(id) { first shouldBe (1L..EACH).toList() }
-                }
+            ids.forAll { id ->
+                val first = order.getValue(id).distinct()
+                withClue(id) { first shouldBe (1L..EACH).toList() }
+            }
         } finally {
             members.forEach(Member::close)
         }

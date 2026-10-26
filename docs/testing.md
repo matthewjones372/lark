@@ -177,7 +177,7 @@ its block; a clue written as a lambda is only worked out if something fails.
 
 `surefold-junit` runs tests on the JUnit Platform with Surefold's own concurrency. A
 suite is a Kotlin `object`, which the `surefold` engine finds with no annotation. A
-test is registered from `init` and returns [`Expectations`](#expectations).
+test is registered from `init`, and its result is the [checks](#expectations) it makes.
 
 - **`Suite`:** tests that share nothing, registered with `test(name) { … }`.
 - **`SharedSuite<R>`:** tests that share one `R`, registered with
@@ -324,8 +324,8 @@ object ShopSuite : SharedSuite<Shop>() {
         test("an order is saved and published once") { shop ->
             shop.orders.save("order-1", 2)
             shop.broker.publish("order-1:placed")
-            (shop.orders.count("order-1") shouldBe 2) and
-                (shop.broker.published("order-1") shouldBe listOf("order-1:placed"))
+            shop.orders.count("order-1") shouldBe 2
+            shop.broker.published("order-1") shouldBe listOf("order-1:placed")
         }
         test("a test that needs its own resource acquires it, and it is released when the test ends") { shop ->
             recorder().use { recorder ->
@@ -378,8 +378,7 @@ at OrderSuite.kt:32
 
 Without the plugin, it quotes the source line instead. A diagram carries no
 expected and actual for IntelliJ's diff, so `surefold-junit` also has `shouldBe`,
-`shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which return `Expectations`
-and carry both. Beside them are `shouldContain` and `shouldNotContain`, for a
+`shouldNotBe`, `shouldBeRight` and `shouldBeLeft`, which carry both. Beside them are `shouldContain` and `shouldNotContain`, for a
 string or a collection, `shouldStartWith`, `shouldEndWith`, `shouldMatch`, a regex
 `shouldContain` and `shouldNotBeBlank` for a string, `shouldContainExactly`,
 `shouldContainExactlyInAnyOrder`, `shouldContainOnly`,
@@ -392,16 +391,15 @@ that runs only when they hold: `x.shouldNotBeNull { a -> … }` checks the
 value, `x.shouldBeInstanceOf<T> { t -> … }` checks it as a `T`, and
 `e.shouldBeRight { a -> … }` and `e.shouldBeLeft { e -> … }` check what an
 `Either` holds. `xs.forAll { x -> … }` checks every element, keeping each one's
-failures, and holds on no elements. `shouldThrow<T>(block)` holds when `block`
+failures; on no elements it checks nothing. `shouldThrow<T>(block)` holds when `block`
 throws a `T`; `shouldThrow<T>(block) { e -> … }` then checks what it threw. A
 different exception fails the test with that exception as its cause, and an
 interrupt or cancellation goes on up, so a `timeout` still stops the test.
 `holds { }` is one check made by a library that checks by throwing, such as
 Playwright's `assertThat`: it holds if the block returns, and fails at its line
 if the block throws an `AssertionError`.
-Anything else it throws errors the test. Infix calls share one precedence and group to the left, so
-`a shouldBe 1 and b shouldBe 2` means `((a shouldBe 1) and b) shouldBe 2`:
-parenthesise each matcher. Import these from `surefold-junit`, not `surefold-assert`,
+Anything else it throws errors the test. Every check returns `Unit`, so a
+helper that takes a block of checks calls it as a statement. Import these from `surefold-junit`, not `surefold-assert`,
 whose matchers throw and return the value; a file importing both can call
 neither. A throwing check, such as `surefold-assert`'s, is still allowed in a
 test: it stops the test, which is reported as an error.
@@ -526,8 +524,8 @@ object OrderStorySuite : SharedSuite<Orders>(concurrent = false) {
             story {                                                  // titled "an order is saved once"
                 Given("no orders") { orders.clear() }
                 When("the order is saved twice") { repeat(2) { orders.save("order-1") } }
-                Then("it is stored once") { orders.count() shouldBe 1 } and
-                    Then("it can be found") { orders.find("order-1") shouldBe "order-1" }
+                Then("it is stored once") { orders.count() shouldBe 1 }
+                Then("it can be found") { orders.find("order-1") shouldBe "order-1" }
             }
         }
     }

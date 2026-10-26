@@ -70,10 +70,10 @@ standard library's dropped-value warnings in tests. Recommended against (maintai
 
 ## Stack
 
-- [ ] **`spec-0203-docs`** — `docs/testing.md` and the README stop asking for the flag, and the build comments
+- [x] **`spec-0203-docs`** — `docs/testing.md` and the README stop asking for the flag, and the build comments
       say it stays for `val _`.
       Done when: `grep -n 'return-value-checker' README.md docs/*.md` finds nothing, and `./gradlew build` passes.
-- [ ] **`spec-0202-retire`** — carries the helper fix and its test; see spec 0202.
+- [x] **`spec-0202-retire`** — carries the helper fix and its test; see spec 0202.
 
 ## Acceptance
 

@@ -7,6 +7,11 @@ import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.story
 import java.util.concurrent.atomic.AtomicReference
 
+/** Calls the check it is handed on each of [values], as a statement. */
+private fun onEach(vararg values: Int, check: (Int) -> Unit) {
+    values.forEach { check(it) }
+}
+
 /** Checks recorded as they are made, wherever in the test they are made. */
 object RecordedSuite : Suite() {
     init {
@@ -24,6 +29,13 @@ object RecordedSuite : Suite() {
                 Then("it is two") { 2 shouldBe 2 }
             }
         }
+        test("records each check a helper calls with the block it is handed") {
+            onEach(2, 3) { it shouldBe 3 }
+        }
+        test("records a check handed to the body's last line") {
+            val check = { 2 shouldBe 3 }
+            check()
+        }
         test("records a check made on a fork") {
             flock<Nothing, Unit> { async { 2 shouldBe 4 } }
         }
@@ -31,7 +43,7 @@ object RecordedSuite : Suite() {
             val thrown = AtomicReference<Throwable>()
             val bare = Thread {
                 try {
-                    val _ = 2 shouldBe 2
+                    2 shouldBe 2
                 } catch (refused: IllegalStateException) {
                     thrown.set(refused)
                 }

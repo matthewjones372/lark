@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.capturingMetrics
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -38,7 +37,7 @@ object TopicSuite : Suite() {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
             capturingMetrics { captured ->
-                val during = flock<Nothing, Expectations> {
+                val during = flock<Nothing, Unit> {
                     onDeadLetter(letters::add)
                     val prices = topic<Int>("prices")
                     val listeners = listOf("a", "b", "c").map { spawn(it, listener(heard, it)) }
@@ -56,7 +55,7 @@ object TopicSuite : Suite() {
                     captured.gauge("surefold.topic.subscribers") shouldBe 1.0
                 }
 
-                during.shouldBeRight { it }
+                during shouldBeRight Unit
                 heard.getValue("a").toList() shouldContainExactly (1..70).toList()
                 heard.getValue("b").toList() shouldContainExactly (1..60).toList()
                 heard.getValue("c").toList() shouldContainExactly (1..50).toList()

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.stream
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldNotBeEmpty
@@ -30,7 +29,7 @@ object FunctionalStyleSuite : Suite() {
     )
 
     /** Absent means the build's wiring is gone, which is the failure this test cannot survive. */
-    private fun handedOver(name: String, then: (String) -> Expectations): Expectations {
+    private fun handedOver(name: String, then: (String) -> Unit) {
         val value = System.getProperty(name)
         return if (value == null) {
             withClue("the build must pass -D$name; see surefold-stream/build.gradle.kts") { value.shouldNotBeNull() }
@@ -39,10 +38,10 @@ object FunctionalStyleSuite : Suite() {
         }
     }
 
-    private fun repoRoot(then: (File) -> Expectations): Expectations =
+    private fun repoRoot(then: (File) -> Unit) =
         handedOver("surefold.stream.repoRoot") { then(File(it)) }
 
-    private fun sourceRoots(then: (List<File>) -> Expectations): Expectations =
+    private fun sourceRoots(then: (List<File>) -> Unit) =
         handedOver("surefold.stream.sources") { value ->
             then(value.split(File.pathSeparator).filter { it.isNotBlank() }.map(::File))
         }

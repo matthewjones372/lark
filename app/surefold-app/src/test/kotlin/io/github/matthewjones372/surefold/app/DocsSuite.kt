@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.app
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldNotBeNull
@@ -9,12 +8,12 @@ import java.io.File
 
 /** What the fence-compiling tests do not check: the order of an example's imports, and the coordinates it names. */
 object DocsSuite : Suite() {
-    private fun pages(root: File, then: (List<File>) -> Expectations): Expectations =
+    private fun pages(root: File, then: (List<File>) -> Unit) =
         File(root, "docs").listFiles { file -> file.extension == "md" }.shouldNotBeNull { docs ->
             then(listOf(File(root, "README.md")) + docs.sortedBy { it.name })
         }
 
-    private fun root(then: (File) -> Expectations): Expectations =
+    private fun root(then: (File) -> Unit) =
         System.getProperty("surefold.app.repoRoot").shouldNotBeNull { root -> then(File(root)) }
 
     init {

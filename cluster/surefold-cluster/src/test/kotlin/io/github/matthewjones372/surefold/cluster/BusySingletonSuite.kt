@@ -8,7 +8,6 @@ import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -33,7 +32,7 @@ object BusySingletonSuite : Suite() {
             val open = CountDownLatch(1)
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
-            val during = flock<Nothing, Expectations> {
+            val during = flock<Nothing, Unit> {
                 onDeadLetter(letters::add)
                 val seeds = Discovery.static(Node("", "127.0.0.1", port))
                 val cluster = cluster(node("solo", port), seeds, unhurried, leaveWithin = Duration.ZERO)
@@ -51,7 +50,7 @@ object BusySingletonSuite : Suite() {
                 heard.poll(1, TimeUnit.MINUTES) shouldBe 5_001
             }
 
-            during.shouldBeRight { it }
+            during shouldBeRight Unit
             letters.filter { it.why != DeadLetter.Why.Unreachable } shouldBe emptyList()
         }
     }

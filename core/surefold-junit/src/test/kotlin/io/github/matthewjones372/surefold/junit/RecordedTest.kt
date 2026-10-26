@@ -37,6 +37,18 @@ class RecordedTest {
     }
 
     @Test
+    fun `a helper calls the block it is handed as a statement, and each check it makes counts`() {
+        headingOf("records each check a helper calls with the block it is handed") shouldBe
+            "records each check a helper calls with the block it is handed: 1 of 2 expectations failed"
+    }
+
+    @Test
+    fun `a body may end in a call of a block that checks`() {
+        headingOf("records a check handed to the body's last line") shouldBe
+            "records a check handed to the body's last line: 1 of 1 expectations failed"
+    }
+
+    @Test
     fun `a check made on a fork counts as the test's`() {
         headingOf("records a check made on a fork") shouldBe
             "records a check made on a fork: 1 of 1 expectations failed"

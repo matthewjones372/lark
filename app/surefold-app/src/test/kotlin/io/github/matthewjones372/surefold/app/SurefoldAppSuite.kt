@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.app
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContain
@@ -96,8 +95,10 @@ object SurefoldAppSuite : Suite() {
         }
     }
 
-    private fun WiringError.shouldBeMissingFile(): Expectations =
-        ((this as WiringError.Missing).key shouldBe typeOf<File>()) and (toString() shouldContain "File")
+    private fun WiringError.shouldBeMissingFile() {
+        (this as WiringError.Missing).key shouldBe typeOf<File>()
+        toString() shouldContain "File"
+    }
 }
 
 internal class Ambiguous
