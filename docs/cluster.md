@@ -618,7 +618,7 @@ such as a payment, send it reliably:
   `input.delivery()`. The producer's address crosses inside it, so the
   confirmation finds its way back.
 - **The entity confirms.** Wrap the behaviour in `delivered(…)`: each
-  delivered command is confirmed once its step has run, after its events are
+  delivered command is confirmed once its turn has run, after its events are
   written. A persistent entity remembers the last sequence number it handled
   from each producer, in the same append as the events, and drops a
   duplicate, confirming it again.
@@ -799,7 +799,7 @@ carries a `node` tag naming the node it was recorded on.
 | `surefold.topic.delivered{topic}` | counter | Messages told to this node's subscribers |
 | `surefold.topic.subscribers{topic}` | gauge | Subscribers on this node |
 
-Nothing counts each tell or times each step: a metric on the hottest path
+Nothing counts each tell or times each turn: a metric on the hottest path
 would cost what the actors are built to avoid.
 
 ### Telling everyone
