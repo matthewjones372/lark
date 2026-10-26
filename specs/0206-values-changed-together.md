@@ -2,10 +2,16 @@
 
 ## Problem
 
-Surefold has no way to change several pieces of shared state as one step. A service that moves stock between two
-warehouses, or holds seats in several sections for one order, reaches for a `ReentrantLock` and has to pick a lock
-order by hand. Two locks taken in the wrong order deadlock, and nothing in the type says which lock guards which
-field. Waiting until the state allows a step ("until there is stock") means a `Condition` and a loop around it.
+Surefold has no way to change several pieces of shared state as one step.
+
+**The use case.** A box office sells seats in several sections of one venue. Many buyers check out at once, each on
+their own fork. One order holds seats in the stalls *and* the circle, and it gets either all of them or none. When a
+section is short, the order waits until another buyer releases seats, unless its deadline passes first. Seats must
+never be sold twice, and a cancelled or timed-out order must never leave seats half-held.
+
+Today that service reaches for a `ReentrantLock` per section and has to pick a lock order by hand. Two locks taken
+in the wrong order deadlock, and nothing in the type says which lock guards which field. Waiting until the state
+allows a step ("until seats are free") means a `Condition` and a loop around it.
 
 `CircuitBreaker` and `RateLimiter` use one `AtomicReference` each, which only works for state that fits in one value.
 Arrow's STM fits the rest, but it is built on `suspend`, and `suspend` can't appear in `surefold`.
@@ -20,23 +26,51 @@ Arrow's STM fits the rest, but it is built on `suspend`, and `suspend` can't app
 
 ## Shape
 
-```kotlin
-val stock = Shared(10)
-val reserved = Shared(0)
+The box office, written with this spec:
 
-// One step: either both writes land or neither does.
-fun reserve(n: Int) = transact {
-    val left = stock.get()
-    if (left < n) waitForChange()   // parks the virtual thread until stock or reserved is written
-    stock.set(left - n)
-    reserved.update { it + n }
+```kotlin
+data class SoldOut(val section: String)
+
+class BoxOffice(sections: Map<String, Int>) {
+    private val free: Map<String, Shared<Int>> = sections.mapValues { Shared(it.value) }
+    private val held = Shared(emptyMap<String, Map<String, Int>>())   // order id -> seats per section
+
+    // Every section the order wants, or none. Waits while any section is short.
+    fun hold(orderId: String, wanted: Map<String, Int>) = transact {
+        wanted.forEach { (section, n) ->
+            val left = free.getValue(section).get()
+            if (left < n) waitForChange()             // parks; a release in any section it read wakes it
+            free.getValue(section).set(left - n)
+        }
+        held.update { it + (orderId to wanted) }
+    }
+
+    // Gives the seats back, which wakes any order waiting on those sections.
+    fun release(orderId: String) = transact {
+        val seats = held.get()[orderId] ?: return@transact
+        seats.forEach { (section, n) -> free.getValue(section).update { it + n } }
+        held.update { it - orderId }
+    }
+
+    // A closed section is a declared failure: the step writes nothing and answers Left.
+    fun Fail<SoldOut>.holdOpen(orderId: String, wanted: Map<String, Int>, closed: Shared<Set<String>>) = transact {
+        wanted.keys.firstOrNull { it in closed.get() }?.let { fail(SoldOut(it)) }
+        hold(orderId, wanted)                         // joins this step
+    }
+
+    fun seatsLeft(section: String): Int = free.getValue(section).peek()   // for metrics and logs
 }
 
-// The first branch that does not wait wins.
-val from = transact { firstOf({ takeFrom(east) }, { takeFrom(west) }) }
+val office = BoxOffice(mapOf("stalls" to 120, "circle" to 60))
 
-// A declared failure undoes the step and answers Left, as anywhere else.
-val r: Either<OutOfStock, Unit> = attempt { transact { if (stock.get() == 0) fail(OutOfStock) else stock.update { it - 1 } } }
+// Many buyers at once. However they interleave, no seat is sold twice.
+parMap(orders) { office.hold(it.id, it.seats) }
+
+// Wait up to two seconds. On timeout the step is interrupted and nothing is held.
+val held: Unit? = timeoutOrNull(2.seconds) { office.hold("o-42", mapOf("stalls" to 2, "circle" to 1)) }
+
+// Take a seat from whichever of two box offices can give one now, preferring the first.
+transact { firstOf({ east.hold("o-43", one) }, { west.hold("o-43", one) }) }
 ```
 
 - `Shared<T>` is a value forks share. `get`, `set` and `update` are only callable inside `transact { }`, because they
@@ -77,7 +111,8 @@ The names are Surefold's. `retry` already means `Retry.kt`'s schedules, so the b
       Done when: a waiting `transact` wakes on a commit to a value it read, never on one it didn't, and
       `deferred.cancel()` ends it with no writes.
 - [ ] **`spec-0206-fail-docs`** — `fail` inside `transact`, nested `transact`, and a "Values changed together"
-      section in `docs/core.md` with a compiled `<!-- core-transact -->` fence and a GLOSSARY entry.
+      section in `docs/core.md` built on the box office, with a compiled `<!-- core-transact -->` fence and a
+      GLOSSARY entry.
       Done when: `CoreGuideTest` compiles the fence and `attempt { transact { fail(e) } }` is `Left(e)` with nothing
       written.
 
