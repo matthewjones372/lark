@@ -15,12 +15,15 @@ class Shared<T>(initial: T) {
 }
 
 /**
- * Runs [block] as one step: its writes land together when it commits, or not at all if it throws. A step whose reads
- * were changed by another commit first runs again, so [block] can run more than once.
+ * Runs [block] as one step: its writes land together when it commits, or not at all if it throws or fails. A step whose
+ * reads were changed by another commit first runs again, so [block] can run more than once. Inside another step, it
+ * joins that step.
  */
 fun <A> transact(block: Transaction.() -> A): A {
+    running.get()?.let { return it.block() }
     while (true) {
         val step = Transaction()
+        running.set(step)
         try {
             val answer = step.block()
             if (step.commit()) return answer
@@ -28,9 +31,14 @@ fun <A> transact(block: Transaction.() -> A): A {
             // Runs again from the start.
         } catch (_: Wait) {
             step.awaitChange()
+        } finally {
+            running.remove()
         }
     }
 }
+
+// A thread local rather than a SurefoldLocal: a fork must not inherit the step it was started in.
+private val running = ThreadLocal<Transaction?>()
 
 /** The step a [transact] block runs in. A [Shared] is read and written only through it. */
 class Transaction internal constructor() {

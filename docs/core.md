@@ -22,9 +22,10 @@ are compiled by `CoreGuideTest`.
 4. [Resources](#resources)
 5. [Schedules, retries and timeouts](#schedules-retries-and-timeouts)
 6. [Policies](#policies)
-7. [What a fork inherits](#what-a-fork-inherits)
-8. [Running forks on Pekko](#running-forks-on-pekko)
-9. [Requirements and limitations](#requirements-and-limitations)
+7. [Values changed together](#values-changed-together)
+8. [What a fork inherits](#what-a-fork-inherits)
+9. [Running forks on Pekko](#running-forks-on-pekko)
+10. [Requirements and limitations](#requirements-and-limitations)
 
 ## Forking
 
@@ -428,6 +429,104 @@ Each guard records metrics through surefold's [metrics](observability.md#metrics
 | `surefold.limit.current`, `surefold.limit.in_use` | gauge | `name` |
 | `surefold.ratelimiter.calls` | counter | `name`, `outcome` (`immediate`, `waited`, `rejected`) |
 | `surefold.ratelimiter.wait` | histogram, seconds | `name` |
+
+## Values changed together
+
+*Not yet released.*
+
+A `Shared<T>` is a value forks share, and `transact { }` changes several of them
+as one step: every write lands when the step commits, or none does. There is no
+lock to take and no lock order to get wrong (spec 0209).
+
+Take a box office that sells seats in several sections, with many buyers
+checking out at once. One order holds seats in the stalls and the circle, and
+gets all of them or none. A short section makes it wait until someone releases
+seats. No seat is sold twice, and a cancelled order never leaves seats
+half-held:
+
+<!-- core-transact -->
+```kotlin
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.fail.Fail
+import io.github.matthewjones372.surefold.parMap
+import io.github.matthewjones372.surefold.timeoutOrNull
+import io.github.matthewjones372.surefold.transact
+import kotlin.time.Duration.Companion.seconds
+
+data class SoldOut(val section: String)
+
+data class Order(val id: String, val seats: Map<String, Int>)
+
+class BoxOffice(sections: Map<String, Int>) {
+    private val free: Map<String, Shared<Int>> = sections.mapValues { Shared(it.value) }
+    private val held = Shared(emptyMap<String, Map<String, Int>>())
+    private val closed = Shared(emptySet<String>())
+
+    // Every section the order wants, or none. Waits while any section is short.
+    fun hold(order: Order) = transact {
+        order.seats.forEach { (section, n) ->
+            val left = free.getValue(section).get()
+            if (left < n) waitForChange()
+            free.getValue(section).set(left - n)
+        }
+        held.update { it + (order.id to order.seats) }
+    }
+
+    // Gives the seats back, which wakes any order waiting on those sections.
+    fun release(orderId: String) = transact {
+        val seats = held.get()[orderId] ?: return@transact
+        seats.forEach { (section, n) -> free.getValue(section).update { it + n } }
+        held.update { it - orderId }
+    }
+
+    fun close(section: String) = transact { closed.update { it + section } }
+
+    // A closed section is a declared failure, and the step writes nothing.
+    fun Fail<SoldOut>.holdOpen(order: Order) = transact {
+        order.seats.keys.firstOrNull { it in closed.get() }?.let { fail(SoldOut(it)) }
+        hold(order) // joins this step
+    }
+
+    // For metrics and logs: deciding a write on it races every other step.
+    fun seatsLeft(section: String): Int = free.getValue(section).peek()
+}
+
+fun sell(office: BoxOffice, orders: List<Order>) {
+    // However the buyers interleave, no seat is sold twice.
+    parMap(orders) { office.hold(it) }
+
+    // Waits up to two seconds. On timeout the step is interrupted and nothing is held.
+    timeoutOrNull(2.seconds) { office.hold(Order("o-42", mapOf("stalls" to 2, "circle" to 1))) }
+}
+
+// Holds from whichever box office can sell now, preferring the first.
+fun holdAtEither(east: BoxOffice, west: BoxOffice, order: Order) =
+    transact { firstOf({ east.hold(order) }, { west.hold(order) }) }
+```
+
+- **`get`, `set` and `update`** work only inside `transact { }`. `peek()` reads
+  the latest committed value from anywhere.
+- **A step can run more than once.** When another commit changes something it
+  read first, it runs again from the start. So a body changes `Shared` values
+  and nothing else: an HTTP call or a log line inside it happens once per run,
+  not once per commit.
+- **A body never sees a half-committed state**, even on a run that is about to
+  start again.
+- **`waitForChange()`** parks the virtual thread until a value the step read is
+  committed again, then runs the step again. A step that has read nothing
+  cannot wait. Parking answers an interrupt, so `cancel()`, a lost race and
+  `timeout { }` end a waiting step with nothing written.
+- **`firstOf(...)`** answers the first branch that does not wait, dropping the
+  writes of any that did. When every branch waits, the step waits on what any
+  of them read.
+- **A throw or a `fail` writes nothing.** Inside `attempt { }`, a `fail` from a
+  step is the block's `Left`, as anywhere else.
+- **A `transact` inside a `transact`** joins the outer step.
+
+The commit takes no lock, so a thread interrupted halfway through one holds
+nobody up. Every commit does go through one shared counter, though, and a long
+step that reads many values can keep losing to short ones that write them. Keep
+steps short, and do slow work before or after them.
 
 ## What a fork inherits
 

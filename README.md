@@ -46,6 +46,9 @@ and carries no context. Surefold adds:
   crosses a thread on its own, and `catch (e: Exception)` cannot swallow it.
 - **Resources and policies.** Acquire and release in reverse order on every
   exit path, and retry, time out, break or limit calls with composable values.
+- **Shared state without locks.** `transact { }` changes several `Shared`
+  values as one step, waits until the state allows it, and never deadlocks
+  (not yet released).
 - **Context that crosses forks.** Log annotations, metric tags, trace context
   and the clock are inherited by every fork, so a correlation id or a test
   clock reaches the branches of a `parMap`.
@@ -84,8 +87,8 @@ running behind it.
 
 **Concurrent, resource-safe code.** [`surefold`](docs/core.md) provides `parZip`,
 `parMap`, `raceN`, `flock { async { } }`, `resourceScope`, `Schedule`,
-`timeout`, and `policy`, which combines a deadline, retries, a circuit breaker,
-a rate limiter and a bulkhead. `surefold-pekko` lets those forks run on a Pekko
+`timeout`, `policy`, which combines a deadline, retries, a circuit breaker,
+a rate limiter and a bulkhead, and `transact` over `Shared` values. `surefold-pekko` lets those forks run on a Pekko
 dispatcher.
 
 **An application as a dependency graph.** [`surefold-app`](docs/app.md) describes
@@ -160,7 +163,7 @@ your classpath, and which are unpublished.
 
 | Module | Use it for | Adds |
 |---|---|---|
-| `surefold` | forks, errors, resources, schedules, policies, context, logs and metrics ([guide](docs/core.md)) | nothing |
+| `surefold` | forks, errors, resources, schedules, policies, shared state, context, logs and metrics ([guide](docs/core.md)) | nothing |
 | `surefold-arrow` | Surefold's `Either`, `NonEmptyList` and `Fail` to and from Arrow's ([guide](docs/arrow.md)) | `arrow-core` |
 | `surefold-app` | an application as a checked dependency graph ([guide](docs/app.md)) | nothing |
 | `surefold-stream` | `Stream<E, A>` as a description ([guide](docs/stream.md)) | nothing |

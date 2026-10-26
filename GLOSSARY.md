@@ -3,6 +3,13 @@
 Structured concurrency, streams, actors and clustering for Kotlin. These are the
 words the code, the specs and the docs use for its concepts.
 
+## Shared state
+
+**Step**:
+One run of `transact { }`: the `Shared` values it changes all commit together
+or not at all. A step runs again when another commit changed what it read.
+_Avoid_: transaction (the API's receiver type, not the concept), atomic block
+
 ## Actors
 
 **Lifecycle**:
