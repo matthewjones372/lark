@@ -78,6 +78,8 @@ git grep -n "\.step(this" -- 'actor/**' 'examples/**'   # prints nothing
 
 ## Open questions
 
+Taken as recommended (maintainer, 2026-10-26). Each answer is the question's recommendation.
+
 1. **Deprecate, or break?** Recommended: the deprecated getter at `WARNING`
    level, as above.
 2. **When does `step` go?** Recommended: deferred. A later spec raises it to
