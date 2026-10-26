@@ -71,7 +71,9 @@ exceptions:
     # Matchers.kt is the eleventh: shouldThrow is asked whether a block threw a
     # given type, so it has to catch whatever the block threw to say what it was.
     # SurefoldEngine.kt is the twelfth: whatever a test threw is that test's result.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Story.kt', '**/Policy.kt', '**/Matchers.kt', '**/SurefoldEngine.kt']
+    # Transact.kt is the thirteenth: an effect queued with afterCommit runs after the commit,
+    # so one that throws must not stop the effects after it from running (spec 0211).
+    excludes: ['**/Transact.kt', '**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Story.kt', '**/Policy.kt', '**/Matchers.kt', '**/SurefoldEngine.kt']
   SwallowedException:
     excludes: ['**/test/**']
 

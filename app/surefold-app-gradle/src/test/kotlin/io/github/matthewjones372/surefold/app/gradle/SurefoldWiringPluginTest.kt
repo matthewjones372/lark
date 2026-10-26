@@ -560,6 +560,19 @@ class SurefoldWiringPluginTest {
     }
 
     @Test
+    fun `what an afterCommit block does is left alone, since it runs once the step commits`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", AFTER_COMMIT)
+
+        runner(dir, "compileKotlin").build().output shouldNotContain "the step does"
+
+        withClue("a transact inside afterCommit is a step of its own, and is checked again") {
+            source(dir, "main", AFTER_COMMIT.replace("Thread.sleep(1)", "transact { Thread.sleep(1) }"))
+            runner(dir, "compileKotlin").buildAndFail().output shouldContain "Thread.sleep runs again each time"
+        }
+    }
+
+    @Test
     fun `the same calls outside a step are left alone`(@TempDir dir: File) {
         project(dir, "", SOUND)
         source(dir, "main", EFFECTS_OUTSIDE_A_STEP)
@@ -987,4 +1000,25 @@ fun hold(log: Logger, line: LogLine, sold: Counter, left: Gauge, sizes: Histogra
         orders.tell("held")
         events.publish("held")
     }
+"""
+
+/** Every kind of effect, each inside an afterCommit block in a step. */
+private const val AFTER_COMMIT = """
+import io.github.matthewjones372.surefold.Counter
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.transact
+
+val free = Shared(10)
+
+fun hold(sold: Counter, orders: ActorRef<String>) = transact {
+    free.update { it - 1 }
+    afterCommit {
+        logInfo("held one")
+        sold.increment(1.0)
+        orders.tell("held")
+        Thread.sleep(1)
+    }
+}
 """
