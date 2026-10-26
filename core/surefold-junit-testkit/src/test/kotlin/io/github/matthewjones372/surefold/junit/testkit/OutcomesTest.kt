@@ -71,6 +71,43 @@ class OutcomesTest {
     }
 
     @Test
+    fun `shouldHaveSkipped with reasons passes on exactly the tests skipped, each for its reason`() {
+        events shouldHaveSkipped mapOf("is skipped" to "not yet")
+        events.skipReasons() shouldBe mapOf("is skipped" to "not yet")
+    }
+
+    @Test
+    fun `a miss names a test skipped for another reason, with the reason it gave`() {
+        val miss = shouldThrow<AssertionFailedError> { events shouldHaveSkipped mapOf("is skipped" to "no Docker") }
+
+        miss.message shouldBe """
+            expected exactly these tests to have been skipped, for these reasons: {is skipped=no Docker}
+            but:
+              "is skipped" was skipped for "not yet", not "no Docker"
+        """.trimIndent()
+        miss.expected.value shouldBe mapOf("is skipped" to "no Docker")
+        miss.actual.value shouldBe mapOf("is skipped" to "not yet")
+    }
+
+    @Test
+    fun `a miss names a skip that was not named, and a named test that was not skipped`() {
+        val miss = shouldThrow<AssertionFailedError> { events shouldHaveSkipped mapOf("passes" to "not yet") }
+
+        miss.message.orEmpty() shouldContain "\"passes\" succeeded"
+        miss.message.orEmpty() shouldContain "\"is skipped\" was skipped too, for \"not yet\", and was not named"
+    }
+
+    @Test
+    fun `tags answers each test's tags by name, and an empty set for a test with none`() {
+        events.started().tags() shouldBe mapOf(
+            "passes" to setOf("fast"),
+            "also passes" to emptySet(),
+            "fails a check" to emptySet(),
+            "throws" to emptySet(),
+        )
+    }
+
+    @Test
     fun `names lists the tests in the order their events happened`() {
         events.skipped().names() shouldBe listOf("is skipped")
     }

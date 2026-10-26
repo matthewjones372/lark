@@ -66,7 +66,7 @@ repo, and a miss reads no better than `shouldBe`'s diff of two maps. Recommended
 
 ## Stack
 
-- [ ] **`spec-0206-skips-and-tags`** — `shouldHaveSkipped(Map)`, `skipReasons()` and `tags()` in the testkit, with
+- [x] **`spec-0206-skips-and-tags`** — `shouldHaveSkipped(Map)`, `skipReasons()` and `tags()` in the testkit, with
       tests for a pass, a wrong reason, an unexpected skip, and a test with no tags. `AspectEngineTest` uses them, and
       its two hand-written reads go. `docs/testing.md` names them.
       Done when: `:surefold-junit-testkit:check` and `:surefold-junit:check` pass, and
