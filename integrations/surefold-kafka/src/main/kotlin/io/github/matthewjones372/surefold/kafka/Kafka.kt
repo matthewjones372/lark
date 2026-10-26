@@ -16,6 +16,17 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
  */
 data class Topic(val name: String)
 
+/**
+ * Every topic whose name [pattern] matches, for [Kafka.consume] to subscribe to (spec 0159): those that exist now, and
+ * those created while it runs, which it finds as it refreshes its metadata, every `metadata.max.age.ms`.
+ */
+class Topics private constructor(internal val pattern: Regex) {
+    companion object {
+        /** Every topic whose whole name [pattern] matches. */
+        fun matching(pattern: Regex): Topics = Topics(pattern)
+    }
+}
+
 /** Where a subscription starts: [consume] here on any backend, and `subscribe` in surefold-kafka-pekko. */
 object Kafka
 
