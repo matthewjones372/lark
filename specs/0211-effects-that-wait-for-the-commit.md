@@ -1,9 +1,9 @@
-# 0208 — Effects that wait for the commit
+# 0211 — Effects that wait for the commit
 
 ## Problem
 
 A step that changes state usually has to tell someone: an actor that the seats are held, a log line, a metric. With
-spec 0206 there is nowhere to put that. Inside `transact` it runs once per retry, and 0207 refuses it. After
+spec 0209 there is nowhere to put that. Inside `transact` it runs once per retry, and 0210 refuses it. After
 `transact` returns, the caller has to carry the values out and remember to do it, on every path. Anything that
 `transact` returned early or failed on must skip it.
 
@@ -37,7 +37,7 @@ fun hold(orderId: String, n: Int) = transact {
 - **An effect that throws** doesn't undo the commit. The remaining effects still run, then `transact` rethrows the
   first throwable, with the rest added as suppressed.
 - **`tellAfterCommit(ref, message)`** in `surefold-actor` is `afterCommit { ref.tell(message) }`. It is named so
-  that 0207's diagnostic for `tell` can suggest it.
+  that 0210's diagnostic for `tell` can suggest it.
 - An effect may call `transact` itself. It starts a new step.
 
 ## Why this shape
@@ -48,10 +48,10 @@ Recommended: synchronous. A caller who wants them in the background puts `async`
 
 ## Stack
 
-- [ ] **`spec-0208-after-commit`** — `afterCommit`, the queue on `Transaction`, nested steps, throwing effects.
+- [ ] **`spec-0211-after-commit`** — `afterCommit`, the queue on `Transaction`, nested steps, throwing effects.
       Done when: a body that retries 50 times under contention runs its effect exactly once, and a body that
       fails runs none.
-- [ ] **`spec-0208-actors`** — `tellAfterCommit` in `surefold-actor`, the docs section, and the GLOSSARY entry.
+- [ ] **`spec-0211-actors`** — `tellAfterCommit` in `surefold-actor`, the docs section, and the GLOSSARY entry.
       Done when: a `TestActor` receives one message per committed step across 1,000 contending threads, and the
       `<!-- core-after-commit -->` fence compiles.
 
@@ -67,7 +67,7 @@ Taken as recommended (maintainer, 2026-10-26). Each answer is the question's rec
 
 1. **Name.** `afterCommit`, or something more Surefold-like, such as `onceCommitted`? Recommended: `afterCommit`.
    It says when.
-2. **An `afterRetry` hook** for code that wants to watch retries? Recommended: no. Spec 0209 reports retries
+2. **An `afterRetry` hook** for code that wants to watch retries? Recommended: no. Spec 0212 reports retries
    without the user writing code.
 3. **Run effects under the commit's interrupt status?** If the thread is interrupted after commit, should effects
    still run? Recommended: yes. The state has already changed, and skipping them would leave the world
