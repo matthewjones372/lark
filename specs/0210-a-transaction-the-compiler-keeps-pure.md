@@ -63,7 +63,7 @@ families above. Spec 0211 gives each family a legal way to run after commit, so 
       0211's after-commit form. A section in `docs/core.md`.
       Done when: the diagnostic for `ref.tell(m)` inside `transact` suggests `afterCommit { ref.tell(m) }`.
 
-- [ ] **`spec-0210-println`** — Kotlin's `print` and `println`, with the message naming `afterCommit { }`.
+- [x] **`spec-0210-println`** ([#754](https://github.com/matthewjones372/surefold/pull/754)) — Kotlin's `print` and `println`, with the message naming `afterCommit { }`.
       Done when: `println` inside `transact` is reported, and outside it is not.
 
 ## Acceptance
