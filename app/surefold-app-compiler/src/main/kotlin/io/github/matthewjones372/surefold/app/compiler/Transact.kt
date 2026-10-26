@@ -43,7 +43,7 @@ internal class TransactChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
                 "${named(symbol, called)} runs again each time the step does; once the step commits, tell it with " +
                     "tellAfterCommit(ref, message)"
 
-            called in surefoldEffects ->
+            called in surefoldEffects || called in printed ->
                 "${named(symbol, called)} runs again each time the step does; once the step commits, run it in " +
                     "afterCommit { }"
 
@@ -175,6 +175,9 @@ private val surefoldEffects = listOf("logDebug", "logInfo", "logWarn", "logError
         member(surefold.asString(), "Histogram", "record"),
         member("${surefold.asString()}.stream", "Hub", "publish"),
     )
+
+// Kotlin's own print and println. A PrintStream's are refused with the rest of java.io.
+private val printed = listOf("print", "println").map { CallableId(FqName("kotlin.io"), Name.identifier(it)) }.toSet()
 
 /** `Thread.sleep`, `Socket(..)` for a constructor, or `parMap` for a top-level function. */
 private fun named(symbol: FirCallableSymbol<*>, called: CallableId): String {

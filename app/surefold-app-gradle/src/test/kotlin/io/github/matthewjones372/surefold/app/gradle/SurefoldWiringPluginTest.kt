@@ -539,17 +539,25 @@ class SurefoldWiringPluginTest {
     }
 
     @Test
-    fun `Surefold's own effects inside a step are errors that point at afterCommit`(@TempDir dir: File) {
+    fun `Surefold's own effects, and printing, inside a step are errors that point at afterCommit`(@TempDir dir: File) {
         project(dir, "", SOUND)
         source(dir, "main", SUREFOLD_EFFECTS)
 
         val result = runner(dir, "compileKotlin").buildAndFail()
 
-        listOf("logInfo", "Logger.log", "Counter.increment", "Gauge.set", "Histogram.record", "Hub.publish")
-            .forEach { call ->
-                result.output shouldContain "$call runs again each time the step does; once the step commits, run " +
-                    "it in afterCommit { }"
-            }
+        listOf(
+            "logInfo",
+            "Logger.log",
+            "Counter.increment",
+            "Gauge.set",
+            "Histogram.record",
+            "Hub.publish",
+            "println",
+            "print",
+        ).forEach { call ->
+            result.output shouldContain "$call runs again each time the step does; once the step commits, run " +
+                "it in afterCommit { }"
+        }
         result.output shouldContain "ActorRef.tell runs again each time the step does; once the step commits, " +
             "tell it with tellAfterCommit(ref, message)"
     }
@@ -929,6 +937,7 @@ fun effects(future: Future<Int>, deferred: Deferred<Int>) {
     parZip({ 1 }, { 2 }) { a, b -> a + b }
     raceN({ 1 }, { 2 })
     scope { async { 1 }.await() }
+    println(seats.peek())
     transact { seats.update { it - 1 } }
 }
 """
@@ -969,7 +978,7 @@ fun Transaction.counted(free: Shared<Int>): Int {
 }
 """
 
-/** Surefold's own effects, each the kind a step wants to happen once it has committed. */
+/** Surefold's own effects, and printing, each the kind a step wants to happen once it has committed. */
 private const val SUREFOLD_EFFECTS = """
 import io.github.matthewjones372.surefold.Counter
 import io.github.matthewjones372.surefold.Gauge
@@ -994,6 +1003,8 @@ fun hold(log: Logger, line: LogLine, sold: Counter, left: Gauge, sizes: Histogra
         sizes.record(1.0)
         orders.tell("held")
         events.publish("held")
+        println("held")
+        print("held")
     }
 """
 

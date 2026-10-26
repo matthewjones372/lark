@@ -39,6 +39,7 @@ What the checker reports, inside a `transact` lambda or a function taking `Trans
 - calls into `java.io`, `java.net`, `java.nio.channels`, `java.sql` and `java.net.http`;
 - `Thread.sleep`, `Deferred.await`, `Future.get`, and the forking combinators (`async`, `parZip`, `parMap`, `raceN`);
 - Surefold's own effects: `Logger`, `Metrics`, `ActorRef.tell`, `Hub.publish`;
+- Kotlin's `print` and `println`;
 - writing to a `var` or property captured from outside the lambda;
 - `Shared.peek()`.
 
@@ -61,6 +62,9 @@ families above. Spec 0211 gives each family a legal way to run after commit, so 
 - [x] **`spec-0210-surefold-effects`** ([#731](https://github.com/matthewjones372/surefold/pull/731)) — `Logger`, `Metrics`, `tell` and `publish`, each with a message naming
       0211's after-commit form. A section in `docs/core.md`.
       Done when: the diagnostic for `ref.tell(m)` inside `transact` suggests `afterCommit { ref.tell(m) }`.
+
+- [ ] **`spec-0210-println`** — Kotlin's `print` and `println`, with the message naming `afterCommit { }`.
+      Done when: `println` inside `transact` is reported, and outside it is not.
 
 ## Acceptance
 
