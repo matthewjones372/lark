@@ -35,12 +35,10 @@ Room is where the copies part ways, and where the subtle bugs are:
 
 ```kotlin
 // surefold-actor, internal, pure: no actor, no semaphore, no clock
-internal data class Outboxes<C>(val queues: Map<String, List<Kept<C>>>) {
+internal data class Outboxes<C>(val queues: Map<String, List<KeptCommand<C>>>) {
     fun kept(to: String, sequence: Long, command: C): Pair<Outboxes<C>, Send<C>?>
     fun confirmed(to: String, sequence: Long): Pair<Outboxes<C>, Send<C>?>?  // null: not the head
     fun heads(): List<Send<C>>                                               // what a resend sends
-    val unconfirmed: Int
-    val isEmpty: Boolean                                                     // spec 0144 retires on this
 }
 
 internal data class Send<C>(val to: String, val sequence: Long, val command: C)
@@ -58,6 +56,12 @@ internal data class Holding(val held: Set<Pair<String, Long>>) {
   live steps run the same code.
 - Each actor's job shrinks to two things: performing the `Send`s it is given,
   and moving the semaphore by what `Holding` says.
+
+`KeptCommand` is a kept command and its number. The name `Kept` is taken on the
+test classpath, by `LetGoSuite`. `unconfirmed` and `isEmpty` were dropped from
+the first draft because nothing reads them. Both producers measure room from
+the semaphore, and the retirement `isEmpty` was for has been dropped with
+0144-resumed.
 
 ## Why this shape
 
@@ -94,8 +98,11 @@ room.
 
 ## Open questions
 
+Answered (maintainer, 2026-10-26: go with the recommendations).
+
 1. Should a `Send` carry the decoded command for the durable producer, or the
    bytes, decoded at send time as today? I recommend bytes: decoding stays at
    the edge, and `Outboxes` stays generic.
 2. Does this land before or after 0144? I recommend after: 0144's retirement
-   check becomes `outboxes.isEmpty`, and this spec only renames that check.
+   check becomes `outboxes.isEmpty`, and this spec only renames that check. Moot: 0144-resumed
+   was dropped, so this lands now.
