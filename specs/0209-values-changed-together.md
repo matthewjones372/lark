@@ -1,4 +1,4 @@
-# 0206 — Values changed together
+# 0209 — Values changed together
 
 ## Problem
 
@@ -21,7 +21,7 @@ Arrow's STM fits the rest, but it is built on `suspend`, and `suspend` can't app
 - **No wrapping or porting of `arrow-fx-stm`.** The design, names and engine are Surefold's own.
 - **No locks in the commit.** A thread interrupted or descheduled halfway through a commit holds nobody up.
 - **No collections yet.** A queue, map or semaphore built on these values is a later spec.
-- **No effect checks, after-commit effects or conflict reporting.** Those are specs 0207, 0208 and 0209.
+- **No effect checks, after-commit effects or conflict reporting.** Those are specs 0210, 0211 and 0212.
 - **No durability.** This is memory shared between forks, not a journal.
 
 ## Shape
@@ -107,6 +107,9 @@ The names are Surefold's. `retry` already means `Retry.kt`'s schedules, so the b
 
 ## Stack
 
+Drafted as 0206 and renumbered when main took 0206–0208 for the testkit. The branches keep the number they were
+opened under.
+
 - [ ] **`spec-0206-mcas`** — the multi-word CAS on its own, `internal`, with Lincheck tests.
       Done when: Lincheck finds no non-linearizable history for 2–4 threads swapping 1–3 overlapping words.
 - [ ] **`spec-0206-shared`** — `Shared`, `Transaction`, `transact`, `get`/`set`/`update`/`peek`, version-checked
@@ -138,7 +141,7 @@ Taken as recommended (maintainer, 2026-10-26). Each answer is the question's rec
    `NoOtherDependenciesTest` stays green, but it is a new library. Recommended: yes. A lock-free engine shouldn't
    ship tested only by "the total came out right".
 4. **Starvation.** A long step that keeps losing to short commits could retry forever. Should it fall back to a
-   slow path that always wins, giving up strict lock-freedom? Recommended: no fallback. Spec 0209 makes the
+   slow path that always wins, giving up strict lock-freedom? Recommended: no fallback. Spec 0212 makes the
    retries visible.
 5. **Should `peek()` exist?** It is handy for metrics and logs, and a trap if used to decide a write.
-   Recommended: keep it, with KDoc saying it reads outside any step. Spec 0207 flags it inside `transact`.
+   Recommended: keep it, with KDoc saying it reads outside any step. Spec 0210 flags it inside `transact`.

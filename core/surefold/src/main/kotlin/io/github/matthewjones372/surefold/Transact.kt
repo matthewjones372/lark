@@ -3,7 +3,7 @@ package io.github.matthewjones372.surefold
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.LockSupport
 
-/** A value forks share, changed only inside [transact] (spec 0206). */
+/** A value forks share, changed only inside [transact] (spec 0209). */
 class Shared<T>(initial: T) {
     internal val word = Word(Versioned(initial, 0))
 
