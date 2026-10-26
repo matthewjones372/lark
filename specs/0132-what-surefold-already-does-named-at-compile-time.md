@@ -67,18 +67,18 @@ depend on `surefold-app-typesafe`; a test fails if the two lists drift.
 
 ## Stack
 
-- [ ] **`spec-0132-call-checker`**: the call checker, the test-compilation
+- [x] **`spec-0132-call-checker`** ([#376](https://github.com/matthewjones372/lark/pull/376)): the call checker, the test-compilation
       option, `SUREFOLD_SLEEP_IN_TEST`, and the `SurefoldApp` KDoc fix.
       Done when: a TestKit project warns on `Thread.sleep` in `src/test` and not
       in `src/main`, and `@Suppress` silences it.
-- [ ] **`spec-0132-scheduler`**: `SUREFOLD_SCHEDULER_BY_HAND`.
+- [x] **`spec-0132-scheduler`** ([#377](https://github.com/matthewjones372/lark/pull/377)): `SUREFOLD_SCHEDULER_BY_HAND`.
       Done when: each matched constructor warns in a TestKit project; a plain
       `Executors.newVirtualThreadPerTaskExecutor()` does not.
-- [ ] **`spec-0132-secret`**: `SUREFOLD_SECRET_AS_STRING`, and the drift test
+- [x] **`spec-0132-secret`** ([#378](https://github.com/matthewjones372/lark/pull/378)): `SUREFOLD_SECRET_AS_STRING`, and the drift test
       against `Secrets.default`.
       Done when: `string("password")` warns, `string("passwordPolicy")` and a
       non-literal path do not.
-- [ ] **`spec-0132-run`**: `SUREFOLD_RUN_NEVER_RETURNS_ON_SHUTDOWN`, and a cookbook
+- [x] **`spec-0132-run`** ([#379](https://github.com/matthewjones372/lark/pull/379)): `SUREFOLD_RUN_NEVER_RETURNS_ON_SHUTDOWN`, and a cookbook
       section listing all four.
       Done when: `run { root.block() }` warns, `run { awaitShutdown() }` and a
       `run` that returns do not.
