@@ -612,7 +612,10 @@ the others ended, with a failed test's message. `failureOf(test)` answers what a
 test threw, `failures()` what each failed test threw by name, and `names()` the
 tests in the order their events happened. `shouldHaveSkipped(mapOf(test to
 reason))` also checks why each test was skipped, `skipReasons()` answers the
-reasons by name, and `tags()` each test's tags by name.
+reasons by name, and `tags()` each test's tags by name. `logs()` answers a failed
+test's log lines by name, one string per line as the report shows them, and
+`reported(key)` what each test reported under a key, such as `flaky`'s
+`attempts`.
 
 ```kotlin
 val events = EngineTestKit.engine("surefold").selectors(selectClass(RetriedSuite::class.java)).execute().testEvents()

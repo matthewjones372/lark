@@ -75,9 +75,9 @@ needs a field. Recommended: lines as text.
 
 ## Stack
 
-- [ ] **`spec-0207-entries-and-logs`** — `logs()` and `reported(key)` in the testkit, with tests for:
-      a failed test's lines, a passing test absent, a retried test's lines joined, and a key one test reported and
-      another didn't.
+- [x] **`spec-0207-entries-and-logs`** — `logs()` and `reported(key)` in the testkit, with tests for:
+      a failed test's lines, a passing test absent, and a key one test reported and another didn't. (The engine
+      publishes one `logs` entry per test, so no suite can publish two; joining them is untested.)
       `StoryEngineTest`'s and `SurefoldEngineTest`'s `logsOf` go, and `AspectEngineTest` reads `attempts` with
       `reported`. `docs/testing.md` names both calls.
       Done when: `:surefold-junit-testkit:check` and `:surefold-junit:check` pass, and
