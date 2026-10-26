@@ -5,10 +5,6 @@ import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.transact
 import io.opentelemetry.api.common.AttributeKey
-import io.opentelemetry.api.trace.Tracer
-import io.opentelemetry.sdk.OpenTelemetrySdk
-import io.opentelemetry.sdk.trace.SdkTracerProvider
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 
 private const val RETRIES = 3
 
@@ -16,18 +12,13 @@ private const val RETRIES = 3
 private fun <T> changeElsewhere(shared: Shared<T>, change: (T) -> T) =
     Thread.ofVirtual().start { transact { shared.update(change) } }.join()
 
-private fun tracerExportingTo(exported: Collected): Tracer = OpenTelemetrySdk.builder()
-    .setTracerProvider(SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exported)).build())
-    .build()
-    .getTracer("surefold-otel-test")
-
 /** Spec 0212: a step that had to run again says so on the span it ran in, once, when it commits. */
 object RetriedStepSuite : Suite() {
     init {
 
         test("a step that ran again three times adds one event with four attempts and its causes") {
-            val exported = Collected()
-            val tracer = tracerExportingTo(exported)
+            val exported = Spans()
+            val tracer = exported.tracer
             val stalls = Shared(10, name = "free.stalls")
             var runs = 0
 
@@ -47,8 +38,8 @@ object RetriedStepSuite : Suite() {
         }
 
         test("a step that commits on its first run adds nothing to the span") {
-            val exported = Collected()
-            val tracer = tracerExportingTo(exported)
+            val exported = Spans()
+            val tracer = exported.tracer
             val free = Shared(10)
 
             tracer.span("checkout") { transact("hold") { free.update { it - 1 } } }
