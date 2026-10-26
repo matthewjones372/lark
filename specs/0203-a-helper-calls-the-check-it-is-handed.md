@@ -26,7 +26,6 @@ helper that takes `-> Expectations` blocks will hit it too: 17 test files have o
 
 ## Not doing
 
-- **No change to what a check returns.** `spec-0202-retire` makes checks return `Unit`; this spec doesn't wait for it.
 - **No change to narrowing blocks.** `withClue { }`, `shouldBeRight { }` and the rest still need their last
   statement to be a check, so a helper called last in one must still return `Expectations`. An example is
   `allOf` in `ShardedJournalSuite`. Spec 0202 says those blocks return `Unit`, and `spec-0202-retire` makes them.
@@ -36,7 +35,7 @@ helper that takes `-> Expectations` blocks will hit it too: 17 test files have o
 ## Shape
 
 ```kotlin
-private fun onEveryBackend(check: (StreamBackend) -> Expectations) {
+private fun onEveryBackend(check: (StreamBackend) -> Unit) {
     backends.forEach { check(it) }
 }
 
@@ -49,29 +48,32 @@ object HubSuite : Suite() {
 }
 ```
 
-- **The flag goes** from `build.gradle.kts`'s suite wiring and from `surefold-junit`'s `build.gradle.kts`, with
-  the comments that explain it.
-- **`docs/testing.md`** no longer asks for the flag. The setup is the power-assert plugin with `expect` among
-  its functions. Its story section says a step on a line of its own counts, as spec 0202 made it.
-- **A test proves it.** `surefold-junit` gets a suite whose helper calls the block it is handed as a statement,
-  and whose test ends in such a call. Its engine test checks that both checks were recorded.
+- **The fix is `spec-0202-retire`.** Once checks return `Unit`, a block of checks is `() -> Unit`, and calling one
+  as a statement drops nothing. That entry also retypes the helpers whose blocks return `Expectations`. It adds a
+  `surefold-junit` suite with a helper that calls the block it is handed as a statement, and with a test body
+  that ends in such a call. The engine test checks that both checks were recorded.
+- **The flag stays.** `-Xreturn-value-checker=check` is also the only way to turn on `val _ = …`, which 74 places
+  use. Kotlin 2.4's other switch for that feature, `-XXLanguage:+UnnamedLocalVariables`, prints a warning, and
+  `allWarningsAsErrors` fails the build on it. Both build files' comments say why the flag stays.
+- **The docs stop asking for it.** `docs/testing.md` and the README no longer tell users to add the flag. The
+  setup is the power-assert plugin with `expect` among its functions. The story section says a step on a line of
+  its own counts, as spec 0202 made it.
 
 ## Why this shape
 
-The flag was there to guard `Expectations`, and since 0202 the record does that. Removing it costs only the
-standard library's dropped-value warnings in test code, such as a dropped `map`. Test code didn't have those
-before the flag came in for `Expectations`.
+Dropping the flag would fix the helper now, but it would also break `val _ =` in 74 places, many of them in the
+unjoin PRs still open. `spec-0202-retire` fixes the helper anyway, and keeps `val _`. Until then the gap only
+affects a new helper: the existing ones already compile, because the unjoin PRs typed their blocks `-> Unit`.
 
-**Alternative:** keep the flag and pull `spec-0202-retire` forward, so checks and helpers' blocks return `Unit`.
-That is the bigger change: every narrowing check's block type changes, and it waits for the unjoin PRs.
-Recommended: drop the flag now. Retire stays as planned.
+**Alternative:** drop the flag now and rewrite each `val _ = x` as a plain `x`. That loses the idiom and the
+standard library's dropped-value warnings in tests. Recommended against (maintainer, 2026-10-26).
 
 ## Stack
 
-- [ ] **`spec-0203-flag`** — remove the flag in both build files, add the helper suite and its engine test, and
-      update `docs/testing.md`.
-      Done when: `grep -rn 'return-value-checker' --include=*.kts --include=*.md .` finds nothing, and
-      `./gradlew build` passes.
+- [ ] **`spec-0203-docs`** — `docs/testing.md` and the README stop asking for the flag, and the build comments
+      say it stays for `val _`.
+      Done when: `grep -n 'return-value-checker' README.md docs/*.md` finds nothing, and `./gradlew build` passes.
+- [ ] **`spec-0202-retire`** — carries the helper fix and its test; see spec 0202.
 
 ## Acceptance
 
@@ -83,7 +85,7 @@ Recommended: drop the flag now. Retire stays as planned.
 
 Taken as recommended (maintainer, 2026-10-26).
 
-1. ~~Should `surefold-junit`'s own main sources keep the flag, to catch a dropped standard-library value in the
-   engine?~~ No. Nothing in them is marked for it now, and the other modules' main sources never had it.
-2. ~~Should the 17 helpers typed `-> Expectations` move to `-> Unit` in this PR?~~ No. They work once the flag is
-   gone, and `spec-0202-retire` retypes them when `Expectations` goes internal.
+1. ~~Drop the flag now, or fold the fix into `spec-0202-retire`?~~ Fold it into retire. Dropping the flag breaks
+   `val _ =`.
+2. ~~Should the 17 helpers typed `-> Expectations` move to `-> Unit`?~~ Yes, in `spec-0202-retire`, when
+   `Expectations` goes internal.
