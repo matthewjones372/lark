@@ -110,15 +110,15 @@ The names are Surefold's. `retry` already means `Retry.kt`'s schedules, so the b
 Drafted as 0206 and renumbered when main took 0206–0208 for the testkit. The branches keep the number they were
 opened under.
 
-- [ ] **`spec-0206-mcas`** — the multi-word CAS on its own, `internal`, with Lincheck tests.
+- [x] **`spec-0206-mcas`** ([#711](https://github.com/matthewjones372/surefold/pull/711)) — the multi-word CAS on its own, `internal`, with Lincheck tests.
       Done when: Lincheck finds no non-linearizable history for 2–4 threads swapping 1–3 overlapping words.
-- [ ] **`spec-0206-shared`** — `Shared`, `Transaction`, `transact`, `get`/`set`/`update`/`peek`, version-checked
+- [x] **`spec-0206-shared`** ([#714](https://github.com/matthewjones372/surefold/pull/714)) — `Shared`, `Transaction`, `transact`, `get`/`set`/`update`/`peek`, version-checked
       reads. Done when: 1,000 virtual threads making transfers between ten `Shared` balances leave the total
       unchanged, a body that throws commits nothing, and a body never sees two balances from different commits.
-- [ ] **`spec-0206-wait`** — `waitForChange`, `firstOf`, and the waiter stacks.
+- [x] **`spec-0206-wait`** ([#720](https://github.com/matthewjones372/surefold/pull/720)) — `waitForChange`, `firstOf`, and the waiter stacks.
       Done when: a waiting `transact` wakes on a commit to a value it read, never on one it didn't, and
       `deferred.cancel()` ends it with no writes.
-- [ ] **`spec-0206-fail-docs`** — `fail` inside `transact`, nested `transact`, and a "Values changed together"
+- [x] **`spec-0206-fail-docs`** ([#721](https://github.com/matthewjones372/surefold/pull/721)) — `fail` inside `transact`, nested `transact`, and a "Values changed together"
       section in `docs/core.md` built on the box office, with a compiled `<!-- core-transact -->` fence and a
       GLOSSARY entry.
       Done when: `CoreGuideTest` compiles the fence and `attempt { transact { fail(e) } }` is `Left(e)` with nothing

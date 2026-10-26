@@ -45,6 +45,8 @@ dependencies {
     surefoldAppUnderTest(project(":surefold-app-kotlinx"))
     surefoldAppUnderTest(project(":surefold-app-openfeature"))
     surefoldAppUnderTest(project(":surefold-app-openfeature-flagd"))
+    // Not a factory the reader knows: Hub.publish is one of the effects the step checker refuses (spec 0210).
+    surefoldAppUnderTest(project(":surefold-stream"))
     testImplementation(project(":surefold-assert"))
 }
 
