@@ -24,18 +24,36 @@ class Shared<T>(initial: T, val name: String? = null) {
  */
 fun <A> transact(name: String? = null, block: Transaction.() -> A): A {
     running.get()?.let { return it.block() }
-    while (true) {
-        val step = Transaction()
-        val answer = step.attempt(block)
-        if (answer === Again) {
-            retried.get().retried(name ?: UNNAMED, step.cause)
-        } else {
-            // Outside the step, so an effect that calls transact starts a step of its own.
-            step.runEffects()
-            // Only Again is not the block's answer, so this is an A.
-            @Suppress("UNCHECKED_CAST")
-            return answer as A
+    val (step, answer) = untilCommitted(name ?: UNNAMED, block)
+    // Outside the step, so an effect that calls transact starts a step of its own; and after the run is counted
+    // committed, so an effect that throws does not count it failed.
+    step.runEffects()
+    return answer
+}
+
+// Runs the step until a run commits, recording each run's outcome and each retry's cause (spec 0212).
+private fun <A> untilCommitted(name: String, block: Transaction.() -> A): Pair<Transaction, A> {
+    var attempts = 0
+    try {
+        while (true) {
+            attempts++
+            val step = Transaction()
+            val answer = step.attempt(block)
+            if (answer !== Again) {
+                counter(RUNS, "transact" to name, "outcome" to "committed").increment()
+                histogram(ATTEMPTS, "transact" to name).record(attempts.toDouble())
+                // Only Again is not the block's answer, so this is an A.
+                @Suppress("UNCHECKED_CAST")
+                return step to answer as A
+            }
+            retried.get().retried(name, step.cause)
         }
+    } catch (interrupted: InterruptedException) {
+        counter(RUNS, "transact" to name, "outcome" to "cancelled").increment()
+        throw interrupted
+    } catch (t: Throwable) {
+        counter(RUNS, "transact" to name, "outcome" to "failed").increment()
+        throw t
     }
 }
 
@@ -67,7 +85,15 @@ internal fun interface Retried {
     fun retried(step: String, cause: String)
 }
 
-internal val retried: SurefoldLocal<Retried> = surefoldLocal { Retried { _, _ -> } }
+internal val retried: SurefoldLocal<Retried> = surefoldLocal {
+    Retried { step, cause -> counter(RETRIES, "transact" to step, "cause" to cause).increment() }
+}
+
+private const val RUNS = "surefold.transact.runs"
+
+private const val RETRIES = "surefold.transact.retries"
+
+private const val ATTEMPTS = "surefold.transact.attempts"
 
 // A thread local rather than a SurefoldLocal: a fork must not inherit the step it was started in.
 private val running = ThreadLocal<Transaction?>()
