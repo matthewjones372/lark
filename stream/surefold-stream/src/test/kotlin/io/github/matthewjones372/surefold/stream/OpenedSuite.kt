@@ -45,9 +45,9 @@ object OpenedSuite : Suite() {
                     opened.close()
 
                     val warned = logs.all().filter { it.level == LogLevel.Warn }
-                    (deaf.closed.get() shouldBe true) and
-                        (warned shouldHaveSize 1) and
-                        (warned.singleOrNull()?.message shouldContain "closed while still reading")
+                    deaf.closed.get() shouldBe true
+                    warned shouldHaveSize 1
+                    warned.singleOrNull()?.message shouldContain "closed while still reading"
                 }
             } finally {
                 deaf.release.countDown()
@@ -65,9 +65,9 @@ object OpenedSuite : Suite() {
                 Thread.currentThread().interrupt()
                 opened.close()
 
-                (Thread.interrupted() shouldBe true) and
-                    (deaf.closed.get() shouldBe true) and
-                    (TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - started) shouldBeLessThan 10L)
+                Thread.interrupted() shouldBe true
+                deaf.closed.get() shouldBe true
+                TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - started) shouldBeLessThan 10L
             } finally {
                 deaf.release.countDown()
                 reader.join()

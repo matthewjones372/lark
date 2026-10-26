@@ -89,22 +89,21 @@ object MeasuredSuite : SharedSuite<ActorSystem>() {
 
                 val exit = measured.run(backend.on(system)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                val done = exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.size shouldBe 10 }
-                val slowest = withClue("the map that sleeps is step 2, and it is where the time went") {
-                    (recorded.busiest() shouldBe "2:map") and
-                        (recorded.mean("busy", "2:map") shouldBeGreaterThan SLOW_SECONDS * 0.9)
+                exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.size shouldBe 10 }
+                withClue("the map that sleeps is step 2, and it is where the time went") {
+                    recorded.busiest() shouldBe "2:map"
+                    recorded.mean("busy", "2:map") shouldBeGreaterThan SLOW_SECONDS * 0.9
                 }
-                val timed = withClue("a stage with no body of its own to time reports no busy, not an empty series") {
+                withClue("a stage with no body of its own to time reports no busy, not an empty series") {
                     recorded.stages("busy") shouldBe setOf("1:map", "2:map", "3:filter")
                 }
-                val counted = recorded.counts.mapValues { it.value.sum().toInt() } shouldBe mapOf(
+                recorded.counts.mapValues { it.value.sum().toInt() } shouldBe mapOf(
                     "0:Stream.from" to 20,
                     "1:map" to 20,
                     "2:map" to 20,
                     "3:filter" to 10,
                     "4:take" to 10,
                 )
-                done and slowest and timed and counted
             }
         }
 
@@ -119,13 +118,13 @@ object MeasuredSuite : SharedSuite<ActorSystem>() {
                     .shouldBeInstanceOf<Exit.Done<List<Int>>> { _ ->
                         // The source, the fused run of maps ending at step 2, the slow mapConcat, and the drop
                         // after it.
-                        val stages = recorded.stages("waiting") shouldBe
+                        recorded.stages("waiting") shouldBe
                             setOf("0:Stream.from", "2:map", "3:mapConcat", "4:drop")
                         val upstream = listOf("0:Stream.from", "2:map").map { recorded.mean("waiting", it) }
                         val atAndAfter = listOf("3:mapConcat", "4:drop").map { recorded.mean("waiting", it) }
-                        stages and withClue("waiting upstream $upstream, at and after the slow stage $atAndAfter") {
-                            (upstream.min() shouldBeGreaterThan SLOW_SECONDS * 0.9) and
-                                (upstream.min() shouldBeGreaterThan atAndAfter.max() * 10)
+                        withClue("waiting upstream $upstream, at and after the slow stage $atAndAfter") {
+                            upstream.min() shouldBeGreaterThan SLOW_SECONDS * 0.9
+                            upstream.min() shouldBeGreaterThan atAndAfter.max() * 10
                         }
                     }
             }

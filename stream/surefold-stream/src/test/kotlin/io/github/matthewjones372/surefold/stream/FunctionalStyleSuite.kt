@@ -54,23 +54,21 @@ object FunctionalStyleSuite : Suite() {
         test("the build hands this test the sources it judges") {
             sourceRoots { roots ->
                 repoRoot { root ->
-                    val named = withClue("the build named no source roots at all") { roots.shouldNotBeEmpty() }
+                    withClue("the build named no source roots at all") { roots.shouldNotBeEmpty() }
 
                     val missing = roots.filterNot { it.isDirectory }
-                    val there = withClue("the build named source roots that are not there: $missing") {
+                    withClue("the build named source roots that are not there: $missing") {
                         missing.shouldBeEmpty()
                     }
 
                     val outside = roots.filterNot { it.absoluteFile.startsWith(root.absoluteFile) }
-                    val inside =
-                        withClue("a source root sits outside $root, so the paths below cannot be keys: $outside") {
-                            outside.shouldBeEmpty()
-                        }
+                    withClue("a source root sits outside $root, so the paths below cannot be keys: $outside") {
+                        outside.shouldBeEmpty()
+                    }
 
-                    named and there and inside and
-                        withClue("no sources were handed over; the gate is judging nothing") {
-                            mainSources(roots).shouldNotBeEmpty()
-                        }
+                    withClue("no sources were handed over; the gate is judging nothing") {
+                        mainSources(roots).shouldNotBeEmpty()
+                    }
                 }
             }
         }
@@ -87,7 +85,8 @@ object FunctionalStyleSuite : Suite() {
                     val stale = builders.keys - found
                     withClue("a mutable accumulator appeared outside a builder: $unexpected") {
                         unexpected.shouldBeEmpty()
-                    } and withClue("these no longer accumulate; drop them from the list: $stale") {
+                    }
+                    withClue("these no longer accumulate; drop them from the list: $stale") {
                         stale.shouldBeEmpty()
                     }
                 }

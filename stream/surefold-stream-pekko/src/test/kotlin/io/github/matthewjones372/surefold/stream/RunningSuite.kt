@@ -37,47 +37,45 @@ object RunningSuite : SharedSuite<PekkoSystem>() {
             val running = Stream.tick(every = 1.hours, element = Unit, after = ZERO)
                 .runWith(Sink.foreach { _ -> first.countDown() })
                 .start(pekko.system)
-            val ticked = first.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            first.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.stop()
 
-            ticked and
-                withClue("the next tick is an hour away, so an answer at all is the stop working") {
-                    running.exit.settled() shouldBe Exit.Done(Done.getInstance())
-                }
+            withClue("the next tick is an hour away, so an answer at all is the stop working") {
+                running.exit.settled() shouldBe Exit.Done(Done.getInstance())
+            }
         }
 
         test("a collecting run stopped answers what arrived before the stop") { pekko ->
             val allThree = CountDownLatch(3)
             val running = feed(allThree).runCollect().start(pekko.system)
-            val allArrived = allThree.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            allThree.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.stop()
 
-            allArrived and (running.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3)))
+            running.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3))
         }
 
         test("close returns only once the exit has completed") { pekko ->
             val allThree = CountDownLatch(3)
             val running = feed(allThree).runCollect().start(pekko.system)
-            val allArrived = allThree.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            allThree.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.close()
 
-            allArrived and
-                withClue("a release that returned before the run ended would close what the run still uses") {
-                    running.exit.toCompletableFuture().isDone shouldBe true
-                }
+            withClue("a release that returned before the run ended would close what the run still uses") {
+                running.exit.toCompletableFuture().isDone shouldBe true
+            }
         }
 
         test("stopping a run that already ended changes nothing") { pekko ->
             val running = Stream.from(listOf(1)).runCollect().start(pekko.system)
-            val endedFirst = running.exit.settled() shouldBe Exit.Done(listOf(1))
+            running.exit.settled() shouldBe Exit.Done(listOf(1))
 
             running.stop()
             running.close()
 
-            endedFirst and (running.exit.settled() shouldBe Exit.Done(listOf(1)))
+            running.exit.settled() shouldBe Exit.Done(listOf(1))
         }
 
         test("a started run answers a declared failure as run does") { pekko ->

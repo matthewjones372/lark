@@ -82,7 +82,7 @@ object PipeSuite : SharedSuite<PekkoSystem>() {
 
             val out: Flow<Int, Int, NotUsed> = Pipe.from(flow).toFlow()
 
-            val same = withClue("a pipe with nothing left to declare is the flow it was given") {
+            withClue("a pipe with nothing left to declare is the flow it was given") {
                 out shouldBeSameInstanceAs flow
             }
             val elements = Source.from(listOf(1, 2, 3))
@@ -90,7 +90,7 @@ object PipeSuite : SharedSuite<PekkoSystem>() {
                 .runWith(Sink.seq(), pekko.system)
                 .toCompletableFuture()
                 .join()
-            same and (elements shouldBe listOf(2, 4, 6))
+            elements shouldBe listOf(2, 4, 6)
         }
     }
 }

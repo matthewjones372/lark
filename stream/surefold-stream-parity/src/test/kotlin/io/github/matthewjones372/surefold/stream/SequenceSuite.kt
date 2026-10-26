@@ -61,7 +61,7 @@ object SequenceSuite : SharedSuite<ActorSystem>() {
 
             val elements = pulling.toSequence(backend, BUFFER).iterator()
             full.opens {
-                val stalled = withClue("with nothing read, the buffer is full and one more element waits for room") {
+                withClue("with nothing read, the buffer is full and one more element waits for room") {
                     pulled.get() shouldBe BUFFER + 1
                 }
                 repeat(BUFFER * 10) {
@@ -74,8 +74,7 @@ object SequenceSuite : SharedSuite<ActorSystem>() {
 
                 // One past buffer and the waiting element: a slot frees as an element is taken, before `read`
                 // counts it.
-                stalled and
-                    withClue("upstream got $ahead ahead of the reader") { ahead shouldBeLessThanOrEqual BUFFER + 2 }
+                withClue("upstream got $ahead ahead of the reader") { ahead shouldBeLessThanOrEqual BUFFER + 2 }
             }
         }
 
@@ -92,12 +91,12 @@ object SequenceSuite : SharedSuite<ActorSystem>() {
             )
 
             val elements = endless.toSequence(backend, BUFFER).iterator()
-            val first = elements.next() shouldBe 1
-            first and full.opens {
+            elements.next() shouldBe 1
+            full.opens {
                 CompletableFuture.runAsync { (elements as AutoCloseable).close() }.get(GUARD_SECONDS, TimeUnit.SECONDS)
 
-                withClue("the run's source was closed by the time close returned") { released.count shouldBe 0L } and
-                    (elements.hasNext() shouldBe false)
+                withClue("the run's source was closed by the time close returned") { released.count shouldBe 0L }
+                elements.hasNext() shouldBe false
             }
         }
 
@@ -126,20 +125,19 @@ object SequenceSuite : SharedSuite<ActorSystem>() {
             val dying = Stream.of(1, 2, 3).map { n -> if (n == 3) error("third element refused") else n }
             val elements = dying.toSequence(backend, BUFFER).iterator()
 
-            val first = elements.next() shouldBe 1
-            val second = elements.next() shouldBe 2
-            first and second and
-                shouldThrow<IllegalStateException>({ elements.hasNext() }) {
-                    it.message shouldContain
-                        "third element refused"
-                }
+            elements.next() shouldBe 1
+            elements.next() shouldBe 2
+            shouldThrow<IllegalStateException>({ elements.hasNext() }) {
+                it.message shouldContain
+                    "third element refused"
+            }
         }
 
         each("a second iteration throws") { backend ->
             val once = Stream.of(1, 2).toSequence(backend, BUFFER)
-            val read = once.toList() shouldBe listOf(1, 2)
+            once.toList() shouldBe listOf(1, 2)
 
-            read and shouldThrow<IllegalStateException> { once.iterator() }
+            shouldThrow<IllegalStateException> { once.iterator() }
         }
 
         test("a buffer with no room is refused") { _ ->

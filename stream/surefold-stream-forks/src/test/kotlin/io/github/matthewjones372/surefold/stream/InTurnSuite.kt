@@ -110,7 +110,8 @@ object InTurnSuite : Suite() {
             reader.interrupt()
 
             reader.join(TimeUnit.SECONDS.toMillis(GENEROUS_SECONDS))
-            (reader.isAlive shouldBe false) and threw.getNow(null).shouldBeInstanceOf<InterruptedException>()
+            reader.isAlive shouldBe false
+            threw.getNow(null).shouldBeInstanceOf<InterruptedException>()
         }
     }
 }

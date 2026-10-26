@@ -56,40 +56,42 @@ object BlockingOnPekkoSuite : SharedSuite<PekkoSystem>() {
         ) { pekko ->
             val queue = Queue(1, 2, 3).also { it.woken.countDown() }
 
-            (blocking(queue).runCollect().run(pekko.system).settled() shouldBe Exit.Done(listOf(1, 2, 3))) and
-                withClue("a blocked read must never hold one of the stream's own threads") {
-                    queue.readOn shouldContain "blocking-io"
-                } and
-                (queue.closed.get() shouldBe 1)
+            blocking(queue).runCollect().run(pekko.system).settled() shouldBe Exit.Done(listOf(1, 2, 3))
+            withClue("a blocked read must never hold one of the stream's own threads") {
+                queue.readOn shouldContain "blocking-io"
+            }
+            queue.closed.get() shouldBe 1
         }
 
         test("a stop while next is blocked wakes it, and what was read still reaches the sink") { pekko ->
             val queue = Queue(1, 2)
             val running = blocking(queue).runCollect().start(pekko.system)
-            val waited = queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.stop()
 
-            waited and (running.exit.settled() shouldBe Exit.Done(listOf(1, 2))) and (queue.closed.get() shouldBe 1)
+            running.exit.settled() shouldBe Exit.Done(listOf(1, 2))
+            queue.closed.get() shouldBe 1
         }
 
         test("a stop wakes a source blocked inside flatMapMerge, and closes it once (spec 0150)") { pekko ->
             val queue = Queue(1)
             val running = Stream.of(0).flatMapMerge(2) { blocking(queue) }.runCollect().start(pekko.system)
-            val waited = queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.stop()
 
-            waited and running.exit.settled().shouldBeInstanceOf<Exit.Done<*>>() and (queue.closed.get() shouldBe 1)
+            running.exit.settled().shouldBeInstanceOf<Exit.Done<*>>()
+            queue.closed.get() shouldBe 1
         }
 
         test("a take that is satisfied closes the resource it stopped reading") { pekko ->
             val queue = Queue(1, 2, 3)
 
             val exit = blocking(queue).take(2).runCollect().run(pekko.system).settled()
-            val taken = exit shouldBe Exit.Done(listOf(1, 2))
+            exit shouldBe Exit.Done(listOf(1, 2))
 
-            taken and withClue(
+            withClue(
                 "Pekko closes a cancelled source after the sink completes; the exit waits for it, as on Forks",
             ) {
                 queue.closed.get() shouldBe 1
@@ -126,13 +128,13 @@ object BlockingOnPekkoSuite : SharedSuite<PekkoSystem>() {
                 close = { },
             ).map { item -> item.also { if (it == 1) firstSeen.countDown() } }.runCollect().run(pekko.system).settled()
 
-            val batched = withClue(
+            withClue(
                 "the second read was made while the first was still in the source's batch, not handed over alone",
             ) {
                 secondReadFirst.get() shouldBe true
             }
 
-            (exit shouldBe Exit.Done(listOf(1, 2, 3))) and batched
+            exit shouldBe Exit.Done(listOf(1, 2, 3))
         }
     }
 }

@@ -38,14 +38,14 @@ object HookedSuite : SharedSuite<PekkoSystem>() {
             val ended = CountDownLatch(1)
             val sent = CountDownLatch(3)
             val running = draining(ended, sent).runCollect().start(pekko.system)
-            val allSent = sent.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            sent.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.stop()
 
-            allSent and (running.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3))) and
-                withClue("the end hook runs once the exit has completed") {
-                    ended.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
-                }
+            running.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3))
+            withClue("the end hook runs once the exit has completed") {
+                ended.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            }
         }
 
         test("a run nobody stops still tells its sources it has ended") { pekko ->
@@ -56,17 +56,18 @@ object HookedSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf(1))) and (ended.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true)
+            exit shouldBe Exit.Done(listOf(1))
+            ended.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
         }
 
         test("a drain registered after the stop runs at once") { _ ->
             val hooks = RunHooks()
-            val stoppedFirst = hooks.stop() shouldBe false
+            hooks.stop() shouldBe false
 
             val drained = CountDownLatch(1)
             hooks.onStop { drained.countDown() }
 
-            stoppedFirst and (drained.count shouldBe 0L)
+            drained.count shouldBe 0L
         }
     }
 }

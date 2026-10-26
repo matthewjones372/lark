@@ -62,8 +62,8 @@ object RingSuite : Suite() {
                 }
                 waitUntilParked(producer)
 
-                val ranAhead = withClue("capacity $capacity") { put.get() shouldBe capacity }
-                ranAhead and (List(10) { ring.take() } shouldBe List(10) { it })
+                withClue("capacity $capacity") { put.get() shouldBe capacity }
+                List(10) { ring.take() } shouldBe List(10) { it }
             }
         }
 
@@ -143,16 +143,17 @@ object RingSuite : Suite() {
             consumer.interrupt()
 
             consumer.join(TimeUnit.SECONDS.toMillis(GENEROUS_SECONDS))
-            (consumer.isAlive shouldBe false) and threw.getNow(null).shouldBeInstanceOf<InterruptedException>()
+            consumer.isAlive shouldBe false
+            threw.getNow(null).shouldBeInstanceOf<InterruptedException>()
         }
 
         test("an interrupted producer stops at its next put even when there is room") {
             val ring = Ring(256)
             Thread.currentThread().interrupt()
 
-            shouldThrow<InterruptedException> { ring.put(1) } and
-                (Thread.interrupted() shouldBe false) and
-                ring.poll().shouldBeNull()
+            shouldThrow<InterruptedException> { ring.put(1) }
+            Thread.interrupted() shouldBe false
+            ring.poll().shouldBeNull()
         }
     }
 }

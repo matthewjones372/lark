@@ -31,10 +31,10 @@ object LimitedSuite : Suite() {
 
             val firstExit = first.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
             val secondExit = second.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
-            (firstExit shouldBe Exit.Done((1..100).sum())) and
-                (secondExit shouldBe Exit.Done((1..100).sum())) and
-                withClue("the most calls inside the shared limit at once") { (most.get() <= 3) shouldBe true } and
-                (dependency.inFlight shouldBe 0)
+            firstExit shouldBe Exit.Done((1..100).sum())
+            secondExit shouldBe Exit.Done((1..100).sum())
+            withClue("the most calls inside the shared limit at once") { (most.get() <= 3) shouldBe true }
+            dependency.inFlight shouldBe 0
         }
     }
 }

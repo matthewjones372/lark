@@ -42,17 +42,15 @@ object RestartDelaySuite : SharedSuite<PekkoSystem>(concurrent = false) {
 
             probe.request(10)
             // The probe's expectNext throws; expectNextN hands back a Scala Seq, seen as a Java list it can equal.
-            val first = asJava(probe.expectNextN(2)) shouldBe listOf(1, 2)
+            asJava(probe.expectNextN(2)) shouldBe listOf(1, 2)
             probe.expectNoMessage(quiet)
 
             clock(pekko).timePasses((delay - 1.seconds).toJavaDuration())
             probe.expectNoMessage(quiet)
 
             clock(pekko).timePasses(1.seconds.toJavaDuration())
-            val again = asJava(probe.expectNextN(3)) shouldBe listOf(1, 2, 3)
+            asJava(probe.expectNextN(3)) shouldBe listOf(1, 2, 3)
             probe.expectComplete()
-
-            first and again
         }
     }
 }

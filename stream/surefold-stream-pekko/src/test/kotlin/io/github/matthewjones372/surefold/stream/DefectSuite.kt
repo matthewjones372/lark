@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold.stream
 
 import io.github.matthewjones372.surefold.Resource
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBeGreaterThan
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
@@ -78,36 +77,35 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
             .runFold(0) { n, _ -> n + 1 }
 
     /** The build hands the root over, so the file read here is the one this suite was compiled from. */
-    private fun source(): Pair<File?, Expectations> {
+    private fun source(): File? {
         val root = System.getProperty("surefold.stream.repoRoot")
-        val handed = withClue(
+        withClue(
             "the build must pass -Dsurefold.stream.repoRoot; see surefold-stream-pekko/build.gradle.kts",
         ) {
             root.shouldNotBeNull()
         }
-        val file = root?.let {
+        return root?.let {
             File(
                 it,
                 "stream/surefold-stream-pekko/src/test/kotlin/io/github/matthewjones372/surefold/stream/DefectSuite.kt",
             )
         }
-        return file to handed
     }
 
     /**
-     * Where a marked call sits, read out of this file rather than written down as a number that moves, with the
-     * checks that found it.
+     * Where a marked call sits, read out of this file rather than written down as a number that moves, checking
+     * that it was found.
      */
-    private fun siteOf(marker: String): Pair<String, Expectations> {
-        val (file, handed) = source()
+    private fun siteOf(marker: String): String {
+        val file = source()
         val index = file?.readLines()?.indexOfFirst { line -> line.trimEnd().endsWith(marker) } ?: -1
-        val found = withClue("no line of ${file?.name} ends with `$marker`") { index shouldBeGreaterThan -1 }
-        return "${file?.name}:${index + 1}" to (handed and found)
+        withClue("no line of ${file?.name} ends with `$marker`") { index shouldBeGreaterThan -1 }
+        return "${file?.name}:${index + 1}"
     }
 
     init {
         test("a defect reaches the system log though nobody reads the stage") { pekko ->
-            val (at, _) = siteOf(ASYNC_SITE)
+            val at = siteOf(ASYNC_SITE)
 
             LoggingTestKit.error("mapAsync died on Row(id=2), built at $at")
                 .withCause(NullPointerException::class.java)
@@ -116,26 +114,27 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
 
         test("a null completion dies naming the operator, the element and the build site") { pekko ->
             val exit = counted().run(pekko.system).settled()
-            val (at, found) = siteOf(ASYNC_SITE)
+            val at = siteOf(ASYNC_SITE)
 
-            found and exit.shouldBeInstanceOf<Exit.Died> { died ->
-                died.cause.shouldBeInstanceOf<NullPointerException>() and
-                    (died.cause.message shouldContain "mapAsync died on Row(id=2), built at $at")
+            exit.shouldBeInstanceOf<Exit.Died> { died ->
+                died.cause.shouldBeInstanceOf<NullPointerException>()
+                died.cause.message shouldContain "mapAsync died on Row(id=2), built at $at"
             }
         }
 
         test("a stage that fails keeps its own exception, and the three facts ride with it") { pekko ->
             val ledgerDown = ledgerDown()
-            val (at, found) = siteOf(REFUSED_SITE)
+            val at = siteOf(REFUSED_SITE)
 
             val exit = LoggingTestKit.error("mapAsync died on Row(id=2), built at $at")
                 .withCause(IllegalStateException::class.java)
                 .expect(pekko.typed) { refused(ledgerDown).run(pekko.system).settled() }
 
-            found and exit.shouldBeInstanceOf<Exit.Died> { died ->
+            exit.shouldBeInstanceOf<Exit.Died> { died ->
                 withClue("a stage failed by the caller's own throwable hands back that throwable") {
                     died.cause shouldBeSameInstanceAs ledgerDown
-                } and (died.cause.suppressed.single().message shouldContain "mapAsync died on Row(id=2), built at $at")
+                }
+                died.cause.suppressed.single().message shouldContain "mapAsync died on Row(id=2), built at $at"
             }
         }
 
@@ -146,12 +145,13 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
                 .runCollect()
                 .run(pekko.system)
                 .settled()
-            val (at, found) = siteOf(MAP_SITE)
+            val at = siteOf(MAP_SITE)
 
-            found and exit.shouldBeInstanceOf<Exit.Died> { died ->
+            exit.shouldBeInstanceOf<Exit.Died> { died ->
                 withClue("wrapping the cause would lose the class the caller's own code threw") {
                     died.cause shouldBeSameInstanceAs noLedger
-                } and (died.cause.suppressed.single().message shouldContain "map died on Row(id=2), built at $at")
+                }
+                died.cause.suppressed.single().message shouldContain "map died on Row(id=2), built at $at"
             }
         }
 
@@ -164,18 +164,19 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
                 .runCollect()
                 .run(pekko.system)
                 .settled()
-            val (at, found) = siteOf(PAR_SITE)
+            val at = siteOf(PAR_SITE)
 
-            found and exit.shouldBeInstanceOf<Exit.Died> { died ->
+            exit.shouldBeInstanceOf<Exit.Died> { died ->
                 withClue("a body's own throwable is what the stage is completed with") {
                     died.cause shouldBeSameInstanceAs noLedger
-                } and (died.cause.suppressed.single().message shouldContain "mapPar died on Row(id=2), built at $at")
+                }
+                died.cause.suppressed.single().message shouldContain "mapPar died on Row(id=2), built at $at"
             }
         }
 
         test("a mapConcat that throws keeps its own exception, and the three facts ride with it") { pekko ->
             val noLedger = noLedger()
-            val (at, found) = siteOf(CONCAT_SITE)
+            val at = siteOf(CONCAT_SITE)
 
             val exit = LoggingTestKit.error("mapConcat died on Row(id=2), built at $at")
                 .withCause(IllegalStateException::class.java)
@@ -187,10 +188,11 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
                         .settled()
                 }
 
-            found and exit.shouldBeInstanceOf<Exit.Died> { died ->
+            exit.shouldBeInstanceOf<Exit.Died> { died ->
                 withClue("wrapping the cause would lose the class the caller's own code threw") {
                     died.cause shouldBeSameInstanceAs noLedger
-                } and (died.cause.suppressed.single().message shouldContain "mapConcat died on Row(id=2), built at $at")
+                }
+                died.cause.suppressed.single().message shouldContain "mapConcat died on Row(id=2), built at $at"
             }
         }
 
@@ -203,12 +205,12 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
                 .runCollect()
                 .run(pekko.system)
                 .settled()
-            val (at, found) = siteOf(SEED_SITE)
+            val at = siteOf(SEED_SITE)
 
-            found and exit.shouldBeInstanceOf<Exit.Died> { died ->
+            exit.shouldBeInstanceOf<Exit.Died> { died ->
                 val facts = died.cause.suppressed.single().message
-                (died.cause shouldBeSameInstanceAs noLedger) and
-                    (facts shouldContain "conflateWithSeed died on Row(id=2), built at $at")
+                died.cause shouldBeSameInstanceAs noLedger
+                facts shouldContain "conflateWithSeed died on Row(id=2), built at $at"
             }
         }
 
@@ -217,9 +219,9 @@ object DefectSuite : SharedSuite<PekkoSystem>(concurrent = false) {
             val ledger: Pipe<Nothing, Row, Row> = Pipe.mapAsync(1) { row -> settle(row) } // pipe built here
 
             val exit = Stream.from(rows).via(ledger).runCollect().run(pekko.system).settled()
-            val (at, found) = siteOf(PIPE_SITE)
+            val at = siteOf(PIPE_SITE)
 
-            found and exit.shouldBeInstanceOf<Exit.Died> { died ->
+            exit.shouldBeInstanceOf<Exit.Died> { died ->
                 died.cause.message shouldContain "mapAsync died on Row(id=2), built at $at"
             }
         }

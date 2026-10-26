@@ -56,10 +56,10 @@ object MapParSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf("receipt-1", "receipt-2", "receipt-3", "receipt-4"))) and
-                withClue("the default executor is surefold's, one virtual thread per body") {
-                    virtual.toList() shouldBe List(4) { true }
-                }
+            exit shouldBe Exit.Done(listOf("receipt-1", "receipt-2", "receipt-3", "receipt-4"))
+            withClue("the default executor is surefold's, one virtual thread per body") {
+                virtual.toList() shouldBe List(4) { true }
+            }
         }
 
         test("a raise in one body fails the stream with its error and nothing after it is processed") { pekko ->
@@ -75,10 +75,10 @@ object MapParSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(Declined(2))) and
-                withClue("the element before the failure is the only one that reached the next operator") {
-                    seen.toList() shouldBe listOf("receipt-1")
-                }
+            exit shouldBe Exit.Failed(Declined(2))
+            withClue("the element before the failure is the only one that reached the next operator") {
+                seen.toList() shouldBe listOf("receipt-1")
+            }
         }
 
         test("a bind on a Left inside a body fails the stream with what the Left holds") { pekko ->
@@ -121,10 +121,10 @@ object MapParSuite : SharedSuite<PekkoSystem>() {
                 executor.shutdown()
             }
 
-            (exit shouldBe Exit.Done(listOf("RECEIPT-1", "RECEIPT-2", "RECEIPT-3"))) and
-                withClue("a body runs where the call said it would, not on a virtual thread of surefold's") {
-                    threads.toList() shouldBe List(3) { "ledger-1" }
-                }
+            exit shouldBe Exit.Done(listOf("RECEIPT-1", "RECEIPT-2", "RECEIPT-3"))
+            withClue("a body runs where the call said it would, not on a virtual thread of surefold's") {
+                threads.toList() shouldBe List(3) { "ledger-1" }
+            }
         }
 
         test("parallelism of one runs the bodies one at a time") { pekko ->
@@ -142,10 +142,10 @@ object MapParSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf("receipt-1", "receipt-2", "receipt-3", "receipt-4"))) and
-                withClue("mapAsync's parallelism is mapPar's: one at a time means one body running") {
-                    most.toList().max() shouldBe 1
-                }
+            exit shouldBe Exit.Done(listOf("receipt-1", "receipt-2", "receipt-3", "receipt-4"))
+            withClue("mapAsync's parallelism is mapPar's: one at a time means one body running") {
+                most.toList().max() shouldBe 1
+            }
         }
 
         // The failure a stream already declares is the one its bodies raise, so no second type appears.
@@ -190,10 +190,10 @@ object MapParSuite : SharedSuite<PekkoSystem>() {
                 .toCompletableFuture()
                 .join()
 
-            (first shouldBe listOf("receipt-1")) and
-                withClue("every body still running when the stream ended was interrupted where it blocked") {
-                    interrupted.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
-                }
+            first shouldBe listOf("receipt-1")
+            withClue("every body still running when the stream ended was interrupted where it blocked") {
+                interrupted.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            }
         }
 
         test("under mapParKeyed a slow element on one key does not hold back another key's results") { pekko ->
@@ -209,12 +209,12 @@ object MapParSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done -> done.value.sorted() shouldBe (0..9).toList() } and
-                withClue("every odd result arrived ahead of the even one that slept, and each key in order: $arrived") {
-                    (arrived.filter { it % 2 == 1 } shouldBe listOf(1, 3, 5, 7, 9)) and
-                        (arrived.filter { it % 2 == 0 } shouldBe listOf(0, 2, 4, 6, 8)) and
-                        (arrived.indexOf(9) shouldBeLessThan arrived.indexOf(0))
-                }
+            exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done -> done.value.sorted() shouldBe (0..9).toList() }
+            withClue("every odd result arrived ahead of the even one that slept, and each key in order: $arrived") {
+                arrived.filter { it % 2 == 1 } shouldBe listOf(1, 3, 5, 7, 9)
+                arrived.filter { it % 2 == 0 } shouldBe listOf(0, 2, 4, 6, 8)
+                arrived.indexOf(9) shouldBeLessThan arrived.indexOf(0)
+            }
         }
 
         test("under mapParKeyed every key's results keep their order") { pekko ->
@@ -228,8 +228,8 @@ object MapParSuite : SharedSuite<PekkoSystem>() {
 
             exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
                 val results = done.value
-                (results.sorted() shouldBe (0 until 400).toList()) and
-                    (results.groupBy { it % 7 } shouldBe (0 until 400).groupBy { it % 7 })
+                results.sorted() shouldBe (0 until 400).toList()
+                results.groupBy { it % 7 } shouldBe (0 until 400).groupBy { it % 7 }
             }
         }
 

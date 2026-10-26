@@ -81,10 +81,10 @@ object RaiseInStreamSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf("customer-1:10", "customer-3:30"))) and
-                withClue("every branch of a parZip in an element body runs on a fork of its own") {
-                    virtual.toList() shouldBe List(4) { true }
-                }
+            exit shouldBe Exit.Done(listOf("customer-1:10", "customer-3:30"))
+            withClue("every branch of a parZip in an element body runs on a fork of its own") {
+                virtual.toList() shouldBe List(4) { true }
+            }
         }
 
         test("a raise in a parZip branch fails the stream with that error") { pekko ->
@@ -112,10 +112,10 @@ object RaiseInStreamSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (raised shouldBe Exit.Failed(NoCustomer(1))) and
-                withClue("fail is the name dipper gave raise, and must end a stream the same way") {
-                    failed shouldBe raised
-                }
+            raised shouldBe Exit.Failed(NoCustomer(1))
+            withClue("fail is the name dipper gave raise, and must end a stream the same way") {
+                failed shouldBe raised
+            }
         }
     }
 }
