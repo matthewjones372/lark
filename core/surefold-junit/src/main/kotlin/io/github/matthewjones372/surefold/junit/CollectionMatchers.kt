@@ -1,4 +1,3 @@
-@file:MustUseReturnValues
 @file:OptIn(FailureSeam::class)
 
 package io.github.matthewjones372.surefold.junit

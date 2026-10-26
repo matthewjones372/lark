@@ -129,12 +129,11 @@ object StreamSuite : SharedSuite<PekkoSystem>() {
             val probe = source.runWith(TestSink.probe(pekko.classic), pekko.system)
 
             probe.request(3)
-            val doubled = (probe.expectNext() shouldBe 2) and
+            (probe.expectNext() shouldBe 2) and
                 (probe.expectNext() shouldBe 4) and
                 (probe.expectNext() shouldBe 6)
             // Pekko's probe checks completion itself, and throws if the stream did not complete, as before.
             probe.expectComplete()
-            doubled
         }
 
         // The wrapper `fail` travels in is an exception, so a stream that reached

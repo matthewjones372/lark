@@ -1,12 +1,10 @@
 package io.github.matthewjones372.surefold.stream
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.junit.shouldBeNull
-import io.github.matthewjones372.surefold.junit.shouldNotBeNull
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.test.eventually
@@ -131,16 +129,21 @@ object RingSuite : Suite() {
 
         test("an interrupt reaches a consumer parked on an empty ring") {
             val ring = Ring(2)
-            val threw = CompletableFuture<Expectations>()
+            // A bare thread, so it can be interrupted; it hands back what it threw, and the test checks it.
+            val threw = CompletableFuture<Throwable>()
             val consumer = Thread.ofVirtual().start {
-                threw.complete(shouldThrow<InterruptedException> { ring.take() })
+                try {
+                    val _ = ring.take()
+                } catch (interrupted: InterruptedException) {
+                    threw.complete(interrupted)
+                }
             }
             waitUntilParked(consumer)
 
             consumer.interrupt()
 
             consumer.join(TimeUnit.SECONDS.toMillis(GENEROUS_SECONDS))
-            (consumer.isAlive shouldBe false) and threw.getNow(null).shouldNotBeNull { it }
+            (consumer.isAlive shouldBe false) and threw.getNow(null).shouldBeInstanceOf<InterruptedException>()
         }
 
         test("an interrupted producer stops at its next put even when there is room") {

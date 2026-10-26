@@ -114,9 +114,7 @@ object PipeOperatorsSuite : SharedSuite<PekkoSystem>() {
                 mapConcatTwin(pekko),
             )
 
-            twins
-                .map { twin -> withClue(twin.operator) { twin.viaPipe shouldBe twin.onStream } }
-                .reduce { all, one -> all and one }
+            twins.forEach { twin -> withClue(twin.operator) { twin.viaPipe shouldBe twin.onStream } }
         }
 
         test("a pipe chains the element operators and the stream it is spliced into runs them in order") { pekko ->

@@ -6,8 +6,8 @@ import io.github.matthewjones372.surefold.resource
 
 /**
  * Tests written as a Kotlin `object` so the `surefold` engine finds it with no annotation: a [Suite] when they share
- * nothing, a [SharedSuite] when they share one [R]. Each test is registered from `init` and returns its
- * [Expectations]; a test that throws fails with what it threw. Tests run as forks on virtual threads, at most
+ * nothing, a [SharedSuite] when they share one [R]. Each test is registered from `init`, and every check it makes is
+ * recorded as its result; a test that throws fails with what it threw. Tests run as forks on virtual threads, at most
  * [limit] at once; with [concurrent] false, each runs alone. The suite's [aspects] wrap each test's.
  * Each test logs and measures into a capture of its own, and a failed test's log lines are reported with it.
  * A [story] told without a title takes the test's name, and its transcript is one of those log lines.
@@ -25,12 +25,12 @@ abstract class AnySuite<R> internal constructor(
 
     internal val tests: Map<String, Registered<R>> get() = registered.toMap()
 
-    internal fun register(name: String, aspects: Aspect, body: (R) -> Expectations) {
+    internal fun register(name: String, aspects: Aspect, body: (R) -> Unit) {
         require(name !in registered) { "${javaClass.name} already has a test named \"$name\"; a name is its ID" }
         registered[name] = Registered(body, this.aspects + aspects + if (concurrent) Aspect.none else alone)
     }
 
-    internal class Registered<R>(val body: (R) -> Expectations, val aspects: Aspect)
+    internal class Registered<R>(val body: (R) -> Unit, val aspects: Aspect)
 }
 
 /** Tests that share nothing. See [AnySuite]. */
@@ -44,7 +44,7 @@ abstract class Suite(
     final override val toAcquire: Resource<Unit> = resource { }
 
     /** Registers a test that runs as its [aspects] say, inside the suite's. */
-    protected fun test(name: String, aspects: Aspect = Aspect.none, body: () -> Expectations) =
+    protected fun test(name: String, aspects: Aspect = Aspect.none, body: () -> Unit) =
         register(name, aspects) { _ -> body() }
 }
 
@@ -64,6 +64,6 @@ abstract class SharedSuite<R>(
     final override val toAcquire: Resource<R> get() = shared
 
     /** Registers a test that runs as its [aspects] say, inside the suite's. */
-    protected fun test(name: String, aspects: Aspect = Aspect.none, body: (R) -> Expectations) =
+    protected fun test(name: String, aspects: Aspect = Aspect.none, body: (R) -> Unit) =
         register(name, aspects, body)
 }

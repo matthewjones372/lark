@@ -3,7 +3,6 @@ package io.github.matthewjones372.surefold.stream
 import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -26,7 +25,7 @@ object HubSuite : SharedSuite<ActorSystem>() {
     private val backends: List<Backend> = listOf(OnPekko, OnForks, OnTestStreams, OnActors)
 
     /** Registers [name] once for each backend, named for it, with that backend made fresh for the test. */
-    private fun onEvery(name: String, check: (StreamBackend) -> Expectations) =
+    private fun onEvery(name: String, check: (StreamBackend) -> Unit) =
         backends.forEach { backend -> test("$name [${backend.name}]") { system -> check(backend.on(system)) } }
 
     private fun <E, R> CompletionStage<Exit<E, R>>.settled(): Exit<E, R> =

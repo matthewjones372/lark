@@ -1,4 +1,3 @@
-@file:MustUseReturnValues
 @file:OptIn(FailureSeam::class)
 
 package io.github.matthewjones372.surefold.junit
@@ -147,4 +146,4 @@ internal fun notEither(either: Either<*, *>, wanted: String): Expectations = mis
 /** A shared surefold-assert check's [miss] as an expectation at the test's line, or a pass when there is none. */
 @PublishedApi
 internal fun verdict(miss: Miss?): Expectations =
-    miss?.let { mismatchedHere(it.expected, it.actual, it.expectedText, it.cause) } ?: passed(1)
+    miss?.let { mismatchedHere(it.expected, it.actual, it.expectedText, it.cause) } ?: held()

@@ -45,16 +45,6 @@ class StoryCompileTest {
     }
 
     @Test
-    fun `a suite importing surefold-test's story alone does not compile, since that story returns Unit`(
-        @TempDir workspace: File,
-    ) {
-        val (exit, _) =
-            EmbeddedKotlin(workspace).compile(suiteOf(steps, "io.github.matthewjones372.surefold.test.story"))
-
-        exit shouldBe ExitCode.COMPILATION_ERROR
-    }
-
-    @Test
     fun `a file importing both stories calls neither, until one is imported under another name`(
         @TempDir workspace: File,
     ) {
@@ -72,16 +62,7 @@ class StoryCompileTest {
         withClue(said.joinToString("\n")) { exit shouldBe ExitCode.OK }
     }
 
-    @Test
-    fun `a dropped story does not compile`(@TempDir workspace: File) {
-        val source = suiteOf("$steps\n one shouldBe 1", "io.github.matthewjones372.surefold.junit.story")
-        val (exit, reported) = EmbeddedKotlin(workspace).compile(source)
-
-        exit shouldBe ExitCode.COMPILATION_ERROR
-        reported shouldContain "Unused return value of 'story'."
-    }
-
-    // Spec 0188's second question: Story's generic Then is a member, so it wins over any Then surefold-junit adds.
+    // A step's check is recorded when it is made, so a step left out of any value still counts (spec 0202).
     @Test
     fun `a dropped then still compiles`(@TempDir workspace: File) {
         val source = suiteOf(

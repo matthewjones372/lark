@@ -90,7 +90,8 @@ class SurefoldEngine : TestEngine {
                                         capturingMetrics {
                                             outcomeOf {
                                                 aspects.run({ k, v -> report.entry(test, k, v) }) {
-                                                    registered.body(shared).verify(test.displayName)
+                                                    val (_, checks) = recording { registered.body(shared) }
+                                                    checks.verify(test.displayName)
                                                 }
                                             }
                                         }

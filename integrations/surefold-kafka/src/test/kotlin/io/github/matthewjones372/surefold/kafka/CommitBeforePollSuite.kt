@@ -102,11 +102,10 @@ object CommitBeforePollSuite : SharedSuite<KafkaBroker>() {
             consumer.failing += refused
 
             commits.commitAsync()
-            val surfaced = withClue("the refusal surfaces where a commitSync throw would have") {
+            withClue("the refusal surfaces where a commitSync throw would have") {
                 shouldThrow<CommitFailedException>({ commits.commitAsync() }) { thrown -> thrown shouldBe refused }
             }
             consumer.close()
-            surfaced
         }
     }
 }

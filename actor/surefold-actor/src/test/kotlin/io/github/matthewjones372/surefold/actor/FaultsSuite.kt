@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.actor
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
@@ -47,14 +46,14 @@ private fun heard(): Behaviour<String, List<String>, Nothing> =
 object FaultsSuite : Suite() {
     init {
         test("a requester that asks again completes when half of all messages are lost") {
-            (1L..20L).map { seed ->
+            (1L..20L).forEach { seed ->
                 testActors(order = Ordering.seeded(seed), faults = Faults(drop = 0.5)) {
                     val asker = spawn("asker", asker(spawn("server", pong())))
                     asker.tell("ask")
                     settle()
                     withClue("seed $seed: $trace") { asker.state shouldBe true }
                 }
-            }.reduce(Expectations::and)
+            }
         }
 
         test("the trace shows each message lost") {
@@ -65,8 +64,9 @@ object FaultsSuite : Suite() {
                     trace.filterIsInstance<TraceEntry.Dropped>()
                 }
             }
-            dropped.map { it.message }.toSet().fold(dropped.shouldNotBeEmpty()) { all, lost ->
-                all and withClue(lost) { (lost == "pong" || lost is ActorRef<*>) shouldBe true }
+            dropped.shouldNotBeEmpty()
+            dropped.map { it.message }.toSet().forEach { lost ->
+                withClue(lost) { (lost == "pong" || lost is ActorRef<*>) shouldBe true }
             }
         }
 
@@ -108,7 +108,7 @@ object FaultsSuite : Suite() {
         test(
             "a delayed message holds back what its sender tells the same receiver after it, as one connection would",
         ) {
-            (1L..50L).map { seed ->
+            (1L..50L).forEach { seed ->
                 testActors(order = Ordering.seeded(seed), faults = Faults(delay = 0.5, maxDelay = 2.seconds)) {
                     val log = spawn("log", heard())
                     spawn(
@@ -121,7 +121,7 @@ object FaultsSuite : Suite() {
                     settle()
                     withClue("seed $seed: $trace") { log.state shouldContainExactly listOf("1", "2", "3") }
                 }
-            }.reduce(Expectations::and)
+            }
         }
 
         test("a tell from the test itself is never lost") {

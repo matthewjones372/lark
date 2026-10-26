@@ -11,9 +11,11 @@ import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.alone
+import io.github.matthewjones372.surefold.junit.anyOf
 import io.github.matthewjones372.surefold.junit.expect
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.ignore
+import io.github.matthewjones372.surefold.junit.not
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldBeGreaterThan
@@ -276,12 +278,12 @@ object ExpectingSuite : SharedSuite<Int>() {
                 expect(two + two == 5)
         }
         test("fails one of two") { two -> expect(two == 2) and expect(two == 3) }
-        test("passes either") { two -> expect(two == 3) or expect(two == 2) }
-        test("fails either") { two -> expect(two == 3) or expect(two == 4) }
-        test("fails a negated pass") { two -> !expect(two == 2) }
-        test("passes a negated failure") { two -> !expect(two == 3) }
+        test("passes either") { two -> anyOf({ expect(two == 3) }, { expect(two == 2) }) }
+        test("fails either") { two -> anyOf({ expect(two == 3) }, { expect(two == 4) }) }
+        test("fails a negated pass") { two -> not { expect(two == 2) } }
+        test("passes a negated failure") { two -> not { expect(two == 3) } }
         test("throws before it expects") { error("no expectations reached") }
-        test("fails unexplained") { two -> unexplained(two == 3) }
+        test("fails unexplained") { two -> val _ = unexplained(two == 3) }
     }
 }
 
@@ -294,7 +296,7 @@ object MatchingSuite : SharedSuite<Int>() {
         test("fails shouldBe") { two -> two shouldBe 3 }
         test("fails shouldNotBe") { two -> two shouldNotBe 2 }
         test("fails both matchers") { two -> (two shouldBe 3) and (two shouldNotBe 2) }
-        test("passes either matcher") { two -> (two shouldBe 3) or (two shouldBe 2) }
+        test("passes either matcher") { two -> anyOf({ two shouldBe 3 }, { two shouldBe 2 }) }
         test("passes shouldBeRight and shouldBeLeft") { two ->
             (Either.Right(two) shouldBeRight 2) and (Either.Left(two) shouldBeLeft 2)
         }
@@ -464,7 +466,7 @@ object ForAllSuite : SharedSuite<List<Int>>() {
 
     init {
         test("holds when every element does") { xs -> xs.forAll { x -> x shouldBeLessThan 5 } }
-        test("holds on no elements") { _ -> emptyList<Int>().forAll { x -> x shouldBe 0 } }
+        test("holds on no elements") { _ -> expect(emptyList<Int>().forAll { x -> x shouldBe 0 }.held) }
         test("fails once for each element that does not") { xs -> xs.forAll { x -> x shouldBeLessThan 3 } }
     }
 }
