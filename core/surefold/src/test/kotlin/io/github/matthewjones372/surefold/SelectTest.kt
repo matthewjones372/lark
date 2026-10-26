@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold
 
 import io.github.matthewjones372.surefold.assert.shouldBe
-import io.github.matthewjones372.surefold.assert.shouldBeRight
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.assert.withClue
 import org.junit.jupiter.api.Test
@@ -14,7 +13,7 @@ class SelectTest {
 
     @Test
     fun `a select on an empty channel and a fork answers with the fork, and leaves no waiter on the channel`() {
-        flock<Nothing, Unit> {
+        scope {
             val rows = channel<Int>(1)
             val fork = async { "done" }
             val answer = select {
@@ -24,12 +23,12 @@ class SelectTest {
 
             answer shouldBe "done"
             withClue("threads parked on the channel once the select has answered") { rows.parked() shouldBe 0 }
-        } shouldBeRight Unit
+        }
     }
 
     @Test
     fun `a value that arrives first wins over a fork still running, and the fork is no longer waited for`() {
-        flock<Nothing, Unit> {
+        scope {
             val rows = channel<Int>(0)
             val hold = CountDownLatch(1)
             val fork = async { hold.await() }
@@ -45,12 +44,12 @@ class SelectTest {
             }
             hold.countDown()
             fork.await()
-        } shouldBeRight Unit
+        }
     }
 
     @Test
     fun `of clauses ready together the first written wins`() {
-        flock<Nothing, Unit> {
+        scope {
             val first = channel<String>(1).apply { send("first") }
             val second = channel<String>(1).apply { send("second") }
             select {
@@ -58,12 +57,12 @@ class SelectTest {
                 second.onReceive { it }
             } shouldBe "first"
             second.receive() shouldBe "second"
-        } shouldBeRight Unit
+        }
     }
 
     @Test
     fun `a select that sends hands its value to the one channel read, and nothing to the other`() {
-        flock<Nothing, Unit> {
+        scope {
             val unread = channel<Int>(0)
             val read = channel<Int>(0)
             val received = async { read.receive() }
@@ -73,12 +72,12 @@ class SelectTest {
             } shouldBe "read"
             received.await() shouldBe 2
             unread.parked() shouldBe 0
-        } shouldBeRight Unit
+        }
     }
 
     @Test
     fun `a select sending meets a select receiving on a channel with no room`() {
-        flock<Nothing, Unit> {
+        scope {
             val rows = channel<Int>(0)
             val idle = channel<Int>(0)
             val alsoIdle = channel<Int>(0)
@@ -87,12 +86,12 @@ class SelectTest {
                 alsoIdle.onSend(0) { -1 }
                 rows.onReceive { it }
             } shouldBe 5
-        } shouldBeRight Unit
+        }
     }
 
     @Test
     fun `a select interrupted before anything wins throws, and leaves no waiter behind`() {
-        flock<Nothing, Unit> {
+        scope {
             val rows = channel<Int>(0)
             val parked = CountDownLatch(1)
             val selecting = async {
@@ -104,12 +103,12 @@ class SelectTest {
             selecting.cancel()
             shouldThrow<InterruptedException> { selecting.await() }
             rows.parked() shouldBe 0
-        } shouldBeRight Unit
+        }
     }
 
     @Test
     fun `two consumers selecting over two channels between them receive every value sent exactly once`() {
-        val total = flock<Nothing, Long> {
+        val total = scope {
             val evens = channel<Int>(2)
             val odds = channel<Int>(0)
             async {
@@ -134,7 +133,7 @@ class SelectTest {
             consumers.sumOf { it.await() }
         }
 
-        total shouldBeRight (0 until ROWS).sumOf { it.toLong() }
+        total shouldBe (0 until ROWS).sumOf { it.toLong() }
     }
 
     @Test
