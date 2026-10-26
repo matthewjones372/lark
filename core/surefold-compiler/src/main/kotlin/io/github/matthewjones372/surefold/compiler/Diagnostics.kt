@@ -24,6 +24,15 @@ object ForkDiagnostics : KtDiagnosticsContainer() {
     /** A labelled `this@x` of a `Fail` from outside an `async` block, used inside it. */
     val RAISE_ACROSS_FORK: KtDiagnosticFactory1<String> = fault("RAISE_ACROSS_FORK")
 
+    /** A catch-all around `fail`, `bind` or `await` that keeps what it caught; a warning, for a process edge. */
+    val CATCH_EATS_RAISE: KtDiagnosticFactory1<String> = KtDiagnosticFactory1(
+        "CATCH_EATS_RAISE",
+        Severity.WARNING,
+        SourceElementPositioningStrategies.DEFAULT,
+        psiElement,
+        Renderers,
+    )
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 }
 
@@ -63,5 +72,6 @@ private object Renderers : BaseDiagnosticRendererFactory() {
         map.put(ForkDiagnostics.DEFERRED_ESCAPES_SCOPE, "surefold: {0}", CommonRenderers.STRING)
         map.put(ForkDiagnostics.AWAIT_ACROSS_FORK, "surefold: {0}", CommonRenderers.STRING)
         map.put(ForkDiagnostics.RAISE_ACROSS_FORK, "surefold: {0}", CommonRenderers.STRING)
+        map.put(ForkDiagnostics.CATCH_EATS_RAISE, "surefold: {0}", CommonRenderers.STRING)
     }
 }
