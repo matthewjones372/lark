@@ -43,7 +43,7 @@ A new module, `surefold-compiler`: FIR checkers, no IR. A Gradle plugin applies 
 
 | Diagnostic | Severity | Fires on |
 |---|---|---|
-| `DEFERRED_ESCAPES_SCOPE` | error | a `Deferred`, `Channel` or `Flock` returned from `flock`/`structured`, or stored in a property |
+| `DEFERRED_ESCAPES_SCOPE` | error | a `Deferred`, `Channel` or `Scope` returned from `scope`, or stored in a property (`Flock` and `flock` before spec 0214) |
 | `AWAIT_ACROSS_FORK` | error | `await`/`cancel` on a `Deferred` declared outside the `async` lambda it is called in |
 | `RAISE_ACROSS_FORK` | error | a labelled `this@x` of a `Raise` receiver used inside an `async` lambda that `x` does not own |
 | `CATCH_EATS_RAISE` | warning | a `catch` of `Throwable`, `Exception`, `RuntimeException` or `InterruptedException`, around `bind`/`raise`/`await`, that neither rethrows nor re-sets the interrupt flag |
@@ -69,15 +69,23 @@ compiler-version guard.
 
 ## Stack
 
-- [ ] **`spec-0041-module`** — `surefold-compiler`, its Gradle plugin, `DEFERRED_ESCAPES_SCOPE`.
+- [ ] **`spec-0041-module`** — `surefold-compiler` and `DEFERRED_ESCAPES_SCOPE`.
       Done when: a compile test shows the error on a returned `Deferred` and
       none on a returned `await()` value.
+- [ ] **`spec-0041-gradle`** — the Gradle plugin `io.github.matthewjones372.surefold.compiler` that applies it, with
+      the compiler-version guard `surefold-app-compiler` has.
+      Done when: a TestKit build applying the plugin fails on a returned `Deferred`.
 - [ ] **`spec-0041-threads`** — `AWAIT_ACROSS_FORK` and `RAISE_ACROSS_FORK`.
       Done when: both examples above fail to compile, and awaiting in the
       scope's own block still compiles.
 - [ ] **`spec-0041-catch`** — `CATCH_EATS_RAISE`.
       Done when: the example warns, a `catch` that rethrows doesn't, and
       `catch (e: IOException)` doesn't.
+
+`spec-0041-module` tests the checker by compiling snippets in the test's own JVM, with the plugin loaded from its
+classes through `-Xplugin` as a consumer's compiler loads it, rather than through a TestKit build: a snippet compiles
+in well under a second, where a TestKit build takes minutes. The Gradle plugin is its own entry, so the module entry
+stays near 200 lines; it is the one place a TestKit build is the only honest test.
 
 ## Acceptance
 
@@ -86,6 +94,8 @@ compiler-version guard.
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-26: go with the recommendations).
 
 1. **Is `AWAIT_ACROSS_FORK` an error even though it sometimes works?** A body
    that never raises runs correctly today. Recommended: error. It is one refactor
