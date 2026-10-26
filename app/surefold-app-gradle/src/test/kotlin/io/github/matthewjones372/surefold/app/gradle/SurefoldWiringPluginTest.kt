@@ -545,18 +545,13 @@ class SurefoldWiringPluginTest {
 
         val result = runner(dir, "compileKotlin").buildAndFail()
 
-        listOf(
-            "logInfo",
-            "Logger.log",
-            "Counter.increment",
-            "Gauge.set",
-            "Histogram.record",
-            "ActorRef.tell",
-            "Hub.publish",
-        ).forEach { call ->
-            result.output shouldContain "$call runs again each time the step does; once the step commits, run it " +
-                "in afterCommit { } (spec 0211)"
-        }
+        listOf("logInfo", "Logger.log", "Counter.increment", "Gauge.set", "Histogram.record", "Hub.publish")
+            .forEach { call ->
+                result.output shouldContain "$call runs again each time the step does; once the step commits, run " +
+                    "it in afterCommit { }"
+            }
+        result.output shouldContain "ActorRef.tell runs again each time the step does; once the step commits, " +
+            "tell it with tellAfterCommit(ref, message)"
     }
 
     @Test

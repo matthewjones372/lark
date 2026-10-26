@@ -401,7 +401,8 @@ plugin reports `SUREFOLD_EFFECT_IN_TRANSACT`, an **error**, on:
 | Any call into `java.io`, `java.net`, `java.nio.channels` or `java.sql` | Do it before or after `transact` |
 | `Thread.sleep`, `TimeUnit.sleep`, `Future.get`, `CompletableFuture.get` or `join`, `Deferred.await`, `Lock.lock`, `synchronized` | Wait with `waitForChange()`, or before or after `transact` |
 | `scope`, `async`, `parZip`, `parMap`, `raceN` | Fork before or after `transact` |
-| `logDebug`/`logInfo`/`logWarn`/`logError`, `Logger.log`, `Counter.increment`, `Gauge.set`, `Histogram.record`, `ActorRef.tell`, `Hub.publish` | `afterCommit { }` (spec 0211), or after `transact` |
+| `logDebug`/`logInfo`/`logWarn`/`logError`, `Logger.log`, `Counter.increment`, `Gauge.set`, `Histogram.record`, `Hub.publish` | [`afterCommit { }`](core.md#effects-once-the-step-commits), or after `transact` |
+| `ActorRef.tell` | `tellAfterCommit(ref, message)` from `surefold-actor` |
 | A write to a `var` the step did not declare: a local of the enclosing function, a property of the enclosing object, or a top-level one | Keep the value in a `Shared` |
 | `Shared.peek()` | `get()` |
 
