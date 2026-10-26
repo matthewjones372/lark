@@ -519,6 +519,26 @@ class SurefoldWiringPluginTest {
     }
 
     @Test
+    fun `a write to state from outside a step, and peek, are errors inside it`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", CAPTURES)
+
+        val result = runner(dir, "compileKotlin").buildAndFail()
+
+        result.output shouldContain "count is a var from outside the step, written again each time the step runs"
+        result.output shouldContain "sold is a var from outside the step, written again each time the step runs"
+        result.output shouldContain "total is a var from outside the step, written again each time the step runs"
+        result.output shouldContain "peek reads outside the step; read it with get()"
+        withClue("a var declared inside the step, or inside a helper taking Transaction, is the step's own") {
+            result.output shouldNotContain "mine is a var"
+            result.output shouldNotContain "tally is a var"
+        }
+        withClue("a property of an object the step was handed is left alone") {
+            result.output shouldNotContain "seen is a var"
+        }
+    }
+
+    @Test
     fun `the same calls outside a step are left alone`(@TempDir dir: File) {
         project(dir, "", SOUND)
         source(dir, "main", EFFECTS_OUTSIDE_A_STEP)
@@ -881,5 +901,41 @@ fun effects(future: Future<Int>, deferred: Deferred<Int>) {
     raceN({ 1 }, { 2 })
     flock<Nothing, Int> { async { 1 }.await() }
     transact { seats.update { it - 1 } }
+}
+"""
+
+/** Writes to state from outside a step, a peek, and the writes a step owns or cannot judge. */
+private const val CAPTURES = """
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.Transaction
+import io.github.matthewjones372.surefold.transact
+
+var total = 0
+
+class Order { var seen = 0 }
+
+class BoxOffice {
+    private val free = Shared(10)
+    private var sold = 0
+
+    fun hold(order: Order): Int {
+        var count = 0
+        transact {
+            count += 1
+            sold++
+            total = free.peek()
+            var mine = free.get()
+            mine -= 1
+            free.set(mine)
+            order.seen = mine
+        }
+        return count
+    }
+}
+
+fun Transaction.counted(free: Shared<Int>): Int {
+    var tally = 0
+    tally += free.get()
+    return tally
 }
 """
