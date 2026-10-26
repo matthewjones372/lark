@@ -359,6 +359,11 @@ Kafka.admin(adminProperties).use { admin ->
 do. It leaves an existing topic's config as it is and answers how it differs from `config`, in `Ensured.differing`, for
 the caller to act on. A topic the cluster does not have is `NoSuchTopic`; anything else the cluster answers is thrown.
 
+For a runbook, `admin.groups()` lists the consumer groups, `admin.lag(group)` answers how far behind each partition it
+has committed for is, and `admin.resetOffsets(group, topic, to = From.Time(nineAm))` moves its offsets on every
+partition of `topic` for its next run to start there. Kafka moves a group's offsets only while it has no members, so a
+group still running is `GroupActive`, and its offsets stay where they were.
+
 ## Testing against a broker
 
 `surefold-kafka-test` runs a Kafka broker in the test JVM, so a test needs no

@@ -5,10 +5,14 @@ import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.map
 import io.github.matthewjones372.surefold.fail.right
 import org.apache.kafka.clients.admin.Admin
+import org.apache.kafka.clients.admin.ListGroupsOptions
 import org.apache.kafka.clients.admin.NewPartitions
 import org.apache.kafka.clients.admin.NewTopic
+import org.apache.kafka.clients.admin.OffsetSpec
 import org.apache.kafka.clients.admin.TopicDescription
+import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.KafkaFuture
+import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.config.ConfigResource
 import org.apache.kafka.common.errors.TopicExistsException
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
@@ -67,7 +71,54 @@ class KafkaAdmin internal constructor(private val admin: Admin) : AutoCloseable 
         admin.deleteTopics(listOf(topic.name)).all().answer()
     }.map { }
 
+    /** Every consumer group the cluster knows, by id. */
+    fun groups(): Set<String> =
+        admin.listGroups(ListGroupsOptions.forConsumerGroups()).all().answer().map { it.groupId() }.toSet()
+
+    /** How far behind each partition [group] has committed for it is: its end offset less the group's commit. */
+    fun lag(group: String): Map<TopicPartition, Long> {
+        val committed = admin.listConsumerGroupOffsets(group).partitionsToOffsetAndMetadata().answer()
+            .filterValues { it != null }
+        val ends = offsets(committed.keys, OffsetSpec.latest())
+        return committed.mapValues { (partition, at) -> ends.getValue(partition) - at.offset() }
+    }
+
+    /**
+     * [group]'s offsets on every partition of [topic] moved to where [to] says, for its next run to start there: a
+     * runbook's replay. Kafka allows it only while the group has no members, so a group still running is [GroupActive].
+     * [From.Time] moves a partition with no record at or after the time to its end; [From.Committed] is no place to
+     * move to, and is refused.
+     */
+    fun resetOffsets(group: String, topic: Topic, to: From): Either<GroupActive, Unit> {
+        require(to != From.Committed) { "resetting $group to where it committed would leave it where it is" }
+        val members = admin.describeConsumerGroups(listOf(group)).all().answer().getValue(group).members()
+        if (members.isNotEmpty()) return GroupActive(group, members.size).left()
+        val described = admin.describeTopics(listOf(topic.name)).allTopicNames().answer().getValue(topic.name)
+        val partitions = described.partitions().map { TopicPartition(topic.name, it.partition()) }.toSet()
+        val moved = when (to) {
+            From.Earliest -> offsets(partitions, OffsetSpec.earliest())
+
+            From.Latest -> offsets(partitions, OffsetSpec.latest())
+
+            is From.Offset -> partitions.associateWith { to.offset }
+
+            is From.Time -> {
+                val ends = offsets(partitions, OffsetSpec.latest())
+                offsets(partitions, OffsetSpec.forTimestamp(to.time.toEpochMilli()))
+                    .mapValues { (partition, at) -> if (at < 0) ends.getValue(partition) else at }
+            }
+
+            From.Committed -> error("refused above")
+        }
+        admin.alterConsumerGroupOffsets(group, moved.mapValues { (_, at) -> OffsetAndMetadata(at) }).all().answer()
+        return Unit.right()
+    }
+
     override fun close() = admin.close()
+
+    /** Each of [partitions]' offset as [spec] asks, from the partition leaders. */
+    private fun offsets(partitions: Set<TopicPartition>, spec: OffsetSpec): Map<TopicPartition, Long> =
+        admin.listOffsets(partitions.associateWith { spec }).all().answer().mapValues { (_, at) -> at.offset() }
 
     /** Each key of [config] whose value on [topic] is not the one asked, with the topic's own value. */
     private fun differing(topic: Topic, config: Map<String, String>): Map<String, String?> {
@@ -92,6 +143,9 @@ data class Ensured(val created: Boolean, val grownFrom: Int?, val differing: Map
 
 /** A topic the cluster does not have. */
 data class NoSuchTopic(val topic: Topic)
+
+/** A group that still has [members], whose offsets Kafka will not let anyone else move. */
+data class GroupActive(val group: String, val members: Int)
 
 /** The cluster's answer, or what it failed with, unwrapped from the future's `ExecutionException`. */
 private fun <A> KafkaFuture<A>.answer(): A = try {
