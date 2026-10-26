@@ -75,6 +75,9 @@ jobs:
           echo "$version is $([ "$code" = "200" ] && echo 'already on Central' || echo 'not on Central yet')"
 
       # Staged rather than released: the Portal is where somebody looks at what
-      # is about to become permanent and presses the button.
+      # is about to become permanent and presses the button. Two workers here too:
+      # Dokka renders every module's javadoc jar, and with a worker per core the
+      # daemon was killed mid-publish, which is how v0.11.0 failed after its build
+      # had passed.
       - if: steps.already.outputs.released != 'yes'
-        run: ./gradlew publishToMavenCentral --no-configuration-cache
+        run: ./gradlew publishToMavenCentral --no-configuration-cache --max-workers=2
