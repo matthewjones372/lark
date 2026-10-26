@@ -78,7 +78,7 @@ room.
 
 ## Stack
 
-- [ ] **`spec-0146-outboxes`**: `Outboxes` and `Send`, with direct tests for
+- [x] **`spec-0146-outboxes`** ([#681](https://github.com/matthewjones372/surefold/pull/681)): `Outboxes` and `Send`, with direct tests for
       head-only confirm, next-on-confirm and heads. `producing` runs on it.
       Done when: `ProducerTest` passes and `producing` has no queue logic of
       its own.

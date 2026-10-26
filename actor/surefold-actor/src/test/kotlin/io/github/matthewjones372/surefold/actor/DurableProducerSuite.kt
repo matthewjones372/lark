@@ -17,6 +17,8 @@ import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.logger
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.nio.ByteBuffer
 import java.sql.SQLException
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -320,6 +322,25 @@ object DurableProducerSuite : Suite() {
                 again.drain(Duration.ZERO) shouldBe true
             }
         }
+
+        // Spec 0146: the journal and snapshot formats are unchanged, so an outbox written before it replays.
+        for ((how, snapshots) in listOf("its events" to InMemorySnapshots(), "a snapshot" to oldSnapshot())) {
+            test("an outbox written before spec 0146 replays from $how, and numbers on from where it stopped") {
+                val journal = InMemoryJournal()
+                val _ = journal.append(OLD_OUTBOX, 0, oldEvents)
+                testActors(journal = journal, snapshots = snapshots) {
+                    val wallets = ids.associateWith { spawn(it, wallet(it)) }
+                    val again = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }
+                    val drained = again.drain(Duration.ZERO) shouldBe true
+                    val _ = again.send("w-0") { TopUp(100, it) }
+
+                    drained and
+                        (journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(20L, 100L)) and
+                        (journal.events(walletOf("w-1"), pence) shouldContainExactly listOf(7L)) and
+                        (wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 3L))
+                }
+            }
+        }
     }
 }
 
@@ -328,4 +349,63 @@ private fun <M : Any> void(): ActorRef<M> = object : ActorRef<M> {
     override val address = Address("test", "/void", 0)
 
     override fun tell(message: M) = Unit
+}
+
+private val OLD_OUTBOX = PersistenceId("surefold-producer", "till")
+
+/** A top-up as the till kept it: blank delivery, as `topUpCodec` writes one. */
+private fun kept(pence: Long, to: String) = "$pence|till|$to|0".toByteArray()
+
+private fun bytes(write: DataOutputStream.() -> Unit): ByteArray =
+    ByteArrayOutputStream().also { DataOutputStream(it).use(write) }.toByteArray()
+
+private fun keptEvent(to: String, sequence: Long, pence: Long) = bytes {
+    writeInt(1)
+    writeUTF(to)
+    writeLong(sequence)
+    kept(pence, to).let {
+        writeInt(it.size)
+        write(it)
+    }
+}
+
+private fun doneEvent(to: String, sequence: Long) = bytes {
+    writeInt(2)
+    writeUTF(to)
+    writeLong(sequence)
+}
+
+/**
+ * The till's journal, written byte for byte as a durable producer wrote it before spec 0146. w-0 kept 10 and 20, and
+ * confirmed 10; w-1 kept 5 and 7, and confirmed 5. Each still owes its second, and numbers its next 3.
+ */
+private val oldEvents = listOf(
+    keptEvent("w-0", 1, 10),
+    keptEvent("w-1", 1, 5),
+    doneEvent("w-1", 1),
+    keptEvent("w-0", 2, 20),
+    keptEvent("w-1", 2, 7),
+    doneEvent("w-0", 1),
+)
+
+/** A snapshot of the first three of [oldEvents], as one was written before spec 0146. */
+private fun oldSnapshot() = InMemorySnapshots().apply {
+    save(
+        OLD_OUTBOX,
+        3,
+        bytes {
+            writeInt(2)
+            writeUTF("w-0")
+            writeLong(2)
+            writeInt(1)
+            writeLong(1)
+            kept(10, "w-0").let {
+                writeInt(it.size)
+                write(it)
+            }
+            writeUTF("w-1")
+            writeLong(2)
+            writeInt(0)
+        },
+    )
 }
