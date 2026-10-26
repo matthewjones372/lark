@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -99,13 +98,13 @@ object ChildrenSuite : Suite() {
 
         test("on threads, a parent's restart stops its children first") {
             val log = AtomicReference<List<String>>(emptyList())
-            flock<Nothing, Expectations> {
+            flock<Nothing, Unit> {
                 val manager = spawn("manager", manager(log), restart = Schedule.recurs(1))
                 manager.tell(Hire("ann"))
                 manager.tell(Trip)
                 awaitIdle()
                 log.get() shouldBe listOf("ann")
-            }.shouldBeRight { it }
+            } shouldBeRight Unit
         }
     }
 }

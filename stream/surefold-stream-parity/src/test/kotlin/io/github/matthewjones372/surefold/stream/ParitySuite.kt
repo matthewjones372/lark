@@ -5,7 +5,6 @@ import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
@@ -219,7 +218,7 @@ object ParitySuite : SharedSuite<ActorSystem>() {
         }
     }
 
-    internal fun check(case: Case, backend: StreamBackend): Expectations {
+    internal fun check(case: Case, backend: StreamBackend) {
         val run = case.run()
         val running = run.start(backend)
         // A run on a test's clock waits for the test to move it: an hour is past every case's time.

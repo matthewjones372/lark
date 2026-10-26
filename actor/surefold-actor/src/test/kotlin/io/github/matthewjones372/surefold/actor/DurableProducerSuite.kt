@@ -6,7 +6,6 @@ import io.github.matthewjones372.surefold.capturingMetrics
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
@@ -240,7 +239,7 @@ object DurableProducerSuite : Suite() {
             val within = 5.seconds
             val database = Down()
             capturingMetrics { captured ->
-                flock<Nothing, Expectations> {
+                flock<Nothing, Unit> {
                     journal(database)
                     val wallet = spawn("w-0", wallet("w-0"))
                     val producer = durableProducer("till", topUpCodec, within = within, drainWithin = Duration.ZERO) {
@@ -262,7 +261,7 @@ object DurableProducerSuite : Suite() {
                     awaitIdle()
                     database.events(walletOf("w-0"), pence) shouldContainExactly listOf(7L)
                     producer.drain(Duration.ZERO) shouldBe true
-                }.shouldBeRight { it }
+                } shouldBeRight Unit
                 captured.counter("surefold.delivery.unwritten") shouldBe 6.0
             }
         }

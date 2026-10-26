@@ -13,7 +13,8 @@ import io.github.matthewjones372.surefold.assert.withClue as clued
  * What a test's checks found: every failure is kept, and none is thrown until the test has returned. Each check made
  * with [expect] and the matchers beside it is recorded as the test runs, and the record is the test's result.
  */
-class Expectations internal constructor(
+@PublishedApi
+internal class Expectations(
     internal val failures: List<AssertionFailedError>,
     internal val checked: Int,
 ) : Verdict {
@@ -35,7 +36,8 @@ class Expectations internal constructor(
     }
 
     /** Both sides' failures, so neither hides the other's. Each side is already recorded; this is not again. */
-    infix fun and(other: Expectations): Expectations = Expectations(failures + other.failures, checked + other.checked)
+    operator fun plus(other: Expectations): Expectations =
+        Expectations(failures + other.failures, checked + other.checked)
 
     /**
      * Throws nothing if every expectation held, the one failure alone, or all of them as one error. A test that
@@ -53,56 +55,61 @@ class Expectations internal constructor(
 }
 
 /** Holds if [condition] is true; otherwise fails, naming this line of the test and quoting its source. */
-fun expect(condition: Boolean): Expectations =
+fun expect(condition: Boolean) {
     if (condition) held() else failedHere("expected: true\nbut was:  false")
+}
 
 /** Holds if [condition] is true; otherwise fails with [message], naming this line. The power-assert plugin's target. */
-fun expect(condition: Boolean, message: () -> String): Expectations =
+fun expect(condition: Boolean, message: () -> String) {
     if (condition) held() else failedHere(message().trim(), quoting = false)
+}
 
 /**
  * One check of [block], for a library that checks by throwing: holds if [block] returns, and fails if it throws an
  * [AssertionError], naming this line with what it threw. Anything else it throws goes on up, as it would without.
  */
-fun holds(block: () -> Unit): Expectations = try {
-    block()
-    held()
-} catch (thrown: AssertionError) {
-    thrownHere(thrown)
+fun holds(block: () -> Unit) {
+    try {
+        block()
+        held()
+    } catch (thrown: AssertionError) {
+        thrownHere(thrown)
+    }
 }
 
-/** [block]'s expectations, each failure in it saying [clue] first. Blocks nest, the outermost clue first. */
-fun withClue(clue: Any?, block: () -> Expectations): Expectations = clued(clue, block)
+/** [block]'s checks, each failure in it saying [clue] first. Blocks nest, the outermost clue first. */
+fun withClue(clue: Any?, block: () -> Unit): Unit = clued(clue, block)
 
 /** The same, with the clue built only if a check in [block] fails. */
-fun withClue(clue: () -> Any?, block: () -> Expectations): Expectations = clued(clue, block)
+fun withClue(clue: () -> Any?, block: () -> Unit): Unit = clued(clue, block)
 
-/** Holds if [check] holds for every element, keeping every element's failures. Holds on no elements, checking none. */
-inline fun <T> Iterable<T>.forAll(check: (T) -> Expectations): Expectations =
-    fold(nothingChecked()) { all, element -> all and check(element) }
+/** Checks [check] on every element, keeping every element's failures. On no elements, it checks nothing. */
+inline fun <T> Iterable<T>.forAll(check: (T) -> Unit) {
+    forEach(check)
+}
 
 /**
  * Holds if any of [alternatives] does, each run as a check of its own whose checks count only here; otherwise fails
  * with every alternative's failures, each saying first that none held.
  */
-fun anyOf(vararg alternatives: () -> Unit): Expectations {
+fun anyOf(vararg alternatives: () -> Unit) {
     val tried = alternatives.map { recording(it).second }
-    return when {
+    when {
         tried.any { it.held } -> held()
         else -> recorded(Expectations(tried.flatMap { it.failures }.map { it.headed("none of these held") }, 1))
     }
 }
 
 /** Holds if [check] fails, its checks counting only here; fails at this line if [check] holds. */
-fun not(check: () -> Unit): Expectations =
+fun not(check: () -> Unit) {
     if (recording(check).second.held) failedHere("expected: a failure\nbut was:  a pass") else held()
+}
 
 /** A check that passed, recorded: for [expect] and the matchers that take a lambda. */
 @PublishedApi
 internal fun held(): Expectations = recorded(passed(1))
 
-/** No checks at all, for [forAll] to start from. */
-@PublishedApi
+/** No checks at all, for a record to start from. */
 internal fun nothingChecked(): Expectations = passed(0)
 
 internal fun passed(checked: Int) = Expectations(emptyList(), checked)

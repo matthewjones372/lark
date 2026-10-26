@@ -20,14 +20,14 @@ object StorySuite : SharedSuite<Int>() {
         test("fails two thens") { two ->
             story {
                 Given("two") { }
-                Then("it is three") { two shouldBe 3 } and
-                    Then("it is four") { two shouldBe 4 }
+                Then("it is three") { two shouldBe 3 }
+                Then("it is four") { two shouldBe 4 }
             }
         }
         test("fails one then of two") { two ->
             story {
-                Then("it is two") { two shouldBe 2 } and
-                    Then("it is five") { two shouldBe 5 }
+                Then("it is two") { two shouldBe 2 }
+                Then("it is five") { two shouldBe 5 }
             }
         }
         test("throws in a step") { _ ->

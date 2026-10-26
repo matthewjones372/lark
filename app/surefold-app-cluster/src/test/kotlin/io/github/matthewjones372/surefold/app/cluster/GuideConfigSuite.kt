@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold.app.cluster
 
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.surefold.app.typesafe.reading
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
@@ -12,7 +11,7 @@ import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
 
 /** Hands the guide's fence to [then], once the build has named the repo and the page holds the fence. */
-private fun fence(then: (String) -> Expectations): Expectations {
+private fun fence(then: (String) -> Unit) {
     val root = System.getProperty("surefold.app.cluster.repoRoot")
     return withClue("the build must pass -Dsurefold.app.cluster.repoRoot; see surefold-app-cluster/build.gradle.kts") {
         root.shouldNotBeNull { repo ->

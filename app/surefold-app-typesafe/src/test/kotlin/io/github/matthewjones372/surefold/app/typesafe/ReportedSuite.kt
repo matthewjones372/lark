@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold.app.typesafe
 
 import com.typesafe.config.ConfigFactory
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldNotBeNull
@@ -19,7 +18,7 @@ object ReportedSuite : Suite() {
     )
 
     /** What the fence marked [marker] in docs/cookbook.md holds, handed to [then] once it is found. */
-    private fun printed(marker: String = "cookbook-config-report", then: (String) -> Expectations): Expectations {
+    private fun printed(marker: String = "cookbook-config-report", then: (String) -> Unit) {
         val root: String? = System.getProperty("surefold.app.typesafe.repoRoot")
         if (root == null) {
             val clue =

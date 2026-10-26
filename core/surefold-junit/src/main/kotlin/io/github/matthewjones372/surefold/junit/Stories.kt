@@ -13,18 +13,16 @@ import io.github.matthewjones372.surefold.test.tellStory
 /**
  * surefold-test's `story`, as a suite's test body, titled by default with the test's name. The checks its steps make
  * are recorded as the test's; a step whose checks failed is marked failed and the story goes on, and a step that
- * throws still ends it. Answers the checks made in it, already counted.
+ * throws still ends it.
  */
 @OptIn(StorySeam::class)
-fun story(title: String = storyTitle.get() ?: "a story", block: Story.() -> Unit): Expectations {
+fun story(title: String = storyTitle.get() ?: "a story", block: Story.() -> Unit) {
     val into = record.get()
-    val start = into?.size ?: 0
-    var seen = start
+    var seen = into?.size ?: 0
     val failedStep: (Any?) -> Throwable? = { _ ->
         into?.let { it.since(seen).also { _ -> seen = it.size }.failure }
     }
     tellStory(title, failedStep, block)
-    return into?.since(start) ?: nothingChecked()
 }
 
 /** Runs [block] with its stories titled [test] and their transcripts logged, so they are reported with its logs. */

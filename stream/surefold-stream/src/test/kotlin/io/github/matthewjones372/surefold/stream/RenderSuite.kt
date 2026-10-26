@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.stream
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
@@ -44,7 +43,7 @@ object RenderSuite : Suite() {
         ),
     )
 
-    private fun golden(file: String, actual: String): Expectations {
+    private fun golden(file: String, actual: String) {
         val expected = javaClass.getResource("/render/$file")?.readText()
         if (expected?.trimEnd() != actual) {
             File("build/render-actual").apply { mkdirs() }.resolve(file).writeText(actual + "\n")

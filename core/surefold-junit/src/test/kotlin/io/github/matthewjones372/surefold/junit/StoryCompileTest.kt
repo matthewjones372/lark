@@ -31,12 +31,13 @@ class StoryCompileTest {
     private val steps = """
         story {
             Given("one") { }
-            Then("it is one") { one shouldBe 1 } and Then("it is not two") { one shouldBe 1 }
+            Then("it is one") { one shouldBe 1 }
+            Then("it is not two") { one shouldBe 1 }
         }
     """.trimIndent()
 
     @Test
-    fun `a suite importing surefold-junit's story returns the story's expectations`(@TempDir workspace: File) {
+    fun `a suite importing surefold-junit's story compiles, with nothing said`(@TempDir workspace: File) {
         val source = suiteOf(steps, "io.github.matthewjones372.surefold.junit.story")
         val (exit, reported) = EmbeddedKotlin(workspace).compile(source)
 

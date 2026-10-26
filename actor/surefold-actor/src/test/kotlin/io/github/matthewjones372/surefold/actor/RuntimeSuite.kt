@@ -3,7 +3,6 @@ package io.github.matthewjones372.surefold.actor
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -86,7 +85,7 @@ object RuntimeSuite : Suite() {
         }
 
         test("an idle actor holds no thread") {
-            val checked = flock<Nothing, Expectations> {
+            val checked = flock<Nothing, Unit> {
                 val log = spawn("log", log())
                 val first = log.ask(1.minutes) { Where(it) }.getOrNull()!!
 
@@ -96,7 +95,7 @@ object RuntimeSuite : Suite() {
                 }
                 log.ask(1.minutes) { Where(it) }.getOrNull() shouldNotBe first
             }
-            checked.shouldBeRight { it }
+            checked shouldBeRight Unit
         }
 
         test("closing the flock stops every actor it spawned") {

@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold.stream
 
 import io.github.matthewjones372.surefold.Resource
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import org.apache.pekko.actor.ActorSystem
@@ -36,7 +35,7 @@ object DifferentialSuite : SharedSuite<ActorSystem>() {
     }
 
     /** Runs every case in [cases] and then fails once, naming each that disagreed, rather than at the first. */
-    private fun everyCase(system: ActorSystem, cases: Disagreements.() -> Unit): Expectations =
+    private fun everyCase(system: ActorSystem, cases: Disagreements.() -> Unit) =
         Disagreements(OnPekko.on(system), others.map { it.on(system) }).apply(cases).found.shouldBeEmpty()
 
     private fun <R : Any> Disagreements.agree(what: String, run: () -> Run<*, R>) {
