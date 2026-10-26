@@ -64,6 +64,11 @@ is. `startAt = StartAt.Time(nineAm)` starts a partition with nothing committed a
 nine. `startAt = StartAt.Own { partitions -> store.offsets(partitions) }` seeks every assigned partition to the offset
 the caller's own store gives, whatever the group committed; a partition it gives none for starts as usual.
 
+`onAssigned = { partitions -> … }` and `onRevoked = { partitions -> … }` hear of the partitions each rebalance gives
+and takes, on the polling thread, after the consumer's own handling: by the time `onRevoked` runs, what was handled on
+those partitions is committed. They suit a log line, a cache to warm or state to flush. What either throws ends the
+run, as a defect.
+
 A rebalance takes every partition from a member, the ones it is given back too. By default the records a run has
 handed out on them and not yet handled are then read again, by whichever member owns each partition next. With
 `rebalance = Rebalance.waitFor(30.seconds)`, the member holds the rebalance until each of those records is handled,
