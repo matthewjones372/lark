@@ -224,11 +224,18 @@ object RemoteSuite : Suite() {
                 }
             }
             ready.await()
+            val letters = LinkedBlockingQueue<DeadLetter>()
             val (before, after) = scope {
+                onDeadLetter(letters::add)
                 val ward = clinic().remote(Address("hospital@127.0.0.1:$port", "/user/ward", 0), wardCodec)
                 val before = ward.ask(1.minutes) { Chart(it) }
                 gone.countDown()
                 hospital.join()
+                // A frame written before this side sees the connection close is lost, not dropped: at most once. Told
+                // until one is dropped, so the clinic knows the hospital is gone before it asks.
+                do {
+                    ward.tell(Admit(1))
+                } while (letters.poll(100, TimeUnit.MILLISECONDS)?.why != DeadLetter.Why.Unreachable)
                 before to measureTimedValue { ward.ask(1.minutes) { Chart(it) } }
             }
 
