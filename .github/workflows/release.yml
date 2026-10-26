@@ -74,10 +74,20 @@ jobs:
           echo "released=$([ "$code" = "200" ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
           echo "$version is $([ "$code" = "200" ] && echo 'already on Central' || echo 'not on Central yet')"
 
+      # Every module's javadoc jar, six modules to a Gradle run. Dokka's worker
+      # process keeps the classes of each module it renders, so one run rendering
+      # all of them grew past the runner's 8 GB and had the daemon killed
+      # mid-publish, which is how v0.11.0 and v0.12.0 failed after their builds
+      # had passed. A run of its own ends its workers; the publish below then finds
+      # every javadoc up to date.
+      - if: steps.already.outputs.released != 'yes'
+        name: Javadoc, six modules at a time
+        run: |
+          ./gradlew --stop
+          tasks=$(./gradlew --no-daemon -q tasks --all | grep -oE '^[a-z0-9-]+:dokkaGeneratePublicationHtml' | sort -u | sed 's/^/:/')
+          echo "$tasks" | xargs -n 6 ./gradlew --no-daemon --max-workers=2
+
       # Staged rather than released: the Portal is where somebody looks at what
-      # is about to become permanent and presses the button. Two workers here too:
-      # Dokka renders every module's javadoc jar, and with a worker per core the
-      # daemon was killed mid-publish, which is how v0.11.0 failed after its build
-      # had passed.
+      # is about to become permanent and presses the button.
       - if: steps.already.outputs.released != 'yes'
         run: ./gradlew publishToMavenCentral --no-configuration-cache --max-workers=2
