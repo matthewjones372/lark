@@ -40,7 +40,7 @@ Depends on 0157: with the poll held inside the callback, nothing else may need i
 
 ## Stack
 
-- [ ] **`spec-0158-revoke-test`**: two consumers in a group, one joining mid-stream, counting re-deliveries.
+- [x] **`spec-0158-revoke-test`** ([#692](https://github.com/matthewjones372/surefold/pull/692)): two consumers in a group, one joining mid-stream, counting re-deliveries.
       Done when: it measures today's duplicates.
 - [ ] **`spec-0158-wait-on-revoke`**: `Rebalance.waitFor`, on `Kafka.consume`. Done when: with it on, the test
       sees no duplicates, and with it off, the same count as today.
@@ -50,6 +50,19 @@ rebalance only through its keeper. The keeper makes a zero-timeout poll every ha
 2s interval, those polls do not finish the rejoin before the group drops the member. Its close then dies on the
 revoke's commit with `CommitFailedException`. At 10s the polls do finish it, and the test runs at 10s. Holding the
 rebalance inside the revoke callback (entry 2) runs inside that same keeper poll on Pekko.
+
+Found while building `spec-0158-wait-on-revoke`:
+
+- **The duplicates are all six records, not three.** The default assignors make an eager rebalance, which takes
+  every partition from a member, including the ones it is given back. So the records the first member had in hand
+  on the partition it kept are dropped too, and read again once it leaves. Entry 1's test missed this because the
+  second member stopped after three records. The test now follows both members to the end and counts six.
+- **An interrupt can arrive mid-wait.** A take that ends a Forks run interrupts the polling fork, often just as the
+  last record the revoke waits for is handled. The revoke clears the interrupt, finishes its wait and its commit,
+  then sets the interrupt again, as `Commits.close` does. Before that fix, about four runs in ten re-read two to
+  five records.
+- **The wait is woken by marks, not by sleeping.** `Thread.sleep` is forbidden in library code. Each mark releases
+  a permit if none is waiting, and the revoke waits on that permit.
 
 ## Acceptance
 

@@ -25,6 +25,9 @@ import kotlin.time.toJavaDuration
  * partitions it loses in a rebalance, and when the run ends. A `stop()` wakes a poll that is waiting.
  * `enable.auto.commit` is always off.
  *
+ * A rebalance that takes a partition away commits what was handled on it; with [Rebalance.waitFor] it first waits
+ * for what was handed out on it to be handled, so the partition's new owner reads none of it again (spec 0158).
+ *
  * Each run records `surefold.kafka.consumer.*` (spec 0163) to the metrics in scope here, with the tags bound here.
  */
 fun <K, V> Kafka.consume(
@@ -33,12 +36,13 @@ fun <K, V> Kafka.consume(
     key: Deserializer<K>,
     value: Deserializer<V>,
     pollTimeout: Duration = 100.milliseconds,
+    rebalance: Rebalance = Rebalance.immediately,
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
     val measuring = Measuring.here()
     return Stream.blocking(
         open = {
             val named = properties.named()
-            Loop(named, topics.map { it.name }, key, value, pollTimeout, measuring.consumer(named))
+            Loop(named, topics.map { it.name }, key, value, pollTimeout, rebalance, measuring.consumer(named))
         },
         next = { loop -> loop.next() },
         ready = { loop -> loop.ready() },
@@ -57,6 +61,7 @@ fun <K, V> Kafka.consume(
     key: Decoder<K>,
     value: Decoder<V>,
     pollTimeout: Duration = 100.milliseconds,
+    rebalance: Rebalance = Rebalance.immediately,
 ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
     consume(
         properties,
@@ -64,6 +69,7 @@ fun <K, V> Kafka.consume(
         key = ByteArrayDeserializer(),
         value = ByteArrayDeserializer(),
         pollTimeout = pollTimeout,
+        rebalance = rebalance,
     )
         .decodedWith(key, value)
 
@@ -89,6 +95,7 @@ private class Loop<K, V>(
     key: Deserializer<K>,
     value: Deserializer<V>,
     private val pollTimeout: Duration,
+    private val rebalance: Rebalance,
     private val meters: ConsumerMeters,
 ) : ConsumerRebalanceListener {
 
@@ -135,7 +142,16 @@ private class Loop<K, V>(
     }
 
     override fun onPartitionsRevoked(partitions: Collection<TopicPartition>) {
-        commits.commit(partitions.toSet())
+        // A take that ends a Forks run interrupts the fork polling here, often just as the last record it waits for
+        // is handled: what was handled is committed all the same, and the interrupt set again after.
+        var interrupted = Thread.interrupted()
+        try {
+            // Inside the callback, the one place Kafka lets a member hold a rebalance; the stream handles on meanwhile.
+            interrupted = commits.handledOut(partitions.toSet(), rebalance) || interrupted
+            commits.commit(partitions.toSet())
+        } finally {
+            if (interrupted) Thread.currentThread().interrupt()
+        }
         commits.forget(partitions)
         // Records already polled from a partition this consumer has lost are its new owner's to read.
         val lost = partitions.toSet()

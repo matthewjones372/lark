@@ -13,6 +13,8 @@ import org.apache.kafka.common.errors.RetriableException
 import org.apache.kafka.common.errors.WakeupException
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -35,6 +37,9 @@ internal class Commits(
     /** The group as the last poll left it: read on the polling thread, and handed out with each record. */
     private var group: ConsumerGroupMetadata? = null
 
+    /** The last offset handed out per partition: written by the polling thread, read in a revoke. */
+    private val handedOut = ConcurrentHashMap<TopicPartition, Long>()
+
     /** Set once this consumer starts to leave its group, which a transaction still to commit has to know. */
     private val leaving = Leaving()
 
@@ -44,17 +49,41 @@ internal class Commits(
     }
 
     /** [record] with its position, and a handle that marks it handled here. */
-    fun <K, V> carrying(record: ConsumerRecord<K, V>): Committed<ConsumerRecord<K, V>> = Committed(
-        record,
-        Position(record.topic(), record.partition(), record.offset()),
-        Offset(
-            handled.marking(TopicPartition(record.topic(), record.partition())),
-            record.offset(),
-            group,
-            leaving,
-            meters.handing(record),
-        ),
-    )
+    fun <K, V> carrying(record: ConsumerRecord<K, V>): Committed<ConsumerRecord<K, V>> {
+        val partition = TopicPartition(record.topic(), record.partition())
+        handedOut[partition] = record.offset()
+        return Committed(
+            record,
+            Position(record.topic(), record.partition(), record.offset()),
+            Offset(handled.marking(partition), record.offset(), group, leaving, meters.handing(record)),
+        )
+    }
+
+    /**
+     * Waits, as long as [rebalance] allows, until every record handed out on [partitions] is handled (spec 0158),
+     * looking again at each mark: for a revoke, so what the stream still has in hand is committed rather than read
+     * again. An interrupt does not end the wait, since the handling it waits for may be what set it off:
+     * true if one came, for the caller to set again once it has committed.
+     */
+    fun handledOut(partitions: Set<TopicPartition>, rebalance: Rebalance): Boolean {
+        if (!rebalance.within.isPositive()) return false
+        val until = System.nanoTime() + rebalance.within.inWholeNanoseconds
+        fun waiting() = partitions.any { partition ->
+            handedOut[partition]?.let { last -> !handled.reached(partition, last + 1) } ?: false
+        }
+        var interrupted = false
+        while (true) {
+            // Drained before looking, so a mark made after the look leaves a permit to wake on.
+            handled.advanced.drainPermits()
+            val left = until - System.nanoTime()
+            if (!waiting() || left <= 0) return interrupted
+            try {
+                handled.advanced.tryAcquire(left, TimeUnit.NANOSECONDS)
+            } catch (_: InterruptedException) {
+                interrupted = true
+            }
+        }
+    }
 
     /** A refusal an async commit reported that sending again cannot fix, for the polling thread to throw. */
     private var refused: Exception? = null
@@ -104,7 +133,10 @@ internal class Commits(
     }
 
     /** [partitions] lost to a rebalance: what was handled on them is dropped, and so is anything marked later. */
-    fun forget(partitions: Collection<TopicPartition>) = partitions.forEach(handled::revoked)
+    fun forget(partitions: Collection<TopicPartition>) = partitions.forEach { partition ->
+        handled.revoked(partition)
+        handedOut.remove(partition)
+    }
 
     /**
      * One lookup at the coordinator, timed, for a close with nothing to commit; null when it does not answer within
@@ -179,18 +211,33 @@ private class Handled {
     private val next = ConcurrentHashMap<TopicPartition, Long>()
     private val revokes = ConcurrentHashMap<TopicPartition, Int>()
 
+    /** The furthest mark per partition since its last revoke, committed or not: what a revoke waits to reach. */
+    private val furthest = ConcurrentHashMap<TopicPartition, Long>()
+
+    /** A permit once something was marked since a revoke last looked: at most one, however many marks. */
+    val advanced = Semaphore(0)
+
     /** How a record read now marks [partition]: only while no revoke has come between. */
     fun marking(partition: TopicPartition): Marking {
         val readUnder = revokes[partition] ?: 0
         // In the map's lock for the partition, which a revoke's remove also takes, so a mark cannot land after it.
         return Marking { offset ->
             next.compute(partition) { _, was ->
-                if ((revokes[partition] ?: 0) != readUnder) was else maxOf(was ?: offset, offset)
+                if ((revokes[partition] ?: 0) != readUnder) {
+                    was
+                } else {
+                    furthest.merge(partition, offset, ::maxOf)
+                    maxOf(was ?: offset, offset)
+                }
             }
+            if (advanced.availablePermits() == 0) advanced.release()
         }
     }
 
     fun due(owned: Set<TopicPartition>): Map<TopicPartition, Long> = next.filterKeys { it in owned }
+
+    /** Whether [partition] has been marked up to [offset] since its last revoke. */
+    fun reached(partition: TopicPartition, offset: Long): Boolean = (furthest[partition] ?: -1) >= offset
 
     /** Forgotten only if nothing newer was marked meanwhile; a later offset is committed next time. */
     fun committed(partition: TopicPartition, offset: Long) = next.remove(partition, offset)
@@ -198,6 +245,7 @@ private class Handled {
     fun revoked(partition: TopicPartition) {
         revokes.merge(partition, 1, Int::plus)
         next.remove(partition)
+        furthest.remove(partition)
     }
 }
 
