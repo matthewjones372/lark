@@ -75,6 +75,11 @@ own.
       Done when: a `select` on an empty channel and a fork answers with the fork,
       and the losing clause's waiter is gone afterwards.
 
+`spec-0038-channel` keeps the channel's waiters behind a `ReentrantLock` rather than in one compare-and-set state as
+0037's `Fork` does. A send and a receive each touch a buffer and up to two queues at once, and a lock keeps that simple
+and plainly correct. Each waiter is a parked thread with its own answer, which `select` (the next entry) can register
+on several channels at once.
+
 ## Acceptance
 
 ```bash
@@ -82,6 +87,8 @@ own.
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-26: go with the recommendations).
 
 1. **Does `send` after `cancel` answer `false`, or raise?** Recommended: return
    `false`. Stopping is the normal end of a producer, not an error.
