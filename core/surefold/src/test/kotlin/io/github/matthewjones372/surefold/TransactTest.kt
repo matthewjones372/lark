@@ -4,6 +4,8 @@ import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeEmpty
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.assert.withClue
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
 import org.junit.jupiter.api.Test
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -15,6 +17,8 @@ private const val TRANSFERS = 20
 private const val READERS = 50
 private const val WRITERS = 8
 private const val WRITES = 2_000
+
+private data class SoldOut(val section: String)
 
 class TransactTest {
 
@@ -61,6 +65,43 @@ class TransactTest {
             transact {
                 stalls.set(0)
                 circle.set(0)
+                error("payment refused")
+            }
+        }
+
+        stalls.peek() shouldBe 120
+        circle.peek() shouldBe 60
+    }
+
+    @Test
+    fun `a fail inside a step answers Left and writes nothing`() {
+        val stalls = Shared(2)
+        val circle = Shared(0)
+
+        val held = attempt {
+            transact {
+                stalls.update { it - 2 }
+                if (circle.get() == 0) fail(SoldOut("circle"))
+                circle.update { it - 1 }
+            }
+        }
+
+        held shouldBe Either.Left(SoldOut("circle"))
+        stalls.peek() shouldBe 2
+    }
+
+    @Test
+    fun `a transact inside a transact joins the outer step`() {
+        val stalls = Shared(120)
+        val circle = Shared(60)
+
+        shouldThrow<IllegalStateException> {
+            transact {
+                stalls.set(118)
+                transact {
+                    stalls.get() shouldBe 118
+                    circle.set(59)
+                }
                 error("payment refused")
             }
         }
