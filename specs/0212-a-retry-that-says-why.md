@@ -46,15 +46,15 @@ retry. Recommended: optional names, with `unnamed` as the default, so reporting 
 
 ## Stack
 
-- [ ] **`spec-0212-causes`** — the engine records which `Shared` failed each read check. `transact(name)` and
+- [x] **`spec-0212-causes`** ([#742](https://github.com/matthewjones372/surefold/pull/742)) — the engine records which `Shared` failed each read check. `transact(name)` and
       `Shared(…, name)` take names.
       Done when: a test that forces a conflict on a named value sees that name as the cause, and a conflict on an
       unnamed one sees `unnamed`.
-- [ ] **`spec-0212-metrics`** — the three metrics, recorded through `metrics`, and the table in
+- [x] **`spec-0212-metrics`** ([#744](https://github.com/matthewjones372/surefold/pull/744)) — the three metrics, recorded through `metrics`, and the table in
       `docs/core.md` beside the policies'.
       Done when: a `capturingMetrics` run of two contending steps reads `runs`, `retries` and `attempts` with the
       right tags.
-- [ ] **`spec-0212-otel`** — the span event in `surefold-otel`.
+- [x] **`spec-0212-otel`** ([#746](https://github.com/matthewjones372/surefold/pull/746)) — the span event in `surefold-otel`.
       Done when: a step that retries 3 times adds one event with `attempts=4` to the active span.
 
 ## Acceptance
