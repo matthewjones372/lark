@@ -34,6 +34,8 @@ Facts worth having before anything else:
   `SurefoldLocal`, `Clock`, `TestClock`, the log and metrics calls,
   `capturingLogs` and `capturingMetrics` for tests, `await()` for a
   `CompletionStage` or `Future`, and `surefoldFuture { }` to hand one back.
+- `surefold-replay`: `explore(runs) { }` runs a test's forks in a different seeded
+  order each time and names the order that broke it; `replay(order) { }` runs that order again.
 - `surefold-compiler`: a K2 checker for surefold's structure rules; a `Deferred`,
   `Channel` or `Scope` returned from a scope or kept in a property fails to compile.
   Applied by the Gradle plugin `io.github.matthewjones372.surefold.compiler`, in `surefold-app-gradle`.

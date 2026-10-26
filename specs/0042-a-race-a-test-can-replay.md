@@ -68,7 +68,7 @@ threads taking turns.
 
 ## Stack
 
-- [ ] **`spec-0042-seam`** — in `surefold`, every park and unpark in `Fork`, `Channel` and `Clock`
+- [x] **`spec-0042-seam`** ([#743](https://github.com/matthewjones372/surefold/pull/743)) — in `surefold`, every park and unpark in `Fork`, `Channel` and `Clock`
       goes through one internal `Waiting` function. No change in behaviour.
       Done when: every `surefold` test passes unedited, and `LockSupport` is called
       from one file.
@@ -79,6 +79,12 @@ threads taking turns.
 - [ ] **`spec-0042-replay`** — `surefold-replay`: turns, `explore`, `replay`, PCT, for forks.
       Done when: a planted lost-update race between two `async`s is found within
       1,000 runs, and its seed fails 100 times out of 100 under `replay`.
+      The seam is `Turns`, behind the opt-in `@TurnSeam` and bound with `takingTurns` as a `SurefoldLocal`, so a
+      fork inherits it as it inherits any binding. A fork is told of before its executor has it (`forking`), so the
+      order cannot depend on when a thread starts; an unpark or interrupt marks its thread runnable at once, with
+      `LockSupport`'s permit kept in the model. An order is 32 bits, printed as `0x…`. PCT runs with depth 3 over a
+      guessed 64 steps. A fork an `await` helps (spec 0037's bounded-pool case) is not modelled: `explore` forks on
+      virtual threads, where help does not apply.
 - [ ] **`spec-0042-channels`** — channels, `select` and `TestClock` sleeps as waiting points,
       and the report when a run leaves determinism.
       Done when: a producer/consumer ordering bug is found and replayed, and a
