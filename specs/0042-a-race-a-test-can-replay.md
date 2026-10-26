@@ -76,7 +76,7 @@ threads taking turns.
       combinators' wait for their forks, which was a `Semaphore` and is now a park the ending forks wake.
       `SystemClock.sleep` parks to its deadline there, so main code has no `Thread.sleep` left. `TestClock` still
       waits on its own lock's conditions: making those waiting points is `spec-0042-channels`.
-- [ ] **`spec-0042-replay`** — `surefold-replay`: turns, `explore`, `replay`, PCT, for forks.
+- [x] **`spec-0042-replay`** ([#745](https://github.com/matthewjones372/surefold/pull/745)) — `surefold-replay`: turns, `explore`, `replay`, PCT, for forks.
       Done when: a planted lost-update race between two `async`s is found within
       1,000 runs, and its seed fails 100 times out of 100 under `replay`.
       The seam is `Turns`, behind the opt-in `@TurnSeam` and bound with `takingTurns` as a `SurefoldLocal`, so a
@@ -89,6 +89,11 @@ threads taking turns.
       and the report when a run leaves determinism.
       Done when: a producer/consumer ordering bug is found and replayed, and a
       `Thread.sleep` inside a fork fails the run with that fork's stack.
+      Channels and `select` already waited through `Waiting`; `TestClock` now parks there too, rather than on its
+      lock's conditions. A watch thread fails the run when the thread holding the turn has waited outside surefold
+      for over a second, and every thread then runs freely so the run can end. A wake the model holds as a permit
+      no longer trusts the JDK's: `Turns.parking` answers false and the park returns at once, since a wait the model
+      cannot see (`Thread.join`, for one) may have spent it.
 
 ## Acceptance
 

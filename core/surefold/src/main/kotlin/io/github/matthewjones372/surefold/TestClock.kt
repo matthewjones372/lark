@@ -27,8 +27,10 @@ class TestClock(start: Instant = Instant.EPOCH) : Clock {
     }
 
     private val lock = ReentrantLock()
-    private val moved = lock.newCondition()
-    private val slept = lock.newCondition()
+
+    // The threads waiting on a move or on a sleep, parked through `Waiting` so a test taking turns (spec 0042) sees
+    // them wait, as it would not inside a lock's own condition. Every change below wakes them all to look again.
+    private val parked = mutableSetOf<Thread>()
 
     private var at: Instant = start
 
@@ -44,12 +46,12 @@ class TestClock(start: Instant = Instant.EPOCH) : Clock {
         val until = at.plusNanos(duration.inWholeNanoseconds)
         if (until > at) {
             waiting += until
-            slept.signalAll()
+            wakeAll()
             try {
-                while (at < until) moved.await()
+                awaitUntil { at >= until }
             } finally {
                 waiting.remove(until)
-                slept.signalAll()
+                wakeAll()
             }
         }
     }
@@ -70,7 +72,7 @@ class TestClock(start: Instant = Instant.EPOCH) : Clock {
      * sleep the way a fiber runtime does: a plain [adjust] races the sleeper it means to release.
      */
     fun adjustWhenBlocked(by: Duration) {
-        lock.withLock { while (waiting.isEmpty() || waiting.any { it <= at }) slept.await() }
+        lock.withLock { awaitUntil { waiting.isNotEmpty() && waiting.none { it <= at } } }
         adjust(by)
     }
 
@@ -94,6 +96,24 @@ class TestClock(start: Instant = Instant.EPOCH) : Clock {
 
     private fun moveTo(to: Instant) {
         at = to
-        moved.signalAll()
+        wakeAll()
     }
+
+    /** Waits, the lock held on entry and on return, until [done]; an interrupt throws, as a condition's await does. */
+    private fun awaitUntil(done: () -> Boolean) {
+        val me = Thread.currentThread()
+        while (!done()) {
+            parked += me
+            lock.unlock()
+            try {
+                Waiting.park(this)
+            } finally {
+                lock.lock()
+                parked -= me
+            }
+            if (Thread.interrupted()) throw InterruptedException("interrupted while waiting on a test clock")
+        }
+    }
+
+    private fun wakeAll() = parked.forEach(Waiting::unpark)
 }

@@ -14,7 +14,7 @@ internal object Waiting {
     /** Parks this thread until an [unpark], an interrupt or a spurious wake; the caller checks why it woke. */
     fun park(blocker: Any) {
         val turns = turnsBound.get() ?: return LockSupport.park(blocker)
-        turns.parking()
+        if (!turns.parking()) return
         LockSupport.park(blocker)
         turns.woke()
     }
