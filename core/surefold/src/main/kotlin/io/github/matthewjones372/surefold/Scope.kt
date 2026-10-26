@@ -265,14 +265,27 @@ internal class Fork<E, T>(
         on.execute { Bindings.under(inherited) { run() } }
     }
 
-    /** The executor's turn: claims the fork unless a cancel ended it while it waited in the queue. */
+    /** The executor's turn: runs the body, unless an `await` claimed it first or a cancel ended it in the queue. */
     private fun run() {
-        val thread = Thread.currentThread()
+        if (!claim(Thread.currentThread(), own = on === VirtualThreads)) return
+        val outer = runningFor.get()
+        runningFor.set(on)
+        try {
+            body()
+        } finally {
+            runningFor.set(outer)
+        }
+    }
+
+    /**
+     * Moves a [ForkState.Submitted] fork to [thread], which then runs the body: whether it did. Cancelled before its
+     * turn came, the body starts interrupted rather than running on as though its scope were still open. Only a
+     * thread the fork has to itself is [own], for `join` to wait out.
+     */
+    private fun claim(thread: Thread, own: Boolean): Boolean {
         while (true) {
-            val now = state.get() as? ForkState.Submitted ?: return
-            if (on === VirtualThreads) ownThread = thread
-            // Cancelled before its turn on the executor came: the body starts interrupted rather than running on
-            // as though the scope it belonged to were still open.
+            val now = state.get() as? ForkState.Submitted ?: return false
+            if (own) ownThread = thread
             val claimed = if (now.cancelled) {
                 ForkState.Interrupted(thread, now.waiters)
             } else {
@@ -280,22 +293,20 @@ internal class Fork<E, T>(
             }
             if (state.compareAndSet(now, claimed)) {
                 if (now.cancelled) thread.interrupt()
-                break
+                return true
             }
-        }
-        var outcome: Outcome<E, T>? = null
-        try {
-            outcome = capture(on, block)
-        } finally {
-            finish(outcome ?: Thrown(IllegalStateException("a fork's body ended without an outcome")))
         }
     }
 
+    /** The body, on the thread that claimed it, and the fork's end: whether an interrupt had come, now cleared. */
+    private fun body(): Boolean = finish(capture(on, block))
+
     /**
      * The body's own thread, and only it, moves a running fork to `Done`. Not while an interrupt is on its way: that
-     * interrupt would land on whatever the executor runs next. An interrupt that came is cleared once it is `Done`.
+     * interrupt would land on whatever the executor runs next. An interrupt that came is cleared once it is `Done`,
+     * and whether one had is answered.
      */
-    private fun finish(outcome: Outcome<E, T>) {
+    private fun finish(outcome: Outcome<E, T>): Boolean {
         while (true) {
             val now = state.get()
             if (now is ForkState.Interrupting) {
@@ -303,22 +314,39 @@ internal class Fork<E, T>(
                 continue
             }
             if (state.compareAndSet(now, ForkState.Done(outcome, started = true))) {
-                Thread.interrupted()
+                val interrupted = Thread.interrupted()
                 wake(now.waiters)
                 ended()
-                return
+                return interrupted
             }
         }
     }
 
     override fun await(): T {
         startOnce()
+        help()
         join()
         noticed = true
         return when (val settled = settled()) {
             is Returned -> settled.value
             is Failure -> owner.surface(settled)
         }
+    }
+
+    /**
+     * A fork still waiting its turn on the executor runs here, on the thread that awaits it, when that thread is
+     * itself one of the executor's (spec 0037): a bounded pool whose every thread awaits a fork still in its queue
+     * would otherwise wait for ever. The fork still runs on its executor, as it was asked to, and its ticket, when
+     * the executor comes to it, finds the fork claimed and does nothing. Virtual threads are never short, and give
+     * each fork a thread of its own, so a fork on them is never helped. A thread already interrupted waits instead,
+     * and an interrupt meant for this thread rather than for the fork is handed back once the body has ended.
+     */
+    private fun help() {
+        val me = Thread.currentThread()
+        if (on === VirtualThreads || runningFor.get() !== on || me.isInterrupted) return
+        if (!claim(me, own = false)) return
+        val interrupted = Bindings.under(inherited) { body() }
+        if (interrupted && !cancelled.get()) me.interrupt()
     }
 
     private fun startOnce() = submit()
@@ -440,6 +468,9 @@ internal class Fork<E, T>(
 
     private fun beforeStart() = Thrown(InterruptedException("cancelled before it was started"))
 }
+
+/** The executor whose fork body this thread is running, if any: where an `await` on it may help (spec 0037). */
+private val runningFor = ThreadLocal<Executor?>()
 
 /** A thread parked until a fork is [ForkState.Done], and the one parked before it. */
 private data class Waiter(val thread: Thread, val next: Waiter?)
