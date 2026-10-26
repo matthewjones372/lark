@@ -96,17 +96,17 @@ object PersistentBatchSuite : Suite() {
     init {
         test("a thousand commands waiting at once are written in a handful of appends") {
             val (journal, _) = rung(batch = 64, n = 1_000)
-            (journal.appends.get() shouldBeLessThanOrEqual 20) and
-                (journal.events(batchTillId, batchPence) shouldContainExactly (1..1_000).toList())
+            journal.appends.get() shouldBeLessThanOrEqual 20
+            journal.events(batchTillId, batchPence) shouldContainExactly (1..1_000).toList()
         }
 
         test("batched and one at a time end in the same state and the same journal") {
             val (batched, batchedTotals) = rung(batch = 64, n = 300)
             val (single, singleTotals) = rung(batch = 1, n = 300)
             val events = batched.events(batchTillId, batchPence)
-            withClue("one at a time appends once per command") { single.appends.get() shouldBe 300 } and
-                (events shouldContainExactly single.events(batchTillId, batchPence)) and
-                (batchedTotals shouldContainExactly singleTotals)
+            withClue("one at a time appends once per command") { single.appends.get() shouldBe 300 }
+            events shouldContainExactly single.events(batchTillId, batchPence)
+            batchedTotals shouldContainExactly singleTotals
         }
 
         test("each command's then runs in order, with the state its own command left") {
@@ -136,9 +136,9 @@ object PersistentBatchSuite : Suite() {
                 // The confirmations are tells to another actor, and a close drops what it has not handled yet.
                 batchTill.ask(1.minutes) { BatchCount(it) }.also { awaitIdle() }
             }
-            (counted shouldBeRight Either.Right(15)) and
-                (journal.events(batchTillId, batchPence) shouldContainExactly listOf(10, 5)) and
-                withClue("every delivery is confirmed, the duplicate included") { confirmed.size shouldBe 3 }
+            counted shouldBeRight Either.Right(15)
+            journal.events(batchTillId, batchPence) shouldContainExactly listOf(10, 5)
+            withClue("every delivery is confirmed, the duplicate included") { confirmed.size shouldBe 3 }
         }
 
         test("a batch that crosses a snapshot's multiple saves one") {
@@ -173,8 +173,8 @@ object PersistentBatchSuite : Suite() {
                 watch(batchTill).await()
             }
             val dead = listOf(BatchLook to DeadLetter.Why.Unhandled, BatchRing(3) to DeadLetter.Why.Stopped)
-            (journal.events(batchTillId, batchPence) shouldContainExactly listOf(1, 2)) and
-                (letters.map { it.message to it.why } shouldContainExactly dead)
+            journal.events(batchTillId, batchPence) shouldContainExactly listOf(1, 2)
+            letters.map { it.message to it.why } shouldContainExactly dead
         }
 
         test("a conflicted batch is lost as a failed step is, and the actor recovers to what the journal holds") {
@@ -189,8 +189,8 @@ object PersistentBatchSuite : Suite() {
                 batchTill.tell(BatchRing(10))
                 batchTill.ask(1.minutes) { BatchCount(it) }
             }
-            (counted shouldBeRight Either.Right(10)) and
-                (journal.events(batchTillId, batchPence) shouldContainExactly listOf(10))
+            counted shouldBeRight Either.Right(10)
+            journal.events(batchTillId, batchPence) shouldContainExactly listOf(10)
         }
     }
 }

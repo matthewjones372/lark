@@ -53,7 +53,8 @@ object BatchingSuite : Suite() {
                 opened.countDown()
                 awaitIdle()
             }
-            (inside shouldBe listOf("r-1", "", "r-3")) and (outside shouldBe listOf(""))
+            inside shouldBe listOf("r-1", "", "r-3")
+            outside shouldBe listOf("")
         }
 
         test("a message handled alone is a run of one, in its own sender's context") {

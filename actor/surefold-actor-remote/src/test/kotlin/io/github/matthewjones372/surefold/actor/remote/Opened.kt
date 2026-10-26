@@ -1,7 +1,5 @@
 package io.github.matthewjones372.surefold.actor.remote
 
-import io.github.matthewjones372.surefold.junit.Expectations
-
 /** What one test opened, closed in reverse once it ends: a list of its own, since a suite's tests run at once. */
 internal class Opened {
     private val toClose = mutableListOf<AutoCloseable>()
@@ -12,9 +10,9 @@ internal class Opened {
 }
 
 /** Runs [body], then closes what it opened, as an `@AfterEach` did. */
-internal fun opening(body: Opened.() -> Expectations): Expectations {
+internal fun opening(body: Opened.() -> Unit) {
     val opened = Opened()
-    return try {
+    try {
         opened.body()
     } finally {
         opened.close()

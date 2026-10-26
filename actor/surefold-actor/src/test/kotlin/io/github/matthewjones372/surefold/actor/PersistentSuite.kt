@@ -84,9 +84,9 @@ object PersistentSuite : Suite() {
                 rex.send(Eat(50))
                 rex.send(Eat(25))
 
-                (rex.state shouldBe Remembered(Hound(grams = 75), sequence = 2)) and
-                    (journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25))) and
-                    (log.toList() shouldContainExactly listOf("rex weighs 50", "rex weighs 75"))
+                rex.state shouldBe Remembered(Hound(grams = 75), sequence = 2)
+                journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25))
+                log.toList() shouldContainExactly listOf("rex weighs 50", "rex weighs 75")
             }
         }
 
@@ -98,8 +98,8 @@ object PersistentSuite : Suite() {
 
                 rex.restart()
 
-                (rex.state shouldBe Remembered(Hound(grams = 50, home = "sam"), sequence = 2)) and
-                    (rex.ask { Home("bo", it) } shouldBe "sam".right())
+                rex.state shouldBe Remembered(Hound(grams = 50, home = "sam"), sequence = 2)
+                rex.ask { Home("bo", it) } shouldBe "sam".right()
             }
         }
 
@@ -107,12 +107,11 @@ object PersistentSuite : Suite() {
             testActors {
                 val rex = spawn("rex", hound("rex"))
 
-                val weighed = rex.ask { Weigh(it) } shouldBe 0.right()
+                rex.ask { Weigh(it) } shouldBe 0.right()
                 rex.send(Wander)
 
-                weighed and
-                    (journal.events(houndOf("rex"), petCodec) shouldContainExactly emptyList()) and
-                    (rex.unhandled shouldContainExactly listOf(Wander))
+                journal.events(houndOf("rex"), petCodec) shouldContainExactly emptyList()
+                rex.unhandled shouldContainExactly listOf(Wander)
             }
         }
 
@@ -125,8 +124,8 @@ object PersistentSuite : Suite() {
                 second.send(Eat(10))
 
                 val conflict = JournalConflict(houndOf("rex"), expected = 0, actual = 1)
-                (second.failure shouldBe Failure.Declared(conflict)) and
-                    (journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50)))
+                second.failure shouldBe Failure.Declared(conflict)
+                journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50))
             }
         }
 
@@ -139,8 +138,8 @@ object PersistentSuite : Suite() {
                 second.send(Eat(10))
                 second.send(Eat(10))
 
-                (second.restarts shouldBe 1) and
-                    (second.state shouldBe Remembered(Hound(grams = 60), sequence = 2))
+                second.restarts shouldBe 1
+                second.state shouldBe Remembered(Hound(grams = 60), sequence = 2)
             }
         }
 
@@ -162,8 +161,8 @@ object PersistentSuite : Suite() {
                 }
             }
 
-            (weight shouldBeRight 75.right()) and
-                (journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25)))
+            weight shouldBeRight 75.right()
+            journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(25))
         }
 
         test("on threads, a conflict restarts the actor, and its start recovers what the other writer wrote") {
@@ -181,8 +180,8 @@ object PersistentSuite : Suite() {
                 second.ask(1.minutes) { Weigh(it) }
             }
 
-            (weight shouldBeRight 60.right()) and
-                (journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(10)))
+            weight shouldBeRight 60.right()
+            journal.events(houndOf("rex"), petCodec) shouldContainExactly listOf(Fed(50), Fed(10))
         }
     }
 }

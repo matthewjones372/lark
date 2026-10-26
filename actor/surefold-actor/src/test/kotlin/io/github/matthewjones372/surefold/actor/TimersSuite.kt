@@ -98,14 +98,13 @@ object TimersSuite : Suite() {
 
             alarm.advance(4.seconds)
 
-            val early = withClue("a second early") { alarm.state.rung.shouldBeEmpty() }
-            val waiting = alarm.pendingTimers shouldBe 1
+            withClue("a second early") { alarm.state.rung.shouldBeEmpty() }
+            alarm.pendingTimers shouldBe 1
 
             alarm.advance(1.seconds)
 
-            early and waiting and
-                (alarm.state.rung shouldContainExactly listOf("wake")) and
-                (alarm.pendingTimers shouldBe 0)
+            alarm.state.rung shouldContainExactly listOf("wake")
+            alarm.pendingTimers shouldBe 0
         }
 
         test("what falls due is delivered in time order, however it was started") {
@@ -136,7 +135,8 @@ object TimersSuite : Suite() {
 
             alarm.advance(1.hours)
 
-            alarm.state.rung.shouldBeEmpty() and (alarm.pendingTimers shouldBe 0)
+            alarm.state.rung.shouldBeEmpty()
+            alarm.pendingTimers shouldBe 0
         }
 
         test("a cancelled or replaced timer's message never arrives, even one already in the mailbox") {
@@ -166,7 +166,8 @@ object TimersSuite : Suite() {
             alarm.send(Fuse)
             alarm.advance(1.hours)
 
-            (alarm.restarts shouldBe 1) and alarm.state.rung.shouldBeEmpty()
+            alarm.restarts shouldBe 1
+            alarm.state.rung.shouldBeEmpty()
         }
 
         test("on threads, a timer falls due when the flock's clock moves, and a cancelled one never does") {

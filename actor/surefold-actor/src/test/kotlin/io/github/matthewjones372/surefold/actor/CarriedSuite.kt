@@ -100,7 +100,8 @@ object CarriedSuite : Suite() {
                 awaitIdle()
             }
 
-            (heard.size shouldBe 5_000) and (heard.filter { (n, id) -> id != "r-$n" } shouldBe emptyMap())
+            heard.size shouldBe 5_000
+            heard.filter { (n, id) -> id != "r-$n" } shouldBe emptyMap()
         }
     }
 }

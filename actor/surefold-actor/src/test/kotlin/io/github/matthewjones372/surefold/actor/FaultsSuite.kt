@@ -74,8 +74,8 @@ object FaultsSuite : Suite() {
             testActors(order = Ordering.seeded(1), faults = Faults(duplicate = 1.0)) {
                 val log = spawn("log", heard())
                 spawn("echo", echo(log)).tell("hello")
-                (log.state shouldContainExactly listOf("hello", "hello")) and
-                    (trace.filterIsInstance<TraceEntry.Duplicated>() shouldHaveSize 1)
+                log.state shouldContainExactly listOf("hello", "hello")
+                trace.filterIsInstance<TraceEntry.Duplicated>() shouldHaveSize 1
             }
         }
 
@@ -83,11 +83,11 @@ object FaultsSuite : Suite() {
             testActors(order = Ordering.seeded(1), faults = Faults(delay = 1.0, maxDelay = 2.seconds)) {
                 val log = spawn("log", heard())
                 spawn("echo", echo(log)).tell("hello")
-                val waiting = log.state.shouldBeEmpty()
+                log.state.shouldBeEmpty()
                 val delayed = trace.filterIsInstance<TraceEntry.Delayed>().single()
-                val within = withClue(delayed) { (delayed.by > Duration.ZERO && delayed.by <= 2.seconds) shouldBe true }
+                withClue(delayed) { (delayed.by > Duration.ZERO && delayed.by <= 2.seconds) shouldBe true }
                 settle()
-                waiting and within and (log.state shouldContainExactly listOf("hello"))
+                log.state shouldContainExactly listOf("hello")
             }
         }
 

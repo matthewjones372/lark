@@ -72,11 +72,11 @@ object SnapshotSuite : Suite() {
                 journal.reads.clear()
                 counter.restart()
 
-                (counter.state shouldBe before) and
-                    snapshots.latest(tally).shouldNotBeNull { it.sequence shouldBe 1_000 } and
-                    (journal.reads.toList() shouldContainExactly listOf(1_001L to 50)) and
-                    // The same history replayed from the start, with no snapshot, builds the same state.
-                    (spawn("replayed", tallying(null)).state shouldBe before)
+                counter.state shouldBe before
+                snapshots.latest(tally).shouldNotBeNull { it.sequence shouldBe 1_000 }
+                journal.reads.toList() shouldContainExactly listOf(1_001L to 50)
+                // The same history replayed from the start, with no snapshot, builds the same state.
+                spawn("replayed", tallying(null)).state shouldBe before
             }
         }
 
@@ -84,15 +84,14 @@ object SnapshotSuite : Suite() {
             testActors {
                 val counter = spawn("tally", tallying(every(100, tallyCodec)))
                 counter.send(Tallied(*IntArray(98) { 1 }))
-                val noneYet = snapshots.latest(tally).shouldBeNull()
+                snapshots.latest(tally).shouldBeNull()
 
                 counter.send(Tallied(1, 1, 1))
 
-                noneYet and
-                    snapshots.latest(tally).shouldNotBeNull { taken ->
-                        (taken.sequence shouldBe 101) and
-                            (tallyCodec.decode(taken.bytes) shouldBe Tally(sum = 101, adds = 101))
-                    }
+                snapshots.latest(tally).shouldNotBeNull { taken ->
+                    taken.sequence shouldBe 101
+                    tallyCodec.decode(taken.bytes) shouldBe Tally(sum = 101, adds = 101)
+                }
             }
         }
 
@@ -104,7 +103,7 @@ object SnapshotSuite : Suite() {
 
                 override fun latest(id: PersistenceId): Snapshot? = null
             }
-            val answered = logger.locally({ line -> lines += line }) {
+            logger.locally({ line -> lines += line }) {
                 testActors(snapshots = broken) {
                     val counter = spawn("tally", tallying(every(10, tallyCodec)))
 
@@ -113,14 +112,13 @@ object SnapshotSuite : Suite() {
                         counter.ask<Tally> { reply -> Total(reply) }
                     }
 
-                    (answers.last() shouldBe Tally(sum = 25, adds = 25).right()) and
-                        (answers.all(Either<AskFailure, Tally>::isRight) shouldBe true) and
-                        counter.failure.shouldBeNull()
+                    answers.last() shouldBe Tally(sum = 25, adds = 25).right()
+                    answers.all(Either<AskFailure, Tally>::isRight) shouldBe true
+                    counter.failure.shouldBeNull()
                 }
             }
             val errors = lines.filter { it.level == LogLevel.Error }.map { it.cause?.message }
-            answered and
-                (errors shouldContainExactly listOf("the snapshot store is down", "the snapshot store is down"))
+            errors shouldContainExactly listOf("the snapshot store is down", "the snapshot store is down")
         }
 
         test("a behaviour with no snapshotting takes none, even with a store") {

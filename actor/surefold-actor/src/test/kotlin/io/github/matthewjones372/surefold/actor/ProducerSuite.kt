@@ -68,15 +68,14 @@ object ProducerSuite : Suite() {
 
                 val _ = producer.send("l-1") { CreditLedger(1, it) }
                 ledger.send(CloseLedger)
-                val kept = producer.send("l-1") { CreditLedger(2, it) } shouldBe Unit.right()
+                producer.send("l-1") { CreditLedger(2, it) } shouldBe Unit.right()
                 val _ = producer.send("l-1") { CreditLedger(3, it) }
                 ledger = spawn("ledger-again", ledger("l-1"))
                 advance(2.seconds)
                 val _ = producer.send("l-1") { CreditLedger(4, it) }
 
-                kept and
-                    (journal.events(ledgerOf("l-1"), creditedCodec) shouldContainExactly (1..4).map(::Credited)) and
-                    (ledger.state.value shouldBe 10)
+                journal.events(ledgerOf("l-1"), creditedCodec) shouldContainExactly (1..4).map(::Credited)
+                ledger.state.value shouldBe 10
             }
         }
 
@@ -100,12 +99,12 @@ object ProducerSuite : Suite() {
 
                 val _ = producer.send("l-1") { CreditLedger(10, it) }
                 val _ = producer.send("l-1") { CreditLedger(20, it) }
-                val first = journal.events(ledgerOf("l-1"), creditedCodec) shouldContainExactly listOf(Credited(10))
+                journal.events(ledgerOf("l-1"), creditedCodec) shouldContainExactly listOf(Credited(10))
 
                 advance(2.seconds)
 
                 val both = listOf(Credited(10), Credited(20))
-                first and (journal.events(ledgerOf("l-1"), creditedCodec) shouldContainExactly both)
+                journal.events(ledgerOf("l-1"), creditedCodec) shouldContainExactly both
             }
         }
 
@@ -118,17 +117,16 @@ object ProducerSuite : Suite() {
                     ) to else void()
                 }
 
-                val full = (producer.send("l-1") { CreditLedger(1, it) } shouldBe Unit.right()) and
-                    (producer.send("l-2") { CreditLedger(2, it) } shouldBe Unit.right()) and
-                    (producer.send("l-3") { CreditLedger(3, it) } shouldBe Full.left())
+                producer.send("l-1") { CreditLedger(1, it) } shouldBe Unit.right()
+                producer.send("l-2") { CreditLedger(2, it) } shouldBe Unit.right()
+                producer.send("l-3") { CreditLedger(3, it) } shouldBe Full.left()
 
                 val ledger = spawn("ledger", ledger("l-1"))
                 to = ledger
                 advance(2.seconds)
 
-                full and
-                    (producer.send("l-3") { CreditLedger(3, it) } shouldBe Unit.right()) and
-                    (ledger.state.value shouldBe 1)
+                producer.send("l-3") { CreditLedger(3, it) } shouldBe Unit.right()
+                ledger.state.value shouldBe 1
             }
         }
 
@@ -149,8 +147,8 @@ object ProducerSuite : Suite() {
                 (0 until 10).map { n -> ledgers.entity("l-$n").ask(1.minutes) { LedgerBalance(it) }.getOrNull()!! }
             }
 
-            balances.shouldBeRight { it.sum() shouldBe 4 * (1..100).sum() } and
-                ((0 until 10).sumOf { journal.events(ledgerOf("l-$it"), creditedCodec).size } shouldBe 400)
+            balances.shouldBeRight { it.sum() shouldBe 4 * (1..100).sum() }
+            (0 until 10).sumOf { journal.events(ledgerOf("l-$it"), creditedCodec).size } shouldBe 400
         }
 
         test("a flock that closes straight after sending waits for every command to be confirmed first") {
@@ -171,13 +169,12 @@ object ProducerSuite : Suite() {
                 val ledger = spawn("ledger", ledger("l-1"))
                 val producer = producer("till", keep = 1, within = Duration.ZERO) { ledger }
 
-                val threw = shouldThrow<IllegalStateException> { producer.send("l-1") { error("no such till") } }
-                val sent = producer.send("l-1") { CreditLedger(5, it) } shouldBe Unit.right()
+                shouldThrow<IllegalStateException> { producer.send("l-1") { error("no such till") } }
+                producer.send("l-1") { CreditLedger(5, it) } shouldBe Unit.right()
 
-                threw and sent and
-                    (ledger.state.value shouldBe 5) and
-                    (ledger.state.delivered.values.single() shouldBe 1L) and
-                    (producer.drain(Duration.ZERO) shouldBe true)
+                ledger.state.value shouldBe 5
+                ledger.state.delivered.values.single() shouldBe 1L
+                producer.drain(Duration.ZERO) shouldBe true
             }
         }
     }

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.actor
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeGreaterThan
@@ -39,12 +38,13 @@ object OrderingSuite : Suite() {
 
         test("seeds give different interleavings, each keeping every sender's own order") {
             val runs = (1L..20L).map { heard(Ordering.seeded(it)).words }
-            (runs.toSet().size shouldBeGreaterThan 1) and runs.map { words ->
+            runs.toSet().size shouldBeGreaterThan 1
+            runs.forEach { words ->
                 withClue(words) {
-                    (words.filter { it.startsWith("a") } shouldContainExactly listOf("a1", "a2", "a3")) and
-                        (words.filter { it.startsWith("b") } shouldContainExactly listOf("b1", "b2", "b3"))
+                    words.filter { it.startsWith("a") } shouldContainExactly listOf("a1", "a2", "a3")
+                    words.filter { it.startsWith("b") } shouldContainExactly listOf("b1", "b2", "b3")
                 }
-            }.reduce(Expectations::and)
+            }
         }
 
         test("one seed gives the same trace every time") {
@@ -54,11 +54,9 @@ object OrderingSuite : Suite() {
 
         test("the trace names who told what to whom") {
             val trace = heard().trace.filterIsInstance<TraceEntry.Delivered>()
-            (trace.first() shouldBe TraceEntry.Delivered(null, Address("test", "/user/go", 4), "go")) and
-                (
-                    trace.filter { it.to.path == "/user/log" }.map { it.from?.path }.toSet() shouldBe
-                        setOf("/user/a", "/user/b")
-                    )
+            trace.first() shouldBe TraceEntry.Delivered(null, Address("test", "/user/go", 4), "go")
+            trace.filter { it.to.path == "/user/log" }.map { it.from?.path }.toSet() shouldBe
+                setOf("/user/a", "/user/b")
         }
 
         test("settle runs timers to idle, moving time on to each") {
@@ -74,7 +72,8 @@ object OrderingSuite : Suite() {
                 )
                 later.tell("now")
                 settle()
-                (log.state shouldContainExactly listOf("now", "later")) and (pendingTimers shouldBe 0)
+                log.state shouldContainExactly listOf("now", "later")
+                pendingTimers shouldBe 0
             }
         }
 

@@ -83,8 +83,8 @@ object PeriodicSuite : Suite() {
 
             heart.advance(1.hours)
 
-            (heart.state.heard shouldContainExactly listOf("tick", "tick", "tick")) and
-                (heart.pendingTimers shouldBe 0)
+            heart.state.heard shouldContainExactly listOf("tick", "tick", "tick")
+            heart.pendingTimers shouldBe 0
         }
 
         test("a periodic timer runs on in time order with everything else") {
@@ -93,8 +93,8 @@ object PeriodicSuite : Suite() {
 
             heart.advance(5.seconds)
 
-            (heart.state.heard shouldContainExactly listOf("tick", "tick")) and
-                (heart.pendingTimers shouldBe 1)
+            heart.state.heard shouldContainExactly listOf("tick", "tick")
+            heart.pendingTimers shouldBe 1
         }
 
         test("starting its key again replaces a periodic timer") {
@@ -112,10 +112,10 @@ object PeriodicSuite : Suite() {
             heart.send(Quiet(5.seconds))
 
             heart.advance(4.seconds)
-            val silent = withClue("still inside the silence") { heart.state.heard.shouldBeEmpty() }
+            withClue("still inside the silence") { heart.state.heard.shouldBeEmpty() }
             heart.advance(1.hours)
 
-            silent and (heart.state.heard shouldContainExactly listOf("hush"))
+            heart.state.heard shouldContainExactly listOf("hush")
         }
 
         test("any message resets the receive timeout") {
@@ -127,12 +127,12 @@ object PeriodicSuite : Suite() {
             heart.advance(4.seconds)
             heart.send(Poke)
             heart.advance(4.seconds)
-            val reset = withClue("never five seconds without a message") {
+            withClue("never five seconds without a message") {
                 heart.state.heard shouldContainExactly listOf("poke", "poke")
             }
             heart.advance(1.seconds)
 
-            reset and (heart.state.heard shouldContainExactly listOf("poke", "poke", "hush"))
+            heart.state.heard shouldContainExactly listOf("poke", "poke", "hush")
         }
 
         test("a message after the timeout starts the next silence") {
@@ -153,7 +153,8 @@ object PeriodicSuite : Suite() {
             heart.send(Quiet(null))
             heart.advance(1.hours)
 
-            heart.state.heard.shouldBeEmpty() and (heart.pendingTimers shouldBe 0)
+            heart.state.heard.shouldBeEmpty()
+            heart.pendingTimers shouldBe 0
         }
 
         test("a restart turns the receive timeout off, and cancels a periodic timer") {
@@ -164,7 +165,8 @@ object PeriodicSuite : Suite() {
             heart.send(Stumble)
             heart.advance(1.hours)
 
-            heart.state.heard.shouldBeEmpty() and (heart.pendingTimers shouldBe 0)
+            heart.state.heard.shouldBeEmpty()
+            heart.pendingTimers shouldBe 0
         }
 
         test("on threads, the flock's clock drives a periodic timer and a receive timeout") {

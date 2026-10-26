@@ -15,13 +15,13 @@ object CloseHookSuite : Suite() {
         test("a close hook asks an actor and has its answer before the flock stops it") {
             val answered = ConcurrentLinkedQueue<Int>()
 
-            val closed = flock<Nothing, Unit> {
+            flock<Nothing, Unit> {
                 val counted = behaviour<CountAsked, Int>(3) { _, count, asked -> stay().also { asked.reply(count) } }
                 val counter = spawn("counter", counted)
                 onClose { answered += counter.ask(1.minutes) { CountAsked(it) }.getOrNull()!! }
             } shouldBeRight Unit
 
-            closed and (answered.toList() shouldBe listOf(3))
+            answered.toList() shouldBe listOf(3)
         }
     }
 }

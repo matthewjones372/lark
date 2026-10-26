@@ -91,10 +91,10 @@ object RuntimeSuite : Suite() {
                 val first = log.ask(1.minutes) { Where(it) }.getOrNull()!!
 
                 first.join()
-                val ended = withClue("the thread that handled the first message ended once the mailbox was empty") {
+                withClue("the thread that handled the first message ended once the mailbox was empty") {
                     first.isAlive shouldBe false
                 }
-                ended and (log.ask(1.minutes) { Where(it) }.getOrNull() shouldNotBe first)
+                log.ask(1.minutes) { Where(it) }.getOrNull() shouldNotBe first
             }
             checked.shouldBeRight { it }
         }
@@ -170,7 +170,8 @@ object RuntimeSuite : Suite() {
                 waiting.join(java.time.Duration.ofMinutes(1))
             }
 
-            (letGo shouldBeRight true) and (letters.toList() shouldContainExactlyInAnyOrder listOf(Add(1), Add(2)))
+            letGo shouldBeRight true
+            letters.toList() shouldContainExactlyInAnyOrder listOf(Add(1), Add(2))
         }
     }
 }

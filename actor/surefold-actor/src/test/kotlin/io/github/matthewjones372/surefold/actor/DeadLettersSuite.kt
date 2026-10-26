@@ -68,11 +68,9 @@ object DeadLettersSuite : Suite() {
 
             postbox.send(Junk)
 
-            (
-                postbox.deadLetters shouldContainExactly
-                    listOf(DeadLetter(postbox.address, Junk, DeadLetter.Why.Unhandled))
-                ) and
-                (postbox.unhandled shouldContainExactly listOf(Junk))
+            postbox.deadLetters shouldContainExactly
+                listOf(DeadLetter(postbox.address, Junk, DeadLetter.Why.Unhandled))
+            postbox.unhandled shouldContainExactly listOf(Junk)
         }
 
         test("what is still waiting when an actor stops is a dead letter, in the order it was told") {
@@ -108,16 +106,14 @@ object DeadLettersSuite : Suite() {
                 postbox.tell(Letter(3))
                 postbox.address
             }.getOrNull().shouldNotBeNull { address ->
-                (
-                    letters.toList() shouldContainExactlyInAnyOrder listOf(
-                        DeadLetter(address, Junk, DeadLetter.Why.Unhandled),
-                        DeadLetter(address, Hold(7), DeadLetter.Why.Stopped),
-                        DeadLetter(address, Letter(1), DeadLetter.Why.Stopped),
-                        DeadLetter(address, Letter(2), DeadLetter.Why.Stopped),
-                        DeadLetter(address, Letter(3), DeadLetter.Why.Stopped),
-                    )
-                    ) and
-                    (letters.size shouldBe 5)
+                letters.toList() shouldContainExactlyInAnyOrder listOf(
+                    DeadLetter(address, Junk, DeadLetter.Why.Unhandled),
+                    DeadLetter(address, Hold(7), DeadLetter.Why.Stopped),
+                    DeadLetter(address, Letter(1), DeadLetter.Why.Stopped),
+                    DeadLetter(address, Letter(2), DeadLetter.Why.Stopped),
+                    DeadLetter(address, Letter(3), DeadLetter.Why.Stopped),
+                )
+                letters.size shouldBe 5
             }
         }
 
@@ -131,8 +127,8 @@ object DeadLettersSuite : Suite() {
 
             closed.deadLetter(DeadLetter(Address("local", "/user/postbox", 1), Letter(1), DeadLetter.Why.Unreachable))
 
-            (letters.toList() shouldBe emptyList()) and
-                shouldThrow<IllegalStateException> { closed.spawn("late", postbox()) }
+            letters.toList() shouldBe emptyList()
+            shouldThrow<IllegalStateException> { closed.spawn("late", postbox()) }
         }
 
         test("a dead letter the flock is told of while its actors stop reaches its handler") {

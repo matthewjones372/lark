@@ -102,13 +102,14 @@ object WireVersionSuite : Suite() {
                 one.send(two, Frame("/user/clinic", 1, byteArrayOf(7, 8), carried = carried))
                 one.send(two, Frame("/user/clinic", 1, byteArrayOf(9)))
 
-                val first = heard.next().let {
-                    (it.carried shouldBe carried) and (it.payload.toList() shouldBe listOf<Byte>(7, 8))
+                heard.next().let {
+                    it.carried shouldBe carried
+                    it.payload.toList() shouldBe listOf<Byte>(7, 8)
                 }
-                val second = heard.next().let {
-                    (it.carried shouldBe emptyMap()) and (it.payload.toList() shouldBe listOf<Byte>(9))
+                heard.next().let {
+                    it.carried shouldBe emptyMap()
+                    it.payload.toList() shouldBe listOf<Byte>(9)
                 }
-                first and second
             }
         }
 
@@ -121,8 +122,8 @@ object WireVersionSuite : Suite() {
                 val carried = mapOf("traceparent" to "00-x-y-01")
                 one.send(old.node, Frame("/user/clinic", 1, byteArrayOf(1, 2, 3), carried = carried))
 
-                val refused = old.refused.poll(1, TimeUnit.MINUTES) shouldBe 2
-                refused and (old.payloads.poll(1, TimeUnit.MINUTES) shouldBe listOf<Byte>(1, 2, 3))
+                old.refused.poll(1, TimeUnit.MINUTES) shouldBe 2
+                old.payloads.poll(1, TimeUnit.MINUTES) shouldBe listOf<Byte>(1, 2, 3)
             }
         }
 
@@ -137,8 +138,8 @@ object WireVersionSuite : Suite() {
                     val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
                     val input = DataInputStream(BufferedInputStream(socket.getInputStream()))
                     output.oldHello(Node("old", "127.0.0.1", 1))
-                    val magic = input.readInt() shouldBe MAGIC
-                    val version = input.readInt() shouldBe 1
+                    input.readInt() shouldBe MAGIC
+                    input.readInt() shouldBe 1
                     val path = "/user/clinic".toByteArray()
                     output.writeInt(Int.SIZE_BYTES + path.size + Long.SIZE_BYTES + 2)
                     output.writeInt(path.size)
@@ -147,10 +148,10 @@ object WireVersionSuite : Suite() {
                     output.write(byteArrayOf(4, 5))
                     output.flush()
 
-                    val read = heard.next().let {
-                        (it.payload.toList() shouldBe listOf<Byte>(4, 5)) and (it.carried shouldBe emptyMap())
+                    heard.next().let {
+                        it.payload.toList() shouldBe listOf<Byte>(4, 5)
+                        it.carried shouldBe emptyMap()
                     }
-                    magic and version and read
                 }
             }
         }

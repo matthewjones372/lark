@@ -52,11 +52,11 @@ object LaneSuite : Suite() {
                     val sent = TimeSource.Monotonic.markNow()
                     ping.tell(0)
                     val _ = checkNotNull(pinged.poll(5, TimeUnit.SECONDS)) { "the control frame never arrived" }
-                    val atOnce = sent.elapsedNow() shouldBeLessThan 500.milliseconds
+                    sent.elapsedNow() shouldBeLessThan 500.milliseconds
 
                     (1..200).forEach(ping::tell)
                     val rest = generateSequence { pinged.poll(5, TimeUnit.SECONDS) }.take(200).toList()
-                    atOnce and (rest shouldContainExactly (1..200).toList())
+                    rest shouldContainExactly (1..200).toList()
                 }.shouldBeRight { it }
             } finally {
                 done.countDown()

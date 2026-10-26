@@ -3,7 +3,6 @@ package io.github.matthewjones372.surefold.actor
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -79,7 +78,8 @@ object WatchSuite : Suite() {
                 lookout.send(Watch(worker))
                 worker.send(Leave)
 
-                (lookout.state shouldBe 1) and (lookout.signals shouldContainExactly listOf(Signal.Terminated(worker)))
+                lookout.state shouldBe 1
+                lookout.signals shouldContainExactly listOf(Signal.Terminated(worker))
             }
         }
 
@@ -97,12 +97,12 @@ object WatchSuite : Suite() {
 
         test("Stopping comes once before the actor ends, after a throw as after a stop") {
             val stopping = AtomicReference<List<String>>(emptyList())
-            val burst = testActors {
+            testActors {
                 spawn("quits", worker(stopping)).send(Leave)
                 shouldThrow<IllegalStateException> { spawn("bursts", worker(stopping)).send(Burst) }
             }
 
-            burst and (stopping.get() shouldBe listOf("stopping", "stopping"))
+            stopping.get() shouldBe listOf("stopping", "stopping")
         }
 
         test("on threads, a watcher hears Terminated once") {
@@ -129,20 +129,20 @@ object WatchSuite : Suite() {
                 watch(worker).await()
             }
 
-            (heard.getOrNull()?.ref?.address?.path shouldBe "/user/worker") and
-                (stopping.get() shouldBe listOf("stopping"))
+            heard.getOrNull()?.ref?.address?.path shouldBe "/user/worker"
+            stopping.get() shouldBe listOf("stopping")
         }
 
         test("on threads, stop from outside ends the actor, and answers once it has") {
             val stopping = AtomicReference<List<String>>(emptyList())
-            val heard = flock<Nothing, Pair<Expectations, Any>> {
+            val heard = flock<Nothing, Any> {
                 val worker = spawn("worker", worker(stopping))
-                val stopped = stop(worker).await().ref shouldBe worker
-                stopped to worker.ask(1.minutes) { _: Reply<Unit> -> Leave }
+                stop(worker).await().ref shouldBe worker
+                worker.ask(1.minutes) { _: Reply<Unit> -> Leave }
             }
 
-            heard.shouldBeRight { (stopped, asked) -> stopped and (asked shouldBe AskFailure.Stopped.left()) } and
-                (stopping.get() shouldBe listOf("stopping"))
+            heard.shouldBeRight { asked -> asked shouldBe AskFailure.Stopped.left() }
+            stopping.get() shouldBe listOf("stopping")
         }
 
         test(

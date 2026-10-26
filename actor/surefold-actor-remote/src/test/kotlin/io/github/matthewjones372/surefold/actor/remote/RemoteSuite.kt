@@ -179,8 +179,8 @@ object RemoteSuite : Suite() {
                 Triple(charted, hospital.letters.toList(), earlier)
             }
 
-            (charted shouldBeRight 0.right()) and
-                (letters shouldContainExactly listOf(DeadLetter(earlier, Admit(50), DeadLetter.Why.NoSuchActor)))
+            charted shouldBeRight 0.right()
+            letters shouldContainExactly listOf(DeadLetter(earlier, Admit(50), DeadLetter.Why.NoSuchActor))
         }
 
         test("a message for a path no actor is at is a dead letter on the node it reached") {
@@ -194,11 +194,9 @@ object RemoteSuite : Suite() {
                 hospital.letters.toList()
             }
 
-            (
-                letters.map { it.recipient.path to it.why } shouldContainExactly
-                    listOf("/user/nobody" to DeadLetter.Why.NoSuchActor)
-                ) and
-                (wardCodec.decode((letters.single().message as UnreadMessage).bytes, noRefs) shouldBe Admit(5))
+            letters.map { it.recipient.path to it.why } shouldContainExactly
+                listOf("/user/nobody" to DeadLetter.Why.NoSuchActor)
+            wardCodec.decode((letters.single().message as UnreadMessage).bytes, noRefs) shouldBe Admit(5)
         }
 
         test("a message told to a node nobody answers for is a dead letter here, with the message in it") {

@@ -118,14 +118,14 @@ object DurableProducerSuite : Suite() {
                 for (n in 0 until 50) crashed.send(ids[n % 5]) { TopUp(n.toLong(), it) }
 
                 val again = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }
-                val drained = again.drain(Duration.ZERO) shouldBe true
+                again.drain(Duration.ZERO) shouldBe true
                 val _ = again.send("w-0") { TopUp(1_000, it) }
 
-                val each = ids.mapIndexed { w, id ->
+                ids.forEachIndexed { w, id ->
                     val sent = (0 until 50).filter { it % 5 == w }.map(Int::toLong)
                     journal.events(walletOf(id), pence) shouldContainExactly if (w == 0) sent + 1_000 else sent
-                }.reduce(Expectations::and)
-                drained and each and (wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 11L))
+                }
+                wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 11L)
             }
         }
 
@@ -138,14 +138,14 @@ object DurableProducerSuite : Suite() {
                 for (n in 0 until 10) crashed.send(ids[n % 5]) { TopUp(n.toLong(), it) }
 
                 val outbox = PersistenceId("surefold-producer", "till")
-                val where = databases.map { (name, kept) ->
+                databases.forEach { (name, kept) ->
                     kept.read(outbox).isNotEmpty() shouldBe
                         (name == sharded.database(outbox))
-                }.reduce(Expectations::and)
+                }
 
                 val again = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }
-                val drained = again.drain(Duration.ZERO) shouldBe true
-                where and drained and (ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 10)
+                again.drain(Duration.ZERO) shouldBe true
+                ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 10
             }
         }
 
@@ -156,11 +156,11 @@ object DurableProducerSuite : Suite() {
                 for (n in 0 until 1_500) producer.send(ids[n % 5]) { TopUp(1, it) }
 
                 // 3,000 events written; pruning keeps no more than the 1,000 since the snapshot before the newest.
-                val pruned = journal.read(PersistenceId("surefold-producer", "till")).size shouldBeLessThanOrEqual 1_000
+                journal.read(PersistenceId("surefold-producer", "till")).size shouldBeLessThanOrEqual 1_000
                 val _ = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }.send("w-0") { TopUp(7, it) }
 
-                pruned and (journal.events(walletOf("w-0"), pence).last() shouldBe 7L) and
-                    (wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 301L))
+                journal.events(walletOf("w-0"), pence).last() shouldBe 7L
+                wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 301L)
             }
         }
 
@@ -171,10 +171,10 @@ object DurableProducerSuite : Suite() {
 
                 val again = durableProducer("till", topUpCodec, keep = 5, within = Duration.ZERO) { nowhere }
 
-                val waits = again.drain(Duration.ZERO) shouldBe false
-                val first = again.send("w-0") { TopUp(9, it) } shouldBe Unit.right()
-                val second = again.send("w-1") { TopUp(9, it) } shouldBe Unit.right()
-                waits and first and second and (again.send("w-2") { TopUp(9, it) } shouldBe Full.left())
+                again.drain(Duration.ZERO) shouldBe false
+                again.send("w-0") { TopUp(9, it) } shouldBe Unit.right()
+                again.send("w-1") { TopUp(9, it) } shouldBe Unit.right()
+                again.send("w-2") { TopUp(9, it) } shouldBe Full.left()
             }
         }
 
@@ -190,8 +190,8 @@ object DurableProducerSuite : Suite() {
 
                 spawn("resumer", resumer)
 
-                val drained = resumed.get().drain(Duration.ZERO) shouldBe true
-                drained and (ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 10)
+                resumed.get().drain(Duration.ZERO) shouldBe true
+                ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 10
             }
         }
 
@@ -211,9 +211,9 @@ object DurableProducerSuite : Suite() {
                 spawn("resumer", resumer)
 
                 val (producer, actor) = resumed.get()
-                val delays = (actor as TestActor<*, *, *>).delays shouldBe listOf(100.milliseconds)
-                val drained = producer.drain(Duration.ZERO) shouldBe true
-                delays and drained and (ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 5)
+                (actor as TestActor<*, *, *>).delays shouldBe listOf(100.milliseconds)
+                producer.drain(Duration.ZERO) shouldBe true
+                ids.sumOf { journal.events(walletOf(it), pence).size } shouldBe 5
             }
         }
 
@@ -226,9 +226,9 @@ object DurableProducerSuite : Suite() {
                     durableProducer("till", topUpCodec, keep = 4, within = Duration.ZERO) { wallets.getValue(it) }
                 for (n in 0 until 4) producer.send("w-0") { TopUp(n.toLong(), it) }
 
-                val sent = producer.send("w-0") { TopUp(7, it) } shouldBe Unit.right()
-                val written = journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(7L)
-                sent and written and (producer.drain(Duration.ZERO) shouldBe true)
+                producer.send("w-0") { TopUp(7, it) } shouldBe Unit.right()
+                journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(7L)
+                producer.drain(Duration.ZERO) shouldBe true
             }
         }
 
@@ -238,7 +238,7 @@ object DurableProducerSuite : Suite() {
             val within = 5.seconds
             val database = Down()
             capturingMetrics { captured ->
-                val onThreads = flock<Nothing, Expectations> {
+                flock<Nothing, Expectations> {
                     journal(database)
                     val wallet = spawn("w-0", wallet("w-0"))
                     val producer = durableProducer("till", topUpCodec, within = within, drainWithin = Duration.ZERO) {
@@ -246,40 +246,39 @@ object DurableProducerSuite : Suite() {
                     }
 
                     // Past the first, each would wait out a backoff, 100 ms doubling, if it were told to the actor.
-                    val unwritten = (1..6L).map { pence ->
+                    (1..6L).forEach { pence ->
                         val (sent, took) = measureTimedValue { producer.send("w-0") { TopUp(pence, it) } }
-                        val answered = sent.leftOrNull().shouldBeInstanceOf<Unwritten> { answer ->
+                        sent.leftOrNull().shouldBeInstanceOf<Unwritten> { answer ->
                             answer.cause.shouldBeInstanceOf<SQLException>()
                         }
-                        answered and withClue("send $pence") { took shouldBeLessThan within / 10 }
-                    }.reduce(Expectations::and)
+                        withClue("send $pence") { took shouldBeLessThan within / 10 }
+                    }
                     database.back()
                     awaitIdle()
 
-                    val sent = producer.send("w-0") { TopUp(7, it) } shouldBe Unit.right()
+                    producer.send("w-0") { TopUp(7, it) } shouldBe Unit.right()
                     awaitIdle()
-                    val written = database.events(walletOf("w-0"), pence) shouldContainExactly listOf(7L)
-                    unwritten and sent and written and (producer.drain(Duration.ZERO) shouldBe true)
+                    database.events(walletOf("w-0"), pence) shouldContainExactly listOf(7L)
+                    producer.drain(Duration.ZERO) shouldBe true
                 }.shouldBeRight { it }
-                onThreads and (captured.counter("surefold.delivery.unwritten") shouldBe 6.0)
+                captured.counter("surefold.delivery.unwritten") shouldBe 6.0
             }
         }
 
         test("a producer says once that its journal is down, and once that it is back") {
             val lines = ConcurrentLinkedQueue<LogLine>()
-            val sends = logger.locally({ line -> lines += line }) {
+            logger.locally({ line -> lines += line }) {
                 testActors(journal = Flaky(failures = 1)) {
                     val producer = durableProducer("till", topUpCodec) { nowhere }
-                    val down = producer.send("w-0") { TopUp(1, it) }.leftOrNull().shouldBeInstanceOf<Unwritten>()
-                    down and (producer.send("w-0") { TopUp(2, it) } shouldBe Unit.right())
+                    producer.send("w-0") { TopUp(1, it) }.leftOrNull().shouldBeInstanceOf<Unwritten>()
+                    producer.send("w-0") { TopUp(2, it) } shouldBe Unit.right()
                 }
             }
-            val said = lines.map { it.level to it.message } shouldContainExactly listOf(
+            lines.map { it.level to it.message } shouldContainExactly listOf(
                 LogLevel.Warn to "producer till cannot write to its journal, and answers Unwritten until it can: " +
                     "java.sql.SQLException: the database is down",
                 LogLevel.Info to "producer till writes to its journal again",
             )
-            sends and said
         }
 
         test("a command the codec refuses, or that cannot be sent again, throws to its sender and holds no room") {
@@ -293,16 +292,15 @@ object DurableProducerSuite : Suite() {
                     override fun decode(bytes: ByteArray) = OneOff(Delivery("till", String(bytes), 0, Delivery.NoOne))
                 }
 
-                val refused = shouldThrow<IllegalArgumentException> { producer.send("w-0") { TopUp(-1, it) } }
-                val once = shouldThrow<UnsupportedOperationException> {
+                shouldThrow<IllegalArgumentException> { producer.send("w-0") { TopUp(-1, it) } }
+                shouldThrow<UnsupportedOperationException> {
                     durableProducer("once", oneOffs) { void<OneOff>() }.send("w-0", ::OneOff)
                 }
-                val sent = producer.send("w-0") { TopUp(3, it) } shouldBe Unit.right()
+                producer.send("w-0") { TopUp(3, it) } shouldBe Unit.right()
 
-                refused and once and sent and
-                    (journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(3L)) and
-                    (journal.read(PersistenceId("surefold-producer", "once")) shouldBe emptyList()) and
-                    (producer.drain(Duration.ZERO) shouldBe true)
+                journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(3L)
+                journal.read(PersistenceId("surefold-producer", "once")) shouldBe emptyList()
+                producer.drain(Duration.ZERO) shouldBe true
             }
         }
 
@@ -316,10 +314,10 @@ object DurableProducerSuite : Suite() {
 
                 val again = durableProducer("till", topUpCodec, keep = 2) { wallet }
                 repeat(2) { arrived.removeFirst().delivery.confirm() }
-                val waits = again.drain(Duration.ZERO) shouldBe false
+                again.drain(Duration.ZERO) shouldBe false
 
                 repeat(3) { arrived.removeFirst().delivery.confirm() }
-                waits and (again.drain(Duration.ZERO) shouldBe true)
+                again.drain(Duration.ZERO) shouldBe true
             }
         }
     }
