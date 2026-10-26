@@ -17,7 +17,6 @@ import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.actor.stop
 import io.github.matthewjones372.surefold.actor.unhandled
 import io.github.matthewjones372.surefold.actor.watch
-import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight

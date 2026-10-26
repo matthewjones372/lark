@@ -15,7 +15,6 @@ import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeGreaterThanOrEqual
 import io.github.matthewjones372.surefold.junit.shouldBeLessThan
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket

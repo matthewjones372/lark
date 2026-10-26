@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold
 
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldContainExactly
-import io.github.matthewjones372.surefold.assert.shouldNotBeNull
 import io.github.matthewjones372.surefold.assert.withClue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch

@@ -3,7 +3,6 @@ package io.github.matthewjones372.surefold.stream.actors
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
-import io.github.matthewjones372.surefold.assert.shouldBeRight
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.scope
 import io.github.matthewjones372.surefold.stream.Actors

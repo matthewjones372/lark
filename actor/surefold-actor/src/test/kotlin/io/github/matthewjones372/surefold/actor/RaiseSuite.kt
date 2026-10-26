@@ -8,7 +8,6 @@ import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.minutes

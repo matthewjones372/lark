@@ -9,7 +9,6 @@ import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket

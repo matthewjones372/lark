@@ -18,7 +18,6 @@ import io.github.matthewjones372.surefold.actor.remote.encode
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight

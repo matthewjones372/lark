@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes

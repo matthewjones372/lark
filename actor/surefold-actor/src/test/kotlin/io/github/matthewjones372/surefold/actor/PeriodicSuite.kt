@@ -3,7 +3,6 @@ package io.github.matthewjones372.surefold.actor
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
-import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty

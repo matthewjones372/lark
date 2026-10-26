@@ -1,11 +1,9 @@
 package io.github.matthewjones372.surefold.actor
 
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldContainExactlyInAnyOrder
-import io.github.matthewjones372.surefold.junit.shouldNotBeNull
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue

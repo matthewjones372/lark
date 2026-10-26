@@ -6,7 +6,6 @@ import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBeLessThan
-import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CountDownLatch
