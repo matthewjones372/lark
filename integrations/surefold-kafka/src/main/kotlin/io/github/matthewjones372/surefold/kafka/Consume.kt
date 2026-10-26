@@ -25,6 +25,8 @@ import kotlin.time.toJavaDuration
  * partitions it loses in a rebalance, and when the run ends. A `stop()` wakes a poll that is waiting.
  * `enable.auto.commit` is always off.
  *
+ * [questions], when given, answers what the run is asked while it runs (spec 0160).
+ *
  * [onAssigned] and [onRevoked] hear of the partitions each rebalance gives and takes, on the polling thread, after the
  * consumer's own handling of them: a revoke has committed what it could first. What either throws ends the run, as a
  * defect (spec 0159).
@@ -45,9 +47,10 @@ fun <K, V> Kafka.consume(
     startAt: StartAt = StartAt.Committed,
     onAssigned: (Set<TopicPartition>) -> Unit = {},
     onRevoked: (Set<TopicPartition>) -> Unit = {},
+    questions: ConsumerQuestions? = null,
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
     val names = topics.map { it.name }
-    val hooks = Hooks(onAssigned, onRevoked)
+    val hooks = Hooks(onAssigned, onRevoked, questions)
     return consuming(properties, key, value, pollTimeout, rebalance, startAt, hooks) { consumer, listener ->
         consumer.subscribe(names, listener)
     }
@@ -64,8 +67,9 @@ fun <K, V> Kafka.consume(
     startAt: StartAt = StartAt.Committed,
     onAssigned: (Set<TopicPartition>) -> Unit = {},
     onRevoked: (Set<TopicPartition>) -> Unit = {},
+    questions: ConsumerQuestions? = null,
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
-    val hooks = Hooks(onAssigned, onRevoked)
+    val hooks = Hooks(onAssigned, onRevoked, questions)
     return consuming(properties, key, value, pollTimeout, rebalance, startAt, hooks) { consumer, listener ->
         consumer.subscribe(topics.pattern.toPattern(), listener)
     }
@@ -108,6 +112,7 @@ fun <K, V> Kafka.consume(
     startAt: StartAt = StartAt.Committed,
     onAssigned: (Set<TopicPartition>) -> Unit = {},
     onRevoked: (Set<TopicPartition>) -> Unit = {},
+    questions: ConsumerQuestions? = null,
 ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
     consume(
         properties,
@@ -119,6 +124,7 @@ fun <K, V> Kafka.consume(
         startAt = startAt,
         onAssigned = onAssigned,
         onRevoked = onRevoked,
+        questions = questions,
     )
         .decodedWith(key, value)
 
@@ -133,6 +139,7 @@ fun <K, V> Kafka.consume(
     startAt: StartAt = StartAt.Committed,
     onAssigned: (Set<TopicPartition>) -> Unit = {},
     onRevoked: (Set<TopicPartition>) -> Unit = {},
+    questions: ConsumerQuestions? = null,
 ): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
     consume(
         properties,
@@ -144,6 +151,7 @@ fun <K, V> Kafka.consume(
         startAt = startAt,
         onAssigned = onAssigned,
         onRevoked = onRevoked,
+        questions = questions,
     )
         .decodedWith(key, value)
 
@@ -151,6 +159,7 @@ fun <K, V> Kafka.consume(
 private class Hooks(
     val onAssigned: (Set<TopicPartition>) -> Unit,
     val onRevoked: (Set<TopicPartition>) -> Unit,
+    val questions: ConsumerQuestions?,
 )
 
 /** How many consumers this process has named, as the client numbers the ones it names itself. */
@@ -198,9 +207,26 @@ private class Loop<K, V>(
 
     private val keeper = Keeper(consumer, properties, meters) { records -> polled.addAll(records) }
 
+    private val answering = object : Answering {
+        override fun <T> answer(question: (KafkaConsumer<*, *>) -> T): T = keeper.asking { question(consumer) }
+    }
+
+    // A second run on the same questions is refused, and closes what it opened rather than leaving it running.
+    init {
+        try {
+            hooks.questions?.held(answering)
+        } catch (refused: IllegalStateException) {
+            keeper.stop()
+            consumer.close()
+            throw refused
+        }
+    }
+
     /** The next record; a poll waiting on a quiet topic waits until one arrives or [wake] is called. */
     fun next(): Committed<ConsumerRecord<K, V>> = keeper.touching {
         while (polled.isEmpty()) {
+            // Between polls: what the run is being asked is answered here (spec 0160).
+            keeper.answer()
             commits.commitAsync()
             keeper.polling()
             val started = System.nanoTime()
@@ -219,6 +245,7 @@ private class Loop<K, V>(
     fun wake() = consumer.wakeup()
 
     fun close() {
+        hooks.questions?.letGo(answering)
         keeper.stop()
         keeper.closing { commits.close() }
     }

@@ -69,6 +69,11 @@ and takes, on the polling thread, after the consumer's own handling: by the time
 those partitions is committed. They suit a log line, a cache to warm or state to flush. What either throws ends the
 run, as a defect.
 
+A running consumer can be asked what it holds (spec 0160). Pass `questions = ConsumerQuestions()` and ask it while
+the run is open: `assignment()`, `lag()` (each partition's end offset less what the group committed) and `metrics()`,
+the client's own map. Each answer is read from the run's own consumer between polls, so it waits at most one poll; a
+question asked while no run holds the handle throws.
+
 A rebalance takes every partition from a member, the ones it is given back too. By default the records a run has
 handed out on them and not yet handled are then read again, by whichever member owns each partition next. With
 `rebalance = Rebalance.waitFor(30.seconds)`, the member holds the rebalance until each of those records is handled,
