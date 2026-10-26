@@ -88,7 +88,7 @@ wanted, it should be its own spec after this one.
       It lives in `integrations/` beside `surefold-pekko`, under `io.github.matthewjones372.surefold.actor.pekko`.
       `ask` keeps its signature; only its import moves, in `AskTest` and the cookbook. The dependency test allows
       what `pekko-actor-typed` brings with it (`pekko-slf4j`, `slf4j-api`), as `surefold-app-pekko`'s does.
-- [ ] **`spec-0058-receive`** — `receive`, `same`, `stopped` and `answer`, with
+- [x] **`spec-0058-receive`** ([#752](https://github.com/matthewjones372/surefold/pull/752)) — `receive`, `same`, `stopped` and `answer`, with
       `AskTest`'s ledger rewritten in them.
       Done when: a sealed protocol missing a branch fails to compile, and a
       nullable `answer` fails to compile (both via `EmbeddedKotlin`).
