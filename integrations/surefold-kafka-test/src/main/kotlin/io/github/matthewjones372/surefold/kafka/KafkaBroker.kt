@@ -17,6 +17,8 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.IsolationLevel
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.serialization.Deserializer
+import org.apache.kafka.common.serialization.Serializer
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.Exit
@@ -114,6 +116,33 @@ class KafkaBroker : BeforeAllCallback, AfterAllCallback {
             }
             read.take(count)
         }
+
+    /** [value] sent to [topic] under [key], written by the serializers given. */
+    fun <K, V> send(topic: Topic, key: K, value: V, keySerializer: Serializer<K>, valueSerializer: Serializer<V>) {
+        KafkaProducer(mapOf<String, Any>("bootstrap.servers" to bootstrap), keySerializer, valueSerializer)
+            .use { producer ->
+                producer.send(ProducerRecord(topic.name, key, value)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            }
+    }
+
+    /**
+     * Every record on [topic], read by the deserializers given: each partition from its start up to the end it had
+     * when asked, by a consumer of no group. Done on reaching those ends, so an empty poll can't cut it short.
+     */
+    fun <K, V> records(topic: Topic, key: Deserializer<K>, value: Deserializer<V>): List<ConsumerRecord<K, V>> =
+        KafkaConsumer(mapOf<String, Any>(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap), key, value)
+            .use { consumer ->
+                val partitions = consumer.partitionsFor(topic.name).map { TopicPartition(topic.name, it.partition()) }
+                consumer.assign(partitions)
+                consumer.seekToBeginning(partitions)
+                val end = consumer.endOffsets(partitions)
+                val read = mutableListOf<ConsumerRecord<K, V>>()
+                val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS)
+                while (partitions.any { consumer.position(it) < end.getValue(it) } && System.nanoTime() < until) {
+                    read += consumer.poll(Duration.ofMillis(POLL_MILLIS))
+                }
+                read
+            }
 
     /** [topic] made with [partitions] partitions, before anything is sent to it. */
     fun create(topic: Topic, partitions: Int) {
