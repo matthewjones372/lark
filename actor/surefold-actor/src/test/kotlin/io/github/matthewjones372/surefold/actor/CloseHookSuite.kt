@@ -1,9 +1,9 @@
 package io.github.matthewjones372.surefold.actor
 
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes
 
@@ -15,11 +15,11 @@ object CloseHookSuite : Suite() {
         test("a close hook asks an actor and has its answer before the flock stops it") {
             val answered = ConcurrentLinkedQueue<Int>()
 
-            flock<Nothing, Unit> {
+            scope {
                 val counted = behaviour<CountAsked, Int>(3) { _, count, asked -> stay().also { asked.reply(count) } }
                 val counter = spawn("counter", counted)
                 onClose { answered += counter.ask(1.minutes) { CountAsked(it) }.getOrNull()!! }
-            } shouldBeRight Unit
+            }
 
             answered.toList() shouldBe listOf(3)
         }

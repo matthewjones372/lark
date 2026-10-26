@@ -1,10 +1,10 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.minutes
@@ -124,7 +124,7 @@ object AssumingNewSuite : Suite() {
             val journal = ReadCounting()
             journal.append(tallyOf("old"), 0, listOf(tallyCodec.encode(40)))
             val log = ConcurrentLinkedQueue<String>()
-            val totals = flock<Nothing, Any> {
+            val totals = scope {
                 journal(journal)
                 val fresh = spawn("fresh", tally("fresh", Start.assumingNew, log))
                 val old = spawn("old", tally("old", Start.assumingNew, log))
@@ -133,7 +133,7 @@ object AssumingNewSuite : Suite() {
                 listOf(fresh.ask(1.minutes) { Sum(it) }, old.ask(1.minutes) { Sum(it) })
             }
 
-            totals shouldBe listOf(5.right(), 42.right()).right()
+            totals shouldBe listOf(5.right(), 42.right())
             journal.reads.get() shouldBe 1
             journal.events(tallyOf("old"), tallyCodec) shouldContainExactly listOf(40, 2)
         }

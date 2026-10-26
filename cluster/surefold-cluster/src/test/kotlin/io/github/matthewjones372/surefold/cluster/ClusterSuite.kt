@@ -10,7 +10,6 @@ import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.actor.watch
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -18,6 +17,7 @@ import io.github.matthewjones372.surefold.junit.shouldBeGreaterThanOrEqual
 import io.github.matthewjones372.surefold.junit.shouldBeLessThan
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -49,7 +49,7 @@ private class Running(
     private val ready = CountDownLatch(1)
     private val joined = AtomicReference<Cluster>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             val node = node(name, port)
             setup(node)
             joined.set(cluster(node, seeds, quick, leaveWithin = leaveWithin, ready = admitted))
@@ -117,7 +117,7 @@ object ClusterSuite : Suite() {
                 node.expose(spawn("ward", behaviour<String, Unit>(Unit) { _, _, _ -> stay() }), Codecs.string)
             }
             try {
-                flock<Nothing, Unit> {
+                scope {
                     val heard = LinkedBlockingQueue<MemberEvent>()
                     val node = node("n1", ports[0])
                     val cluster = cluster(node, seeds, quick)
@@ -135,7 +135,7 @@ object ClusterSuite : Suite() {
 
                     next(MemberEvent.Removed::class.java).member.node.name shouldBe "n3"
                     watched.await().ref shouldBe ward
-                } shouldBeRight Unit
+                }
             } finally {
                 second.close()
                 third.close()
@@ -150,7 +150,7 @@ object ClusterSuite : Suite() {
             val second = Running("n2", ports[1], seeds)
             val third = Running("n3", ports[2], seeds)
             try {
-                flock<Nothing, Unit> {
+                scope {
                     val heard = LinkedBlockingQueue<MemberEvent>()
                     val busy = CountDownLatch(1)
                     val cluster = cluster(node("n1", ports[0]), seeds, quick)
@@ -168,7 +168,7 @@ object ClusterSuite : Suite() {
                     val ups = List(3) { generateSequence { heard.poll(1, TimeUnit.MINUTES) }.first() }
                     ups.map { it::class } shouldBe List(3) { MemberEvent.Up::class }
                     ups.map { it.member.node.name }.toSet() shouldBe setOf("n1", "n2", "n3")
-                } shouldBeRight Unit
+                }
             } finally {
                 second.close()
                 third.close()
@@ -260,7 +260,7 @@ object ClusterSuite : Suite() {
                 earlier.cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
             }
             try {
-                flock<Nothing, Unit> {
+                scope {
                     val heard = LinkedBlockingQueue<MemberEvent>()
                     val cluster = cluster(node("n3", ports[2]), seeds, quick, leaveWithin = Duration.ZERO)
                     val listener =
@@ -276,7 +276,7 @@ object ClusterSuite : Suite() {
                     cluster.await(1.minutes, ::upAsItself) shouldBe true
                     cluster.ready() shouldBe true
                     heard.filterIsInstance<MemberEvent.Downed>().none { cluster.isSelf(it.member) } shouldBe true
-                } shouldBeRight Unit
+                }
             } finally {
                 first.close()
                 second.close()
@@ -292,7 +292,7 @@ object ClusterSuite : Suite() {
             }
             val earlier = Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, setup = ward())
             try {
-                flock<Nothing, Unit> {
+                scope {
                     val node = node("n1", ports[0])
                     // The default 20 s before a downed life is removed: long enough to watch the later life's actor
                     // first.
@@ -331,7 +331,7 @@ object ClusterSuite : Suite() {
                             ended.get() shouldBe false
                         }
                     }
-                } shouldBeRight Unit
+                }
             } finally {
                 second.close()
             }

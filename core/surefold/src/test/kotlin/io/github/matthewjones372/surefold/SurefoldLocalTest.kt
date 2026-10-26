@@ -40,7 +40,7 @@ class SurefoldLocalTest {
         val forked = CountDownLatch(1)
         val bound = CountDownLatch(1)
 
-        val seen = flock<Nothing, String> {
+        val seen = scope {
             val branch = async {
                 forked.countDown()
                 bound.await()
@@ -51,7 +51,7 @@ class SurefoldLocalTest {
             branch.await()
         }
 
-        seen.getOrNull().shouldNotBeNull() shouldBe "initial"
+        seen shouldBe "initial"
     }
 
     @Test

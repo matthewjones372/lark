@@ -5,11 +5,11 @@ import io.github.matthewjones372.surefold.actor.remote.Codecs
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -30,7 +30,7 @@ private class TillNode(name: String, port: Int, seeds: Discovery, roles: Set<Str
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Pair<Cluster, Sharded<Int>>>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             val cluster = cluster(node(name, port), seeds, unhurried, roles = roles, leaveWithin = Duration.ZERO)
             // Each entity's first message holds its step until the burst is all sent, so its mailbox fills behind it.
             val tills = cluster.sharding("till", Codecs.int, 10.minutes, role = "till") { _ ->

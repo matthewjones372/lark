@@ -11,10 +11,10 @@ import io.github.matthewjones372.surefold.actor.remote.WireIn
 import io.github.matthewjones372.surefold.actor.remote.WireOut
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -49,7 +49,7 @@ private class RoleNode(val name: String, port: Int, seeds: Discovery, roles: Set
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Triple<Cluster, Sharded<WhereAreYou>, ActorRef<WhereAreYou>>>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             val cluster = cluster(node(name, port), seeds, lively, roles = roles)
             val ledgers = cluster.sharding("ledger", whereCodec, 1.minutes, role = "ledger") { answering(name) }
             val clock = cluster.singleton("clock", whereCodec, role = "ledger") { answering(name) }

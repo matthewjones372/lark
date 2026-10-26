@@ -15,12 +15,12 @@ import io.github.matthewjones372.surefold.actor.persistent
 import io.github.matthewjones372.surefold.actor.snapshots
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.fail.Either
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldContainExactlyInAnyOrder
+import io.github.matthewjones372.surefold.scope
 
 private val shardedCents = object : EventCodec<Int> {
     override fun encode(event: Int): ByteArray = "$event".toByteArray()
@@ -57,7 +57,7 @@ object ShardedPostgresSuite : Suite() {
         test("entities spread over two databases, and each database's feed holds its own ids' events once") {
             with(TwoDatabases()) {
                 val ids = (1..200).map { PersistenceId("till", "t-$it") }
-                flock<Nothing, Unit> {
+                scope {
                     journal(journal)
                     val tills = ids.map { spawn(it.id, till(it)) }
                     (1..3).forEach { paid -> tills.forEach { it.tell(paid) } }
@@ -92,7 +92,7 @@ object ShardedPostgresSuite : Suite() {
                 offsets.save(ShardedJournal.progress("totals", "db-a"), Long.MAX_VALUE)
                 val prune = Prune.after(offsets, journal, "totals")
 
-                flock<Nothing, Unit> {
+                scope {
                     journal(journal)
                     snapshots(ShardedSnapshots(listOf("db-a" to JdbcSnapshots(a), "db-b" to JdbcSnapshots(b))))
                     // One payment at a time, so the snapshots fall at 10 and 20 whatever the timing.

@@ -2,12 +2,12 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes
 
@@ -112,7 +112,7 @@ object ReceptionistSuite : Suite() {
         }
 
         test("on threads, a subscriber hears a registration and a stop, and find sees the same") {
-            val heard = flock<Nothing, Any> {
+            val heard = scope {
                 val usher = spawn("usher", usher())
                 usher.tell(Follow)
                 awaitIdle()
@@ -125,7 +125,7 @@ object ReceptionistSuite : Suite() {
                 Triple(found == setOf(wicket), find(Wickets), usher.ask(1.minutes) { Sizes(it) })
             }
 
-            heard shouldBeRight Triple(true, emptySet<ActorRef<Wicket>>(), listOf(0, 1, 0).right())
+            heard shouldBe Triple(true, emptySet<ActorRef<Wicket>>(), listOf(0, 1, 0).right())
         }
     }
 }

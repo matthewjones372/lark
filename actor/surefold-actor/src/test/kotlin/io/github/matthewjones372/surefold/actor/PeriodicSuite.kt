@@ -4,13 +4,13 @@ import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.TestClock
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
@@ -172,7 +172,7 @@ object PeriodicSuite : Suite() {
         test("on threads, the flock's clock drives a periodic timer and a receive timeout") {
             val moving = TestClock()
             val heard = clock.locally(moving) {
-                flock<Nothing, Any> {
+                scope {
                     val heart = spawn("heart", heart())
                     heart.tell(Beat(every = 2.seconds, times = 2))
                     heart.tell(Quiet(10.seconds))
@@ -183,7 +183,7 @@ object PeriodicSuite : Suite() {
                 }
             }
 
-            heard shouldBeRight listOf("tick", "tick", "hush").right()
+            heard shouldBeRight listOf("tick", "tick", "hush")
         }
     }
 }

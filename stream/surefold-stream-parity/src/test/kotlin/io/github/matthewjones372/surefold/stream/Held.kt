@@ -1,7 +1,7 @@
 package io.github.matthewjones372.surefold.stream
 
 import io.github.matthewjones372.surefold.Flock
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 
@@ -13,7 +13,7 @@ internal val heldFlock: Flock<Nothing> by lazy {
     val opened = AtomicReference<Flock<Nothing>>()
     val ready = CountDownLatch(1)
     Thread.ofPlatform().daemon().start {
-        flock<Nothing, Unit> {
+        scope {
             opened.set(this)
             ready.countDown()
             CountDownLatch(1).await()

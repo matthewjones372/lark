@@ -1,13 +1,13 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Flock
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.surefold.junit.shouldNotBeNull
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -96,7 +96,7 @@ object DeadLettersSuite : Suite() {
 
         test("on threads, a flock hands every dead letter to its handler, once") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
-            flock<Nothing, Address> {
+            scope {
                 onDeadLetter(letters::add)
                 val postbox = spawn("postbox", postbox())
                 postbox.tell(Hold(7))
@@ -105,7 +105,7 @@ object DeadLettersSuite : Suite() {
                 watch(postbox).await()
                 postbox.tell(Letter(3))
                 postbox.address
-            }.getOrNull().shouldNotBeNull { address ->
+            }.let { address ->
                 letters.toList() shouldContainExactlyInAnyOrder listOf(
                     DeadLetter(address, Junk, DeadLetter.Why.Unhandled),
                     DeadLetter(address, Hold(7), DeadLetter.Why.Stopped),
@@ -119,11 +119,11 @@ object DeadLettersSuite : Suite() {
 
         test("after its flock has closed, a dead letter is only logged, and a spawn is refused") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
-            val closed = flock<Nothing, Flock<Nothing>> {
+            val closed = scope {
                 onDeadLetter(letters::add)
                 spawn("postbox", postbox())
                 this
-            }.getOrNull()!!
+            }
 
             closed.deadLetter(DeadLetter(Address("local", "/user/postbox", 1), Letter(1), DeadLetter.Why.Unreachable))
 
@@ -134,7 +134,7 @@ object DeadLettersSuite : Suite() {
         test("a dead letter the flock is told of while its actors stop reaches its handler") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
-            flock<Nothing, Unit> {
+            scope {
                 onDeadLetter(letters::add)
                 // As a transport does when its actor stops: what it could not deliver becomes this flock's
                 // dead letter.
@@ -161,7 +161,7 @@ object DeadLettersSuite : Suite() {
                 val done = AtomicBoolean(false)
                 val telling = CountDownLatch(1)
                 lateinit var transport: Thread
-                flock<Nothing, Unit> {
+                scope {
                     spawn("postbox", postbox())
                     val closing = this
                     transport = Thread.ofPlatform().start {

@@ -12,12 +12,12 @@ import io.github.matthewjones372.surefold.actor.remote.WireIn
 import io.github.matthewjones372.surefold.actor.remote.WireOut
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -45,7 +45,7 @@ private class Office(val name: String, port: Int, seeds: Discovery, tls: Tls) : 
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Pair<Cluster, Sharded<Desk>>>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             val cluster = cluster(node(name, port, tls = tls), seeds, lively)
             val desks = cluster.sharding("desk", deskCodec, passivateAfter = 1.minutes) { _ ->
                 behaviour<Desk, Unit>(Unit) { _, _, where -> stay().also { where.reply(name) } }

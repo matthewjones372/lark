@@ -5,12 +5,12 @@ import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.bind
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.minutes
 
 private data object OutOfStock
@@ -88,13 +88,13 @@ object RaiseSuite : Suite() {
         }
 
         test("on threads, a raise stops the actor too") {
-            val answer = flock<Nothing, Any> {
+            val answer = scope {
                 val till = spawn("till", till(3))
                 till.tell(Sell(5))
                 till.ask(1.minutes) { Count(it) }
             }
 
-            answer shouldBeRight AskFailure.Stopped.left()
+            answer shouldBe AskFailure.Stopped.left()
         }
     }
 }

@@ -15,7 +15,7 @@ import io.github.matthewjones372.surefold.cluster.Discovery
 import io.github.matthewjones372.surefold.cluster.Gossiping
 import io.github.matthewjones372.surefold.cluster.MemberEvent
 import io.github.matthewjones372.surefold.cluster.cluster
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.javadsl.Adapter
 import org.apache.pekko.actor.typed.javadsl.Behaviors
@@ -55,7 +55,7 @@ internal class SurefoldTrio<T>(build: Flock<Nothing>.(cluster: Cluster, name: St
         val opened = List(NODES) { AtomicReference<T>() }
         holders = ports.mapIndexed { i, port ->
             Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     val name = nodeName(i)
                     // No leaving on close: a trial's nodes all stop together, and none is left to hand shards to.
                     val cluster = cluster(node(name, port), seeds, gossiping, leaveWithin = Duration.ZERO)

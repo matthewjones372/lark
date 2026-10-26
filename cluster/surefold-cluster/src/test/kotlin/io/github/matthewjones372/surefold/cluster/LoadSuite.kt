@@ -13,11 +13,11 @@ import io.github.matthewjones372.surefold.actor.remote.WireIn
 import io.github.matthewjones372.surefold.actor.remote.WireOut
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -72,7 +72,7 @@ internal class LoadNode(
     private val ready = CountDownLatch(1)
     private val opened = AtomicReference<Triple<Cluster, Sharded<Which>, Sharded<Which>>>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             val cluster = cluster(node(name, port), seeds, steady)
             val answer = { id: String -> replyingWith(name, id) }
             val tally = cluster.sharding("tally", whichCodec, passivateAfter, rebalance = rebalance, entity = answer)

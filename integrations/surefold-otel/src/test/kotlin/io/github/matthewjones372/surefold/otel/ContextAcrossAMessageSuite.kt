@@ -5,10 +5,10 @@ import io.github.matthewjones372.surefold.actor.ask
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.sdk.OpenTelemetrySdk
@@ -37,7 +37,7 @@ object ContextAcrossAMessageSuite : Suite() {
     init {
         test("a span open at an ask is the parent of the span its handler opens") {
             val traced = Traced()
-            val _ = flock<Nothing, String> {
+            val _ = scope {
                 val actor = spawn("handler", traced.handler())
                 traced.tracer.span("asking") { actor.ask(1.minutes) { Handle(it) }.getOrNull()!! }
             }
@@ -53,7 +53,7 @@ object ContextAcrossAMessageSuite : Suite() {
 
         test("a message sent outside any span is handled outside one") {
             val traced = Traced()
-            val _ = flock<Nothing, String> {
+            val _ = scope {
                 spawn("handler", traced.handler()).ask(1.minutes) { Handle(it) }.getOrNull()!!
             }
 

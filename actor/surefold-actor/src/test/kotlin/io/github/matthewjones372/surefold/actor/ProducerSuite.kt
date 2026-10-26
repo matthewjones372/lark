@@ -2,12 +2,12 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.Executors
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -132,7 +132,7 @@ object ProducerSuite : Suite() {
 
         test("on threads, commands from four senders to ten passivating entities are each applied once") {
             val journal = InMemoryJournal()
-            val balances = flock<Nothing, List<Int>> {
+            val balances = scope {
                 journal(journal)
                 val ledgers = spawn("ledgers", entities(passivateAfter = 1.minutes) { id -> ledger(id) })
                 val producer = producer("till", keep = 16) { id -> ledgers.entity(id) }
@@ -147,14 +147,14 @@ object ProducerSuite : Suite() {
                 (0 until 10).map { n -> ledgers.entity("l-$n").ask(1.minutes) { LedgerBalance(it) }.getOrNull()!! }
             }
 
-            balances.shouldBeRight { it.sum() shouldBe 4 * (1..100).sum() }
+            balances.sum() shouldBe 4 * (1..100).sum()
             (0 until 10).sumOf { journal.events(ledgerOf("l-$it"), creditedCodec).size } shouldBe 400
         }
 
         test("a flock that closes straight after sending waits for every command to be confirmed first") {
             val journal = InMemoryJournal()
 
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 journal(journal)
                 val ledgers = spawn("ledgers", entities(passivateAfter = 1.minutes) { id -> ledger(id) })
                 val producer = producer("till") { id -> ledgers.entity(id) }

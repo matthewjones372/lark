@@ -1,12 +1,12 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import kotlin.time.Duration.Companion.minutes
 
 private val text = object : EventCodec<String> {
@@ -53,7 +53,7 @@ object JournalSuite : Suite() {
 
         test("on threads, an actor writes to its flock's journal") {
             val journal = InMemoryJournal()
-            val written = flock<Nothing, Any> {
+            val written = scope {
                 journal(journal)
                 val diary = spawn("diary", diary())
                 diary.tell(Note("one"))
@@ -61,11 +61,11 @@ object JournalSuite : Suite() {
                 diary.ask(1.minutes) { Written(it) }
             }
 
-            written shouldBeRight listOf("one", "two").right()
+            written shouldBeRight listOf("one", "two")
         }
 
         test("on threads, a flock with no journal says so") {
-            shouldThrow<IllegalStateException>({ flock<Nothing, Journal> { journal() } }) { failed ->
+            shouldThrow<IllegalStateException>({ scope { journal() } }) { failed ->
                 failed.message shouldBe "no journal: give the flock one with journal(…)"
             }
         }

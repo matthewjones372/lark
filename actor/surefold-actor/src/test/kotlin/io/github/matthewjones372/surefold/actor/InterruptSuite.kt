@@ -1,9 +1,9 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Schedule
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.hours
@@ -39,7 +39,7 @@ object InterruptSuite : Suite() {
         test("closing the flock interrupts a step blocked forever, and the actor still takes its Stopping") {
             val log = AtomicReference<List<String>>(emptyList())
 
-            flock<Nothing, Unit> {
+            scope {
                 val started = CountDownLatch(1)
                 spawn("chores", chores(log)).tell(Forever(started))
                 started.await()
@@ -51,7 +51,7 @@ object InterruptSuite : Suite() {
         test("closing the flock cuts a restart's delay short") {
             val log = AtomicReference<List<String>>(emptyList())
 
-            flock<Nothing, Unit> {
+            scope {
                 val raising = CountDownLatch(1)
                 spawn("chores", chores(log), restart = Schedule.spaced(1.hours)).tell(Fumble(raising))
                 raising.await()
@@ -63,7 +63,7 @@ object InterruptSuite : Suite() {
         test("a parent's stop interrupts a child blocked forever") {
             val log = AtomicReference<List<String>>(emptyList())
 
-            flock<Nothing, Unit> {
+            scope {
                 val started = CountDownLatch(1)
                 val parent = spawn(
                     "parent",

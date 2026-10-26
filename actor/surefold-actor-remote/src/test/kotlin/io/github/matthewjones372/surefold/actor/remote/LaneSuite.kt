@@ -4,11 +4,11 @@ import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBeLessThan
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -25,7 +25,7 @@ object LaneSuite : Suite() {
             val release = CountDownLatch(1)
             val pinged = LinkedBlockingQueue<Int>()
             val receiver = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     val node = node("receiver", port)
                     // One slot, stuck on its first message: every frame after it waits in the socket, then in the
                     // sender's queue.
@@ -40,7 +40,7 @@ object LaneSuite : Suite() {
             }
             try {
                 ready.await()
-                flock<Nothing, Unit> {
+                scope {
                     val node = node("sender", freePort())
                     val slow = node.remote(Address("receiver@127.0.0.1:$port", "/user/slow", 0), Codecs.int)
                     val ping =
@@ -56,7 +56,7 @@ object LaneSuite : Suite() {
                     (1..200).forEach(ping::tell)
                     val rest = generateSequence { pinged.poll(5, TimeUnit.SECONDS) }.take(200).toList()
                     rest shouldContainExactly (1..200).toList()
-                } shouldBeRight Unit
+                }
             } finally {
                 done.countDown()
                 receiver.join()

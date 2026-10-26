@@ -1,10 +1,10 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Schedule
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.atomic.AtomicReference
 
 private sealed interface Shift
@@ -76,7 +76,7 @@ object ChildrenSuite : Suite() {
 
         test("on threads, a child's Stopping comes before its parent's") {
             val log = AtomicReference<List<String>>(emptyList())
-            flock<Nothing, Unit> {
+            scope {
                 val manager = spawn("manager", manager(log))
                 manager.tell(Hire("ann"))
                 manager.tell(Shut)
@@ -88,7 +88,7 @@ object ChildrenSuite : Suite() {
 
         test("on threads, closing the flock stops a child before its parent") {
             val log = AtomicReference<List<String>>(emptyList())
-            flock<Nothing, Unit> {
+            scope {
                 spawn("manager", manager(log)).tell(Hire("ann"))
                 awaitIdle()
             }
@@ -98,13 +98,13 @@ object ChildrenSuite : Suite() {
 
         test("on threads, a parent's restart stops its children first") {
             val log = AtomicReference<List<String>>(emptyList())
-            flock<Nothing, Unit> {
+            scope {
                 val manager = spawn("manager", manager(log), restart = Schedule.recurs(1))
                 manager.tell(Hire("ann"))
                 manager.tell(Trip)
                 awaitIdle()
                 log.get() shouldBe listOf("ann")
-            } shouldBeRight Unit
+            }
         }
     }
 }

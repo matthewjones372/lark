@@ -3,7 +3,7 @@ package io.github.matthewjones372.surefold.actor.benchmarks
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.surefold.actor.ask
 import io.github.matthewjones372.surefold.actor.spawn
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.actor.typed.javadsl.Adapter
 import org.apache.pekko.actor.typed.javadsl.AskPattern
@@ -34,7 +34,7 @@ private class Asking(val name: String, val ask: () -> Unit)
 fun main() {
     val pekkoSystem = ActorSystem.create("ask-cpu", ConfigFactory.load())
     try {
-        flock<Nothing, Unit> {
+        scope {
             val surefold = spawn("answerer", surefoldAnswerer(), capacity = CAPACITY)
             val pekko = Adapter.spawn(pekkoSystem, pekkoAnswerer(), "answerer")
             val scheduler = Adapter.toTyped(pekkoSystem).scheduler()

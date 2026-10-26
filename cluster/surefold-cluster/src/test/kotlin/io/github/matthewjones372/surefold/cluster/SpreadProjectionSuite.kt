@@ -10,7 +10,6 @@ import io.github.matthewjones372.surefold.actor.projection.mapFollowed
 import io.github.matthewjones372.surefold.actor.projection.runProjecting
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -18,6 +17,7 @@ import io.github.matthewjones372.surefold.junit.shouldBeGreaterThan
 import io.github.matthewjones372.surefold.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.surefold.junit.shouldContainAll
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import io.github.matthewjones372.surefold.stream.Forks
 import io.github.matthewjones372.surefold.stream.start
 import java.net.ServerSocket
@@ -74,7 +74,7 @@ private class Spread {
         private val ready = CountDownLatch(1)
         private val opened = AtomicReference<Cluster>()
         private val thread = Thread.ofPlatform().start {
-            flock<Nothing, Unit> {
+            scope {
                 val cluster = cluster(node(name, port), seeds, quick)
                 cluster.spread("totals", PARTITIONS) { k ->
                     Projection.worker {

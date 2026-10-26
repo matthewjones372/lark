@@ -4,7 +4,7 @@ import io.github.matthewjones372.surefold.assert.shouldBeNull
 import io.github.matthewjones372.surefold.assert.shouldBeRight
 import io.github.matthewjones372.surefold.assert.shouldBeSameInstanceAs
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.scope
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.minutes
 
@@ -25,18 +25,18 @@ class SnapshotsTest {
     fun `on threads, an actor sees its flock's store, and a flock given none has none`() {
         val store = InMemorySnapshots()
 
-        val given = flock<Nothing, Any> {
+        val given = scope {
             snapshots(store)
             snapshots() shouldBeSameInstanceAs store
             spawn("which", which()).ask(1.minutes) { Which(it) }
         }
-        val none = flock<Nothing, Any> {
+        val none = scope {
             snapshots().shouldBeNull()
             spawn("which", which()).ask(1.minutes) { Which(it) }
         }
 
-        given shouldBeRight store.right()
-        none shouldBeRight "none".right()
+        given shouldBeRight store
+        none shouldBeRight "none"
     }
 
     @Test

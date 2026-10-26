@@ -1,10 +1,10 @@
 package io.github.matthewjones372.surefold.junit.samples
 
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.expect
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.story
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.atomic.AtomicReference
 
 /** Calls the check it is handed on each of [values], as a statement. */
@@ -37,7 +37,7 @@ object RecordedSuite : Suite() {
             check()
         }
         test("records a check made on a fork") {
-            flock<Nothing, Unit> { async { 2 shouldBe 4 } }
+            scope { async { 2 shouldBe 4 } }
         }
         test("throws a check made on a thread surefold does not carry, there") {
             val thrown = AtomicReference<Throwable>()

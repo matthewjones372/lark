@@ -2,9 +2,9 @@ package io.github.matthewjones372.surefold.cluster
 
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
-import io.github.matthewjones372.surefold.junit.shouldBeRight
+import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
@@ -21,7 +21,7 @@ object ViewOrderSuite : Suite() {
             val letGo = CountDownLatch(1)
             val viewerDone = AtomicBoolean(false)
 
-            val wokeAfterViewer = flock<Nothing, Boolean> {
+            val wokeAfterViewer = scope {
                 val cluster = Cluster(self, node("v1", port), this)
                 // A viewer that is slow to take the view in, as a region with a full mailbox is.
                 cluster.onView { view ->
@@ -42,7 +42,7 @@ object ViewOrderSuite : Suite() {
                 !wokeEarly && viewerDone.get()
             }
 
-            wokeAfterViewer shouldBeRight true
+            wokeAfterViewer shouldBe true
         }
     }
 }

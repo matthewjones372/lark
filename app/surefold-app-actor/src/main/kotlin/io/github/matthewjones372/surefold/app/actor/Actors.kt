@@ -19,11 +19,11 @@ import io.github.matthewjones372.surefold.app.Module
 import io.github.matthewjones372.surefold.app.Wiring
 import io.github.matthewjones372.surefold.app.single
 import io.github.matthewjones372.surefold.clock
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.logDebug
 import io.github.matthewjones372.surefold.logger
 import io.github.matthewjones372.surefold.metricTags
 import io.github.matthewjones372.surefold.metrics
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -119,7 +119,7 @@ private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
             metrics.locally(measured) {
                 metricTags.locally(tags) {
                     logger.locally(logs) {
-                        flock<Nothing, Unit> {
+                        scope {
                             // The guardian stands up here, on the flock's own thread, before any spawn from elsewhere.
                             onDeadLetter(onDeadLetter)
                             opened.complete(Actors(this, tasks))

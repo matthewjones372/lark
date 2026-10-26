@@ -271,7 +271,7 @@ class ScheduleTest {
         val attempts = AtomicInteger(0)
 
         val thrown = clock.locally(moving) {
-            flock<Nothing, Boom> {
+            scope {
                 val retrying = async {
                     try {
                         (Schedule.spaced<Throwable>(1.seconds) zipLeft Schedule.upTo(5.seconds)).retry {
@@ -287,7 +287,7 @@ class ScheduleTest {
             }
         }
 
-        thrown.getOrNull() shouldBeSameInstanceAs boom
+        thrown shouldBeSameInstanceAs boom
         withClue("a try at each second from 0 to 5: the one at 5 finds five seconds gone and stops") {
             attempts.get() shouldBe 6
         }

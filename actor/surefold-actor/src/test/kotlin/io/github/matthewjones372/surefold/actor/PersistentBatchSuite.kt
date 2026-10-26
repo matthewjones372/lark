@@ -3,13 +3,13 @@ package io.github.matthewjones372.surefold.actor
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.left
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
@@ -83,7 +83,7 @@ object PersistentBatchSuite : Suite() {
         val journal = AppendCounting()
         val opened = CountDownLatch(1)
         val totals = CopyOnWriteArrayList<Int>()
-        val _ = flock<Nothing, Unit> {
+        val _ = scope {
             journal(journal)
             val batchTill = spawn("batchTill", batchTill(batch, opened))
             (1..n).forEach { batchTill.tell(BatchRing(it, totals)) }
@@ -118,7 +118,7 @@ object PersistentBatchSuite : Suite() {
             val journal = AppendCounting()
             val opened = CountDownLatch(1)
             val confirmed = CopyOnWriteArrayList<Confirmed>()
-            val counted = flock<Nothing, Any> {
+            val counted = scope {
                 journal(journal)
                 val confirms = spawn(
                     "confirms",
@@ -136,7 +136,7 @@ object PersistentBatchSuite : Suite() {
                 // The confirmations are tells to another actor, and a close drops what it has not handled yet.
                 batchTill.ask(1.minutes) { BatchCount(it) }.also { awaitIdle() }
             }
-            counted shouldBeRight Either.Right(15)
+            counted shouldBe Either.Right(15)
             journal.events(batchTillId, batchPence) shouldContainExactly listOf(10, 5)
             withClue("every delivery is confirmed, the duplicate included") { confirmed.size shouldBe 3 }
         }
@@ -145,7 +145,7 @@ object PersistentBatchSuite : Suite() {
             val journal = AppendCounting()
             val snapshots = InMemorySnapshots()
             val opened = CountDownLatch(1)
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 journal(journal)
                 snapshots(snapshots)
                 val batchTill = spawn("batchTill", batchTill(batch = 64, opened, every = 10))
@@ -160,7 +160,7 @@ object PersistentBatchSuite : Suite() {
             val journal = AppendCounting()
             val opened = CountDownLatch(1)
             val letters = CopyOnWriteArrayList<DeadLetter>()
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 journal(journal)
                 onDeadLetter(letters::add)
                 val batchTill = spawn("batchTill", batchTill(batch = 64, opened))
@@ -180,7 +180,7 @@ object PersistentBatchSuite : Suite() {
         test("a conflicted batch is lost as a failed step is, and the actor recovers to what the journal holds") {
             val journal = AppendCounting(failing = setOf(1))
             val opened = CountDownLatch(1)
-            val counted = flock<Nothing, Any> {
+            val counted = scope {
                 journal(journal)
                 val batchTill = spawn("batchTill", batchTill(batch = 64, opened), restart = Schedule.recurs(1))
                 (1..3).forEach { batchTill.tell(BatchRing(it)) }
@@ -189,7 +189,7 @@ object PersistentBatchSuite : Suite() {
                 batchTill.tell(BatchRing(10))
                 batchTill.ask(1.minutes) { BatchCount(it) }
             }
-            counted shouldBeRight Either.Right(10)
+            counted shouldBe Either.Right(10)
             journal.events(batchTillId, batchPence) shouldContainExactly listOf(10)
         }
     }

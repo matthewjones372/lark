@@ -19,12 +19,12 @@ import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContain
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration.Companion.minutes
@@ -105,7 +105,7 @@ object ProtobufSuite : Suite() {
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
             val prices = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     // Prices an item at a hundred a letter.
                     val pricing = behaviour<Quote, Unit>(Unit) { _, _, asked ->
                         stay().also { asked.reply(asked.request.value.length * 100L) }
@@ -118,13 +118,13 @@ object ProtobufSuite : Suite() {
             }
             ready.await()
             try {
-                val answer = flock<Nothing, Any> {
+                val answer = scope {
                     val desk = node("shop", ServerSocket(0).use(ServerSocket::getLocalPort))
                         .remote(Address("prices@127.0.0.1:$port", "/user/prices", 0), quote)
                     desk.ask(1.minutes) { Quote(text("apples"), it) }
                 }
 
-                answer shouldBeRight 600L.right()
+                answer shouldBeRight 600L
             } finally {
                 done.countDown()
                 prices.join()

@@ -15,11 +15,11 @@ import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.scope
 import org.apache.avro.generic.GenericData
 import org.apache.avro.generic.GenericRecord
 import org.apache.avro.message.BinaryMessageEncoder
@@ -89,7 +89,7 @@ object AvroSuite : Suite() {
             val ready = CountDownLatch(1)
             val done = CountDownLatch(1)
             val pricing = Thread.ofPlatform().start {
-                flock<Nothing, Unit> {
+                scope {
                     // Adds a fifth for the tax.
                     val taxed = behaviour<Price, Unit>(Unit) { _, _, asked ->
                         stay().also { asked.reply(asked.placed.pence * 6 / 5) }
@@ -101,13 +101,13 @@ object AvroSuite : Suite() {
             }
             ready.await()
             try {
-                val answer = flock<Nothing, Any> {
+                val answer = scope {
                     val desk = node("shop", ServerSocket(0).use(ServerSocket::getLocalPort))
                         .remote(Address("pricing@127.0.0.1:$port", "/user/pricing", 0), price)
                     desk.ask(1.minutes) { Price(Placed("o-1", 500), it) }
                 }
 
-                answer shouldBeRight 600L.right()
+                answer shouldBeRight 600L
             } finally {
                 done.countDown()
                 pricing.join()

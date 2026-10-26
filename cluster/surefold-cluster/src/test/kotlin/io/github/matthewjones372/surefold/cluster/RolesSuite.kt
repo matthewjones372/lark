@@ -2,10 +2,10 @@ package io.github.matthewjones372.surefold.cluster
 
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
@@ -23,7 +23,7 @@ private class Worker(val name: String, port: Int, seeds: Discovery, roles: Set<S
     private val ready = CountDownLatch(1)
     private val joined = AtomicReference<Cluster>()
     private val thread = Thread.ofPlatform().start {
-        flock<Nothing, Unit> {
+        scope {
             joined.set(cluster(node(name, port), seeds, nimble, roles = roles))
             ready.countDown()
             done.await()

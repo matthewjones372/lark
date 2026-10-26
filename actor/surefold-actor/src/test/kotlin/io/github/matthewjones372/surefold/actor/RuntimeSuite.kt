@@ -2,13 +2,13 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.surefold.junit.shouldNotBe
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.milliseconds
@@ -67,25 +67,25 @@ private fun log(): Behaviour<Log, List<Int>, Nothing> = behaviour(emptyList()) {
 object RuntimeSuite : Suite() {
     init {
         test("a step runs on a virtual thread") {
-            val thread = flock<Nothing, Thread> {
+            val thread = scope {
                 spawn("log", log()).ask(1.minutes) { Where(it) }.getOrNull()!!
-            }.getOrNull()!!
+            }
 
             thread.isVirtual shouldBe true
         }
 
         test("one sender's messages arrive in the order they were told") {
-            val seen = flock<Nothing, Any> {
+            val seen = scope {
                 val log = spawn("log", log(), capacity = 16)
                 (1..1_000).forEach { log.tell(Add(it)) }
                 log.ask(1.minutes) { Read(it) }
             }
 
-            seen shouldBeRight (1..1_000).toList().right()
+            seen shouldBeRight (1..1_000).toList()
         }
 
         test("an idle actor holds no thread") {
-            val checked = flock<Nothing, Unit> {
+            scope {
                 val log = spawn("log", log())
                 val first = log.ask(1.minutes) { Where(it) }.getOrNull()!!
 
@@ -95,12 +95,11 @@ object RuntimeSuite : Suite() {
                 }
                 log.ask(1.minutes) { Where(it) }.getOrNull() shouldNotBe first
             }
-            checked shouldBeRight Unit
         }
 
         test("closing the flock stops every actor it spawned") {
             val escaped = AtomicReference<ActorRef<Log>>()
-            val _ = flock<Nothing, Unit> {
+            val _ = scope {
                 escaped.set(spawn("log", log()))
                 escaped.get().tell(Add(1))
             }
@@ -109,29 +108,29 @@ object RuntimeSuite : Suite() {
         }
 
         test("an ask nobody answers times out") {
-            val answer = flock<Nothing, Any> { spawn("log", log()).ask(50.milliseconds) { Ignore(it) } }
+            val answer = scope { spawn("log", log()).ask(50.milliseconds) { Ignore(it) } }
 
-            answer shouldBeRight AskFailure.TimedOut.left()
+            answer shouldBe AskFailure.TimedOut.left()
         }
 
         test("an ask the actor stops on answers Stopped, without waiting out its time") {
-            val answer = flock<Nothing, Any> { spawn("log", log()).ask(10.minutes) { Quit(it) } }
+            val answer = scope { spawn("log", log()).ask(10.minutes) { Quit(it) } }
 
-            answer shouldBeRight AskFailure.Stopped.left()
+            answer shouldBe AskFailure.Stopped.left()
         }
 
         test("a throw stops the actor") {
-            val answer = flock<Nothing, Any> {
+            val answer = scope {
                 val log = spawn("log", log())
                 log.tell(Break)
                 log.ask(10.minutes) { Read(it) }
             }
 
-            answer shouldBeRight AskFailure.Stopped.left()
+            answer shouldBe AskFailure.Stopped.left()
         }
 
         test("a tell into a full mailbox fails an actor, and waits for anyone else") {
-            val answers = flock<Nothing, Any> {
+            val answers = scope {
                 val release = CountDownLatch(1)
                 val full = spawn("full", log(), capacity = 1)
                 val sender = spawn("sender", log())
@@ -148,14 +147,14 @@ object RuntimeSuite : Suite() {
                 senderAfter to full.ask(10.minutes) { Read(it) }
             }
 
-            answers shouldBeRight (AskFailure.Stopped.left() to listOf(1, 3).right())
+            answers shouldBe (AskFailure.Stopped.left() to listOf(1, 3).right())
         }
 
         test(
             "a sender waiting on a full mailbox is let go when the actor stops, and its message is a dead letter",
         ) {
             val letters = java.util.concurrent.ConcurrentLinkedQueue<Any>()
-            val letGo = flock<Nothing, Boolean> {
+            val letGo = scope {
                 onDeadLetter { letters += it.message }
                 val release = CountDownLatch(1)
                 val full = spawn("full", log(), capacity = 1)
@@ -169,7 +168,7 @@ object RuntimeSuite : Suite() {
                 waiting.join(java.time.Duration.ofMinutes(1))
             }
 
-            letGo shouldBeRight true
+            letGo shouldBe true
             letters.toList() shouldContainExactlyInAnyOrder listOf(Add(1), Add(2))
         }
     }

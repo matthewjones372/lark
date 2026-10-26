@@ -2,13 +2,13 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration.Companion.minutes
@@ -119,7 +119,7 @@ object RouterSuite : Suite() {
 
         test("on threads, a pool of four hands eight messages two to each") {
             val served = ConcurrentHashMap<String, List<String>>()
-            flock<Nothing, Unit> {
+            scope {
                 val pool = spawn("pool", pool(4) { runner(served) })
                 repeat(8) { pool.tell(Fetch("pet-$it")) }
                 awaitIdle()
@@ -132,7 +132,7 @@ object RouterSuite : Suite() {
             val served = ConcurrentHashMap<String, List<String>>()
             val began = CountDownLatch(1)
             val open = CountDownLatch(1)
-            val answers = flock<Nothing, Any> {
+            val answers = scope {
                 // Each routee has room for one message: routee-1, busy in its step, fills with one more.
                 val pool = spawn("pool", pool(2) { runner(served) }, capacity = 1)
                 pool.tell(Stall(began, open))
@@ -150,7 +150,7 @@ object RouterSuite : Suite() {
             }
 
             val routee2 = "/user/pool/routee-2".right()
-            answers shouldBeRight listOf(routee2, Unit, routee2, routee2)
+            answers shouldBe listOf(routee2, Unit, routee2, routee2)
             served["/user/pool/routee-1"] shouldBe listOf("fills routee-1")
         }
     }

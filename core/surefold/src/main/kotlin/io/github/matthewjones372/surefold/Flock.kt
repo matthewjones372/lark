@@ -42,6 +42,12 @@ fun <E, A> flock(on: Executor = VirtualThreads, block: Flock<E>.() -> A): Either
     attempt { this.flock(on, block) }
 
 /**
+ * A [flock] nothing in [block] can raise in, so it answers [block]'s value rather than an `Either` that is never a
+ * `Left`: only a throw leaves it early. It closes as any flock does.
+ */
+fun <A> scope(on: Executor = VirtualThreads, block: Flock<Nothing>.() -> A): A = Unraisable.flock(on, block)
+
+/**
  * The same scope inside a [Fail] already in hand, so `attempt { flock { async { } } }` needs no second
  * boundary; a fork still opens one of its own, because a scope never crosses a thread.
  */
