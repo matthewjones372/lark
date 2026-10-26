@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold
 
 import io.github.matthewjones372.surefold.assert.shouldBe
-import io.github.matthewjones372.surefold.assert.shouldBeRight
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.assert.withClue
 import org.junit.jupiter.api.Test
@@ -17,7 +16,7 @@ class ChannelTest {
     @Test
     fun `a producer far ahead of a slow consumer never holds more than the capacity, and all of it arrives in order`() {
         val most = AtomicInteger()
-        val received = flock<Nothing, List<Int>> {
+        val received = scope {
             val rows = channel<Int>(CAPACITY)
             async {
                 repeat(ROWS) { row -> rows.send(row) }
@@ -30,13 +29,13 @@ class ChannelTest {
             }
         }
 
-        received shouldBeRight (0 until ROWS).toList()
+        received shouldBe (0 until ROWS).toList()
         withClue("the most values waiting in the channel at once") { (most.get() <= CAPACITY) shouldBe true }
     }
 
     @Test
     fun `a consumer that cancels ends its producer, which sees false and stops without an interrupt`() {
-        val result = flock<Nothing, Pair<List<Int>, Boolean>> {
+        val result = scope {
             val rows = channel<Int>(CAPACITY)
             val sent = async {
                 var count = 0
@@ -51,12 +50,12 @@ class ChannelTest {
             firstTen to (sent.await() >= firstTen.size)
         }
 
-        result shouldBeRight ((0 until 10).toList() to true)
+        result shouldBe ((0 until 10).toList() to true)
     }
 
     @Test
     fun `a capacity of zero hands each value straight from the sender to the receiver`() {
-        val result = flock<Nothing, List<String>> {
+        val result = scope {
             val handOff = channel<String>(0)
             async {
                 listOf("a", "b", "c").forEach { handOff.send(it) }
@@ -65,31 +64,31 @@ class ChannelTest {
             handOff.toList()
         }
 
-        result shouldBeRight listOf("a", "b", "c")
+        result shouldBe listOf("a", "b", "c")
     }
 
     @Test
     fun `a send on a closed channel throws, and a receive answers null once it is drained`() {
-        flock<Nothing, Unit> {
+        scope {
             val rows = channel<Int>(2)
             rows.send(1)
             rows.close()
             shouldThrow<IllegalStateException> { rows.send(2) }
             rows.receive() shouldBe 1
             rows.receive() shouldBe null
-        } shouldBeRight Unit
+        }
     }
 
     @Test
     fun `a producer parked on a full channel nobody reads is released when the scope closes`() {
         val released = AtomicInteger(-1)
-        flock<Nothing, Unit> {
+        scope {
             val rows = channel<Int>(1)
             async {
                 rows.send(1)
                 released.set(if (rows.send(2)) 1 else 0)
             }
-        } shouldBeRight Unit
+        }
 
         withClue("the second send, parked on a full channel when the scope closed, answered false") {
             released.get() shouldBe 0
