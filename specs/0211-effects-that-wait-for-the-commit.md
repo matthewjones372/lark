@@ -48,10 +48,10 @@ Recommended: synchronous. A caller who wants them in the background puts `async`
 
 ## Stack
 
-- [ ] **`spec-0211-after-commit`** — `afterCommit`, the queue on `Transaction`, nested steps, throwing effects.
+- [x] **`spec-0211-after-commit`** ([#735](https://github.com/matthewjones372/surefold/pull/735)) — `afterCommit`, the queue on `Transaction`, nested steps, throwing effects.
       Done when: a body that retries 50 times under contention runs its effect exactly once, and a body that
       fails runs none.
-- [ ] **`spec-0211-actors`** — `tellAfterCommit` in `surefold-actor`, the docs section, and the GLOSSARY entry.
+- [x] **`spec-0211-actors`** ([#739](https://github.com/matthewjones372/surefold/pull/739)) — `tellAfterCommit` in `surefold-actor`, the docs section, and the GLOSSARY entry.
       Done when: a `TestActor` receives one message per committed step across 1,000 contending threads, and the
       `<!-- core-after-commit -->` fence compiles.
 
