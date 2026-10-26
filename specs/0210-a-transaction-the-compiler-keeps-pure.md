@@ -1,8 +1,8 @@
-# 0207 — A transaction the compiler keeps pure
+# 0210 — A transaction the compiler keeps pure
 
 ## Problem
 
-A `transact` body (spec 0206) can run more than once: each time a value it read changes first, and each time it
+A `transact` body (spec 0209) can run more than once: each time a value it read changes first, and each time it
 wakes from `waitForChange`. An HTTP call, a log line, an actor message or a write to a captured `var` inside it
 happens once per run, not once per commit. Haskell's type system rules this out. On the JVM nothing does, so every
 JVM STM leaves it to the docs, and the bug shows up only under contention, in production.
@@ -49,17 +49,17 @@ What the checker reports, inside a `transact` lambda or a function taking `Trans
 The checker reports known effects (a denylist). **Alternative:** an allowlist that accepts only `Transaction`
 calls, the standard library's pure functions and constructors. That is closer to a proof, but it rejects every
 call to a user's own pure helper, so people would suppress it everywhere. Recommended: the denylist, with the
-families above. Spec 0208 gives each family a legal way to run after commit, so every finding comes with a fix.
+families above. Spec 0211 gives each family a legal way to run after commit, so every finding comes with a fix.
 
 ## Stack
 
-- [ ] **`spec-0207-checker`** — `TransactChecker` in `surefold-app-compiler`, with I/O, blocking and forks.
+- [ ] **`spec-0210-checker`** — `TransactChecker` in `surefold-app-compiler`, with I/O, blocking and forks.
       Done when: a test compiling each forbidden call inside `transact` gets the diagnostic, and the same call
       outside it gets none.
-- [ ] **`spec-0207-captures`** — captured `var` writes, `peek()`, and functions taking `Transaction`.
+- [ ] **`spec-0210-captures`** — captured `var` writes, `peek()`, and functions taking `Transaction`.
       Done when: `count += 1` on a captured `var` is reported, a local `var` declared inside the body is not.
-- [ ] **`spec-0207-surefold-effects`** — `Logger`, `Metrics`, `tell` and `publish`, each with a message naming
-      0208's after-commit form. A section in `docs/core.md`.
+- [ ] **`spec-0210-surefold-effects`** — `Logger`, `Metrics`, `tell` and `publish`, each with a message naming
+      0211's after-commit form. A section in `docs/core.md`.
       Done when: the diagnostic for `ref.tell(m)` inside `transact` suggests `afterCommit { ref.tell(m) }`.
 
 ## Acceptance
