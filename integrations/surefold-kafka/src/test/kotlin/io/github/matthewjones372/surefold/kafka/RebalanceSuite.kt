@@ -64,23 +64,22 @@ object RebalanceSuite : SharedSuite<KafkaKit>() {
                     .take(2L * EACH)
                     .runCommitting()
                     .start(kit.backend(on))
-                val handedOut = inHand.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+                inHand.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
                 // The group gives the second member one of the two partitions, which it reads from the last commit.
                 val second = ConcurrentLinkedQueue<String>()
-                val joined = strings(kit, group, topic)
+                strings(kit, group, topic)
                     .mapRecord { it.value().also(second::add) }
                     .take(EACH.toLong())
                     .runCommitting()
                     .run(kit.backend(on))
                     .settled() shouldBe Exit.Done(EACH.toLong())
                 release.countDown()
-                val ended = running.exit.settled() shouldBe Exit.Done(2L * EACH)
+                running.exit.settled() shouldBe Exit.Done(2L * EACH)
 
-                handedOut and joined and ended and
-                    withClue("today, each record of the partition that moved is read twice") {
-                        second.count { it in first } shouldBe EACH
-                    }
+                withClue("today, each record of the partition that moved is read twice") {
+                    second.count { it in first } shouldBe EACH
+                }
             }
         }
     }
