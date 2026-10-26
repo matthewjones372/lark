@@ -429,7 +429,7 @@ toolchain support can download them.
   between Kotlin types.
 - [petshop](https://github.com/matthewjones372/petshop): a small service that
   uses Surefold with Pelican and Proofload.
-- [tweet-street](https://github.com/matthewjones372/tweet-street): a bank in
+- [surefold-bank](https://github.com/matthewjones372/surefold-bank): a bank in
   four services on a three-node Surefold cluster, with its journal in Postgres and
   its events on Kafka.
 
