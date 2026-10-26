@@ -77,7 +77,7 @@ transact { firstOf({ east.hold("o-43", one) }, { west.hold("o-43", one) }) }
   take the `Transaction` receiver. `Shared.peek()` reads the latest committed value without a transaction.
 - `transact` runs on the calling thread and returns the block's value once it has committed. It runs the block
   again on its own when a value it read was changed by someone else's commit first.
-- **A step never sees a half-committed state.** Every read is checked against the version clock, so a body that is
+- **A step never sees a half-committed state.** Every read is checked against the commit count, so a body that is
   doomed to retry can't loop or throw on values that never existed together.
 - `waitForChange()` parks until a value the body has read is committed again, then runs the body again.
   Parking is interruptible, so `cancel()`, a lost race and `timeout { }` stop a waiting `transact`.
@@ -86,12 +86,17 @@ transact { firstOf({ east.hold("o-43", one) }, { west.hold("o-43", one) }) }
 
 ## Why this shape
 
-**Engine.** Each `Shared` holds an `AtomicReference` to its value and the version that wrote it, and a global
-`AtomicLong` clock orders commits. A commit swaps every value it writes in one multi-word CAS (Guerraoui, Kogan,
-Marathe and Zablotchi, 2020): it installs a description of the change into each value, in `Shared` id order, then
-marks it done. A step that finds another commit half-done finishes it before going on. That makes the commit
-lock-free. Steps that touch different values never contend, read-only steps write nothing, and each `Shared`
-keeps its waiters in a lock-free stack that its writers unpark.
+**Engine.** Each `Shared` holds an `AtomicReference` to its value and the version that wrote it. A commit swaps
+every value it writes in one multi-word CAS (Guerraoui, Kogan, Marathe and Zablotchi, 2020): it installs a
+description of the change into each value, in `Shared` id order, then marks it done. A step that finds another
+commit half-done finishes it before going on. That makes the commit lock-free. A global commit count is one more
+word in every swap, so a commit's writes and its version land together, and values a step only read are swapped for
+themselves, so the commit fails if any changed. Read-only steps write nothing. Steps that touch different values
+still meet on the commit count, but the loser only retries the swap, never its body. Each `Shared` keeps its waiters
+in a lock-free stack that its writers unpark.
+
+(Changed while building `spec-0206-shared`. The draft had a separate `AtomicLong` clock, bumped outside the swap.
+A reader could then see one value from a commit and another from before it, both at or under its clock.)
 
 **Alternatives.** A global commit lock is easier to show correct, but its holder can be interrupted mid-commit
 while everyone queues behind it. A single `AtomicReference` holding an immutable snapshot of every value is
