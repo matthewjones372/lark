@@ -40,7 +40,7 @@ a large surface to keep up with Kafka for calls almost nobody makes from applica
 ## Stack
 
 - [x] **`spec-0162-topics`** ([#713](https://github.com/matthewjones372/surefold/pull/713)): `admin`, `ensure`, `topics`, `describe`, `delete`.
-- [ ] **`spec-0162-groups`**: `groups`, `lag`, `resetOffsets` (reusing 0159's `From.Time`).
+- [x] **`spec-0162-groups`** ([#715](https://github.com/matthewjones372/surefold/pull/715)): `groups`, `lag`, `resetOffsets` (reusing 0159's `From.Time`).
 
 ## Acceptance
 
