@@ -29,7 +29,7 @@ class FailParTest {
     }
 
     @Test
-    fun `parZip answers inside a plain attempt, with no flock around it`() {
+    fun `parZip answers inside a plain attempt, with no scope around it`() {
         dashboard(1L) shouldBeRight Dashboard(User("Ada"), listOf(Order(1L)))
     }
 

@@ -155,7 +155,7 @@ class PolicyTest {
     }
 
     @Test
-    fun `a fail in a flock passes through every step uncounted`() {
+    fun `a fail in a scope passes through every step uncounted`() {
         val attempts = AtomicInteger()
         val partner = policy("partner") {
             deadline(1.seconds)
@@ -163,10 +163,12 @@ class PolicyTest {
             attemptTimeout(1.seconds)
         }
 
-        flock<Bad, Int> {
-            guarded(partner, ifRejected = { Bad("rejected") }) {
-                attempts.incrementAndGet()
-                fail(Bad("declared"))
+        attempt<Bad, Int> {
+            scope {
+                guarded(partner, ifRejected = { Bad("rejected") }) {
+                    attempts.incrementAndGet()
+                    fail(Bad("declared"))
+                }
             }
         } shouldBeLeft Bad("declared")
 

@@ -83,7 +83,7 @@ running behind it.
 ## What you can build
 
 **Concurrent, resource-safe code.** [`surefold`](docs/core.md) provides `parZip`,
-`parMap`, `raceN`, `flock { async { } }`, `resourceScope`, `Schedule`,
+`parMap`, `raceN`, `scope { async { } }`, `resourceScope`, `Schedule`,
 `timeout`, and `policy`, which combines a deadline, retries, a circuit breaker,
 a rate limiter and a bulkhead. `surefold-pekko` lets those forks run on a Pekko
 dispatcher.
@@ -103,7 +103,7 @@ and you choose where it runs: a pull loop on a virtual thread, Pekko Streams,
 Surefold actors, or a test backend with a clock the test controls.
 
 **Actors, persistence and clusters.** [`surefold-actor`](docs/actors.md) runs
-actors on virtual threads within a `flock`, with supervision, timers, routers,
+actors on virtual threads within a `scope`, with supervision, timers, routers,
 event-sourced persistence and a deterministic test runtime.
 [Remote and cluster modules](docs/cluster.md) add TCP messaging with optional
 mutual TLS, gossip membership, sharded entities, singletons, reliable delivery,
@@ -382,7 +382,7 @@ test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
 
 **Using a capability**
 
-- [Core](docs/core.md): `parZip`, `flock`, cancellation, `resourceScope`,
+- [Core](docs/core.md): `parZip`, `scope`, cancellation, `resourceScope`,
   `Schedule`, `timeout`, `policy`, `SurefoldLocal` and the clock, and Pekko
   dispatchers.
 - [Applications](docs/app.md) and the [application cookbook](docs/cookbook.md),

@@ -124,9 +124,9 @@ class RaiseParTest {
     }
 
     @Test
-    fun `flock inside attempt forks with async, and a fail surfaces at await as the Left`() {
+    fun `scope inside attempt forks with async, and a fail surfaces at await as the Left`() {
         val summed = attempt<Bad, Int> {
-            flock {
+            scope {
                 val first = async { 20 }
                 val second = async { 22 }
                 first.await() + second.await()
@@ -136,7 +136,7 @@ class RaiseParTest {
         summed shouldBeRight 42
 
         val failed = attempt<Bad, Int> {
-            flock { async<Int> { fail(Bad("forked")) }.await() }
+            scope { async<Int> { fail(Bad("forked")) }.await() }
         }
 
         failed shouldBeLeft Bad("forked")

@@ -8,7 +8,7 @@ words the code, the specs and the docs use for its concepts.
 **Lifecycle**:
 The rules an actor follows from start to stop: taking a message, supervision and
 restart, timers, stash, receive timeout and the end sequence. One lifecycle, the
-same under a flock and under test actors.
+same under a scope and under test actors.
 _Avoid_: actor core, cell logic
 
 **Life**:

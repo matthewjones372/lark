@@ -5,6 +5,7 @@ import io.github.matthewjones372.surefold.assert.shouldBeRight
 import io.github.matthewjones372.surefold.assert.shouldContainExactly
 import io.github.matthewjones372.surefold.assert.withClue
 import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.right
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
@@ -41,12 +42,14 @@ class OnExecutorTest {
     @Test
     fun `parZip runs both branches on the executor it is given`() {
         onOneThread { single ->
-            val names = flock<Bad, Pair<String, String>> {
-                parZip(
-                    on = single,
-                    { Thread.currentThread().name },
-                    { Thread.currentThread().name },
-                ) { first, second -> first to second }
+            val names = attempt<Bad, Pair<String, String>> {
+                scope {
+                    parZip(
+                        on = single,
+                        { Thread.currentThread().name },
+                        { Thread.currentThread().name },
+                    ) { first, second -> first to second }
+                }
             }
 
             names shouldBeRight (ONE_THREAD to ONE_THREAD)
@@ -55,12 +58,14 @@ class OnExecutorTest {
 
     /** `async` with no executor of its own forks where the scope was opened, rather than back on a virtual thread. */
     @Test
-    fun `flock forks on the executor it was opened with, and async on the one it is given`() {
+    fun `scope forks on the executor it was opened with, and async on the one it is given`() {
         onOneThread { single ->
-            val names = flock<Bad, Pair<String, String>>(on = single) {
-                val scoped = async { Thread.currentThread().name }
-                val named = async(on = single) { Thread.currentThread().name }
-                scoped.await() to named.await()
+            val names = attempt<Bad, Pair<String, String>> {
+                scope(on = single) {
+                    val scoped = async { Thread.currentThread().name }
+                    val named = async(on = single) { Thread.currentThread().name }
+                    scoped.await() to named.await()
+                }
             }
 
             names shouldBeRight (ONE_THREAD to ONE_THREAD)
@@ -72,10 +77,12 @@ class OnExecutorTest {
         onOneThread { single ->
             val sleeper = Sleeper()
 
-            val returned = flock<Bad, String>(on = single) {
-                async { sleeper.body() }
-                sleeper.awaitStart()
-                "returned"
+            val returned = attempt<Bad, String> {
+                scope(on = single) {
+                    async { sleeper.body() }
+                    sleeper.awaitStart()
+                    "returned"
+                }
             }
 
             returned shouldBeRight "returned"
@@ -94,19 +101,21 @@ class OnExecutorTest {
             val loser = Sleeper()
             val ran = CopyOnWriteArrayList<String>()
 
-            val raced = flock<Bad, Either<String, String>> {
-                raceN(
-                    on = pool,
-                    {
-                        ran += Thread.currentThread().name
-                        loser.losingWith("lost")
-                    },
-                    {
-                        loser.awaitStart()
-                        ran += Thread.currentThread().name
-                        "won"
-                    },
-                )
+            val raced = attempt<Bad, Either<String, String>> {
+                scope {
+                    raceN(
+                        on = pool,
+                        {
+                            ran += Thread.currentThread().name
+                            loser.losingWith("lost")
+                        },
+                        {
+                            loser.awaitStart()
+                            ran += Thread.currentThread().name
+                            "won"
+                        },
+                    )
+                }
             }
 
             raced shouldBeRight "won".right()
@@ -120,12 +129,14 @@ class OnExecutorTest {
 
     @Test
     fun `a call that names no executor still forks a virtual thread per branch`() {
-        val zipped = flock<Bad, Pair<Boolean, Boolean>> {
-            parZip({ Thread.currentThread().isVirtual }, { Thread.currentThread().isVirtual }) { a, b -> a to b }
+        val zipped = attempt<Bad, Pair<Boolean, Boolean>> {
+            scope {
+                parZip({ Thread.currentThread().isVirtual }, { Thread.currentThread().isVirtual }) { a, b -> a to b }
+            }
         }
 
         zipped shouldBeRight (true to true)
         parMap(listOf(1, 2)) { Thread.currentThread().isVirtual } shouldContainExactly listOf(true, true)
-        flock<Bad, Boolean> { async { Thread.currentThread().isVirtual }.await() } shouldBeRight true
+        attempt<Bad, Boolean> { scope { async { Thread.currentThread().isVirtual }.await() } } shouldBeRight true
     }
 }
