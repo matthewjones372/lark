@@ -113,6 +113,8 @@ Surefold's modules record through the same API, under names starting `surefold.`
 installing `surefold-micrometer` exports them with nothing more to write:
 
 - policies, breakers, bulkheads and rate limiters: see [Policies](core.md#policies);
+- `transact` steps: `surefold.transact.runs`, `.retries` and `.attempts`, see
+  [Why a step ran again](core.md#why-a-step-ran-again);
 - streams: `surefold.stream.elements`, `surefold.stream.busy` and
   `surefold.stream.waiting` per stage, for a run started with
   [`measured`](stream.md#optimisation-rendering-and-profiling);

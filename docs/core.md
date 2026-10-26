@@ -568,6 +568,23 @@ class Seats(count: Int) {
 - **To an actor,** `tellAfterCommit(ref, message)` from `surefold-actor` is
   `afterCommit { ref.tell(message) }`.
 
+### Why a step ran again
+
+A step and a `Shared` can each take a name, `transact("hold") { }` and
+`Shared(120, name = "free.stalls")`, so that a step that keeps running again
+says which value it lost to. Each is recorded through
+[metrics](observability.md#metrics):
+
+| Metric | Kind | Tags |
+|---|---|---|
+| `surefold.transact.runs` | counter | `transact`, `outcome` (`committed`, `failed`, `cancelled`) |
+| `surefold.transact.retries` | counter | `transact`, `cause`: the name of the first value it had read that changed, `unnamed`, or `waited` |
+| `surefold.transact.attempts` | histogram | `transact`; runs per commit |
+
+A step or a value without a name is `unnamed`. A name becomes a tag, so keep
+names to a fixed set: a `Shared` made per order is better left unnamed. A
+step that commits on its first run records one run and one attempt.
+
 ## What a fork inherits
 
 A plain virtual thread inherits nothing from the thread that started it. A
