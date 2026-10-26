@@ -585,6 +585,10 @@ A step or a value without a name is `unnamed`. A name becomes a tag, so keep
 names to a fixed set: a `Shared` made per order is better left unnamed. A
 step that commits on its first run records one run and one attempt.
 
+With `surefold-otel` on the classpath, a step that ran more than once also adds
+one `transact.retried` event to the span it ran in when it commits, carrying
+`transact`, `attempts` and a `retries.<cause>` count for each value it lost to.
+
 ## What a fork inherits
 
 A plain virtual thread inherits nothing from the thread that started it. A

@@ -33,6 +33,8 @@ fun <A> transact(name: String? = null, block: Transaction.() -> A): A {
 // Runs the step until a run commits, recording each run's outcome and each retry's cause (spec 0212).
 private fun <A> untilCommitted(name: String, block: Transaction.() -> A): Pair<Transaction, A> {
     var attempts = 0
+    // Null until the first retry, so a step that commits on its first run allocates nothing for it.
+    var causes: Map<String, Int>? = null
     try {
         while (true) {
             attempts++
@@ -41,11 +43,14 @@ private fun <A> untilCommitted(name: String, block: Transaction.() -> A): Pair<T
             if (answer !== Again) {
                 counter(RUNS, "transact" to name, "outcome" to "committed").increment()
                 histogram(ATTEMPTS, "transact" to name).record(attempts.toDouble())
+                causes?.let { RetryWatchers.committed(name, attempts, it) }
                 // Only Again is not the block's answer, so this is an A.
                 @Suppress("UNCHECKED_CAST")
                 return step to answer as A
             }
             retried.get().retried(name, step.cause)
+            val counted = causes.orEmpty()
+            causes = counted + (step.cause to (counted[step.cause] ?: 0) + 1)
         }
     } catch (interrupted: InterruptedException) {
         counter(RUNS, "transact" to name, "outcome" to "cancelled").increment()
