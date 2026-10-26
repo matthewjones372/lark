@@ -1,8 +1,8 @@
-# 0209 — A retry that says why
+# 0212 — A retry that says why
 
 ## Problem
 
-A `transact` (spec 0206) that keeps retrying is slow, and nothing says why. Every STM today leaves contention to
+A `transact` (spec 0209) that keeps retrying is slow, and nothing says why. Every STM today leaves contention to
 guesswork. A team sees latency climb, can't tell which value the steps are fighting over, and ends up replacing
 STM with locks. The engine already knows the answer: when a step's read check fails, it knows exactly which value
 changed under it.
@@ -40,21 +40,21 @@ From these, a dashboard can show *"`hold` retried on 38% of runs; 91% of those o
 
 ## Why this shape
 
-Names are given by hand. **Alternative:** take the `transact` name from the call site, through 0207's compiler
+Names are given by hand. **Alternative:** take the `transact` name from the call site, through 0210's compiler
 plugin or a stack walk. The plugin isn't always applied, and a stack walk on every retry costs more than the
 retry. Recommended: optional names, with `unnamed` as the default, so reporting works without any setup.
 
 ## Stack
 
-- [ ] **`spec-0209-causes`** — the engine records which `Shared` failed each read check. `transact(name)` and
+- [ ] **`spec-0212-causes`** — the engine records which `Shared` failed each read check. `transact(name)` and
       `Shared(…, name)` take names.
       Done when: a test that forces a conflict on a named value sees that name as the cause, and a conflict on an
       unnamed one sees `unnamed`.
-- [ ] **`spec-0209-metrics`** — the three metrics, recorded through `metrics`, and the table in
+- [ ] **`spec-0212-metrics`** — the three metrics, recorded through `metrics`, and the table in
       `docs/core.md` beside the policies'.
       Done when: a `capturingMetrics` run of two contending steps reads `runs`, `retries` and `attempts` with the
       right tags.
-- [ ] **`spec-0209-otel`** — the span event in `surefold-otel`.
+- [ ] **`spec-0212-otel`** — the span event in `surefold-otel`.
       Done when: a step that retries 3 times adds one event with `attempts=4` to the active span.
 
 ## Acceptance

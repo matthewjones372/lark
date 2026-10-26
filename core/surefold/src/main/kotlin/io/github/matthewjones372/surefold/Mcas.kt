@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * One word of the multi-word compare-and-swap a transaction commits with (spec 0206), after Guerraoui, Kogan, Marathe
+ * One word of the multi-word compare-and-swap a transaction commits with (spec 0209), after Guerraoui, Kogan, Marathe
  * and Zablotchi, "Efficient Multi-word Compare and Swap" (2020). Values are compared by identity, not `equals`.
  */
 internal class Word<T>(initial: T) {
