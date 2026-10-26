@@ -8,10 +8,14 @@ import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import org.apache.kafka.clients.admin.AdminClientConfig
+import java.util.concurrent.TimeUnit
 
 /** Spec 0162: the topic calls a service's start-up and a runbook make. */
 object AdminSuite : SharedSuite<KafkaBroker>() {
     override val shared: Resource<KafkaBroker> = kafkaBroker()
+
+    private const val SETTLE_SECONDS = 10L
+    private const val SETTLE_EVERY_MILLIS = 50L
 
     private fun admin(kafka: KafkaBroker) =
         Kafka.admin(mapOf(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrap))
@@ -62,6 +66,9 @@ object AdminSuite : SharedSuite<KafkaBroker>() {
             kafka.create(topic, 1)
             admin(kafka).use { admin ->
                 admin.delete(topic) shouldBe Unit.right()
+                // The broker's listing follows the controller by a moment.
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(SETTLE_SECONDS)
+                while (topic in admin.topics() && System.nanoTime() < deadline) Thread.sleep(SETTLE_EVERY_MILLIS)
                 (topic in admin.topics()) shouldBe false
             }
         }

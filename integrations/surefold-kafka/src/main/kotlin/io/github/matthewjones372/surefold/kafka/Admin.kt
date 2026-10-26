@@ -1,9 +1,12 @@
 package io.github.matthewjones372.surefold.kafka
 
+import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.fold
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.map
 import io.github.matthewjones372.surefold.fail.right
+import io.github.matthewjones372.surefold.retryOrElse
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.ListGroupsOptions
 import org.apache.kafka.clients.admin.NewPartitions
@@ -11,6 +14,7 @@ import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.admin.OffsetSpec
 import org.apache.kafka.clients.admin.TopicDescription
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
+import org.apache.kafka.common.KafkaException
 import org.apache.kafka.common.KafkaFuture
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.config.ConfigResource
@@ -18,6 +22,8 @@ import org.apache.kafka.common.errors.TopicExistsException
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
 import java.util.Optional
 import java.util.concurrent.ExecutionException
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The few `Admin` calls a service's start-up and a team's runbooks make (spec 0162), each blocking until the cluster
@@ -48,7 +54,7 @@ class KafkaAdmin internal constructor(private val admin: Admin) : AutoCloseable 
         }
         if (created) return Ensured(created = true, grownFrom = null, differing = emptyMap())
 
-        val described = admin.describeTopics(listOf(topic.name)).allTopicNames().answer()
+        val described = settled { admin.describeTopics(listOf(topic.name)).allTopicNames().answer() }
         val had = described.getValue(topic.name).partitions().size
         require(had <= partitions) { "${topic.name} has $had partitions, and Kafka cannot shrink it to $partitions" }
         if (had < partitions) {
@@ -124,7 +130,7 @@ class KafkaAdmin internal constructor(private val admin: Admin) : AutoCloseable 
     private fun differing(topic: Topic, config: Map<String, String>): Map<String, String?> {
         if (config.isEmpty()) return emptyMap()
         val resource = ConfigResource(ConfigResource.Type.TOPIC, topic.name)
-        val own = admin.describeConfigs(listOf(resource)).all().answer().getValue(resource)
+        val own = settled { admin.describeConfigs(listOf(resource)).all().answer() }.getValue(resource)
         return config.mapValues { (key, _) -> own.get(key)?.value() }.filter { (key, value) -> value != config[key] }
     }
 
@@ -146,6 +152,23 @@ data class NoSuchTopic(val topic: Topic)
 
 /** A group that still has [members], whose offsets Kafka will not let anyone else move. */
 data class GroupActive(val group: String, val members: Int)
+
+/**
+ * [block] for a topic the controller has, just created or found existing, tried again while the broker it asks has yet
+ * to hear of it: its metadata follows the controller's by a moment. Any other failure is thrown at once.
+ */
+private fun <A> settled(block: () -> A): A = SETTLING.retryOrElse({
+    try {
+        block().right()
+    } catch (unheard: UnknownTopicOrPartitionException) {
+        throw unheard
+    } catch (other: KafkaException) {
+        other.left()
+    }
+}) { failure, _ -> throw failure }.fold({ throw it }, { it })
+
+/** How long [settled] waits for a broker to hear of a topic, and how often it asks. */
+private val SETTLING = Schedule.spaced<Throwable>(50.milliseconds) and Schedule.upTo(10.seconds)
 
 /** The cluster's answer, or what it failed with, unwrapped from the future's `ExecutionException`. */
 private fun <A> KafkaFuture<A>.answer(): A = try {
