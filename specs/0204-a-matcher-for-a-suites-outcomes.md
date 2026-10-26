@@ -82,10 +82,11 @@ the helper the owner asked not to write, and a user's aspect tests can't reach i
 
 ## Open questions
 
-1. A new module, or a `testFixtures` variant published with surefold-junit? Recommended: the module. The repo
-   already ships its test support as modules (`surefold-stream-test`, `surefold-kafka-test`), and a module is
-   simpler to depend on.
-2. Should it also check a test's logs, such as `events.logsOf(test) shouldContain "…"`? Recommended: not yet. Two
-   files read logs, and the shape of a log line (level, time) needs deciding first.
-3. Should `shouldHaveSucceeded` also accept `vararg` names? Recommended: yes, beside the `Iterable`, as
-   surefold-assert's collection matchers do.
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~A new module, or a `testFixtures` variant published with surefold-junit?~~ The module. The repo already ships its
+   test support as modules (`surefold-stream-test`, `surefold-kafka-test`), and a module is simpler to depend on.
+2. ~~Should it also check a test's logs, such as `events.logsOf(test) shouldContain "…"`?~~ Not yet. Two files read
+   logs, and the shape of a log line (level, time) needs deciding first.
+3. ~~Should `shouldHaveSucceeded` also accept `vararg` names?~~ Yes, beside the `Iterable`, as surefold-assert's
+   collection matchers do.
