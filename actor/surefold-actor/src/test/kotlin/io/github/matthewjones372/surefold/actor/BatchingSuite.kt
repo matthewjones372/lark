@@ -16,7 +16,7 @@ private fun requestHere(): String = capturingLogs { logs ->
     logs.all().single().annotations["request_id"].orEmpty()
 }
 
-/** Spec 0198: a plain behaviour handed the messages waiting as one run, each with its own carried context. */
+/** Spec 0223: a plain behaviour handed the messages waiting as one run, each with its own carried context. */
 object BatchingSuite : Suite() {
     init {
 

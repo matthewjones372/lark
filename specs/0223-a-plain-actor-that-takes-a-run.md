@@ -1,4 +1,7 @@
-# 0198 — A plain actor that takes a run
+# 0223 — A plain actor that takes a run
+
+Merged as 0198 (#605), eleven minutes after another spec had taken that number; renumbered to 0223. Its branches and
+the commits that built it say 0198.
 
 ## Problem
 
