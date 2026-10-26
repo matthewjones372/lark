@@ -47,9 +47,9 @@ rebalance-only behaviour into a mode where it cannot happen. Recommended: a sepa
 
 ## Stack
 
-- [ ] **`spec-0120-partitions`** — `Kafka.partitions`, and the commit loop factored out of `Loop` so both share it.
+- [x] **`spec-0120-partitions`** ([#331](https://github.com/matthewjones372/lark/pull/331)) — `Kafka.partitions`, and the commit loop factored out of `Loop` so both share it.
       Done when: every existing `ConsumeTest` passes unchanged, and `partitions` lists a three-partition topic.
-- [ ] **`spec-0120-read`** — `Kafka.read` with `From` and `Until`, and its `Decoder` overload.
+- [x] **`spec-0120-read`** ([#333](https://github.com/matthewjones372/lark/pull/333)) — `Kafka.read` with `From` and `Until`, and its `Decoder` overload.
       Done when: on embedded Kafka, reading three partitions with `Until.EndAtStart` gives every record produced
       before the reads opened, and none produced after. A read stopped and resumed from `From.Committed`, after
       `runCommitting`, sees each record at least once and loses none.

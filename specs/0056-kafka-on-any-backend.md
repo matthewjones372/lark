@@ -57,9 +57,9 @@ commits they would otherwise lose.
 
 ## Stack
 
-- [ ] **`spec-0056-split`**: move the connector to `surefold-kafka-pekko`, leaving
+- [x] **`spec-0056-split`** ([#90](https://github.com/matthewjones372/lark/pull/90)): move the connector to `surefold-kafka-pekko`, leaving
       the neutral core. Done when: every 0053/0054 test passes unchanged there.
-- [ ] **`spec-0056-consume`**: `Kafka.consume`, `runCommitting()`, the
+- [x] **`spec-0056-consume`** ([#90](https://github.com/matthewjones372/lark/pull/90)): `Kafka.consume`, `runCommitting()`, the
       rebalance listener. Done when: the subscribe, operator, decode and
       routing tests pass on Forks and on Pekko against one broker.
 

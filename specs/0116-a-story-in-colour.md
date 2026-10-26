@@ -75,7 +75,7 @@ tasks.test {
 
 Depends on 0115's `spec-0115-steps`.
 
-- [ ] **`spec-0116-colour`** — the styles, the five rules deciding whether
+- [x] **`spec-0116-colour`** ([#323](https://github.com/matthewjones372/lark/pull/323)) — the styles, the five rules deciding whether
       they are on, and the build snippet above in `surefold-test`'s KDoc.
       Done when: output captured with `surefold.test.colour=never` holds no escape
       code; with `always`, the ✗ line starts with red and bold; with

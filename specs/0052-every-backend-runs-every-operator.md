@@ -61,18 +61,18 @@ alternatives:
 
 ## Stack
 
-- [ ] **`spec-0052-hardened`**: the leak-checking executor, the three-way
+- [x] **`spec-0052-hardened`** ([#98](https://github.com/matthewjones372/lark/pull/98)): the leak-checking executor, the three-way
       parity run and the soak. Done when: all three pass on `mapPar` and
       `buffer`, and a leak planted on purpose turns the check red.
-- [ ] **`spec-0052-pure`**: `sliding` and `interleave` on Forks and
+- [x] **`spec-0052-pure`** ([#99](https://github.com/matthewjones372/lark/pull/99)): `sliding` and `interleave` on Forks and
       `TestStreams`. Done when: their parity cases run on all three backends.
-- [ ] **`spec-0052-async`**: `mapAsync` on both. Done when: its parity case
+- [x] **`spec-0052-async`** ([#100](https://github.com/matthewjones372/lark/pull/100)): `mapAsync` on both. Done when: its parity case
       passes and at most `n` stages are in flight.
-- [ ] **`spec-0052-fanin`**: `merge` and `flatMapMerge` on both. Done when:
+- [x] **`spec-0052-fanin`** ([#101](https://github.com/matthewjones372/lark/pull/101)): `merge` and `flatMapMerge` on both. Done when:
       both parity cases pass on all three backends and under the leak check.
-- [ ] **`spec-0052-conflate`**: `conflate` on both. Done when: a slow reader
+- [x] **`spec-0052-conflate`** ([#102](https://github.com/matthewjones372/lark/pull/102)): `conflate` on both. Done when: a slow reader
       sees aggregates, and nothing is lost.
-- [ ] **`spec-0052-time`**: `tick`, `groupedWithin` and restart on Forks. Done
+- [x] **`spec-0052-time`** ([#103](https://github.com/matthewjones372/lark/pull/103)): `tick`, `groupedWithin` and restart on Forks. Done
       when: the parity suite refuses nothing on any backend except Pekko's own
       types.
 

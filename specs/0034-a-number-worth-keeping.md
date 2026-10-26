@@ -72,18 +72,18 @@ fork takes underneath it, which a `ThreadLocal` cannot do.
 
 ## Stack
 
-- [ ] **`spec-0034-the-instruments`** — `Counter`, `Gauge`, `Histogram`, the
+- [x] **`spec-0034-the-instruments`** ([#75](https://github.com/matthewjones372/lark/pull/75)) — `Counter`, `Gauge`, `Histogram`, the
       `Metrics` seam, the recording-nothing default, `ServiceLoader` discovery,
       `capturingMetrics`.
       Done when: a counter incremented three times reads as 3 in a capture,
       nothing bound records nothing and throws nothing, and
       `NoOtherDependenciesTest` in `surefold` is unchanged.
-- [ ] **`spec-0034-tags-and-timing`** — `metricTagged`, inherited by a fork, and
+- [x] **`spec-0034-tags-and-timing`** ([#76](https://github.com/matthewjones372/lark/pull/76)) — `metricTagged`, inherited by a fork, and
       `timed`.
       Done when: a measurement on a `parMap` fork carries the tag its opener
       bound, one outside the block does not, and `timed` records a duration and
       returns the block's value.
-- [ ] **`spec-0034-micrometer`** — `surefold-micrometer`: the adapter, the service
+- [x] **`spec-0034-micrometer`** ([#77](https://github.com/matthewjones372/lark/pull/77)) — `surefold-micrometer`: the adapter, the service
       file, and a `NoOtherDependenciesTest` naming `micrometer-core` and no more.
       Done when: with the module on the classpath and nothing bound, a counter
       appears in a `SimpleMeterRegistry` with its tags.

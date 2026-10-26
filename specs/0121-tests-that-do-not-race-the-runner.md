@@ -50,11 +50,11 @@ Nothing.
 
 ## Stack
 
-- [ ] **`spec-0121-flock-start-order`** — `Fork.ownFailure` keeps a cut-short fork's raise, in `surefold`.
+- [x] **`spec-0121-flock-start-order`** ([#339](https://github.com/matthewjones372/lark/pull/339)) — `Fork.ownFailure` keeps a cut-short fork's raise, in `surefold`.
       Done when: a new test, in which the first branch's raise is deliberately delayed until after the cancel,
       surfaces "first"; `ParTest` passes 200 runs out of 200 under `stress` (below); every other `surefold` test still
       passes.
-- [ ] **`spec-0121-timing-tests`** — the `TopicTest`, `MeasuredTest` and `LeaveOnReleaseTest` changes above, tests
+- [x] **`spec-0121-timing-tests`** ([#340](https://github.com/matthewjones372/lark/pull/340)) — the `TopicTest`, `MeasuredTest` and `LeaveOnReleaseTest` changes above, tests
       only.
       Done when: each passes 50 runs out of 50 under `stress`.
 

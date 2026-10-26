@@ -51,10 +51,10 @@ and still runs on real threads. Recommended against.
 
 ## Stack
 
-- [ ] **`spec-0048-backend`**: `surefold-stream-test`, `TestStreams`, and every operator
+- [x] **`spec-0048-backend`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `surefold-stream-test`, `TestStreams`, and every operator
       without time on the calling thread.
       Done when: the 0046 parity suite passes on it for every operator it supports.
-- [ ] **`spec-0048-time`**: `tick`, `groupedWithin` and restart on the test clock.
+- [x] **`spec-0048-time`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `tick`, `groupedWithin` and restart on the test clock.
       Done when: a test of an hour-long `tick` finishes in under a second, and asserts
       exactly 60 elements after `adjust(1.hours)` at one per minute.
 

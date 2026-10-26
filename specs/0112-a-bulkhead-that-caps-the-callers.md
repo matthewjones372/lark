@@ -51,12 +51,12 @@ sits inside the rate limiter, so a caller waiting for a token holds no permit.
 
 ## Stack
 
-- [ ] **`spec-0112-bulkhead`** — `Bulkhead`, its `Step`, and its runner row, in `surefold`.
+- [x] **`spec-0112-bulkhead`** ([#334](https://github.com/matthewjones372/lark/pull/334)) — `Bulkhead`, its `Step`, and its runner row, in `surefold`.
       Done when: with `maxConcurrent = 2`, a third concurrent caller on a virtual thread is rejected at once when
       `maxWait = ZERO` and admitted when a permit frees within `maxWait`, and a block that throws, raises or is
       interrupted gives its permit back, and a refusal inside a policy refunds the limiter's
       token where it has one.
-- [ ] **`spec-0112-bulkhead-metrics`** — the gauge and counter, plus a cookbook section "Cap the calls to something
+- [x] **`spec-0112-bulkhead-metrics`** ([#335](https://github.com/matthewjones372/lark/pull/335)) — the gauge and counter, plus a cookbook section "Cap the calls to something
       slow".
       Done when: `capturingMetrics` reads back `in_use` and each outcome by name.
 

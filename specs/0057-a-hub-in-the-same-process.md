@@ -70,7 +70,7 @@ the hub adds only its queues.
 
 ## Stack
 
-- [ ] **`spec-0057-hub`**: `Hub`, `HubRefused`, `publish`, `subscribe` on
+- [x] **`spec-0057-hub`** ([#107](https://github.com/matthewjones372/lark/pull/107)): `Hub`, `HubRefused`, `publish`, `subscribe` on
       `Stream.blocking`, `close`, and `publishTo(hub)`.
       Done when: on Forks, Pekko and TestStreams all four of these hold:
       - early elements reach the first subscriber in order;

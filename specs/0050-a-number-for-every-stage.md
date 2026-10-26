@@ -69,12 +69,12 @@ they suspect, not the one that is slow.
 
 ## Stack
 
-- [ ] **`spec-0050-counts`**: `Measured`, and `elements` and `busy` on both backends.
+- [x] **`spec-0050-counts`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `Measured`, and `elements` and `busy` on both backends.
       Done when: a pipeline with one deliberately slow stage shows that stage's `busy`
       above every other.
-- [ ] **`spec-0050-waiting`**: `waiting`.
+- [x] **`spec-0050-waiting`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `waiting`.
       Done when: the stage upstream of the slow one has the highest `waiting`.
-- [ ] **`spec-0050-diagram`**: `profile()`, `render(profile = …)`, and a profiled diagram per
+- [x] **`spec-0050-diagram`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `profile()`, `render(profile = …)`, and a profiled diagram per
       benchmark in `surefold-stream-benchmarks`. Done when: the `mapPar` baseline's diagram
       marks `mapPar` hottest, and a golden file holds one rendering.
 

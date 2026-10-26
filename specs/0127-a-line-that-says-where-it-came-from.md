@@ -72,7 +72,7 @@ callers until they recompile.
 
 ## Stack
 
-- [ ] **`spec-0127-origin`** — `LogLine.origin`, the inline `log*` functions,
+- [x] **`spec-0127-origin`** ([#353](https://github.com/matthewjones372/lark/pull/353)) — `LogLine.origin`, the inline `log*` functions,
       and the top-level resolution through `ClassValue`. `StderrLogger` prints
       `origin`.
       Done when: a call from a class, from a lambda inside it, from its

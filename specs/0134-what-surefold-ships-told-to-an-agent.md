@@ -57,10 +57,10 @@ loses the voice each needs: `llms.txt` is reference, the skill is advice.
 
 ## Stack
 
-- [ ] **`spec-0134-llms-txt`**: `llms.txt`, and the test that its modules are
+- [x] **`spec-0134-llms-txt`** ([#387](https://github.com/matthewjones372/lark/pull/387)): `llms.txt`, and the test that its modules are
       the published ones.
       Done when: removing a module line from `llms.txt` fails the test.
-- [ ] **`spec-0134-skill`**: the marketplace, the plugin, `SKILL.md`, the same
+- [x] **`spec-0134-skill`** ([#388](https://github.com/matthewjones372/lark/pull/388)): the marketplace, the plugin, `SKILL.md`, the same
       test over `SKILL.md`, and a README section on installing it.
       Done when: `claude plugin validate .` passes and the module test covers
       `SKILL.md`.

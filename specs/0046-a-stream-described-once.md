@@ -78,23 +78,23 @@ builder and where it was built (0010's build site).
 
 ## Stack
 
-- [ ] **`spec-0046-baseline`**: `surefold-stream-benchmarks` (JMH), measuring today's `surefold-stream`
+- [x] **`spec-0046-baseline`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `surefold-stream-benchmarks` (JMH), measuring today's `surefold-stream`
       on four pipelines: a `map`/`filter` chain, `mapPar`, `groupedWithin`, and one described
       once and run 1,000 times. No production code changes.
       Done when: the numbers are committed, and every later entry reports against them.
-- [ ] **`spec-0046-tree`**: nodes for sources, `map`/`mapOrFail`/`filter`, `Collect`, `Fold`,
+- [x] **`spec-0046-tree`** ([#91](https://github.com/matthewjones372/lark/pull/91)): nodes for sources, `map`/`mapOrFail`/`filter`, `Collect`, `Fold`,
       and an internal Pekko compiler. `Stream` keeps its public API.
       Done when: `StreamTest`, `SourcesTest` and `RaiseInStreamTest` pass unchanged, and
       the baseline rows are within noise of their committed numbers.
-- [ ] **`spec-0046-operators`**: the remaining operators become nodes, one PR per file group
+- [x] **`spec-0046-operators`** ([#91](https://github.com/matthewjones372/lark/pull/91)): the remaining operators become nodes, one PR per file group
       if a PR goes past 200 lines. Done when: the whole existing suite passes unchanged.
-- [ ] **`spec-0046-split`**: `surefold-stream-pekko`, `StreamBackend`, the `Native` edges moved,
+- [x] **`spec-0046-split`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `surefold-stream-pekko`, `StreamBackend`, the `Native` edges moved,
       and `NoOtherDependenciesTest` saying `surefold-stream` is `surefold` and Arrow only.
       Done when: a `Native` node started on another backend is `Died` before any element flows.
-- [ ] **`spec-0046-forks`**: `surefold-stream-forks`, taking over 0039's `spec-0039-feed`
+- [x] **`spec-0046-forks`** ([#91](https://github.com/matthewjones372/lark/pull/91)): `surefold-stream-forks`, taking over 0039's `spec-0039-feed`
       entries as an interpreter. Done when: a raise in `map` is `Failed`, and `take(3)` on an
       infinite stream ends.
-- [ ] **`spec-0046-parity`**: the operator suites parameterised over both backends, as
+- [x] **`spec-0046-parity`** ([#91](https://github.com/matthewjones372/lark/pull/91)): the operator suites parameterised over both backends, as
       pelican's `allBackends` is. Done when: the suite runs twice, and an operator a backend
       cannot run is refused by name, not skipped.
 

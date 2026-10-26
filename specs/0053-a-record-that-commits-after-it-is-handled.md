@@ -80,18 +80,18 @@ at-least-once, but every shutdown sends those records again.
 
 ## Stack
 
-- [ ] **`spec-0053-subscribe`**: the `surefold-kafka` module, `Committed`,
+- [x] **`spec-0053-subscribe`** ([#90](https://github.com/matthewjones372/lark/pull/90)): the `surefold-kafka` module, `Committed`,
       `Kafka.subscribe`, `runCommitting` over `Committer.sink`, and the dependency test.
       Done when: against a broker in the test JVM, the records a run handles
       are committed, and a second run in the same group sees none of them again.
-- [ ] **`spec-0053-offset-keeping-operators`**: `mapRecord`,
+- [x] **`spec-0053-offset-keeping-operators`** ([#90](https://github.com/matthewjones372/lark/pull/90)): `mapRecord`,
       `mapRecordOrFail`, `mapParRecord`, `mapParRecordOrFail`, `filterRecord`
       and `mapConcatRecord` over `Committed`, and the log annotations.
       Done when: a compile test holds that `runCollect` over `Committed` does
       not compile; a body that raises on record 3 of 5 leaves offset 2
       committed; and a record expanded to three elements, whose third raises,
       is not committed.
-- [ ] **`spec-0053-draining-stop`**: `stop()` drains through `Consumer.Control`.
+- [x] **`spec-0053-draining-stop`** ([#90](https://github.com/matthewjones372/lark/pull/90)): `stop()` drains through `Consumer.Control`.
       Done when: a `stop()` while a slow `mapPar` body is running still commits
       that body's record, and `close()` returns only after the commit.
 
