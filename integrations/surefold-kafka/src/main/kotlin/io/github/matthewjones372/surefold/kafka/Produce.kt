@@ -14,6 +14,9 @@ import io.github.matthewjones372.surefold.stream.mapPar
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.Metric
+import org.apache.kafka.common.MetricName
+import org.apache.kafka.common.PartitionInfo
 import org.apache.kafka.common.serialization.Serializer
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -73,6 +76,18 @@ class Producer<K, V> internal constructor(
         }
         return records.zip(sent) { record, acked -> acked.outcome(record) }
     }
+
+    /**
+     * Every record handed over so far sent at once, whatever `linger.ms` says, and waited on until each is acknowledged
+     * or given up on (spec 0160): before a checkpoint, or a test that reads back what it wrote.
+     */
+    fun flush() = client.flush()
+
+    /** The partitions of [topic], in order, as this producer's metadata knows them, each with its leader. */
+    fun partitionsFor(topic: Topic): List<PartitionInfo> = client.partitionsFor(topic.name).sortedBy { it.partition() }
+
+    /** The client's own metrics, all of them (spec 0160): spec 0163's meters record a few, and this has the rest. */
+    fun metrics(): Map<MetricName, Metric> = client.metrics()
 
     override fun close() = client.close()
 }

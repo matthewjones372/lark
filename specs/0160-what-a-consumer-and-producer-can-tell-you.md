@@ -51,6 +51,8 @@ second consumer that only asks, sees the group but not this member's position.
 
 ## Open questions
 
+Answered (maintainer, 2026-10-26: go with the recommendations).
+
 1. **Where the handle hangs:** `running.kafka`, or a value the caller passes in to be filled? Recommended: a
    value passed in, since `Running` belongs to surefold-stream, which knows nothing of Kafka.
 2. **Blocking or `CompletionStage`?** Recommended: blocking, on the caller's virtual thread, as surefold is.
