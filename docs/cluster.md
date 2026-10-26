@@ -14,10 +14,10 @@ business.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-actor-remote:0.1.0")       // two nodes
-    implementation("io.github.matthewjones372:surefold-cluster:0.1.0")            // membership, sharding, delivery, topics
-    implementation("io.github.matthewjones372:surefold-actor-journal-jdbc:0.1.0") // a journal every node reaches
-    implementation("io.github.matthewjones372:surefold-actor-projection:0.1.0")   // read models
+    implementation("io.github.matthewjones372:surefold-actor-remote:0.12.0")       // two nodes
+    implementation("io.github.matthewjones372:surefold-cluster:0.12.0")            // membership, sharding, delivery, topics
+    implementation("io.github.matthewjones372:surefold-actor-journal-jdbc:0.12.0") // a journal every node reaches
+    implementation("io.github.matthewjones372:surefold-actor-projection:0.12.0")   // read models
 }
 ```
 

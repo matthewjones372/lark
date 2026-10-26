@@ -15,7 +15,7 @@ what builds.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-actor:0.1.0")
+    implementation("io.github.matthewjones372:surefold-actor:0.12.0")
 }
 ```
 
