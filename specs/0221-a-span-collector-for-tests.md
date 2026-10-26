@@ -1,4 +1,7 @@
-# 0216 — A span collector for tests
+# 0221 — A span collector for tests
+
+Merged as 0216 (surefold#749), a number the surefold-jobs series (0216 to 0220) had taken at the same time; renumbered
+to 0221. Its branch kept the old number.
 
 ## Problem
 
