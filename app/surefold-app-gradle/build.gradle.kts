@@ -10,6 +10,12 @@ gradlePlugin {
             displayName = "surefold-app wiring"
             description = "Checks a project's surefold-app graphs as it compiles, and renders each one."
         }
+        create("surefoldForks") {
+            id = "io.github.matthewjones372.surefold.compiler"
+            implementationClass = "io.github.matthewjones372.surefold.app.gradle.SurefoldForksPlugin"
+            displayName = "surefold compiler checks"
+            description = "Fails a compile where a Deferred, Channel or Scope outlives the scope that ends it."
+        }
     }
 }
 
@@ -57,6 +63,7 @@ val checkerCoordinates = tasks.register<WriteProperties>("checkerCoordinates") {
     destinationFile.set(layout.buildDirectory.file("generated/surefold/checker.properties"))
     property("group", project.group.toString())
     property("artifact", "surefold-app-compiler")
+    property("forksArtifact", "surefold-compiler")
     property("version", project.version.toString())
 }
 
@@ -79,6 +86,7 @@ tasks.test {
     // the Kotlin plugin cannot see that it implements `KotlinCompilerPluginSupportPlugin`.
     dependsOn(
         ":surefold-app-compiler:publishAllPublicationsToLocalRepository",
+        ":surefold-compiler:publishAllPublicationsToLocalRepository",
         "publishAllPublicationsToLocalRepository",
     )
     jvmArgumentProviders.add(

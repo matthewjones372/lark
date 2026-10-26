@@ -1,9 +1,11 @@
 package io.github.matthewjones372.surefold.compiler
 
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.compiler.plugin.AbstractCliOption
 import org.jetbrains.kotlin.compiler.plugin.CommandLineProcessor
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
+import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.DeclarationCheckers
@@ -38,6 +40,12 @@ class ForkCompilerPluginRegistrar : CompilerPluginRegistrar() {
     override val supportsK2: Boolean = true
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
+        // Checkers loaded into a compiler they were not built for would fail out of sight: the build says so instead.
+        if (!builtForThisCompiler()) {
+            configuration.get(CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY)
+                ?.report(CompilerMessageSeverity.WARNING, versionMismatch())
+            return
+        }
         FirExtensionRegistrarAdapter.registerExtension(ForkFirExtensionRegistrar())
     }
 }
