@@ -75,7 +75,9 @@ finishes after the suite. Recommended: the list.
 
 ## Open questions
 
-1. Should `finishOrder()` include a skipped test, which never starts or finishes? Recommended: no. A skipped test
-   doesn't finish, and `skipReasons()` already lists skipped tests.
-2. Should the testkit also offer `startOrder()`, for symmetry? Recommended: no. No test here claims a start order,
-   and a suite's tests start concurrently.
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~Should `finishOrder()` include a skipped test, which never starts or finishes?~~ No. A skipped test doesn't
+   finish, and `skipReasons()` already lists skipped tests.
+2. ~~Should the testkit also offer `startOrder()`, for symmetry?~~ No. No test here claims a start order, and a
+   suite's tests start concurrently.
