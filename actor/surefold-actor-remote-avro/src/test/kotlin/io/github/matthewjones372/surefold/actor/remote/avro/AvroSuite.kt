@@ -80,8 +80,8 @@ object AvroSuite : Suite() {
 
             shouldThrow<WireException> {
                 unknown.decode(Codecs.bytes.encode(ByteArray(written.remaining()).also(written::get), Kept()), Kept())
-            } and
-                shouldThrow<WireException> { placed.decode(Codecs.bytes.encode(byteArrayOf(1, 2, 3), Kept()), Kept()) }
+            }
+            shouldThrow<WireException> { placed.decode(Codecs.bytes.encode(byteArrayOf(1, 2, 3), Kept()), Kept()) }
         }
 
         test("an ask whose request is a record is answered from another node") {

@@ -35,12 +35,11 @@ object UnorderedSuite : Suite() {
                 .start(Forks())
 
             waitFor("2 and 3 passed on") { seen.size == 2 }
-            val heldBackNothing =
-                withClue("the slow first body held back nothing") { seen.toSet() shouldBe setOf(2, 3) }
+            withClue("the slow first body held back nothing") { seen.toSet() shouldBe setOf(2, 3) }
             firstMayFinish.countDown()
 
             val exit = running.settled()
-            heldBackNothing and ((exit as Exit.Done).value.last() shouldBe 1)
+            (exit as Exit.Done).value.last() shouldBe 1
         }
 
         test("mapAsyncUnordered passes on the quick stages while the first is still pending") {
@@ -53,11 +52,10 @@ object UnorderedSuite : Suite() {
                 .start(Forks())
 
             waitFor("2 and 3 passed on") { seen.size == 2 }
-            val heldBackNothing =
-                withClue("the pending first stage held back nothing") { seen.toSet() shouldBe setOf(2, 3) }
+            withClue("the pending first stage held back nothing") { seen.toSet() shouldBe setOf(2, 3) }
             first.complete(1)
 
-            heldBackNothing and ((running.settled() as Exit.Done).value.last() shouldBe 1)
+            (running.settled() as Exit.Done).value.last() shouldBe 1
         }
 
         test("no more than the parallelism run at once") {
@@ -74,8 +72,8 @@ object UnorderedSuite : Suite() {
                 .start(Forks())
                 .settled()
 
-            (exit shouldBe Exit.Done((1..200).sum())) and
-                withClue("the most bodies ever running at once") { (most.get() <= 4) shouldBe true }
+            exit shouldBe Exit.Done((1..200).sum())
+            withClue("the most bodies ever running at once") { (most.get() <= 4) shouldBe true }
         }
 
         test("a declared failure ends the run with it, and interrupts the bodies still running") {
@@ -102,7 +100,8 @@ object UnorderedSuite : Suite() {
                 .start(Forks())
                 .settled()
 
-            (exit shouldBe Exit.Failed(Odd(3))) and (interrupted.await(SETTLE_SECONDS, TimeUnit.SECONDS) shouldBe true)
+            exit shouldBe Exit.Failed(Odd(3))
+            interrupted.await(SETTLE_SECONDS, TimeUnit.SECONDS) shouldBe true
         }
 
         test("the end of upstream arrives after every answer, whatever order they came in") {

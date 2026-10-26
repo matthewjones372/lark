@@ -73,7 +73,8 @@ object MicrometerMetricsSuite : Suite() {
             }
 
             registry.get("petshop.adopt.ms").summary().let { taken ->
-                (taken.count() shouldBe 2L) and (taken.totalAmount() shouldBe 42.0)
+                taken.count() shouldBe 2L
+                taken.totalAmount() shouldBe 42.0
             }
         }
 
@@ -121,18 +122,17 @@ object MicrometerReadingsSuite : Suite() {
                 histogram("petshop.wait").record(0.5)
                 histogram("petshop.wait").record(5.0)
 
-                val totals = readings("petshop.adoptions").toSet() shouldBe setOf(
+                readings("petshop.adoptions").toSet() shouldBe setOf(
                     Reading.Total("petshop.adoptions", mapOf("species" to "tortoise"), 2.0),
                     Reading.Total("petshop.adoptions", mapOf("species" to "hare"), 1.0),
                 )
-                val values = readings("petshop.kennels") shouldBe
+                readings("petshop.kennels") shouldBe
                     listOf(Reading.Value("petshop.kennels", emptyMap(), 12.0))
-                val distributions = readings("petshop.wait") shouldBe listOf(
+                readings("petshop.wait") shouldBe listOf(
                     Reading.Distribution(
                         "petshop.wait", emptyMap(), 2, 5.5, mapOf(1.0 to 1.0, 10.0 to 2.0),
                     ),
                 )
-                totals and values and distributions
             }
         }
     }

@@ -85,8 +85,8 @@ object TestActorSuite : Suite() {
             val actor = shop().test()
             actor.send(Arrived(rex))
 
-            (actor.ask { Find("rex", it) } shouldBe Optional.of(rex).right()) and
-                (actor.ask { Find("tom", it) } shouldBe Optional.empty<Pet>().right())
+            actor.ask { Find("rex", it) } shouldBe Optional.of(rex).right()
+            actor.ask { Find("tom", it) } shouldBe Optional.empty<Pet>().right()
         }
 
         test("a message told to self is handled before send returns") {
@@ -114,9 +114,9 @@ object TestActorSuite : Suite() {
                 stay()
             }.test()
 
-            val failed = shouldThrow<IllegalStateException> { twice.ask { Find("rex", it) } }
+            shouldThrow<IllegalStateException> { twice.ask { Find("rex", it) } }
 
-            failed and (twice.stopped shouldBe true)
+            twice.stopped shouldBe true
         }
 
         test("an unhandled message leaves the state and is recorded") {
@@ -126,7 +126,8 @@ object TestActorSuite : Suite() {
             val adopt = Adopt("tom", ignored())
             actor.send(adopt)
 
-            (actor.state shouldBe mapOf("rex" to rex)) and (actor.unhandled shouldContainExactly listOf(adopt))
+            actor.state shouldBe mapOf("rex" to rex)
+            actor.unhandled shouldContainExactly listOf(adopt)
         }
 
         test("stop ends the actor, and an ask after it is Stopped") {
@@ -134,19 +135,19 @@ object TestActorSuite : Suite() {
 
             actor.send(Close)
 
-            (actor.stopped shouldBe true) and
-                (actor.ask { Find("rex", it) } shouldBe AskFailure.Stopped.left()) and
-                withClue("a send to a stopped actor is a mistake in the test, not a message") {
-                    shouldThrow<IllegalStateException> { actor.send(Arrived(rex)) }
-                }
+            actor.stopped shouldBe true
+            actor.ask { Find("rex", it) } shouldBe AskFailure.Stopped.left()
+            withClue("a send to a stopped actor is a mistake in the test, not a message") {
+                shouldThrow<IllegalStateException> { actor.send(Arrived(rex)) }
+            }
         }
 
         test("a throw stops the actor and reaches the test") {
             val actor = behaviour<Shop, Unit>(Unit) { _, _, _ -> throw IllegalArgumentException("broken") }.test()
 
-            val threw = shouldThrow<IllegalArgumentException> { actor.send(Close) }
+            shouldThrow<IllegalArgumentException> { actor.send(Close) }
 
-            threw and (actor.stopped shouldBe true)
+            actor.stopped shouldBe true
         }
 
         test("a reply is addressed like a ref, and each ask has its own") {
@@ -162,18 +163,18 @@ object TestActorSuite : Suite() {
             actor.ask { Forget("a", it) }
             actor.ask { Forget("b", it) }
 
-            (actor.address shouldBe Address("test", "/user/keeper", 1)) and
-                (addresses.get().distinct().size shouldBe 2) and
-                (addresses.get().map { it.node }.distinct() shouldBe listOf("test"))
+            actor.address shouldBe Address("test", "/user/keeper", 1)
+            addresses.get().distinct().size shouldBe 2
+            addresses.get().map { it.node }.distinct() shouldBe listOf("test")
         }
 
         test("adopting twice answers no the second time") {
             val actor = shop().test()
             actor.send(Arrived(rex))
 
-            (actor.ask { Adopt("rex", it) } shouldBe true.right()) and
-                (actor.ask { Adopt("rex", it) } shouldBe false.right()) and
-                actor.unhandled.shouldBeEmpty()
+            actor.ask { Adopt("rex", it) } shouldBe true.right()
+            actor.ask { Adopt("rex", it) } shouldBe false.right()
+            actor.unhandled.shouldBeEmpty()
         }
     }
 

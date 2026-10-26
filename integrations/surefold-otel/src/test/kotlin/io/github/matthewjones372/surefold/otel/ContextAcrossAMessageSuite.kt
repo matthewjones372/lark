@@ -46,7 +46,8 @@ object ContextAcrossAMessageSuite : Suite() {
             val asking = spans.single { it.name == "asking" }
             val handled = spans.single { it.name == "handled" }
             withClue("without the carrier, the handler's span is a root of its own") {
-                (handled.traceId shouldBe asking.traceId) and (handled.parentSpanId shouldBe asking.spanId)
+                handled.traceId shouldBe asking.traceId
+                handled.parentSpanId shouldBe asking.spanId
             }
         }
 

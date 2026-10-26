@@ -65,29 +65,29 @@ object RoutingSuite : SharedSuite<KafkaKit>() {
                 .take(2)
                 .runCommitting(committer(kit))
                 .start(kit.system)
-            val reached = entered.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            entered.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
-            val held = withClue("while the dead letter is being written, nothing past it is committed") {
+            withClue("while the dead letter is being written, nothing past it is committed") {
                 (kit.broker.committed("diverters", Topic("diverting")) ?: 0L) shouldBeLessThanOrEqual 1L
             }
             release.countDown()
 
-            val exited = running.exit.settled() shouldBe Exit.Done(Done.getInstance())
-            reached and held and exited and (dead.toList() shouldBe listOf(1L)) and
-                (kit.broker.committed("diverters", Topic("diverting")) shouldBe 3L)
+            running.exit.settled() shouldBe Exit.Done(Done.getInstance())
+            dead.toList() shouldBe listOf(1L)
+            kit.broker.committed("diverters", Topic("diverting")) shouldBe 3L
         }
 
         test("a divert that throws leaves its record uncommitted") { kit ->
             kit.broker.send(Topic("undeliverable"), "fine", "bad")
 
-            val died = decoded(kit, "stranded", "undeliverable")
+            decoded(kit, "stranded", "undeliverable")
                 .divertLefts { throw IllegalStateException("dead letters are down") }
                 .runCommitting(committer(kit))
                 .run(kit.system)
                 .settled()
                 .shouldBeInstanceOf<Exit.Died>()
 
-            died and (kit.broker.committed("stranded", Topic("undeliverable")) shouldBe 1L)
+            kit.broker.committed("stranded", Topic("undeliverable")) shouldBe 1L
         }
 
         test("absolve ends the run with the first record that failed to decode") { kit ->
@@ -99,8 +99,8 @@ object RoutingSuite : SharedSuite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            exit.shouldBeInstanceOf<Exit.Failed<DecodeError>> { failed -> failed.error.offset shouldBe 1L } and
-                (kit.broker.committed("absolving", Topic("strict")) shouldBe 1L)
+            exit.shouldBeInstanceOf<Exit.Failed<DecodeError>> { failed -> failed.error.offset shouldBe 1L }
+            kit.broker.committed("absolving", Topic("strict")) shouldBe 1L
         }
     }
 }

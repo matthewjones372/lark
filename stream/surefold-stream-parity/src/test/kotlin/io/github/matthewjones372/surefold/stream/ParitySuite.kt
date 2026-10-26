@@ -229,8 +229,8 @@ object ParitySuite : SharedSuite<ActorSystem>() {
         if (unrunnable != null) {
             return exit.shouldBeInstanceOf<Exit.Died> { died ->
                 withClue("${backend.key} cannot run ${unrunnable.operator}, so it refuses the run naming it") {
-                    (died.cause.message shouldContain "${unrunnable.operator}") and
-                        (died.cause.message shouldContain "is not something ${backend.key} runs")
+                    died.cause.message shouldContain "${unrunnable.operator}"
+                    died.cause.message shouldContain "is not something ${backend.key} runs"
                 }
             }
         }

@@ -6,6 +6,7 @@ import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldNotBeNull
@@ -95,7 +96,8 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
         }
 
         return withClue(errors.joinToString("\n")) {
-            errors.shouldBeEmpty() and (exit shouldBe ExitCode.OK)
+            errors.shouldBeEmpty()
+            exit shouldBe ExitCode.OK
         }
     }
 
@@ -132,7 +134,7 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
     )
     init {
         test("the document marks one fence for each example it compiles") { _ ->
-            document { stream -> inTheDocument.map { marker -> marksOne(stream, marker) }.reduce(Expectations::and) }
+            document { stream -> inTheDocument.forAll { marker -> marksOne(stream, marker) } }
         }
 
         test("the document's description runs on every backend, and compiles against all three") { _ ->
@@ -151,8 +153,8 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
         test("the pipeline written each way compiles against what it is written on") { _ ->
             document { stream ->
                 only(stream, FIXTURES) { fixtures ->
-                    only(stream, BEFORE) { before -> compiles("$fixtures\n\n$before") } and
-                        only(stream, AFTER) { after -> compiles("$fixtures\n\n$after") }
+                    only(stream, BEFORE) { before -> compiles("$fixtures\n\n$before") }
+                    only(stream, AFTER) { after -> compiles("$fixtures\n\n$after") }
                 }
             }
         }
@@ -196,14 +198,14 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
                 )
             }
 
-            (settled shouldBe Done.getInstance().right()) and
-                withClue("the run ends when its own sink does, so every receipt has been sent by now") {
-                    receipts.toList() shouldBe listOf(Receipt(1), Receipt(3), Receipt(5))
-                } and
-                withClue("the diverted branch is a branch of its own and can outlive the run") {
-                    bothDeclines.await(30, TimeUnit.SECONDS) shouldBe true
-                } and
-                (declines.toList() shouldBe listOf(Declined(2), Declined(4)))
+            settled shouldBe Done.getInstance().right()
+            withClue("the run ends when its own sink does, so every receipt has been sent by now") {
+                receipts.toList() shouldBe listOf(Receipt(1), Receipt(3), Receipt(5))
+            }
+            withClue("the diverted branch is a branch of its own and can outlive the run") {
+                bothDeclines.await(30, TimeUnit.SECONDS) shouldBe true
+            }
+            declines.toList() shouldBe listOf(Declined(2), Declined(4))
         }
     }
 }

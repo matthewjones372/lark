@@ -92,43 +92,40 @@ object RemoteMetricsSuite : Suite() {
             listening.await()
             val dropped = CountDownLatch(3)
 
-            val counted = metrics.locally(here) {
+            metrics.locally(here) {
                 flock<Nothing, Expectations> {
                     onDeadLetter { letter -> if (letter.why == DeadLetter.Why.Unreachable) dropped.countDown() }
                     val node = node("here", herePort)
                     val peer = Node("there", "127.0.0.1", therePort)
                     val echo = node.remote(Address(peer.toString(), "/user/echo", 0), Codecs.string)
                     repeat(10) { echo.tell("frame $it") }
-                    val arrived = heard.await(1, TimeUnit.MINUTES) shouldBe true
-                    val connected =
-                        here.awaitGauge(
-                            "surefold.remote.connected",
-                            1.0,
-                            "node" to "here",
-                            "peer" to "$peer",
-                        ) shouldBe true
+                    heard.await(1, TimeUnit.MINUTES) shouldBe true
+                    here.awaitGauge(
+                        "surefold.remote.connected",
+                        1.0,
+                        "node" to "here",
+                        "peer" to "$peer",
+                    ) shouldBe true
 
                     done.countDown()
                     other.join()
-                    val gone =
-                        here.awaitGauge(
-                            "surefold.remote.connected",
-                            0.0,
-                            "node" to "here",
-                            "peer" to "$peer",
-                        ) shouldBe true
+                    here.awaitGauge(
+                        "surefold.remote.connected",
+                        0.0,
+                        "node" to "here",
+                        "peer" to "$peer",
+                    ) shouldBe true
                     repeat(3) { echo.tell("lost $it") }
-                    val lost = dropped.await(1, TimeUnit.MINUTES) shouldBe true
+                    dropped.await(1, TimeUnit.MINUTES) shouldBe true
 
                     val out = arrayOf("node" to "here", "peer" to "$peer", "lane" to "data")
-                    arrived and connected and gone and lost and
-                        (here.counter("surefold.remote.frames", *out, "direction" to "out") shouldBe 13.0) and
-                        (here.counter("surefold.remote.dropped", *out) shouldBe 3.0)
+                    here.counter("surefold.remote.frames", *out, "direction" to "out") shouldBe 13.0
+                    here.counter("surefold.remote.dropped", *out) shouldBe 3.0
                 }.shouldBeRight { it }
             }
             val from = Node("here", "127.0.0.1", herePort)
             val into = arrayOf("node" to "there", "peer" to "$from", "direction" to "in", "lane" to "data")
-            counted and (there.counter("surefold.remote.frames", *into) shouldBe 10.0)
+            there.counter("surefold.remote.frames", *into) shouldBe 10.0
         }
     }
 }

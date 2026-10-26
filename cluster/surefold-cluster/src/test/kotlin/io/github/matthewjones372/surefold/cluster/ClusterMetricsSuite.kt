@@ -60,35 +60,34 @@ object ClusterMetricsSuite : Suite() {
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes = ports.mapIndexed { i, port -> MeasuredNode("m${i + 1}", port, seeds) }
             try {
-                val formed = nodes.forAll { n ->
+                nodes.forAll { n ->
                     n.cluster.await(1.minutes) { v ->
                         v.members.count { it.status == Status.Up } == 3 && v.leader != null && v.unreachable.isEmpty()
                     } shouldBe true
                 }
 
-                val gauged = nodes.forAll { n ->
+                nodes.forAll { n ->
                     n.measured.gauge("surefold.cluster.members", "node" to n.name, "status" to "Up") shouldBe 3.0
                 }
-                val oneLeader = leaders(nodes) shouldBe 1.0
-                val ready = nodes.forAll { n -> n.cluster.ready() shouldBe true }
+                leaders(nodes) shouldBe 1.0
+                nodes.forAll { n -> n.cluster.ready() shouldBe true }
 
                 val (first, second, crashed) = nodes
                 crashed.close()
-                val unreachable = listOf(first, second).forAll { n ->
+                listOf(first, second).forAll { n ->
                     val seen = n.cluster.await(1.minutes) { v -> v.unreachable.any { it.name == crashed.name } }
-                    (seen shouldBe true) and
-                        (n.cluster.ready() shouldBe false) and
-                        (n.measured.gauge("surefold.cluster.unreachable", "node" to n.name) shouldBe 1.0)
+                    seen shouldBe true
+                    n.cluster.ready() shouldBe false
+                    n.measured.gauge("surefold.cluster.unreachable", "node" to n.name) shouldBe 1.0
                 }
-                val downed = listOf(first, second).forAll { n ->
+                listOf(first, second).forAll { n ->
                     val gone = n.cluster.await(1.minutes) { v -> v.members.none { it.node.name == crashed.name } }
-                    (gone shouldBe true) and
-                        (n.cluster.ready() shouldBe true) and
-                        (n.measured.gauge("surefold.cluster.unreachable", "node" to n.name) shouldBe 0.0) and
-                        (n.measured.counter("surefold.cluster.downed", "node" to n.name) shouldBe 1.0)
+                    gone shouldBe true
+                    n.cluster.ready() shouldBe true
+                    n.measured.gauge("surefold.cluster.unreachable", "node" to n.name) shouldBe 0.0
+                    n.measured.counter("surefold.cluster.downed", "node" to n.name) shouldBe 1.0
                 }
-                formed and gauged and oneLeader and ready and unreachable and downed and
-                    (leaders(listOf(first, second)) shouldBe 1.0)
+                leaders(listOf(first, second)) shouldBe 1.0
             } finally {
                 nodes.forEach(MeasuredNode::close)
             }

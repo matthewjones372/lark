@@ -41,11 +41,11 @@ object FromStageSuite : SharedSuite<PekkoSystem>() {
 
             withClue("Pekko would have answered Done with no elements at all") {
                 exit.shouldBeInstanceOf<Exit.Died> { died ->
-                    died.cause.shouldBeInstanceOf<NullPointerException>() and
-                        (died.cause.message shouldContain "Stream.fromStage") and
-                        withClue("the message has to say what happened, not only where") {
-                            died.cause.message shouldContain "completed with null"
-                        }
+                    died.cause.shouldBeInstanceOf<NullPointerException>()
+                    died.cause.message shouldContain "Stream.fromStage"
+                    withClue("the message has to say what happened, not only where") {
+                        died.cause.message shouldContain "completed with null"
+                    }
                 }
             }
         }
@@ -88,13 +88,13 @@ object FromStageSuite : SharedSuite<PekkoSystem>() {
 
             val running = Stream.fromStage(late).runCollect().run(pekko.system)
 
-            val outstanding = withClue("nothing can have arrived while the stage is still outstanding") {
+            withClue("nothing can have arrived while the stage is still outstanding") {
                 running.toCompletableFuture().isDone shouldBe false
             }
             val completing = Thread.ofVirtual().start { late.complete("grace") }
             completing.join()
 
-            outstanding and (running.settled() shouldBe Exit.Done(listOf("grace")))
+            running.settled() shouldBe Exit.Done(listOf("grace"))
         }
 
         // The behaviour the builder exists for, asserted rather than described: Pekko's own builder over

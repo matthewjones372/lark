@@ -89,9 +89,9 @@ object CodecSuite : Suite() {
     init {
         test("a message of plain fields comes back equal, a missing note included") {
             val refs = AddressedRefs()
-            (Book("rex", 50, "limps").roundTrip(refs) shouldBe Book("rex", 50, "limps")) and
-                (Book("bo", 7, null).roundTrip(refs) shouldBe Book("bo", 7, null)) and
-                (Close.roundTrip(refs) shouldBe Close)
+            Book("rex", 50, "limps").roundTrip(refs) shouldBe Book("rex", 50, "limps")
+            Book("bo", 7, null).roundTrip(refs) shouldBe Book("bo", 7, null)
+            Close.roundTrip(refs) shouldBe Close
         }
 
         test("a reply crosses as its address, and answering the one that comes back answers that address") {
@@ -101,8 +101,8 @@ object CodecSuite : Suite() {
             Weigh(asked).roundTrip(refs).shouldBeInstanceOf<Weigh> { weigh ->
                 weigh.reply(75)
 
-                (weigh.reply.address shouldBe asked.address) and
-                    (refs.told shouldContainExactly listOf(asked.address to 75))
+                weigh.reply.address shouldBe asked.address
+                refs.told shouldContainExactly listOf(asked.address to 75)
             }
         }
 
@@ -112,9 +112,9 @@ object CodecSuite : Suite() {
             sent.roundTrip(refs).shouldBeInstanceOf<Refer> { refer ->
                 refer.to.tell(Close)
 
-                (refer.since shouldBe 1_700_000_000_000) and
-                    (refer.to.address shouldBe there) and
-                    (refs.told shouldContainExactly listOf(there to Close))
+                refer.since shouldBe 1_700_000_000_000
+                refer.to.address shouldBe there
+                refs.told shouldContainExactly listOf(there to Close)
             }
         }
 
@@ -136,10 +136,10 @@ object CodecSuite : Suite() {
         test("the answers most asks want come back as they went") {
             val refs = AddressedRefs()
             val longs = Codecs.list(Codecs.long)
-            (Codecs.int.decode(Codecs.int.encode(-7, refs), refs) shouldBe -7) and
-                (Codecs.string.decode(Codecs.string.encode("rex", refs), refs) shouldBe "rex") and
-                (longs.decode(longs.encode(listOf(1L, 2L), refs), refs) shouldBe listOf(1L, 2L)) and
-                (Codecs.unit.decode(Codecs.unit.encode(Unit, refs), refs) shouldBe Unit)
+            Codecs.int.decode(Codecs.int.encode(-7, refs), refs) shouldBe -7
+            Codecs.string.decode(Codecs.string.encode("rex", refs), refs) shouldBe "rex"
+            longs.decode(longs.encode(listOf(1L, 2L), refs), refs) shouldBe listOf(1L, 2L)
+            Codecs.unit.decode(Codecs.unit.encode(Unit, refs), refs) shouldBe Unit
         }
 
         test("the clinic's messages could all cross") {
@@ -159,13 +159,11 @@ object CodecSuite : Suite() {
             val crossed = carried.decode(carried.encode(delivery, refs), refs)
             crossed.confirm()
 
-            (crossed.copy(confirmTo = delivery.confirmTo) shouldBe delivery) and
-                (crossed.confirmTo.address shouldBe producer) and
-                (refs.told shouldContainExactly listOf(producer to Confirmed("o-42", 9))) and
-                (
-                    Codecs.confirmed.decode(Codecs.confirmed.encode(Confirmed("o-42", 9), refs), refs) shouldBe
-                        Confirmed("o-42", 9)
-                    )
+            crossed.copy(confirmTo = delivery.confirmTo) shouldBe delivery
+            crossed.confirmTo.address shouldBe producer
+            refs.told shouldContainExactly listOf(producer to Confirmed("o-42", 9))
+            Codecs.confirmed.decode(Codecs.confirmed.encode(Confirmed("o-42", 9), refs), refs) shouldBe
+                Confirmed("o-42", 9)
         }
     }
 }

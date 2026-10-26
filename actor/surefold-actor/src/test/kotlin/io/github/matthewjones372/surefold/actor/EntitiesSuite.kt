@@ -86,9 +86,9 @@ object EntitiesSuite : Suite() {
             rex.tell(Feed(25))
             bo.tell(Feed(10))
 
-            (rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 75).right()) and
-                (bo.ask(1.minutes) { Weight(it) } shouldBe ("bo" to 10).right()) and
-                (kennel.children.size shouldBe 2)
+            rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 75).right()
+            bo.ask(1.minutes) { Weight(it) } shouldBe ("bo" to 10).right()
+            kennel.children.size shouldBe 2
         }
 
         test("an idle entity is stopped, and comes back on its next message") {
@@ -100,12 +100,12 @@ object EntitiesSuite : Suite() {
             kennel.advance(9.minutes)
             rex.tell(Feed(5))
             kennel.advance(9.minutes)
-            val kept = log.filter { it.endsWith("stopped") } shouldContainExactly emptyList()
+            log.filter { it.endsWith("stopped") } shouldContainExactly emptyList()
 
             kennel.advance(1.minutes)
-            val stopped = log.filter { it.endsWith("stopped") } shouldContainExactly listOf("rex stopped")
+            log.filter { it.endsWith("stopped") } shouldContainExactly listOf("rex stopped")
 
-            kept and stopped and (rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 0).right())
+            rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 0).right()
         }
 
         test("a message for an entity that arrives while it stops is kept, and starts it again") {
@@ -118,16 +118,16 @@ object EntitiesSuite : Suite() {
 
             running.advance(10.minutes)
 
-            (log.filter { it.endsWith("stopped") } shouldContainExactly listOf("rex stopped")) and
-                (rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 1).right())
+            log.filter { it.endsWith("stopped") } shouldContainExactly listOf("rex stopped")
+            rex.ask(1.minutes) { Weight(it) } shouldBe ("rex" to 1).right()
         }
 
         test("an entity ref is the same ref however often it is asked for") {
             val log = ConcurrentLinkedQueue<String>()
             val kennel = entities(passivateAfter = 10.minutes) { id -> pup(id, log) }.test("kennel")
 
-            (kennel.entity("rex") shouldBe kennel.entity("rex")) and
-                (kennel.entity("rex").address.path shouldBe "/user/kennel/rex")
+            kennel.entity("rex") shouldBe kennel.entity("rex")
+            kennel.entity("rex").address.path shouldBe "/user/kennel/rex"
         }
 
         test("on threads, entities come and go on the flock's clock, and a message sent as one stops is kept") {
@@ -205,9 +205,9 @@ object EntitiesSuite : Suite() {
                 awaitIdle()
             }
 
-            (heardBy("rex").toList() shouldContainExactly (1..5_000).toList()) and
-                (heardBy("bo").toList() shouldContainExactly listOf(7)) and
-                (letters.toList() shouldBe emptyList())
+            heardBy("rex").toList() shouldContainExactly (1..5_000).toList()
+            heardBy("bo").toList() shouldContainExactly listOf(7)
+            letters.toList() shouldBe emptyList()
         }
 
         test("past what a manager may keep, a message to a busy entity is a dead letter for being full") {
@@ -226,10 +226,10 @@ object EntitiesSuite : Suite() {
             }
 
             val full = letters.filter { it.why == DeadLetter.Why.Full }
-            (full.size shouldBeGreaterThan 0) and
-                (full.first().recipient.path shouldBe "/user/kennel/rex") and
-                ((heard.size + full.size) shouldBe KEEP_AT_MOST + 2_000) and
-                (heard.toList() shouldBe heard.sorted())
+            full.size shouldBeGreaterThan 0
+            full.first().recipient.path shouldBe "/user/kennel/rex"
+            (heard.size + full.size) shouldBe KEEP_AT_MOST + 2_000
+            heard.toList() shouldBe heard.sorted()
         }
 
         test("the running count falls as entities passivate, stop themselves, and stop with their manager") {

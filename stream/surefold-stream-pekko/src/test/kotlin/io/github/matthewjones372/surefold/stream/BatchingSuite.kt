@@ -85,7 +85,8 @@ object BatchingSuite : SharedSuite<PekkoSystem>() {
 
             val exit = Stream.from(ids).alsoTo(Sink.foreach { audited.add(it) }).collected(pekko)
 
-            (exit shouldBe Exit.Done(ids)) and (audited.toList() shouldBe ids)
+            exit shouldBe Exit.Done(ids)
+            audited.toList() shouldBe ids
         }
 
         test("wireTap leaves the pipeline alone") { pekko ->

@@ -37,13 +37,12 @@ object ShardedJournalSuite : Suite() {
             val databases = two()
             val journal = ShardedJournal(databases)
             val id = PersistenceId("account", "acc-1")
-            val appended = journal.append(id, 0, listOf(byteArrayOf(1), byteArrayOf(2))) shouldBe Either.Right(2L)
+            journal.append(id, 0, listOf(byteArrayOf(1), byteArrayOf(2))) shouldBe Either.Right(2L)
 
             val (home, other) = databases.partition { it.first == journal.database(id) }
-            appended and
-                (home.single().second.read(id).map { it.sequence } shouldContainExactly listOf(1L, 2L)) and
-                other.single().second.read(id).shouldBeEmpty() and
-                (journal.read(id, from = 2).map { it.sequence } shouldContainExactly listOf(2L))
+            home.single().second.read(id).map { it.sequence } shouldContainExactly listOf(1L, 2L)
+            other.single().second.read(id).shouldBeEmpty()
+            journal.read(id, from = 2).map { it.sequence } shouldContainExactly listOf(2L)
         }
 
         test("the same names in the same order route an id to the same database every time") {
@@ -67,8 +66,8 @@ object ShardedJournalSuite : Suite() {
                     (1..10_000).groupingBy { journal.database(PersistenceId("account", "acc-$it")) }.eachCount()
                 val even = 10_000 / n
                 withClue("$n databases: $counts") {
-                    (counts.size shouldBe n) and
-                        counts.values.allOf { it shouldBeInRange (even * 95 / 100)..(even * 105 / 100) }
+                    counts.size shouldBe n
+                    counts.values.allOf { it shouldBeInRange (even * 95 / 100)..(even * 105 / 100) }
                 }
             }
         }
@@ -79,8 +78,8 @@ object ShardedJournalSuite : Suite() {
             val snapshots = ShardedSnapshots(stores)
             (1..50).map { PersistenceId("account", "acc-$it") }.allOf { id ->
                 snapshots.save(id, 3, byteArrayOf(3))
-                (snapshots.latest(id)?.sequence shouldBe 3) and
-                    (stores.single { it.first == journal.database(id) }.second.latest(id)?.sequence shouldBe 3)
+                snapshots.latest(id)?.sequence shouldBe 3
+                stores.single { it.first == journal.database(id) }.second.latest(id)?.sequence shouldBe 3
             }
         }
 
@@ -96,8 +95,8 @@ object ShardedJournalSuite : Suite() {
             listOf(1, 2, 3, 4, 7).allOf { n ->
                 val names = (1..n).map { "db-$it" }
                 val map = SliceMap.even(names)
-                (map.ranges.size shouldBe n) and
-                    (0 until Slices.COUNT).allOf { slice -> map.owner(slice) shouldBe names[slice * n / Slices.COUNT] }
+                map.ranges.size shouldBe n
+                (0 until Slices.COUNT).allOf { slice -> map.owner(slice) shouldBe names[slice * n / Slices.COUNT] }
             }
         }
 
@@ -108,11 +107,11 @@ object ShardedJournalSuite : Suite() {
             val moved = two.moving(0..255, "db-c")
             val merged = moved.moving(0..255, "db-a")
             val three = listOf(0..255 to "db-c", 256..511 to "db-a", 512..1023 to "db-b")
-            (moved.version shouldBe 2) and
-                (moved.ranges shouldContainExactly three) and
-                (merged.ranges shouldContainExactly listOf(0..511 to "db-a", 512..1023 to "db-b")) and
-                shouldThrow<IllegalArgumentException> { SliceMap(1, listOf(0..1022 to "db-a")) } and
-                shouldThrow<IllegalArgumentException> { SliceMap(1, listOf(0..1023 to "db-a", 5..5 to "db-b")) }
+            moved.version shouldBe 2
+            moved.ranges shouldContainExactly three
+            merged.ranges shouldContainExactly listOf(0..511 to "db-a", 512..1023 to "db-b")
+            shouldThrow<IllegalArgumentException> { SliceMap(1, listOf(0..1022 to "db-a")) }
+            shouldThrow<IllegalArgumentException> { SliceMap(1, listOf(0..1023 to "db-a", 5..5 to "db-b")) }
         }
 
         test("an append refused for a slice given away goes to its new owner, or is unavailable while it moves") {
@@ -134,24 +133,23 @@ object ShardedJournalSuite : Suite() {
             val id = (1..100).map { PersistenceId("account", "acc-$it") }
                 .first { before.owner(Slices.of(it)) == "db-a" }
 
-            val unavailable = shouldThrow<JournalUnavailable> { journal.append(id, 0, listOf(byteArrayOf(1))) }
+            shouldThrow<JournalUnavailable> { journal.append(id, 0, listOf(byteArrayOf(1))) }
             after = before.moving(0..1023, "db-b")
-            unavailable and
-                (journal.append(id, 0, listOf(byteArrayOf(1))) shouldBe Either.Right(1L)) and
-                (b.read(id).map { it.sequence } shouldContainExactly listOf(1L))
+            journal.append(id, 0, listOf(byteArrayOf(1))) shouldBe Either.Right(1L)
+            b.read(id).map { it.sequence } shouldContainExactly listOf(1L)
         }
 
         test("every slice is in exactly the partition partitionOf names, for any count of partitions") {
             val ids = (1..5_000).map { PersistenceId("account", "acc-$it") }
             listOf(1, 2, 3, 7, 8, 100, 1023, 1024).allOf { n ->
                 val slices = (0 until n).flatMap { Slices.partition(it, n) }
-                (slices shouldContainExactly (0 until Slices.COUNT).toList()) and
-                    ids.allOf { id ->
-                        withClue("$id of $n") {
-                            Slices.of(id) shouldBeInRange
-                                Slices.partition(Slices.partitionOf(id, n), n)
-                        }
+                slices shouldContainExactly (0 until Slices.COUNT).toList()
+                ids.allOf { id ->
+                    withClue("$id of $n") {
+                        Slices.of(id) shouldBeInRange
+                            Slices.partition(Slices.partitionOf(id, n), n)
                     }
+                }
             }
         }
 
@@ -167,10 +165,10 @@ object ShardedJournalSuite : Suite() {
         }
 
         test("databases named twice, or none at all, are refused") {
-            shouldThrow<IllegalArgumentException> { ShardedJournal(emptyList()) } and
-                shouldThrow<IllegalArgumentException> {
-                    ShardedJournal(listOf("a" to InMemoryJournal(), "a" to InMemoryJournal()))
-                }
+            shouldThrow<IllegalArgumentException> { ShardedJournal(emptyList()) }
+            shouldThrow<IllegalArgumentException> {
+                ShardedJournal(listOf("a" to InMemoryJournal(), "a" to InMemoryJournal()))
+            }
         }
     }
 }

@@ -42,10 +42,10 @@ object PruneSuite : Suite() {
                 (1..1_050).forEach { book.send(Post(it)) }
                 val before = book.state
 
-                val pruned = journal.kept() shouldBe (901L..1_050L).toList()
+                journal.kept() shouldBe (901L..1_050L).toList()
                 book.restart()
 
-                pruned and (book.state shouldBe before)
+                book.state shouldBe before
             }
         }
 
@@ -98,12 +98,12 @@ object PruneSuite : Suite() {
                 offsets.save("search", 900)
                 (1..350).forEach { book.send(Post(it)) }
 
-                val heldBack = journal.kept() shouldBe (151L..350L).toList()
+                journal.kept() shouldBe (151L..350L).toList()
 
                 offsets.save("totals", 900)
                 (351..450).forEach { book.send(Post(it)) }
 
-                heldBack and (journal.kept() shouldBe (301L..450L).toList())
+                journal.kept() shouldBe (301L..450L).toList()
             }
         }
 

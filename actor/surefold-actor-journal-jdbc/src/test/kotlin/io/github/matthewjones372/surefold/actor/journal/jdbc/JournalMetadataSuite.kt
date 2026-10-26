@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold.actor.journal.jdbc
 
 import io.github.matthewjones372.surefold.actor.PersistenceId
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -13,7 +12,7 @@ object JournalMetadataSuite : Suite() {
     private val order = PersistenceId("order", "o-1")
     private val placed = listOf("placed".toByteArray(), "paid".toByteArray())
 
-    private fun carriedBy(journal: JdbcJournal): Expectations {
+    private fun carriedBy(journal: JdbcJournal) {
         logAnnotated("request_id" to "r-1", "quote" to "a \"quoted\" \\ value") { journal.append(order, 0, placed) }
         journal.append(PersistenceId("order", "o-2"), 0, listOf("placed".toByteArray()))
 
@@ -21,14 +20,13 @@ object JournalMetadataSuite : Suite() {
             "surefold.annotation.request_id" to "r-1",
             "surefold.annotation.quote" to "a \"quoted\" \\ value",
         )
-        val read = journal.read(order).forAll { it.metadata shouldBe expected } and
-            journal.read(PersistenceId("order", "o-2")).single().metadata.entries.shouldBeEmpty()
+        journal.read(order).forAll { it.metadata shouldBe expected }
+        journal.read(PersistenceId("order", "o-2")).single().metadata.entries.shouldBeEmpty()
 
         val feed = journal.after("order", 0, 10)
-        return read and
-            feed.filter { it.id == order }.forAll { it.metadata shouldBe expected } and
-            feed.single { it.id.id == "o-2" }.metadata.entries.shouldBeEmpty() and
-            (feed.size shouldBe 3)
+        feed.filter { it.id == order }.forAll { it.metadata shouldBe expected }
+        feed.single { it.id.id == "o-2" }.metadata.entries.shouldBeEmpty()
+        feed.size shouldBe 3
     }
 
     init {

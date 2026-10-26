@@ -82,9 +82,8 @@ object KeptCarriedSuite : Suite() {
             val nodes = mutableListOf(LedgerNode("front", ports[0], seeds, emptySet()))
             try {
                 val front = nodes.single()
-                val up =
-                    front.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 1 } shouldBe
-                        true
+                front.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 1 } shouldBe
+                    true
                 val answered = CompletableFuture<String>()
                 val reply = object : Reply<String> {
                     override val address = Address("test", "/reply", 0)
@@ -97,7 +96,7 @@ object KeptCarriedSuite : Suite() {
                 logAnnotated("request_id" to "r-3") { front.ledgers.entity("l-1").tell(WhoAsked(reply)) }
                 nodes += LedgerNode("host", ports[1], seeds, setOf("ledger"))
 
-                up and (answered.get(1, TimeUnit.MINUTES) shouldBe "r-3")
+                answered.get(1, TimeUnit.MINUTES) shouldBe "r-3"
             } finally {
                 nodes.forEach(LedgerNode::close)
             }

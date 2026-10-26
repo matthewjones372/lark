@@ -66,7 +66,8 @@ object ForksSuite : Suite() {
 
             exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>> { done ->
                 val groups = done.value
-                (groups.flatten() shouldBe (1..10_000).toList()) and (groups.all { it.size == 100 } shouldBe true)
+                groups.flatten() shouldBe (1..10_000).toList()
+                groups.all { it.size == 100 } shouldBe true
             }
         }
 
@@ -89,7 +90,8 @@ object ForksSuite : Suite() {
 
             val exit = Stream.from(naturals).map { pulled.incrementAndGet() }.take(3).collected()
 
-            (exit shouldBe Exit.Done(listOf(1, 2, 3))) and (pulled.get() shouldBe 3)
+            exit shouldBe Exit.Done(listOf(1, 2, 3))
+            pulled.get() shouldBe 3
         }
 
         test("every stage runs on a virtual thread that is not the caller's") {
@@ -99,8 +101,8 @@ object ForksSuite : Suite() {
 
             exit.shouldBeInstanceOf<Exit.Done<List<Thread>>> { done ->
                 val ran = done.value.single()
-                withClue("the pull loop runs on its own fork") { (ran === caller) shouldBe false } and
-                    (ran.isVirtual shouldBe true)
+                withClue("the pull loop runs on its own fork") { (ran === caller) shouldBe false }
+                ran.isVirtual shouldBe true
             }
         }
 
@@ -108,8 +110,8 @@ object ForksSuite : Suite() {
             val exit = Stream.of(1, 2).map { n -> check(n < 2) { "too big" }; n }.collected()
 
             exit.shouldBeInstanceOf<Exit.Died> { died ->
-                died.cause.shouldBeInstanceOf<IllegalStateException>() and
-                    (died.cause.suppressed.single().message shouldContain "map died on 2, built at ForksSuite.kt:")
+                died.cause.shouldBeInstanceOf<IllegalStateException>()
+                died.cause.suppressed.single().message shouldContain "map died on 2, built at ForksSuite.kt:"
             }
         }
 
@@ -139,7 +141,8 @@ object ForksSuite : Suite() {
             val raised = Stream.of(1, 2, 3).map { it * 2 }.mapOrFail { if (it == 4) fail(Odd(it)) else it }
                 .map { it + 1 }.collected()
 
-            (kept shouldBe Exit.Done(listOf(7, 19))) and (raised shouldBe Exit.Failed(Odd(4)))
+            kept shouldBe Exit.Done(listOf(7, 19))
+            raised shouldBe Exit.Failed(Odd(4))
         }
 
         test("another backend's own value is refused by name before anything runs") {
@@ -151,7 +154,8 @@ object ForksSuite : Suite() {
 
             exit.shouldBeInstanceOf<Exit.Died> { died ->
                 died.cause.message shouldContain "Elsewhere.source, built at Here.kt:1, holds a Elsewhere value"
-            } and (pulled.get() shouldBe 0)
+            }
+            pulled.get() shouldBe 0
         }
 
         test("stop ends a run that would not end, Done with what it had") {
@@ -163,48 +167,42 @@ object ForksSuite : Suite() {
         }
 
         test("the bounds answer as their names say") {
-            (Stream.of(1, 2, 3, 4, 5).drop(2).collected() shouldBe Exit.Done(listOf(3, 4, 5))) and
-                (Stream.of(1, 2, 3, 1).takeWhile { it < 3 }.collected() shouldBe Exit.Done(listOf(1, 2))) and
-                (Stream.of(1, 2, 3, 1).dropWhile { it < 3 }.collected() shouldBe Exit.Done(listOf(3, 1))) and
-                (Stream.of(1, 2, 3, 4).filterNot { it % 2 == 0 }.collected() shouldBe Exit.Done(listOf(1, 3))) and
-                (Stream.of(1, 2).drop(5).collected() shouldBe Exit.Done(emptyList()))
+            Stream.of(1, 2, 3, 4, 5).drop(2).collected() shouldBe Exit.Done(listOf(3, 4, 5))
+            Stream.of(1, 2, 3, 1).takeWhile { it < 3 }.collected() shouldBe Exit.Done(listOf(1, 2))
+            Stream.of(1, 2, 3, 1).dropWhile { it < 3 }.collected() shouldBe Exit.Done(listOf(3, 1))
+            Stream.of(1, 2, 3, 4).filterNot { it % 2 == 0 }.collected() shouldBe Exit.Done(listOf(1, 3))
+            Stream.of(1, 2).drop(5).collected() shouldBe Exit.Done(emptyList())
         }
 
         test("grouping, scanning and state carry across elements") {
-            val grouped = Stream.of(1, 2, 3, 4, 5).grouped(2).collected() shouldBe
+            Stream.of(1, 2, 3, 4, 5).grouped(2).collected() shouldBe
                 Exit.Done(listOf(listOf(1, 2), listOf(3, 4), listOf(5)))
-            val scanned =
-                Stream.of(1, 2, 3).scan(0) { total, n -> total + n }.collected() shouldBe Exit.Done(listOf(0, 1, 3, 6))
-            val stateful = Stream.of(1, 2, 3)
+            Stream.of(1, 2, 3).scan(0) { total, n -> total + n }.collected() shouldBe Exit.Done(listOf(0, 1, 3, 6))
+            Stream.of(1, 2, 3)
                 .statefulMap({ 0 }, { seen, n -> (seen + 1) to "$n@$seen" }, { seen -> "end@$seen" })
                 .collected() shouldBe Exit.Done(listOf("1@0", "2@1", "3@2", "end@3"))
-            val concatenated =
-                Stream.of(1, 2, 3).mapConcat { n -> List(n) { n } }.collected() shouldBe
-                    Exit.Done(listOf(1, 2, 2, 3, 3, 3))
-            grouped and scanned and stateful and concatenated
+            Stream.of(1, 2, 3).mapConcat { n -> List(n) { n } }.collected() shouldBe
+                Exit.Done(listOf(1, 2, 2, 3, 3, 3))
         }
 
         test("the failure operators replace, recover and name as Pekko's do") {
             val failing = Stream.of(1, 2).mapOrFail { if (it == 2) fail(Odd(it)) else it }
 
-            (failing.either().collected() shouldBe Exit.Done(listOf(1.right(), Odd(2).left()))) and
-                (failing.catchAll { Stream.of(9) }.collected() shouldBe Exit.Done(listOf(1, 9))) and
-                (failing.mapError { it.value }.collected() shouldBe Exit.Failed(2)) and
-                (Stream.of(1.right(), Odd(3).left(), 5.right()).absolve().collected() shouldBe Exit.Failed(Odd(3))) and
-                (Stream.empty().orFailIfEmpty(Odd(0)).collected() shouldBe Exit.Failed(Odd(0)))
+            failing.either().collected() shouldBe Exit.Done(listOf(1.right(), Odd(2).left()))
+            failing.catchAll { Stream.of(9) }.collected() shouldBe Exit.Done(listOf(1, 9))
+            failing.mapError { it.value }.collected() shouldBe Exit.Failed(2)
+            Stream.of(1.right(), Odd(3).left(), 5.right()).absolve().collected() shouldBe Exit.Failed(Odd(3))
+            Stream.empty().orFailIfEmpty(Odd(0)).collected() shouldBe Exit.Failed(Odd(0))
         }
 
         test("streams join end to end, pairwise, and one inside another") {
-            (Stream.of(1, 2).concat(Stream.of(3)).collected() shouldBe Exit.Done(listOf(1, 2, 3))) and
-                (Stream.of(3).prepend(Stream.of(1, 2)).collected() shouldBe Exit.Done(listOf(1, 2, 3))) and
-                (
-                    Stream.of(1, 2, 3).zip(Stream.of("a", "b")).collected() shouldBe
-                        Exit.Done(listOf(1 to "a", 2 to "b"))
-                    ) and
-                Stream.of(1, 2, 3).flatMapConcat { n -> Stream.from(List(n) { n }) }.collected()
-                    .shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
-                        done.value shouldContainExactly listOf(1, 2, 2, 3, 3, 3)
-                    }
+            Stream.of(1, 2).concat(Stream.of(3)).collected() shouldBe Exit.Done(listOf(1, 2, 3))
+            Stream.of(3).prepend(Stream.of(1, 2)).collected() shouldBe Exit.Done(listOf(1, 2, 3))
+            Stream.of(1, 2, 3).zip(Stream.of("a", "b")).collected() shouldBe Exit.Done(listOf(1 to "a", 2 to "b"))
+            Stream.of(1, 2, 3).flatMapConcat { n -> Stream.from(List(n) { n }) }.collected()
+                .shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
+                    done.value shouldContainExactly listOf(1, 2, 2, 3, 3, 3)
+                }
         }
 
         test("a stage's value is the one element, and null from it is the defect fromStage names") {
@@ -213,8 +211,8 @@ object ForksSuite : Suite() {
             @Suppress("UNCHECKED_CAST")
             val nulled = java.util.concurrent.CompletableFuture.completedFuture(null) as CompletionStage<String>
 
-            (Stream.fromStage(stage).collected() shouldBe Exit.Done(listOf("ready"))) and
-                (Stream.fromStage(nulled, ifNull = Odd(0)).collected() shouldBe Exit.Failed(Odd(0)))
+            Stream.fromStage(stage).collected() shouldBe Exit.Done(listOf("ready"))
+            Stream.fromStage(nulled, ifNull = Odd(0)).collected() shouldBe Exit.Failed(Odd(0))
         }
 
         test(
@@ -232,10 +230,10 @@ object ForksSuite : Suite() {
                 }
                 .collected()
 
-            (exit shouldBe Exit.Done((1..40).map { it * 10 })) and
-                withClue("at most eight at once, and more than one, or it was not parallel") {
-                    (most.get() in 2..8) shouldBe true
-                }
+            exit shouldBe Exit.Done((1..40).map { it * 10 })
+            withClue("at most eight at once, and more than one, or it was not parallel") {
+                (most.get() in 2..8) shouldBe true
+            }
         }
 
         test("a raise in one mapPar body ends the run Failed, and interrupts the bodies still running") {
@@ -257,10 +255,10 @@ object ForksSuite : Suite() {
                 }
                 .collected()
 
-            (exit shouldBe Exit.Failed(Odd(1))) and
-                withClue("the seven still sleeping were interrupted, and had stopped before the exit completed") {
-                    interrupted.get() shouldBe 7
-                }
+            exit shouldBe Exit.Failed(Odd(1))
+            withClue("the seven still sleeping were interrupted, and had stopped before the exit completed") {
+                interrupted.get() shouldBe 7
+            }
         }
 
         test("take after mapPar ends the run, and no body is left running behind it") {
@@ -282,8 +280,10 @@ object ForksSuite : Suite() {
             // 1 and 3 share a key and keep their order; 2 has its own, and may pass either.
             exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
                 val taken = done.value
-                (taken.sorted() shouldBe listOf(1, 2, 3)) and (taken.filter { it % 2 == 1 } shouldBe listOf(1, 3))
-            } and (running.get() shouldBe 0)
+                taken.sorted() shouldBe listOf(1, 2, 3)
+                taken.filter { it % 2 == 1 } shouldBe listOf(1, 3)
+            }
+            running.get() shouldBe 0
         }
 
         test("a mapPar body that throws is the defect the run dies with, naming mapPar") {
@@ -310,11 +310,11 @@ object ForksSuite : Suite() {
                 .map { n -> n.also(arrived::add) }
                 .collected()
 
-            exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done -> done.value.sorted() shouldBe (0..9).toList() } and
-                withClue("every odd result arrived ahead of the even one that slept, in order: $arrived") {
-                    (arrived.filter { it % 2 == 1 } shouldContainExactly listOf(1, 3, 5, 7, 9)) and
-                        (arrived.indexOf(9) shouldBeLessThan arrived.indexOf(0))
-                }
+            exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done -> done.value.sorted() shouldBe (0..9).toList() }
+            withClue("every odd result arrived ahead of the even one that slept, in order: $arrived") {
+                arrived.filter { it % 2 == 1 } shouldContainExactly listOf(1, 3, 5, 7, 9)
+                arrived.indexOf(9) shouldBeLessThan arrived.indexOf(0)
+            }
         }
 
         test("under mapParKeyed every key's results keep their order") {
@@ -330,8 +330,8 @@ object ForksSuite : Suite() {
 
             exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
                 val results = done.value
-                (results.sorted() shouldBe (0 until 400).toList()) and
-                    (results.groupBy { it % 7 } shouldBe (0 until 400).groupBy { it % 7 })
+                results.sorted() shouldBe (0 until 400).toList()
+                results.groupBy { it % 7 } shouldBe (0 until 400).groupBy { it % 7 }
             }
         }
 
@@ -356,7 +356,8 @@ object ForksSuite : Suite() {
                 }
                 .collected()
 
-            (exit shouldBe Exit.Failed(Odd(1))) and (interrupted.get() shouldBe 7)
+            exit shouldBe Exit.Failed(Odd(1))
+            interrupted.get() shouldBe 7
         }
 
         test("a mapParKeyed body that throws is the defect the run dies with, naming mapPar") {
@@ -399,8 +400,10 @@ object ForksSuite : Suite() {
             // 1 and 3 share a key and keep their order; 2 has its own, and may pass either.
             exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
                 val taken = done.value
-                (taken.sorted() shouldBe listOf(1, 2, 3)) and (taken.filter { it % 2 == 1 } shouldBe listOf(1, 3))
-            } and (running.get() shouldBe 0)
+                taken.sorted() shouldBe listOf(1, 2, 3)
+                taken.filter { it % 2 == 1 } shouldBe listOf(1, 3)
+            }
+            running.get() shouldBe 0
         }
 
         test("mapAsync keeps no more of its stages in flight than it was given, and answers in order") {
@@ -415,8 +418,8 @@ object ForksSuite : Suite() {
                 }
                 .collected()
 
-            (exit shouldBe Exit.Done((1..30).toList())) and
-                withClue("at most three stages at once, and more than one") { (most.get() in 2..3) shouldBe true }
+            exit shouldBe Exit.Done((1..30).toList())
+            withClue("at most three stages at once, and more than one") { (most.get() in 2..3) shouldBe true }
         }
 
         test("tick on Forks waits on real time, one element per interval") {
@@ -424,10 +427,10 @@ object ForksSuite : Suite() {
 
             val exit = Stream.tick(20.milliseconds, "t").take(3).collected()
 
-            (exit shouldBe Exit.Done(listOf("t", "t", "t"))) and
-                withClue("three ticks at 20 ms take at least 60 ms") {
-                    ((System.nanoTime() - started) >= 60_000_000L) shouldBe true
-                }
+            exit shouldBe Exit.Done(listOf("t", "t", "t"))
+            withClue("three ticks at 20 ms take at least 60 ms") {
+                ((System.nanoTime() - started) >= 60_000_000L) shouldBe true
+            }
         }
 
         test("groupedWithin on Forks closes a window on real time while upstream is slow") {
@@ -442,7 +445,8 @@ object ForksSuite : Suite() {
             exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>> { done ->
                 val groups = done.value
                 withClue("every element in order, in windows the clock closed rather than one full group: $groups") {
-                    (groups.flatten() shouldBe (1..6).toList()) and ((groups.size > 1) shouldBe true)
+                    groups.flatten() shouldBe (1..6).toList()
+                    (groups.size > 1) shouldBe true
                 }
             }
         }
@@ -460,7 +464,8 @@ object ForksSuite : Suite() {
                 .collected()
 
             val waited = System.nanoTime() - started
-            (exit shouldBe Exit.Done(listOf(1, 1, 2))) and ((waited >= 50_000_000L) shouldBe true)
+            exit shouldBe Exit.Done(listOf(1, 1, 2))
+            (waited >= 50_000_000L) shouldBe true
         }
     }
 }

@@ -67,7 +67,7 @@ object TransactSuite : SharedSuite<KafkaKit>() {
                 val output = Topic("orders-$on")
                 kafka.send(input, "1", "2", "3")
 
-                val (done, captured) = capturingMetrics { captured ->
+                val captured = capturingMetrics { captured ->
                     producer(kafka, "checkout-$on").use { orders ->
                         consumed(kafka, "checkout-$on", input)
                             .mapRecord { record -> record.value() }
@@ -75,18 +75,17 @@ object TransactSuite : SharedSuite<KafkaKit>() {
                             .runTransactionally(orders) { cart -> listOf(output.record(cart, "order $cart")) }
                             .run(kit.backend(on))
                             .settled() shouldBe Exit.Done(3L)
-                    } to captured
+                    }
+                    captured
                 }
 
-                done and captured.histogram("surefold.kafka.transactions").shouldNotBeEmpty() and
-                    (captured.counter("surefold.kafka.transactions.aborts") shouldBe 0.0) and
-                    (
-                        kafka.readAll(output, COMMITTED).map { it.value() } shouldBe
-                            listOf("order 1", "order 2", "order 3")
-                        ) and
-                    withClue("the transaction committed the group's offsets; the consumer committed none of its own") {
-                        kafka.committed("checkout-$on", input) shouldBe 3L
-                    }
+                captured.histogram("surefold.kafka.transactions").shouldNotBeEmpty()
+                captured.counter("surefold.kafka.transactions.aborts") shouldBe 0.0
+                kafka.readAll(output, COMMITTED).map { it.value() } shouldBe
+                    listOf("order 1", "order 2", "order 3")
+                withClue("the transaction committed the group's offsets; the consumer committed none of its own") {
+                    kafka.committed("checkout-$on", input) shouldBe 3L
+                }
             }
         }
 
@@ -112,12 +111,12 @@ object TransactSuite : SharedSuite<KafkaKit>() {
                     } to captured
                 }
 
-                exit.shouldBeInstanceOf<Exit.Died>() and
-                    (captured.counter("surefold.kafka.transactions.aborts") shouldBe 1.0) and
-                    withClue("the two records sent before the failure were aborted with it") {
-                        kafka.readAll(output, COMMITTED) shouldBe emptyList()
-                    } and
-                    (kafka.committed("failing-$on", input) shouldBe null)
+                exit.shouldBeInstanceOf<Exit.Died>()
+                captured.counter("surefold.kafka.transactions.aborts") shouldBe 1.0
+                withClue("the two records sent before the failure were aborted with it") {
+                    kafka.readAll(output, COMMITTED) shouldBe emptyList()
+                }
+                kafka.committed("failing-$on", input) shouldBe null
             }
         }
 
@@ -141,9 +140,10 @@ object TransactSuite : SharedSuite<KafkaKit>() {
             exit.shouldBeInstanceOf<Exit.Died> { died ->
                 (listOf(died.cause) + died.cause.suppressed).joinToString { it.message.orEmpty() } shouldContain
                     "only records from Kafka.consume"
-            } and withClue("both records reached the broker, in a transaction that was aborted") {
-                (kafka.readAll(output, EVERYTHING).map { it.value() } shouldBe listOf("1", "2")) and
-                    (kafka.readAll(output, COMMITTED) shouldBe emptyList())
+            }
+            withClue("both records reached the broker, in a transaction that was aborted") {
+                kafka.readAll(output, EVERYTHING).map { it.value() } shouldBe listOf("1", "2")
+                kafka.readAll(output, COMMITTED) shouldBe emptyList()
             }
         }
 
@@ -159,7 +159,7 @@ object TransactSuite : SharedSuite<KafkaKit>() {
                     value.toByteArray()
                 }
 
-                val done = producer(kafka, "retried-$on", onceRefusing).use { orders ->
+                producer(kafka, "retried-$on", onceRefusing).use { orders ->
                     consumed(kafka, "retried-$on", input)
                         .mapRecord { record -> record.value() }
                         // No take upstream: the first attempt's consumer is still polling when the restart gives it up.
@@ -175,9 +175,8 @@ object TransactSuite : SharedSuite<KafkaKit>() {
                         .settled() shouldBe Exit.Done(3L)
                 }
 
-                done and
-                    (kafka.readAll(output, COMMITTED).map { it.value() } shouldBe listOf("1", "2", "3")) and
-                    (kafka.committed("retried-$on", input) shouldBe 3L)
+                kafka.readAll(output, COMMITTED).map { it.value() } shouldBe listOf("1", "2", "3")
+                kafka.committed("retried-$on", input) shouldBe 3L
             }
         }
     }

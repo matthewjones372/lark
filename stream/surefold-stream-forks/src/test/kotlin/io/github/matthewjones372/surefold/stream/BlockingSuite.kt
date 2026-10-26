@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold.stream
 
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.TestClock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeEmpty
@@ -74,16 +73,16 @@ private fun deaf(source: Deaf): Stream<Nothing, Int> =
     )
 
 /**
- * Runs [stream] on Forks, stops it once [source]'s read blocks, and answers whether the read was reached, with the
- * run's exit.
+ * Runs [stream] on Forks, stops it once [source]'s read blocks, checks the read was reached, and answers the run's
+ * exit.
  */
-private fun stoppedWhileBlocked(stream: Stream<Nothing, Int>, source: Deaf): Pair<Expectations, Exit<*, *>> {
+private fun stoppedWhileBlocked(stream: Stream<Nothing, Int>, source: Deaf): Exit<*, *> {
     val running = stream.runCollect().start(Forks())
-    val reached = withClue("the source's read was reached") {
+    withClue("the source's read was reached") {
         source.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
     }
     running.stop()
-    return reached to running.exit.settled()
+    return running.exit.settled()
 }
 
 /** A resource opened per run, read by blocking on the pulling thread, and closed once however the run ended. */
@@ -94,21 +93,21 @@ object BlockingSuite : Suite() {
 
             val exit = blocking(queue).runCollect().run(Forks()).settled()
 
-            (exit shouldBe Exit.Done(listOf(1, 2, 3))) and (queue.closed.get() shouldBe 1)
+            exit shouldBe Exit.Done(listOf(1, 2, 3))
+            queue.closed.get() shouldBe 1
         }
 
         test("a stop while next is blocked wakes it, and the run ends Done with what arrived") {
             val queue = Queue(1, 2)
             val running = blocking(queue).runCollect().start(Forks())
-            val waited = queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            queue.waiting.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
 
             running.stop()
 
-            waited and
-                withClue("without wake the loop waits for a next that never returns") {
-                    running.exit.settled() shouldBe Exit.Done(listOf(1, 2))
-                } and
-                (queue.closed.get() shouldBe 1)
+            withClue("without wake the loop waits for a next that never returns") {
+                running.exit.settled() shouldBe Exit.Done(listOf(1, 2))
+            }
+            queue.closed.get() shouldBe 1
         }
 
         test("a take that is satisfied closes the resource it stopped reading") {
@@ -116,7 +115,8 @@ object BlockingSuite : Suite() {
 
             val exit = blocking(queue).take(2).runCollect().run(Forks()).settled()
 
-            (exit shouldBe Exit.Done(listOf(1, 2))) and (queue.closed.get() shouldBe 1)
+            exit shouldBe Exit.Done(listOf(1, 2))
+            queue.closed.get() shouldBe 1
         }
 
         test("a next that throws without a wake is a defect, and the resource is still closed") {
@@ -128,7 +128,8 @@ object BlockingSuite : Suite() {
                 close = { closed.incrementAndGet() },
             ).runCollect().run(Forks()).settled()
 
-            ((exit as Exit.Died).cause.message shouldBe "the cursor broke") and (closed.get() shouldBe 1)
+            (exit as Exit.Died).cause.message shouldBe "the cursor broke"
+            closed.get() shouldBe 1
         }
 
         test("a close that throws ends a run that was otherwise Done as Died") {
@@ -152,10 +153,10 @@ object BlockingSuite : Suite() {
                 close = { closed.incrementAndGet() },
             ).restartOnDefect(Schedule.recurs<Throwable>(1)).take(1).runCollect().run(Forks()).settled()
 
-            (exit shouldBe Exit.Done(listOf(2))) and
-                withClue("the failed resource was closed before the second read, and the second when the run ended") {
-                    closed.get() shouldBe 2
-                }
+            exit shouldBe Exit.Done(listOf(2))
+            withClue("the failed resource was closed before the second read, and the second when the run ended") {
+                closed.get() shouldBe 2
+            }
         }
 
         test(
@@ -200,11 +201,11 @@ object BlockingSuite : Suite() {
                 .run(Forks())
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf(listOf(2)))) and
-                withClue("no resource was closed while a read of it was still running") {
-                    overlapped.shouldBeEmpty()
-                } and
-                (events shouldBe listOf("open 1", "close 1", "open 2", "close 2"))
+            exit shouldBe Exit.Done(listOf(listOf(2)))
+            withClue("no resource was closed while a read of it was still running") {
+                overlapped.shouldBeEmpty()
+            }
+            events shouldBe listOf("open 1", "close 1", "open 2", "close 2")
         }
 
         test("a stage that is done is passed on while the source blocks for the next element") {
@@ -217,10 +218,10 @@ object BlockingSuite : Suite() {
                 .run(Forks())
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf(10))) and
-                withClue("the source was let go of while it blocked, and closed once") {
-                    queue.closed.get() shouldBe 1
-                }
+            exit shouldBe Exit.Done(listOf(10))
+            withClue("the source was let go of while it blocked, and closed once") {
+                queue.closed.get() shouldBe 1
+            }
         }
 
         test("a mapPar body that is done is passed on while the source blocks for the next element") {
@@ -233,34 +234,32 @@ object BlockingSuite : Suite() {
                 .run(Forks())
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf(10))) and
-                withClue("the source was let go of while it blocked, and closed once") {
-                    queue.closed.get() shouldBe 1
-                }
+            exit shouldBe Exit.Done(listOf(10))
+            withClue("the source was let go of while it blocked, and closed once") {
+                queue.closed.get() shouldBe 1
+            }
         }
 
         test("a stop wakes a source blocked inside flatMapMerge, and closes it once") {
             val source = Deaf(1)
 
-            val (reached, exit) = stoppedWhileBlocked(Stream.of(0).flatMapMerge(2) { deaf(source) }, source)
+            val exit = stoppedWhileBlocked(Stream.of(0).flatMapMerge(2) { deaf(source) }, source)
 
-            reached and
-                withClue("an inner stream is pulled on a fork, which must still find the run's resources to be woken") {
-                    (exit is Exit.Done) shouldBe true
-                } and
-                (source.closed.get() shouldBe 1)
+            withClue("an inner stream is pulled on a fork, which must still find the run's resources to be woken") {
+                (exit is Exit.Done) shouldBe true
+            }
+            source.closed.get() shouldBe 1
         }
 
         test("a stop wakes a source behind a concat upstream of a buffer, and closes it once") {
             val source = Deaf(1)
 
-            val (reached, exit) = stoppedWhileBlocked(Stream.of(0).concat(deaf(source)).buffer(4), source)
+            val exit = stoppedWhileBlocked(Stream.of(0).concat(deaf(source)).buffer(4), source)
 
-            reached and
-                withClue("concat builds its next stream on the buffer's fork") {
-                    (exit is Exit.Done) shouldBe true
-                } and
-                (source.closed.get() shouldBe 1)
+            withClue("concat builds its next stream on the buffer's fork") {
+                (exit is Exit.Done) shouldBe true
+            }
+            source.closed.get() shouldBe 1
         }
 
         test("on a test's clock, a source inside flatMapMerge that a take stops reading is closed once") {
@@ -277,10 +276,10 @@ object BlockingSuite : Suite() {
             val exit = Stream.of(0).flatMapMerge(2) { endless }.take(1).runCollect()
                 .run(ForksOnClock(TestClock(), name = "OnClock")).settled()
 
-            (exit shouldBe Exit.Done(listOf(1))) and
-                withClue("only the run can close a source it stopped reading, so a worker on the clock must find it") {
-                    closed.get() shouldBe 1
-                }
+            exit shouldBe Exit.Done(listOf(1))
+            withClue("only the run can close a source it stopped reading, so a worker on the clock must find it") {
+                closed.get() shouldBe 1
+            }
         }
     }
 }

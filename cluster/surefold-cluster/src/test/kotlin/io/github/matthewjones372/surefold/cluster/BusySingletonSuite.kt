@@ -37,7 +37,7 @@ object BusySingletonSuite : Suite() {
                 onDeadLetter(letters::add)
                 val seeds = Discovery.static(Node("", "127.0.0.1", port))
                 val cluster = cluster(node("solo", port), seeds, unhurried, leaveWithin = Duration.ZERO)
-                val up = cluster.await(1.minutes) { v -> v.members.any { it.status == Status.Up } } shouldBe true
+                cluster.await(1.minutes) { v -> v.members.any { it.status == Status.Up } } shouldBe true
                 // Its first message holds its step until the burst is all sent, so its mailbox fills behind it.
                 val clock = cluster.singleton("clock", Codecs.int) {
                     behaviour<Int, Unit>(Unit) { _, _, n -> stay().also { if (n == 0) open.await() else heard += n } }
@@ -46,13 +46,13 @@ object BusySingletonSuite : Suite() {
                 (1..5_000).forEach(clock::tell)
                 open.countDown()
 
-                val inOrder = List(5_000) { heard.poll(1, TimeUnit.MINUTES) } shouldContainExactly (1..5_000).toList()
+                List(5_000) { heard.poll(1, TimeUnit.MINUTES) } shouldContainExactly (1..5_000).toList()
                 clock.tell(5_001)
-                up and inOrder and (heard.poll(1, TimeUnit.MINUTES) shouldBe 5_001)
+                heard.poll(1, TimeUnit.MINUTES) shouldBe 5_001
             }
 
-            during.shouldBeRight { it } and
-                (letters.filter { it.why != DeadLetter.Why.Unreachable } shouldBe emptyList())
+            during.shouldBeRight { it }
+            letters.filter { it.why != DeadLetter.Why.Unreachable } shouldBe emptyList()
         }
     }
 }

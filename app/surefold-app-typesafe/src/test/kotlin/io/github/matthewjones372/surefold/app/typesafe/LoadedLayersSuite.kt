@@ -37,8 +37,8 @@ object LoadedLayersSuite : Suite() {
         test("with nothing set, the merge is what load reads") {
             val layered = layeredConfig()
 
-            val merged = layered.config shouldBe ConfigFactory.load()
-            merged and layered.names().shouldContainExactly(
+            layered.config shouldBe ConfigFactory.load()
+            layered.names().shouldContainExactly(
                 "system properties",
                 "application.conf",
                 "application.json",
@@ -51,8 +51,8 @@ object LoadedLayersSuite : Suite() {
             val layered = layeredConfig()
 
             val holder = layered.layers.single { it.config.hasPath("surefold.layered.properties") }
-            (layered.config.getString("surefold.layered.properties") shouldBe "from-properties") and
-                (holder.name shouldBe "application.properties")
+            layered.config.getString("surefold.layered.properties") shouldBe "from-properties"
+            holder.name shouldBe "application.properties"
         }
 
         // Alone, as are the two after it: it sets system properties and clears ConfigFactory's caches, both
@@ -66,12 +66,12 @@ object LoadedLayersSuite : Suite() {
 
                     val layered = layeredConfig()
 
-                    (layered.config shouldBe ConfigFactory.load()) and
-                        (layered.config.getString("surefold.layered.file") shouldBe "from-file") and
-                        withClue("config.file replaces application.*, it does not sit beside them") {
-                            layered.config.hasPath("surefold.layered.properties") shouldBe false
-                        } and
-                        layered.names().shouldContainExactly("system properties", file.toString(), "reference.conf")
+                    layered.config shouldBe ConfigFactory.load()
+                    layered.config.getString("surefold.layered.file") shouldBe "from-file"
+                    withClue("config.file replaces application.*, it does not sit beside them") {
+                        layered.config.hasPath("surefold.layered.properties") shouldBe false
+                    }
+                    layered.names().shouldContainExactly("system properties", file.toString(), "reference.conf")
                 } finally {
                     Files.delete(file)
                 }
@@ -85,9 +85,9 @@ object LoadedLayersSuite : Suite() {
 
                 val layered = layeredConfig()
 
-                (layered.config shouldBe ConfigFactory.load()) and
-                    (layered.config.getString("surefold.layered.forced") shouldBe "from-env") and
-                    (layered.names().take(2) shouldContainExactly listOf("environment overrides", "system properties"))
+                layered.config shouldBe ConfigFactory.load()
+                layered.config.getString("surefold.layered.forced") shouldBe "from-env"
+                layered.names().take(2) shouldContainExactly listOf("environment overrides", "system properties")
             }
         }
 
@@ -100,22 +100,23 @@ object LoadedLayersSuite : Suite() {
         }
 
         test("loadedConfig provides the layers and their merge") {
-            (testApp(loadedConfig()) { layered: Layered -> layered.names().last() } shouldBe "reference.conf") and
-                (testApp(loadedConfig()) { config: Config -> config } shouldBe ConfigFactory.load())
+            testApp(loadedConfig()) { layered: Layered -> layered.names().last() } shouldBe "reference.conf"
+            testApp(loadedConfig()) { config: Config -> config } shouldBe ConfigFactory.load()
         }
 
         test("a document written in the test is one layer") {
             val layered = testApp(configOf("a = 1")) { layered: Layered -> layered }
 
-            (layered.layers.size shouldBe 1) and (layered.config.getInt("a") shouldBe 1)
+            layered.layers.size shouldBe 1
+            layered.config.getInt("a") shouldBe 1
         }
 
         test("overridingConfig puts its document on top of the layers") {
             val base = layeredConfigOf("base" to ConfigFactory.parseString("a = 1, b = 2"))
             val app = configOf("a = 1, b = 2").overridingConfig("a = 3", fallback = base)
 
-            (testApp(app) { layered: Layered -> layered.names() } shouldContainExactly listOf("overrides", "base")) and
-                (testApp(app) { config: Config -> config.getInt("a") to config.getInt("b") } shouldBe (3 to 2))
+            testApp(app) { layered: Layered -> layered.names() } shouldContainExactly listOf("overrides", "base")
+            testApp(app) { config: Config -> config.getInt("a") to config.getInt("b") } shouldBe (3 to 2)
         }
     }
 }

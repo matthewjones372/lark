@@ -83,10 +83,10 @@ object PersistentDeliverySuite : Suite() {
                 purse.send(PayIn(10, first))
                 purse.send(PayIn(5, first.copy(sequence = 2)))
 
-                (purse.state.value shouldBe 15) and
-                    (purse.state.delivered shouldBe mapOf("checkout" to 2L)) and
-                    (journal.events(purseId, paidCodec) shouldContainExactly listOf(Paid(10), Paid(5))) and
-                    (confirmed.map { it.sequence } shouldContainExactly listOf(1L, 1L, 2L))
+                purse.state.value shouldBe 15
+                purse.state.delivered shouldBe mapOf("checkout" to 2L)
+                journal.events(purseId, paidCodec) shouldContainExactly listOf(Paid(10), Paid(5))
+                confirmed.map { it.sequence } shouldContainExactly listOf(1L, 1L, 2L)
             }
         }
 
@@ -118,9 +118,9 @@ object PersistentDeliverySuite : Suite() {
                 val moved = spawn("moved", purse(peeks))
                 moved.send(PayIn(10, first))
 
-                (purse.state.value shouldBe 10) and
-                    (moved.state shouldBe Remembered(10, sequence = 2, delivered = mapOf("checkout" to 1L))) and
-                    (confirmed.size shouldBe 3)
+                purse.state.value shouldBe 10
+                moved.state shouldBe Remembered(10, sequence = 2, delivered = mapOf("checkout" to 1L))
+                confirmed.size shouldBe 3
             }
         }
 
@@ -135,8 +135,8 @@ object PersistentDeliverySuite : Suite() {
                 val moved = spawn("moved", purse(peeks, every = 2))
                 moved.send(PayIn(10, Delivery("checkout", "p-1", 1, confirms)))
 
-                (journal.read(purseId).first().sequence shouldBe 7) and
-                    (moved.state shouldBe Remembered(40, sequence = 8, delivered = mapOf("checkout" to 4L)))
+                journal.read(purseId).first().sequence shouldBe 7
+                moved.state shouldBe Remembered(40, sequence = 8, delivered = mapOf("checkout" to 4L))
             }
         }
 
@@ -153,8 +153,8 @@ object PersistentDeliverySuite : Suite() {
                 purse.restart()
                 purse.send(peek)
 
-                (peeks.toList() shouldContainExactly listOf(1L, 1L)) and
-                    (journal.read(purseId) shouldBe emptyList())
+                peeks.toList() shouldContainExactly listOf(1L, 1L)
+                journal.read(purseId) shouldBe emptyList()
             }
         }
 
@@ -162,9 +162,9 @@ object PersistentDeliverySuite : Suite() {
             val remembered = Remembered(42, sequence = 3)
 
             val delivered = remembered.copy(delivered = mapOf("checkout" to 7L, "refunds" to 2L))
-            (encode(purseCodec, remembered).decodeToString() shouldBe "42") and
-                (decode(purseCodec, encode(purseCodec, remembered), 3) shouldBe remembered) and
-                (decode(purseCodec, encode(purseCodec, delivered), 3) shouldBe delivered)
+            encode(purseCodec, remembered).decodeToString() shouldBe "42"
+            decode(purseCodec, encode(purseCodec, remembered), 3) shouldBe remembered
+            decode(purseCodec, encode(purseCodec, delivered), 3) shouldBe delivered
         }
 
         // Was a Jupiter @ParameterizedTest over batch 1 and 4: one test for each.
@@ -178,15 +178,14 @@ object PersistentDeliverySuite : Suite() {
                     val purse = spawn("purse", purse(peeks, held = held, batch = batch))
 
                     purse.send(PayIn(10, Delivery("checkout", "p-1", 1, confirms)))
-                    val stashed = (purse.state shouldBe Remembered(0, sequence = 0)) and
-                        (confirmed.toList() shouldBe emptyList())
+                    purse.state shouldBe Remembered(0, sequence = 0)
+                    confirmed.toList() shouldBe emptyList()
 
                     held.set(false)
                     purse.send(Unhold)
 
-                    stashed and
-                        (purse.state shouldBe Remembered(10, sequence = 2, delivered = mapOf("checkout" to 1L))) and
-                        (confirmed.map { it.sequence } shouldContainExactly listOf(1L))
+                    purse.state shouldBe Remembered(10, sequence = 2, delivered = mapOf("checkout" to 1L))
+                    confirmed.map { it.sequence } shouldContainExactly listOf(1L)
                 }
             }
         }

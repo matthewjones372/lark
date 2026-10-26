@@ -61,26 +61,26 @@ object VersionedSuite : Suite() {
                 val order = spawn("order", order())
                 order.send(75)
 
-                (order.state shouldBe Remembered(listOf(500L, 100, 250, 75), sequence = 3)) and
-                    (journal.events(orderId, orders) shouldContainExactly listOf(500L, 100, 250, 75).map(::LineAdded))
+                order.state shouldBe Remembered(listOf(500L, 100, 250, 75), sequence = 3)
+                journal.events(orderId, orders) shouldContainExactly listOf(500L, 100, 250, 75).map(::LineAdded)
             }
         }
 
         test("an event reads back as it was written, and one read that upgrades to several asks for all of them") {
             val upgraded = versionedBytes(2, v2.encode(PlacedV2(listOf(1, 2))))
-            (orders.decode(orders.encode(LineAdded(42))) shouldBe LineAdded(42)) and
-                (orders.decodeAll(upgraded) shouldBe listOf(LineAdded(1), LineAdded(2))) and
-                shouldThrow<IllegalStateException> { orders.decode(upgraded) }
+            orders.decode(orders.encode(LineAdded(42))) shouldBe LineAdded(42)
+            orders.decodeAll(upgraded) shouldBe listOf(LineAdded(1), LineAdded(2))
+            shouldThrow<IllegalStateException> { orders.decode(upgraded) }
         }
 
         test("upgrades that skip a version, or reach past the current one, are refused when the codec is built") {
             shouldThrow<IllegalArgumentException>({ versioned(3, v3, mapOf(2 to upgrades.getValue(2))) }) { refusal ->
                 refusal.message shouldContain "[1]"
-            } and
-                shouldThrow<IllegalArgumentException>({ versioned(2, v3, upgrades) }) { refusal ->
-                    refusal.message shouldContain "[2]"
-                } and
-                shouldThrow<IllegalArgumentException> { versioned(0, v3) }
+            }
+            shouldThrow<IllegalArgumentException>({ versioned(2, v3, upgrades) }) { refusal ->
+                refusal.message shouldContain "[2]"
+            }
+            shouldThrow<IllegalArgumentException> { versioned(0, v3) }
         }
 
         test(

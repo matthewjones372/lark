@@ -49,10 +49,10 @@ object SourcesSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Done("poll")) and
-                withClue("the first element cannot arrive before the delay the call named") {
-                    (System.nanoTime() - started).nanoseconds shouldBeGreaterThanOrEqual after
-                }
+            exit shouldBe Exit.Done("poll")
+            withClue("the first element cannot arrive before the delay the call named") {
+                (System.nanoTime() - started).nanoseconds shouldBeGreaterThanOrEqual after
+            }
         }
 
         test("from takes a ticker, which materialises a Cancellable") { pekko ->

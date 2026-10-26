@@ -11,10 +11,10 @@ object ChangelogSuite : Suite() {
         test("a fresh database takes the changelog once, with every string column text") {
             val source = Postgres.empty()
             // The tables, then the metadata column (spec 0123).
-            val first = source.migrate() shouldBe 2
-            val again = source.migrate() shouldBe 0
+            source.migrate() shouldBe 2
+            source.migrate() shouldBe 0
             JdbcJournal(source).append(PersistenceId("diary", "sam"), 0, listOf(byteArrayOf(1)))
-            first and again and (source.stringColumns() shouldBe setOf("text"))
+            source.stringColumns() shouldBe setOf("text")
         }
     }
 

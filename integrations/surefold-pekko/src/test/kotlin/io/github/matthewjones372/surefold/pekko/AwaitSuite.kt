@@ -15,10 +15,10 @@ object AwaitSuite : Suite() {
             val boom = Boom()
             // Pekko's Java API for a failed future: `Future.failed` is an instance method of the trait too,
             // so the companion's has no static forwarder for Kotlin to call.
-            (Future.successful(42).await() shouldBe 42) and
-                shouldThrow<Boom>({ Futures.failed<Int>(boom).await() }) { thrown ->
-                    thrown shouldBeSameInstanceAs boom
-                }
+            Future.successful(42).await() shouldBe 42
+            shouldThrow<Boom>({ Futures.failed<Int>(boom).await() }) { thrown ->
+                thrown shouldBeSameInstanceAs boom
+            }
         }
     }
 }

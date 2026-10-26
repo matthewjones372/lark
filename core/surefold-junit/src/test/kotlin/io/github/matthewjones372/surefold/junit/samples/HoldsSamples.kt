@@ -9,9 +9,9 @@ object HoldsSuite : Suite() {
     init {
         test("holds when the block returns") { holds { } }
         test("fails once for each block that throws an assertion") {
-            holds { throw AssertionError("the golden file differs") } and
-                holds { } and
-                holds { throw AssertionError("the stub file differs") }
+            holds { throw AssertionError("the golden file differs") }
+            holds { }
+            holds { throw AssertionError("the stub file differs") }
         }
         test("keeps what an assertion expected and found") {
             holds { throw AssertionFailedError("the tile's text", "Start load", "Stop load") }

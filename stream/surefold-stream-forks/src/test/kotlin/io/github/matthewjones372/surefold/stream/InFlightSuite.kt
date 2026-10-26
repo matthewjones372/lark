@@ -87,9 +87,9 @@ object InFlightSuite : Suite() {
                     ran.incrementAndGet()
                     done.countDown()
                 }
-                val ranAtAll = done.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+                done.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
                 flight.await()
-                ranAtAll and withClue("round $round") { ran.get() shouldBe 1 }
+                withClue("round $round") { ran.get() shouldBe 1 }
             }
         }
 
@@ -136,7 +136,8 @@ object InFlightSuite : Suite() {
 
             flight.cancel()
 
-            (stopped.get() shouldBe 1) and shouldThrow<InterruptedException> { flight.await() }
+            stopped.get() shouldBe 1
+            shouldThrow<InterruptedException> { flight.await() }
         }
 
         test("a body cancelled before it started never runs, and await says it was cancelled") {
@@ -150,9 +151,9 @@ object InFlightSuite : Suite() {
             queued.single().run()
 
             canceller.join(TimeUnit.SECONDS.toMillis(GENEROUS_SECONDS))
-            (canceller.isAlive shouldBe false) and
-                (ran.get() shouldBe 0) and
-                shouldThrow<CancellationException> { flight.await() }
+            canceller.isAlive shouldBe false
+            ran.get() shouldBe 0
+            shouldThrow<CancellationException> { flight.await() }
         }
 
         test("a cancel interrupted while it waits still waits, and keeps the interrupt") {
@@ -175,11 +176,11 @@ object InFlightSuite : Suite() {
             waitUntilParked(canceller)
             canceller.interrupt()
             Thread.sleep(STOPPING_MILLIS)
-            val stillWaiting = keptInterrupt.isDone shouldBe false
+            keptInterrupt.isDone shouldBe false
 
             release.countDown()
 
-            stillWaiting and (keptInterrupt.get(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true)
+            keptInterrupt.get(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
         }
     }
 }

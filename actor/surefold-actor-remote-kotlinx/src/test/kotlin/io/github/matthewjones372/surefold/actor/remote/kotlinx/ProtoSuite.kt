@@ -33,11 +33,11 @@ object ProtoSuite : Suite() {
             val paid = TillOuterClass.Till.parseFrom(tills.write(Till.Paid(Pence(250), "order-42")))
             val refunded = TillOuterClass.Till.parseFrom(tills.write(Till.Refunded(Pence(100), Reason.Unwanted)))
 
-            (paid.hasPaid() shouldBe true) and
-                (paid.paid.amount shouldBe 250L) and
-                (paid.paid.reference shouldBe "order-42") and
-                (refunded.refunded.reason shouldBe TillOuterClass.Reason.Unwanted) and
-                (TillOuterClass.Till.parseFrom(tills.write(Till.Closed)).hasClosed() shouldBe true)
+            paid.hasPaid() shouldBe true
+            paid.paid.amount shouldBe 250L
+            paid.paid.reference shouldBe "order-42"
+            refunded.refunded.reason shouldBe TillOuterClass.Reason.Unwanted
+            TillOuterClass.Till.parseFrom(tills.write(Till.Closed)).hasClosed() shouldBe true
         }
 
         test("what protoc's classes write, a table reads") {

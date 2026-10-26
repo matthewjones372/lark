@@ -138,7 +138,7 @@ object ReliableSuite : Suite() {
                 Bank("b${i + 1}", port, seeds, journal, if (i == 2) Duration.ZERO else 30.seconds)
             }
             try {
-                val up = banks.forAll { bank ->
+                banks.forAll { bank ->
                     bank.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     } shouldBe true
@@ -152,21 +152,21 @@ object ReliableSuite : Suite() {
                         Unit.right()
                 }
 
-                val early = (1..2).forAll { pay(it) }
-                val drained = payments.drain(1.minutes) shouldBe true
+                (1..2).forAll { pay(it) }
+                payments.drain(1.minutes) shouldBe true
                 // The third node stops without leaving, with the third payments on their way to its accounts: what was
                 // in flight to it is lost, and what it wrote may not have been confirmed.
-                val inFlight = pay(3)
+                pay(3)
                 crashing.close()
-                val late = (4..5).forAll { pay(it) }
-                val gone = listOf(sender, stays).forAll { bank ->
+                (4..5).forAll { pay(it) }
+                listOf(sender, stays).forAll { bank ->
                     bank.cluster.await(1.minutes) { view ->
                         view.members.none { it.node.name == crashing.name }
                     } shouldBe true
                 }
 
-                val resent = payments.drain(40.seconds) shouldBe true
-                val applied = accounts.forAll { id ->
+                payments.drain(40.seconds) shouldBe true
+                accounts.forAll { id ->
                     journal.events(accountOf(id), paidPence) shouldBe (1..5).toList()
                 }
 
@@ -176,12 +176,11 @@ object ReliableSuite : Suite() {
                 fun sum(name: String) =
                     survivors.sumOf { it.measured.gauge(name, "node" to it.name, "kind" to "account") ?: 0.0 }
                 val producer = arrayOf("node" to sender.name, "producer" to "account-checkout")
-                up and early and drained and inFlight and late and gone and resent and applied and
-                    (sum("surefold.sharding.shards") shouldBe 256.0) and
-                    (sum("surefold.sharding.entities") shouldBe 200.0) and
-                    (sum("surefold.sharding.buffered") shouldBe 0.0) and
-                    (sender.measured.gauge("surefold.delivery.unconfirmed", *producer) shouldBe 0.0) and
-                    (sender.measured.counter("surefold.delivery.resent", *producer) shouldBeGreaterThan 0.0)
+                sum("surefold.sharding.shards") shouldBe 256.0
+                sum("surefold.sharding.entities") shouldBe 200.0
+                sum("surefold.sharding.buffered") shouldBe 0.0
+                sender.measured.gauge("surefold.delivery.unconfirmed", *producer) shouldBe 0.0
+                sender.measured.counter("surefold.delivery.resent", *producer) shouldBeGreaterThan 0.0
             } finally {
                 banks.forEach(Bank::close)
             }
@@ -195,7 +194,7 @@ object ReliableSuite : Suite() {
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val banks = ports.mapIndexed { i, port -> Bank("b${i + 1}", port, seeds, journal, 30.seconds) }
             try {
-                val up = banks.forAll { bank ->
+                banks.forAll { bank ->
                     bank.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     } shouldBe true
@@ -204,12 +203,12 @@ object ReliableSuite : Suite() {
                 val payments = closing.accounts.reliable("checkout", keep = 1_000)
                 val accounts = List(200) { "a-$it" }
 
-                val sent = (1..2).forAll { pence ->
+                (1..2).forAll { pence ->
                     accounts.forAll { id -> payments.send(id) { PayInto(pence, it) } shouldBe Unit.right() }
                 }
                 closing.close()
 
-                up and sent and accounts.forAll { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
+                accounts.forAll { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
             } finally {
                 banks.forEach(Bank::close)
             }
@@ -228,7 +227,7 @@ object ReliableSuite : Suite() {
             }
             val banks = (0 until 3).map(bank).toMutableList()
             try {
-                val up = banks.forAll { b ->
+                banks.forAll { b ->
                     b.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     } shouldBe true
@@ -236,17 +235,17 @@ object ReliableSuite : Suite() {
                 val (crashing) = banks
                 val accepted = crashing.accounts.reliable("checkout", keep = 1_000, durable = true)
                 val accounts = List(200) { "a-$it" }
-                val sent = (1..2).forAll { pence ->
+                (1..2).forAll { pence ->
                     accounts.forAll { id -> accepted.send(id) { PayInto(pence, it) } shouldBe Unit.right() }
                 }
 
                 val kept = "account-checkout-${crashing.cluster.life}"
                 crashing.close()
                 // 400 kept and none confirmed: what the registry resumes, it has only from the journal.
-                val unconfirmed = journal.read(PersistenceId("surefold-producer", kept)).size shouldBe 400
+                journal.read(PersistenceId("surefold-producer", kept)).size shouldBe 400
                 banks += bank(3)
                 val survivors = banks.drop(1)
-                val gone = survivors.forAll { b ->
+                survivors.forAll { b ->
                     b.cluster.await(1.minutes) { view ->
                         view.members.none { it.node.name == crashing.name }
                     } shouldBe true
@@ -255,9 +254,8 @@ object ReliableSuite : Suite() {
                 val registry = checkNotNull(survivors.single { it.cluster.self == oldest }.cluster.producers)
 
                 // Resumed on the registry's node, and retired once every payment it kept is confirmed.
-                val retired = registry.await(30.seconds) { listed -> listed != null && kept !in listed } shouldBe true
-                up and sent and unconfirmed and gone and retired and
-                    accounts.forAll { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
+                registry.await(30.seconds) { listed -> listed != null && kept !in listed } shouldBe true
+                accounts.forAll { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
             } finally {
                 banks.forEach(Bank::close)
             }

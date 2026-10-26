@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.withClue
@@ -78,9 +77,8 @@ private fun sink(total: AtomicInteger) = behaviour<Int, Unit>(Unit) { _, _, n ->
 object ParitySuite : Suite() {
     private val runtimes = listOf(threads, testScope)
 
-    private fun <A> onEvery(expected: A, scenario: Actors.() -> A): Expectations = runtimes
-        .map { runtime -> withClue("on $runtime") { runtime.run(scenario) shouldBe expected } }
-        .reduce(Expectations::and)
+    private fun <A> onEvery(expected: A, scenario: Actors.() -> A) =
+        runtimes.forEach { runtime -> withClue("on $runtime") { runtime.run(scenario) shouldBe expected } }
 
     init {
         test("a ball bounced between two actors is counted every time before awaitIdle returns") {

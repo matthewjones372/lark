@@ -48,10 +48,10 @@ object PostgresFeedGapSuite : Suite(concurrent = false) {
             val open = source.pending("o-2")
             journal.put("o-3")
 
-            val held = journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+            journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
 
             open.use { it.commit() }
-            held and (journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-2#1", "o-3#1"))
+            journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-2#1", "o-3#1")
         }
 
         test("a gap that does not fill within gapTimeout is passed, and what is after it is read") {
@@ -62,15 +62,14 @@ object PostgresFeedGapSuite : Suite(concurrent = false) {
                 journal.put("o-1")
                 source.pending("o-2").use { open ->
                     journal.put("o-3")
-                    val held = journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+                    journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
 
                     moving.adjust(9.seconds)
-                    val stillHeld = journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+                    journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
 
                     open.rollback()
                     moving.adjust(1.seconds)
-                    held and stillHeld and
-                        (journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-3#1"))
+                    journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-3#1")
                 }
             }
         }
@@ -86,10 +85,10 @@ object PostgresFeedGapSuite : Suite(concurrent = false) {
                 (1..5).forEach { n ->
                     source.pending("gone-$n").use { open -> journal.put("o-$n").also { open.rollback() } }
                 }
-                val held = journal.after("order", 0, 20).ids() shouldContainExactly listOf("o-0#1")
+                journal.after("order", 0, 20).ids() shouldContainExactly listOf("o-0#1")
 
                 moving.adjust(10.seconds)
-                held and (journal.after("order", 0, 20).ids() shouldContainExactly (0..5).map { "o-$it#1" })
+                journal.after("order", 0, 20).ids() shouldContainExactly (0..5).map { "o-$it#1" }
             }
         }
 
@@ -104,16 +103,15 @@ object PostgresFeedGapSuite : Suite(concurrent = false) {
             val quarters = (0 until 4).map { k -> k * Slices.COUNT / 4 until (k + 1) * Slices.COUNT / 4 }
 
             val before = quarters.flatMap { journal.after("order", it, 0, 1_000) }
-            val held = before.ids() shouldContainExactlyInAnyOrder (1..100).map { "o-$it#1" }
+            before.ids() shouldContainExactlyInAnyOrder (1..100).map { "o-$it#1" }
 
             open.use { it.commit() }
             val all = quarters.map { journal.after("order", it, 0, 1_000) }
-            held and
-                (all.flatten().ids() shouldContainExactlyInAnyOrder (1..200).map { "o-$it#1" } + "gap#1") and
-                all.withIndex().forAll { (k, events) ->
-                    (events.all { Slices.of(it.id) in quarters[k] } shouldBe true) and
-                        (events.map { it.offset } shouldBe events.map { it.offset }.sorted())
-                }
+            all.flatten().ids() shouldContainExactlyInAnyOrder (1..200).map { "o-$it#1" } + "gap#1"
+            all.withIndex().forAll { (k, events) ->
+                events.all { Slices.of(it.id) in quarters[k] } shouldBe true
+                events.map { it.offset } shouldBe events.map { it.offset }.sorted()
+            }
         }
 
         test("a gap above everything read holds nothing back") {
@@ -132,19 +130,16 @@ object PostgresFeedGapSuite : Suite(concurrent = false) {
                 journal.put("o-1")
                 source.pending("o-2").use { open ->
                     journal.put("o-3")
-                    val held = journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+                    journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
 
                     // A writer frozen mid-commit, as a paused JVM is: its transaction is still running, so the gap
                     // holds.
                     moving.adjust(30.seconds)
-                    val stillHeld = journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
+                    journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")
 
                     open.commit()
-                    held and stillHeld and
-                        (
-                            journal.after("order", 0, 10).ids() shouldContainExactly
-                                listOf("o-1#1", "o-2#1", "o-3#1")
-                            )
+                    journal.after("order", 0, 10).ids() shouldContainExactly
+                        listOf("o-1#1", "o-2#1", "o-3#1")
                 }
             }
         }
@@ -155,12 +150,12 @@ object PostgresFeedGapSuite : Suite(concurrent = false) {
                 val source = source()
                 val journal = JdbcJournal(source, gapTimeout = 10.seconds)
                 journal.put("o-1")
-                val held = source.pending("o-2").use { open ->
+                source.pending("o-2").use { open ->
                     journal.put("o-3")
                     (journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1")).also { open.rollback() }
                 }
                 moving.adjust(2.seconds)
-                held and (journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-3#1"))
+                journal.after("order", 0, 10).ids() shouldContainExactly listOf("o-1#1", "o-3#1")
             }
         }
     }

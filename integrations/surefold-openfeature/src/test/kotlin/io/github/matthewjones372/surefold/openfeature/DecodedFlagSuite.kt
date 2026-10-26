@@ -68,50 +68,48 @@ object DecodedFlagSuite : SharedSuite<Client>() {
     init {
         test("each factory decodes a good value into the type it declares") { client ->
             featureClient.locally(client) {
-                (Decoded.limit.value() shouldBe 5_000_000_000L) and
-                    (Decoded.timeout.value() shouldBe 5.seconds) and
-                    (Decoded.cutOver.value() shouldBe Instant.parse("2026-01-01T00:00:00Z")) and
-                    (Decoded.checkout.value() shouldBe Checkout.Express) and
-                    (Decoded.window.value() shouldBe Window(9, 17))
+                Decoded.limit.value() shouldBe 5_000_000_000L
+                Decoded.timeout.value() shouldBe 5.seconds
+                Decoded.cutOver.value() shouldBe Instant.parse("2026-01-01T00:00:00Z")
+                Decoded.checkout.value() shouldBe Checkout.Express
+                Decoded.window.value() shouldBe Window(9, 17)
             }
         }
 
         test(
             "a value that will not decode answers the default, with PARSE_ERROR, one warning and one error counted",
         ) { client ->
-            val (read, warnings) = capturingLogs { logs ->
+            val (details, warnings) = capturingLogs { logs ->
                 capturingMetrics { measured ->
                     val details = featureClient.locally(client) { Decoded.badTimeout.details() }
-                    val counted = withClue("counted once, under the flag and the code") {
-                        (measured.counter("openfeature.errors") shouldBe 1.0) and
-                            (
-                                measured.tags("openfeature.errors") shouldBe
-                                    mapOf("flag" to "decoded.bad-timeout", "code" to "PARSE_ERROR")
-                                )
+                    withClue("counted once, under the flag and the code") {
+                        measured.counter("openfeature.errors") shouldBe 1.0
+                        measured.tags("openfeature.errors") shouldBe
+                            mapOf("flag" to "decoded.bad-timeout", "code" to "PARSE_ERROR")
                     }
-                    details to counted
+                    details
                 } to logs.all().filter { it.level == LogLevel.Warn }
             }
-            val (details, counted) = read
 
-            counted and
-                (details.value shouldBe 2.seconds) and
-                (details.errorCode shouldBe ErrorCode.PARSE_ERROR) and
-                (details.errorMessage.orEmpty() shouldContain "soon") and
-                (warnings.size shouldBe 1) and
-                (warnings.single().message shouldContain "decoded.bad-timeout")
+            details.value shouldBe 2.seconds
+            details.errorCode shouldBe ErrorCode.PARSE_ERROR
+            details.errorMessage.orEmpty() shouldContain "soon"
+            warnings.size shouldBe 1
+            warnings.single().message shouldContain "decoded.bad-timeout"
         }
 
         test("an enum matches its constant's name exactly, so a wrong case is a PARSE_ERROR") { client ->
             val details = featureClient.locally(client) { Decoded.badCheckout.details() }
 
-            (details.value shouldBe Checkout.Classic) and (details.errorCode shouldBe ErrorCode.PARSE_ERROR)
+            details.value shouldBe Checkout.Classic
+            details.errorCode shouldBe ErrorCode.PARSE_ERROR
         }
 
         test("a flag no provider knows answers its default with the SDK's own code, and is not decoded") { client ->
             val details = featureClient.locally(client) { Decoded.missingWindow.details() }
 
-            (details.value shouldBe Window(0, 24)) and (details.errorCode shouldBe ErrorCode.FLAG_NOT_FOUND)
+            details.value shouldBe Window(0, 24)
+            details.errorCode shouldBe ErrorCode.FLAG_NOT_FOUND
         }
     }
 }

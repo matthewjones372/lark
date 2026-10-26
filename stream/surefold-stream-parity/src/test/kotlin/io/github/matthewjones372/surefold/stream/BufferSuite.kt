@@ -47,11 +47,11 @@ object BufferSuite : SharedSuite<ActorSystem>() {
                     .runCollect()
                     .run(backend.on(system)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                (exit shouldBe Exit.Done(listOf(1))) and
-                    withClue("upstream kept going while the first element was read: ${aheadWhileReading.get()} ahead") {
-                        (aheadWhileReading.get() shouldBeGreaterThan 0) and
-                            (aheadWhileReading.get() shouldBeLessThanOrEqual furthest)
-                    }
+                exit shouldBe Exit.Done(listOf(1))
+                withClue("upstream kept going while the first element was read: ${aheadWhileReading.get()} ahead") {
+                    aheadWhileReading.get() shouldBeGreaterThan 0
+                    aheadWhileReading.get() shouldBeLessThanOrEqual furthest
+                }
             }
         }
     }

@@ -41,10 +41,10 @@ object ProfileSuite : SharedSuite<ActorSystem>() {
             val diagram = parallel.render(Layout.Mermaid, profile = profile)
 
             withClue(diagram) {
-                (profile.hottest() shouldBe 2) and
-                    expect(diagram.lineOf("mapPar(8)").endsWith(":::hot")) and
-                    expect(diagram.lineOf("map ·").endsWith(":::cool")) and
-                    (diagram.lineOf("mapPar(8)") shouldContain "200 out")
+                profile.hottest() shouldBe 2
+                expect(diagram.lineOf("mapPar(8)").endsWith(":::hot"))
+                expect(diagram.lineOf("map ·").endsWith(":::cool"))
+                diagram.lineOf("mapPar(8)") shouldContain "200 out"
             }
         }
 
@@ -62,9 +62,9 @@ object ProfileSuite : SharedSuite<ActorSystem>() {
             val text = chain.render(profile = profile)
 
             withClue(text) {
-                (profile.hottest() shouldBe 2) and
-                    (text.lines()[2] shouldContain Regex("""map +ProfileSuite\.kt:\d+ +\d+% · """)) and
-                    (profile.stages.getValue(3).elements shouldBe 25)
+                profile.hottest() shouldBe 2
+                text.lines()[2] shouldContain Regex("""map +ProfileSuite\.kt:\d+ +\d+% · """)
+                profile.stages.getValue(3).elements shouldBe 25
             }
         }
 
@@ -73,11 +73,11 @@ object ProfileSuite : SharedSuite<ActorSystem>() {
             val edited = Stream.from(1..10).filter { it % 2 == 0 }.map { it + 1 }.runCollect()
             val profile = written.profiledOn(Forks())
 
-            val ownRun = expect(written.render(profile = profile).isNotEmpty())
+            expect(written.render(profile = profile).isNotEmpty())
             val moved = Regex(
                 """step 1 is map at ProfileSuite\.kt:\d+ in the profile, filter at ProfileSuite\.kt:\d+ in this run""",
             )
-            ownRun and shouldThrow<IllegalArgumentException>({ edited.render(profile = profile) }) { thrown ->
+            shouldThrow<IllegalArgumentException>({ edited.render(profile = profile) }) { thrown ->
                 expect(moved.matches(thrown.message.orEmpty()))
             }
         }
@@ -93,14 +93,15 @@ object ProfileSuite : SharedSuite<ActorSystem>() {
 
             val ingest = profiler.profile("ingest").stages.getValue(1)
             val export = profiler.profile("export").stages.getValue(1)
-            val refused = shouldThrow<IllegalStateException>({ profiler.profile() }) { thrown ->
+            shouldThrow<IllegalStateException>({ profiler.profile() }) { thrown ->
                 thrown.message shouldBe "this profiler saw export and ingest; say which"
             }
 
-            (ingest.stage shouldBe "map") and (ingest.elements shouldBe 10) and
-                (export.stage shouldBe "filter") and (export.elements shouldBe 2) and
-                expect(ingest.at.orEmpty().startsWith("ProfileSuite.kt:")) and
-                refused
+            ingest.stage shouldBe "map"
+            ingest.elements shouldBe 10
+            export.stage shouldBe "filter"
+            export.elements shouldBe 2
+            expect(ingest.at.orEmpty().startsWith("ProfileSuite.kt:"))
         }
     }
 }

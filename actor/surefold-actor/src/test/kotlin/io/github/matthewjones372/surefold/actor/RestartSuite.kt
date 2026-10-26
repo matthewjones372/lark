@@ -51,7 +51,9 @@ object RestartSuite : Suite() {
             press.send(Jam)
             press.send(Stamp(2))
 
-            (press.stopped shouldBe false) and (press.state shouldBe listOf(2)) and (press.restarts shouldBe 1)
+            press.stopped shouldBe false
+            press.state shouldBe listOf(2)
+            press.restarts shouldBe 1
         }
 
         test("a throw restarts it on the same schedule, and does not reach the test") {
@@ -59,7 +61,8 @@ object RestartSuite : Suite() {
 
             press.send(Crack)
 
-            (press.stopped shouldBe false) and (press.restarts shouldBe 1)
+            press.stopped shouldBe false
+            press.restarts shouldBe 1
         }
 
         test("when the schedule is done the actor stops, with the failure that ended it") {
@@ -68,9 +71,9 @@ object RestartSuite : Suite() {
             press.send(Jam)
             press.send(Jam)
 
-            (press.stopped shouldBe true) and
-                (press.restarts shouldBe 1) and
-                (press.failure shouldBe Failure.Declared(Jammed))
+            press.stopped shouldBe true
+            press.restarts shouldBe 1
+            press.failure shouldBe Failure.Declared(Jammed)
         }
 
         test("the test kit records each restart's delay rather than waiting it out") {
@@ -84,9 +87,9 @@ object RestartSuite : Suite() {
         test("with no schedule a throw still stops the actor and reaches the test") {
             val press = press().test()
 
-            val thrown = shouldThrow<IllegalStateException> { press.send(Crack) }
+            shouldThrow<IllegalStateException> { press.send(Crack) }
 
-            thrown and (press.stopped shouldBe true)
+            press.stopped shouldBe true
         }
 
         test("on threads, a restart waits on the flock's clock and the mailbox is intact") {

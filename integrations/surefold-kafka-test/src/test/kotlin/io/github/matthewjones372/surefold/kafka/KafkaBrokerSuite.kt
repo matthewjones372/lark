@@ -47,7 +47,8 @@ object KafkaBrokerSuite : SharedSuite<KafkaBroker>() {
             // What a fatal fault in the broker does, through ProcessTerminatingFaultHandler.
             shouldThrow<IllegalStateException>({ Exit.exit(1) }) { thrown ->
                 thrown.message shouldContain "asked the JVM to exit with 1"
-            } and shouldThrow<IllegalStateException>({ Exit.halt(1) }) { thrown ->
+            }
+            shouldThrow<IllegalStateException>({ Exit.halt(1) }) { thrown ->
                 thrown.message shouldContain "asked the JVM to halt with 1"
             }
         }

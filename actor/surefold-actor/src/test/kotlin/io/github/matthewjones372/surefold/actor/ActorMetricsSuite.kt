@@ -28,13 +28,11 @@ object ActorMetricsSuite : Suite() {
                     awaitIdle()
                 }
 
-                (captured.counter("surefold.actor.dead_letters") shouldBe 1.0) and
-                    (
-                        captured.tags("surefold.actor.dead_letters") shouldBe
-                            mapOf("node" to "shop-1", "reason" to "stopped")
-                        ) and
-                    (captured.counter("surefold.actor.restarts") shouldBe 1.0) and
-                    (captured.tags("surefold.actor.restarts") shouldBe mapOf("node" to "shop-1"))
+                captured.counter("surefold.actor.dead_letters") shouldBe 1.0
+                captured.tags("surefold.actor.dead_letters") shouldBe
+                    mapOf("node" to "shop-1", "reason" to "stopped")
+                captured.counter("surefold.actor.restarts") shouldBe 1.0
+                captured.tags("surefold.actor.restarts") shouldBe mapOf("node" to "shop-1")
             }
         }
 

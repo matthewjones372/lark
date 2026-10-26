@@ -84,24 +84,25 @@ object ReceptionistSuite : Suite() {
                 val wicket = spawn("wicket", wicket())
                 wicket.send(Retire)
 
-                (usher.state shouldContainExactly listOf(0, 1, 0)) and (find(Wickets) shouldBe emptySet())
+                usher.state shouldContainExactly listOf(0, 1, 0)
+                find(Wickets) shouldBe emptySet()
             }
         }
 
         test("a restart loses the registration, and onStart makes it again") {
             val log = ConcurrentLinkedQueue<String>()
-            val restarted = testActors {
+            testActors {
                 val usher = spawn("usher", usher())
                 usher.send(Follow)
                 val wicket = spawn("wicket", wicket(log), restart = Schedule.recurs(1))
 
                 wicket.send(Wobble)
 
-                (wicket.restarts shouldBe 1) and
-                    (usher.state shouldContainExactly listOf(0, 1, 0, 1)) and
-                    (find(Wickets) shouldBe setOf(wicket))
+                wicket.restarts shouldBe 1
+                usher.state shouldContainExactly listOf(0, 1, 0, 1)
+                find(Wickets) shouldBe setOf(wicket)
             }
-            restarted and (log.toList() shouldContainExactly listOf("start", "step", "start"))
+            log.toList() shouldContainExactly listOf("start", "step", "start")
         }
 
         test("a failing start fails the actor like a step") {

@@ -55,8 +55,8 @@ object BatchedAppendSuite : Suite() {
                 awaitIdle()
             }
 
-            (journal.appends.get() shouldBeLessThanOrEqual 20) and
-                (journal.events(id, cents) shouldContainExactly (1..1_000).toList())
+            journal.appends.get() shouldBeLessThanOrEqual 20
+            journal.events(id, cents) shouldContainExactly (1..1_000).toList()
         }
     }
 }

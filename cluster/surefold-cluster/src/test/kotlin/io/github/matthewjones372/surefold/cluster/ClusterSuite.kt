@@ -91,16 +91,16 @@ object ClusterSuite : Suite() {
                     }
                     up to node.cluster.view.members
                 }
-                val allUp = seen.forAll { (up, _) -> up }
+                seen.forAll { (up, _) -> up }
                 val views = seen.map { (_, members) -> members }
-                val agreed = views.distinct().size shouldBe 1
+                views.distinct().size shouldBe 1
                 // The lowest seed forms the cluster, so it is the oldest member.
                 val oldest = names[ports.indexOf(ports.take(3).min())]
-                val led = nodes.map { it.cluster.view.leader?.name }.distinct() shouldBe listOf(oldest)
+                nodes.map { it.cluster.view.leader?.name }.distinct() shouldBe listOf(oldest)
 
                 nodes.last().close()
 
-                allUp and agreed and led and nodes.dropLast(1).forAll { node ->
+                nodes.dropLast(1).forAll { node ->
                     withClue("${node.cluster.self} sees n5 unreachable") {
                         node.cluster.await(1.minutes) { view -> view.unreachable.any { it.name == "n5" } } shouldBe true
                     }
@@ -129,16 +129,15 @@ object ClusterSuite : Suite() {
                     cluster.subscribe(spawn("listener", listener))
                     fun <E : MemberEvent> next(type: Class<E>): E =
                         generateSequence { heard.poll(1, TimeUnit.MINUTES) }.filterIsInstance(type).first()
-                    val ups = List(3) { next(MemberEvent.Up::class.java).member.node.name }.toSet() shouldBe
+                    List(3) { next(MemberEvent.Up::class.java).member.node.name }.toSet() shouldBe
                         setOf("n1", "n2", "n3")
 
                     val ward = node.remote(Address("n3@127.0.0.1:${ports[2]}", "/user/ward", 0), Codecs.string)
                     val watched = watch(ward)
                     third.cluster.leave()
 
-                    ups and
-                        (next(MemberEvent.Removed::class.java).member.node.name shouldBe "n3") and
-                        (watched.await().ref shouldBe ward)
+                    next(MemberEvent.Removed::class.java).member.node.name shouldBe "n3"
+                    watched.await().ref shouldBe ward
                 }.shouldBeRight { it }
             } finally {
                 second.close()
@@ -165,14 +164,13 @@ object ClusterSuite : Suite() {
                     }
                     cluster.subscribe(spawn("slow", slow, capacity = 1))
 
-                    val moved = withClue("the cluster's view, with its subscriber full") {
+                    withClue("the cluster's view, with its subscriber full") {
                         cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
                     }
                     busy.countDown()
                     val ups = List(3) { generateSequence { heard.poll(1, TimeUnit.MINUTES) }.first() }
-                    moved and
-                        (ups.map { it::class } shouldBe List(3) { MemberEvent.Up::class }) and
-                        (ups.map { it.member.node.name }.toSet() shouldBe setOf("n1", "n2", "n3"))
+                    ups.map { it::class } shouldBe List(3) { MemberEvent.Up::class }
+                    ups.map { it.member.node.name }.toSet() shouldBe setOf("n1", "n2", "n3")
                 }.shouldBeRight { it }
             } finally {
                 second.close()
@@ -187,17 +185,16 @@ object ClusterSuite : Suite() {
                 listOf(Running("n1", ports[0], seeds), Running("n2", ports[1], seeds, admitted = Ready.WhenTold))
             try {
                 val (up, waiting) = nodes
-                val joined =
-                    up.cluster.await(1.minutes) { view -> view.members.any { it.node.name == "n2" } } shouldBe true
-                val notUp = up.cluster.await(2.seconds) { "n2" in it.upNames() } shouldBe false
-                val notReady = waiting.cluster.ready() shouldBe false
+                up.cluster.await(1.minutes) { view -> view.members.any { it.node.name == "n2" } } shouldBe true
+                up.cluster.await(2.seconds) { "n2" in it.upNames() } shouldBe false
+                waiting.cluster.ready() shouldBe false
 
                 waiting.cluster.admit()
 
-                val bothUp = nodes.forAll { node ->
+                nodes.forAll { node ->
                     node.cluster.await(1.minutes) { it.upNames() == setOf("n1", "n2") } shouldBe true
                 }
-                joined and notUp and notReady and bothUp and (waiting.cluster.ready() shouldBe true)
+                waiting.cluster.ready() shouldBe true
             } finally {
                 nodes.forEach(Running::close)
             }
@@ -208,8 +205,7 @@ object ClusterSuite : Suite() {
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes = ports.mapIndexed { i, port -> Running("n${i + 1}", port, seeds) }
             try {
-                val formed =
-                    nodes.forAll { node -> node.cluster.await(1.minutes) { it.upNames().size == 3 } shouldBe true }
+                nodes.forAll { node -> node.cluster.await(1.minutes) { it.upNames().size == 3 } shouldBe true }
                 val seen = ConcurrentLinkedQueue<Status>()
                 nodes.take(2).forEach { node ->
                     node.cluster.onView { view ->
@@ -221,12 +217,12 @@ object ClusterSuite : Suite() {
                 nodes.last().close()
 
                 // It learns it is out as soon as it is, and does not wait out its deadline.
-                val prompt = closing.elapsedNow() shouldBeLessThan 10.seconds
+                closing.elapsedNow() shouldBeLessThan 10.seconds
                 // Removed well inside the 20 seconds a crashed node waits before it is even downed.
-                val removed = nodes.take(2).forAll { node ->
+                nodes.take(2).forAll { node ->
                     node.cluster.await(10.seconds) { view -> view.members.none { it.node.name == "n3" } } shouldBe true
                 }
-                formed and prompt and removed and (seen.toSet() shouldBe setOf(Status.Up, Status.Leaving))
+                seen.toSet() shouldBe setOf(Status.Up, Status.Leaving)
             } finally {
                 nodes.forEach(Running::close)
             }
@@ -239,18 +235,16 @@ object ClusterSuite : Suite() {
                 Running("n${i + 1}", port, seeds, leaveWithin = if (i == 0) 2.seconds else Duration.ZERO)
             }
             try {
-                val formed =
-                    nodes.forAll { node -> node.cluster.await(1.minutes) { it.upNames().size == 3 } shouldBe true }
+                nodes.forAll { node -> node.cluster.await(1.minutes) { it.upNames().size == 3 } shouldBe true }
                 nodes.drop(1).forEach(Running::close)
-                val unreachable = nodes.first().cluster.await(1.minutes) { it.unreachable.size == 2 } shouldBe true
+                nodes.first().cluster.await(1.minutes) { it.unreachable.size == 2 } shouldBe true
 
                 // With the other two unreachable and not yet downed, no leader can remove it.
                 val started = TimeSource.Monotonic.markNow()
                 nodes.first().close()
 
-                formed and unreachable and
-                    (started.elapsedNow() shouldBeGreaterThanOrEqual 2.seconds) and
-                    (started.elapsedNow() shouldBeLessThan 10.seconds)
+                started.elapsedNow() shouldBeGreaterThanOrEqual 2.seconds
+                started.elapsedNow() shouldBeLessThan 10.seconds
             } finally {
                 nodes.forEach(Running::close)
             }
@@ -265,11 +259,11 @@ object ClusterSuite : Suite() {
             val first = Running("n1", ports[0], seeds, leaveWithin = Duration.ZERO)
             val second = Running("n2", ports[1], seeds, leaveWithin = Duration.ZERO)
             // Gone as a crashed node goes, without leaving, so the others still hold its life when it comes back.
-            val formed = Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO).use { earlier ->
+            Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO).use { earlier ->
                 earlier.cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
             }
             try {
-                formed and flock<Nothing, Expectations> {
+                flock<Nothing, Expectations> {
                     val heard = LinkedBlockingQueue<MemberEvent>()
                     val cluster = cluster(node("n3", ports[2]), seeds, quick, leaveWithin = Duration.ZERO)
                     val listener =
@@ -278,14 +272,13 @@ object ClusterSuite : Suite() {
 
                     val downed = generateSequence { heard.poll(1, TimeUnit.MINUTES) }
                         .filterIsInstance<MemberEvent.Downed>().first { it.member.node == cluster.self }
-                    val notItself = withClue("the earlier life's downing names this address, and is not this life's") {
+                    withClue("the earlier life's downing names this address, and is not this life's") {
                         cluster.isSelf(downed.member) shouldBe false
                     }
                     fun upAsItself(view: View) = view.members.any { cluster.isSelf(it) && it.status == Status.Up }
-                    notItself and
-                        (cluster.await(1.minutes, ::upAsItself) shouldBe true) and
-                        (cluster.ready() shouldBe true) and
-                        (heard.filterIsInstance<MemberEvent.Downed>().none { cluster.isSelf(it.member) } shouldBe true)
+                    cluster.await(1.minutes, ::upAsItself) shouldBe true
+                    cluster.ready() shouldBe true
+                    heard.filterIsInstance<MemberEvent.Downed>().none { cluster.isSelf(it.member) } shouldBe true
                 }.shouldBeRight { it }
             } finally {
                 first.close()
@@ -307,22 +300,21 @@ object ClusterSuite : Suite() {
                     // The default 20 s before a downed life is removed: long enough to watch the later life's actor
                     // first.
                     val cluster = cluster(node, seeds, quick, leaveWithin = Duration.ZERO)
-                    val formed = cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                    cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
                     val at = Address("n3@127.0.0.1:${ports[2]}", "/user/ward", 0)
                     val first = watch(node.remote(at, Codecs.string))
                     val earlierUid = cluster.view.members.first { it.node.name == "n3" }.uid
 
                     earlier.close()
                     val again = Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, setup = ward())
-                    formed and again.use { later ->
+                    again.use { later ->
                         // The earlier life's watch ends as the later life joins, before the earlier one is removed.
                         val _ = first.await()
-                        val beforeRemoved = withClue("the watch ended before the earlier life was removed") {
+                        withClue("the watch ended before the earlier life was removed") {
                             cluster.view.members.any { it.uid == earlierUid } shouldBe true
                         }
-                        val laterUp =
-                            later.cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
-                        val allUp = cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                        later.cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
+                        cluster.await(30.seconds) { it.upNames() == setOf("n1", "n2", "n3") } shouldBe true
 
                         val ended = AtomicBoolean(false)
                         val second = watch(node.remote(at, Codecs.string))
@@ -337,10 +329,10 @@ object ClusterSuite : Suite() {
                         }
                         val removed = cluster.await(1.minutes) { view -> view.members.none { it.uid == earlierUid } }
                         Thread.sleep(1_000)
-                        beforeRemoved and laterUp and allUp and (removed shouldBe true) and
-                            withClue("the earlier life's removal ends no watch on the later life's actor") {
-                                ended.get() shouldBe false
-                            }
+                        removed shouldBe true
+                        withClue("the earlier life's removal ends no watch on the later life's actor") {
+                            ended.get() shouldBe false
+                        }
                     }
                 }.shouldBeRight { it }
             } finally {

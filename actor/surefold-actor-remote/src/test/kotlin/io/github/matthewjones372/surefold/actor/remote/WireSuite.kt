@@ -59,8 +59,8 @@ object WireSuite : Suite() {
                 (1..5_000).forEach { first.send(two, frame(it)) }
                 (1..5_000).forEach { second.send(one, frame(it)) }
 
-                (heardByTwo.take(5_000) shouldBe (1..5_000).map { one to it }) and
-                    (heardByOne.take(5_000) shouldBe (1..5_000).map { two to it })
+                heardByTwo.take(5_000) shouldBe (1..5_000).map { one to it }
+                heardByOne.take(5_000) shouldBe (1..5_000).map { two to it }
             }
         }
 
@@ -73,18 +73,18 @@ object WireSuite : Suite() {
                 val before = Heard()
                 val second = Transport(two, before).apply { listen() }
                 first.send(two, frame(1))
-                val reached = before.take(1) shouldContainExactly listOf(one to 1)
+                before.take(1) shouldContainExactly listOf(one to 1)
 
                 second.close()
-                val went = heardByOne.disconnected.poll(1, TimeUnit.MINUTES) shouldBe two
+                heardByOne.disconnected.poll(1, TimeUnit.MINUTES) shouldBe two
                 // The first connection's event, drained before the peer is back, so the next one is the reconnection's.
                 heardByOne.connected.clear()
                 val after = Heard()
                 Transport(two, after).closedAfter().listen()
-                val back = heardByOne.connected.poll(1, TimeUnit.MINUTES) shouldBe two
+                heardByOne.connected.poll(1, TimeUnit.MINUTES) shouldBe two
                 (2..1_000).forEach { first.send(two, frame(it)) }
 
-                reached and went and back and (after.take(999) shouldBe (2..1_000).map { one to it })
+                after.take(999) shouldBe (2..1_000).map { one to it }
             }
         }
 
@@ -96,8 +96,8 @@ object WireSuite : Suite() {
                 val nobody = node("nobody")
                 (1..3).forEach { first.send(nobody, frame(it)) }
 
-                (heard.droppedCount.await(1, TimeUnit.MINUTES) shouldBe true) and
-                    (heard.dropped.toList() shouldContainExactly listOf(1, 2, 3))
+                heard.droppedCount.await(1, TimeUnit.MINUTES) shouldBe true
+                heard.dropped.toList() shouldContainExactly listOf(1, 2, 3)
             }
         }
 
@@ -111,9 +111,8 @@ object WireSuite : Suite() {
 
                 (1..10).forEach { first.send(Node("silent", "127.0.0.1", silent.localPort), frame(it)) }
 
-                val dropped = heard.dropped.toList() shouldContainExactly (5..10).toList()
+                heard.dropped.toList() shouldContainExactly (5..10).toList()
                 accepted.join()
-                dropped
             }
         }
 
@@ -139,8 +138,8 @@ object WireSuite : Suite() {
 
                 first.send(Node("three", two.host, two.port), frame(1))
 
-                (heard.droppedCount.await(1, TimeUnit.MINUTES) shouldBe true) and
-                    (heard.connected.isEmpty() shouldBe true)
+                heard.droppedCount.await(1, TimeUnit.MINUTES) shouldBe true
+                heard.connected.isEmpty() shouldBe true
             }
         }
 
@@ -155,13 +154,13 @@ object WireSuite : Suite() {
                 // take longer than the default second, and every frame left after it is dropped.
                 val first = Transport(one, heardByOne, drainWithin = 30.seconds)
                 first.send(two, frame(0))
-                val connected = heardByTwo.take(1) shouldContainExactly listOf(one to 0)
+                heardByTwo.take(1) shouldContainExactly listOf(one to 0)
 
                 (1..8_000).forEach { first.send(two, frame(it)) }
                 first.close()
 
-                connected and (heardByTwo.take(8_000) shouldBe (1..8_000).map { one to it }) and
-                    (heardByOne.dropped.isEmpty() shouldBe true)
+                heardByTwo.take(8_000) shouldBe (1..8_000).map { one to it }
+                heardByOne.dropped.isEmpty() shouldBe true
             }
         }
 
@@ -189,23 +188,22 @@ object WireSuite : Suite() {
                 val first = Transport(node("one"), heard, drainWithin = 200.milliseconds)
                 val peer = Node("stuck", "127.0.0.1", stuck.localPort)
                 first.send(peer, frame(0))
-                val connected = heard.connected.poll(1, TimeUnit.MINUTES) shouldBe peer
+                heard.connected.poll(1, TimeUnit.MINUTES) shouldBe peer
                 val big = Frame("/user/clinic", 1, ByteArray(64 * 1024))
                 repeat(1_000) { first.send(peer, big) }
 
                 val closing = TimeSource.Monotonic.markNow()
                 first.close()
 
-                val drained = (closing.elapsedNow() shouldBeLessThan 5.seconds) and
-                    (heard.dropped.isEmpty() shouldBe false)
+                closing.elapsedNow() shouldBeLessThan 5.seconds
+                heard.dropped.isEmpty() shouldBe false
                 answered.join()
-                connected and drained
             }
         }
 
         test("a node names itself as name at host and port, and reads back the same") {
-            (Node.parse("shop-1@10.0.0.7:25520") shouldBe Node("shop-1", "10.0.0.7", 25520)) and
-                (Node("shop-1", "10.0.0.7", 25520).toString() shouldBe "shop-1@10.0.0.7:25520")
+            Node.parse("shop-1@10.0.0.7:25520") shouldBe Node("shop-1", "10.0.0.7", 25520)
+            Node("shop-1", "10.0.0.7", 25520).toString() shouldBe "shop-1@10.0.0.7:25520"
         }
     }
 }

@@ -76,8 +76,8 @@ object StashSuite : Suite() {
             phone.send(Say(1))
             phone.send(Say(2))
 
-            shouldThrow<IllegalStateException> { phone.send(Say(3)) } and
-                phone.failure.shouldBeInstanceOf<Failure.Thrown>()
+            shouldThrow<IllegalStateException> { phone.send(Say(3)) }
+            phone.failure.shouldBeInstanceOf<Failure.Thrown>()
         }
 
         test("a restart drops the stash") {
@@ -88,7 +88,8 @@ object StashSuite : Suite() {
             phone.send(Static)
             phone.send(PickUp)
 
-            (phone.restarts shouldBe 1) and (phone.state shouldBe Answered(listOf(99)))
+            phone.restarts shouldBe 1
+            phone.state shouldBe Answered(listOf(99))
         }
 
         test("on threads, unstashed messages are handled before the mailbox, in the order kept") {

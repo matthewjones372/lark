@@ -60,10 +60,10 @@ object OperatorsSuite : SharedSuite<PekkoSystem>() {
 
             withClue("Pekko would have answered Done with the other two elements") {
                 exit.shouldBeInstanceOf<Exit.Died> { died ->
-                    died.cause.shouldBeInstanceOf<NullPointerException>() and
-                        withClue("a defect that does not name where it came from is the disappearance again") {
-                            died.cause.message shouldContain "mapAsync"
-                        }
+                    died.cause.shouldBeInstanceOf<NullPointerException>()
+                    withClue("a defect that does not name where it came from is the disappearance again") {
+                        died.cause.message shouldContain "mapAsync"
+                    }
                 }
             }
         }
@@ -108,11 +108,11 @@ object OperatorsSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(listOf(Receipt(1), Receipt(4)))) and
-                withClue("the sink is a branch of its own, so the run can finish before it has seen the last Left") {
-                    allThree.await(30, TimeUnit.SECONDS) shouldBe true
-                } and
-                (counted.toList() shouldBe listOf(Declined(2), Declined(3), Declined(5)))
+            exit shouldBe Exit.Done(listOf(Receipt(1), Receipt(4)))
+            withClue("the sink is a branch of its own, so the run can finish before it has seen the last Left") {
+                allThree.await(30, TimeUnit.SECONDS) shouldBe true
+            }
+            counted.toList() shouldBe listOf(Declined(2), Declined(3), Declined(5))
         }
 
         test("a declared failure upstream of divertLefts is still Exit Failed") { pekko ->
@@ -165,10 +165,10 @@ object OperatorsSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(Declined(2))) and
-                withClue("the Right after the Left must never have been looked at") {
-                    seen.toList() shouldBe listOf(Receipt(1))
-                }
+            exit shouldBe Exit.Failed(Declined(2))
+            withClue("the Right after the Left must never have been looked at") {
+                seen.toList() shouldBe listOf(Receipt(1))
+            }
         }
 
         test("absolve after either gives back the failure it made an element of") { pekko ->
@@ -267,10 +267,10 @@ object OperatorsSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(Declined(3))) and
-                withClue("what the first operand emitted still reached the sink") {
-                    seen.toList() shouldBe listOf(1, 2)
-                }
+            exit shouldBe Exit.Failed(Declined(3))
+            withClue("what the first operand emitted still reached the sink") {
+                seen.toList() shouldBe listOf(1, 2)
+            }
         }
 
         test("a failure in what prepend puts first ends the run") { pekko ->
@@ -317,7 +317,8 @@ object OperatorsSuite : SharedSuite<PekkoSystem>() {
 
             val thrown = probe.expectSubscriptionAndError()
 
-            (thrown shouldBe cause) and (thrown.suppressed.single().message shouldContain "conflateWithSeed died on 2")
+            thrown shouldBe cause
+            thrown.suppressed.single().message shouldContain "conflateWithSeed died on 2"
         }
 
         test("mapConcat flattens what each element answers with, in the order it answered") { pekko ->

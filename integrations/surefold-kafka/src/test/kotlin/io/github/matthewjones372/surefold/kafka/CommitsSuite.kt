@@ -108,7 +108,8 @@ object CommitsSuite : SharedSuite<KafkaBroker>() {
 
             withClue("the close committed all three records, though its thread was interrupted") {
                 kafka.committed(topic, Topic(topic)) shouldBe 3L
-            } and withClue("the interrupt is still there for whoever sent it") { stillInterrupted shouldBe true }
+            }
+            withClue("the interrupt is still there for whoever sent it") { stillInterrupted shouldBe true }
         }
 
         test(
@@ -123,7 +124,7 @@ object CommitsSuite : SharedSuite<KafkaBroker>() {
             val sending = CountDownLatch(1)
             val send = CountDownLatch(1)
 
-            val sent = producer(kafka, "leaving-mid-send").use { producer ->
+            producer(kafka, "leaving-mid-send").use { producer ->
                 producer.beginTransaction()
                 val generation = CompletableFuture.supplyAsync {
                     handle.withGroup { group ->
@@ -133,23 +134,21 @@ object CommitsSuite : SharedSuite<KafkaBroker>() {
                         group.generationId()
                     }
                 }
-                val started = sending.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+                sending.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
                 val closing = CompletableFuture.runAsync(commits::close)
 
-                val waited =
-                    withClue("the consumer does not leave while a transaction is sending offsets as its member") {
-                        shouldThrow<TimeoutException>({ closing.get(WAIT_MILLIS, TimeUnit.MILLISECONDS) })
-                    }
+                withClue("the consumer does not leave while a transaction is sending offsets as its member") {
+                    shouldThrow<TimeoutException>({ closing.get(WAIT_MILLIS, TimeUnit.MILLISECONDS) })
+                }
                 send.countDown()
-                val asMember = withClue("the offsets went as the member, which was still in its group") {
+                withClue("the offsets went as the member, which was still in its group") {
                     (generation.get(GENEROUS_SECONDS, TimeUnit.SECONDS) > 0) shouldBe true
                 }
                 producer.commitTransaction()
                 closing.get(GENEROUS_SECONDS, TimeUnit.SECONDS)
-                started and waited and asMember
             }
 
-            sent and (kafka.committed(topic, Topic(topic)) shouldBe 3L)
+            kafka.committed(topic, Topic(topic)) shouldBe 3L
         }
 
         test("a transaction after the close sends the group alone, which the broker takes") { kafka ->
@@ -161,20 +160,18 @@ object CommitsSuite : SharedSuite<KafkaBroker>() {
             val handle = commits.carrying(records.last()).handle!!
             commits.close()
 
-            val gone = producer(kafka, "sent-after-leaving").use { producer ->
+            producer(kafka, "sent-after-leaving").use { producer ->
                 producer.beginTransaction()
-                val gone = handle.withGroup { group ->
-                    val gone = withClue("the member has gone, so no generation goes with the offsets") {
+                handle.withGroup { group ->
+                    withClue("the member has gone, so no generation goes with the offsets") {
                         group!!.generationId() shouldBe -1
                     }
                     producer.sendOffsetsToTransaction(after(records), group)
-                    gone
                 }
                 producer.commitTransaction()
-                gone
             }
 
-            gone and (kafka.committed(topic, Topic(topic)) shouldBe 3L)
+            kafka.committed(topic, Topic(topic)) shouldBe 3L
         }
 
         test(
@@ -192,13 +189,13 @@ object CommitsSuite : SharedSuite<KafkaBroker>() {
             commits.forget(listOf(partition))
             late.forEach { it.handled() }
             commits.commit()
-            val revoked = withClue("records read before the revoke are the new owner's to commit") {
+            withClue("records read before the revoke are the new owner's to commit") {
                 kafka.committed(topic, Topic(topic)) shouldBe null
             }
 
             commits.carrying(records.last()).handle!!.handled()
             commits.close()
-            revoked and withClue("a record read once the partition is this consumer's again commits as usual") {
+            withClue("a record read once the partition is this consumer's again commits as usual") {
                 kafka.committed(topic, Topic(topic)) shouldBe 3L
             }
         }
@@ -231,10 +228,11 @@ object CommitsSuite : SharedSuite<KafkaBroker>() {
 
             withClue("the close took ${closing}ms against a fetch held for ${HELD_FETCH_MILLIS}ms") {
                 (closing < CLOSE_WITHIN_MILLIS) shouldBe true
-            } and (kafka.committed(topic, Topic(topic)) shouldBe 3L) and
-                withClue("the consumer left its group rather than timing out of it") {
-                    kafka.members(topic) shouldBe 0
-                }
+            }
+            kafka.committed(topic, Topic(topic)) shouldBe 3L
+            withClue("the consumer left its group rather than timing out of it") {
+                kafka.members(topic) shouldBe 0
+            }
         }
 
         test(
@@ -251,19 +249,20 @@ object CommitsSuite : SharedSuite<KafkaBroker>() {
                     idle.poll(Duration.ofMillis(POLL_MILLIS))
                     owner.poll(Duration.ofMillis(POLL_MILLIS))
                 }
-                val joined = withClue("the second member joined, and the topic's one partition stayed with the first") {
-                    (kafka.members(topic) shouldBe 2) and (idle.assignment() shouldBe emptySet())
+                withClue("the second member joined, and the topic's one partition stayed with the first") {
+                    kafka.members(topic) shouldBe 2
+                    idle.assignment() shouldBe emptySet()
                 }
 
                 Commits(idle).close()
 
                 // Looking up an empty assignment never reaches the coordinator, so it measures nothing to close within.
-                val closed = withClue("closed within ${idle.closedWithin}") { idle.closedAsKafkaDoes shouldBe true }
+                withClue("closed within ${idle.closedWithin}") { idle.closedAsKafkaDoes shouldBe true }
                 // Within the 30s the test allows, short of the 45s session timeout, so the member left rather
                 // than expired.
                 val left = System.nanoTime() + TimeUnit.SECONDS.toNanos(GENEROUS_SECONDS)
                 while (kafka.members(topic) > 1 && System.nanoTime() < left) owner.poll(Duration.ofMillis(POLL_MILLIS))
-                joined and closed and withClue("the member left its group") { kafka.members(topic) shouldBe 1 }
+                withClue("the member left its group") { kafka.members(topic) shouldBe 1 }
             }
         }
 

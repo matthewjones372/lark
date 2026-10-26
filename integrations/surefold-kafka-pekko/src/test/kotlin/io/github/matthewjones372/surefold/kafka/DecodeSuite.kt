@@ -76,19 +76,19 @@ object DecodeSuite : SharedSuite<KafkaKit>() {
                 .settled()
 
             val (fine, bad) = seen.toList()
-            (exit shouldBe Exit.Done(Done.getInstance())) and
-                (fine shouldBe "fine") and
-                bad.shouldBeInstanceOf<DecodeError> { error ->
-                    (error.topic shouldBe "mixed") and
-                        (error.partition shouldBe 0) and
-                        (error.offset shouldBe 1L) and
-                        (error.part shouldBe DecodeError.Part.Value) and
-                        (error.value?.let(::String) shouldBe "bad") and
-                        error.cause.shouldBeInstanceOf<SerializationException>()
-                } and
-                withClue("a record that decoded to a Left is still committed") {
-                    kit.broker.committed("reading", Topic("mixed")) shouldBe 2L
-                }
+            exit shouldBe Exit.Done(Done.getInstance())
+            fine shouldBe "fine"
+            bad.shouldBeInstanceOf<DecodeError> { error ->
+                error.topic shouldBe "mixed"
+                error.partition shouldBe 0
+                error.offset shouldBe 1L
+                error.part shouldBe DecodeError.Part.Value
+                error.value?.let(::String) shouldBe "bad"
+                error.cause.shouldBeInstanceOf<SerializationException>()
+            }
+            withClue("a record that decoded to a Left is still committed") {
+                kit.broker.committed("reading", Topic("mixed")) shouldBe 2L
+            }
         }
 
         test("a throw the decoder calls transient ends the run Died") { kit ->
@@ -127,9 +127,9 @@ object DecodeSuite : SharedSuite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(Done.getInstance())) and
-                (seen.toList() shouldBe listOf("flaky")) and
-                (orders.asked.get() shouldBe 2)
+            exit shouldBe Exit.Done(Done.getInstance())
+            seen.toList() shouldBe listOf("flaky")
+            orders.asked.get() shouldBe 2
         }
     }
 }

@@ -40,9 +40,9 @@ object RunSuite : Suite() {
             val released = CountDownLatch(1)
             val module = single<Held> { install({ Held() }) { _, _ -> released.countDown() } }
 
-            val ran = module.application(Shutdown()) { _: Held -> }.getOrNull().shouldNotBeNull()
+            module.application(Shutdown()) { _: Held -> }.getOrNull().shouldNotBeNull()
 
-            ran and (released.count shouldBe 0L)
+            released.count shouldBe 0L
         }
 
         test("a graph that cannot start never runs the block") {
@@ -51,14 +51,16 @@ object RunSuite : Suite() {
             val error = (single<Held> { Held() }).application(Shutdown()) { _: Absent -> ran.set(true) }.leftOrNull()
 
             error.shouldNotBeNull { refused ->
-                (ran.get() shouldBe false) and (refused shouldBe StartupError.NoSuchNode(typeOf<Absent>()))
+                ran.get() shouldBe false
+                refused shouldBe StartupError.NoSuchNode(typeOf<Absent>())
             }
         }
 
         test("a refusal describes itself by node and reason") {
             val described = StartupError.Refused(typeOf<Held>(), "the port is already taken").describe()
 
-            (described shouldContain "Held") and (described shouldContain "the port is already taken")
+            described shouldContain "Held"
+            described shouldContain "the port is already taken"
         }
 
         test("a faulty graph describes itself with the wiring report") {
@@ -66,12 +68,13 @@ object RunSuite : Suite() {
                 .Unwireable(nonEmptyListOf(WiringError.Missing(typeOf<Held>(), typeOf<Absent>())))
                 .describe()
 
-            (described shouldContain "❯ missing Held") and (described shouldContain "❯     for Absent")
+            described shouldContain "❯ missing Held"
+            described shouldContain "❯     for Absent"
         }
 
         test("an exit code is Ok only when the application left cleanly") {
-            (Either.Right(Unit).exitCode() shouldBe ExitCode.Ok) and
-                (Either.Left(StartupError.NoSuchNode(typeOf<Absent>())).exitCode() shouldBe ExitCode.Failed)
+            Either.Right(Unit).exitCode() shouldBe ExitCode.Ok
+            Either.Left(StartupError.NoSuchNode(typeOf<Absent>())).exitCode() shouldBe ExitCode.Failed
         }
 
         test("runApp answers rather than ending the process, so a test can read what it decided") {
@@ -79,7 +82,8 @@ object RunSuite : Suite() {
 
             val exit = runApp(single<Held> { Held() }) { _: Held -> started.set(true) }
 
-            (started.get() shouldBe true) and (exit shouldBe ExitCode.Ok)
+            started.get() shouldBe true
+            exit shouldBe ExitCode.Ok
         }
 
         test("a graph that cannot start answers Failed") {

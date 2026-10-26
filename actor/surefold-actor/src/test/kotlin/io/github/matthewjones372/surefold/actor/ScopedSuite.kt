@@ -88,7 +88,8 @@ object ScopedSuite : Suite() {
             lamp.send(Flip)
             lamp.advance(1.hours)
 
-            (log.get() shouldContainExactly listOf("shimmer")) and (lamp.pendingTimers shouldBe 0)
+            log.get() shouldContainExactly listOf("shimmer")
+            lamp.pendingTimers shouldBe 0
         }
 
         test("a copy of the same state keeps them") {
@@ -99,7 +100,8 @@ object ScopedSuite : Suite() {
             lamp.send(Brighter)
             lamp.advance(5.seconds)
 
-            (lamp.state shouldBe Lit(2)) and (log.get() shouldContainExactly listOf("shimmer", "shimmer", "fade"))
+            lamp.state shouldBe Lit(2)
+            log.get() shouldContainExactly listOf("shimmer", "shimmer", "fade")
         }
 
         test("becoming the state again with timers replaces the ones it had") {
@@ -123,7 +125,9 @@ object ScopedSuite : Suite() {
             lamp.send(Stray)
             lamp.advance(1.hours)
 
-            (lamp.state shouldBe Off) and log.get().shouldBeEmpty() and (lamp.pendingTimers shouldBe 0)
+            lamp.state shouldBe Off
+            log.get().shouldBeEmpty()
+            lamp.pendingTimers shouldBe 0
         }
 
         test("on threads, a state's timers last while it does and a copy keeps them") {

@@ -22,14 +22,14 @@ object FindingsSuite : Suite() {
 
             val duplicate = module.findings().single()
 
-            (duplicate.severity shouldBe Severity.WARN) and
-                duplicate.error.shouldBeInstanceOf<WiringError.Duplicate> { error ->
-                    (error.key shouldBe typeOf<Kettle>()) and
-                        withClue("both the node that lost and the node that won are worth naming") {
-                            (error.shadowed shouldContain "FindingsSuite.kt") and
-                                (error.wins shouldContain "FindingsSuite.kt")
-                        }
+            duplicate.severity shouldBe Severity.WARN
+            duplicate.error.shouldBeInstanceOf<WiringError.Duplicate> { error ->
+                error.key shouldBe typeOf<Kettle>()
+                withClue("both the node that lost and the node that won are worth naming") {
+                    error.shadowed shouldContain "FindingsSuite.kt"
+                    error.wins shouldContain "FindingsSuite.kt"
                 }
+            }
         }
 
         test("an overriding is a duplicate on purpose and is not reported") {
@@ -55,10 +55,11 @@ object FindingsSuite : Suite() {
 
             val finding = module.findings(root = typeOf<Cup>()).single()
 
-            (finding.severity shouldBe Severity.WARN) and
-                finding.error.shouldBeInstanceOf<WiringError.Unreachable> { error ->
-                    (error.key shouldBe typeOf<Saucer>()) and (error.site shouldContain "FindingsSuite.kt")
-                }
+            finding.severity shouldBe Severity.WARN
+            finding.error.shouldBeInstanceOf<WiringError.Unreachable> { error ->
+                error.key shouldBe typeOf<Saucer>()
+                error.site shouldContain "FindingsSuite.kt"
+            }
         }
 
         test("an unreachable module is named once rather than under everything it reaches") {
@@ -82,8 +83,8 @@ object FindingsSuite : Suite() {
 
             val findings = module.findings(root = typeOf<Cup>())
 
-            (findings.single().severity shouldBe Severity.FAIL) and
-                (findings.single().error shouldBe WiringError.NoRoot(typeOf<Cup>()))
+            findings.single().severity shouldBe Severity.FAIL
+            findings.single().error shouldBe WiringError.NoRoot(typeOf<Cup>())
         }
 
         test("omitting the root skips the unreachable check and nothing else") {
@@ -97,7 +98,8 @@ object FindingsSuite : Suite() {
 
             val findings = module.findings()
 
-            (findings.first().severity shouldBe Severity.FAIL) and (findings.last().severity shouldBe Severity.WARN)
+            findings.first().severity shouldBe Severity.FAIL
+            findings.last().severity shouldBe Severity.WARN
         }
 
         test("the report names the severity and the places") {
@@ -105,11 +107,11 @@ object FindingsSuite : Suite() {
 
             val report = module.findings(root = typeOf<Kettle>()).report()
 
-            (report shouldContain "warning: Kettle provided twice") and
-                (report shouldContain "shadowed") and
-                (report shouldContain "wins") and
-                (report shouldContain "nothing reaches Saucer") and
-                (report shouldNotContain "error:")
+            report shouldContain "warning: Kettle provided twice"
+            report shouldContain "shadowed"
+            report shouldContain "wins"
+            report shouldContain "nothing reaches Saucer"
+            report shouldNotContain "error:"
         }
     }
 }

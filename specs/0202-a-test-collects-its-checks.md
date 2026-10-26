@@ -65,6 +65,8 @@ joins and the bracket trap in plain tests. Recommended: collect everywhere.
       split into PRs by module group, as spec 0197 was.
       Done when: `grep -rn ') and$' --include=*Suite.kt .` finds nothing.
 - [ ] **`spec-0202-retire`** — `and`, `or` and `!` on `Expectations` are removed, and checks return `Unit`.
+      So do the narrowing checks' blocks, and helpers' blocks typed `-> Expectations`. A `surefold-junit` suite
+      proves that a helper can call the block it is handed as a statement (spec 0203).
       Done when: `./gradlew build` passes.
 
 ## Acceptance

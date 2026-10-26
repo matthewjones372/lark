@@ -63,14 +63,14 @@ object VersionedStateSuite : Suite() {
                 val fromSnapshot = spawn("from-snapshot", till(snapshotted))
                 val fromEvents = spawn("from-events", till(replayed))
 
-                (fromSnapshot.state shouldBe Remembered(Takings(425, "GBP"), sequence = 3)) and
-                    (fromSnapshot.state shouldBe fromEvents.state)
+                fromSnapshot.state shouldBe Remembered(Takings(425, "GBP"), sequence = 3)
+                fromSnapshot.state shouldBe fromEvents.state
             }
         }
 
         test("a state reads back as it was written, and a chain with a gap is refused when the codec is built") {
-            (takings.decode(takings.encode(Takings(1, "EUR"))) shouldBe Takings(1, "EUR")) and
-                shouldThrow<IllegalArgumentException> { versionedState(3, takingsV2, mapOf(2 to StateUpgrade { it })) }
+            takings.decode(takings.encode(Takings(1, "EUR"))) shouldBe Takings(1, "EUR")
+            shouldThrow<IllegalArgumentException> { versionedState(3, takingsV2, mapOf(2 to StateUpgrade { it })) }
         }
     }
 }

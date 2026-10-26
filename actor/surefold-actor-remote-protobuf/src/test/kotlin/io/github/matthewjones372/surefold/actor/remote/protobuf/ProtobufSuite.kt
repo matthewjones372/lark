@@ -71,29 +71,27 @@ object ProtobufSuite : Suite() {
         }
 
         test("a protocol with a tag or a type given twice fails when it is built") {
-            val tagTwice = shouldThrow<IllegalArgumentException>({
+            shouldThrow<IllegalArgumentException>({
                 Protobuf.oneOf {
                     message(1, StringValue.parser())
                     message(1, Int64Value.parser())
                 }
             }) { e -> e.message shouldContain "tag 1" }
-            val typeTwice = shouldThrow<IllegalArgumentException>({
+            shouldThrow<IllegalArgumentException>({
                 Protobuf.oneOf {
                     message(1, StringValue.parser())
                     message(2, StringValue.parser())
                 }
             }) { e -> e.message shouldContain "StringValue" }
-            tagTwice and typeTwice
         }
 
         test("a message the protocol has no tag for is refused, and a tag it does not know is not read") {
-            val refused = shouldThrow<IllegalArgumentException> { protocol.roundTrip(BoolValue.of(true)) }
+            shouldThrow<IllegalArgumentException> { protocol.roundTrip(BoolValue.of(true)) }
             val unknown = Protobuf.oneOf { message(9, StringValue.parser()) }.encode(text("x"), Kept())
 
-            refused and
-                shouldThrow<WireException>({ protocol.decode(unknown, Kept()) }) { e ->
-                    e.message shouldContain "tag 9"
-                }
+            shouldThrow<WireException>({ protocol.decode(unknown, Kept()) }) { e ->
+                e.message shouldContain "tag 9"
+            }
         }
 
         test("bytes that are not the message are a wire exception, not Protobuf's own") {

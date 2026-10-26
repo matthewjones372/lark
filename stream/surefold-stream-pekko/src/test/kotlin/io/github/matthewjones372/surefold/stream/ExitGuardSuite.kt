@@ -27,8 +27,8 @@ object ExitGuardSuite : SharedSuite<PekkoSystem>() {
 
             exit.shouldBeInstanceOf<Exit.Died> { died ->
                 withClue("Done(null) would hand a null into a slot Kotlin believes is not nullable") {
-                    died.cause.shouldBeInstanceOf<NullPointerException>() and
-                        (died.cause.message.orEmpty() shouldContain "run ended with null")
+                    died.cause.shouldBeInstanceOf<NullPointerException>()
+                    died.cause.message.orEmpty() shouldContain "run ended with null"
                 }
             }
         }

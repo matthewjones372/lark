@@ -59,9 +59,9 @@ object CommittedOperatorsSuite : SharedSuite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            (exit shouldBe Exit.Done(Done.getInstance())) and
-                (seen.toList() shouldBe listOf(1, 10, 3, 30, 5, 50)) and
-                (kit.broker.committed("counting", Topic("numbers")) shouldBe 5L)
+            exit shouldBe Exit.Done(Done.getInstance())
+            seen.toList() shouldBe listOf(1, 10, 3, 30, 5, 50)
+            kit.broker.committed("counting", Topic("numbers")) shouldBe 5L
         }
 
         test("a body that raises on record 3 of 5 leaves the first two committed") { kit ->
@@ -75,10 +75,10 @@ object CommittedOperatorsSuite : SharedSuite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(Refused("3"))) and
-                withClue("the next run in the group starts at the record that raised") {
-                    kit.broker.committed("refusing", Topic("refusals")) shouldBe 2L
-                }
+            exit shouldBe Exit.Failed(Refused("3"))
+            withClue("the next run in the group starts at the record that raised") {
+                kit.broker.committed("refusing", Topic("refusals")) shouldBe 2L
+            }
         }
 
         test("a record expanded to three elements whose third raises is not committed") { kit ->
@@ -93,10 +93,10 @@ object CommittedOperatorsSuite : SharedSuite<KafkaKit>() {
                 .run(kit.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(Refused("y"))) and
-                withClue("x is committed; y's first two elements got through, and still y is not") {
-                    kit.broker.committed("expanding", Topic("expansions")) shouldBe 1L
-                }
+            exit shouldBe Exit.Failed(Refused("y"))
+            withClue("x is committed; y's first two elements got through, and still y is not") {
+                kit.broker.committed("expanding", Topic("expansions")) shouldBe 1L
+            }
         }
 
         test("a body's log lines name the record it is handling") { kit ->
@@ -116,7 +116,8 @@ object CommittedOperatorsSuite : SharedSuite<KafkaKit>() {
                 .settled()
 
             val named = mapOf("kafka.topic" to "annotated", "kafka.partition" to "0", "kafka.offset" to "0")
-            (exit shouldBe Exit.Done(Done.getInstance())) and (annotations.toList() shouldBe listOf(named))
+            exit shouldBe Exit.Done(Done.getInstance())
+            annotations.toList() shouldBe listOf(named)
         }
     }
 }

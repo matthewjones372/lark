@@ -83,12 +83,12 @@ object PipeOperatorsSuite : SharedSuite<PekkoSystem>() {
                 Stream.from(listOf(Row(1, "ada"), Row(2, "grace"), Row(3, "alan"))).via(settling).collected(pekko)
             val fromMore = Stream.from(listOf(Row(4, "edsger"), Row(5, "barbara"))).via(settling).collected(pekko)
 
-            (fromRows shouldBe Exit.Done(listOf(Receipt(1), Receipt(3)))) and
-                (fromMore shouldBe Exit.Done(listOf(Receipt(5)))) and
-                withClue("the diverted branch is a branch of its own and can outlive the run that fed it") {
-                    bothDeclines.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
-                } and
-                (declines.toList() shouldContainExactlyInAnyOrder listOf(Declined(2), Declined(4)))
+            fromRows shouldBe Exit.Done(listOf(Receipt(1), Receipt(3)))
+            fromMore shouldBe Exit.Done(listOf(Receipt(5)))
+            withClue("the diverted branch is a branch of its own and can outlive the run that fed it") {
+                bothDeclines.await(GENEROUS_SECONDS, TimeUnit.SECONDS) shouldBe true
+            }
+            declines.toList() shouldContainExactlyInAnyOrder listOf(Declined(2), Declined(4))
         }
 
         test("the failure a pipe declares is the one the stream it is spliced into ends with") { pekko ->
@@ -135,10 +135,10 @@ object PipeOperatorsSuite : SharedSuite<PekkoSystem>() {
                 executor.shutdown()
             }
 
-            (exit shouldBe Exit.Done(listOf(3, 7))) and
-                withClue("a body runs where the call said it would, on a pipe as on a stream") {
-                    threads.toList() shouldBe listOf("ledger-1", "ledger-1")
-                }
+            exit shouldBe Exit.Done(listOf(3, 7))
+            withClue("a body runs where the call said it would, on a pipe as on a stream") {
+                threads.toList() shouldBe listOf("ledger-1", "ledger-1")
+            }
         }
 
         // The shape the socket that asked for both wrote: a backlog coalesced, and flattened again.
@@ -155,8 +155,8 @@ object PipeOperatorsSuite : SharedSuite<PekkoSystem>() {
             val forked: Pipe<Declined, Int, Int> = Pipe.identity<Int>().mapParOrFail(2) { n -> failingAt(n) }
             val mapped: Pipe<Declined, Int, Int> = Pipe.identity<Int>().mapOrFail { n -> failingAt(n) }
 
-            (Stream.from(ids).via(forked).collected(pekko) shouldBe Exit.Failed(Declined(2))) and
-                (Stream.from(ids).via(mapped).collected(pekko) shouldBe Exit.Failed(Declined(2)))
+            Stream.from(ids).via(forked).collected(pekko) shouldBe Exit.Failed(Declined(2))
+            Stream.from(ids).via(mapped).collected(pekko) shouldBe Exit.Failed(Declined(2))
         }
 
         test("a pipe handles the failure it declared, and what it hands on has none left") { pekko ->
@@ -186,7 +186,8 @@ object PipeOperatorsSuite : SharedSuite<PekkoSystem>() {
                 executor.shutdown()
             }
 
-            (exit shouldBe Exit.Done(listOf(10, 30))) and (threads.toList() shouldBe listOf("ledger-2", "ledger-2"))
+            exit shouldBe Exit.Done(listOf(10, 30))
+            threads.toList() shouldBe listOf("ledger-2", "ledger-2")
         }
 
         test("either and orElse and absolve chain on a pipe as they do on a stream") { pekko ->
@@ -197,12 +198,10 @@ object PipeOperatorsSuite : SharedSuite<PekkoSystem>() {
             val backAgain: Pipe<Declined, Int, Receipt> =
                 Pipe.map<Int, Either<Declined, Receipt>> { n -> if (n == 2) rejected(n) else accepted(n) }.absolve()
 
-            (
-                Stream.from(ids).via(asElements).collected(pekko) shouldBe
-                    Exit.Done(listOf(Either.Right(1), Either.Left(Declined(2))))
-                ) and
-                (Stream.from(ids).via(otherwise).collected(pekko) shouldBe Exit.Done(listOf(1, 9))) and
-                (Stream.from(ids).via(backAgain).collected(pekko) shouldBe Exit.Failed(Declined(2)))
+            Stream.from(ids).via(asElements).collected(pekko) shouldBe
+                Exit.Done(listOf(Either.Right(1), Either.Left(Declined(2))))
+            Stream.from(ids).via(otherwise).collected(pekko) shouldBe Exit.Done(listOf(1, 9))
+            Stream.from(ids).via(backAgain).collected(pekko) shouldBe Exit.Failed(Declined(2))
         }
     }
 

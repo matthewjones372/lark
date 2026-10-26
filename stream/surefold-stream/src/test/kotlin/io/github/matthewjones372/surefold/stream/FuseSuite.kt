@@ -20,13 +20,10 @@ object FuseSuite : Suite() {
                 .filterNot { it > 9 }
 
             stream.node.fused().shouldBeInstanceOf<Node.Fused> { fused ->
-                (
-                    fused.steps.map { it.operator } shouldContainExactly
-                        listOf("map", "filter", "mapOrFail", "filterNot")
-                    ) and
-                    (fused.upstream shouldBeSameInstanceAs source.node) and
-                    (fused.operator shouldBe "fused[map, filter, mapOrFail, filterNot]") and
-                    fused.site.shouldNotBeNull { site -> site shouldStartWith "FuseSuite.kt:" }
+                fused.steps.map { it.operator } shouldContainExactly listOf("map", "filter", "mapOrFail", "filterNot")
+                fused.upstream shouldBeSameInstanceAs source.node
+                fused.operator shouldBe "fused[map, filter, mapOrFail, filterNot]"
+                fused.site.shouldNotBeNull { site -> site shouldStartWith "FuseSuite.kt:" }
             }
         }
 
@@ -36,8 +33,8 @@ object FuseSuite : Suite() {
             stream.node.fused().shouldBeInstanceOf<Node.Filter> { filter ->
                 filter.upstream.shouldBeInstanceOf<Node.Take> { take ->
                     take.upstream.shouldBeInstanceOf<Node.Fused> { fused ->
-                        (fused.steps.map { it.operator } shouldContainExactly listOf("map", "map")) and
-                            (fused.upstream shouldBeSameInstanceAs source.node)
+                        fused.steps.map { it.operator } shouldContainExactly listOf("map", "map")
+                        fused.upstream shouldBeSameInstanceAs source.node
                     }
                 }
             }
@@ -50,7 +47,8 @@ object FuseSuite : Suite() {
             left.merge(right).node.fused().shouldBeInstanceOf<Node.Merge> { merged ->
                 merged.upstream.shouldBeInstanceOf<Node.Fused> { fused ->
                     fused.steps.map { it.operator } shouldContainExactly listOf("map", "map")
-                } and merged.other.shouldBeInstanceOf<Node.Fused> { fused ->
+                }
+                merged.other.shouldBeInstanceOf<Node.Fused> { fused ->
                     fused.steps.map { it.operator } shouldContainExactly listOf("filter", "filterNot")
                 }
             }
@@ -67,7 +65,8 @@ object FuseSuite : Suite() {
                 .node.fused().shouldBeInstanceOf<Node.Fused> { fused ->
                     val steps = fused.steps.map { it.body() }.toTypedArray()
 
-                    (steps.through(1) shouldBe 20) and (steps.through(2) shouldBe null)
+                    steps.through(1) shouldBe 20
+                    steps.through(2) shouldBe null
                 }
         }
     }

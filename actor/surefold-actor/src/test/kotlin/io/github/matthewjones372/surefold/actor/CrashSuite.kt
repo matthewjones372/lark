@@ -55,10 +55,9 @@ object CrashSuite : Suite() {
                 val crashing = AtomicReference<ActorRef<Drawer>>()
                 val till = spawn("till", drawer { crash(crashing.get()) }).also(crashing::set)
                 till.tell(Lodge(10, then = 5))
-                val balance = withClue(trace) { till.ask { Balance(it) } shouldBe 10.right() }
-                balance and
-                    (trace shouldContain TraceEntry.Crashed(till.address)) and
-                    (trace.filterIsInstance<TraceEntry.Delivered>().map { it.message } shouldNotContain Lodge(5))
+                withClue(trace) { till.ask { Balance(it) } shouldBe 10.right() }
+                trace shouldContain TraceEntry.Crashed(till.address)
+                trace.filterIsInstance<TraceEntry.Delivered>().map { it.message } shouldNotContain Lodge(5)
             }
         }
 
@@ -76,15 +75,11 @@ object CrashSuite : Suite() {
                 ticker.tell("start")
                 crash(till)
                 crash(ticker)
-                val timers = pendingTimers shouldBe 0
-                val state = ticker.state shouldBe 0
-                timers and
-                    state and
-                    (till.ask { Balance(it) } shouldBe 3.right()) and
-                    (
-                        trace.filterIsInstance<TraceEntry.Crashed>().map { it.actor.path } shouldContainExactly
-                            listOf("/user/till", "/user/ticker")
-                        )
+                pendingTimers shouldBe 0
+                ticker.state shouldBe 0
+                till.ask { Balance(it) } shouldBe 3.right()
+                trace.filterIsInstance<TraceEntry.Crashed>().map { it.actor.path } shouldContainExactly
+                    listOf("/user/till", "/user/ticker")
             }
         }
 

@@ -68,9 +68,9 @@ object OutboxSuite : Suite() {
             val kept = depositCodec.outbox().decode(depositCodec.outbox().encode(sent))
             val again = Delivery("checkout", "w-42", 7, producerAt(2))
 
-            (kept shouldBe sent.copy(delivery = sent.delivery.blank())) and
-                (kept.delivery.confirmTo shouldBe Delivery.NoOne) and
-                (kept.redeliver(again) shouldBe Deposit(10, again))
+            kept shouldBe sent.copy(delivery = sent.delivery.blank())
+            kept.delivery.confirmTo shouldBe Delivery.NoOne
+            kept.redeliver(again) shouldBe Deposit(10, again)
         }
 
         test("a command that cannot redeliver itself is refused, and says why") {

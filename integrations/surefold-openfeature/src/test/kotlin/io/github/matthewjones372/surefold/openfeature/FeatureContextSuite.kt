@@ -40,13 +40,14 @@ object FeatureContextSuite : SharedSuite<Client>() {
             }
 
             withClue("the SDK's own ThreadLocal propagator would leave both branches answering for nobody") {
-                (left shouldBe "ada") and (right shouldBe "ada")
+                left shouldBe "ada"
+                right shouldBe "ada"
             }
         }
 
         test("a flag read outside evaluatedFor answers for nobody") { client ->
-            (evaluatedFor("ada") { client.getStringValue("who", "nobody") } shouldBe "ada") and
-                (client.getStringValue("who", "nobody") shouldBe "nobody")
+            evaluatedFor("ada") { client.getStringValue("who", "nobody") } shouldBe "ada"
+            client.getStringValue("who", "nobody") shouldBe "nobody"
         }
 
         test("a nested evaluatedFor adds to the context around it rather than replacing it") { client ->
@@ -56,10 +57,10 @@ object FeatureContextSuite : SharedSuite<Client>() {
                 }
             }
 
-            (who shouldBe "ada") and
-                withClue("the inner call's attributes merge over the outer's, so the outer limit stays") {
-                    limit shouldBe 3
-                }
+            who shouldBe "ada"
+            withClue("the inner call's attributes merge over the outer's, so the outer limit stays") {
+                limit shouldBe 3
+            }
         }
 
         test("an actor handler answers for the key and attributes the message was sent under") { client ->
@@ -93,10 +94,9 @@ object FeatureContextSuite : SharedSuite<Client>() {
 
             propagator.transactionContext = ImmutableContext("grace")
 
-            val throughIt = propagator.transactionContext.targetingKey shouldBe "grace"
-            val bound = featureContext.get().targetingKey shouldBe "grace"
+            propagator.transactionContext.targetingKey shouldBe "grace"
+            featureContext.get().targetingKey shouldBe "grace"
             propagator.transactionContext = before
-            throughIt and bound
         }
     }
 }

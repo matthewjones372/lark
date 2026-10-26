@@ -29,7 +29,8 @@ object CallSiteSuite : Suite() {
                 val report = errors.report()
 
                 withClue("the package is there to resolve a link, not for a person to read past") {
-                    (report shouldContain "CallSiteSuite.kt:") and (report shouldNotContain "io/github/matthewjones372")
+                    report shouldContain "CallSiteSuite.kt:"
+                    report shouldNotContain "io/github/matthewjones372"
                 }
             }
         }
@@ -52,8 +53,8 @@ object CallSiteSuite : Suite() {
             single { _: Spanner -> Bolt() }.validate().leftOrNull().shouldNotBeNull { errors ->
                 val report = errors.report()
 
-                (report shouldContain "missing Spanner") and
-                    (report shouldMatch Regex("""(?s).*for Bolt\s+CallSiteSuite\.kt:\d+.*"""))
+                report shouldContain "missing Spanner"
+                report shouldMatch Regex("""(?s).*for Bolt\s+CallSiteSuite\.kt:\d+.*""")
             }
         }
     }

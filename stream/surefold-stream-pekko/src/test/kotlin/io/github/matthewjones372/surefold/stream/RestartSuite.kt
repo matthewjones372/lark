@@ -67,7 +67,8 @@ object RestartSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(Declined(1))) and (runs.get() shouldBe 1)
+            exit shouldBe Exit.Failed(Declined(1))
+            runs.get() shouldBe 1
         }
 
         test("a schedule that runs out lets the defect through") { pekko ->
@@ -83,10 +84,10 @@ object RestartSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            exit.shouldBeInstanceOf<Exit.Died> { died -> died.cause.message shouldBe "still down" } and
-                withClue("the first run, then the two restarts recurs(2) allows") {
-                    runs.get() shouldBe 3
-                }
+            exit.shouldBeInstanceOf<Exit.Died> { died -> died.cause.message shouldBe "still down" }
+            withClue("the first run, then the two restarts recurs(2) allows") {
+                runs.get() shouldBe 3
+            }
         }
 
         test("every restart is a warn line naming the cause, on the logger bound where the stream was built") { pekko ->
@@ -101,9 +102,9 @@ object RestartSuite : SharedSuite<PekkoSystem>() {
             stream.runCollect().run(pekko.system).settled()
 
             val restart = recorded.lines.single()
-            (restart.level shouldBe LogLevel.Warn) and
-                (restart.message shouldContain "ledger down") and
-                restart.cause.shouldBeInstanceOf<IllegalStateException>()
+            restart.level shouldBe LogLevel.Warn
+            restart.message shouldContain "ledger down"
+            restart.cause.shouldBeInstanceOf<IllegalStateException>()
         }
     }
 }

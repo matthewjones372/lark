@@ -58,22 +58,20 @@ object LeaveOnReleaseSuite : Suite() {
             val module =
                 actors() + single { actors: Actors -> actors.within { cluster(node("app", ports[1]), seeds, quick) } }
             var released = TimeSource.Monotonic.markNow()
-            val up = testApp(module) { _: Cluster ->
-                val up = bothUp.await(1, TimeUnit.MINUTES) shouldBe true
+            testApp(module) { _: Cluster ->
+                bothUp.await(1, TimeUnit.MINUTES) shouldBe true
                 released = TimeSource.Monotonic.markNow()
-                up
             }
 
             // Out before the 20 s a node left alone waits to down itself. How it left is the Leaving status asserted
             // below, which a self-down would not carry; this bound only catches a leave that hangs.
-            val leftInTime = released.elapsedNow() shouldBeLessThan 20.seconds
+            released.elapsedNow() shouldBeLessThan 20.seconds
 
-            val gone = removed.await(1, TimeUnit.MINUTES) shouldBe true
+            removed.await(1, TimeUnit.MINUTES) shouldBe true
             stays.join()
             val app = heard.filter { it.member.node.name == "app" }
-            up and leftInTime and gone and
-                (app.map { it::class.simpleName } shouldBe listOf("Up", "Removed")) and
-                (app.last().member.status shouldBe Status.Leaving)
+            app.map { it::class.simpleName } shouldBe listOf("Up", "Removed")
+            app.last().member.status shouldBe Status.Leaving
         }
     }
 }

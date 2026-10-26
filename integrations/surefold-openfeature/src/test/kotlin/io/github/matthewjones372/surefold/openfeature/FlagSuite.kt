@@ -47,17 +47,17 @@ object FlagSuite : SharedSuite<Client>() {
     init {
         test("each factory reads its flag as the type it declares") { client ->
             featureClient.locally(client) {
-                (TestFlags.registryCheck.value() shouldBe false) and
-                    (TestFlags.perAdopterLimit.value() shouldBe 5) and
-                    (TestFlags.greeting.value() shouldBe "welcome") and
-                    (TestFlags.discount.value() shouldBe 0.25)
+                TestFlags.registryCheck.value() shouldBe false
+                TestFlags.perAdopterLimit.value() shouldBe 5
+                TestFlags.greeting.value() shouldBe "welcome"
+                TestFlags.discount.value() shouldBe 0.25
             }
         }
 
         test("a flag no provider knows answers its default") { client ->
             featureClient.locally(client) {
-                (TestFlags.missing.value() shouldBe 7) and
-                    (TestFlags.missing.details().errorCode shouldBe ErrorCode.FLAG_NOT_FOUND)
+                TestFlags.missing.value() shouldBe 7
+                TestFlags.missing.details().errorCode shouldBe ErrorCode.FLAG_NOT_FOUND
             }
         }
 
@@ -65,7 +65,8 @@ object FlagSuite : SharedSuite<Client>() {
             featureClient.locally(client) {
                 val details = TestFlags.wrongType.details()
 
-                (details.value shouldBe false) and (details.errorCode shouldBe ErrorCode.TYPE_MISMATCH)
+                details.value shouldBe false
+                details.errorCode shouldBe ErrorCode.TYPE_MISMATCH
             }
         }
 
@@ -75,17 +76,17 @@ object FlagSuite : SharedSuite<Client>() {
             }
 
             withClue("the default client has no provider for these flags, so a fork that lost the binding reads 3") {
-                (left shouldBe 5) and (right shouldBe "welcome")
+                left shouldBe 5
+                right shouldBe "welcome"
             }
         }
 
         test("with nothing bound, a flag reads the default client") { _ ->
-            val domain = withClue("the default client belongs to no domain") {
+            withClue("the default client belongs to no domain") {
                 featureClient.get().metadata.domain shouldBe null
             }
-            domain and
-                (TestFlags.missing.key shouldBe "adoption.nobody-declared-this") and
-                (TestFlags.missing.default shouldBe 7)
+            TestFlags.missing.key shouldBe "adoption.nobody-declared-this"
+            TestFlags.missing.default shouldBe 7
         }
     }
 }
