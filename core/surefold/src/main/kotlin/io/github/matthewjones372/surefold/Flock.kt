@@ -5,11 +5,11 @@ import io.github.matthewjones372.surefold.fail.Fail
 import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.fold
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.LockSupport
 
 /** Whether `async` forks where it is written, or waits until something asks for the value. */
 enum class Start { Eager, Lazy }
@@ -99,15 +99,6 @@ private fun Thread.joinFully() {
     var interrupted = false
     while (isAlive) {
         try { join() } catch (stop: InterruptedException) { interrupted = true }
-    }
-    if (interrupted) Thread.currentThread().interrupt()
-}
-
-/** The same retry, waiting on a fork's own completion rather than on a thread the executor lent it. */
-private fun CountDownLatch.awaitFully() {
-    var interrupted = false
-    while (count > 0L) {
-        try { await() } catch (stop: InterruptedException) { interrupted = true }
     }
     if (interrupted) Thread.currentThread().interrupt()
 }
@@ -218,6 +209,20 @@ internal class Flight<E>(private val owner: Fail<E>, private val on: Executor) {
     }
 }
 
+/**
+ * One body run once on [on], as one explicit state (spec 0037): every move between states is a compare-and-set on
+ * [state], and the threads waiting for it to end ride in the state, parked, until the move to `Done` wakes them.
+ *
+ * ```
+ * Unstarted ─start─▶ Submitted ─claim─▶ Running ─body ends─▶ Done
+ *     │                  │                 │
+ *   cancel             cancel            cancel
+ *     ▼                  ▼                 ▼
+ *   Done           Submitted(cancelled)  Interrupting ─sent─▶ Interrupted ─body ends─▶ Done
+ *                        │
+ *                      claim: the body starts interrupted ─▶ Interrupted
+ * ```
+ */
 internal class Fork<E, T>(
     private val owner: Fail<E>,
     private val on: Executor,
@@ -226,8 +231,7 @@ internal class Fork<E, T>(
     start: Start = Start.Eager,
 ) : Deferred<T> {
 
-    @Volatile
-    private var outcome: Outcome<E, T>? = null
+    private val state = AtomicReference<ForkState<E, T>>(ForkState.Unstarted(null))
 
     @Volatile
     private var noticed = false
@@ -237,53 +241,73 @@ internal class Fork<E, T>(
     @Volatile
     private var cutShort = false
 
-    // An executor hands back no handle on the thread it runs a task on, so the body records the one it is
-    // lent. That reference and the cancel aimed at it move under one lock: read outside it, an interrupt
-    // could land on a thread the body had already given back, and so on whatever the executor ran next.
-    private val cancelling = ReentrantLock()
-    private var borrowed: Thread? = null
-    private var cancelled = false
+    // Close interrupts a fork `cancel` already stopped, and by then it has answered: only the first interrupt says
+    // whether the fork was cut short.
+    private val cancelled = AtomicBoolean()
 
     // A fork on the default executor has a thread of its own, which `join` waits out as well, so a scope
     // that has returned has left nothing alive. A borrowed thread outlives the fork and cannot be joined.
     @Volatile
     private var ownThread: Thread? = null
 
-    private val finished = CountDownLatch(1)
-
     // Read on the opening thread rather than inside the task, which runs on a thread that bound none of it.
     private val inherited = Bindings.snapshot()
-
-    // Whether the body has reached the executor. A lazy fork nobody asked for never does, and then there is
-    // no thread to interrupt and no latch anything will ever count down.
-    @Volatile
-    private var started = false
 
     init {
         if (start == Start.Eager) submit()
     }
 
+    /** Moves an unstarted fork to the executor's queue: the executor is handed a ticket, and the body runs once. */
     private fun submit() {
-        started = true
-        on.execute {
-            Bindings.under(inherited) {
-                cancelling.withLock {
-                    borrowed = Thread.currentThread()
-                    if (on === VirtualThreads) ownThread = Thread.currentThread()
-                    // Cancelled before its turn on the executor came: the body starts interrupted rather
-                    // than running on as though the scope it belonged to were still open.
-                    if (cancelled) Thread.currentThread().interrupt()
-                }
-                try {
-                    outcome = capture(on, block)
-                } finally {
-                    cancelling.withLock {
-                        borrowed = null
-                        Thread.interrupted()
-                    }
-                    finished.countDown()
-                    ended()
-                }
+        while (true) {
+            val now = state.get() as? ForkState.Unstarted ?: return
+            if (state.compareAndSet(now, ForkState.Submitted(now.waiters, cancelled = false))) break
+        }
+        on.execute { Bindings.under(inherited) { run() } }
+    }
+
+    /** The executor's turn: claims the fork unless a cancel ended it while it waited in the queue. */
+    private fun run() {
+        val thread = Thread.currentThread()
+        while (true) {
+            val now = state.get() as? ForkState.Submitted ?: return
+            if (on === VirtualThreads) ownThread = thread
+            // Cancelled before its turn on the executor came: the body starts interrupted rather than running on
+            // as though the scope it belonged to were still open.
+            val claimed = if (now.cancelled) {
+                ForkState.Interrupted(thread, now.waiters)
+            } else {
+                ForkState.Running(thread, now.waiters)
+            }
+            if (state.compareAndSet(now, claimed)) {
+                if (now.cancelled) thread.interrupt()
+                break
+            }
+        }
+        var outcome: Outcome<E, T>? = null
+        try {
+            outcome = capture(on, block)
+        } finally {
+            finish(outcome ?: Thrown(IllegalStateException("a fork's body ended without an outcome")))
+        }
+    }
+
+    /**
+     * The body's own thread, and only it, moves a running fork to `Done`. Not while an interrupt is on its way: that
+     * interrupt would land on whatever the executor runs next. An interrupt that came is cleared once it is `Done`.
+     */
+    private fun finish(outcome: Outcome<E, T>) {
+        while (true) {
+            val now = state.get()
+            if (now is ForkState.Interrupting) {
+                Thread.onSpinWait()
+                continue
+            }
+            if (state.compareAndSet(now, ForkState.Done(outcome, started = true))) {
+                Thread.interrupted()
+                wake(now.waiters)
+                ended()
+                return
             }
         }
     }
@@ -298,9 +322,7 @@ internal class Fork<E, T>(
         }
     }
 
-    private fun startOnce() {
-        if (cancelling.withLock { !started && !cancelled }) submit()
-    }
+    private fun startOnce() = submit()
 
     override fun cancel() {
         interrupt()
@@ -309,32 +331,78 @@ internal class Fork<E, T>(
     }
 
     fun interrupt() {
-        cancelling.withLock {
-            // Close interrupts a fork `cancel` already stopped, and by then it has answered: reading
-            // `outcome` a second time would call it a fork that failed of its own accord.
-            if (!cancelled) cutShort = outcome == null
-            cancelled = true
-            // Nothing is running to notice an interrupt and nothing will end the fork, so it answers here
-            // as though it had been stopped at its first interruptible call.
-            if (!started && outcome == null) {
-                outcome = Thrown(InterruptedException("cancelled before it was started"))
-                finished.countDown()
+        // Only the first interrupt says whether the fork was cut short: by a later one it may have answered.
+        val first = cancelled.compareAndSet(false, true)
+        while (true) {
+            val now = state.get()
+            when (now) {
+                is ForkState.Done, is ForkState.Interrupting, is ForkState.Interrupted -> return
+
+                // Nothing is running to notice an interrupt, and nothing will end the fork, so it answers here as
+                // though it had been stopped at its first interruptible call.
+                is ForkState.Unstarted -> if (state.compareAndSet(now, ForkState.Done(beforeStart(), false))) {
+                    if (first) cutShort = true
+                    wake(now.waiters)
+                    return
+                }
+
+                // Its turn on the executor has not come: its claim starts the body interrupted.
+                is ForkState.Submitted -> if (now.cancelled || state.compareAndSet(now, now.cancelledFirst())) {
+                    if (first) cutShort = true
+                    return
+                }
+
+                is ForkState.Running -> if (state.compareAndSet(now, ForkState.Interrupting(now.thread, now.waiters))) {
+                    if (first) cutShort = true
+                    now.thread.interrupt()
+                    sent()
+                    return
+                }
             }
-            borrowed?.interrupt()
         }
     }
 
+    /** The interrupt [interrupt] sent has landed: the body may now end, carrying whoever waits on it on. */
+    private fun sent() {
+        while (true) {
+            val now = state.get() as ForkState.Interrupting
+            if (state.compareAndSet(now, ForkState.Interrupted(now.thread, now.waiters))) return
+        }
+    }
+
+    /**
+     * Waits for the fork to end, however often the waiting thread is interrupted meanwhile: an interrupt on the
+     * closing thread must not leave a fork running, so it is handed back to the caller afterwards.
+     */
     fun join() {
-        if (!started) return
-        finished.awaitFully()
+        if (waitsOn()) parkUntilDone()
         ownThread?.joinFully()
     }
 
-    fun hasFailed(): Boolean = outcome is Failure
+    /** Whether this thread is now among the fork's waiters: false once it has ended, or if it never started. */
+    private fun waitsOn(): Boolean {
+        val me = Thread.currentThread()
+        while (true) {
+            val now = state.get()
+            if (now is ForkState.Unstarted || now is ForkState.Done) return false
+            if (state.compareAndSet(now, now.waitedBy(Waiter(me, now.waiters)))) return true
+        }
+    }
 
-    fun hasEnded(): Boolean = outcome != null
+    private fun parkUntilDone() {
+        var interrupted = false
+        while (state.get() !is ForkState.Done) {
+            LockSupport.park(this)
+            if (Thread.interrupted()) interrupted = true
+        }
+        if (interrupted) Thread.currentThread().interrupt()
+    }
 
-    fun hasThrown(): Boolean = outcome is Thrown
+    fun hasFailed(): Boolean = outcome() is Failure
+
+    fun hasEnded(): Boolean = outcome() != null
+
+    fun hasThrown(): Boolean = outcome() is Thrown
 
     /** Whether this fork answered of its own accord, rather than being cut short by a combinator's interrupt. */
     fun answered(): Boolean = !cutShort
@@ -358,9 +426,62 @@ internal class Fork<E, T>(
     }
 
     /** The failure of a fork whose outcome nobody asked for; one that never ran has none to answer with. */
-    fun unnoticedFailure(): Failure<E>? = if (!started) null else settled().takeUnless { noticed } as? Failure<E>
+    fun unnoticedFailure(): Failure<E>? = when (val now = state.get()) {
+        is ForkState.Unstarted -> null
+        is ForkState.Done -> if (now.started) now.outcome.takeUnless { noticed } as? Failure<E> else null
+        else -> settled().takeUnless { noticed } as? Failure<E>
+    }
 
-    private fun settled(): Outcome<E, T> = checkNotNull(outcome) { "a joined fork always has an outcome" }
+    private fun outcome(): Outcome<E, T>? = (state.get() as? ForkState.Done)?.outcome
+
+    private fun settled(): Outcome<E, T> = checkNotNull(outcome()) { "a joined fork always has an outcome" }
+
+    private fun wake(waiters: Waiter?) =
+        generateSequence(waiters) { it.next }.forEach { LockSupport.unpark(it.thread) }
+
+    private fun beforeStart() = Thrown(InterruptedException("cancelled before it was started"))
+}
+
+/** A thread parked until a fork is [ForkState.Done], and the one parked before it. */
+private data class Waiter(val thread: Thread, val next: Waiter?)
+
+/** Where a fork is (spec 0037); every state but [ForkState.Done] carries the threads waiting for it to end. */
+private sealed interface ForkState<out E, out T> {
+    val waiters: Waiter?
+
+    /** This state, with [waiters] waiting on it instead. */
+    fun waitedBy(waiters: Waiter): ForkState<E, T>
+
+    class Unstarted(override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
+        override fun waitedBy(waiters: Waiter) = Unstarted(waiters)
+    }
+
+    /** Queued on the executor; [cancelled] once a cancel came before its turn, so its body starts interrupted. */
+    class Submitted(override val waiters: Waiter?, val cancelled: Boolean) : ForkState<Nothing, Nothing> {
+        override fun waitedBy(waiters: Waiter) = Submitted(waiters, cancelled)
+
+        fun cancelledFirst() = Submitted(waiters, cancelled = true)
+    }
+
+    class Running(val thread: Thread, override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
+        override fun waitedBy(waiters: Waiter) = Running(thread, waiters)
+    }
+
+    /** A cancel is sending [thread] its interrupt; the body cannot end until it has. */
+    class Interrupting(val thread: Thread, override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
+        override fun waitedBy(waiters: Waiter) = Interrupting(thread, waiters)
+    }
+
+    class Interrupted(val thread: Thread, override val waiters: Waiter?) : ForkState<Nothing, Nothing> {
+        override fun waitedBy(waiters: Waiter) = Interrupted(thread, waiters)
+    }
+
+    /** Ended, with [outcome]; [started] is false for a lazy fork cancelled before anyone asked for it. */
+    class Done<E, T>(val outcome: Outcome<E, T>, val started: Boolean) : ForkState<E, T> {
+        override val waiters: Waiter? get() = null
+
+        override fun waitedBy(waiters: Waiter) = this
+    }
 }
 
 internal sealed interface Outcome<out E, out T>
