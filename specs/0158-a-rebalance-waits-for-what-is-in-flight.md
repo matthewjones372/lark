@@ -45,6 +45,12 @@ Depends on 0157: with the poll held inside the callback, nothing else may need i
 - [ ] **`spec-0158-wait-on-revoke`**: `Rebalance.waitFor`, on `Kafka.consume`. Done when: with it on, the test
       sees no duplicates, and with it off, the same count as today.
 
+Found while writing `spec-0158-revoke-test`. On Pekko, a member whose stream has every record in hand rejoins a
+rebalance only through its keeper. The keeper makes a zero-timeout poll every half `max.poll.interval.ms`. With a
+2s interval, those polls do not finish the rejoin before the group drops the member. Its close then dies on the
+revoke's commit with `CommitFailedException`. At 10s the polls do finish it, and the test runs at 10s. Holding the
+rebalance inside the revoke callback (entry 2) runs inside that same keeper poll on Pekko.
+
 ## Acceptance
 
 ```bash
@@ -52,6 +58,8 @@ Depends on 0157: with the poll held inside the callback, nothing else may need i
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-26: go with the recommendations).
 
 1. **Off by default?** Recommended: yes, as zio-kafka's.
 2. **A parameter, or a consumer property?** Recommended: a parameter; it is surefold's behaviour, not the client's.
