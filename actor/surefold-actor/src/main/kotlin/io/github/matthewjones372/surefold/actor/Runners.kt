@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.LockSupport
 import java.util.concurrent.locks.ReentrantLock
@@ -54,6 +55,12 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
         @Volatile
         var listed = false
 
+        /**
+         * How long this runner spins before it parks, which only it reads or writes (spec 0144): halved after each
+         * park that outlasted a full spin, and reset to [SPIN_NANOS] by a wake a full spin would have caught.
+         */
+        var spin = SPIN_NANOS
+
         /** In a step that is parked on something: a lock, a sleep, a read. */
         fun blocked(): Boolean = busy && thread.state.let { it == WAITING || it == TIMED_WAITING || it == BLOCKED }
     }
@@ -72,6 +79,9 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
 
     /** How many runner threads this has started, for the test that says a busy actor does not start one each. */
     internal val starts = AtomicInteger()
+
+    /** Nanoseconds runners have spun in all, for the test that says a wide gap is not spun through (spec 0144). */
+    internal val spun = AtomicLong()
     private val watching = AtomicBoolean()
     private val started = ConcurrentHashMap.newKeySet<Runner>()
     private val spinning = AtomicInteger()
@@ -131,10 +141,16 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
         }
         runner.busy = false
         if (awaiting > 0) lock.withLock { quiet.signalAll() }
+        val dry = System.nanoTime()
         spinning.incrementAndGet()
-        val arrived = workArrives()
+        val arrived = workArrives(runner, dry)
         spinning.decrementAndGet()
-        if (arrived || parks(runner)) return run(runner)
+        if (arrived) return run(runner)
+        if (parks(runner)) {
+            // Woken within a full spin of running dry, a full spin would have caught it; later, spinning was wasted.
+            runner.spin = if (System.nanoTime() - dry <= SPIN_NANOS) SPIN_NANOS else runner.spin / 2
+            return run(runner)
+        }
         started.remove(runner)
         active.decrementAndGet()
         // An actor queued after the last poll, by a wake that counted this runner as still running, is ours to take.
@@ -193,14 +209,20 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
         return true
     }
 
-    /** Spins for up to [SPIN_NANOS] watching for work, without taking it: whether some arrived. */
-    private fun workArrives(): Boolean {
-        val deadline = System.nanoTime() + SPIN_NANOS
-        while (System.nanoTime() < deadline) {
-            if (!nothingQueued()) return true
-            Thread.onSpinWait()
+    /** Spins for up to [runner]'s spin from [dry], watching for work without taking it: whether some arrived. */
+    private fun workArrives(runner: Runner, dry: Long): Boolean {
+        val deadline = dry + runner.spin
+        var now = dry
+        try {
+            while (now < deadline) {
+                if (!nothingQueued()) return true
+                Thread.onSpinWait()
+                now = System.nanoTime()
+            }
+            return false
+        } finally {
+            spun.addAndGet(now - dry)
         }
-        return false
     }
 
     private fun rejoin(): Boolean {
