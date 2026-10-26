@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.actor.journal.jdbc
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -9,7 +8,6 @@ import java.sql.Connection
 import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 import kotlin.time.Duration.Companion.milliseconds
@@ -40,13 +38,13 @@ object JdbcSliceTableSuite : Suite() {
             pool.opened.set(0)
 
             val go = CountDownLatch(1)
-            // Each thread's check is handed back, so a thread that saw another map fails the test.
-            val seen: List<Future<Expectations>> = Executors.newVirtualThreadPerTaskExecutor().use { threads ->
+            // Each thread hands back the map it saw, so a thread that saw another map fails the test.
+            val seen = Executors.newVirtualThreadPerTaskExecutor().use { threads ->
                 val asked = List(1_000) {
                     threads.submit(
                         Callable {
                             go.await()
-                            table.current() shouldBe first
+                            table.current()
                         },
                     )
                 }
@@ -54,7 +52,7 @@ object JdbcSliceTableSuite : Suite() {
                 asked
             }
 
-            seen.forAll { it.get() } and (pool.opened.get() shouldBeLessThanOrEqual 2)
+            seen.forAll { it.get() shouldBe first } and (pool.opened.get() shouldBeLessThanOrEqual 2)
         }
 
         test("refreshes asked while one is reading share its read") {
