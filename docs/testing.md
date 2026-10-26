@@ -602,6 +602,23 @@ object WireSuite : SharedSuite<Wire>(aspects = tag("io") + timeout(30.seconds)) 
 `tasks.test { useJUnitPlatform { includeTags("io") } }` then runs only the
 tagged tests, Jupiter's `@Tag`s among them.
 
+### Testing an aspect
+
+An aspect's test runs a suite through JUnit's `EngineTestKit` and checks how
+each of its tests ended. `surefold-junit-testkit` says that in one call:
+`shouldHaveSucceeded`, `shouldHaveFailed` and `shouldHaveSkipped` pass if
+exactly the tests named ended that way, in any order. A miss shows how each of
+the others ended, with a failed test's message. `failureOf(test)` answers what a
+test threw, `failures()` what each failed test threw by name, and `names()` the
+tests in the order their events happened.
+
+```kotlin
+val events = EngineTestKit.engine("surefold").selectors(selectClass(RetriedSuite::class.java)).execute().testEvents()
+
+events shouldHaveSucceeded listOf("passes on its third attempt")
+events.failureOf("never passes").message shouldContain "attempt 3 of 3"
+```
+
 ## Applications
 
 `testApp(module) { root: Root -> … }` starts a graph, runs the block with its

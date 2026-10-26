@@ -48,6 +48,8 @@ failed.expected.value shouldBe "Adopted"
   that ended that way but weren't named are listed too. Expected and actual are carried, so IntelliJ can show a diff.
 - **`failureOf(test)`** returns what the named test threw. If the test passed, was skipped, or doesn't exist, it
   throws, saying which.
+- **`failures()`** gives what each failed test threw, by name, for the tests that check every failure at once
+  (`MatchersTest`'s and `ThrowsTest`'s classes, `ContainsTest`'s lines).
 - **`names()`** gives the display names of events, in the order they happened, for the few tests where order is the
   claim (`AspectEngineTest`'s sequential suite).
 - **Where it lives:** `surefold-junit-testkit`, a new published module. It depends on `junit-platform-testkit` and
@@ -66,7 +68,7 @@ the helper the owner asked not to write, and a user's aspect tests can't reach i
 ## Stack
 
 - [ ] **`spec-0204-testkit`** — the module, with `shouldHaveSucceeded`, `shouldHaveFailed`, `shouldHaveSkipped`,
-      `failureOf` and `names`. Its tests run a small sample suite and check the matchers' passes and misses,
+      `failureOf`, `failures` and `names`. Its tests run a small sample suite and check the matchers' passes and misses,
       including how a miss reads. `docs/testing.md` and `docs/modules.md` get the module.
       Done when: `:surefold-junit-testkit:check` passes, and a miss shows the unexpected failure's message.
 - [ ] **`spec-0204-use`** — surefold-junit's engine tests and surefold-kafka's `ThreadsOnTimeoutTest` use the

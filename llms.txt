@@ -48,6 +48,8 @@ Facts worth having before anything else:
 - `surefold-test`: `story` (Given, When, Then), `eventually(within)`.
 - `surefold-junit`: a JUnit Platform engine; a `Suite` object's tests share one
   `Resource`, and Gradle and the IDE report them as Jupiter's.
+- `surefold-junit-testkit`: `shouldHaveSucceeded`, `shouldHaveFailed`,
+  `shouldHaveSkipped` and `failureOf` on a suite's run from `EngineTestKit`.
 - `surefold-app`: an application as a value: `single`, `singleOf`, `closingOf`,
   `boundTo`, `overriding`, `subgraph`, probes, health, `testApp`, `SurefoldApp`,
   `awaitShutdown`.
