@@ -4,6 +4,7 @@ import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.assert.shouldStartWith
 import io.github.matthewjones372.surefold.junit.samples.WaitSuite
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
@@ -19,7 +20,7 @@ class WaitTest {
 
     @Test
     fun `a check that holds on a later try passes, at the top level, as a step, and after a throw`() {
-        events.succeeded().list().map { it.testDescriptor.displayName }.sorted() shouldBe listOf(
+        events shouldHaveSucceeded listOf(
             "holds once its check does, on the third try",
             "tries again after a throw",
             "waits as a story's step",

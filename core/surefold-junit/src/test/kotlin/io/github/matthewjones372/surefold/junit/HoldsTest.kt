@@ -4,8 +4,9 @@ import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.assert.shouldContain
 import io.github.matthewjones372.surefold.junit.samples.HoldsSuite
+import io.github.matthewjones372.surefold.junit.testkit.failureOf
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.opentest4j.AssertionFailedError
@@ -18,18 +19,14 @@ class HoldsTest {
         EngineTestKit.engine("surefold").selectors(selectClass(HoldsSuite::class.java)).execute().testEvents()
     }
 
-    private fun thrownBy(test: String): Throwable = events.failed().list()
-        .single { it.testDescriptor.displayName == test }
-        .getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-
     @Test
     fun `a block that returns holds`() {
-        events.succeeded().list().map { it.testDescriptor.displayName } shouldBe listOf("holds when the block returns")
+        events shouldHaveSucceeded listOf("holds when the block returns")
     }
 
     @Test
     fun `each block that throws an assertion is its own failure, naming the line that called holds`() {
-        val failed = thrownBy("fails once for each block that throws an assertion")
+        val failed = events.failureOf("fails once for each block that throws an assertion")
             .shouldBeInstanceOf<MultipleFailuresError>()
 
         failed.message.orEmpty().lines().first() shouldBe
@@ -43,7 +40,8 @@ class HoldsTest {
 
     @Test
     fun `an assertion's expected and found are kept`() {
-        val failed = thrownBy("keeps what an assertion expected and found").shouldBeInstanceOf<AssertionFailedError>()
+        val failed =
+            events.failureOf("keeps what an assertion expected and found").shouldBeInstanceOf<AssertionFailedError>()
 
         failed.expected.value shouldBe "Start load"
         failed.actual.value shouldBe "Stop load"
@@ -52,7 +50,7 @@ class HoldsTest {
 
     @Test
     fun `anything else thrown errors the test with what was thrown`() {
-        val thrown = thrownBy("errors on anything else thrown").shouldBeInstanceOf<IllegalStateException>()
+        val thrown = events.failureOf("errors on anything else thrown").shouldBeInstanceOf<IllegalStateException>()
 
         thrown.message shouldBe "the page never loaded"
     }

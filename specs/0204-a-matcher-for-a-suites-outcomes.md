@@ -67,14 +67,15 @@ the helper the owner asked not to write, and a user's aspect tests can't reach i
 
 ## Stack
 
-- [ ] **`spec-0204-testkit`** — the module, with `shouldHaveSucceeded`, `shouldHaveFailed`, `shouldHaveSkipped`,
+- [x] **`spec-0204-testkit`** — the module, with `shouldHaveSucceeded`, `shouldHaveFailed`, `shouldHaveSkipped`,
       `failureOf`, `failures` and `names`. Its tests run a small sample suite and check the matchers' passes and misses,
       including how a miss reads. `docs/testing.md` and `docs/modules.md` get the module.
       Done when: `:surefold-junit-testkit:check` passes, and a miss shows the unexpected failure's message.
-- [ ] **`spec-0204-use`** — surefold-junit's engine tests and surefold-kafka's `ThreadsOnTimeoutTest` use the
-      module, and their private helpers go, except `logsOf`.
-      Done when: `grep -rn 'testDescriptor.displayName' --include=*.kt core integrations` finds nothing outside
-      `surefold-junit-testkit`, and `./gradlew build` passes.
+- [x] **`spec-0204-use`** — surefold-junit's engine tests use the module, and their private helpers go, except
+      `logsOf`. surefold-kafka's `ThreadsOnTimeoutTest` keeps JUnit's `assertStatistics`: it keeps no helper.
+      Done when: `grep -rn 'testDescriptor.displayName' --include=*.kt core integrations` finds, outside
+      `surefold-junit-testkit`, only reads of what the module does not cover: a test's tags, a skip's reason, a
+      report entry or its logs, and where a suite's own event falls among its tests'; and `./gradlew build` passes.
 
 ## Acceptance
 

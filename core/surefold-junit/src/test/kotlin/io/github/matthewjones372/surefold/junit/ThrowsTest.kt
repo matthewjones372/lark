@@ -3,10 +3,10 @@ package io.github.matthewjones372.surefold.junit
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.assert.shouldContainExactly
-import io.github.matthewjones372.surefold.assert.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.surefold.junit.samples.ThrowingSuite
+import io.github.matthewjones372.surefold.junit.testkit.failures
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.opentest4j.AssertionFailedError
@@ -18,15 +18,11 @@ class ThrowsTest {
         EngineTestKit.engine("surefold").selectors(selectClass(ThrowingSuite::class.java)).execute().testEvents()
     }
 
-    private val failures: Map<String, Throwable> by lazy {
-        events.failed().list().associate {
-            it.testDescriptor.displayName to it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-        }
-    }
+    private val failures: Map<String, Throwable> by lazy { events.failures() }
 
     @Test
     fun `a matching throw passes, and every other outcome fails`() {
-        events.succeeded().list().map { it.testDescriptor.displayName } shouldContainExactlyInAnyOrder listOf(
+        events shouldHaveSucceeded listOf(
             "passes a matching throw",
             "passes a matching throw, then checks it",
         )

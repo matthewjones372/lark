@@ -3,6 +3,7 @@ package io.github.matthewjones372.surefold.junit
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.junit.samples.ForAllSuite
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
@@ -18,7 +19,7 @@ class ForAllTest {
 
     @Test
     fun `it holds when every element does, and on no elements`() {
-        events.succeeded().list().map { it.testDescriptor.displayName }.sorted() shouldBe
+        events shouldHaveSucceeded
             listOf("holds on no elements", "holds when every element does")
     }
 

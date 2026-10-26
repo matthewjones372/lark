@@ -4,8 +4,9 @@ import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.surefold.assert.shouldMatch
 import io.github.matthewjones372.surefold.junit.samples.ContainingSuite
+import io.github.matthewjones372.surefold.junit.testkit.failures
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.testkit.engine.EngineTestKit
 
@@ -19,15 +20,12 @@ class ContainsTest {
     }
 
     private val failures: Map<String, List<String>> by lazy {
-        events.failed().list().associate {
-            val thrown = it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-            it.testDescriptor.displayName to thrown.message.orEmpty().lines().drop(1)
-        }
+        events.failures().mapValues { (_, thrown) -> thrown.message.orEmpty().lines().drop(1) }
     }
 
     @Test
     fun `every matcher passes when it holds`() {
-        events.succeeded().list().map { it.testDescriptor.displayName } shouldBe listOf("passes every matcher")
+        events shouldHaveSucceeded listOf("passes every matcher")
         failures.keys shouldContainExactlyInAnyOrder listOf(
             "fails a string shouldContain",
             "fails a null string",

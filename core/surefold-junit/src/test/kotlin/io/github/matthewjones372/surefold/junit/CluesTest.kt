@@ -3,8 +3,9 @@ package io.github.matthewjones372.surefold.junit
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldContainExactlyInAnyOrder
 import io.github.matthewjones372.surefold.junit.samples.CluedSuite
+import io.github.matthewjones372.surefold.junit.testkit.failures
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.opentest4j.MultipleFailuresError
@@ -16,17 +17,13 @@ class CluesTest {
         EngineTestKit.engine("surefold").selectors(selectClass(CluedSuite::class.java)).execute().testEvents()
     }
 
-    private val failures: Map<String, Throwable> by lazy {
-        events.failed().list().associate {
-            it.testDescriptor.displayName to it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-        }
-    }
+    private val failures: Map<String, Throwable> by lazy { events.failures() }
 
     private fun lines(test: String) = failures.getValue(test).message.orEmpty().lines()
 
     @Test
     fun `a narrowed check passes, and every miss fails`() {
-        events.succeeded().list().map { it.testDescriptor.displayName }.sorted() shouldBe
+        events shouldHaveSucceeded
             listOf("passes a narrowed check", "passes under a lazy clue")
         failures.keys shouldContainExactlyInAnyOrder listOf(
             "fails under a clue",
