@@ -73,6 +73,12 @@ fork has nothing to wait on. Recommended: the compare-and-set version.
       Done when: on a one-thread executor, a fork awaiting a fork queued behind
       it answers instead of hanging, and an interrupt never outlives its fork.
 
+Found while building `spec-0037-states`: a cancel that reaches a fork still `Submitted` cannot end it at once, as the
+diagram above draws it. Three `FlockTest` cases and one in `PolicyTest` rely on the body still running, started
+interrupted, as it did under the lock: a fork that throws before it reaches anything interruptible must still have its
+own failure reported when the scope closes. So `Submitted` carries a `cancelled` mark, and its claim starts the body
+interrupted, as `Interrupted`. Only a lazy fork that never left `Unstarted` goes straight to `Done`.
+
 ## Acceptance
 
 ```bash
