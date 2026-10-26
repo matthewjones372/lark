@@ -1,14 +1,18 @@
 package io.github.matthewjones372.surefold.stream
 
+import io.github.matthewjones372.surefold.LogLine
+import io.github.matthewjones372.surefold.Logger
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.assert.shouldContain
+import io.github.matthewjones372.surefold.logger
 import org.apache.pekko.stream.javadsl.Flow
 import org.apache.pekko.stream.javadsl.Sink
 import org.apache.pekko.stream.javadsl.Source
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 
 /** A run is checked against the backend it is started on before anything of it materialises. */
@@ -45,9 +49,11 @@ class BackendTest {
         val pulled = AtomicInteger()
         val source = Source.fromIterator { generateSequence { pulled.incrementAndGet() }.iterator() }
 
-        val exit = Stream.from(source).runCollect().run(backend).settled()
+        val lines = ConcurrentLinkedQueue<LogLine>()
+        val exit = logger.locally(Logger { lines += it }) { Stream.from(source).runCollect().run(backend).settled() }
 
         val died = exit.shouldBeInstanceOf<Exit.Died>()
+        lines.map { it.origin } shouldBe listOf("io.github.matthewjones372.surefold.stream.BackendKt")
         died.cause.message shouldContain "Stream.from, built at BackendTest.kt:"
         died.cause.message shouldContain "holds a Pekko value, and this run was started on Elsewhere"
         pulled.get() shouldBe 0

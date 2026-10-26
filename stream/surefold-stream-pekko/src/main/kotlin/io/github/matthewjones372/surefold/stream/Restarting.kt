@@ -17,7 +17,15 @@ import kotlin.time.toJavaDuration
 internal class Restarts(private val to: Logger, private val by: Clock) {
 
     fun warn(defect: Throwable, delay: Duration) =
-        to.log(LogLine(LogLevel.Warn, "surefold-stream: restarting in $delay after $defect", by.now(), defect))
+        to.log(
+            LogLine(
+                LogLevel.Warn,
+                "surefold-stream: restarting in $delay after $defect",
+                by.now(),
+                defect,
+                origin = Restarts::class.java.name,
+            ),
+        )
 }
 
 internal fun <A : Any> restarting(

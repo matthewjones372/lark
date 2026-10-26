@@ -3,6 +3,7 @@ package io.github.matthewjones372.surefold.stream
 import io.github.matthewjones372.surefold.LogLevel
 import io.github.matthewjones372.surefold.LogLine
 import io.github.matthewjones372.surefold.Schedule
+import java.lang.invoke.MethodHandles
 import java.time.Instant
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -13,6 +14,9 @@ import kotlin.time.Duration
 // [Timeline]: on a test's clock the clock stops at the instant it waits for, and on Forks it waits for it.
 
 private fun Instant.plus(duration: Duration): Instant = plusNanos(duration.inWholeNanoseconds)
+
+// The file's own class, as `logWarn` would name it from here (spec 0127): a top-level initializer runs in it.
+private val TIMED: String = MethodHandles.lookup().lookupClass().name
 
 /**
  * The first element [Node.Tick.after] from the first pull, then one every [Node.Tick.every]. A tick that
@@ -232,6 +236,7 @@ internal fun Node.RestartOnDefect.restarting(turns: Timeline): Pull {
                                 "surefold-stream: restarting in ${decision.delay} after $defect",
                                 turns.now(),
                                 defect,
+                                origin = TIMED,
                             ),
                         )
                         schedule = decision.step

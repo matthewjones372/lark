@@ -146,7 +146,9 @@ private class PullRun<E, R : Any>(
             if (stopped.get()) loop.stop()
             checkNotNull(loop.pull(Int.MAX_VALUE)) { "a pull of every element ended without an exit" }
         } catch (unopened: Throwable) {
-            log.log(LogLine(LogLevel.Error, unopened.oneLine(), clock.now(), unopened))
+            log.log(
+                LogLine(LogLevel.Error, unopened.oneLine(), clock.now(), unopened, origin = PullRun::class.java.name),
+            )
             Exit.Died(unopened)
         } finally {
             synchronized(this) {
@@ -224,12 +226,15 @@ class Pulling<E, R : Any> internal constructor(
             releases?.releaseAll()
             ended
         } catch (unreleased: Throwable) {
-            log.log(LogLine(LogLevel.Error, unreleased.oneLine(), clock.now(), unreleased))
+            val origin = Pulling::class.java.name
+            log.log(LogLine(LogLevel.Error, unreleased.oneLine(), clock.now(), unreleased, origin = origin))
             Exit.Died(unreleased)
         }
         val unclosed = resources.close() ?: return released
         if (released !is Exit.Done) return released
-        log.log(LogLine(LogLevel.Error, unclosed.oneLine(), clock.now(), unclosed))
+        log.log(
+            LogLine(LogLevel.Error, unclosed.oneLine(), clock.now(), unclosed, origin = Pulling::class.java.name),
+        )
         return Exit.Died(unclosed)
     }
 
@@ -266,7 +271,9 @@ class Pulling<E, R : Any> internal constructor(
             if (stopped.get() && defect.isInterruption()) {
                 done()
             } else {
-                log.log(LogLine(LogLevel.Error, defect.oneLine(), clock.now(), defect))
+                log.log(
+                    LogLine(LogLevel.Error, defect.oneLine(), clock.now(), defect, origin = Pulling::class.java.name),
+                )
                 Exit.Died(defect)
             }
         }

@@ -1,5 +1,8 @@
 package io.github.matthewjones372.surefold.actor.remote
 
+import io.github.matthewjones372.surefold.LogLevel
+import io.github.matthewjones372.surefold.LogLine
+import io.github.matthewjones372.surefold.Logger
 import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Address
@@ -22,8 +25,10 @@ import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
+import io.github.matthewjones372.surefold.junit.shouldContain
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.logger
 import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -68,6 +73,13 @@ private val wardCodec = object : MessageCodec<Ward> {
         3 -> Follow(input.ref(Codecs.string))
         else -> error("no ward message has the tag $tag")
     }
+}
+
+/** Writes a tag no ward message has, so the ward's own codec cannot read it. */
+private val unreadableCodec = object : MessageCodec<Ward> {
+    override fun write(message: Ward, out: WireOut) = out.int(99)
+
+    override fun read(input: WireIn): Ward = error("only written")
 }
 
 private typealias Admitted = Pair<Int, List<ActorRef<String>>>
@@ -200,6 +212,27 @@ object RemoteSuite : Suite() {
             letters.map { it.recipient.path to it.why } shouldContainExactly
                 listOf("/user/nobody" to DeadLetter.Why.NoSuchActor)
             wardCodec.decode((letters.single().message as UnreadMessage).bytes, noRefs) shouldBe Admit(5)
+        }
+
+        test("a frame the actor cannot read is a warning from the node, and the frames after it still arrive") {
+            val lines = ConcurrentLinkedQueue<LogLine>()
+            val charted = logger.locally(Logger { lines += it }) {
+                scope {
+                    val hospital = node("hospital", freePort())
+                    val ward = spawn("ward", ward())
+                    hospital.expose(ward, wardCodec)
+                    val address = Address(hospital.self.toString(), ward.address.path, ward.address.incarnation)
+                    val node = clinic()
+                    node.remote(address, unreadableCodec).tell(Admit(5))
+                    // One connection, in order: once the ward answers, the frame before it has been dealt with.
+                    node.remote(address, wardCodec).ask(1.minutes) { Chart(it) }
+                }
+            }
+
+            charted shouldBeRight 0
+            val warned = lines.filter { it.level == LogLevel.Warn }
+            warned.map { it.origin } shouldBe listOf(RemoteNode::class.java.name)
+            warned.single().message shouldContain "could not be read"
         }
 
         test("a message told to a node nobody answers for is a dead letter here, with the message in it") {

@@ -105,6 +105,7 @@ object RestartSuite : SharedSuite<PekkoSystem>() {
             restart.level shouldBe LogLevel.Warn
             restart.message shouldContain "ledger down"
             restart.cause.shouldBeInstanceOf<IllegalStateException>()
+            restart.origin shouldBe Restarts::class.java.name
         }
     }
 }
