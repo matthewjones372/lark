@@ -407,3 +407,26 @@ class OrdersTest {
     }
 }
 ```
+
+### Reading a topic in a test
+
+`Kafka.reading` reads what a service wrote, from any broker: this module's, or
+one in a container, given its bootstrap string. It never joins a group or
+commits, so reading changes nothing the service's groups see. Each call is a
+snapshot. It reads every partition up to the end offset it had when asked, so it
+answers at once, empty for an empty topic, and has no timeout of its own. A
+test waiting for a record asks again.
+
+```kotlin
+Kafka.reading(Topic("orders"), kafka.bootstrap, StringDeserializer(), OrderDeserializer()).use { orders ->
+    orders.values()            // every value, each partition oldest first
+    orders.records()           // the ConsumerRecords, keys and headers too
+}
+
+committedOffset(kafka.bootstrap, group = "placing", Topic("orders"))   // summed over partitions; 0 for none
+committedOffsets(kafka.bootstrap, group = "placing", Topic("orders"))  // partition to offset
+```
+
+A record its deserializers cannot read throws `IllegalStateException`, naming
+the record as `topic-partition@offset`, with the deserializer's exception as its
+cause. To read junk on purpose, read with a `ByteArrayDeserializer`.

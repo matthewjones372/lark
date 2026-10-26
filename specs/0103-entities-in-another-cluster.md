@@ -87,7 +87,7 @@ one that needs no witness.
       every node failing the first is sent to anyway, so #757's drop answers the ask. A frame written into a
       connection the far side has closed, before this side sees it close, is lost rather than dropped, as at most
       once allows: that ask waits out its time, and only the next one fails at once.
-- [ ] **`spec-0103-allow`** — a region refuses envelopes from another cluster unless that cluster is allowed
+- [x] **`spec-0103-allow`** ([#764](https://github.com/matthewjones372/surefold/pull/764)) — a region refuses envelopes from another cluster unless that cluster is allowed
       (question 3), and `federate` makes TLS the default outside tests (question 2).
       Done when: a cluster not on the allow-list is refused, as a dead letter, and an allowed one is answered.
       `federate(name, nodes, from)` stamps `from` on each envelope, as `RegionCodec`'s `FEDERATED` tag; a region
