@@ -70,7 +70,7 @@ own.
 
 ## Stack
 
-- [ ] **`spec-0148-identity`**: `StageProfile.stage`/`at`; `Profiler` keeps
+- [x] **`spec-0148-identity`** ([#666](https://github.com/matthewjones372/lark/pull/666)): `StageProfile.stage`/`at`; `Profiler` keeps
       them and keys by pipeline; `profile(pipeline)`.
       Done when: a `ProfileTest` case with two pipelines on one profiler gets
       separate profiles, and `profile()` refuses with both names.

@@ -24,12 +24,31 @@ fun Pipe<*, *, *>.render(layout: Layout = Layout.Text, optimised: Boolean = fals
  * As the stream's, with the end the run completes through as its last step, and [profile]'s numbers beside
  * each stage: its share of the busy time, its `busy` and `waiting` per element, and what it emitted. In
  * Mermaid a stage is `hot`, `warm` or `cool` by that share. A profile numbers the stages of the run as it
- * was written, so it goes with the described rendering and not the optimised one.
+ * was written, so it goes with the described rendering and not the optimised one. A profile of another run, or of
+ * this one before an edit, is refused at the first stage that differs, rather than drawn beside the wrong stages.
  */
 fun Run<*, *>.render(layout: Layout = Layout.Text, optimised: Boolean = false, profile: Profile? = null): String {
     require(!(optimised && profile != null)) { "a profile numbers the stages as written; render it without optimised" }
+    profile?.let { node.dataOrder().matches(it) }
     return rendered(node.maybeOptimised(optimised), end, layout, profile)
 }
+
+/**
+ * Every stage [profile] names is the one at its step here, operator and site alike (spec 0148). A stage built by
+ * hand, with no operator, is taken as it is.
+ */
+private fun List<Node>.matches(profile: Profile) {
+    profile.stages.toSortedMap().forEach { (step, measured) ->
+        val operator = measured.stage ?: return@forEach
+        val here = getOrNull(step)
+        require(here != null && here.operator == operator && here.site == measured.at) {
+            val ours = here?.let { "${named(it.operator, it.site)} in this run" } ?: "and this run has no step $step"
+            "step $step is ${named(operator, measured.at)} in the profile, $ours"
+        }
+    }
+}
+
+private fun named(operator: String, at: String?): String = if (at == null) operator else "$operator at $at"
 
 private fun Node.maybeOptimised(optimised: Boolean): Node = if (optimised) optimised() else this
 
