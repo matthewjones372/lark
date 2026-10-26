@@ -52,6 +52,8 @@ has, is tidier with many options and costs every existing caller a change.
 
 ## Open questions
 
+Answered (maintainer, 2026-10-26: go with the recommendations).
+
 1. **Parameters or a `Subscription` value?** Recommended: parameters.
 2. **Hooks: plain functions, or a `Raise` so a hook can fail the run?** Recommended: plain; a throw is a defect.
 3. **`StartAt.Own` and commits:** a group that keeps its own offsets usually does not commit to Kafka. Should

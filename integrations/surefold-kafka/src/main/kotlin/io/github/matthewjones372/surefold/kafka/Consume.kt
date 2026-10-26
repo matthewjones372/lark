@@ -38,11 +38,38 @@ fun <K, V> Kafka.consume(
     pollTimeout: Duration = 100.milliseconds,
     rebalance: Rebalance = Rebalance.immediately,
 ): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
+    val names = topics.map { it.name }
+    return consuming(properties, key, value, pollTimeout, rebalance) { consumer, listener ->
+        consumer.subscribe(names, listener)
+    }
+}
+
+/** [consume] over every topic [topics] matches, those created while it runs as well (spec 0159). */
+fun <K, V> Kafka.consume(
+    properties: Map<String, Any>,
+    topics: Topics,
+    key: Deserializer<K>,
+    value: Deserializer<V>,
+    pollTimeout: Duration = 100.milliseconds,
+    rebalance: Rebalance = Rebalance.immediately,
+): Stream<Nothing, Committed<ConsumerRecord<K, V>>> =
+    consuming(properties, key, value, pollTimeout, rebalance) { consumer, listener ->
+        consumer.subscribe(topics.pattern.toPattern(), listener)
+    }
+
+private fun <K, V> consuming(
+    properties: Map<String, Any>,
+    key: Deserializer<K>,
+    value: Deserializer<V>,
+    pollTimeout: Duration,
+    rebalance: Rebalance,
+    subscribe: (KafkaConsumer<K, V>, ConsumerRebalanceListener) -> Unit,
+): Stream<Nothing, Committed<ConsumerRecord<K, V>>> {
     val measuring = Measuring.here()
     return Stream.blocking(
         open = {
             val named = properties.named()
-            Loop(named, topics.map { it.name }, key, value, pollTimeout, rebalance, measuring.consumer(named))
+            Loop(named, subscribe, key, value, pollTimeout, rebalance, measuring.consumer(named))
         },
         next = { loop -> loop.next() },
         ready = { loop -> loop.ready() },
@@ -73,6 +100,25 @@ fun <K, V> Kafka.consume(
     )
         .decodedWith(key, value)
 
+/** [consume] over bytes on every topic [topics] matches, each key and value decoded in the stream. */
+fun <K, V> Kafka.consume(
+    properties: Map<String, Any>,
+    topics: Topics,
+    key: Decoder<K>,
+    value: Decoder<V>,
+    pollTimeout: Duration = 100.milliseconds,
+    rebalance: Rebalance = Rebalance.immediately,
+): Stream<Nothing, Committed<Either<DecodeError, ConsumerRecord<K, V>>>> =
+    consume(
+        properties,
+        topics,
+        key = ByteArrayDeserializer(),
+        value = ByteArrayDeserializer(),
+        pollTimeout = pollTimeout,
+        rebalance = rebalance,
+    )
+        .decodedWith(key, value)
+
 /** How many consumers this process has named, as the client numbers the ones it names itself. */
 private val named = AtomicLong()
 
@@ -91,7 +137,7 @@ private fun Map<String, Any>.named(): Map<String, Any> =
 /** One run's consumer of a group's partitions, committing what was handled through [commits]. */
 private class Loop<K, V>(
     properties: Map<String, Any>,
-    topics: List<String>,
+    subscribe: (KafkaConsumer<K, V>, ConsumerRebalanceListener) -> Unit,
     key: Deserializer<K>,
     value: Deserializer<V>,
     private val pollTimeout: Duration,
@@ -111,7 +157,7 @@ private class Loop<K, V>(
 
     // Before the keeper starts, so a subscription the client refuses leaves no keeper running.
     init {
-        consumer.subscribe(topics, this)
+        subscribe(consumer, this)
     }
 
     private val keeper = Keeper(consumer, properties, meters) { records -> polled.addAll(records) }
