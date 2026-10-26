@@ -1,8 +1,8 @@
-# 0210 — One name for a scope
+# 0214 — One name for a scope
 
 ## Problem
 
-After spec 0209 the same idea has two names. The type is `Flock<E>`, a typed scope is opened with `flock { }`, and
+After spec 0213 the same idea has two names. The type is `Flock<E>`, a typed scope is opened with `flock { }`, and
 one nothing can raise in is opened with `scope { }`. `docs/core.md` already calls a flock "the scope that `async`
 forks in", and every other structured-concurrency library calls this thing a scope. The word "flock" has to be
 learned, and it buys nothing over "scope".
@@ -22,7 +22,7 @@ flock's clock", "a flock held open").
 ```kotlin
 interface Scope<E> : Fail<E> { /* on, async, onClose: unchanged */ }
 
-fun <A> scope(on: Executor = VirtualThreads, block: Scope<Nothing>.() -> A): A        // from 0209
+fun <A> scope(on: Executor = VirtualThreads, block: Scope<Nothing>.() -> A): A        // from 0213
 fun <E, A> Fail<E>.scope(on: Executor = VirtualThreads, block: Scope<E>.() -> A): A   // was Fail<E>.flock
 
 // A typed scope is the nested form inside attempt, which docs/core.md already shows:
