@@ -70,6 +70,8 @@ families above. Spec 0208 gives each family a legal way to run after commit, so 
 
 ## Open questions
 
+Taken as recommended (maintainer, 2026-10-26). Each answer is the question's recommendation.
+
 1. **Error or warning?** Recommended: error. The bug it prevents is silent and only shows under load.
 2. **Same-module helpers.** Should the checker follow a call into a function in the same module and report I/O in
    its body? Recommended: not now. A helper meant for transactions takes `Transaction` and is checked directly.

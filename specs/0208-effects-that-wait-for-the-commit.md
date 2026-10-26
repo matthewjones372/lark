@@ -63,6 +63,8 @@ Recommended: synchronous. A caller who wants them in the background puts `async`
 
 ## Open questions
 
+Taken as recommended (maintainer, 2026-10-26). Each answer is the question's recommendation.
+
 1. **Name.** `afterCommit`, or something more Surefold-like, such as `onceCommitted`? Recommended: `afterCommit`.
    It says when.
 2. **An `afterRetry` hook** for code that wants to watch retries? Recommended: no. Spec 0209 reports retries

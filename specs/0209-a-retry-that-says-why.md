@@ -65,6 +65,8 @@ retry. Recommended: optional names, with `unnamed` as the default, so reporting 
 
 ## Open questions
 
+Taken as recommended (maintainer, 2026-10-26). Each answer is the question's recommendation.
+
 1. **Should `cause` name only the first value that changed, or each one?** Recommended: the first. That is what
    ended the run, and it keeps one increment per retry.
 2. **Warn in the log when a step's retries pass a threshold?** Recommended: no. A log line per hot step is noise.

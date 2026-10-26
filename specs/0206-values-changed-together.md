@@ -89,6 +89,8 @@ The names are Surefold's. `retry` already means `Retry.kt`'s schedules, so the b
 
 ## Open questions
 
+Taken as recommended (maintainer, 2026-10-26). Each answer is the question's recommendation.
+
 1. **Module.** Put this in `surefold` itself (stdlib only, so it's allowed), or in a new `core/surefold-stm`?
    Recommended: `surefold`. It's no heavier than `CircuitBreaker`, and forks are where it gets used.
 2. **Names.** `Shared`/`transact`/`waitForChange`/`firstOf`, or something else? Recommended: as sketched.
