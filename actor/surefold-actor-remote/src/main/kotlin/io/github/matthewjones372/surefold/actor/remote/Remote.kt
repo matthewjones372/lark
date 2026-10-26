@@ -177,9 +177,9 @@ class RemoteNode internal constructor(
     private fun here(address: Address): Address = Address(self.toString(), address.path, address.incarnation)
 
     private class Exposed<M : Any>(val ref: ActorRef<M>, val codec: MessageCodec<M>) {
-        fun read(payload: ByteArray, refs: Refs): M = codec.decode(payload, refs)
+        fun read(payload: ByteArray, refs: Refs, from: Node? = null): M = codec.decode(payload, refs, from)
 
-        fun deliver(payload: ByteArray, refs: Refs) = ref.tell(read(payload, refs))
+        fun deliver(payload: ByteArray, refs: Refs, from: Node) = ref.tell(read(payload, refs, from))
     }
 
     /** Asks [peer] to say when the actor at [address] ends; [notify] runs then, or once [peer] is unreachable. */
@@ -242,7 +242,7 @@ class RemoteNode internal constructor(
 
                     frame.path == TERMINATED -> terminated(targetOf(from, frame.payload))
 
-                    else -> deliver(frame)
+                    else -> deliver(from, frame)
                 }
             } catch (unreadable: Throwable) {
                 unreadable.nonFatalOrThrow()
@@ -257,7 +257,7 @@ class RemoteNode internal constructor(
             }
         }
 
-        private fun deliver(frame: Frame) {
+        private fun deliver(from: Node, frame: Frame) {
             val recipient = Address(self.toString(), frame.path, frame.incarnation)
             val actor = exposed[frame.path]
             when {
@@ -265,10 +265,12 @@ class RemoteNode internal constructor(
                     scope.deadLetter(DeadLetter(recipient, UnreadMessage(frame.payload), DeadLetter.Why.NoSuchActor))
 
                 frame.incarnation != 0L && actor.ref.address.incarnation != frame.incarnation ->
-                    scope.deadLetter(DeadLetter(recipient, actor.read(frame.payload, refs), DeadLetter.Why.NoSuchActor))
+                    scope.deadLetter(
+                        DeadLetter(recipient, actor.read(frame.payload, refs, from), DeadLetter.Why.NoSuchActor),
+                    )
 
                 // Told inside what it carried, so the local tell carries it on to the handler (spec 0122).
-                else -> Carriers.within(frame.carried) { actor.deliver(frame.payload, refs) }
+                else -> Carriers.within(frame.carried) { actor.deliver(frame.payload, refs, from) }
             }
         }
 

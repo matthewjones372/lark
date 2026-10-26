@@ -68,9 +68,11 @@ internal object Sharding {
 internal sealed interface Region<M : Any> {
     data class Envelope<M : Any>(val id: String, val hops: Int, val message: M) : Region<M>
 
-    data class Release<M : Any>(val shard: Int, val from: Node) : Region<M>
+    // [sender] is the node the transport read it from, null when it was told on this node: a region takes the
+    // handoff only from its own cluster's members (spec 0103), and a federated cluster never moves a shard.
+    data class Release<M : Any>(val shard: Int, val from: Node, val sender: Node? = null) : Region<M>
 
-    data class Released<M : Any>(val shard: Int, val by: Node) : Region<M>
+    data class Released<M : Any>(val shard: Int, val by: Node, val sender: Node? = null) : Region<M>
 
     data class Viewed<M : Any>(val view: View, val moved: Map<Int, Incarnation> = emptyMap()) : Region<M>
 
@@ -92,7 +94,7 @@ private const val RELEASE = 2
 private const val RELEASED = 3
 
 /** What crosses between regions: an envelope holds the id, then the message in the kind's own codec. */
-private class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : MessageCodec<Region<M>> {
+internal class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : MessageCodec<Region<M>> {
     override fun write(message: Region<M>, out: WireOut) = when (message) {
         is Region.Envelope -> {
             out.int(ENVELOPE)
@@ -119,8 +121,8 @@ private class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : Message
 
     override fun read(input: WireIn): Region<M> = when (val tag = input.int()) {
         ENVELOPE -> Region.Envelope(id = input.string(), hops = input.int(), message = codec.read(input))
-        RELEASE -> Region.Release(input.int(), Node.parse(input.string()))
-        RELEASED -> Region.Released(input.int(), Node.parse(input.string()))
+        RELEASE -> Region.Release(input.int(), Node.parse(input.string()), input.sender)
+        RELEASED -> Region.Released(input.int(), Node.parse(input.string()), input.sender)
         else -> error("no region message has the tag $tag")
     }
 }

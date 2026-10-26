@@ -45,8 +45,9 @@ fun <M : Any> MessageCodec<M>.encode(message: M, refs: Refs): ByteArray = WireOu
     write(message, it)
 }.bytes()
 
-fun <M : Any> MessageCodec<M>.decode(bytes: ByteArray, refs: Refs): M {
-    val input = WireIn(bytes, refs)
+/** [bytes] read back; [sender] is the node whose connection they came in on, when a transport read them. */
+fun <M : Any> MessageCodec<M>.decode(bytes: ByteArray, refs: Refs, sender: Node? = null): M {
+    val input = WireIn(bytes, refs, sender)
     return try {
         read(input)
     } catch (short: EOFException) {
@@ -97,8 +98,12 @@ class WireOut internal constructor(private val refs: Refs) {
     internal fun bytes(): ByteArray = buffer.toByteArray()
 }
 
-/** One message's fields on their way in, read in the order they were written. */
-class WireIn internal constructor(bytes: ByteArray, private val refs: Refs) {
+/**
+ * One message's fields on their way in, read in the order they were written. [sender] is the node whose connection
+ * the message came in on, as its hello named it: only TLS ties that name to the peer (spec 0103). Null when no
+ * transport read it.
+ */
+class WireIn internal constructor(bytes: ByteArray, private val refs: Refs, val sender: Node? = null) {
     private val data = DataInputStream(bytes.inputStream())
 
     fun int(): Int = data.readInt()

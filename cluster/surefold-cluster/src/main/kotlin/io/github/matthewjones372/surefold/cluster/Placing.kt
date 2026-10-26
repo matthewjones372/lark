@@ -95,9 +95,11 @@ internal class Placing<M : Any, H : Any>(
             viewed(ctx, step.view)
         }
 
-        is Region.Release -> asked(step.shard, by = step.from)
+        is Region.Release -> if (outsider(step.sender)) refuse(step) else asked(step.shard, by = step.from)
 
-        is Region.Released -> {
+        is Region.Released -> if (outsider(step.sender)) {
+            refuse(step)
+        } else {
             awaiting[step.shard]?.remove(step.by)
             startIfFree(ctx, step.shard)
         }
@@ -122,6 +124,13 @@ internal class Placing<M : Any, H : Any>(
         settle()
         measure()
     }
+
+    /** Whether a handoff came in from a node that is not one of this cluster's members (spec 0103). */
+    private fun outsider(sender: Node?) = sender != null && view.members.none { it.node == sender }
+
+    /** A handoff from outside the cluster: a dead letter, and the shard stays where it is. */
+    private fun refuse(step: Region<M>) =
+        cluster.scope.deadLetter(DeadLetter(Address(self.toString(), path, 0), step, DeadLetter.Why.Unhandled))
 
     private fun owner(shard: Int) = hosting.owner(shard, view.members, moved)
 
