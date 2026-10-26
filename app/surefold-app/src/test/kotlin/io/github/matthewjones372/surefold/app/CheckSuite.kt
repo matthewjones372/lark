@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.app
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContain
@@ -15,7 +14,7 @@ import java.io.File
  */
 object CheckSuite : Suite() {
     // The clue is for a build that forgot the property, not for what the test then checks.
-    private fun testClasses(then: (List<File>) -> Expectations): Expectations =
+    private fun testClasses(then: (List<File>) -> Unit) =
         System.getProperty("surefold.app.testClasses")
             ?.let { dirs -> then(dirs.split(File.pathSeparator).filter { it.isNotBlank() }.map(::File)) }
             ?: withClue("the build must pass -Dsurefold.app.testClasses; see surefold-app/build.gradle.kts") {

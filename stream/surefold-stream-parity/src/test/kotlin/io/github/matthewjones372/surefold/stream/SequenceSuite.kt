@@ -1,7 +1,6 @@
 package io.github.matthewjones372.surefold.stream
 
 import io.github.matthewjones372.surefold.Resource
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeLessThanOrEqual
@@ -36,10 +35,10 @@ object SequenceSuite : SharedSuite<ActorSystem>() {
     private val naturals: Iterable<Int> = generateSequence(1) { it + 1 }.asIterable()
 
     /** Holds if the gate opens before the guard runs out, and only then goes on to [then]. */
-    private fun CountDownLatch.opens(then: () -> Expectations): Expectations {
+    private fun CountDownLatch.opens(then: () -> Unit) {
         val opened = await(GUARD_SECONDS, TimeUnit.SECONDS)
-        val gate = withClue("the gate never opened") { opened shouldBe true }
-        return if (opened) gate and then() else gate
+        withClue("the gate never opened") { opened shouldBe true }
+        if (opened) then()
     }
 
     init {

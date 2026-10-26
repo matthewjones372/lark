@@ -7,13 +7,13 @@ import io.github.matthewjones372.surefold.counter
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.increment
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.alone
 import io.github.matthewjones372.surefold.junit.anyOf
 import io.github.matthewjones372.surefold.junit.expect
 import io.github.matthewjones372.surefold.junit.forAll
+import io.github.matthewjones372.surefold.junit.holds
 import io.github.matthewjones372.surefold.junit.ignore
 import io.github.matthewjones372.surefold.junit.not
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -264,41 +264,54 @@ class NotAnObject : Suite() {
     }
 }
 
-/** Expectations combined every way, each test named for how it should end. */
+/** Checks written every way, each test named for how it should end. */
 object ExpectingSuite : SharedSuite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     // Power-assert rewrites calls, not references, so this is `expect` as a caller built without the plugin sees it.
-    private val unexplained: (Boolean) -> Expectations = ::expect
+    private val unexplained: (Boolean) -> Unit = ::expect
 
     init {
-        test("passes both") { two -> expect(two == 2) and expect(two + two == 4) }
-        test("fails both") { two ->
-            expect(two == 3) and
-                expect(two + two == 5)
+        test("passes both") { two ->
+            expect(two == 2)
+            expect(two + two == 4)
         }
-        test("fails one of two") { two -> expect(two == 2) and expect(two == 3) }
+        test("fails both") { two ->
+            expect(two == 3)
+            expect(two + two == 5)
+        }
+        test("fails one of two") { two ->
+            expect(two == 2)
+            expect(two == 3)
+        }
         test("passes either") { two -> anyOf({ expect(two == 3) }, { expect(two == 2) }) }
         test("fails either") { two -> anyOf({ expect(two == 3) }, { expect(two == 4) }) }
         test("fails a negated pass") { two -> not { expect(two == 2) } }
         test("passes a negated failure") { two -> not { expect(two == 3) } }
         test("throws before it expects") { error("no expectations reached") }
-        test("fails unexplained") { two -> val _ = unexplained(two == 3) }
+        test("fails unexplained") { two -> unexplained(two == 3) }
     }
 }
 
-/** surefold-junit's value-returning matchers, each test named for how it should end. */
+/** surefold-junit's matchers, each test named for how it should end. */
 object MatchingSuite : SharedSuite<Int>() {
     override val shared: Resource<Int> = resource { 2 }
 
     init {
-        test("passes shouldBe and shouldNotBe") { two -> (two shouldBe 2) and (two shouldNotBe 3) }
+        test("passes shouldBe and shouldNotBe") { two ->
+            two shouldBe 2
+            two shouldNotBe 3
+        }
         test("fails shouldBe") { two -> two shouldBe 3 }
         test("fails shouldNotBe") { two -> two shouldNotBe 2 }
-        test("fails both matchers") { two -> (two shouldBe 3) and (two shouldNotBe 2) }
+        test("fails both matchers") { two ->
+            two shouldBe 3
+            two shouldNotBe 2
+        }
         test("passes either matcher") { two -> anyOf({ two shouldBe 3 }, { two shouldBe 2 }) }
         test("passes shouldBeRight and shouldBeLeft") { two ->
-            (Either.Right(two) shouldBeRight 2) and (Either.Left(two) shouldBeLeft 2)
+            Either.Right(two) shouldBeRight 2
+            Either.Left(two) shouldBeLeft 2
         }
         test("fails shouldBeRight") { two -> Either.Left(two) shouldBeRight 2 }
     }
@@ -487,7 +500,7 @@ object ForAllSuite : SharedSuite<List<Int>>() {
 
     init {
         test("holds when every element does") { xs -> xs.forAll { x -> x shouldBeLessThan 5 } }
-        test("holds on no elements") { _ -> expect(emptyList<Int>().forAll { x -> x shouldBe 0 }.held) }
+        test("holds on no elements") { _ -> holds { emptyList<Int>().forAll { x -> x shouldBe 0 } } }
         test("fails once for each element that does not") { xs -> xs.forAll { x -> x shouldBeLessThan 3 } }
     }
 }

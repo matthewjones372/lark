@@ -16,7 +16,6 @@ import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -118,7 +117,7 @@ private class Bar(val name: String, port: Int, seeds: Discovery, running: TabsRu
     }
 }
 
-private fun List<Bar>.awaitUp(count: Int): Expectations = forAll { bar ->
+private fun List<Bar>.awaitUp(count: Int) = forAll { bar ->
     withClue("${bar.name} sees $count Up") {
         bar.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == count } shouldBe true
     }

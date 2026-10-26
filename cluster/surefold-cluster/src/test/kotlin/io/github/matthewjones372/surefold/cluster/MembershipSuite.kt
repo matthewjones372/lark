@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.cluster
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -11,7 +10,7 @@ import kotlin.time.Duration.Companion.seconds
 
 private val five = listOf(1, 2, 3, 4, 5)
 
-private fun Net.fiveUp(): Expectations {
+private fun Net.fiveUp() {
     five.forEach { start(it, seeds(1, 2, 3)) }
     return withClue("five nodes agree on five Up") {
         until { five.all { view(it).up().size == 5 } && five.map(::view).distinct().size == 1 } shouldBe true

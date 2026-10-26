@@ -3,7 +3,6 @@ package io.github.matthewjones372.surefold.app.typesafe
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import io.github.matthewjones372.surefold.app.testApp
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.alone
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -17,7 +16,7 @@ import java.nio.file.Files
  */
 object LoadedLayersSuite : Suite() {
     /** Runs [body] with a way to set system properties, each cleared again once it returns. */
-    private fun withProperties(body: (property: (name: String, value: String) -> Unit) -> Expectations): Expectations {
+    private fun withProperties(body: (property: (name: String, value: String) -> Unit) -> Unit) {
         val set = mutableListOf<String>()
         try {
             return body { name, value ->

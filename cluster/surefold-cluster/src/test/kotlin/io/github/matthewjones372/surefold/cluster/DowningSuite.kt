@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.cluster
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -8,7 +7,7 @@ import io.github.matthewjones372.surefold.junit.withClue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-private fun Net.upAll(vararg n: Int): Expectations {
+private fun Net.upAll(vararg n: Int) {
     n.forEach { start(it, seeds(1, 2, 3)) }
     return until { n.all { view(it).up().size == n.size } } shouldBe true
 }

@@ -2,7 +2,6 @@ package io.github.matthewjones372.surefold.cluster.aws
 
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.cluster.Joins
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -84,7 +83,7 @@ private class FakeDynamo : DynamoDbClient {
     // Each write's condition, kept for the test to check once its calls return, as a check cannot fail it from here.
     private val conditions = mutableListOf<String>()
 
-    fun everyWriteAskedFreeOrMine(): Expectations = conditions.forAll { it shouldBe FREE_OR_MINE }
+    fun everyWriteAskedFreeOrMine() = conditions.forAll { it shouldBe FREE_OR_MINE }
 
     override fun putItem(request: PutItemRequest): PutItemResponse {
         conditions += request.conditionExpression()

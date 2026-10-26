@@ -19,7 +19,6 @@ import io.github.matthewjones372.surefold.actor.unhandled
 import io.github.matthewjones372.surefold.actor.watch
 import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -202,11 +201,11 @@ object RemoteSuite : Suite() {
         test("a message told to a node nobody answers for is a dead letter here, with the message in it") {
             val letters = LinkedBlockingQueue<DeadLetter>()
             val nowhere = Address("nowhere@127.0.0.1:${freePort()}", "/user/ward", 0)
-            flock<Nothing, Expectations> {
+            flock<Nothing, Unit> {
                 onDeadLetter(letters::add)
                 clinic().remote(nowhere, wardCodec).tell(Admit(5))
                 letters.poll(1, TimeUnit.MINUTES) shouldBe DeadLetter(nowhere, Admit(5), DeadLetter.Why.Unreachable)
-            }.shouldBeRight { it }
+            } shouldBeRight Unit
         }
 
         test("an actor watching one on another node hears Terminated when it stops") {

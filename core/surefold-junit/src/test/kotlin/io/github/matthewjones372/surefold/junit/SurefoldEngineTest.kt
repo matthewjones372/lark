@@ -335,7 +335,7 @@ class SurefoldEngineTest {
             "but was:  false",
         )
         message.orEmpty().lines().last().trim() shouldBe
-            "private val unexplained: (Boolean) -> Expectations = ::expect"
+            "private val unexplained: (Boolean) -> Unit = ::expect"
     }
 
     @Test

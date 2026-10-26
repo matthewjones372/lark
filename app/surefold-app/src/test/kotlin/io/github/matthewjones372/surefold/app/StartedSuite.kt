@@ -71,7 +71,7 @@ object StartedSuite : Suite() {
 
             module.use { _: Hub ->
                 wiring.shouldNotBeNull { started -> shouldThrow<IllegalStateException>({ started.onStarted { } }) }
-            }.shouldBeRight { threw -> threw }
+            } shouldBeRight Unit
         }
     }
 }

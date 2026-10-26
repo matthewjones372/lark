@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.app
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldNotBeNull
@@ -16,7 +15,7 @@ object AgentDocsSuite : Suite() {
     private fun page(root: String, path: String): String = File(root, path).readText()
 
     // The clue is for a build that forgot the property, not for what the test then checks.
-    private fun repoRoot(then: (String) -> Expectations): Expectations =
+    private fun repoRoot(then: (String) -> Unit) =
         System.getProperty("surefold.app.repoRoot")?.let(then)
             ?: withClue("the build must pass -Dsurefold.app.repoRoot; see surefold-app/build.gradle.kts") {
                 null.shouldNotBeNull()

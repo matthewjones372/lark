@@ -5,7 +5,6 @@ import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBeLessThan
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -41,7 +40,7 @@ object LaneSuite : Suite() {
             }
             try {
                 ready.await()
-                flock<Nothing, Expectations> {
+                flock<Nothing, Unit> {
                     val node = node("sender", freePort())
                     val slow = node.remote(Address("receiver@127.0.0.1:$port", "/user/slow", 0), Codecs.int)
                     val ping =
@@ -57,7 +56,7 @@ object LaneSuite : Suite() {
                     (1..200).forEach(ping::tell)
                     val rest = generateSequence { pinged.poll(5, TimeUnit.SECONDS) }.take(200).toList()
                     rest shouldContainExactly (1..200).toList()
-                }.shouldBeRight { it }
+                } shouldBeRight Unit
             } finally {
                 done.countDown()
                 receiver.join()

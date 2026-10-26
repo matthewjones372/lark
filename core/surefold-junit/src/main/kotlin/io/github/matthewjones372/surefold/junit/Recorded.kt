@@ -29,7 +29,7 @@ internal class Record {
     /** What was recorded from [from] on, as one result. */
     fun since(from: Int): Expectations = joined(checks.drop(from))
 
-    private fun joined(some: List<Expectations>) = some.fold(nothingChecked(), Expectations::and)
+    private fun joined(some: List<Expectations>) = some.fold(nothingChecked(), Expectations::plus)
 }
 
 /** The record a check made here adds to: a test's, or a narrower one inside it. Unbound outside a test. */

@@ -6,7 +6,6 @@ import io.github.matthewjones372.surefold.app.StartupError
 import io.github.matthewjones372.surefold.app.single
 import io.github.matthewjones372.surefold.app.testApp
 import io.github.matthewjones372.surefold.app.use
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
@@ -48,7 +47,7 @@ object SectionReportSuite : Suite(concurrent = false) {
     private val logger = Logger.getLogger("surefold-app")
 
     /** Runs [body] with a handler on the `surefold-app` logger, removed again once it returns. */
-    private fun listening(body: (Heard) -> Expectations): Expectations {
+    private fun listening(body: (Heard) -> Unit) {
         val heard = Heard()
         logger.addHandler(heard.handler)
         try {

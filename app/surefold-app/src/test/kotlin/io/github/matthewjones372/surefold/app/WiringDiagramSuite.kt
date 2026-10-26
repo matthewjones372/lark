@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.app
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldNotBe
@@ -21,7 +20,7 @@ private class Frontage
 private val fenced = Regex("""<!-- cookbook-diagram -->\s*```mermaid\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
 
 /** Runs [check] against the repository's root, or fails saying the build did not pass it. */
-private inline fun withRepo(check: (File) -> Expectations): Expectations {
+private inline fun withRepo(check: (File) -> Unit) {
     val root: String? = System.getProperty("surefold.app.repoRoot")
     return if (root == null) {
         withClue("the build must pass -Dsurefold.app.repoRoot; see surefold-app/build.gradle.kts") {

@@ -1,6 +1,5 @@
 package io.github.matthewjones372.surefold.stream
 
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.forAll
 import io.github.matthewjones372.surefold.junit.shouldBe
@@ -32,14 +31,14 @@ object HardenedSuite : Suite() {
         "Actors" to { counted -> Actors(heldFlock, on = counted) },
     )
 
-    private fun Counted.leavesNothing(case: ParitySuite.Case, how: String): Expectations =
+    private fun Counted.leavesNothing(case: ParitySuite.Case, how: String) =
         withClue("${case.name}, $how: a thread it started is still running") { leftRunning() shouldBe 0 }
 
     /**
      * [body] on every backend, with a count of its own; a backend on actors must also have no run left once [body]
      * has seen every exit.
      */
-    private fun every(body: (Counted, (Counted) -> StreamBackend) -> Unit): Expectations =
+    private fun every(body: (Counted, (Counted) -> StreamBackend) -> Unit) =
         backends.forAll { (name, make) ->
             val made = mutableListOf<StreamBackend>()
             withClue(name) {
