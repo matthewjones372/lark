@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirFunctionCallChecker
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirVariableAssignmentChecker
+import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.expressions.FirDesugaredAssignmentValueReferenceExpression
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
@@ -19,6 +20,7 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirLocalPropertySymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
 import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneType
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
@@ -95,10 +97,29 @@ private fun FirBasedSymbol<*>.declaredIn(step: FirBasedSymbol<*>): Boolean {
 // The outermost is the step: a var declared anywhere inside it is the step's own.
 context(context: CheckerContext)
 private fun step(): FirBasedSymbol<*>? =
-    context.containingDeclarations.firstOrNull {
-        (it as? FirCallableSymbol<*>)?.resolvedReceiverType?.classId ==
+    if (afterCommitted()) {
+        null
+    } else {
+        context.containingDeclarations.firstOrNull {
+            (it as? FirCallableSymbol<*>)?.resolvedReceiverType?.classId == transaction
+        }
+    }
+
+// An afterCommit block runs once the step has committed, so what it does is not the step's. A transact inside one is a
+// new step, and is checked again: the block is exempt only when it is deeper than the innermost step around the code.
+context(context: CheckerContext)
+private fun afterCommitted(): Boolean {
+    val path = context.containingElements
+    val block = path.indexOfLast {
+        (it as? FirFunctionCall)?.calleeReference?.toResolvedCallableSymbol()?.callableId ==
+            afterCommit
+    }
+    val innermost = path.indexOfLast {
+        (it as? FirFunction)?.receiverParameter?.typeRef?.coneType?.classId ==
             transaction
     }
+    return block > innermost
+}
 
 private fun refused(called: CallableId): Boolean {
     val owner = called.classId?.packageFqName ?: called.packageName
@@ -108,6 +129,8 @@ private fun refused(called: CallableId): Boolean {
 private val surefold = FqName("io.github.matthewjones372.surefold")
 
 private val transaction = ClassId(surefold, Name.identifier("Transaction"))
+
+private val afterCommit = CallableId(transaction, Name.identifier("afterCommit"))
 
 private val peek = CallableId(ClassId(surefold, Name.identifier("Shared")), Name.identifier("peek"))
 

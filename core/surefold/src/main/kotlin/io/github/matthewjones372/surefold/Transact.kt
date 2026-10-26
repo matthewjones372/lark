@@ -17,25 +17,40 @@ class Shared<T>(initial: T) {
 /**
  * Runs [block] as one step: its writes land together when it commits, or not at all if it throws or fails. A step whose
  * reads were changed by another commit first runs again, so [block] can run more than once. Inside another step, it
- * joins that step.
+ * joins that step. Effects queued with [Transaction.afterCommit] run once it has committed, before this returns.
  */
 fun <A> transact(block: Transaction.() -> A): A {
     running.get()?.let { return it.block() }
     while (true) {
         val step = Transaction()
-        running.set(step)
-        try {
-            val answer = step.block()
-            if (step.commit()) return answer
-        } catch (_: Conflict) {
-            // Runs again from the start.
-        } catch (_: Wait) {
-            step.awaitChange()
-        } finally {
-            running.remove()
+        val answer = step.attempt(block)
+        if (answer !== Again) {
+            // Outside the step, so an effect that calls transact starts a step of its own.
+            step.runEffects()
+            // Only Again is not the block's answer, so this is an A.
+            @Suppress("UNCHECKED_CAST")
+            return answer as A
         }
     }
 }
+
+// One run of the step: the block's answer once it has committed, or Again.
+private fun <A> Transaction.attempt(block: Transaction.() -> A): Any? {
+    running.set(this)
+    return try {
+        val answer = block()
+        if (commit()) answer else Again
+    } catch (_: Conflict) {
+        Again
+    } catch (_: Wait) {
+        awaitChange()
+        Again
+    } finally {
+        running.remove()
+    }
+}
+
+private object Again
 
 // A thread local rather than a SurefoldLocal: a fork must not inherit the step it was started in.
 private val running = ThreadLocal<Transaction?>()
@@ -45,6 +60,7 @@ class Transaction internal constructor() {
     private var readAt: Tick = commits.read()
     private val reads = HashMap<Shared<*>, Versioned<*>>()
     private val writes = HashMap<Shared<*>, Any?>()
+    private val effects = ArrayList<() -> Unit>()
 
     fun <T> Shared<T>.get(): T {
         // Only a set on this same Shared put it there, so it is a T.
@@ -61,6 +77,15 @@ class Transaction internal constructor() {
 
     fun <T> Shared<T>.update(change: (T) -> T) = set(change(get()))
 
+    /**
+     * Runs [effect] once the step has committed, in the order effects were queued (spec 0211). A run that retries,
+     * waits, throws or fails drops its effects, so each runs once per commit. An effect that throws does not undo the
+     * commit.
+     */
+    fun afterCommit(effect: () -> Unit) {
+        effects.add(effect)
+    }
+
     /** Drops this run and parks until a value it read is committed again, then runs the step again. */
     fun waitForChange(): Nothing {
         check(reads.isNotEmpty()) { "waitForChange() in a step that has read nothing would wait forever." }
@@ -71,14 +96,29 @@ class Transaction internal constructor() {
     fun <A> firstOf(vararg branches: Transaction.() -> A): A {
         for (branch in branches) {
             val before = HashMap(writes)
+            val queued = effects.size
             try {
                 return branch()
             } catch (_: Wait) {
                 writes.clear()
                 writes.putAll(before)
+                effects.subList(queued, effects.size).clear()
             }
         }
         waitForChange()
+    }
+
+    // Every effect runs even if one before it threw: the commit has happened, and each effect is owed to it.
+    internal fun runEffects() {
+        var thrown: Throwable? = null
+        for (effect in effects) {
+            try {
+                effect()
+            } catch (t: Throwable) {
+                thrown?.addSuppressed(t) ?: run { thrown = t }
+            }
+        }
+        thrown?.let { throw it }
     }
 
     // Registered before the check, and a commit wakes after it lands, so a commit is either seen here or wakes us.
