@@ -60,8 +60,8 @@ fun cluster(path: String): Module = config(path) { clusterSettings(path) } + clu
 fun cluster(settings: ClusterSettings): Module = single<ClusterSettings> { settings } + clustered { exitProcess(1) }
 
 /**
- * Joins in the actors' flock, and is ready once this node is fully in. The joining closes after the cluster has
- * left: flock close hooks run last registered first, and the joining's is registered before the cluster's leave.
+ * Joins in the actors' scope, and is ready once this node is fully in. The joining closes after the cluster has
+ * left: scope close hooks run last registered first, and the joining's is registered before the cluster's leave.
  * The node stays `Joining` until every node of the graph is built, so no shard is placed on it before its regions
  * are open (spec 0129), and only then is it asked whether it is in.
  */
@@ -111,7 +111,7 @@ private fun logged(cluster: Cluster) = behaviour<MemberEvent, Unit>(Unit) { _, _
     stay()
 }
 
-// On a thread of its own: the exit runs the shutdown hooks, which close the flock this actor is stepping in.
+// On a thread of its own: the exit runs the shutdown hooks, which close the scope this actor is stepping in.
 private fun exitWhenDowned(cluster: Cluster, exit: () -> Unit) = behaviour<MemberEvent, Unit>(Unit) { _, _, event ->
     // This life, not an earlier one at the same address: its downing reaches the life that replaced it (spec 0097).
     if (event is MemberEvent.Downed && cluster.isSelf(event.member)) {

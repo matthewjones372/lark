@@ -111,7 +111,7 @@ were already calls in one loop, so fusing changes nothing measurable there.
 ## Actors beside Forks and Pekko, 2026-09-26
 
 After spec [0066](../../specs/0066-a-stream-on-actors.md): every benchmark gains an `actors` row, run on `Actors` over
-a flock held open for the trial, and two benchmarks are new. `ManyRunsBenchmark` starts a thousand ten-element runs
+a scope held open for the trial, and two benchmarks are new. `ManyRunsBenchmark` starts a thousand ten-element runs
 at once and awaits them all; `HandOffBenchmark` is `merge` of two halves and `buffer(64)`, the operators that hand
 elements from one thread to another. JDK 21.0.10 on a 4 vCPU Intel Xeon @ 2.80GHz shared cloud container, 2 forks
 each. Raw results are in [`baseline/2026-09-26-jdk21-actors.json`](baseline/2026-09-26-jdk21-actors.json).
@@ -133,7 +133,7 @@ What the rows say:
 - **Actors win where an element crosses threads.** `mapPar` is 5.7× faster than on Forks: a tell to a worker that
   already exists, where Forks starts a virtual thread per element. `buffer` and `merge` hand a batch a step to a
   queue the reader takes from, and are 2.4× and 1.5× faster.
-- **Starting a run is twice as fast**: spawning an actor on a flock that is already running costs less than
+- **Starting a run is twice as fast**: spawning an actor on a scope that is already running costs less than
   starting a virtual thread, which is what Forks does per run.
 - **Forks keeps the plain chain and many runs at once.** On one thread the chain is calls in a loop on both
   backends; the actor's batch of 64 and its tell to itself cost 11 ns an element. A thousand short runs at once cost

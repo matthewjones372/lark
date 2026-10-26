@@ -213,7 +213,7 @@ class Channel<A : Any> internal constructor(val capacity: Int) : Iterable<A> {
 private class Parked(val value: Any?, val selection: Selection, val clause: Int)
 
 /** A channel of [capacity] between this scope's forks, cancelled when the scope closes (spec 0038). */
-fun <A : Any> Flock<*>.channel(capacity: Int): Channel<A> = Channel<A>(capacity).also { channel ->
+fun <A : Any> Scope<*>.channel(capacity: Int): Channel<A> = Channel<A>(capacity).also { channel ->
     onClose { channel.cancel() }
 }
 

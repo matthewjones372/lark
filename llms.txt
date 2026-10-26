@@ -29,7 +29,7 @@ Facts worth having before anything else:
 
 ## Modules
 
-- `surefold`: `flock`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
+- `surefold`: `scope`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
   `timeout`, `policy` (retry, circuit breaker, bulkhead, rate limiter),
   `SurefoldLocal`, `Clock`, `TestClock`, the log and metrics calls,
   `capturingLogs` and `capturingMetrics` for tests, `await()` for a
@@ -66,7 +66,7 @@ Facts worth having before anything else:
   as a HOCON section, evaluated in-process; brings gRPC and netty.
   `flagdFlags("flags", declared)` also checks every variant against its declared `Flag` at start.
 - `surefold-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
-- `surefold-app-actor`: a `surefold-actor` flock as a node, and an actor as a node.
+- `surefold-app-actor`: a `surefold-actor` scope as a node, and an actor as a node.
 - `surefold-app-cluster`: a `surefold-cluster` membership as a node, joined as a HOCON
   section says.
 - `surefold-app-gradle`: the Gradle plugin `io.github.matthewjones372.surefold.wiring`,

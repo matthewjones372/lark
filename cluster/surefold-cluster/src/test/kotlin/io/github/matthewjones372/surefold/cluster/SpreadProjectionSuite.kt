@@ -68,7 +68,7 @@ private class Spread {
     // Which member started each worker, each time one started.
     private val started = ConcurrentLinkedQueue<Pair<Int, String>>()
 
-    /** A member running the read model's workers, on a flock and a thread of its own, until [close]. */
+    /** A member running the read model's workers, on a scope and a thread of its own, until [close]. */
     private inner class Member(val name: String, port: Int, seeds: Discovery) : AutoCloseable {
         private val done = CountDownLatch(1)
         private val ready = CountDownLatch(1)

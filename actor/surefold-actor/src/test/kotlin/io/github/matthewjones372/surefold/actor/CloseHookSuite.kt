@@ -11,7 +11,7 @@ private data class CountAsked(val reply: Reply<Int>)
 
 object CloseHookSuite : Suite() {
     init {
-        test("a close hook asks an actor and has its answer before the flock stops it") {
+        test("a close hook asks an actor and has its answer before the scope stops it") {
             val answered = ConcurrentLinkedQueue<Int>()
 
             scope {

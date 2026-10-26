@@ -33,7 +33,7 @@ internal const val KEEP_AT_MOST = 10_000
 private val DRAIN_AFTER = 10.milliseconds
 
 /**
- * What surefold's own plumbing tells its flock through a ctx: a dead letter it found itself, and how many messages it
+ * What surefold's own plumbing tells its scope through a ctx: a dead letter it found itself, and how many messages it
  * keeps for busy receivers, which `awaitIdle` counts as not yet handled (spec 0095).
  */
 internal interface DeadLetters {

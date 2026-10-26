@@ -35,7 +35,7 @@ private fun StreamBackend.manyAtOnce(): Long =
     List(RUNS) { short.start(this) }.sumOf { it.exit.done() }
 
 /**
- * Many runs at once: on `Forks` each run is a fork of its own, and on `Actors` each is an actor sharing the flock's
+ * Many runs at once: on `Forks` each run is a fork of its own, and on `Actors` each is an actor sharing the scope's
  * runners. The row is one run of the thousand.
  */
 @State(Scope.Benchmark)
@@ -53,7 +53,7 @@ open class ManyRunsBenchmark {
     fun forks(): Long = forks.manyAtOnce()
 
     @Benchmark
-    fun actors(flocked: Flocked): Long = flocked.actors.manyAtOnce()
+    fun actors(scoped: Scoped): Long = scoped.actors.manyAtOnce()
 }
 
 private val ints = (0 until ELEMENTS).toList()
@@ -85,11 +85,11 @@ open class HandOffBenchmark {
     fun mergeForks(): Long = merged.run(forks).done()
 
     @Benchmark
-    fun mergeActors(flocked: Flocked): Long = merged.run(flocked.actors).done()
+    fun mergeActors(scoped: Scoped): Long = merged.run(scoped.actors).done()
 
     @Benchmark
     fun bufferForks(): Long = buffered.run(forks).done()
 
     @Benchmark
-    fun bufferActors(flocked: Flocked): Long = buffered.run(flocked.actors).done()
+    fun bufferActors(scoped: Scoped): Long = buffered.run(scoped.actors).done()
 }

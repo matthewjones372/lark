@@ -204,8 +204,8 @@ What the rows say:
 - **A thread per wake could only ever tie Pekko.** 10,000 bare virtual threads, each counting down a latch, take
   3.44 ms, the same as Pekko's fan-out; 10,000 bare `ForkJoinPool` tasks take 1.11 ms. Runners make a wake a queue
   offer: a runner that runs out of work spins 10 µs and leaves, so nothing ever has to wake one.
-- **The flock-wide count of activations cost a tell 60 ns** in a fan-out, since every wake and every runner wrote
-  it. On virtual threads the runners now say when the flock is idle instead.
+- **The scope-wide count of activations cost a tell 60 ns** in a fan-out, since every wake and every runner wrote
+  it. On virtual threads the runners now say when the scope is idle instead.
 - **Blocking is unchanged** because a runner parked in a step does not count as able to run: while fewer than one
   per carrier can, the watcher starts more, doubling each 50 µs tick the shortfall lasts. Growing on progress
   instead took blocking to 30 ms, since each new runner took one actor and looked like progress.
@@ -249,7 +249,7 @@ What the rows say:
 ## After tuning, 2026-09-25
 
 The same machine and settings, after spec 0059's throughput entry: a busy actor yields its carrier rather than
-starting a thread, the flock's backlog counts activations rather than messages, the mailbox is a single-reader
+starting a thread, the scope's backlog counts activations rather than messages, the mailbox is a single-reader
 queue, and `throughput` defaults to 64. The raw results are in
 [`baseline/2026-09-25-jdk21-tuned.json`](baseline/2026-09-25-jdk21-tuned.json).
 
@@ -300,7 +300,7 @@ What the rows say:
 - **Ping-pong is within 6–7%** at p50 and p99: a hop costs about 5 µs on either runtime, most of it the wake
   of a parked actor.
 - **Plain `tell` throughput is the gap, at 2.7× to 3.1× slower and 2.5× the allocation.** Each tell takes a
-  mailbox permit and counts itself in the flock's backlog, and a busy actor starts a new virtual thread every
+  mailbox permit and counts itself in the scope's backlog, and a busy actor starts a new virtual thread every
   `throughput` (5) messages, where Pekko keeps processing on the same thread. This is the number the next
   change to the runtime has to move; a linger before parking and a larger default `throughput` are the first
   two things to try, and spec 0059 said to wait for the benchmark before trying either.

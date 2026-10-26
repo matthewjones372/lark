@@ -108,7 +108,7 @@ private class Reads(private val kept: Journal) : Journal by kept {
 }
 
 /**
- * A node with the jars sharded on it and [journal] and [snapshots] as its flock's, on a thread of its own, until
+ * A node with the jars sharded on it and [journal] and [snapshots] as its scope's, on a thread of its own, until
  * [close].
  */
 private class Shop(val name: String, port: Int, seeds: Discovery, journal: Journal, snapshots: SnapshotStore) :

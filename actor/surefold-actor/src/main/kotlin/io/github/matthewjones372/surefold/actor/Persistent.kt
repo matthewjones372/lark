@@ -153,12 +153,12 @@ internal interface Restartable {
 }
 
 /**
- * A behaviour remembered by its events. On start, and after every restart, it replays its events from its flock's
+ * A behaviour remembered by its events. On start, and after every restart, it replays its events from its scope's
  * journal through [event] before its first command. A command answers an [Effect]: `persist` writes its events on the
  * step's own thread, applies them, and then runs the effect's `then`; the next command sees the new state. An append
  * that conflicts with another writer is raised as the behaviour's failure, so supervision decides.
  *
- * With [snapshots], and a flock that has a store, a persist that carries the sequence number across a multiple of
+ * With [snapshots], and a scope that has a store, a persist that carries the sequence number across a multiple of
  * its `every` saves the state it reached, before `then`; a start loads the newest snapshot and replays only the
  * events after it. A save that throws is logged and the step goes on: the events are already written, and the next
  * multiple saves again.

@@ -84,7 +84,7 @@ private val brisk =
 
 private fun openPort(): Int = ServerSocket(0).use { it.localPort }
 
-/** A node with the tabs sharded on it, on a flock and a thread of its own, until [close]. */
+/** A node with the tabs sharded on it, on a scope and a thread of its own, until [close]. */
 private class Bar(val name: String, port: Int, seeds: Discovery, running: TabsRunning) : AutoCloseable {
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)

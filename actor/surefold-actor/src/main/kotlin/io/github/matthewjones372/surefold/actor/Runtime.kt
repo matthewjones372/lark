@@ -4,10 +4,10 @@ import io.github.matthewjones372.surefold.Carriers
 import io.github.matthewjones372.surefold.Clock
 import io.github.matthewjones372.surefold.Counter
 import io.github.matthewjones372.surefold.Deferred
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.Gauge
 import io.github.matthewjones372.surefold.Metrics
 import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.VirtualThreads
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.Either
@@ -36,13 +36,13 @@ import kotlin.concurrent.withLock
 import kotlin.time.Duration
 
 /**
- * Spawns [behaviour] in this flock, on the flock's executor. The actor cannot outlive the scope: closing it stops
+ * Spawns [behaviour] in this scope, on the scope's executor. The actor cannot outlive the scope: closing it stops
  * the actor, after any step already running has returned. A failure asks [restart], which restarts the actor from
- * its initial state after its delay on this flock's clock, or stops it once done; with no schedule it stops. Its
+ * its initial state after its delay on this scope's clock, or stops it once done; with no schedule it stops. Its
  * stash keeps at most [stash] messages, and so do its children's. An [urgent] actor is run before any other the
- * flock's runners have waiting (spec 0104): for the few whose lateness the whole node pays for, such as the cluster's.
+ * scope's runners have waiting (spec 0104): for the few whose lateness the whole node pays for, such as the cluster's.
  */
-fun <F, M : Any, S, E> Flock<F>.spawn(
+fun <F, M : Any, S, E> Scope<F>.spawn(
     name: String,
     behaviour: Behaviour<M, S, E>,
     capacity: Int = 1024,
@@ -89,58 +89,58 @@ fun <M : Any> ActorRef<M>.tellIfRoom(message: M): Boolean = when (this) {
     else -> true.also { tell(message) }
 }
 
-/** The actors registered under [key] in this flock now. */
-fun <F, M : Any> Flock<F>.find(key: ServiceKey<M>): Set<ActorRef<M>> = guardian().receptionist.find(key)
+/** The actors registered under [key] in this scope now. */
+fun <F, M : Any> Scope<F>.find(key: ServiceKey<M>): Set<ActorRef<M>> = guardian().receptionist.find(key)
 
 /**
- * Hands every [DeadLetter] of this flock's actors to [handler], in place of the default, which logs each at debug.
+ * Hands every [DeadLetter] of this scope's actors to [handler], in place of the default, which logs each at debug.
  * It runs on the thread that found the letter, an actor's or a sender's, so it should be quick and must not throw.
  */
-fun <E> Flock<E>.onDeadLetter(handler: (DeadLetter) -> Unit) {
+fun <E> Scope<E>.onDeadLetter(handler: (DeadLetter) -> Unit) {
     guardian().deadLetters = handler
 }
 
-/** Keeps this flock's actors' events in [journal]. */
-fun <E> Flock<E>.journal(journal: Journal) {
+/** Keeps this scope's actors' events in [journal]. */
+fun <E> Scope<E>.journal(journal: Journal) {
     guardian().journal = journal
 }
 
-/** The journal this flock's actors keep their events in; it fails when the flock has been given none. */
-fun <E> Flock<E>.journal(): Journal = guardian().journalOrFail()
+/** The journal this scope's actors keep their events in; it fails when the scope has been given none. */
+fun <E> Scope<E>.journal(): Journal = guardian().journalOrFail()
 
-/** Keeps this flock's actors' snapshots in [store]; a flock given none takes none (spec 0074). */
-fun <E> Flock<E>.snapshots(store: SnapshotStore) {
+/** Keeps this scope's actors' snapshots in [store]; a scope given none takes none (spec 0074). */
+fun <E> Scope<E>.snapshots(store: SnapshotStore) {
     guardian().snapshots = store
 }
 
-/** The store this flock's actors keep their snapshots in, or null when it has been given none. */
-fun <E> Flock<E>.snapshots(): SnapshotStore? = guardian().snapshots
+/** The store this scope's actors keep their snapshots in, or null when it has been given none. */
+fun <E> Scope<E>.snapshots(): SnapshotStore? = guardian().snapshots
 
-/** This flock's guardian, standing from the first call. */
-private fun Flock<*>.guardian(): Guardian = checkNotNull(standing()) { "this flock has closed, and its actors with it" }
+/** This scope's guardian, standing from the first call. */
+private fun Scope<*>.guardian(): Guardian = checkNotNull(standing()) { "this scope has closed, and its actors with it" }
 
 /**
- * This flock's guardian, standing from the first call, or null once the flock has closed. The closed check is made
- * inside the map's own update, so a thread that races the close either finds the guardian or finds the flock closed.
+ * This scope's guardian, standing from the first call, or null once the scope has closed. The closed check is made
+ * inside the map's own update, so a thread that races the close either finds the guardian or finds the scope closed.
  */
-private fun Flock<*>.standing(): Guardian? =
-    // The flock's clock, read here once: an activation runs on a thread the flock did not fork, so it would not
+private fun Scope<*>.standing(): Guardian? =
+    // The scope's clock, read here once: an activation runs on a thread the scope did not fork, so it would not
     // inherit it. Its actors' restarts and timers all wait on it.
-    guardians.computeIfAbsent(this) { flock ->
-        if (flock in closed) null else Guardian(flock, on, clock.get()).also { g -> async { g.stand() } }
+    guardians.computeIfAbsent(this) { scope ->
+        if (scope in closed) null else Guardian(scope, on, clock.get()).also { g -> async { g.stand() } }
     }
 
 /**
- * Flocks whose actors have all stopped, held weakly: a dead letter told to one afterwards, from a thread it did not
+ * Scopes whose actors have all stopped, held weakly: a dead letter told to one afterwards, from a thread it did not
  * fork, must not stand a second guardian on it.
  */
-private val closed: MutableSet<Flock<*>> = Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap()))
+private val closed: MutableSet<Scope<*>> = Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap()))
 
 /**
- * Waits until every message told to this flock's actors, and every message those caused, has been handled or
+ * Waits until every message told to this scope's actors, and every message those caused, has been handled or
  * dropped. The runtime counts them, so this parks until the count reaches zero rather than polling.
  */
-fun <E> Flock<E>.awaitIdle() {
+fun <E> Scope<E>.awaitIdle() {
     guardians[this]?.backlog?.awaitSettled()
 }
 
@@ -149,7 +149,7 @@ fun <E> Flock<E>.awaitIdle() {
  * a fork, so watching holds no thread until someone awaits it.
  */
 @Suppress("UnusedReceiverParameter")
-fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
+fun <F> Scope<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
     val ended = when (ref) {
         is Cell<*, *, *> -> ref.ended
         is Watchable -> CountDownLatch(1).also { latch -> ref.onTerminated(latch::countDown) }
@@ -166,53 +166,53 @@ fun <F> Flock<F>.watch(ref: ActorRef<*>): Deferred<Signal.Terminated> {
 }
 
 /**
- * Hands [letter] to this flock's dead-letter handler, as the runtime's own letters are: for a transport or a bridge
+ * Hands [letter] to this scope's dead-letter handler, as the runtime's own letters are: for a transport or a bridge
  * that found a message it could not deliver.
  */
-fun <E> Flock<E>.deadLetter(letter: DeadLetter) {
-    // After the flock has closed there is no handler left to hand it to.
+fun <E> Scope<E>.deadLetter(letter: DeadLetter) {
+    // After the scope has closed there is no handler left to hand it to.
     val guardian = standing()
-    if (guardian == null) logDebug("dead letter after its flock closed: $letter") else guardian.dead(letter)
+    if (guardian == null) logDebug("dead letter after its scope closed: $letter") else guardian.dead(letter)
 }
 
 /**
- * The counter [name] of this flock (spec 0081): with the tags bound where the flock's actors first stood, those
+ * The counter [name] of this scope (spec 0081): with the tags bound where the scope's actors first stood, those
  * [tagMetrics] added since, and [tags]. Measured through the `metrics` bound there, since an actor's step runs on a
- * thread the flock did not fork and would not inherit them. Held once looked up, so a hot path may call this.
+ * thread the scope did not fork and would not inherit them. Held once looked up, so a hot path may call this.
  */
-fun Flock<*>.counter(name: String, vararg tags: Pair<String, String>): Counter =
-    // A closed flock measures nothing: a transport's thread may still count after it has gone.
+fun Scope<*>.counter(name: String, vararg tags: Pair<String, String>): Counter =
+    // A closed scope measures nothing: a transport's thread may still count after it has gone.
     standing()?.counter(name, tags) ?: Counter { }
 
-/** The gauge [name] of this flock, as [counter]. */
-fun Flock<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge =
+/** The gauge [name] of this scope, as [counter]. */
+fun Scope<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge =
     standing()?.gauge(name, tags) ?: Gauge { }
 
 /**
- * Adds [tags] to every metric of this flock from now on, such as the name of the node it runs: an instrument looked
+ * Adds [tags] to every metric of this scope from now on, such as the name of the node it runs: an instrument looked
  * up before keeps the tags it had.
  */
-fun Flock<*>.tagMetrics(vararg tags: Pair<String, String>) = guardian().tag(tags)
+fun Scope<*>.tagMetrics(vararg tags: Pair<String, String>) = guardian().tag(tags)
 
 /**
- * Stops [ref] from outside, as the flock's close would: at once when it is idle, after its running step otherwise.
+ * Stops [ref] from outside, as the scope's close would: at once when it is idle, after its running step otherwise.
  * The answer is its [Signal.Terminated], once it has stopped.
  */
-fun <F> Flock<F>.stop(ref: ActorRef<*>): Deferred<Signal.Terminated> {
+fun <F> Scope<F>.stop(ref: ActorRef<*>): Deferred<Signal.Terminated> {
     val cell = requireNotNull(ref as? Cell<*, *, *>) { "$ref is not an actor on threads, so it cannot be stopped here" }
     cell.stop()
     return watch(ref)
 }
 
-/** How many of this flock's actors have not yet ended. */
-internal val Flock<*>.actorCount: Int get() = guardians[this]?.cells?.size ?: 0
+/** How many of this scope's actors have not yet ended. */
+internal val Scope<*>.actorCount: Int get() = guardians[this]?.cells?.size ?: 0
 
 /** How many of this actor's children have not yet ended. */
 internal val ActorRef<*>.childCount: Int get() = (this as Cell<*, *, *>).childCount
 
 /**
  * Waits for the latch however often the thread is interrupted, and interrupts it again afterwards. An actor's end
- * must complete once begun: an interrupt that cut it short would leave its watchers and its flock waiting.
+ * must complete once begun: an interrupt that cut it short would leave its watchers and its scope waiting.
  */
 private fun CountDownLatch.awaitThroughInterrupts() {
     var interrupted = false
@@ -267,7 +267,7 @@ private val LINGER_NANOS = TimeUnit.MICROSECONDS.toNanos(20)
 private val asks = AtomicLong()
 
 /**
- * The most runners one flock's actors share. Runners beyond one per carrier are started only while others are parked
+ * The most runners one scope's actors share. Runners beyond one per carrier are started only while others are parked
  * in blocking steps, so this bounds how many steps may block at once: far above Pekko's blocking dispatcher, and
  * far above any burst the benchmarks or a service have shown.
  */
@@ -281,12 +281,12 @@ private val PARALLELISM =
 private val stepping = ThreadLocal<Cell<*, *, *>>()
 
 /**
- * One guardian per flock: a single parked fork that the flock interrupts on close, which then stops its actors.
- * Keyed by the flock itself, since `Flock` has no hook of its own for close.
+ * One guardian per scope: a single parked fork that the scope interrupts on close, which then stops its actors.
+ * Keyed by the scope itself, since `Scope` has no hook of its own for close.
  */
-// Its value type is nullable only so that a lookup may decline to stand a guardian on a closed flock: a
+// Its value type is nullable only so that a lookup may decline to stand a guardian on a closed scope: a
 // ConcurrentHashMap never holds a null.
-private val guardians = ConcurrentHashMap<Flock<*>, Guardian?>()
+private val guardians = ConcurrentHashMap<Scope<*>, Guardian?>()
 
 private val SCHEDULED: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
     AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "scheduledFlag")
@@ -295,7 +295,7 @@ private val ROOM: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
     AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "room")
 
 /**
- * Activations running or scheduled across one flock's actors. A step's tell schedules its target before its own
+ * Activations running or scheduled across one scope's actors. A step's tell schedules its target before its own
  * activation ends, so the count reaches zero only once nothing is left to handle.
  */
 private class Backlog(private val runners: Runners?) {
@@ -303,7 +303,7 @@ private class Backlog(private val runners: Runners?) {
     private val lock = ReentrantLock()
     private val empty = lock.newCondition()
 
-    // On virtual threads the runners know when the flock is idle, so no activation touches a shared count.
+    // On virtual threads the runners know when the scope is idle, so no activation touches a shared count.
     private val counting = runners == null
 
     fun added() {
@@ -341,9 +341,9 @@ private class Backlog(private val runners: Runners?) {
     }
 }
 
-/** One flock's actors, the executor they run on and the clock they wait on. */
-private class Guardian(private val flock: Flock<*>, val on: Executor, val clock: Clock) {
-    // The actors that have not yet ended: each leaves as it ends, so a flock that outlives many holds none of them.
+/** One scope's actors, the executor they run on and the clock they wait on. */
+private class Guardian(private val scope: Scope<*>, val on: Executor, val clock: Clock) {
+    // The actors that have not yet ended: each leaves as it ends, so a scope that outlives many holds none of them.
     val cells: MutableSet<Cell<*, *, *>> = ConcurrentHashMap.newKeySet()
     val runners = Runners(PARALLELISM, RUNNERS)
     val backlog = Backlog(runners.takeIf { on === VirtualThreads })
@@ -353,7 +353,7 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     @Volatile
     var journal: Journal? = null
 
-    fun journalOrFail(): Journal = checkNotNull(journal) { "no journal: give the flock one with journal(…)" }
+    fun journalOrFail(): Journal = checkNotNull(journal) { "no journal: give the scope one with journal(…)" }
 
     @Volatile
     var snapshots: SnapshotStore? = null
@@ -361,7 +361,7 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
     @Volatile
     var deadLetters: (DeadLetter) -> Unit = { letter -> logDebug("dead letter: $letter") }
 
-    // The metrics and tags where the flock's actors first stood: an activation runs on a runner, which inherits
+    // The metrics and tags where the scope's actors first stood: an activation runs on a runner, which inherits
     // neither. Instruments are held by name and tags, so counting a dead letter is a map hit and no allocation.
     private val measured: Metrics = metrics.get()
 
@@ -408,15 +408,15 @@ private class Guardian(private val flock: Flock<*>, val on: Executor, val clock:
         try {
             CountDownLatch(1).await()
         } catch (closing: InterruptedException) {
-            // The flock is closing, which is the only way out of here.
+            // The scope is closing, which is the only way out of here.
         }
         wheel.close()
         cells.forEach { it.stop() }
         cells.forEach { it.ended.await() }
-        // Marked closed before the guardian goes: a thread the flock did not fork, such as a transport's, that looks
-        // for it afterwards finds the flock closed, rather than no guardian and a flock it would stand a second one on.
-        closed += flock
-        guardians.remove(flock)
+        // Marked closed before the guardian goes: a thread the scope did not fork, such as a transport's, that looks
+        // for it afterwards finds the scope closed, rather than no guardian and a scope it would stand a second one on.
+        closed += scope
+        guardians.remove(scope)
     }
 }
 
@@ -518,12 +518,12 @@ private class Cell<M : Any, S, E>(
 
     // The timers of the state the actor is in, and those of a `ctx.become` in the step now running, which are the
     // state's only if the step returns it.
-    private var scoped: Scope? = null
-    private var asked: Scope? = null
+    private var scoped: TimersOfState? = null
+    private var asked: TimersOfState? = null
 
     override fun <T> become(state: T, timers: StateTimers<M>.() -> Unit): Next<T> {
         asked?.let(::drop)
-        asked = scope(state, timers, ::start)
+        asked = startTimers(state, timers, ::start)
         return Next.Become(state)
     }
 
@@ -550,7 +550,7 @@ private class Cell<M : Any, S, E>(
         }
     }
 
-    private fun drop(scope: Scope) = scope.keys.forEach(::cancel)
+    private fun drop(timers: TimersOfState) = timers.keys.forEach(::cancel)
 
     // Made with the first message kept, so an actor that never stashes does not carry one.
     private var stashed: Stash? = null
@@ -799,7 +799,7 @@ private class Cell<M : Any, S, E>(
         }
     }
 
-    /** Hands the activation to the flock's runners on virtual threads, and to the executor otherwise. */
+    /** Hands the activation to the scope's runners on virtual threads, and to the executor otherwise. */
     private fun schedule() {
         if (guardian.on === VirtualThreads) guardian.runners.submit(this, urgent) else guardian.on.execute(::activate)
     }
@@ -828,7 +828,7 @@ private class Cell<M : Any, S, E>(
         }
     }
 
-    /** One activation, counted once in the flock's backlog however many messages it handles. */
+    /** One activation, counted once in the scope's backlog however many messages it handles. */
     override fun activate() {
         var returned = false
         try {
@@ -857,7 +857,7 @@ private class Cell<M : Any, S, E>(
 
     /**
      * Handles `throughput` messages at a time. Between batches the actor goes to the back of the queue it came from,
-     * the flock's runners or its executor, so a busy actor is fair to the others.
+     * the scope's runners or its executor, so a busy actor is fair to the others.
      */
     private tailrec fun run() {
         drain(throughput)

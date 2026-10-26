@@ -129,7 +129,7 @@ object EntitiesSuite : Suite() {
             kennel.entity("rex").address.path shouldBe "/user/kennel/rex"
         }
 
-        test("on threads, entities come and go on the flock's clock, and a message sent as one stops is kept") {
+        test("on threads, entities come and go on the scope's clock, and a message sent as one stops is kept") {
             val log = ConcurrentLinkedQueue<String>()
             val moving = TestClock()
             val kennel = AtomicReference<ActorRef<Entities<Kennel>>>()

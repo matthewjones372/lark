@@ -510,8 +510,8 @@ class SurefoldWiringPluginTest {
             "parMap",
             "parZip",
             "raceN",
-            "flock",
-            "Flock.async",
+            "scope",
+            "Scope.async",
         ).forEach { call -> result.output shouldContain "$call runs again each time the step does" }
         withClue("a helper taking Transaction, and a firstOf branch, are inside the step too") {
             result.output.split("Thread.sleep runs again").size shouldBe 4
@@ -535,6 +535,27 @@ class SurefoldWiringPluginTest {
         }
         withClue("a property of an object the step was handed is left alone") {
             result.output shouldNotContain "seen is a var"
+        }
+    }
+
+    @Test
+    fun `Surefold's own effects inside a step are errors that point at afterCommit`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", SUREFOLD_EFFECTS)
+
+        val result = runner(dir, "compileKotlin").buildAndFail()
+
+        listOf(
+            "logInfo",
+            "Logger.log",
+            "Counter.increment",
+            "Gauge.set",
+            "Histogram.record",
+            "ActorRef.tell",
+            "Hub.publish",
+        ).forEach { call ->
+            result.output shouldContain "$call runs again each time the step does; once the step commits, run it " +
+                "in afterCommit { } (spec 0211)"
         }
     }
 
@@ -829,10 +850,10 @@ private const val EFFECTS_IN_A_STEP = """
 import io.github.matthewjones372.surefold.Deferred
 import io.github.matthewjones372.surefold.Shared
 import io.github.matthewjones372.surefold.Transaction
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.parMap
 import io.github.matthewjones372.surefold.parZip
 import io.github.matthewjones372.surefold.raceN
+import io.github.matthewjones372.surefold.scope
 import io.github.matthewjones372.surefold.transact
 import java.io.FileInputStream
 import java.net.Socket
@@ -862,7 +883,7 @@ fun effects(future: Future<Int>, deferred: Deferred<Int>) = transact {
     parMap(listOf(1)) { it }
     parZip({ 1 }, { 2 }) { a, b -> a + b }
     raceN({ 1 }, { 2 })
-    flock<Nothing, Int> { async { 1 }.await() }
+    scope { async { 1 }.await() }
     firstOf({ Thread.sleep(1) }, { take() })
 }
 """
@@ -871,10 +892,10 @@ fun effects(future: Future<Int>, deferred: Deferred<Int>) = transact {
 private const val EFFECTS_OUTSIDE_A_STEP = """
 import io.github.matthewjones372.surefold.Deferred
 import io.github.matthewjones372.surefold.Shared
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.parMap
 import io.github.matthewjones372.surefold.parZip
 import io.github.matthewjones372.surefold.raceN
+import io.github.matthewjones372.surefold.scope
 import io.github.matthewjones372.surefold.transact
 import java.io.FileInputStream
 import java.net.Socket
@@ -899,7 +920,7 @@ fun effects(future: Future<Int>, deferred: Deferred<Int>) {
     parMap(listOf(1)) { it }
     parZip({ 1 }, { 2 }) { a, b -> a + b }
     raceN({ 1 }, { 2 })
-    flock<Nothing, Int> { async { 1 }.await() }
+    scope { async { 1 }.await() }
     transact { seats.update { it - 1 } }
 }
 """
@@ -938,4 +959,32 @@ fun Transaction.counted(free: Shared<Int>): Int {
     tally += free.get()
     return tally
 }
+"""
+
+/** Surefold's own effects, each the kind a step wants to happen once it has committed. */
+private const val SUREFOLD_EFFECTS = """
+import io.github.matthewjones372.surefold.Counter
+import io.github.matthewjones372.surefold.Gauge
+import io.github.matthewjones372.surefold.Histogram
+import io.github.matthewjones372.surefold.LogLine
+import io.github.matthewjones372.surefold.Logger
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.stream.Hub
+import io.github.matthewjones372.surefold.transact
+
+val free = Shared(10)
+
+fun hold(log: Logger, line: LogLine, sold: Counter, left: Gauge, sizes: Histogram, orders: ActorRef<String>, events: Hub<String>) =
+    transact {
+        free.update { it - 1 }
+        logInfo("held one")
+        log.log(line)
+        sold.increment(1.0)
+        left.set(free.get().toDouble())
+        sizes.record(1.0)
+        orders.tell("held")
+        events.publish("held")
+    }
 """

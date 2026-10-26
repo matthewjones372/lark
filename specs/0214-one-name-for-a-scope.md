@@ -1,8 +1,8 @@
-# 0210 — One name for a scope
+# 0214 — One name for a scope
 
 ## Problem
 
-After spec 0209 the same idea has two names. The type is `Flock<E>`, a typed scope is opened with `flock { }`, and
+After spec 0213 the same idea has two names. The type is `Flock<E>`, a typed scope is opened with `flock { }`, and
 one nothing can raise in is opened with `scope { }`. `docs/core.md` already calls a flock "the scope that `async`
 forks in", and every other structured-concurrency library calls this thing a scope. The word "flock" has to be
 learned, and it buys nothing over "scope".
@@ -22,7 +22,7 @@ flock's clock", "a flock held open").
 ```kotlin
 interface Scope<E> : Fail<E> { /* on, async, onClose: unchanged */ }
 
-fun <A> scope(on: Executor = VirtualThreads, block: Scope<Nothing>.() -> A): A        // from 0209
+fun <A> scope(on: Executor = VirtualThreads, block: Scope<Nothing>.() -> A): A        // from 0213
 fun <E, A> Fail<E>.scope(on: Executor = VirtualThreads, block: Scope<E>.() -> A): A   // was Fail<E>.flock
 
 // A typed scope is the nested form inside attempt, which docs/core.md already shows:
@@ -50,7 +50,7 @@ single way to get a typed scope, which is already the documented way.
 ## Stack
 
 - [ ] **`spec-0210-core`** — `Scope`, `Fail<E>.scope` and the top-level form dropped, in `surefold`, with `ScopeTest`
-      and the resolution test. `docs/core.md` and `GLOSSARY.md` follow. Every module still compiles against
+      and the resolution test. `docs/core.md`, `GLOSSARY.md`, the README and every call of the old functions follow. Every module still compiles against
       `typealias Flock<E> = Scope<E>`, kept for this entry only.
       Done when: `:surefold:check` passes and `ScopeTest` covers `attempt { scope { fail(e) } }` answering `Left(e)`.
 - [ ] **`spec-0210-actors`** — `surefold-actor`, `-actor-remote`, `-stream-actors` and their docs move to `Scope`.
@@ -68,12 +68,14 @@ grep -rnwi 'flock' --include=*.kt --include=*.md . | grep -v '^./specs'   # noth
 
 ## Open questions
 
-1. **A deprecated `Flock` typealias and `flock` function for one release, for code outside this repo?**
-   Recommended: no. The version comes from SCM tags and the repo has made breaking renames before. A typealias only
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~**A deprecated `Flock` typealias and `flock` function for one release, for code outside this repo?**~~
+   No. The version comes from SCM tags and the repo has made breaking renames before. A typealias only
    lives inside the stack, to keep each entry compiling.
-2. **Does the overload resolution hold?** If the top-level `scope` and `Fail<E>.scope` turn out ambiguous in some
-   position, the fallback is to name the nested form `Fail<E>.scoped { }`. Recommended: try it first; the
+2. ~~**Does the overload resolution hold?**~~ If the top-level `scope` and `Fail<E>.scope` turn out ambiguous in some
+   position, the fallback is to name the nested form `Fail<E>.scoped { }`. Try it first; the
    resolution test in the first entry answers it.
-3. **Error messages that say "flock"?** Three in `actor/Runtime.kt` (for example, "this flock has closed, and its
-   actors with it"). No metric or log key uses the word. Recommended: reword them to "scope". A test that matches on
+3. ~~**Error messages that say "flock"?**~~ Three in `actor/Runtime.kt` (for example, "this flock has closed, and its
+   actors with it"). No metric or log key uses the word. Reword them to "scope". A test that matches on
    the text changes with them.

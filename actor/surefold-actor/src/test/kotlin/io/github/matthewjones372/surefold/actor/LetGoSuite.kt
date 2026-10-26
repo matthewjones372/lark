@@ -104,7 +104,7 @@ object LetGoSuite : Suite() {
             parent shouldBe 0
         }
 
-        test("on threads, a flock that spawned and stopped a thousand actors holds none of them") {
+        test("on threads, a scope that spawned and stopped a thousand actors holds none of them") {
             val held = scope {
                 repeat(1_000) { stop(spawn("passing-$it", idle())).await() }
                 actorCount

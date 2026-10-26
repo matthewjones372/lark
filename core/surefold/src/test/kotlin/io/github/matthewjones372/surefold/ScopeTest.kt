@@ -10,6 +10,7 @@ import io.github.matthewjones372.surefold.assert.shouldNotBeSameInstanceAs
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.assert.withClue
 import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.bind
 import io.github.matthewjones372.surefold.fail.ensure
 import io.github.matthewjones372.surefold.fail.left
@@ -20,17 +21,19 @@ import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-class FlockTest {
+class ScopeTest {
 
     private val twentyOne: Either<Bad, Int> = 21.right()
     private val broken: Either<Bad, Int> = Bad("bound").left()
 
     @Test
     fun `a value forked with async comes back from await, and the block's value is the Right`() {
-        val sum = flock<Bad, Int> {
-            val first = async { 20 }
-            val second = async { 22 }
-            first.await() + second.await()
+        val sum = attempt<Bad, Int> {
+            scope {
+                val first = async { 20 }
+                val second = async { 22 }
+                first.await() + second.await()
+            }
         }
 
         sum shouldBeRight 42
@@ -40,11 +43,13 @@ class FlockTest {
     fun `a raise inside a fork surfaces at await as the block's Left`() {
         val afterTheAwait = AtomicBoolean(false)
 
-        val result = flock<Bad, Int> {
-            val forked = async<Int> { fail(Bad("forked")) }
-            val value = forked.await()
-            afterTheAwait.set(true)
-            value
+        val result = attempt<Bad, Int> {
+            scope {
+                val forked = async<Int> { fail(Bad("forked")) }
+                val value = forked.await()
+                afterTheAwait.set(true)
+                value
+            }
         }
 
         result shouldBeLeft Bad("forked")
@@ -58,7 +63,7 @@ class FlockTest {
         val boom = Boom()
 
         val thrown = shouldThrow<Boom> {
-            flock<Bad, Int> { async<Int> { throw boom }.await() }
+            attempt<Bad, Int> { scope { async<Int> { throw boom }.await() } }
         }
 
         thrown shouldBeSameInstanceAs boom
@@ -68,7 +73,7 @@ class FlockTest {
     fun `a fork runs on a virtual thread of its own, not on the caller's`() {
         val caller = Thread.currentThread()
 
-        val forked = flock<Bad, Thread> { async { Thread.currentThread() }.await() }
+        val forked = attempt<Bad, Thread> { scope { async { Thread.currentThread() }.await() } }
             .getOrNull()
             .shouldNotBeNull()
 
@@ -79,20 +84,22 @@ class FlockTest {
     }
 
     @Test
-    fun `a fork left running when the block returns is interrupted and joined before flock returns`() {
+    fun `a fork left running when the block returns is interrupted and joined before scope returns`() {
         val sleeper = Sleeper()
 
         val startedAt = System.nanoTime()
-        val result = flock<Bad, String> {
-            async { sleeper.body() }
-            sleeper.awaitStart()
-            "returned"
+        val result = attempt<Bad, String> {
+            scope {
+                async { sleeper.body() }
+                sleeper.awaitStart()
+                "returned"
+            }
         }
         val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
 
         result shouldBeRight "returned"
         sleeper.wasInterrupted() shouldBe true
-        withClue("close interrupts, so flock cannot have waited out the fork's sleep") {
+        withClue("close interrupts, so scope cannot have waited out the fork's sleep") {
             (elapsedMillis < PROMPT_MILLIS) shouldBe true
         }
         withClue("a scope that returns with a thread still running is a leak") {
@@ -106,13 +113,15 @@ class FlockTest {
         val interruptedAtCancel = AtomicBoolean(false)
         val aliveAtCancel = AtomicBoolean(true)
 
-        val result = flock<Bad, String> {
-            val fork = async { sleeper.body() }
-            sleeper.awaitStart()
-            fork.cancel()
-            interruptedAtCancel.set(sleeper.wasInterrupted())
-            aliveAtCancel.set(sleeper.isAlive())
-            "returned"
+        val result = attempt<Bad, String> {
+            scope {
+                val fork = async { sleeper.body() }
+                sleeper.awaitStart()
+                fork.cancel()
+                interruptedAtCancel.set(sleeper.wasInterrupted())
+                aliveAtCancel.set(sleeper.isAlive())
+                "returned"
+            }
         }
 
         result shouldBeRight "returned"
@@ -126,16 +135,18 @@ class FlockTest {
     fun `a fork cancelled and never awaited does not fail the block`() {
         val started = CountDownLatch(1)
 
-        val result = flock<Bad, String> {
-            val fork = async {
-                started.countDown()
-                // Nothing catches it, so the interrupt is what this fork ends with.
-                Thread.sleep(NEVER_FINISHES_MILLIS)
-                "slept"
+        val result = attempt<Bad, String> {
+            scope {
+                val fork = async {
+                    started.countDown()
+                    // Nothing catches it, so the interrupt is what this fork ends with.
+                    Thread.sleep(NEVER_FINISHES_MILLIS)
+                    "slept"
+                }
+                started.await()
+                fork.cancel()
+                "returned"
             }
-            started.await()
-            fork.cancel()
-            "returned"
         }
 
         result shouldBeRight "returned"
@@ -143,10 +154,12 @@ class FlockTest {
 
     @Test
     fun `a fork cancelled after it raised does not fail the block`() {
-        val result = flock<Bad, String> {
-            val fork = async<Int> { fail(Bad("forked")) }
-            fork.cancel()
-            "returned"
+        val result = attempt<Bad, String> {
+            scope {
+                val fork = async<Int> { fail(Bad("forked")) }
+                fork.cancel()
+                "returned"
+            }
         }
 
         result shouldBeRight "returned"
@@ -156,12 +169,14 @@ class FlockTest {
     fun `a sibling of a cancelled fork runs to completion`() {
         val sleeper = Sleeper()
 
-        val result = flock<Bad, Int> {
-            val stopped = async { sleeper.body() }
-            val sibling = async { 42 }
-            sleeper.awaitStart()
-            stopped.cancel()
-            sibling.await()
+        val result = attempt<Bad, Int> {
+            scope {
+                val stopped = async { sleeper.body() }
+                val sibling = async { 42 }
+                sleeper.awaitStart()
+                stopped.cancel()
+                sibling.await()
+            }
         }
 
         result shouldBeRight 42
@@ -172,9 +187,11 @@ class FlockTest {
     fun `a lazy fork nobody awaits never runs, and the scope still returns`() {
         val ran = AtomicBoolean(false)
 
-        val result = flock<Bad, String> {
-            async(start = Lazy) { ran.set(true) }
-            "returned"
+        val result = attempt<Bad, String> {
+            scope {
+                async(start = Lazy) { ran.set(true) }
+                "returned"
+            }
         }
 
         result shouldBeRight "returned"
@@ -185,20 +202,24 @@ class FlockTest {
 
     @Test
     fun `a lazy fork runs when it is awaited`() {
-        val result = flock<Bad, Int> { async(start = Lazy) { 42 }.await() }
+        val result = attempt<Bad, Int> { scope { async(start = Lazy) { 42 }.await() } }
 
         result shouldBeRight 42
     }
 
     @Test
     fun `a lazy fork nobody awaits cannot fail the block, where the eager form would`() {
-        val lazily = flock<Bad, String> {
-            async<Int>(start = Lazy) { fail(Bad("never asked for")) }
-            "returned"
+        val lazily = attempt<Bad, String> {
+            scope {
+                async<Int>(start = Lazy) { fail(Bad("never asked for")) }
+                "returned"
+            }
         }
-        val eagerly = flock<Bad, String> {
-            async<Int> { fail(Bad("forked")) }
-            "returned"
+        val eagerly = attempt<Bad, String> {
+            scope {
+                async<Int> { fail(Bad("forked")) }
+                "returned"
+            }
         }
 
         lazily shouldBeRight "returned"
@@ -209,9 +230,11 @@ class FlockTest {
     fun `a lazy fork awaited twice runs once`() {
         val runs = AtomicInteger(0)
 
-        val result = flock<Bad, Int> {
-            val counted = async(start = Lazy) { runs.incrementAndGet() }
-            counted.await() + counted.await()
+        val result = attempt<Bad, Int> {
+            scope {
+                val counted = async(start = Lazy) { runs.incrementAndGet() }
+                counted.await() + counted.await()
+            }
         }
 
         result shouldBeRight 2
@@ -222,10 +245,12 @@ class FlockTest {
     fun `a lazy fork cancelled before it was awaited never runs`() {
         val ran = AtomicBoolean(false)
 
-        val result = flock<Bad, String> {
-            val fork = async(start = Lazy) { ran.set(true) }
-            fork.cancel()
-            "returned"
+        val result = attempt<Bad, String> {
+            scope {
+                val fork = async(start = Lazy) { ran.set(true) }
+                fork.cancel()
+                "returned"
+            }
         }
 
         result shouldBeRight "returned"
@@ -234,9 +259,11 @@ class FlockTest {
 
     @Test
     fun `a fork that raised and was never awaited becomes the block's Left`() {
-        val result = flock<Bad, String> {
-            async { fail(Bad("orphan")) }
-            "returned anyway"
+        val result = attempt<Bad, String> {
+            scope {
+                async { fail(Bad("orphan")) }
+                "returned anyway"
+            }
         }
 
         result shouldBeLeft Bad("orphan")
@@ -247,9 +274,11 @@ class FlockTest {
         val boom = Boom()
 
         val thrown = shouldThrow<Boom> {
-            flock<Bad, String> {
-                async { throw boom }
-                "returned anyway"
+            attempt<Bad, String> {
+                scope {
+                    async { throw boom }
+                    "returned anyway"
+                }
             }
         }
 
@@ -267,6 +296,19 @@ class FlockTest {
 
         sum shouldBe 42
         forkEnded.get() shouldBe true
+    }
+
+    @Test
+    fun `inside attempt, scope is the attempt's own, so a fork's fail is the attempt's Left`() {
+        val result = attempt<Bad, Int> {
+            scope {
+                // Only a Scope<Bad> compiles here: the top-level scope would be a Scope<Nothing>.
+                val typed: Scope<Bad> = this
+                typed.async<Int> { fail(Bad("forked")) }.await()
+            }
+        }
+
+        result shouldBeLeft Bad("forked")
     }
 
     @Test
@@ -288,20 +330,22 @@ class FlockTest {
         val secondStarted = CountDownLatch(1)
         val bothAtTheRaise = CountDownLatch(2)
 
-        val result = flock<Bad, String> {
-            async {
-                // The fork started first fails last, so finishing order would answer "second".
-                secondStarted.await()
-                bothAtTheRaise.countDown()
-                fail(Bad("first"))
+        val result = attempt<Bad, String> {
+            scope {
+                async {
+                    // The fork started first fails last, so finishing order would answer "second".
+                    secondStarted.await()
+                    bothAtTheRaise.countDown()
+                    fail(Bad("first"))
+                }
+                async<Nothing> {
+                    secondStarted.countDown()
+                    bothAtTheRaise.countDown()
+                    fail(Bad("second"))
+                }
+                bothAtTheRaise.await()
+                "returned anyway"
             }
-            async<Nothing> {
-                secondStarted.countDown()
-                bothAtTheRaise.countDown()
-                fail(Bad("second"))
-            }
-            bothAtTheRaise.await()
-            "returned anyway"
         }
 
         withClue("start order, not finishing order, names the scope's failure") {
@@ -313,13 +357,15 @@ class FlockTest {
     fun `a fork forked inside a fork is joined when the outer fork's body ends`() {
         val inner = Sleeper()
 
-        val outcome = flock<Bad, Pair<String, Boolean>> {
-            val outer = async {
-                async { inner.body() }
-                inner.awaitStart()
-                "outer done"
+        val outcome = attempt<Bad, Pair<String, Boolean>> {
+            scope {
+                val outer = async {
+                    async { inner.body() }
+                    inner.awaitStart()
+                    "outer done"
+                }
+                outer.await() to inner.isAlive()
             }
-            outer.await() to inner.isAlive()
         }
 
         outcome shouldBeRight ("outer done" to false)
@@ -327,13 +373,15 @@ class FlockTest {
     }
 
     @Test
-    fun `a raise on the calling thread interrupts and joins a running fork before flock returns`() {
+    fun `a raise on the calling thread interrupts and joins a running fork before scope returns`() {
         val sleeper = Sleeper()
 
-        val result = flock<Bad, String> {
-            async { sleeper.body() }
-            sleeper.awaitStart()
-            fail(Bad("caller"))
+        val result = attempt<Bad, String> {
+            scope {
+                async { sleeper.body() }
+                sleeper.awaitStart()
+                fail(Bad("caller"))
+            }
         }
 
         result shouldBeLeft Bad("caller")
@@ -343,32 +391,38 @@ class FlockTest {
 
     @Test
     fun `bind and ensure work in the block`() {
-        val bound = flock<Bad, Int> {
-            val value = twentyOne.bind()
-            ensure(value == 21) { Bad("not 21") }
-            value * 2
+        val bound = attempt<Bad, Int> {
+            scope {
+                val value = twentyOne.bind()
+                ensure(value == 21) { Bad("not 21") }
+                value * 2
+            }
         }
 
         bound shouldBeRight 42
-        flock<Bad, Int> { broken.bind() } shouldBeLeft Bad("bound")
-        flock<Bad, Int> {
-            ensure(false) { Bad("ensured") }
-            1
+        attempt<Bad, Int> { scope { broken.bind() } } shouldBeLeft Bad("bound")
+        attempt<Bad, Int> {
+            scope {
+                ensure(false) { Bad("ensured") }
+                1
+            }
         } shouldBeLeft Bad("ensured")
     }
 
     @Test
     fun `bind and ensure work in a fork body`() {
-        val bound = flock<Bad, Int> {
-            async {
-                val value = twentyOne.bind()
-                ensure(value == 21) { Bad("not 21") }
-                value * 2
-            }.await()
+        val bound = attempt<Bad, Int> {
+            scope {
+                async {
+                    val value = twentyOne.bind()
+                    ensure(value == 21) { Bad("not 21") }
+                    value * 2
+                }.await()
+            }
         }
 
         bound shouldBeRight 42
-        flock<Bad, Int> { async { broken.bind() }.await() } shouldBeLeft Bad("bound")
+        attempt<Bad, Int> { scope { async { broken.bind() }.await() } } shouldBeLeft Bad("bound")
     }
 
     @Test
@@ -398,7 +452,7 @@ class FlockTest {
     }
 
     @Test
-    fun `a close hook registered while the flock closes runs too, after the one that registered it`() {
+    fun `a close hook registered while the scope closes runs too, after the one that registered it`() {
         val ran = mutableListOf<String>()
 
         scope {

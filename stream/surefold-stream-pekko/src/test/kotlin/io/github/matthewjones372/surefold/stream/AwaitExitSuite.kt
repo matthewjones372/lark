@@ -4,12 +4,12 @@ import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
-import io.github.matthewjones372.surefold.flock
 import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeSameInstanceAs
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 
@@ -78,13 +78,15 @@ object AwaitExitSuite : SharedSuite<PekkoSystem>() {
             val awaiting = CountDownLatch(1)
 
             shouldThrow<InterruptedException>({
-                flock<Declined, String> {
-                    async {
-                        awaiting.countDown()
-                        awaitExit(stage)
+                attempt<Declined, String> {
+                    scope {
+                        async {
+                            awaiting.countDown()
+                            awaitExit(stage)
+                        }
+                        awaiting.await()
+                        "the scope closes with the fork still waiting"
                     }
-                    awaiting.await()
-                    "the scope closes with the fork still waiting"
                 }
             })
 

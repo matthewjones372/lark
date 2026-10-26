@@ -1,6 +1,6 @@
 package io.github.matthewjones372.surefold.stream
 
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.VirtualThreads
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Behaviour
@@ -22,14 +22,14 @@ import java.util.concurrent.atomic.AtomicInteger
 private const val BATCH = 64
 
 /**
- * surefold-stream on surefold-actor: a run is an actor of [flock]'s, which pulls the run's loop [batch] elements at a
- * time and then tells itself to go on, so runs share the flock's runners and a long one never holds one. A stage that
+ * surefold-stream on surefold-actor: a run is an actor of [scope]'s, which pulls the run's loop [batch] elements at a
+ * time and then tells itself to go on, so runs share the scope's runners and a long one never holds one. A stage that
  * blocks parks its runner, as any step may. `mapPar` runs on worker actors and `buffer` on a feeder actor, each a
  * child of the run's; the other operators that run something beside the loop start it from [on], as on [Forks].
- * Time is surefold's `clock`, read when the run starts. A run cannot outlive [flock]: its close stops it.
+ * Time is surefold's `clock`, read when the run starts. A run cannot outlive [scope]: its close stops it.
  */
 class Actors(
-    private val flock: Flock<*>,
+    private val scope: Scope<*>,
     private val batch: Int = BATCH,
     private val on: Executor = VirtualThreads,
     name: String = "Actors",
@@ -59,9 +59,9 @@ class Actors(
         // Read here, on the caller's thread: the actor inherits neither.
         val boundaries = ActorBoundaries(batch)
         val pulling = Pulling(run, logger.get(), clock.get(), on, boundaries = boundaries)
-        val running = ActorRun(flock, pulling, boundaries, batch, live)
+        val running = ActorRun(scope, pulling, boundaries, batch, live)
         live.incrementAndGet()
-        running.ref = flock.spawn("stream", running.behaviour())
+        running.ref = scope.spawn("stream", running.behaviour())
         return running
     }
 }
@@ -70,7 +70,7 @@ class Actors(
 private data object More
 
 private class ActorRun<E, R : Any>(
-    private val flock: Flock<*>,
+    private val scope: Scope<*>,
     private val pulling: Pulling<E, R>,
     private val boundaries: ActorBoundaries,
     private val batch: Int,
@@ -111,7 +111,7 @@ private class ActorRun<E, R : Any>(
      */
     override fun stop() {
         pulling.stop()
-        flock.stop(ref)
+        scope.stop(ref)
     }
 
     override fun close() {

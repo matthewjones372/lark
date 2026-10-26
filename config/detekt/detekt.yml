@@ -61,7 +61,7 @@ exceptions:
     # Spans.kt is the sixth: a span records whatever the block did and rethrows
     # it, and a span that ends Ok on a failure is worse than no span at all.
     # Outcome.kt is the seventh: a surefold-structured fork holds whatever its body
-    # did until it is awaited, as a flock's does.
+    # did until it is awaited, as a scope's does.
     # Persistent.kt is the eighth: a snapshot store may throw anything, and a save
     # that fails is logged rather than failing a step whose events are written.
     # Story.kt is the ninth: a step marks whatever its block threw as its failure
@@ -71,7 +71,7 @@ exceptions:
     # Matchers.kt is the eleventh: shouldThrow is asked whether a block threw a
     # given type, so it has to catch whatever the block threw to say what it was.
     # SurefoldEngine.kt is the twelfth: whatever a test threw is that test's result.
-    excludes: ['**/Flock.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Story.kt', '**/Policy.kt', '**/Matchers.kt', '**/SurefoldEngine.kt']
+    excludes: ['**/Scope.kt', '**/Resource.kt', '**/Retry.kt', '**/MapParStage.kt', '**/Defect.kt', '**/Spans.kt', '**/Outcome.kt', '**/Persistent.kt', '**/Story.kt', '**/Policy.kt', '**/Matchers.kt', '**/SurefoldEngine.kt']
   SwallowedException:
     excludes: ['**/test/**']
 

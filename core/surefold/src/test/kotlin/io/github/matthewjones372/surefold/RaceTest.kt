@@ -6,6 +6,7 @@ import io.github.matthewjones372.surefold.assert.shouldBeRight
 import io.github.matthewjones372.surefold.assert.shouldNotBeNull
 import io.github.matthewjones372.surefold.assert.withClue
 import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.fail.right
 import org.junit.jupiter.api.Test
@@ -19,14 +20,16 @@ class RaceTest {
         val loser = Sleeper()
 
         val startedAt = System.nanoTime()
-        val raced = flock<Bad, Either<String, Int>> {
-            raceN(
-                { loser.losingWith("lost") },
-                {
-                    loser.awaitStart()
-                    42
-                },
-            )
+        val raced = attempt<Bad, Either<String, Int>> {
+            scope {
+                raceN(
+                    { loser.losingWith("lost") },
+                    {
+                        loser.awaitStart()
+                        42
+                    },
+                )
+            }
         }
         val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
 
@@ -42,14 +45,16 @@ class RaceTest {
     fun `a branch that fails first loses the race for everyone`() {
         val sleeper = Sleeper()
 
-        val raced = flock<Bad, Either<String, Int>> {
-            raceN(
-                { sleeper.losingWith("lost") },
-                {
-                    sleeper.awaitStart()
-                    fail(Bad("broken"))
-                },
-            )
+        val raced = attempt<Bad, Either<String, Int>> {
+            scope {
+                raceN(
+                    { sleeper.losingWith("lost") },
+                    {
+                        sleeper.awaitStart()
+                        fail(Bad("broken"))
+                    },
+                )
+            }
         }
 
         raced shouldBeLeft Bad("broken")
@@ -61,46 +66,52 @@ class RaceTest {
     fun `a three-branch race places its winner on the side it was given`() {
         val second = Sleeper()
         val third = Sleeper()
-        val firstWon = flock<Bad, Either<String, Either<Int, Boolean>>> {
-            raceN(
-                {
-                    second.awaitStart()
-                    third.awaitStart()
-                    "won"
-                },
-                { second.losingWith(0) },
-                { third.losingWith(false) },
-            )
+        val firstWon = attempt<Bad, Either<String, Either<Int, Boolean>>> {
+            scope {
+                raceN(
+                    {
+                        second.awaitStart()
+                        third.awaitStart()
+                        "won"
+                    },
+                    { second.losingWith(0) },
+                    { third.losingWith(false) },
+                )
+            }
         }
         firstWon shouldBeRight "won".left()
 
         val firstOfThree = Sleeper()
         val thirdOfThree = Sleeper()
-        val secondWon = flock<Bad, Either<String, Either<Int, Boolean>>> {
-            raceN(
-                { firstOfThree.losingWith("lost") },
-                {
-                    firstOfThree.awaitStart()
-                    thirdOfThree.awaitStart()
-                    42
-                },
-                { thirdOfThree.losingWith(false) },
-            )
+        val secondWon = attempt<Bad, Either<String, Either<Int, Boolean>>> {
+            scope {
+                raceN(
+                    { firstOfThree.losingWith("lost") },
+                    {
+                        firstOfThree.awaitStart()
+                        thirdOfThree.awaitStart()
+                        42
+                    },
+                    { thirdOfThree.losingWith(false) },
+                )
+            }
         }
         secondWon shouldBeRight 42.left().right()
 
         val firstLoser = Sleeper()
         val secondLoser = Sleeper()
-        val thirdWon = flock<Bad, Either<String, Either<Int, Boolean>>> {
-            raceN(
-                { firstLoser.losingWith("lost") },
-                { secondLoser.losingWith(0) },
-                {
-                    firstLoser.awaitStart()
-                    secondLoser.awaitStart()
-                    true
-                },
-            )
+        val thirdWon = attempt<Bad, Either<String, Either<Int, Boolean>>> {
+            scope {
+                raceN(
+                    { firstLoser.losingWith("lost") },
+                    { secondLoser.losingWith(0) },
+                    {
+                        firstLoser.awaitStart()
+                        secondLoser.awaitStart()
+                        true
+                    },
+                )
+            }
         }
         thirdWon shouldBeRight true.right().right()
     }
@@ -110,20 +121,22 @@ class RaceTest {
         val started = CountDownLatch(1)
         val loser = AtomicReference<Thread?>(null)
 
-        val raced = flock<Bad, Either<Int, String>> {
-            raceN(
-                {
-                    // Nothing here catches the interrupt, so this branch ends with an InterruptedException.
-                    loser.set(Thread.currentThread())
-                    started.countDown()
-                    Thread.sleep(NEVER_FINISHES_MILLIS)
-                    0
-                },
-                {
-                    started.await()
-                    "won"
-                },
-            )
+        val raced = attempt<Bad, Either<Int, String>> {
+            scope {
+                raceN(
+                    {
+                        // Nothing here catches the interrupt, so this branch ends with an InterruptedException.
+                        loser.set(Thread.currentThread())
+                        started.countDown()
+                        Thread.sleep(NEVER_FINISHES_MILLIS)
+                        0
+                    },
+                    {
+                        started.await()
+                        "won"
+                    },
+                )
+            }
         }
 
         raced shouldBeRight "won".right()

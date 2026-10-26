@@ -78,13 +78,15 @@ class AwaitTest {
         val awaiting = CountDownLatch(1)
 
         shouldThrow<InterruptedException> {
-            flock<Bad, String> {
-                async {
-                    awaiting.countDown()
-                    stage.await()
+            attempt<Bad, String> {
+                scope {
+                    async {
+                        awaiting.countDown()
+                        stage.await()
+                    }
+                    awaiting.await()
+                    "the scope closes with the fork still waiting"
                 }
-                awaiting.await()
-                "the scope closes with the fork still waiting"
             }
         }
 
@@ -100,13 +102,15 @@ class AwaitTest {
         val awaiting = CountDownLatch(1)
 
         shouldThrow<InterruptedException> {
-            flock<Bad, String> {
-                async {
-                    awaiting.countDown()
-                    (task as Future<String>).await()
+            attempt<Bad, String> {
+                scope {
+                    async {
+                        awaiting.countDown()
+                        (task as Future<String>).await()
+                    }
+                    awaiting.await()
+                    "the scope closes with the fork still waiting"
                 }
-                awaiting.await()
-                "the scope closes with the fork still waiting"
             }
         }
 

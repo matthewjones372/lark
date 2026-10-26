@@ -170,7 +170,7 @@ object TimersSuite : Suite() {
             alarm.state.rung.shouldBeEmpty()
         }
 
-        test("on threads, a timer falls due when the flock's clock moves, and a cancelled one never does") {
+        test("on threads, a timer falls due when the scope's clock moves, and a cancelled one never does") {
             val moving = TestClock()
             val heard = clock.locally(moving) {
                 scope {

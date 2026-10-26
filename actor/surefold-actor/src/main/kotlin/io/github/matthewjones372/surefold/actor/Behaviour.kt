@@ -28,10 +28,10 @@ interface Ctx<M : Any> {
     /** Messages this actor sends itself later, each under a key; a stop or a restart cancels them all. */
     val timers: Timers<M>
 
-    /** Where this actor's flock keeps events; it fails when the flock has been given none. */
+    /** Where this actor's scope keeps events; it fails when the scope has been given none. */
     val journal: Journal
 
-    /** Where this actor's flock keeps snapshots, or null when it has been given none and none are taken. */
+    /** Where this actor's scope keeps snapshots, or null when it has been given none and none are taken. */
     val snapshots: SnapshotStore? get() = null
 
     /**
@@ -94,7 +94,7 @@ interface Ctx<M : Any> {
  * one already in the mailbox.
  */
 interface Timers<in M : Any> {
-    /** Tells this actor [message] once [delay] has passed on its flock's clock; at once when it is not positive. */
+    /** Tells this actor [message] once [delay] has passed on its scope's clock; at once when it is not positive. */
     fun after(key: Any, delay: Duration, message: M)
 
     /**
@@ -116,7 +116,7 @@ interface StateTimers<in M : Any> {
 
 /** What happens to an actor rather than what is sent to it, handled beside its messages with no `else`. */
 sealed interface Signal {
-    /** The actor is ending, by `stop()`, a failure with nothing left to restart it, or its flock closing. */
+    /** The actor is ending, by `stop()`, a failure with nothing left to restart it, or its scope closing. */
     data object Stopping : Signal
 
     /** An actor this one watches has stopped. */

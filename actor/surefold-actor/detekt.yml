@@ -1,5 +1,5 @@
 # Layered over config/detekt/detekt.yml for this module alone. An actor test that has to wait on time is missing
-# a completion signal: .test() runs to idle before a send returns, and a flock has awaitIdle(). So neither the
+# a completion signal: .test() runs to idle before a send returns, and a scope has awaitIdle(). So neither the
 # tests nor the runtime may sleep, poll or retry an assertion until it passes.
 style:
   ForbiddenMethodCall:

@@ -74,7 +74,7 @@ open class IngestThroughputBenchmark {
     fun forks(): Int = described.run(forks).done()
 
     @Benchmark
-    fun actors(flocked: Flocked): Int = described.run(flocked.actors).done()
+    fun actors(scoped: Scoped): Int = described.run(scoped.actors).done()
 
     @Benchmark
     fun surefold(pekko: Pekko): Int = described.run(pekko.system).done()
@@ -135,7 +135,7 @@ open class EnrichThroughputBenchmark {
     fun forks(): Long = described.run(forks).done()
 
     @Benchmark
-    fun actors(flocked: Flocked): Long = described.run(flocked.actors).done()
+    fun actors(scoped: Scoped): Long = described.run(scoped.actors).done()
 
     @Benchmark
     fun surefold(pekko: Pekko): Long = described.run(pekko.system).done()

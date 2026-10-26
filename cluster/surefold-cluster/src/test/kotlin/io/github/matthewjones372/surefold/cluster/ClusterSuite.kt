@@ -1,6 +1,6 @@
 package io.github.matthewjones372.surefold.cluster
 
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.remote.Codecs
@@ -35,14 +35,14 @@ private val quick =
 
 private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
-/** A node on a flock and a thread of its own, until [close]. */
+/** A node on a scope and a thread of its own, until [close]. */
 private class Running(
     name: String,
     port: Int,
     seeds: Discovery,
     leaveWithin: Duration = 30.seconds,
     admitted: Ready = Ready.AtOnce,
-    setup: Flock<Nothing>.(RemoteNode) -> Unit = {},
+    setup: Scope<Nothing>.(RemoteNode) -> Unit = {},
 ) : AutoCloseable {
     private val done = CountDownLatch(1)
     private val ready = CountDownLatch(1)
@@ -196,7 +196,7 @@ object ClusterSuite : Suite() {
             }
         }
 
-        test("a node whose flock closes leaves, and the others remove it without downing it") {
+        test("a node whose scope closes leaves, and the others remove it without downing it") {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val nodes = ports.mapIndexed { i, port -> Running("n${i + 1}", port, seeds) }
@@ -286,7 +286,7 @@ object ClusterSuite : Suite() {
             val ports = List(3) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val second = Running("n2", ports[1], seeds, leaveWithin = Duration.ZERO)
-            fun ward(): Flock<Nothing>.(RemoteNode) -> Unit = { node ->
+            fun ward(): Scope<Nothing>.(RemoteNode) -> Unit = { node ->
                 node.expose(spawn("ward", behaviour<String, Unit>(Unit) { _, _, _ -> stay() }), Codecs.string)
             }
             val earlier = Running("n3", ports[2], seeds, leaveWithin = Duration.ZERO, setup = ward())
@@ -314,7 +314,7 @@ object ClusterSuite : Suite() {
 
                         val ended = AtomicBoolean(false)
                         val second = watch(node.remote(at, Codecs.string))
-                        // Waits until the watch ends, or the test does: the flock interrupts it as it closes.
+                        // Waits until the watch ends, or the test does: the scope interrupts it as it closes.
                         async {
                             try {
                                 second.await()
