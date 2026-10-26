@@ -26,6 +26,7 @@ import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.actor.stop
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.logWarn
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -268,6 +269,18 @@ class Cluster internal constructor(
 
     /** What each kind that rebalances counts here, for the cluster actor to report (spec 0090). */
     internal val meters = CopyOnWriteArrayList<LoadMeter>()
+
+    // The other clusters whose federated envelopes this one's regions take (spec 0103): none until said.
+    internal val federatedFrom: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /**
+     * Lets the clusters named [clusters], federating with this one as `federate(…, from = name)`, reach its sharded
+     * entities. An envelope from any other cluster is a dead letter at the region it reaches (spec 0103).
+     */
+    fun acceptFederated(vararg clusters: String) {
+        require(clusters.none(String::isBlank)) { "a cluster to accept needs a name" }
+        federatedFrom += clusters
+    }
 
     @Volatile
     var view: View = View.None

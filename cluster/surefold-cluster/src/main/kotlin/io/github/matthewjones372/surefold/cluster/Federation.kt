@@ -13,7 +13,8 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Another cluster, [name], whose sharded entities this one reaches without ever joining it (spec 0103): its nodes are
  * found by [nodes], as seeds are, and an envelope goes to its kind's region on one of them, which routes it on to the
- * owner as it does its own members'. The two never gossip, down or watch each other.
+ * owner as it does its own members'. The two never gossip, down or watch each other. Each envelope says it is [from]
+ * this cluster, and the other takes it only once it has `acceptFederated` that name.
  *
  * Nodes are tried in [nodes]' order. One a frame could not be sent to is skipped for [retryAfter], or until it
  * connects again; with every one failing, the first is tried anyway, so a tell is a dead letter and an ask fails at
@@ -23,6 +24,7 @@ class Federated internal constructor(
     val name: String,
     private val cluster: Cluster,
     private val nodes: Discovery,
+    private val from: String,
     private val retryAfter: Duration,
 ) {
     private val sent = cluster.scope.counter("surefold.federation.sent", "cluster" to name)
@@ -42,7 +44,7 @@ class Federated internal constructor(
             return cluster.scope.deadLetter(DeadLetter(nowhere, envelope.message, DeadLetter.Why.Unreachable))
         }
         sent.increment()
-        cluster.remote.remote(Address(node.toString(), path, 0), wire).tell(envelope)
+        cluster.remote.remote(Address(node.toString(), path, 0), wire).tell(envelope.copy(from = from))
     }
 }
 
@@ -76,8 +78,21 @@ private class FederatedRef<M : Any>(
 }
 
 /**
- * Another cluster, [name], found by [nodes], whose sharded entities this one reaches without joining it (spec 0103).
- * A node a frame could not be sent to is skipped for [retryAfter].
+ * Another cluster, [name], found by [nodes], whose sharded entities this one reaches without joining it (spec 0103),
+ * saying it is [from], the name the other cluster accepts. A node a frame could not be sent to is skipped for
+ * [retryAfter]. Federation runs over TLS, whose certificates are what tie a peer to the name it gives: this node needs
+ * a `Tls`, unless [plaintext] says otherwise, as only a test should.
  */
-fun Cluster.federate(name: String, nodes: Discovery, retryAfter: Duration = 5.seconds): Federated =
-    Federated(name, this, nodes, retryAfter)
+fun Cluster.federate(
+    name: String,
+    nodes: Discovery,
+    from: String,
+    retryAfter: Duration = 5.seconds,
+    plaintext: Boolean = false,
+): Federated {
+    require(from.isNotBlank()) { "a cluster federating says which it is, and from was blank" }
+    require(remote.secured || plaintext) {
+        "federating with $name needs TLS: give this node a Tls, or pass plaintext = true in a test"
+    }
+    return Federated(name, this, nodes, from, retryAfter)
+}

@@ -88,7 +88,9 @@ internal class Placing<M : Any, H : Any>(
     }
 
     private fun handle(ctx: Ctx<Region<M>>, step: Region<M>) = when (step) {
-        is Region.Envelope -> route(ctx, step)
+        // Another cluster reaches these entities only when this one accepts it (spec 0103).
+        is Region.Envelope ->
+            if (step.from == null || step.from in cluster.federatedFrom) route(ctx, step) else refuse(step)
 
         is Region.Viewed -> {
             moved = step.moved

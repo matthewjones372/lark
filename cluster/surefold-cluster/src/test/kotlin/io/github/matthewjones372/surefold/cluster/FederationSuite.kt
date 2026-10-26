@@ -1,5 +1,6 @@
 package io.github.matthewjones372.surefold.cluster
 
+import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.AskFailure
 import io.github.matthewjones372.surefold.actor.DeadLetter
 import io.github.matthewjones372.surefold.actor.Reply
@@ -18,6 +19,7 @@ import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
+import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.scope
 import java.net.ServerSocket
@@ -58,7 +60,8 @@ private class OneNodeCluster(name: String, port: Int, northPort: Int) : AutoClos
             val member = cluster(node(name, port), Discovery.static(Node("", "127.0.0.1", port)), brisk)
             check(member.await(1.minutes) { v -> v.members.any { it.status == Status.Up } }) { "$name never came up" }
             val _ = member.sharding("account", whoHoldsCodec, 1.minutes) { answering(name) }
-            north = member.federate("north", Discovery.static(Node("", "127.0.0.1", northPort)))
+            member.acceptFederated("north")
+            north = member.federate("north", Discovery.static(Node("", "127.0.0.1", northPort)), name, plaintext = true)
                 .sharding("account", whoHoldsCodec)
             ready.countDown()
             done.await()
@@ -93,10 +96,13 @@ object FederationSuite : Suite() {
                     val north = cluster(node("north", northPort), self, brisk)
                     check(north.await(1.minutes) { v -> v.members.any { it.status == Status.Up } }) { "north is down" }
                     val _ = north.sharding("account", whoHoldsCodec, 1.minutes) { answering("north") }
+                    north.acceptFederated("south")
                     val accounts = north.federate(
                         "south",
                         Discovery.static(Node("", "127.0.0.1", southPort)),
+                        from = "north",
                         retryAfter = 1.seconds,
+                        plaintext = true,
                     ).sharding("account", whoHoldsCodec)
 
                     accounts.entity("s-7").ask(1.minutes) { WhoHolds(it) } shouldBeRight "south"
@@ -128,12 +134,51 @@ object FederationSuite : Suite() {
                 south.close()
             }
         }
+
+        test("a cluster not accepted is refused, as a dead letter, and is answered once it is accepted") {
+            val southPort = openPort()
+            val letters = LinkedBlockingQueue<DeadLetter>()
+            scope {
+                onDeadLetter(letters::add)
+                val south = cluster(node("south", southPort), Discovery.static(Node("", "127.0.0.1", southPort)), brisk)
+                check(south.await(1.minutes) { v -> v.members.any { it.status == Status.Up } }) { "south is down" }
+                val _ = south.sharding("account", whoHoldsCodec, 1.minutes) { answering("south") }
+                south.acceptFederated("east")
+                val westPort = openPort()
+                val west = cluster(node("west", westPort), Discovery.static(Node("", "127.0.0.1", westPort)), brisk)
+                val accounts = west.federate(
+                    "south",
+                    Discovery.static(Node("", "127.0.0.1", southPort)),
+                    from = "west",
+                    plaintext = true,
+                ).sharding("account", whoHoldsCodec)
+
+                accounts.entity("s-1").ask(2.seconds) { WhoHolds(it) } shouldBe AskFailure.TimedOut.left()
+                val refused = generateSequence { letters.poll(1, TimeUnit.MINUTES) }
+                    .first { it.why == DeadLetter.Why.Unhandled }
+                refused.recipient.path shouldBe Sharding.path("account")
+                (refused.message as Region.Envelope<*>).from shouldBe "west"
+
+                south.acceptFederated("west")
+                accounts.entity("s-1").ask(1.minutes) { WhoHolds(it) } shouldBeRight "south"
+            }
+        }
+
+        test("federating without TLS needs plaintext said outright") {
+            val port = openPort()
+            scope {
+                val alone = cluster(node("alone", port), Discovery.static(Node("", "127.0.0.1", port)), brisk)
+                shouldThrow<IllegalArgumentException> {
+                    alone.federate("other", Discovery.static(Node("", "127.0.0.1", port)), from = "alone")
+                }
+            }
+        }
     }
 }
 
 /** A reply nobody waits on, for a tell that is meant to be a dead letter. */
 private object DroppedReply : Reply<String> {
-    override val address = io.github.matthewjones372.surefold.actor.Address("", "/dropped", 0)
+    override val address = Address("", "/dropped", 0)
 
     override fun invoke(answer: String) = Unit
 }

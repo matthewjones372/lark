@@ -24,7 +24,9 @@ account the other cluster owns. Today the only way would be the service calling 
 
 ```kotlin
 // in north's flock: south's nodes, found by a Discovery as its own seeds are (spec 0096), but never joined
-val south = cluster.federate("south", Discovery.static(Node.at("south-1:25520"), Node.at("south-2:25520")))
+val south = cluster.federate("south", Discovery.static(Node.at("south-1:25520"), Node.at("south-2:25520")), from = "north")
+// and in south's, which takes envelopes only from the clusters it names
+cluster.acceptFederated("north")
 
 val southAccounts: Sharded<AccountMessage> = south.sharding(Kinds.ACCOUNT, AccountMessages)
 southAccounts.entity("south-acc-7").ask<AccountMessage, AccountAnswer>(3.seconds) { AccountAsk(credit, it) }
@@ -75,7 +77,7 @@ one that needs no witness.
       stamps it on a `Release` or `Released`, and the region drops one from a node not in its view's members as an
       `Unhandled` dead letter. One told on its own node has no sender and is taken. A member the region's view does
       not hold yet is refused too, and its `Release` is asked again on the winner's `AskAgain` timer.
-- [ ] **`spec-0103-federate`** — `Cluster.federate`, entity refs over another cluster's regions, node choice,
+- [x] **`spec-0103-federate`** ([#762](https://github.com/matthewjones372/surefold/pull/762)) — `Cluster.federate`, entity refs over another cluster's regions, node choice,
       meters.
       Done when: two clusters in one JVM ask each other's entities; with the other cluster stopped, an ask fails
       with `Unreachable` and a tell is a dead letter; once it is back, asks succeed without a restart.
@@ -88,6 +90,11 @@ one that needs no witness.
 - [ ] **`spec-0103-allow`** — a region refuses envelopes from another cluster unless that cluster is allowed
       (question 3), and `federate` makes TLS the default outside tests (question 2).
       Done when: a cluster not on the allow-list is refused, as a dead letter, and an allowed one is answered.
+      `federate(name, nodes, from)` stamps `from` on each envelope, as `RegionCodec`'s `FEDERATED` tag; a region
+      routes one only once `acceptFederated(from)` named it, and drops any other as an `Unhandled` dead letter. An
+      envelope with no `from`, a member's own, is routed as before, so a member the view does not hold yet loses
+      nothing. `federate` throws on a node without `Tls`, since only TLS ties a peer to the name it gives, unless
+      `plaintext = true`, for tests.
 
 ## Acceptance
 
