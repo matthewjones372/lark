@@ -2,10 +2,15 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.junit.shouldBeLessThan
 import io.github.matthewjones372.surefold.junit.shouldBeLessThanOrEqual
 import io.github.matthewjones372.surefold.junit.withClue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
+
+private const val SPACED = 2_000
+private const val GAP_NANOS = 50_000L
+private const val QUARTER_SPIN_NANOS = 2_500L
 
 object RunnersSuite : Suite() {
     init {
@@ -38,6 +43,24 @@ object RunnersSuite : Suite() {
 
             withClue("runner threads started for 10,000 activations, each queued after the last had run") {
                 runners.starts.get() shouldBeLessThanOrEqual 4
+            }
+        }
+
+        // Spec 0144: a runner whose spins keep ending empty spins less, until a near miss gives it a full one again.
+        test("activations submitted 50 µs apart are spun through for less than a quarter of 10 µs each") {
+            val runners = Runners(parallelism = 1, cap = 1)
+            val before = runners.spun.get()
+            repeat(SPACED) {
+                val ran = CountDownLatch(1)
+                runners.submit(Activation { ran.countDown() })
+                ran.await()
+                val next = System.nanoTime() + GAP_NANOS
+                while (System.nanoTime() < next) Thread.onSpinWait()
+            }
+            runners.awaitIdle()
+
+            withClue("nanoseconds spun per activation, each submitted 50 µs after the last had run") {
+                (runners.spun.get() - before) / SPACED shouldBeLessThan QUARTER_SPIN_NANOS
             }
         }
     }
