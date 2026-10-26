@@ -41,7 +41,7 @@ has, is tidier with many options and costs every existing caller a change.
 
 - [x] **`spec-0159-pattern`** ([#700](https://github.com/matthewjones372/surefold/pull/700)): `Topics.matching`. Done when: a topic created mid-run is read.
 - [x] **`spec-0159-many-partitions`** ([#701](https://github.com/matthewjones372/surefold/pull/701)): `Kafka.read` over a list of partitions, one consumer.
-- [ ] **`spec-0159-start-at`**: `From.Time`, `StartAt.Time`, `StartAt.Own`.
+- [x] **`spec-0159-start-at`** ([#702](https://github.com/matthewjones372/surefold/pull/702)): `From.Time`, `StartAt.Time`, `StartAt.Own`.
 - [ ] **`spec-0159-hooks`**: `onAssigned` and `onRevoked`.
 
 ## Acceptance
