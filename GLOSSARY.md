@@ -10,6 +10,12 @@ One run of `transact { }`: the `Shared` values it changes all commit together
 or not at all. A step runs again when another commit changed what it read.
 _Avoid_: transaction (the API's receiver type, not the concept), atomic block
 
+**Effect**:
+Work a step queues with `afterCommit { }`: it runs once the step has
+committed, and not at all if it does not.
+_Avoid_: hook, callback, side effect (an effect written in the body runs once
+per run)
+
 ## Actors
 
 **Lifecycle**:

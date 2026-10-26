@@ -8,6 +8,11 @@ import io.github.matthewjones372.surefold.junit.shouldThrow
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.serialization.ByteArrayDeserializer
+import org.apache.kafka.common.serialization.ByteArraySerializer
+import org.apache.kafka.common.serialization.LongDeserializer
+import org.apache.kafka.common.serialization.LongSerializer
+import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.common.utils.Exit
 
@@ -41,6 +46,26 @@ object KafkaBrokerSuite : SharedSuite<KafkaBroker>() {
                 committing.join()
                 read shouldBe listOf("committed")
             }
+        }
+
+        test("records reads every partition to its end, by the deserializers given") { kafka ->
+            val topic = Topic("typed")
+            kafka.create(topic, partitions = 2)
+            (1L..4L).forEach { n -> kafka.send(topic, n, "event $n", LongSerializer(), StringSerializer()) }
+
+            val read = kafka.records(topic, LongDeserializer(), StringDeserializer())
+
+            read.map { it.key() to it.value() }.sortedBy { it.first } shouldBe (1L..4L).map { it to "event $it" }
+            read.map { it.partition() }.toSet() shouldBe setOf(0, 1)
+        }
+
+        test("send writes a key and a value by the serializers given") { kafka ->
+            val topic = Topic("keyed")
+            kafka.send(topic, "junk", "not avro".toByteArray(), StringSerializer(), ByteArraySerializer())
+
+            val read = kafka.records(topic, StringDeserializer(), ByteArrayDeserializer()).single()
+            read.key() shouldBe "junk"
+            read.value().decodeToString() shouldBe "not avro"
         }
 
         test("a broker that asks the JVM to exit fails the test that is running instead") { _ ->
