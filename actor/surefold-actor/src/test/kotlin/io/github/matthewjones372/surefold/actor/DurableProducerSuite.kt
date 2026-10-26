@@ -330,13 +330,12 @@ object DurableProducerSuite : Suite() {
                 testActors(journal = journal, snapshots = snapshots) {
                     val wallets = ids.associateWith { spawn(it, wallet(it)) }
                     val again = durableProducer("till", topUpCodec) { id -> wallets.getValue(id) }
-                    val drained = again.drain(Duration.ZERO) shouldBe true
+                    again.drain(Duration.ZERO) shouldBe true
                     val _ = again.send("w-0") { TopUp(100, it) }
 
-                    drained and
-                        (journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(20L, 100L)) and
-                        (journal.events(walletOf("w-1"), pence) shouldContainExactly listOf(7L)) and
-                        (wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 3L))
+                    journal.events(walletOf("w-0"), pence) shouldContainExactly listOf(20L, 100L)
+                    journal.events(walletOf("w-1"), pence) shouldContainExactly listOf(7L)
+                    wallets.getValue("w-0").state.delivered shouldBe mapOf("till" to 3L)
                 }
             }
         }

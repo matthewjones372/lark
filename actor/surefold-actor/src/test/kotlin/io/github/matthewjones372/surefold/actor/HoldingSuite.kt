@@ -13,14 +13,15 @@ object HoldingSuite : Suite() {
     init {
         test("a claim takes no more than the room there is, the first commands first") {
             val (holding, took) = Holding().claim(recovered, 3)
-            (took shouldBe 3) and
-                (holding.held shouldBe setOf("a" to 1L, "a" to 2L, "b" to 1L)) and
-                (holding.unheld(recovered) shouldBe 1)
+            took shouldBe 3
+            holding.held shouldBe setOf("a" to 1L, "a" to 2L, "b" to 1L)
+            holding.unheld(recovered) shouldBe 1
         }
 
         test("a claim passes over commands that already hold room") {
             val (holding, took) = Holding().kept("a", 1).claim(recovered, 10)
-            (took shouldBe 3) and (holding.unheld(recovered) shouldBe 0)
+            took shouldBe 3
+            holding.unheld(recovered) shouldBe 0
         }
 
         test("a confirmed command's room is handed to a recovered one waiting, not released") {
@@ -28,19 +29,22 @@ object HoldingSuite : Suite() {
             val after = recovered.confirmed("a", 1)!!.first
             val (holding, released) = claimed.confirmed(after, "a", 1)
             // Released, it would let a drain take every permit and answer while a-2 is still unconfirmed.
-            (released shouldBe false) and (holding.held shouldBe setOf("a" to 2L))
+            released shouldBe false
+            holding.held shouldBe setOf("a" to 2L)
         }
 
         test("a confirmed command's room is released once nothing waits for it") {
             val one = Outboxes<Unit>().kept("a", 1, Unit).first
             val (holding, released) = Holding().kept("a", 1).confirmed(one.confirmed("a", 1)!!.first, "a", 1)
-            (released shouldBe true) and (holding shouldBe Holding())
+            released shouldBe true
+            holding shouldBe Holding()
         }
 
         test("a confirmed command that held no room releases none, and hands none on") {
             val after = recovered.confirmed("a", 1)!!.first
             val (holding, released) = Holding().confirmed(after, "a", 1)
-            (released shouldBe false) and (holding shouldBe Holding())
+            released shouldBe false
+            holding shouldBe Holding()
         }
     }
 }
