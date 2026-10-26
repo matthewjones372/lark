@@ -145,7 +145,7 @@ object WatchSuite : Suite() {
         }
 
         test(
-            "on threads, a ref that is not an actor here can be watched, by an actor and by the flock, once it says so",
+            "on threads, a ref that is not an actor here can be watched, by an actor and by the scope, once it says so",
         ) {
             val far = Faraway()
             val seen = scope {
@@ -162,7 +162,7 @@ object WatchSuite : Suite() {
             seen shouldBeRight 1
         }
 
-        test("on threads, a letter a transport found reaches the flock's dead-letter handler") {
+        test("on threads, a letter a transport found reaches the scope's dead-letter handler") {
             val letters = java.util.concurrent.ConcurrentLinkedQueue<DeadLetter>()
             val far = Faraway()
             scope {

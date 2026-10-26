@@ -1,9 +1,9 @@
 package io.github.matthewjones372.surefold.actor.remote
 
 import io.github.matthewjones372.surefold.Carriers
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.LogLevel
 import io.github.matthewjones372.surefold.LogLine
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.DeadLetter
@@ -57,23 +57,23 @@ private fun targetOf(on: Node, payload: ByteArray): Address =
     DataInputStream(payload.inputStream()).use { Address(on.toString(), it.readUTF(), it.readLong()) }
 
 /**
- * This flock as a node named [name], listening on [host] and [port], until the flock closes. An actor of this node is
+ * This scope as a node named [name], listening on [host] and [port], until the scope closes. An actor of this node is
  * reached from another only once it is [RemoteNode.expose]d with the codec its messages cross in, or when a ref to it
  * crosses inside a message, which exposes it with the codec the message gave for it. With [tls], every connection
  * to and from this node is TLS, and only nodes whose certificates name them are let in (spec 0073).
  */
-fun <F> Flock<F>.node(
+fun <F> Scope<F>.node(
     name: String,
     port: Int,
     host: String = "127.0.0.1",
     unreachableAfter: Duration = 10.seconds,
     tls: Tls? = null,
 ): RemoteNode {
-    // Every metric of this flock names the node it runs, so several nodes in one JVM are told apart (spec 0081).
+    // Every metric of this scope names the node it runs, so several nodes in one JVM are told apart (spec 0081).
     tagMetrics("node" to name)
     val node = RemoteNode(Node(name, host, port), this, unreachableAfter, tls)
     node.transport.listen()
-    // The flock has no hook of its own for close, and an actor's Stopping is one: the node closes with it.
+    // The scope has no hook of its own for close, and an actor's Stopping is one: the node closes with it.
     spawn(
         "remote-$name",
         behaviour<Unit, Unit>(Unit) { _, _, _ -> stay() }.onSignal { _, _, signal ->
@@ -94,7 +94,7 @@ class UnreadMessage(val bytes: ByteArray)
  */
 class RemoteNode internal constructor(
     val self: Node,
-    private val flock: Flock<*>,
+    private val scope: Scope<*>,
     private val unreachableAfter: Duration,
     tls: Tls? = null,
 ) {
@@ -102,11 +102,11 @@ class RemoteNode internal constructor(
     private inner class PeerMetrics(peer: Node) {
         private val name = peer.toString()
         private fun byLane(metric: String, vararg tags: Pair<String, String>) =
-            Lane.entries.associateWith { flock.counter(metric, "peer" to name, *tags, "lane" to it.name.lowercase()) }
+            Lane.entries.associateWith { scope.counter(metric, "peer" to name, *tags, "lane" to it.name.lowercase()) }
         val sent = byLane("surefold.remote.frames", "direction" to "out")
         val received = byLane("surefold.remote.frames", "direction" to "in")
         val dropped = byLane("surefold.remote.dropped")
-        val connected = flock.gauge("surefold.remote.connected", "peer" to name)
+        val connected = scope.gauge("surefold.remote.connected", "peer" to name)
     }
 
     private val measured = ConcurrentHashMap<Node, PeerMetrics>()
@@ -194,7 +194,7 @@ class RemoteNode internal constructor(
         val terminated = Frame(TERMINATED, 0, target(address))
         if (actor == null) return send(peer, terminated)
         Thread.ofVirtual().name("surefold-remote-watch").start {
-            flock.watch(actor).await()
+            scope.watch(actor).await()
             watched -= peer to address
             send(peer, terminated)
         }
@@ -260,10 +260,10 @@ class RemoteNode internal constructor(
             val actor = exposed[frame.path]
             when {
                 actor == null ->
-                    flock.deadLetter(DeadLetter(recipient, UnreadMessage(frame.payload), DeadLetter.Why.NoSuchActor))
+                    scope.deadLetter(DeadLetter(recipient, UnreadMessage(frame.payload), DeadLetter.Why.NoSuchActor))
 
                 frame.incarnation != 0L && actor.ref.address.incarnation != frame.incarnation ->
-                    flock.deadLetter(DeadLetter(recipient, actor.read(frame.payload, refs), DeadLetter.Why.NoSuchActor))
+                    scope.deadLetter(DeadLetter(recipient, actor.read(frame.payload, refs), DeadLetter.Why.NoSuchActor))
 
                 // Told inside what it carried, so the local tell carries it on to the handler (spec 0122).
                 else -> Carriers.within(frame.carried) { actor.deliver(frame.payload, refs) }
@@ -285,7 +285,7 @@ class RemoteNode internal constructor(
             measure(peer).dropped.getValue(laneOf(frame.path)).increment()
             val recipient = Address(peer.toString(), frame.path, frame.incarnation)
             val message = frame.message ?: UnreadMessage(frame.payload)
-            flock.deadLetter(DeadLetter(recipient, message, DeadLetter.Why.Unreachable))
+            scope.deadLetter(DeadLetter(recipient, message, DeadLetter.Why.Unreachable))
             maybeUnreachable(peer)
         }
     }

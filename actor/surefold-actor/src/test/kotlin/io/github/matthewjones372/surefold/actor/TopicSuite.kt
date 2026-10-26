@@ -50,7 +50,7 @@ object TopicSuite : Suite() {
                     prices.unsubscribe(listeners[1])
                     (61..70).forEach(prices::publish)
                     awaitIdle()
-                    // Read before the flock closes: at close the last subscriber stops too, and the topic may drop it.
+                    // Read before the scope closes: at close the last subscriber stops too, and the topic may drop it.
                     captured.gauge("surefold.topic.subscribers") shouldBe 1.0
                 }
 

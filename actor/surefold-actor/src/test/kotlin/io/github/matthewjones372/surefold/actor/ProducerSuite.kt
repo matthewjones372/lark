@@ -150,7 +150,7 @@ object ProducerSuite : Suite() {
             (0 until 10).sumOf { journal.events(ledgerOf("l-$it"), creditedCodec).size } shouldBe 400
         }
 
-        test("a flock that closes straight after sending waits for every command to be confirmed first") {
+        test("a scope that closes straight after sending waits for every command to be confirmed first") {
             val journal = InMemoryJournal()
 
             val _ = scope {

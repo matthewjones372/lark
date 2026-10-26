@@ -1,6 +1,6 @@
 package io.github.matthewjones372.surefold.actor.remote
 
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Address
 import io.github.matthewjones372.surefold.actor.DeadLetter
@@ -90,7 +90,7 @@ private class Hospital(val port: Int, val ward: Address, val letters: Concurrent
 }
 
 /**
- * A second node, a flock of its own on a thread of its own, with a ward exposed at `/user/ward`, until [block] is done
+ * A second node, a scope of its own on a thread of its own, with a ward exposed at `/user/ward`, until [block] is done
  * with it.
  */
 private fun <A> withWardNode(block: (Hospital) -> A): A {
@@ -125,7 +125,7 @@ private fun <A> withWardNode(block: (Hospital) -> A): A {
     }
 }
 
-private fun Flock<Nothing>.clinic() = node("clinic", freePort())
+private fun Scope<Nothing>.clinic() = node("clinic", freePort())
 
 object RemoteSuite : Suite() {
     init {

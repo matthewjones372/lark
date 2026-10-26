@@ -97,7 +97,7 @@ object RuntimeSuite : Suite() {
             }
         }
 
-        test("closing the flock stops every actor it spawned") {
+        test("closing the scope stops every actor it spawned") {
             val escaped = AtomicReference<ActorRef<Log>>()
             val _ = scope {
                 escaped.set(spawn("log", log()))

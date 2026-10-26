@@ -2,7 +2,7 @@
 
 `surefold-actor` is an actor as a value: a state, and a step that takes one
 message at a time. Actors run on virtual threads inside the same structured
-scope, `flock`, that the core uses for forks, so there is no actor system to
+scope, `scope`, that the core uses for forks, so there is no actor system to
 start and stop, and a step may block.
 
 This page covers actors in one process: failure and supervision, timers,
@@ -38,14 +38,14 @@ the actor's context, its state and one message, and answers what happens next:
 - `stop()` ends the actor;
 - `unhandled()` keeps the state and sends the message where dead letters go.
 
-Nothing runs until the behaviour is spawned. An actor lives in a `flock`, the
-structured scope `surefold` already has, and cannot outlive it: when the flock's
-block ends, every actor in it is stopped, and the flock returns only once they
+Nothing runs until the behaviour is spawned. An actor lives in a `scope`, the
+structured scope `surefold` already has, and cannot outlive it: when the scope's
+block ends, every actor in it is stopped, and the scope returns only once they
 have. On virtual threads a step still running at that point is interrupted; on
 another executor it is waited for.
 
 An idle actor holds no thread. An actor with messages waiting is run by the
-flock's runners, virtual threads shared by its actors, one per carrier thread
+scope's runners, virtual threads shared by its actors, one per carrier thread
 to start with and more while steps are blocked. So a step may block on JDBC or
 a client with no async API without starving the other actors.
 
@@ -129,12 +129,12 @@ the first message and again after each restart.
 An actor spawns children with `ctx.spawn`. A child is stopped before its parent
 stops or restarts, so a parent that restarts has no children until its step
 spawns them again. `ctx.watch` asks to hear when another actor stops, child or
-not; `watch` on the flock gives the same as a `Deferred` to await.
+not; `watch` on the scope gives the same as a `Deferred` to await.
 
 <!-- actors-failure -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Failure
 import io.github.matthewjones372.surefold.actor.Reply
@@ -183,8 +183,8 @@ fun feeds() = behaviour<Pair<String, Feed>, Map<String, ActorRef<Feed>>>(emptyMa
     if (signal is Signal.Terminated) become(feeds.filterValues { it != signal.ref }) else stay()
 }
 
-/** Watching from outside an actor: the flock's own watch, awaited. */
-fun Flock<Nothing>.untilStopped(feed: ActorRef<Feed>): Signal.Terminated = watch(feed).await()
+/** Watching from outside an actor: the scope's own watch, awaited. */
+fun Scope<Nothing>.untilStopped(feed: ActorRef<Feed>): Signal.Terminated = watch(feed).await()
 ```
 
 A failure that belongs to an `attempt { }` inside the step is that `attempt`'s,
@@ -204,8 +204,8 @@ arrived for a while. A state's own timers, `ctx.become(state) { after(…) }`,
 end when the actor becomes a state of another class, so a timeout that belongs
 to "waiting for payment" cannot fire once payment has arrived.
 
-Every wait runs on the flock's clock, which is `surefold`'s `clock`. Bind a
-`TestClock` around the flock and move it with `adjust`, and an hour's timers
+Every wait runs on the scope's clock, which is `surefold`'s `clock`. Bind a
+`TestClock` around the scope and move it with `adjust`, and an hour's timers
 fire in no time at all.
 
 <!-- actors-time -->
@@ -281,7 +281,7 @@ fun main() {
 
 An actor that should be found registers under a `ServiceKey`, a protocol by
 name.
-`ctx.register` lists it until it stops or restarts; `find` on the flock answers
+`ctx.register` lists it until it stops or restarts; `find` on the scope answers
 the refs listed now; and `ctx.subscribe` tells an actor the listing now and
 again each time it changes, as a message of its own protocol. A registration
 is lost on a restart, like a timer, so it belongs in `onStart`.
@@ -305,7 +305,7 @@ many.
 
 <!-- actors-routing -->
 ```kotlin
-import io.github.matthewjones372.surefold.Flock
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.ServiceKey
 import io.github.matthewjones372.surefold.actor.awaitIdle
@@ -343,7 +343,7 @@ fun spooler() = behaviour<Spool, Set<ActorRef<Job>>>(emptySet()) { _, printers, 
     }
 }.onStart { ctx -> ctx.subscribe(Printers, ::Listing) }
 
-fun Flock<Nothing>.office() {
+fun Scope<Nothing>.office() {
     repeat(3) { spawn("printer-$it", printer()) }
     awaitIdle()
 
@@ -391,7 +391,7 @@ restarts without asking supervision, recovers, runs its start hooks again and
 handles the same command against what it recovered. Its `then` never ran for
 the guess. It needs `batch = 1` for now.
 
-The journal and the snapshot store are the flock's. `InMemoryJournal` and
+The journal and the snapshot store are the scope's. `InMemoryJournal` and
 `InMemorySnapshots` keep everything in the process, for tests and for trying
 things out. With `snapshots = every(n, codec)`, the actor saves its state every
 `n` events and a start replays only what came after the newest save.
@@ -729,6 +729,6 @@ class TillTest {
 ```
 
 A test that needs real threads, a blocking client in a step say, runs the
-same behaviours in a `flock` instead, with a `TestClock` for its time.
+same behaviours in a `scope` instead, with a `TestClock` for its time.
 
 Where a second node comes in, the [cluster guide](cluster.md) takes over.

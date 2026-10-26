@@ -315,8 +315,8 @@ class TestActor<M : Any, S, E> internal constructor(
         val children: List<TestActor<*, *, *>> = emptyList(),
         val timers: Map<Any, TestTimer> = emptyMap(),
         val silence: Silence? = null,
-        val scoped: Scope? = null,
-        val asked: Scope? = null,
+        val scoped: TimersOfState? = null,
+        val asked: TimersOfState? = null,
     )
 
     private val run =
@@ -380,7 +380,7 @@ class TestActor<M : Any, S, E> internal constructor(
 
         override fun <T> become(state: T, timers: StateTimers<M>.() -> Unit): Next<T> {
             run.get().asked?.let(::drop)
-            val asked = scope(state, timers, ::start)
+            val asked = startTimers(state, timers, ::start)
             run.updateAndGet { it.copy(asked = asked) }
             return Next.Become(state)
         }
@@ -586,7 +586,7 @@ class TestActor<M : Any, S, E> internal constructor(
         }
     }
 
-    private fun drop(scope: Scope) = scope.keys.forEach(::cancel)
+    private fun drop(timers: TimersOfState) = timers.keys.forEach(::cancel)
 
     /** A message was handled, so the silence the receive timeout waits for starts again. */
     private fun heard() {
