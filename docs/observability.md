@@ -173,3 +173,20 @@ forks:
 `capturingLogs { logs -> … }` and `capturingMetrics { measured -> … }` bind an
 in-memory logger or registry for a block, so a test asserts on values rather
 than on a backend. See [Testing](testing.md#logs-and-metrics).
+
+For spans, `surefold-otel-test`'s `Spans` is a tracer that keeps every span it
+ends. Hand its `tracer` to the code under test and read `all()` or
+`named(name)`:
+
+```kotlin
+Spans().use { spans ->
+    relay(every, outbox, bus, spans.tracer).start(TestStreams(clock))
+    clock.adjust(every)
+    spans.named("publish").map { it.kind } shouldBe listOf(SpanKind.PRODUCER)
+}
+```
+
+It is not `opentelemetry-sdk-testing`'s `InMemorySpanExporter`: that artifact
+registers a `ContextStorageProvider` of its own, and with two on the classpath
+OpenTelemetry falls back to its default storage, so `surefold-otel`'s would be
+off in the very tests that check a trace crosses a fork.

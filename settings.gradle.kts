@@ -57,6 +57,7 @@ module("app", "surefold-app-cluster")
 
 module("integrations", "surefold-pekko")
 module("integrations", "surefold-otel")
+module("integrations", "surefold-otel-test")
 module("integrations", "surefold-openfeature")
 module("integrations", "surefold-slf4j")
 module("integrations", "surefold-micrometer")
