@@ -81,7 +81,9 @@ repo, and a miss reads no better than `shouldBe`'s diff of two maps. Recommended
 
 ## Open questions
 
-1. Should `tags()` give tag names (`Set<String>`) or JUnit's `TestTag`? Recommended: names. A test reads as the
-   strings it passed to `tag(…)`, and the testkit's other calls answer plain names too.
-2. Should a skip with no reason given read as `""` or as absent from `skipReasons()`? Recommended: `""`. Every skipped
-   test is in the map, so `skipReasons().keys` is the set of skipped tests, and `ignore` always gives a reason anyway.
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~Should `tags()` give tag names (`Set<String>`) or JUnit's `TestTag`?~~ Names. A test reads as the strings it passed
+   to `tag(…)`, and the testkit's other calls answer plain names too.
+2. ~~Should a skip with no reason given read as `""` or as absent from `skipReasons()`?~~ `""`. Every skipped test is in
+   the map, so `skipReasons().keys` is the set of skipped tests.
