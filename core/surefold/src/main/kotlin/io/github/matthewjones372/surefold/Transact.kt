@@ -1,8 +1,14 @@
 package io.github.matthewjones372.surefold
 
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.locks.LockSupport
+
 /** A value forks share, changed only inside [transact] (spec 0206). */
 class Shared<T>(initial: T) {
     internal val word = Word(Versioned(initial, 0))
+
+    // Threads parked in waitForChange on a step that read this value. Each takes itself off when it wakes.
+    internal val waiters = ConcurrentLinkedQueue<Thread>()
 
     /** The latest committed value, read outside any step: deciding a write on it races every other step. */
     fun peek(): T = word.read().value
@@ -15,12 +21,14 @@ class Shared<T>(initial: T) {
 fun <A> transact(block: Transaction.() -> A): A {
     while (true) {
         val step = Transaction()
-        val answer = try {
-            step.block()
+        try {
+            val answer = step.block()
+            if (step.commit()) return answer
         } catch (_: Conflict) {
-            continue
+            // Runs again from the start.
+        } catch (_: Wait) {
+            step.awaitChange()
         }
-        if (step.commit()) return answer
     }
 }
 
@@ -45,6 +53,42 @@ class Transaction internal constructor() {
 
     fun <T> Shared<T>.update(change: (T) -> T) = set(change(get()))
 
+    /** Drops this run and parks until a value it read is committed again, then runs the step again. */
+    fun waitForChange(): Nothing {
+        check(reads.isNotEmpty()) { "waitForChange() in a step that has read nothing would wait forever." }
+        throw Wait
+    }
+
+    /** The first branch that does not wait. When every branch waits, the step waits on what any of them read. */
+    fun <A> firstOf(vararg branches: Transaction.() -> A): A {
+        for (branch in branches) {
+            val before = HashMap(writes)
+            try {
+                return branch()
+            } catch (_: Wait) {
+                writes.clear()
+                writes.putAll(before)
+            }
+        }
+        waitForChange()
+    }
+
+    // Registered before the check, and a commit wakes after it lands, so a commit is either seen here or wakes us.
+    internal fun awaitChange() {
+        val me = Thread.currentThread()
+        reads.keys.forEach { it.waiters.add(me) }
+        try {
+            while (!changed()) {
+                LockSupport.park(this)
+                if (Thread.interrupted()) throw InterruptedException()
+            }
+        } finally {
+            reads.keys.forEach { it.waiters.remove(me) }
+        }
+    }
+
+    private fun changed() = reads.any { (read, held) -> read.word.read() !== held }
+
     // A value written after readAt is taken only once every earlier read is shown to hold at a later count, so a body
     // never sees values that were never current together.
     private fun <T> consistent(shared: Shared<T>): Versioned<T> {
@@ -52,7 +96,7 @@ class Transaction internal constructor() {
             val seen = shared.word.read()
             if (seen.version <= readAt.n) return seen
             val now = commits.read()
-            if (reads.any { (read, held) -> read.word.read() !== held }) throw Conflict
+            if (changed()) throw Conflict
             readAt = now
         }
     }
@@ -66,8 +110,11 @@ class Transaction internal constructor() {
             val next = Tick(now.n + 1)
             val unwritten = reads.filterKeys { it !in writes }.map { (read, held) -> unchanged(read, held) }
             val written = writes.map { (shared, value) -> written(shared, reads[shared], value, next.n) }
-            if (swapAll(listOf(Change(commits, now, next)) + unwritten + written)) return true
-            if (reads.any { (read, held) -> read.word.read() !== held }) return false
+            if (swapAll(listOf(Change(commits, now, next)) + unwritten + written)) {
+                writes.keys.forEach { shared -> shared.waiters.forEach(LockSupport::unpark) }
+                return true
+            }
+            if (changed()) return false
         }
     }
 }
@@ -80,6 +127,8 @@ internal class Tick(val n: Long)
 private val commits = Word(Tick(0))
 
 private object Conflict : Throwable(null, null, false, false)
+
+private object Wait : Throwable(null, null, false, false)
 
 @Suppress("UNCHECKED_CAST")
 private fun <T> unchanged(shared: Shared<T>, held: Versioned<*>): Change<*> =
