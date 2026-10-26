@@ -66,10 +66,10 @@ object RenderSuite : Suite() {
         pipelines.forEach { (name, run) ->
             test("every Mermaid rendering is made of lines Mermaid's flowchart grammar reads [$name]") {
                 val lines = run.render(Layout.Mermaid).lines()
-                (lines.first() shouldBe "flowchart TD") and
-                    withClue("lines outside the grammar") {
-                        lines.filterNot { mermaidLine.matches(it) }.shouldBeEmpty()
-                    }
+                lines.first() shouldBe "flowchart TD"
+                withClue("lines outside the grammar") {
+                    lines.filterNot { mermaidLine.matches(it) }.shouldBeEmpty()
+                }
             }
         }
 

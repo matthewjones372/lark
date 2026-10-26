@@ -37,10 +37,10 @@ object StreamSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(NoCustomer(2))) and
-                withClue("the row before the failure is the only one that reached the next operator") {
-                    seen.get() shouldBe 1
-                }
+            exit shouldBe Exit.Failed(NoCustomer(2))
+            withClue("the row before the failure is the only one that reached the next operator") {
+                seen.get() shouldBe 1
+            }
         }
 
         test("a stream that already names a failure can fail again with it") { pekko ->
@@ -114,13 +114,13 @@ object StreamSuite : SharedSuite<PekkoSystem>() {
                 }
                 .runCollect()
 
-            val untouched = withClue("building the description must not touch a materializer") {
+            withClue("building the description must not touch a materializer") {
                 seen.get() shouldBe 0
             }
 
             described.run(pekko.system).settled()
 
-            untouched and (seen.get() shouldBe 3)
+            seen.get() shouldBe 3
         }
 
         test("toSource hands back a source that runs under plain Pekko") { pekko ->
@@ -129,9 +129,9 @@ object StreamSuite : SharedSuite<PekkoSystem>() {
             val probe = source.runWith(TestSink.probe(pekko.classic), pekko.system)
 
             probe.request(3)
-            (probe.expectNext() shouldBe 2) and
-                (probe.expectNext() shouldBe 4) and
-                (probe.expectNext() shouldBe 6)
+            probe.expectNext() shouldBe 2
+            probe.expectNext() shouldBe 4
+            probe.expectNext() shouldBe 6
             // Pekko's probe checks completion itself, and throws if the stream did not complete, as before.
             probe.expectComplete()
         }

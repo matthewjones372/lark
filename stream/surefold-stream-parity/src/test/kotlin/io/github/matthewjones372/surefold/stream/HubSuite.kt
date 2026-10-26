@@ -56,12 +56,11 @@ object HubSuite : SharedSuite<ActorSystem>() {
             val two = hub.subscribe().runCollect().start(backend)
             hub.awaitSubscribers(2)
 
-            val published = (1..5).forAll { hub.publish(it) shouldBe it.right() }
+            (1..5).forAll { hub.publish(it) shouldBe it.right() }
             hub.close()
 
-            published and
-                (one.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3, 4, 5))) and
-                (two.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3, 4, 5)))
+            one.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3, 4, 5))
+            two.exit.settled() shouldBe Exit.Done(listOf(1, 2, 3, 4, 5))
         }
 
         onEvery("a full subscriber turns an element away for every subscriber") { backend ->
@@ -78,11 +77,11 @@ object HubSuite : SharedSuite<ActorSystem>() {
             hub.close()
 
             val refused = answers.count { it == HubRefused.Full.left() }
-            val turnedAway = withClue("answers: $answers") { (refused > 0) shouldBe true }
+            withClue("answers: $answers") { (refused > 0) shouldBe true }
             val accepted = answers.mapNotNull { it.getOrNull() }
-            turnedAway and withClue("a refused element went to nobody, and an accepted one to both") {
-                (slow.exit.settled() shouldBe Exit.Done(accepted)) and
-                    (quick.exit.settled() shouldBe Exit.Done(accepted))
+            withClue("a refused element went to nobody, and an accepted one to both") {
+                slow.exit.settled() shouldBe Exit.Done(accepted)
+                quick.exit.settled() shouldBe Exit.Done(accepted)
             }
         }
 
@@ -108,9 +107,9 @@ object HubSuite : SharedSuite<ActorSystem>() {
 
             hub.close()
 
-            (reading.exit.settled() shouldBe Exit.Done(listOf("a"))) and
-                (hub.publish("b") shouldBe HubRefused.Closed.left()) and
-                (hub.subscribe().runCollect().run(backend).settled() shouldBe Exit.Done(emptyList()))
+            reading.exit.settled() shouldBe Exit.Done(listOf("a"))
+            hub.publish("b") shouldBe HubRefused.Closed.left()
+            hub.subscribe().runCollect().run(backend).settled() shouldBe Exit.Done(emptyList())
         }
 
         onEvery("a stream published to a hub fails with the refusal") { backend ->

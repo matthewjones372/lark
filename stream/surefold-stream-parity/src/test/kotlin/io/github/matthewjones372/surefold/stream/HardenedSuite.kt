@@ -39,33 +39,34 @@ object HardenedSuite : Suite() {
      * [body] on every backend, with a count of its own; a backend on actors must also have no run left once [body]
      * has seen every exit.
      */
-    private fun every(body: (Counted, (Counted) -> StreamBackend) -> Expectations): Expectations =
+    private fun every(body: (Counted, (Counted) -> StreamBackend) -> Unit): Expectations =
         backends.forAll { (name, make) ->
             val made = mutableListOf<StreamBackend>()
             withClue(name) {
-                val checked = body(Counted()) { counted -> make(counted).also(made::add) }
-                checked and made.filterIsInstance<Actors>().forAll { it.running shouldBe 0 }
+                body(Counted()) { counted -> make(counted).also(made::add) }
+                made.filterIsInstance<Actors>().forAll { it.running shouldBe 0 }
             }
         }
 
     /** Registers [name] for every parity case on every backend, each with a count and a backend of its own. */
-    private fun onEveryBackend(name: String, body: (ParitySuite.Case, Counted, StreamBackend) -> Expectations) =
+    private fun onEveryBackend(name: String, body: (ParitySuite.Case, Counted, StreamBackend) -> Unit) =
         backends.forEach { (backendName, make) ->
             parity.cases().forEach { case ->
                 test("$name [$backendName] [${case.name}]") {
                     val counted = Counted()
                     val backend = make(counted)
-                    body(case, counted, backend) and
-                        listOfNotNull(backend as? Actors).forAll {
-                            withClue("${case.name}: a run is left") { it.running shouldBe 0 }
-                        }
+                    body(case, counted, backend)
+                    listOfNotNull(backend as? Actors).forAll {
+                        withClue("${case.name}: a run is left") { it.running shouldBe 0 }
+                    }
                 }
             }
         }
 
     init {
         onEveryBackend("every case run to the end leaves nothing running") { case, counted, backend ->
-            parity.check(case, backend) and counted.leavesNothing(case, "run to the end")
+            parity.check(case, backend)
+            counted.leavesNothing(case, "run to the end")
         }
 
         onEveryBackend(
@@ -89,10 +90,10 @@ object HardenedSuite : Suite() {
 
         test("the whole suite, many times over, answers the same and leaves nothing running") {
             every { counted, backend ->
-                val answered = (1..soak).forAll {
+                (1..soak).forAll {
                     parity.cases().forAll { case -> parity.check(case, backend(counted)) }
                 }
-                answered and withClue("after $soak runs of every case") { counted.leftRunning() shouldBe 0 }
+                withClue("after $soak runs of every case") { counted.leftRunning() shouldBe 0 }
             }
         }
 
@@ -112,9 +113,9 @@ object HardenedSuite : Suite() {
 
                 running.stop()
 
-                val stopped = running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
+                running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
                     .shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value shouldBe listOf(1, 2) }
-                stopped and (counted.leftRunning() shouldBe 0)
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -133,7 +134,8 @@ object HardenedSuite : Suite() {
                 running.stop()
 
                 val exit = running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
-                (exit shouldBe Exit.Done(listOf(1))) and (counted.leftRunning() shouldBe 0)
+                exit shouldBe Exit.Done(listOf(1))
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -142,8 +144,8 @@ object HardenedSuite : Suite() {
                 val exit = Stream.from(naturals).merge(Stream.from(naturals).map { -it }).take(100).runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.size shouldBe 100 } and
-                    (counted.leftRunning() shouldBe 0)
+                exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.size shouldBe 100 }
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -152,11 +154,11 @@ object HardenedSuite : Suite() {
                 val exit = Stream.from(1..5_000).merge(Stream.from(1..3_000).map { -it }).runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                val merged = exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
-                    (done.value.filter { it > 0 } shouldBe (1..5_000).toList()) and
-                        (done.value.filter { it < 0 } shouldBe (1..3_000).map { -it })
+                exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { done ->
+                    done.value.filter { it > 0 } shouldBe (1..5_000).toList()
+                    done.value.filter { it < 0 } shouldBe (1..3_000).map { -it }
                 }
-                merged and (counted.leftRunning() shouldBe 0)
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -171,7 +173,8 @@ object HardenedSuite : Suite() {
                 val exit = failing.merge(Stream.from(naturals).map { -it }).runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                (exit shouldBe Exit.Failed(ParitySuite.Odd(10))) and (counted.leftRunning() shouldBe 0)
+                exit shouldBe Exit.Failed(ParitySuite.Odd(10))
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -192,11 +195,11 @@ object HardenedSuite : Suite() {
                     .runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                val all = exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.sorted() shouldBe (1..20).toList() }
-                val breadth = withClue("at most three inner streams at once, and more than one") {
+                exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.sorted() shouldBe (1..20).toList() }
+                withClue("at most three inner streams at once, and more than one") {
                     (most.get() in 2..3) shouldBe true
                 }
-                all and breadth and (counted.leftRunning() shouldBe 0)
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -211,7 +214,8 @@ object HardenedSuite : Suite() {
                     .runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                (exit shouldBe Exit.Failed(ParitySuite.Odd(2))) and (counted.leftRunning() shouldBe 0)
+                exit shouldBe Exit.Failed(ParitySuite.Odd(2))
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -226,13 +230,14 @@ object HardenedSuite : Suite() {
                     .runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                val conflated = exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>> { done ->
+                exit.shouldBeInstanceOf<Exit.Done<List<List<Int>>>> { done ->
                     val batches = done.value
                     withClue("every element, in order, and fewer batches than elements") {
-                        (batches.flatten() shouldBe (1..200).toList()) and ((batches.size < 200) shouldBe true)
+                        batches.flatten() shouldBe (1..200).toList()
+                        (batches.size < 200) shouldBe true
                     }
                 }
-                conflated and (counted.leftRunning() shouldBe 0)
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -241,8 +246,8 @@ object HardenedSuite : Suite() {
                 val exit = Stream.from(naturals).conflateWithSeed({ 1 }, { count, _ -> count + 1 }).take(3).runCollect()
                     .run(backend(counted)).toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
 
-                exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.size shouldBe 3 } and
-                    (counted.leftRunning() shouldBe 0)
+                exit.shouldBeInstanceOf<Exit.Done<List<Int>>> { it.value.size shouldBe 3 }
+                counted.leftRunning() shouldBe 0
             }
         }
 
@@ -261,7 +266,8 @@ object HardenedSuite : Suite() {
                 running.stop()
 
                 running.exit.toCompletableFuture().get(SETTLE_SECONDS, TimeUnit.SECONDS)
-                    .shouldBeInstanceOf<Exit.Done<List<Int>>>() and (counted.leftRunning() shouldBe 0)
+                    .shouldBeInstanceOf<Exit.Done<List<Int>>>()
+                counted.leftRunning() shouldBe 0
             }
         }
 

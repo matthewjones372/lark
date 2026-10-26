@@ -54,12 +54,12 @@ object RunWithSuite : SharedSuite<PekkoSystem>() {
 
             withClue("the sink's materialised value is the run's, and Sink.foreach materialises Pekko's Done") {
                 exit shouldBe Exit.Done(Done.getInstance())
-            } and
-                (receipts.toList() shouldBe listOf(Receipt(1), Receipt(3))) and
-                withClue("the diverted branch is a branch of its own and can outlive the run") {
-                    bothDeclines.await(30, TimeUnit.SECONDS) shouldBe true
-                } and
-                (declines.toList() shouldBe listOf(Declined(2), Declined(4)))
+            }
+            receipts.toList() shouldBe listOf(Receipt(1), Receipt(3))
+            withClue("the diverted branch is a branch of its own and can outlive the run") {
+                bothDeclines.await(30, TimeUnit.SECONDS) shouldBe true
+            }
+            declines.toList() shouldBe listOf(Declined(2), Declined(4))
         }
 
         test("Sink seq through runWith answers what runCollect answers") { pekko ->
@@ -68,10 +68,10 @@ object RunWithSuite : SharedSuite<PekkoSystem>() {
             val toTheNamedSink = Stream.from(elements).runWith(Sink.seq<String>()).run(pekko.system).settled()
             val toTheOneWithAName = Stream.from(elements).runCollect().run(pekko.system).settled()
 
-            (toTheNamedSink shouldBe Exit.Done(elements)) and
-                withClue("runCollect is this call with the sink written out, so the two cannot disagree") {
-                    toTheNamedSink shouldBe toTheOneWithAName
-                }
+            toTheNamedSink shouldBe Exit.Done(elements)
+            withClue("runCollect is this call with the sink written out, so the two cannot disagree") {
+                toTheNamedSink shouldBe toTheOneWithAName
+            }
         }
 
         test("Sink ignore answers Done") { pekko ->
@@ -110,12 +110,12 @@ object RunWithSuite : SharedSuite<PekkoSystem>() {
                 .run(pekko.system)
                 .settled()
 
-            (exit shouldBe Exit.Failed(NoLedger(3))) and
-                (receipts.toList() shouldBe listOf(Receipt(1))) and
-                withClue("no sink is left half-written unheard: the diverted branch ended with the run") {
-                    diverted.first().answered() shouldBe true
-                } and
-                (declines.toList() shouldBe listOf(Declined(2)))
+            exit shouldBe Exit.Failed(NoLedger(3))
+            receipts.toList() shouldBe listOf(Receipt(1))
+            withClue("no sink is left half-written unheard: the diverted branch ended with the run") {
+                diverted.first().answered() shouldBe true
+            }
+            declines.toList() shouldBe listOf(Declined(2))
         }
 
         test("a throw on the way to the sink is Exit Died carrying the cause") { pekko ->

@@ -77,7 +77,7 @@ object AwaitExitSuite : SharedSuite<PekkoSystem>() {
             val stage = CompletableFuture<Exit<Declined, Int>>()
             val awaiting = CountDownLatch(1)
 
-            val interrupted = shouldThrow<InterruptedException>({
+            shouldThrow<InterruptedException>({
                 flock<Declined, String> {
                     async {
                         awaiting.countDown()
@@ -88,10 +88,10 @@ object AwaitExitSuite : SharedSuite<PekkoSystem>() {
                 }
             })
 
-            interrupted and (stage.isCancelled shouldBe true) and
-                withClue("a cancelled stage takes no value, so a run answering late is dropped") {
-                    stage.complete(Exit.Done(1)) shouldBe false
-                }
+            stage.isCancelled shouldBe true
+            withClue("a cancelled stage takes no value, so a run answering late is dropped") {
+                stage.complete(Exit.Done(1)) shouldBe false
+            }
         }
     }
 }
