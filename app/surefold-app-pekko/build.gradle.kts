@@ -3,8 +3,8 @@ val scalaBinary = "2.13"
 
 dependencies {
     api(project(":surefold-app"))
-    api(project(":surefold-pekko"))
-    api("org.apache.pekko:pekko-actor-typed_$scalaBinary:$pekkoVersion")
+    // `ask`, and with it pekko-actor-typed, lives in surefold-actor-pekko (spec 0058).
+    api(project(":surefold-actor-pekko"))
 
     testImplementation("org.apache.pekko:pekko-actor-testkit-typed_$scalaBinary:$pekkoVersion")
     // The Kotlin compiler in the test JVM, so the cookbook's recipes are compiled

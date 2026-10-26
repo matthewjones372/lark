@@ -92,6 +92,8 @@ val moduleDescriptions = mapOf(
     "surefold-junit-testkit" to
         "Checks on a suite's run, read from EngineTestKit: which tests passed, failed or were skipped.",
     "surefold-app" to "An application as a value: a dependency graph that validates, subsets and starts itself.",
+    "surefold-actor-pekko" to
+        "A Pekko typed actor from Kotlin: ask one on a virtual thread, without the wiring graph.",
     "surefold-app-pekko" to "surefold-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "surefold-otel" to "surefold on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
     "surefold-slf4j" to "surefold's log lines through SLF4J, with a fork's annotations in the MDC.",

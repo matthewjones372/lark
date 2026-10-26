@@ -1,4 +1,4 @@
-package io.github.matthewjones372.surefold.app.pekko
+package io.github.matthewjones372.surefold.actor.pekko
 
 import io.github.matthewjones372.surefold.await
 import org.apache.pekko.actor.ClassicActorSystemProvider

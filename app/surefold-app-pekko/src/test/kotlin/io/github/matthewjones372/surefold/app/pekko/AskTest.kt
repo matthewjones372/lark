@@ -1,5 +1,6 @@
 package io.github.matthewjones372.surefold.app.pekko
 
+import io.github.matthewjones372.surefold.actor.pekko.ask
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeEmpty
 import io.github.matthewjones372.surefold.assert.shouldContain
@@ -64,7 +65,7 @@ class AskTest {
     @Test
     fun `a nullable reply does not compile`() {
         val fixture = """
-            import io.github.matthewjones372.surefold.app.pekko.ask
+            import io.github.matthewjones372.surefold.actor.pekko.ask
             import org.apache.pekko.actor.ActorSystem
             import org.apache.pekko.actor.typed.ActorRef
             import kotlin.time.Duration.Companion.seconds
@@ -90,7 +91,7 @@ class AskTest {
     fun `the ask fixture is the only thing stopping it`() {
         val working = """
             import java.util.Optional
-            import io.github.matthewjones372.surefold.app.pekko.ask
+            import io.github.matthewjones372.surefold.actor.pekko.ask
             import org.apache.pekko.actor.ActorSystem
             import org.apache.pekko.actor.typed.ActorRef
             import kotlin.time.Duration.Companion.seconds
