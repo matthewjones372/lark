@@ -42,7 +42,7 @@ Depends on 0157: with the poll held inside the callback, nothing else may need i
 
 - [x] **`spec-0158-revoke-test`** ([#692](https://github.com/matthewjones372/surefold/pull/692)): two consumers in a group, one joining mid-stream, counting re-deliveries.
       Done when: it measures today's duplicates.
-- [ ] **`spec-0158-wait-on-revoke`**: `Rebalance.waitFor`, on `Kafka.consume`. Done when: with it on, the test
+- [x] **`spec-0158-wait-on-revoke`** ([#696](https://github.com/matthewjones372/surefold/pull/696)): `Rebalance.waitFor`, on `Kafka.consume`. Done when: with it on, the test
       sees no duplicates, and with it off, the same count as today.
 
 Found while writing `spec-0158-revoke-test`. On Pekko, a member whose stream has every record in hand rejoins a
