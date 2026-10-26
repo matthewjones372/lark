@@ -16,9 +16,9 @@ import io.github.matthewjones372.surefold.junit.testkit.names
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveFailed
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSkipped
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
+import io.github.matthewjones372.surefold.junit.testkit.tags
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.Filter
-import org.junit.platform.engine.TestTag
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.launcher.TagFilter.excludeTags
@@ -51,12 +51,9 @@ class AspectEngineTest {
 
     @Test
     fun `a test carries its suite's tags and its own`() {
-        val tags = run(PartlyTaggedSuite::class.java).started().list()
-            .associate { it.testDescriptor.displayName to it.testDescriptor.tags }
-
-        tags shouldBe mapOf(
-            "tagged" to setOf(TestTag.create("suite"), TestTag.create("io")),
-            "untagged" to setOf(TestTag.create("suite")),
+        run(PartlyTaggedSuite::class.java).started().tags() shouldBe mapOf(
+            "tagged" to setOf("suite", "io"),
+            "untagged" to setOf("suite"),
         )
     }
 
@@ -66,9 +63,7 @@ class AspectEngineTest {
 
         val tests = run(IgnoringSuite::class.java)
 
-        tests.skipped().list().associate {
-            it.testDescriptor.displayName to it.getRequiredPayload(String::class.java)
-        } shouldBe mapOf("speaks HTTP/3" to "no QUIC on CI", "ignored by the outer side" to "outer")
+        tests shouldHaveSkipped mapOf("speaks HTTP/3" to "no QUIC on CI", "ignored by the outer side" to "outer")
         tests shouldHaveSucceeded listOf("passes")
         IgnoringSuite.ran.toList() shouldBe listOf("passes")
     }

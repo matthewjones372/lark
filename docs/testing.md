@@ -610,7 +610,9 @@ each of its tests ended. `surefold-junit-testkit` says that in one call:
 exactly the tests named ended that way, in any order. A miss shows how each of
 the others ended, with a failed test's message. `failureOf(test)` answers what a
 test threw, `failures()` what each failed test threw by name, and `names()` the
-tests in the order their events happened.
+tests in the order their events happened. `shouldHaveSkipped(mapOf(test to
+reason))` also checks why each test was skipped, `skipReasons()` answers the
+reasons by name, and `tags()` each test's tags by name.
 
 ```kotlin
 val events = EngineTestKit.engine("surefold").selectors(selectClass(RetriedSuite::class.java)).execute().testEvents()

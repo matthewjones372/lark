@@ -28,6 +28,38 @@ infix fun Events.shouldHaveSkipped(tests: Iterable<String>) = shouldHaveEnded(En
 /** Passes if exactly [tests] were skipped, in any order. */
 fun Events.shouldHaveSkipped(vararg tests: String) = shouldHaveSkipped(tests.asList())
 
+/**
+ * Passes if exactly the tests in [reasons] were skipped, each for its reason; a miss shows how each of the others
+ * ended, and each skipped for another reason with the reason it gave.
+ */
+infix fun Events.shouldHaveSkipped(reasons: Map<String, String>) {
+    val outcomes = outcomes()
+    val actual = skipReasons()
+    if (actual == reasons) return
+    val misses = (reasons.keys - actual.keys).sorted().map { "  \"$it\" ${outcomes[it]?.said ?: "did not run"}" } +
+        reasons.keys.intersect(actual.keys).sorted().filter { reasons[it] != actual[it] }
+            .map { "  \"$it\" was skipped for \"${actual[it]}\", not \"${reasons[it]}\"" } +
+        (actual.keys - reasons.keys).sorted().map {
+            "  \"$it\" was skipped too, for \"${actual[it]}\", and was not named"
+        }
+    throw AssertionFailedError(
+        "expected exactly these tests to have been skipped, for these reasons: ${reasons.toSortedMap()}\nbut:\n" +
+            misses.joinToString("\n"),
+        reasons.toSortedMap(),
+        actual.toSortedMap(),
+    )
+}
+
+/** What each skipped test was skipped for, by name; a skip that gave no reason reads as "". */
+fun Events.skipReasons(): Map<String, String> =
+    outcomes().filterValues { it.ended == Ended.Skipped }.mapValues { (_, outcome) -> outcome.reason.orEmpty() }
+
+/** Each of these events' tests' tags, by name, as the names given to `tag`; a test with none has an empty set. */
+fun Events.tags(): Map<String, Set<String>> =
+    list().associate { event ->
+        event.testDescriptor.displayName to event.testDescriptor.tags.map { it.name }.toSet()
+    }
+
 /** What each failed test threw, by name. */
 fun Events.failures(): Map<String, Throwable> =
     outcomes().filterValues { it.ended == Ended.Failed }.mapValues { (_, outcome) -> checkNotNull(outcome.thrown) }
@@ -46,7 +78,7 @@ private enum class Ended(val toHave: String, val did: String) {
     Skipped("been skipped", "was skipped"),
 }
 
-private class Outcome(val ended: Ended?, val said: String, val thrown: Throwable? = null)
+private class Outcome(val ended: Ended?, val said: String, val thrown: Throwable? = null, val reason: String? = null)
 
 /** How each test ended, by name; the last event wins for a test that ran more than once. */
 private fun Events.outcomes(): Map<String, Outcome> =
@@ -55,8 +87,8 @@ private fun Events.outcomes(): Map<String, Outcome> =
 
 private fun outcomeOf(event: Event): Outcome {
     if (event.type == EventType.SKIPPED) {
-        val reason = event.getPayload(String::class.java).orElse("no reason given")
-        return Outcome(Ended.Skipped, "was skipped: $reason")
+        val reason = event.getPayload(String::class.java).orElse(null)
+        return Outcome(Ended.Skipped, "was skipped: ${reason ?: "no reason given"}", reason = reason)
     }
     val result = event.getRequiredPayload(TestExecutionResult::class.java)
     val thrown = result.throwable.orElse(null)
