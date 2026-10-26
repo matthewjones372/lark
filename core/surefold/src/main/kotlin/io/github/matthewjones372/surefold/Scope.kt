@@ -268,7 +268,18 @@ internal class Fork<E, T>(
             val now = state.get() as? ForkState.Unstarted ?: return
             if (state.compareAndSet(now, ForkState.Submitted(now.waiters, cancelled = false))) break
         }
-        on.execute { Bindings.under(inherited) { run() } }
+        // Told before the executor has it, so a test taking turns knows of this fork before anything else can happen.
+        val ticket = Waiting.forking()
+        on.execute {
+            Bindings.under(inherited) {
+                Waiting.started(ticket)
+                try {
+                    run()
+                } finally {
+                    Waiting.ended(ticket)
+                }
+            }
+        }
     }
 
     /** The executor's turn: runs the body, unless an `await` claimed it first or a cancel ended it in the queue. */
@@ -387,7 +398,7 @@ internal class Fork<E, T>(
 
                 is ForkState.Running -> if (state.compareAndSet(now, ForkState.Interrupting(now.thread, now.waiters))) {
                     if (first) cutShort = true
-                    now.thread.interrupt()
+                    Waiting.interrupt(now.thread)
                     sent()
                     return
                 }

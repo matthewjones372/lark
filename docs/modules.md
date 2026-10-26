@@ -71,6 +71,7 @@ against; the library's own transitive dependencies come with it.
 |---|---|---|---|---|
 | `surefold` | forks, errors, resources, schedules, policies, context, logs, metrics, `await` on any future ([guide](core.md)) | none | nothing | yes |
 | `surefold-pekko` | a Pekko dispatcher as the executor; `await` on Pekko's Scala futures ([guide](core.md#running-forks-on-pekko)) | `surefold` | `pekko-actor` 1.2.1 | yes |
+| `surefold-replay` | a test's forks in seeded orders: `explore` finds the one that breaks it, `replay` runs it again (spec 0042) | `surefold` | none | yes |
 | `surefold-compiler` | a K2 checker: a `Deferred`, `Channel` or `Scope` returned from a scope or kept in a property is an error (spec 0041); applied by `io.github.matthewjones372.surefold.compiler` | none | the Kotlin compiler, already present | yes |
 | `surefold-structured` | `parZip`, `parMap`, `raceN`, `timeout` on the JDK's `StructuredTaskScope` (preview in JDK 27) | `surefold` | none | no |
 
