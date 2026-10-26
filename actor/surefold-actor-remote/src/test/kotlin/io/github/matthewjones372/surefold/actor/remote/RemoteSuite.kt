@@ -3,6 +3,7 @@ package io.github.matthewjones372.surefold.actor.remote
 import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Address
+import io.github.matthewjones372.surefold.actor.AskFailure
 import io.github.matthewjones372.surefold.actor.DeadLetter
 import io.github.matthewjones372.surefold.actor.Reply
 import io.github.matthewjones372.surefold.actor.Signal
@@ -17,10 +18,12 @@ import io.github.matthewjones372.surefold.actor.stay
 import io.github.matthewjones372.surefold.actor.stop
 import io.github.matthewjones372.surefold.actor.unhandled
 import io.github.matthewjones372.surefold.actor.watch
+import io.github.matthewjones372.surefold.fail.left
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
+import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.scope
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -29,6 +32,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTimedValue
 
 private sealed interface Ward
 
@@ -204,6 +209,33 @@ object RemoteSuite : Suite() {
                 onDeadLetter(letters::add)
                 clinic().remote(nowhere, wardCodec).tell(Admit(5))
                 letters.poll(1, TimeUnit.MINUTES) shouldBe DeadLetter(nowhere, Admit(5), DeadLetter.Why.Unreachable)
+            }
+        }
+
+        test("an ask to an actor whose node has stopped answers Unreachable well before its time is up") {
+            val port = freePort()
+            val ready = CountDownLatch(1)
+            val gone = CountDownLatch(1)
+            val hospital = Thread.ofPlatform().start {
+                scope {
+                    node("hospital", port).expose(spawn("ward", ward()), wardCodec)
+                    ready.countDown()
+                    gone.await()
+                }
+            }
+            ready.await()
+            val (before, after) = scope {
+                val ward = clinic().remote(Address("hospital@127.0.0.1:$port", "/user/ward", 0), wardCodec)
+                val before = ward.ask(1.minutes) { Chart(it) }
+                gone.countDown()
+                hospital.join()
+                before to measureTimedValue { ward.ask(1.minutes) { Chart(it) } }
+            }
+
+            before shouldBeRight 0
+            after.value shouldBe AskFailure.Unreachable.left()
+            withClue("the ask answered after ${after.duration}, of the minute it was given") {
+                (after.duration < 20.seconds) shouldBe true
             }
         }
 

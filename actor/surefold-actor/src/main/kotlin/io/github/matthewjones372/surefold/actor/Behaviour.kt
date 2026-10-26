@@ -343,6 +343,18 @@ sealed interface AskFailure {
 
     data object Stopped : AskFailure
 
-    /** Never the answer from an actor in this process; here so that a remote one does not break a `when`. */
+    /**
+     * The message could not be sent to the node the actor is on (spec 0103): its connection is down or its queue full,
+     * so no answer will come. Never the answer from an actor in this process.
+     */
     data object Unreachable : AskFailure
+}
+
+/**
+ * A reply an ask in this process waits on, which whatever carries the asking message can end unanswered (spec 0103):
+ * a transport that could not send the message ends the ask with [AskFailure.Unreachable] rather than letting it wait
+ * out its time. An ending after the answer, or a second one, is ignored.
+ */
+interface Unanswerable {
+    fun unanswered(why: AskFailure)
 }

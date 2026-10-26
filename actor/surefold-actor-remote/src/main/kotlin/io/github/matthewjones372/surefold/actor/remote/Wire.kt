@@ -63,6 +63,8 @@ class Frame(
     val payload: ByteArray,
     val message: Any? = null,
     val carried: Map<String, String> = emptyMap(),
+    // The paths of the replies written into [payload] for asks on this node, so a frame dropped unsent can end them.
+    val replies: List<String> = emptyList(),
 )
 
 /** What a [Transport] tells the node it carries for. Each is called on one of the transport's own threads. */
