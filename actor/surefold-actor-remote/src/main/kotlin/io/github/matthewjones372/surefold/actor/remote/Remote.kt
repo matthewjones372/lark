@@ -100,6 +100,9 @@ class RemoteNode internal constructor(
     private val unreachableAfter: Duration,
     tls: Tls? = null,
 ) {
+    /** Whether every connection to and from this node is TLS (spec 0073). */
+    val secured: Boolean = tls != null
+
     /** One peer's instruments, looked up once: counting a frame is then a map hit and no allocation. */
     private inner class PeerMetrics(peer: Node) {
         private val name = peer.toString()

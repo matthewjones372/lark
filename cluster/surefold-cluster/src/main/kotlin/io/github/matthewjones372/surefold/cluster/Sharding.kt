@@ -66,7 +66,9 @@ internal object Sharding {
  * a handoff: a node that has won a shard asks the others to [Release] it, and each says it has once it runs none of it.
  */
 internal sealed interface Region<M : Any> {
-    data class Envelope<M : Any>(val id: String, val hops: Int, val message: M) : Region<M>
+    // [from] names the cluster that sent it when it came from another one, through `federate` (spec 0103).
+    data class Envelope<M : Any>(val id: String, val hops: Int, val message: M, val from: String? = null) :
+        Region<M>
 
     // [sender] is the node the transport read it from, null when it was told on this node: a region takes the
     // handoff only from its own cluster's members (spec 0103), and a federated cluster never moves a shard.
@@ -92,12 +94,16 @@ internal sealed interface Region<M : Any> {
 private const val ENVELOPE = 1
 private const val RELEASE = 2
 private const val RELEASED = 3
+private const val FEDERATED = 4
 
 /** What crosses between regions: an envelope holds the id, then the message in the kind's own codec. */
 internal class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : MessageCodec<Region<M>> {
     override fun write(message: Region<M>, out: WireOut) = when (message) {
         is Region.Envelope -> {
-            out.int(ENVELOPE)
+            message.from?.let { cluster ->
+                out.int(FEDERATED)
+                out.string(cluster)
+            } ?: out.int(ENVELOPE)
             out.string(message.id)
             out.int(message.hops)
             codec.write(message.message, out)
@@ -121,8 +127,15 @@ internal class RegionCodec<M : Any>(private val codec: MessageCodec<M>) : Messag
 
     override fun read(input: WireIn): Region<M> = when (val tag = input.int()) {
         ENVELOPE -> Region.Envelope(id = input.string(), hops = input.int(), message = codec.read(input))
+
+        FEDERATED -> input.string().let { cluster ->
+            Region.Envelope(id = input.string(), hops = input.int(), message = codec.read(input), from = cluster)
+        }
+
         RELEASE -> Region.Release(input.int(), Node.parse(input.string()), input.sender)
+
         RELEASED -> Region.Released(input.int(), Node.parse(input.string()), input.sender)
+
         else -> error("no region message has the tag $tag")
     }
 }
