@@ -72,12 +72,12 @@ compiler-version guard.
 - [x] **`spec-0041-module`** ([#733](https://github.com/matthewjones372/surefold/pull/733)) — `surefold-compiler` and `DEFERRED_ESCAPES_SCOPE`.
       Done when: a compile test shows the error on a returned `Deferred` and
       none on a returned `await()` value.
-- [ ] **`spec-0041-gradle`** — the Gradle plugin `io.github.matthewjones372.surefold.compiler` that applies it, with
+- [x] **`spec-0041-gradle`** ([#737](https://github.com/matthewjones372/surefold/pull/737)) — the Gradle plugin `io.github.matthewjones372.surefold.compiler` that applies it, with
       the compiler-version guard `surefold-app-compiler` has.
       Done when: a TestKit build applying the plugin fails on a returned `Deferred`.
       The plugin lives in `surefold-app-gradle` beside the wiring plugin, under its own id: that jar already
       publishes Gradle plugins and runs their TestKit builds, and nothing in it ties this plugin to surefold-app.
-- [ ] **`spec-0041-threads`** — `AWAIT_ACROSS_FORK` and `RAISE_ACROSS_FORK`.
+- [x] **`spec-0041-threads`** ([#740](https://github.com/matthewjones372/surefold/pull/740)) — `AWAIT_ACROSS_FORK` and `RAISE_ACROSS_FORK`.
       Done when: both examples above fail to compile, and awaiting in the
       scope's own block still compiles.
       The examples are spelled `scope { }` and `attempt { }` since spec 0214. Each `async` check reads its own
@@ -87,6 +87,11 @@ compiler-version guard.
 - [ ] **`spec-0041-catch`** — `CATCH_EATS_RAISE`.
       Done when: the example warns, a `catch` that rethrows doesn't, and
       `catch (e: IOException)` doesn't.
+      `fail` leaves through a `Throwable` that is not an `Exception`, so the warning follows what each catch can
+      take: `Throwable` around `fail`, `bind` or `await`, and `Exception` or `InterruptedException` around `await`,
+      whose interrupt they keep. `RuntimeException` takes neither and is not judged, and the example warns spelled
+      `catch (e: Throwable)`: as `Exception` it would let the failure through, and a warning there would misfire.
+      Putting the interrupt back (`Thread.currentThread().interrupt()`) or `nonFatalOrThrow()` counts as handing on.
 
 `spec-0041-module` tests the checker by compiling snippets in the test's own JVM, with the plugin loaded from its
 classes through `-Xplugin` as a consumer's compiler loads it, rather than through a TestKit build: a snippet compiles
