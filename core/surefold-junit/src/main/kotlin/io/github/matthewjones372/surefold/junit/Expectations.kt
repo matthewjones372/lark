@@ -5,8 +5,10 @@ package io.github.matthewjones372.surefold.junit
 import io.github.matthewjones372.surefold.assert.FailureSeam
 import io.github.matthewjones372.surefold.assert.failureAt
 import io.github.matthewjones372.surefold.assert.mismatchAt
+import io.github.matthewjones372.surefold.test.Verdict
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.MultipleFailuresError
+import kotlin.time.Duration
 import io.github.matthewjones372.surefold.assert.withClue as clued
 
 /**
@@ -16,7 +18,14 @@ import io.github.matthewjones372.surefold.assert.withClue as clued
 class Expectations internal constructor(
     internal val failures: List<AssertionFailedError>,
     private val checked: Int,
-) {
+) : Verdict {
+
+    /** Whether every check held, for [eventually] to stop trying. */
+    override val held: Boolean get() = failures.isEmpty()
+
+    /** The same failures, each saying first that [eventually] gave up after [tries] tries in [elapsed]. */
+    override fun gaveUp(tries: Long, elapsed: Duration): Expectations =
+        Expectations(failures.map { it.headed("gave up after $tries tries in $elapsed") }, checked)
 
     /** The one failure, or all of them as one error; a story marks a step failed with it. */
     internal val failure: Throwable? by lazy {

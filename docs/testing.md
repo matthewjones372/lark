@@ -110,7 +110,9 @@ colour under IntelliJ or with `FORCE_COLOR` set (`NO_COLOR` turns it off, and
 `eventually(within) { }` retries a block every 20 ms by default until it stops
 throwing, and gives up with `GaveUp`, an `AssertionError`, once `within` has
 passed on the inherited clock. A step can wait the same way with
-`Then("…").eventually(within) { }`.
+`Then("…").eventually(within) { }`. In a `surefold-junit` suite, a block that
+returns checks is tried again until they hold, as one that throws is; when time
+runs out, the last try's failures are the answer, each saying the wait gave up.
 
 ```kotlin
 dependencies {

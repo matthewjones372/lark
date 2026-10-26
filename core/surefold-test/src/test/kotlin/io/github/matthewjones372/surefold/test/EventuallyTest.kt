@@ -10,6 +10,7 @@ import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.flock
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -57,4 +58,34 @@ class EventuallyTest {
             eventually(5.seconds) { throw InterruptedException("stop") }
         }
     }
+
+    @Test
+    fun `a verdict that has not held yet is tried again, and the first that holds is the answer`() {
+        val tries = AtomicInteger(0)
+
+        val answer = eventually(1.seconds, every = 1.milliseconds) { Checked(held = tries.incrementAndGet() >= 3) }
+
+        answer shouldBe Checked(held = true)
+        tries.get() shouldBe 3
+    }
+
+    @Test
+    fun `a verdict that never holds is answered as given up, with the tries and the time taken, and nothing thrown`() {
+        val moving = TestClock()
+
+        val answer = clock.locally(moving) {
+            flock<Nothing, Checked> {
+                val waiting = async { eventually(5.seconds, every = 1.seconds) { Checked(held = false) } }
+                repeat(5) { moving.adjustWhenBlocked(1.seconds) }
+                waiting.await()
+            }
+        }.getOrNull()!!
+
+        answer shouldBe Checked(held = false, gaveUpAfter = 6L to 5.seconds)
+    }
+}
+
+/** A verdict that holds as told, and remembers when it was given up on. */
+private data class Checked(override val held: Boolean, val gaveUpAfter: Pair<Long, Duration>? = null) : Verdict {
+    override fun gaveUp(tries: Long, elapsed: Duration): Checked = copy(gaveUpAfter = tries to elapsed)
 }
