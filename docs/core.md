@@ -522,6 +522,10 @@ fun holdAtEither(east: BoxOffice, west: BoxOffice, order: Order) =
 - **A throw or a `fail` writes nothing.** Inside `attempt { }`, a `fail` from a
   step is the block's `Left`, as anywhere else.
 - **A `transact` inside a `transact`** joins the outer step.
+- **The compiler checks the body.** With the Gradle plugin applied, I/O, a
+  blocking wait, a fork, a log line, a metric, a `tell`, a write to a `var`
+  from outside the step or a `peek()` inside a step is a compile error. See
+  [what the plugin refuses inside a step](app.md#what-the-compiler-plugin-refuses-inside-a-step).
 
 The commit takes no lock, so a thread interrupted halfway through one holds
 nobody up. Every commit does go through one shared counter, though, and a long

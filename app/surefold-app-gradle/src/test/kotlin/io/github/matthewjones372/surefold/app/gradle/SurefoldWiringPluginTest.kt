@@ -539,6 +539,27 @@ class SurefoldWiringPluginTest {
     }
 
     @Test
+    fun `Surefold's own effects inside a step are errors that point at afterCommit`(@TempDir dir: File) {
+        project(dir, "", SOUND)
+        source(dir, "main", SUREFOLD_EFFECTS)
+
+        val result = runner(dir, "compileKotlin").buildAndFail()
+
+        listOf(
+            "logInfo",
+            "Logger.log",
+            "Counter.increment",
+            "Gauge.set",
+            "Histogram.record",
+            "ActorRef.tell",
+            "Hub.publish",
+        ).forEach { call ->
+            result.output shouldContain "$call runs again each time the step does; once the step commits, run it " +
+                "in afterCommit { } (spec 0211)"
+        }
+    }
+
+    @Test
     fun `the same calls outside a step are left alone`(@TempDir dir: File) {
         project(dir, "", SOUND)
         source(dir, "main", EFFECTS_OUTSIDE_A_STEP)
@@ -938,4 +959,32 @@ fun Transaction.counted(free: Shared<Int>): Int {
     tally += free.get()
     return tally
 }
+"""
+
+/** Surefold's own effects, each the kind a step wants to happen once it has committed. */
+private const val SUREFOLD_EFFECTS = """
+import io.github.matthewjones372.surefold.Counter
+import io.github.matthewjones372.surefold.Gauge
+import io.github.matthewjones372.surefold.Histogram
+import io.github.matthewjones372.surefold.LogLine
+import io.github.matthewjones372.surefold.Logger
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.actor.ActorRef
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.stream.Hub
+import io.github.matthewjones372.surefold.transact
+
+val free = Shared(10)
+
+fun hold(log: Logger, line: LogLine, sold: Counter, left: Gauge, sizes: Histogram, orders: ActorRef<String>, events: Hub<String>) =
+    transact {
+        free.update { it - 1 }
+        logInfo("held one")
+        log.log(line)
+        sold.increment(1.0)
+        left.set(free.get().toDouble())
+        sizes.record(1.0)
+        orders.tell("held")
+        events.publish("held")
+    }
 """
