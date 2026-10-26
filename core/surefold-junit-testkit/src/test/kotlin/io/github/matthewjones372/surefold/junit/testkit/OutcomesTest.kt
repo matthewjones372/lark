@@ -63,6 +63,14 @@ class OutcomesTest {
     }
 
     @Test
+    fun `failures answers what each failed test threw, by name`() {
+        events.failures().mapValues { (_, thrown) -> thrown::class } shouldBe mapOf(
+            "fails a check" to AssertionFailedError::class,
+            "throws" to IllegalStateException::class,
+        )
+    }
+
+    @Test
     fun `names lists the tests in the order their events happened`() {
         events.skipped().names() shouldBe listOf("is skipped")
     }

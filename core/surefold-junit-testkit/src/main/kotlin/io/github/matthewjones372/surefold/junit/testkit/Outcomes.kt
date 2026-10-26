@@ -28,6 +28,10 @@ infix fun Events.shouldHaveSkipped(tests: Iterable<String>) = shouldHaveEnded(En
 /** Passes if exactly [tests] were skipped, in any order. */
 fun Events.shouldHaveSkipped(vararg tests: String) = shouldHaveSkipped(tests.asList())
 
+/** What each failed test threw, by name. */
+fun Events.failures(): Map<String, Throwable> =
+    outcomes().filterValues { it.ended == Ended.Failed }.mapValues { (_, outcome) -> checkNotNull(outcome.thrown) }
+
 /** What [test] threw; throws, saying how it ended instead, if it passed, was skipped or did not run. */
 fun Events.failureOf(test: String): Throwable {
     val outcome = outcomes()[test] ?: throw AssertionFailedError(
