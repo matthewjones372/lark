@@ -129,6 +129,12 @@ against; the library's own transitive dependencies come with it.
 | `surefold-cluster-aws` | seeds from Cloud Map or ECS, and a DynamoDB lease | `surefold-cluster` | AWS SDK 2.55.6 `servicediscovery`, `ecs`, `dynamodb` | yes |
 | `surefold-actor-benchmarks` | JMH benchmarks against Pekko ([results](../bench/surefold-actor-benchmarks/README.md)) | | JMH, Pekko | no |
 
+### Data
+
+| Module | For | Surefold deps | Adds | Published |
+|---|---|---|---|---|
+| `surefold-jobs` | durable jobs on Postgres, enqueued in the caller's own transaction (spec 0216, in progress) | `surefold` | none (bring your own driver and pool) | yes |
+
 ### Observability and testing
 
 | Module | For | Surefold deps | Adds | Published |

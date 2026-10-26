@@ -107,6 +107,7 @@ Facts worth having before anything else:
 - `surefold-actor`: an actor as a value and a step on virtual threads, with no
   actor system.
 - `surefold-actor-journal-jdbc`: `surefold-actor`'s journal and snapshots on JDBC.
+- `surefold-jobs`: durable jobs on Postgres, enqueued in the caller's own transaction.
 - `surefold-actor-projection`: a journal as a `Stream`, for a read model that
   resumes where it left off.
 - `surefold-actor-remote`: `surefold-actor` across nodes over one TCP connection per
