@@ -114,3 +114,13 @@ tasks.register<JavaExec>("footprint") {
     classpath(benchmarkRuntimeClasspath)
     javaLauncher.set(toolchainLauncher)
 }
+
+/** Process CPU per ask, closed loop and paced, which JMH cannot show (spec 0144). */
+tasks.register<JavaExec>("askCpu") {
+    group = "verification"
+    description =
+        "Prints the process CPU each ask costs, closed loop and paced to 50,000 a second, on surefold and on Pekko"
+    mainClass.set("io.github.matthewjones372.surefold.actor.benchmarks.AskCpuKt")
+    classpath(benchmarkRuntimeClasspath)
+    javaLauncher.set(toolchainLauncher)
+}
