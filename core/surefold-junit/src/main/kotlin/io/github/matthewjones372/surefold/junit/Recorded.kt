@@ -2,12 +2,11 @@ package io.github.matthewjones372.surefold.junit
 
 import io.github.matthewjones372.surefold.SurefoldLocal
 import io.github.matthewjones372.surefold.surefoldLocal
+import io.github.matthewjones372.surefold.test.NotHeld
 import io.github.matthewjones372.surefold.test.Tries
 import io.github.matthewjones372.surefold.test.TrySeam
-import io.github.matthewjones372.surefold.test.Verdict
 import io.github.matthewjones372.surefold.test.tries
 import java.util.concurrent.CopyOnWriteArrayList
-import kotlin.time.Duration
 
 /** Every check made while a test runs, in the order made: the test's result. Forks share their opener's. */
 internal class Record {
@@ -57,7 +56,7 @@ internal fun recordedIfInTest(check: Expectations): Expectations = check.also { 
 
 /**
  * Each try of an `eventually` checks into a record of its own. A try whose checks held adds them to the test's; one
- * whose checks did not throws them as not yet, and they count only if it is the last, as given up.
+ * whose checks did not throws them, with its answer, as [NotHeld], and they count only if it is the last, as given up.
  */
 @OptIn(TrySeam::class)
 private object KeepingHeldTries : Tries {
@@ -65,15 +64,8 @@ private object KeepingHeldTries : Tries {
         val into = Record()
         val answer = record.locally(into) { block() }
         val checks = into.joined()
-        if (!checks.held) throw NotHeld(checks)
+        if (!checks.held) throw NotHeld(answer, checks)
         record.get()?.addAll(into)
         return answer
     }
-}
-
-/** A try whose checks did not hold, thrown so that `eventually` tries again, or gives up with its checks. */
-private class NotHeld(private val checks: Expectations) :
-    AssertionError(checks.failure?.message, checks.failure),
-    Verdict by checks {
-    override fun gaveUp(tries: Long, elapsed: Duration): Expectations = checks.gaveUp(tries, elapsed)
 }
