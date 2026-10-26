@@ -71,7 +71,9 @@ Recommended: answer the last try's value.
 
 ## Open questions
 
-1. When the last try's value is answered, should the test log say the value came from a wait that gave up? Recommended:
-   no. The gave-up failure already says so, and it is reported with the test.
-2. Should a story step that gives up still be marked `✗`, with the story going on? Recommended: yes, as a step whose
-   checks failed is today.
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~When the last try's value is answered, should the test log say the value came from a wait that gave up?~~ No.
+   The gave-up failure already says so, and it is reported with the test.
+2. ~~Should a story step that gives up still be marked `✗`, with the story going on?~~ Yes, as a step whose checks
+   failed is today.
