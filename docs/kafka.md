@@ -341,6 +341,24 @@ fun registryDown(thrown: Throwable): Boolean =
 fun orders(configured: KafkaAvroDeserializer): Decoder<Any> = Decoder(configured, transient = ::registryDown)
 ```
 
+## Administering topics
+
+`Kafka.admin(properties)` is the few `Admin` calls a service's start-up and a runbook make (spec 0162), each blocking
+until the cluster answers. Whoever opens it closes it.
+
+```kotlin
+Kafka.admin(adminProperties).use { admin ->
+    admin.ensure(Topic("orders"), partitions = 6, replicas = 3, config = mapOf("retention.ms" to "604800000"))
+    admin.topics()                      // every topic but Kafka's internal ones
+    admin.describe(Topic("orders"))     // Either<NoSuchTopic, TopicDescription>
+    admin.delete(Topic("orders.old"))   // Either<NoSuchTopic, Unit>
+}
+```
+
+`ensure` creates the topic, or grows it to `partitions` if it has fewer; it refuses to shrink one, which Kafka cannot
+do. It leaves an existing topic's config as it is and answers how it differs from `config`, in `Ensured.differing`, for
+the caller to act on. A topic the cluster does not have is `NoSuchTopic`; anything else the cluster answers is thrown.
+
 ## Testing against a broker
 
 `surefold-kafka-test` runs a Kafka broker in the test JVM, so a test needs no
