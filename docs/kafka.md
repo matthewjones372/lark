@@ -368,7 +368,11 @@ group still running is `GroupActive`, and its offsets stay where they were.
 
 `surefold-kafka-test` runs a Kafka broker in the test JVM, so a test needs no
 Docker. Add it as a test dependency. `KafkaBroker` has helpers that send, read,
-create topics and wait for what a group committed. A surefold-junit suite shares
+create topics and wait for what a group committed. `send` and `read` use strings;
+for a topic of Avro, bytes or numeric keys, `send(topic, key, value,
+keySerializer, valueSerializer)` writes one record and `records(topic,
+keyDeserializer, valueDeserializer)` reads every partition up to its end, with the
+serializers the service already has. A surefold-junit suite shares
 one broker across its tests as a `Resource`:
 
 ```kotlin
