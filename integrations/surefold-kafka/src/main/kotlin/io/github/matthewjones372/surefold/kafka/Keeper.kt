@@ -6,8 +6,12 @@ import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.WakeupException
 import java.time.Duration
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -54,6 +58,43 @@ internal class Keeper<K, V>(
             throw thrown
         }
         block()
+    }
+
+    /** Questions from other threads, for whichever thread next holds [lock] to answer. */
+    private val questions = ConcurrentLinkedQueue<FutureTask<*>>()
+
+    /**
+     * [block] answered with the consumer to itself, for a question from another thread (spec 0160): by this thread
+     * when the consumer is free, or by the polling thread between polls when it is not, within one poll.
+     */
+    fun <T> asking(block: () -> T): T {
+        val question = FutureTask(block)
+        questions += question
+        while (!question.isDone) {
+            if (lock.tryLock()) {
+                try {
+                    answer()
+                } finally {
+                    lock.unlock()
+                }
+            } else {
+                try {
+                    question.get(ASKING_EVERY_MILLIS, TimeUnit.MILLISECONDS)
+                } catch (_: TimeoutException) {
+                    // The poll under way has not answered yet: look again for the consumer.
+                }
+            }
+        }
+        return try {
+            question.get()
+        } catch (failed: ExecutionException) {
+            throw failed.cause ?: failed
+        }
+    }
+
+    /** Every question waiting, answered; under [lock], between polls. */
+    fun answer() {
+        while (true) (questions.poll() ?: return).run()
     }
 
     /**
@@ -136,6 +177,9 @@ internal class Keeper<K, V>(
     private companion object {
         /** How often the keeper looks, per half interval: often enough to poll well inside it. */
         const val CHECKS_PER_HALF = 4L
+
+        /** How long an asker waits on the polling thread before looking for the consumer free again. */
+        const val ASKING_EVERY_MILLIS = 10L
 
         val DEFAULT_INTERVAL: Duration = Duration.ofMinutes(5)
 
