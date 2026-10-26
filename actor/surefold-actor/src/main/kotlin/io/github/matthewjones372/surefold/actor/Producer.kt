@@ -1,8 +1,8 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Counter
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.Gauge
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.fold
 import io.github.matthewjones372.surefold.fail.left
@@ -140,13 +140,13 @@ private class Numbering<M : Any>(private val producer: String, private val actor
 }
 
 /**
- * A producer in this flock that sends to the entity [route] names. Its deliveries carry [id] and an incarnation of
+ * A producer in this scope that sends to the entity [route] names. Its deliveries carry [id] and an incarnation of
  * its own, so a producer started again under the same [id] is not taken for a duplicate of the one before. It keeps
- * at most [keep] unconfirmed commands, and a `send` waits up to [within] for room. When the flock closes, it waits
+ * at most [keep] unconfirmed commands, and a `send` waits up to [within] for room. When the scope closes, it waits
  * up to [drainWithin] for what it keeps to be confirmed before its actor stops, so a service that stops does not lose
  * what it has sent (spec 0080); a [drainWithin] of zero loses it, as a crash does.
  */
-fun <F, M : Any> Flock<F>.producer(
+fun <F, M : Any> Scope<F>.producer(
     id: String,
     resendAfter: Duration = 2.seconds,
     keep: Int = 1_000,
@@ -161,18 +161,18 @@ fun <F, M : Any> Flock<F>.producer(
     return Producer(room, keep, within, meters, Numbering<M>(producer, actor)).drainedOnClose(this, id, drainWithin)
 }
 
-/** This flock's instruments for the producer [id]. */
-internal fun Flock<*>.meters(id: String) = ProducerMeters(
+/** This scope's instruments for the producer [id]. */
+internal fun Scope<*>.meters(id: String) = ProducerMeters(
     unconfirmed = gauge("surefold.delivery.unconfirmed", "producer" to id),
     resent = counter("surefold.delivery.resent", "producer" to id),
     full = counter("surefold.delivery.full", "producer" to id),
     unwritten = counter("surefold.delivery.unwritten", "producer" to id),
 )
 
-/** This producer, waiting up to [drainWithin] for what it keeps when [flock] closes (spec 0080). */
-internal fun <M : Any> Producer<M>.drainedOnClose(flock: Flock<*>, id: String, drainWithin: Duration): Producer<M> {
+/** This producer, waiting up to [drainWithin] for what it keeps when [scope] closes (spec 0080). */
+internal fun <M : Any> Producer<M>.drainedOnClose(scope: Scope<*>, id: String, drainWithin: Duration): Producer<M> {
     if (drainWithin.isPositive()) {
-        flock.onClose {
+        scope.onClose {
             val drained = drain(drainWithin)
             if (!drained) logWarn("producer $id closed with commands unconfirmed after $drainWithin")
         }
@@ -180,7 +180,7 @@ internal fun <M : Any> Producer<M>.drainedOnClose(flock: Flock<*>, id: String, d
     return this
 }
 
-/** A producer among these test actors, as [Flock.producer]; its resends wait on [TestActors.advance]. */
+/** A producer among these test actors, as [Scope.producer]; its resends wait on [TestActors.advance]. */
 fun <M : Any> TestActors.producer(
     id: String,
     resendAfter: Duration = 2.seconds,

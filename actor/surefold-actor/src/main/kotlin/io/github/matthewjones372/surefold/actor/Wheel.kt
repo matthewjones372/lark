@@ -35,17 +35,17 @@ internal object ReceiveTimeoutKey
 internal class StateKey
 
 /** Timers started with [state], under [keys]. */
-internal class Scope(val state: Any?, val keys: List<Any>)
+internal class TimersOfState(val state: Any?, val keys: List<Any>)
 
 /** Whether becoming [next] ends these timers: it does when [next] is of another class than their state. */
-internal fun Scope.endsAt(next: Any?): Boolean = next?.let { it::class } != state?.let { it::class }
+internal fun TimersOfState.endsAt(next: Any?): Boolean = next?.let { it::class } != state?.let { it::class }
 
 /** Runs [timers] for [state], starting each under a key of its own with [start], and returns what it started. */
-internal fun <M : Any> scope(
+internal fun <M : Any> startTimers(
     state: Any?,
     timers: StateTimers<M>.() -> Unit,
     start: (key: Any, delay: Duration, message: M, every: Duration?) -> Unit,
-): Scope {
+): TimersOfState {
     val keys = mutableListOf<Any>()
     val starting = object : StateTimers<M> {
         override fun after(delay: Duration, message: M) = start(StateKey().also(keys::add), delay, message, null)
@@ -56,14 +56,14 @@ internal fun <M : Any> scope(
         }
     }
     starting.timers()
-    return Scope(state, keys.toList())
+    return TimersOfState(state, keys.toList())
 }
 
 /** A receive timeout: [message], once nothing has arrived for [after]. */
 internal class Silence(val after: Duration, val message: Any)
 
 /**
- * Every timer of one flock's actors, on the flock's clock. On a [TestClock] the clock's moves deliver them, each
+ * Every timer of one scope's actors, on the scope's clock. On a [TestClock] the clock's moves deliver them, each
  * instant in turn, and a move returns once what fell due has been handled; on any other clock one thread, started
  * with the first timer, sleeps until the soonest and is woken early when a sooner one is started.
  */
@@ -74,7 +74,7 @@ internal class Wheel(private val clock: Clock, private val idle: () -> Unit) : T
     private var seq = 0L
 
     // The thread that waits for the soonest timer, whether it is in the clock's sleep, where only an interrupt
-    // reaches it, and whether the flock is closing. All three change only under the lock.
+    // reaches it, and whether the scope is closing. All three change only under the lock.
     private var thread: Thread? = null
     private var sleeping = false
     private var closing = false
@@ -108,7 +108,7 @@ internal class Wheel(private val clock: Clock, private val idle: () -> Unit) : T
 
     override fun wakesAt(): Instant? = lock.withLock { due.firstOrNull()?.at }
 
-    /** Delivers what the clock has reached, and waits for the flock to handle it, until nothing more is due. */
+    /** Delivers what the clock has reached, and waits for the scope to handle it, until nothing more is due. */
     override fun settle() {
         while (fireDue()) idle()
     }
@@ -154,7 +154,7 @@ internal class Wheel(private val clock: Clock, private val idle: () -> Unit) : T
         run()
     }
 
-    /** Sleeps on the clock until [at]; whether a sooner timer or the flock's close cut it short. */
+    /** Sleeps on the clock until [at]; whether a sooner timer or the scope's close cut it short. */
     private fun sleepUntil(at: Instant): Boolean {
         val left = java.time.Duration.between(clock.now(), at)
         return try {

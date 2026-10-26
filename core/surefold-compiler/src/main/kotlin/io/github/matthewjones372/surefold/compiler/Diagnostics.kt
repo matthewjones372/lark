@@ -15,7 +15,7 @@ import kotlin.reflect.KClass
  */
 object ForkDiagnostics : KtDiagnosticsContainer() {
 
-    /** A `Deferred`, `Channel` or `Flock` that outlives the scope that ends it. */
+    /** A `Deferred`, `Channel` or `Scope` that outlives the scope that ends it. */
     val DEFERRED_ESCAPES_SCOPE: KtDiagnosticFactory1<String> = KtDiagnosticFactory1(
         "DEFERRED_ESCAPES_SCOPE",
         Severity.ERROR,

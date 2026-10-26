@@ -276,7 +276,7 @@ Each integration is a separate module that makes something a node:
 | `surefold-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
 | `surefold-app-openfeature` | `openFeature { provider }`, an OpenFeature provider set before anything reads a flag, keyed by `Client`, ready while the provider is, and shut down on release | [Feature flags](flags.md) |
 | `surefold-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
-| `surefold-app-actor` | `actors()`, a `surefold-actor` flock that lives as long as the application, and `actor("name") { … }`, keyed by Surefold's `ActorRef<M>` | [Surefold actor](cookbook.md#spawn-a-surefold-actor) |
+| `surefold-app-actor` | `actors()`, a `surefold-actor` scope that lives as long as the application, and `actor("name") { … }`, keyed by Surefold's `ActorRef<M>` | [Surefold actor](cookbook.md#spawn-a-surefold-actor) |
 | `surefold-app-cluster` | `cluster("path")`, a cluster membership joined as a HOCON section describes | [Joined from config](cluster.md#joined-from-config) |
 
 A choice between modules can also be made inside the graph:
@@ -387,6 +387,28 @@ The same plugin warns where code hand-rolls something Surefold provides:
 
 Each is a warning, silenced where it is intended by name, for example
 `@Suppress("SUREFOLD_SLEEP_IN_TEST")`.
+
+### What the compiler plugin refuses inside a step
+
+*Not yet released.* A [`transact`](core.md#values-changed-together) step can
+run more than once, so anything in it besides changing `Shared` values happens
+once per run, not once per commit. Inside a step (a `transact { }` block, a
+`firstOf` branch, or a function taking `Transaction` as its receiver) the
+plugin reports `SUREFOLD_EFFECT_IN_TRANSACT`, an **error**, on:
+
+| On | Do instead |
+|---|---|
+| Any call into `java.io`, `java.net`, `java.nio.channels` or `java.sql` | Do it before or after `transact` |
+| `Thread.sleep`, `TimeUnit.sleep`, `Future.get`, `CompletableFuture.get` or `join`, `Deferred.await`, `Lock.lock`, `synchronized` | Wait with `waitForChange()`, or before or after `transact` |
+| `scope`, `async`, `parZip`, `parMap`, `raceN` | Fork before or after `transact` |
+| `logDebug`/`logInfo`/`logWarn`/`logError`, `Logger.log`, `Counter.increment`, `Gauge.set`, `Histogram.record`, `ActorRef.tell`, `Hub.publish` | `afterCommit { }` (spec 0211), or after `transact` |
+| A write to a `var` the step did not declare: a local of the enclosing function, a property of the enclosing object, or a top-level one | Keep the value in a `Shared` |
+| `Shared.peek()` | `get()` |
+
+A write to a property of some other object the step was handed is not judged,
+because the plugin cannot see where that object came from. Calls into
+functions from other modules are trusted. One finding is silenced with
+`@Suppress("SUREFOLD_EFFECT_IN_TRANSACT")`.
 
 ## Limitations
 

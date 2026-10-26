@@ -85,7 +85,7 @@ object ChildrenSuite : Suite() {
             log.get() shouldBe listOf("ann", "manager")
         }
 
-        test("on threads, closing the flock stops a child before its parent") {
+        test("on threads, closing the scope stops a child before its parent") {
             val log = AtomicReference<List<String>>(emptyList())
             scope {
                 spawn("manager", manager(log)).tell(Hire("ann"))

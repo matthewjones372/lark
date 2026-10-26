@@ -8,6 +8,7 @@ import io.github.matthewjones372.surefold.assert.shouldNotBeNull
 import io.github.matthewjones372.surefold.assert.shouldNotBeSameInstanceAs
 import io.github.matthewjones372.surefold.assert.shouldThrow
 import io.github.matthewjones372.surefold.assert.withClue
+import io.github.matthewjones372.surefold.fail.attempt
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -19,17 +20,19 @@ class ParTest {
     fun `parZip combines the branches' values, each branch on a virtual thread of its own`() {
         val bothRunning = CountDownLatch(2)
 
-        val zipped = flock<Bad, Pair<Int, Thread>> {
-            parZip(
-                {
-                    bothRunning.rendezvous() shouldBe true
-                    Thread.currentThread()
-                },
-                {
-                    bothRunning.rendezvous() shouldBe true
-                    21
-                },
-            ) { thread, half -> half * 2 to thread }
+        val zipped = attempt<Bad, Pair<Int, Thread>> {
+            scope {
+                parZip(
+                    {
+                        bothRunning.rendezvous() shouldBe true
+                        Thread.currentThread()
+                    },
+                    {
+                        bothRunning.rendezvous() shouldBe true
+                        21
+                    },
+                ) { thread, half -> half * 2 to thread }
+            }
         }
 
         val (doubled, branch) = zipped.getOrNull().shouldNotBeNull()
@@ -42,12 +45,16 @@ class ParTest {
 
     @Test
     fun `parZip combines three and four branches`() {
-        flock<Bad, String> {
-            parZip({ "a" }, { "b" }, { "c" }) { a, b, c -> a + b + c }
+        attempt<Bad, String> {
+            scope {
+                parZip({ "a" }, { "b" }, { "c" }) { a, b, c -> a + b + c }
+            }
         } shouldBeRight "abc"
 
-        flock<Bad, String> {
-            parZip({ "a" }, { "b" }, { "c" }, { "d" }) { a, b, c, d -> a + b + c + d }
+        attempt<Bad, String> {
+            scope {
+                parZip({ "a" }, { "b" }, { "c" }, { "d" }) { a, b, c, d -> a + b + c + d }
+            }
         } shouldBeRight "abcd"
     }
 
@@ -56,14 +63,16 @@ class ParTest {
         val sleeper = Sleeper()
 
         val startedAt = System.nanoTime()
-        val result = flock<Bad, Int> {
-            parZip(
-                { sleeper.body() },
-                {
-                    sleeper.awaitStart()
-                    fail(Bad("branch"))
-                },
-            ) { _, _ -> 0 }
+        val result = attempt<Bad, Int> {
+            scope {
+                parZip(
+                    { sleeper.body() },
+                    {
+                        sleeper.awaitStart()
+                        fail(Bad("branch"))
+                    },
+                ) { _, _ -> 0 }
+            }
         }
         val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
 
@@ -81,14 +90,16 @@ class ParTest {
         val sleeper = Sleeper()
 
         val thrown = shouldThrow<Boom> {
-            flock<Bad, Int> {
-                parZip(
-                    { sleeper.body() },
-                    {
-                        sleeper.awaitStart()
-                        throw boom
-                    },
-                ) { _, _ -> 0 }
+            attempt<Bad, Int> {
+                scope {
+                    parZip(
+                        { sleeper.body() },
+                        {
+                            sleeper.awaitStart()
+                            throw boom
+                        },
+                    ) { _, _ -> 0 }
+                }
             }
         }
 
@@ -101,19 +112,21 @@ class ParTest {
     fun `when two branches fail, the one started first surfaces`() {
         val firstPastBlocking = CountDownLatch(1)
 
-        val result = flock<Bad, Int> {
-            parZip(
-                {
-                    firstPastBlocking.countDown()
-                    fail(Bad("first"))
-                },
-                {
-                    // The branch that raises second waits for the first to be past every blocking call, so
-                    // the interrupt this raise sends it cannot land in place of its raise.
-                    firstPastBlocking.await()
-                    fail(Bad("second"))
-                },
-            ) { _, _ -> 0 }
+        val result = attempt<Bad, Int> {
+            scope {
+                parZip(
+                    {
+                        firstPastBlocking.countDown()
+                        fail(Bad("first"))
+                    },
+                    {
+                        // The branch that raises second waits for the first to be past every blocking call, so
+                        // the interrupt this raise sends it cannot land in place of its raise.
+                        firstPastBlocking.await()
+                        fail(Bad("second"))
+                    },
+                ) { _, _ -> 0 }
+            }
         }
 
         withClue("start order, not finishing order, names the failure") {
@@ -125,20 +138,22 @@ class ParTest {
     fun `a branch that raises after the combinator has cancelled it still surfaces, if it started first`() {
         val firstStarted = CountDownLatch(1)
 
-        val result = flock<Bad, Int> {
-            parZip(
-                {
-                    firstStarted.countDown()
-                    // Parked until the second branch's raise has cancelled this one: a park answers an interrupt
-                    // without throwing, so the raise below lands after the cancel, every time.
-                    while (!Thread.currentThread().isInterrupted) LockSupport.parkNanos(PARK_NANOS)
-                    fail(Bad("first"))
-                },
-                {
-                    firstStarted.await()
-                    fail(Bad("second"))
-                },
-            ) { _, _ -> 0 }
+        val result = attempt<Bad, Int> {
+            scope {
+                parZip(
+                    {
+                        firstStarted.countDown()
+                        // Parked until the second branch's raise has cancelled this one: a park answers an interrupt
+                        // without throwing, so the raise below lands after the cancel, every time.
+                        while (!Thread.currentThread().isInterrupted) LockSupport.parkNanos(PARK_NANOS)
+                        fail(Bad("first"))
+                    },
+                    {
+                        firstStarted.await()
+                        fail(Bad("second"))
+                    },
+                ) { _, _ -> 0 }
+            }
         }
 
         withClue("an interrupt arrives as a throw, never as a raise, so this raise was the branch's own") {
@@ -150,10 +165,12 @@ class ParTest {
     fun `parMap answers in input order, having run the elements in parallel`() {
         val allRunning = CountDownLatch(4)
 
-        val doubled = flock<Bad, List<Int>> {
-            parMap(listOf(1, 2, 3, 4)) { element ->
-                allRunning.rendezvous() shouldBe true
-                element * 2
+        val doubled = attempt<Bad, List<Int>> {
+            scope {
+                parMap(listOf(1, 2, 3, 4)) { element ->
+                    allRunning.rendezvous() shouldBe true
+                    element * 2
+                }
             }
         }
 
@@ -164,10 +181,12 @@ class ParTest {
     fun `parMap over an empty iterable is an empty list, and forks nothing`() {
         val ran = AtomicBoolean(false)
 
-        val mapped = flock<Bad, List<Int>> {
-            parMap(emptyList<Int>()) {
-                ran.set(true)
-                0
+        val mapped = attempt<Bad, List<Int>> {
+            scope {
+                parMap(emptyList<Int>()) {
+                    ran.set(true)
+                    0
+                }
             }
         }
 
@@ -179,14 +198,16 @@ class ParTest {
     fun `a raise in one parMap element interrupts the rest and surfaces`() {
         val sleeper = Sleeper()
 
-        val result = flock<Bad, List<Int>> {
-            parMap(listOf(1, 2)) { element ->
-                if (element == 1) {
-                    sleeper.body()
-                    element
-                } else {
-                    sleeper.awaitStart()
-                    fail(Bad("element $element"))
+        val result = attempt<Bad, List<Int>> {
+            scope {
+                parMap(listOf(1, 2)) { element ->
+                    if (element == 1) {
+                        sleeper.body()
+                        element
+                    } else {
+                        sleeper.awaitStart()
+                        fail(Bad("element $element"))
+                    }
                 }
             }
         }
@@ -200,19 +221,21 @@ class ParTest {
     fun `the enclosing scope closes with the branch's Left, not with the interrupt parZip sent`() {
         val started = CountDownLatch(1)
 
-        val result = flock<Bad, Int> {
-            parZip(
-                {
-                    // Nothing here catches the interrupt, so this branch answers with an InterruptedException.
-                    started.countDown()
-                    Thread.sleep(NEVER_FINISHES_MILLIS)
-                    0
-                },
-                {
-                    started.await()
-                    fail(Bad("branch"))
-                },
-            ) { _, _ -> 0 }
+        val result = attempt<Bad, Int> {
+            scope {
+                parZip(
+                    {
+                        // Nothing here catches the interrupt, so this branch answers with an InterruptedException.
+                        started.countDown()
+                        Thread.sleep(NEVER_FINISHES_MILLIS)
+                        0
+                    },
+                    {
+                        started.await()
+                        fail(Bad("branch"))
+                    },
+                ) { _, _ -> 0 }
+            }
         }
 
         result shouldBeLeft Bad("branch")

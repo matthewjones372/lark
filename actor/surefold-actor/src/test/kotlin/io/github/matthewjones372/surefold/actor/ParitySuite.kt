@@ -20,11 +20,11 @@ private interface Runtime {
 
 private val threads = object : Runtime {
     override fun <A> run(scenario: Actors.() -> A): A = scope {
-        val flock = this
+        val scope = this
         object : Actors {
-            override fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S, *>) = flock.spawn(name, behaviour)
+            override fun <M : Any, S> spawn(name: String, behaviour: Behaviour<M, S, *>) = scope.spawn(name, behaviour)
 
-            override fun awaitIdle() = flock.awaitIdle()
+            override fun awaitIdle() = scope.awaitIdle()
         }.scenario()
     }
 

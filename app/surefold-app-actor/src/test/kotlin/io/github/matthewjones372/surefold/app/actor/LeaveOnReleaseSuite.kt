@@ -32,7 +32,7 @@ private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
 object LeaveOnReleaseSuite : Suite() {
     init {
-        test("a cluster made in the actors' flock leaves it as the application is released") {
+        test("a cluster made in the actors' scope leaves it as the application is released") {
             val ports = List(2) { freePort() }
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val heard = ConcurrentLinkedQueue<MemberEvent>()

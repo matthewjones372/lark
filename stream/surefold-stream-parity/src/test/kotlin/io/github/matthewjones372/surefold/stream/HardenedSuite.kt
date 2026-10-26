@@ -28,7 +28,7 @@ object HardenedSuite : Suite() {
     /** Every backend a run can leak from, each made with the executor that counts what it starts. */
     private val backends: List<Pair<String, (Counted) -> StreamBackend>> = listOf(
         "Forks" to { counted -> Forks(counted) },
-        "Actors" to { counted -> Actors(heldFlock, on = counted) },
+        "Actors" to { counted -> Actors(heldScope, on = counted) },
     )
 
     private fun Counted.leavesNothing(case: ParitySuite.Case, how: String) =

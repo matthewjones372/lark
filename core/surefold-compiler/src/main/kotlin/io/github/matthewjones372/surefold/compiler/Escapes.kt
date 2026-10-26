@@ -19,7 +19,7 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 
 /**
- * A `flock` or `scope` whose block answers with a `Deferred`, `Channel` or `Flock`, or something holding one: the scope
+ * A `scope` whose block answers with a `Deferred`, `Channel` or `Scope`, or something holding one: the scope
  * ends every fork and channel it opened as it returns, so what the caller is handed is already over (spec 0041).
  */
 internal class ReturnedScopeChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
@@ -42,7 +42,7 @@ internal class ReturnedScopeChecker : FirFunctionCallChecker(MppCheckerKind.Comm
 }
 
 /**
- * A property, not a local, whose type is or holds a `Deferred`, `Channel` or `Flock`: it is read after the scope that
+ * A property, not a local, whose type is or holds a `Deferred`, `Channel` or `Scope`: it is read after the scope that
  * opened it has ended it, or from a thread the scope does not own (spec 0041).
  */
 internal class StoredScopeChecker : FirPropertyChecker(MppCheckerKind.Common) {
@@ -67,6 +67,6 @@ private fun ConeKotlinType.holding(): ClassId? =
 
 private val surefold = FqName("io.github.matthewjones372.surefold")
 
-private val scopes = setOf(Name.identifier("flock"), Name.identifier("scope"))
+private val scopes = setOf(Name.identifier("scope"))
 
-private val scoped = setOf("Deferred", "Channel", "Flock").map { ClassId(surefold, Name.identifier(it)) }.toSet()
+private val scoped = setOf("Deferred", "Channel", "Scope").map { ClassId(surefold, Name.identifier(it)) }.toSet()

@@ -1,9 +1,9 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Counter
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.Gauge
 import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.fail.Fail
 import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.fail.bind
@@ -22,16 +22,16 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * A producer whose unconfirmed commands are kept in this flock's journal (spec 0085), so a crash loses none of them:
+ * A producer whose unconfirmed commands are kept in this scope's journal (spec 0085), so a crash loses none of them:
  * started again under the same [id], on this node or another, it sends each entity's first unconfirmed command again
  * and numbers on from where it stopped. Its deliveries carry [id] alone, so an entity's deduplication holds across
  * the restart. [codec] keeps each command with its delivery blanked, and a command is sent again through
  * [Delivered.redeliver]. Two producers running under one [id] at once conflict, as two writers for one entity do.
- * It snapshots every 1,000 events and prunes what a snapshot covers, where the flock's stores allow. A journal that
+ * It snapshots every 1,000 events and prunes what a snapshot covers, where the scope's stores allow. A journal that
  * throws restarts its actor, 100 ms after the first throw and doubling to 5 s, and the restart replays what was
  * written; until a replay succeeds, `send` answers [Unwritten] at once (spec 0098).
  */
-fun <F, M : Any> Flock<F>.durableProducer(
+fun <F, M : Any> Scope<F>.durableProducer(
     id: String,
     codec: EventCodec<M>,
     resendAfter: Duration = 2.seconds,
@@ -53,7 +53,7 @@ fun <F, M : Any> Flock<F>.durableProducer(
         .drainedOnClose(this, id, drainWithin)
 }
 
-/** A durable producer among these test actors, as [Flock.durableProducer]; its resends wait on [TestActors.advance]. */
+/** A durable producer among these test actors, as [Scope.durableProducer]; its resends wait on [TestActors.advance]. */
 fun <M : Any> TestActors.durableProducer(
     id: String,
     codec: EventCodec<M>,
@@ -97,7 +97,7 @@ private class Encoding<M : Any>(
 /**
  * The durable producer [id] started again as a child of this actor, to send only what an earlier run of it kept
  * (spec 0099), and that child, which stopping stops it. It holds room for all it recovers, so its `drain` waits for
- * every command; it takes no new ones. It restarts and answers [Unwritten] as [Flock.durableProducer] does.
+ * every command; it takes no new ones. It restarts and answers [Unwritten] as [Scope.durableProducer] does.
  */
 fun <M : Any> Ctx<*>.resumedProducer(
     id: String,

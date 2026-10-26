@@ -21,7 +21,7 @@ private fun which() = behaviour<Which, Unit>(Unit) { ctx, _, which ->
 class SnapshotsTest {
 
     @Test
-    fun `on threads, an actor sees its flock's store, and a flock given none has none`() {
+    fun `on threads, an actor sees its scope's store, and a scope given none has none`() {
         val store = InMemorySnapshots()
 
         val given = scope {

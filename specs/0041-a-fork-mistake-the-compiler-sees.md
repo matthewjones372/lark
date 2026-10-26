@@ -43,7 +43,7 @@ A new module, `surefold-compiler`: FIR checkers, no IR. A Gradle plugin applies 
 
 | Diagnostic | Severity | Fires on |
 |---|---|---|
-| `DEFERRED_ESCAPES_SCOPE` | error | a `Deferred`, `Channel` or `Flock` returned from `flock`/`structured`, or stored in a property |
+| `DEFERRED_ESCAPES_SCOPE` | error | a `Deferred`, `Channel` or `Scope` returned from `scope`, or stored in a property (`Flock` and `flock` before spec 0214) |
 | `AWAIT_ACROSS_FORK` | error | `await`/`cancel` on a `Deferred` declared outside the `async` lambda it is called in |
 | `RAISE_ACROSS_FORK` | error | a labelled `this@x` of a `Raise` receiver used inside an `async` lambda that `x` does not own |
 | `CATCH_EATS_RAISE` | warning | a `catch` of `Throwable`, `Exception`, `RuntimeException` or `InterruptedException`, around `bind`/`raise`/`await`, that neither rethrows nor re-sets the interrupt flag |

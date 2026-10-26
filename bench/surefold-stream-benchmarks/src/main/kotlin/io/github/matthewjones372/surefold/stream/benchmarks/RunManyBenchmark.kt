@@ -55,7 +55,7 @@ open class RunManyBenchmark {
     @Benchmark
     fun describedOnceForks(): Long = described.run(forks).done()
 
-    /** Starting a run on `Actors` is one actor spawned on a flock that is already running. */
+    /** Starting a run on `Actors` is one actor spawned on a scope that is already running. */
     @Benchmark
-    fun describedOnceActors(flocked: Flocked): Long = described.run(flocked.actors).done()
+    fun describedOnceActors(scoped: Scoped): Long = described.run(scoped.actors).done()
 }

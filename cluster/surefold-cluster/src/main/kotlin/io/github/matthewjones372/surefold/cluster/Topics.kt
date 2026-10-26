@@ -16,7 +16,7 @@ import io.github.matthewjones372.surefold.actor.topic
  */
 fun <M : Any> Cluster.topic(name: String, codec: MessageCodec<M>): Topic<M> {
     val wire = ArriveCodec(codec)
-    val topic = flock.topic<M>(name) { message ->
+    val topic = scope.topic<M>(name) { message ->
         view.members.filter { it.status == Status.Up && it.node != self }.forEach { member ->
             remote.remote(Address(member.node.toString(), "/user/topic-$name", 0), wire)
                 .tell(TopicMessage.Arrive(message))

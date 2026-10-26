@@ -9,7 +9,7 @@ private const val IMPORTS = """
 import io.github.matthewjones372.surefold.Channel
 import io.github.matthewjones372.surefold.Deferred
 import io.github.matthewjones372.surefold.channel
-import io.github.matthewjones372.surefold.flock
+import io.github.matthewjones372.surefold.fail.attempt
 import io.github.matthewjones372.surefold.scope
 """
 
@@ -34,18 +34,18 @@ class EscapesTest {
     }
 
     @Test
-    fun `a channel or Deferred held in what a flock answers is an error`() {
+    fun `a channel or Deferred held in what a typed scope answers is an error`() {
         val compiled = compile(
             """
             $IMPORTS
-            fun rows() = flock<Nothing, Channel<Int>> { channel(1) }
-            fun both() = flock<Nothing, Pair<Int, List<Deferred<Int>>>> { 1 to listOf(async { 2 }) }
+            fun rows() = attempt<Nothing, Channel<Int>> { scope { channel(1) } }
+            fun both() = scope { 1 to listOf(async { 2 }) }
             """,
         )
 
         withClue(compiled.messages.joinToString("\n")) {
             compiled.surefold.size shouldBe 2
-            compiled.surefold.all { "flock returns a" in it } shouldBe true
+            compiled.surefold.all { "scope returns a" in it } shouldBe true
         }
     }
 
