@@ -71,7 +71,8 @@ Facts worth having before anything else:
   as a HOCON section, evaluated in-process; brings gRPC and netty.
   `flagdFlags("flags", declared)` also checks every variant against its declared `Flag` at start.
 - `surefold-actor-pekko`: `ref.ask(system, within) { replyTo -> … }`, asking a Pekko typed actor on the
-  calling virtual thread; no wiring graph.
+  calling virtual thread; `receive { message -> when (message) { … } }`, `same()`, `stopped()` and
+  `replyTo.answer(reply)` to write one. No wiring graph.
 - `surefold-app-pekko`: a Pekko typed actor as a node, keyed by its `ActorRef<T>`.
 - `surefold-app-actor`: a `surefold-actor` scope as a node, and an actor as a node.
 - `surefold-app-cluster`: a `surefold-cluster` membership as a node, joined as a HOCON

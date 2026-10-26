@@ -85,7 +85,7 @@ threads taking turns.
       `LockSupport`'s permit kept in the model. An order is 32 bits, printed as `0x…`. PCT runs with depth 3 over a
       guessed 64 steps. A fork an `await` helps (spec 0037's bounded-pool case) is not modelled: `explore` forks on
       virtual threads, where help does not apply.
-- [ ] **`spec-0042-channels`** — channels, `select` and `TestClock` sleeps as waiting points,
+- [x] **`spec-0042-channels`** ([#748](https://github.com/matthewjones372/surefold/pull/748)) — channels, `select` and `TestClock` sleeps as waiting points,
       and the report when a run leaves determinism.
       Done when: a producer/consumer ordering bug is found and replayed, and a
       `Thread.sleep` inside a fork fails the run with that fork's stack.
