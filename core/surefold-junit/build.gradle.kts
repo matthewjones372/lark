@@ -14,6 +14,7 @@ dependencies {
     api(project(":surefold-test"))
     implementation("org.junit.platform:junit-platform-engine:6.1.3")
 
+    testImplementation(project(":surefold-junit-testkit"))
     testImplementation("org.junit.platform:junit-platform-testkit")
     testImplementation("org.junit.platform:junit-platform-launcher")
     testImplementation("org.junit.platform:junit-platform-reporting")

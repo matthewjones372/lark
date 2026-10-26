@@ -20,9 +20,13 @@ import io.github.matthewjones372.surefold.junit.samples.OrderedSuite
 import io.github.matthewjones372.surefold.junit.samples.SequentialSuite
 import io.github.matthewjones372.surefold.junit.samples.UnacquirableSuite
 import io.github.matthewjones372.surefold.junit.samples.UnreleasableSuite
+import io.github.matthewjones372.surefold.junit.testkit.failureOf
+import io.github.matthewjones372.surefold.junit.testkit.failures
+import io.github.matthewjones372.surefold.junit.testkit.names
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveFailed
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.DiscoverySelector
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectUniqueId
@@ -30,7 +34,6 @@ import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.testkit.engine.EngineExecutionResults
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.junit.platform.testkit.engine.EventType
-import org.junit.platform.testkit.engine.Events
 import org.opentest4j.AssertionFailedError
 import org.opentest4j.MultipleFailuresError
 import java.io.ByteArrayOutputStream
@@ -41,17 +44,12 @@ class SurefoldEngineTest {
     private fun run(selector: DiscoverySelector): EngineExecutionResults =
         EngineTestKit.engine("surefold").selectors(selector).execute()
 
-    private fun Events.names(): List<String> = map { it.testDescriptor.displayName }.toList()
-
     @Test
     fun `a pass, an assertion and a throw are reported under the tests' names`() {
         val tests = run(selectClass(MixedSuite::class.java)).testEvents()
 
-        tests.succeeded().names() shouldBe listOf("passes")
-        tests.failed().list().associate {
-            it.testDescriptor.displayName to
-                it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()::class
-        } shouldContainExactly mapOf(
+        tests shouldHaveSucceeded listOf("passes")
+        tests.failures().mapValues { (_, thrown) -> thrown::class } shouldContainExactly mapOf(
             "fails an assertion" to AssertionError::class,
             "throws something else" to IllegalStateException::class,
         )
@@ -125,9 +123,9 @@ class SurefoldEngineTest {
     fun `a failing test leaves its siblings running and its suite passing`() {
         val events = run(selectClass(FailingSiblingSuite::class.java))
 
-        events.testEvents().succeeded().names().sorted() shouldBe listOf("waits first", "waits second")
-        events.testEvents().failed().names() shouldBe listOf("fails")
-        events.containerEvents().succeeded().names() shouldBe listOf("FailingSiblingSuite", "Surefold")
+        events.testEvents() shouldHaveSucceeded listOf("waits first", "waits second")
+        events.testEvents() shouldHaveFailed listOf("fails")
+        events.containerEvents() shouldHaveSucceeded listOf("FailingSiblingSuite", "Surefold")
     }
 
     @Test
@@ -157,13 +155,11 @@ class SurefoldEngineTest {
 
         val events = run(selectClass(UnacquirableSuite::class.java))
 
-        val failed = events.testEvents().failed().list()
-        // The suite's tests run concurrently, so they finish, and are reported, in either order.
-        failed.map { it.testDescriptor.displayName }.sorted() shouldBe listOf("first never runs", "second never runs")
-        val causes = failed.map { it.getRequiredPayload(TestExecutionResult::class.java).throwable.get() }
+        events.testEvents() shouldHaveFailed listOf("first never runs", "second never runs")
+        val causes = events.testEvents().failures().values
         withClue("one throwable, handed to every test") { causes.toSet().size shouldBe 1 }
         causes.first().message shouldBe "no database"
-        events.containerEvents().succeeded().names() shouldBe listOf("UnacquirableSuite", "Surefold")
+        events.containerEvents() shouldHaveSucceeded listOf("UnacquirableSuite", "Surefold")
         UnacquirableSuite.released shouldBe listOf("connection")
     }
 
@@ -171,10 +167,9 @@ class SurefoldEngineTest {
     fun `a release that throws fails the suite and leaves its tests' results as they were`() {
         val events = run(selectClass(UnreleasableSuite::class.java))
 
-        events.testEvents().succeeded().names().sorted() shouldBe listOf("passes first", "passes second")
-        val suite = events.containerEvents().failed().list().single()
-        suite.testDescriptor.displayName shouldBe "UnreleasableSuite"
-        suite.getRequiredPayload(TestExecutionResult::class.java).throwable.get().message shouldBe "could not close"
+        events.testEvents() shouldHaveSucceeded listOf("passes first", "passes second")
+        events.containerEvents() shouldHaveFailed listOf("UnreleasableSuite")
+        events.containerEvents().failureOf("UnreleasableSuite").message shouldBe "could not close"
     }
 
     @Test
@@ -276,14 +271,9 @@ class SurefoldEngineTest {
         MeteredSuite.totals shouldContainExactly mapOf("counts one" to 1.0, "counts two" to 2.0)
     }
 
-    private fun failuresOf(events: EngineExecutionResults): Map<String, Throwable> =
-        events.testEvents().failed().list().associate {
-            it.testDescriptor.displayName to it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-        }
-
     @Test
     fun `two failing expectations are both reported, each at its own line, as one MultipleFailuresError`() {
-        val failed = failuresOf(run(selectClass(ExpectingSuite::class.java))).getValue("fails both")
+        val failed = run(selectClass(ExpectingSuite::class.java)).testEvents().failureOf("fails both")
 
         val both = (failed as MultipleFailuresError).failures
         both.map { it::class } shouldBe listOf(AssertionFailedError::class, AssertionFailedError::class)
@@ -304,7 +294,7 @@ class SurefoldEngineTest {
 
         events.testEvents().succeeded().names() shouldContainExactlyInAnyOrder
             listOf("passes both", "passes either", "passes a negated failure")
-        failuresOf(events).mapValues { (_, thrown) -> thrown::class } shouldContainExactly mapOf(
+        events.testEvents().failures().mapValues { (_, thrown) -> thrown::class } shouldContainExactly mapOf(
             "fails both" to MultipleFailuresError::class,
             "fails one of two" to AssertionFailedError::class,
             "fails either" to MultipleFailuresError::class,
@@ -316,7 +306,7 @@ class SurefoldEngineTest {
 
     @Test
     fun `a single failed expectation is reported alone, under a heading that counts the expectations`() {
-        val failed = failuresOf(run(selectClass(ExpectingSuite::class.java)))
+        val failed = run(selectClass(ExpectingSuite::class.java)).testEvents().failures()
 
         failed.getValue("fails one of two").message.orEmpty().lines().take(2) shouldBe listOf(
             "fails one of two: 1 of 2 expectations failed",
@@ -327,7 +317,7 @@ class SurefoldEngineTest {
 
     @Test
     fun `an expect called without power-assert says it was false and quotes the line that called it`() {
-        val message = failuresOf(run(selectClass(ExpectingSuite::class.java))).getValue("fails unexplained").message
+        val message = run(selectClass(ExpectingSuite::class.java)).testEvents().failureOf("fails unexplained").message
 
         message.orEmpty().lines().take(3) shouldBe listOf(
             "fails unexplained: 1 of 1 expectations failed",

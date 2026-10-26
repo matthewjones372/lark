@@ -2,8 +2,9 @@ package io.github.matthewjones372.surefold.junit
 
 import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.junit.samples.RecordedSuite
+import io.github.matthewjones372.surefold.junit.testkit.failureOf
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.testkit.engine.EngineTestKit
 
@@ -14,10 +15,7 @@ class RecordedTest {
         EngineTestKit.engine("surefold").selectors(selectClass(RecordedSuite::class.java)).execute().testEvents()
     }
 
-    private fun headingOf(test: String): String = events.failed().list()
-        .single { it.testDescriptor.displayName == test }
-        .getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-        .message.orEmpty().lines().first()
+    private fun headingOf(test: String): String = events.failureOf(test).message.orEmpty().lines().first()
 
     @Test
     fun `each check written as a statement counts, and each failure is reported`() {
@@ -56,7 +54,7 @@ class RecordedTest {
 
     @Test
     fun `a check made on a thread surefold does not carry throws there, and is not lost silently`() {
-        events.succeeded().list().map { it.testDescriptor.displayName } shouldBe
+        events shouldHaveSucceeded
             listOf("throws a check made on a thread surefold does not carry, there")
     }
 }

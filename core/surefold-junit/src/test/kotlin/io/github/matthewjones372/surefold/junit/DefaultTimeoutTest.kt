@@ -1,8 +1,10 @@
 package io.github.matthewjones372.surefold.junit
 
-import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldContain
 import io.github.matthewjones372.surefold.junit.samples.DefaultTimeoutSuite
+import io.github.matthewjones372.surefold.junit.testkit.failureOf
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveFailed
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
 import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
@@ -21,11 +23,10 @@ class DefaultTimeoutTest {
     fun `a test with no timeout of its own fails at the default, and one with its own runs past it`() {
         val events = run("200ms")
 
-        events.succeeded().list().map { it.testDescriptor.displayName } shouldBe
+        events shouldHaveSucceeded
             listOf("outlasts the default under its own timeout")
-        val failed = events.failed().list().single()
-        failed.testDescriptor.displayName shouldBe "sleeps past the default"
-        failed.getRequiredPayload(TestExecutionResult::class.java).throwable.get().toString() shouldContain "200ms"
+        events shouldHaveFailed listOf("sleeps past the default")
+        events.failureOf("sleeps past the default").toString() shouldContain "200ms"
     }
 
     @Test

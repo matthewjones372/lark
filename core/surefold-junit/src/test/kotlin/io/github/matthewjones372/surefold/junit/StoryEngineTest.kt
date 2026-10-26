@@ -5,9 +5,10 @@ import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.assert.shouldContain
 import io.github.matthewjones372.surefold.assert.shouldNotContain
 import io.github.matthewjones372.surefold.junit.samples.StorySuite
+import io.github.matthewjones372.surefold.junit.testkit.failureOf
+import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import io.github.matthewjones372.surefold.test.StoryFailed
 import org.junit.jupiter.api.Test
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.engine.reporting.ReportEntry
 import org.junit.platform.testkit.engine.EngineExecutionResults
@@ -37,11 +38,6 @@ class StoryEngineTest {
                 it.getRequiredPayload(ReportEntry::class.java).keyValuePairs.getValue("logs")
         }
 
-    private fun failuresOf(events: EngineExecutionResults): Map<String, Throwable> =
-        events.testEvents().failed().list().associate {
-            it.testDescriptor.displayName to it.getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-        }
-
     @Test
     fun `an untitled story is titled with its test's name, and a failing story's transcript is in its logs`() {
         val logs = logsOf(run().first)
@@ -55,7 +51,7 @@ class StoryEngineTest {
     fun `a passing story prints nothing and publishes no report entry`() {
         val (events, printed) = run()
 
-        events.testEvents().succeeded().list().map { it.testDescriptor.displayName } shouldBe listOf("passes its story")
+        events.testEvents() shouldHaveSucceeded listOf("passes its story")
         logsOf(events).keys shouldNotContain "passes its story"
         printed shouldNotContain "passes its story"
         printed shouldNotContain "a passing story doubles two"
@@ -65,7 +61,7 @@ class StoryEngineTest {
     fun `two failing thens joined with and are both reported, and both are marked failed in the transcript`() {
         val (events, _) = run()
 
-        val both = failuresOf(events).getValue("fails two thens").shouldBeInstanceOf<MultipleFailuresError>()
+        val both = events.testEvents().failureOf("fails two thens").shouldBeInstanceOf<MultipleFailuresError>()
         both.failures.map { it.message.orEmpty().lines().first() } shouldBe listOf("expected: 3", "expected: 4")
         val transcript = logsOf(events).getValue("fails two thens")
         transcript shouldContain "✓ Given two"
@@ -77,7 +73,7 @@ class StoryEngineTest {
     fun `a story's failed then is reported alone, beside a then that passed`() {
         val (events, _) = run()
 
-        failuresOf(events).getValue("fails one then of two").shouldBeInstanceOf<AssertionFailedError>()
+        events.testEvents().failureOf("fails one then of two").shouldBeInstanceOf<AssertionFailedError>()
         val transcript = logsOf(events).getValue("fails one then of two")
         transcript shouldContain "✓ Then it is two"
         transcript shouldContain "✗ Then it is five"
@@ -85,7 +81,7 @@ class StoryEngineTest {
 
     @Test
     fun `a step that throws fails its test with the story`() {
-        failuresOf(run().first).getValue("throws in a step").shouldBeInstanceOf<StoryFailed>()
+        run().first.testEvents().failureOf("throws in a step").shouldBeInstanceOf<StoryFailed>()
             .cause!!.message shouldBe "no database"
     }
 }
