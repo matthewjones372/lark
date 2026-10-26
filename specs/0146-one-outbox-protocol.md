@@ -90,7 +90,7 @@ room.
       head-only confirm, next-on-confirm and heads. `producing` runs on it.
       Done when: `ProducerTest` passes and `producing` has no queue logic of
       its own.
-- [ ] **`spec-0146-durable`**: `Outboxes<ByteArray>` under `outbox`; `applied`
+- [x] **`spec-0146-durable`** ([#682](https://github.com/matthewjones372/surefold/pull/682)): `Outboxes<ByteArray>` under `outbox`; `applied`
       folds through it.
       Done when: `DurableProducerTest` passes, and a journal written before
       this change replays (a fixture test).
