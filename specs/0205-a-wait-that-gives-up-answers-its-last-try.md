@@ -42,7 +42,7 @@ test("the projection counts each adoption once") {
 - **The seam carries the value.** The try that didn't hold is thrown with its answer as well as its checks, so
   giving up needs no cast. `Verdict.gaveUp` keeps its job of heading the failures.
 - **A returned `Verdict`** works as today: a block that returns one is still retried until it holds. When it gives
-  up, `eventually` answers that verdict's `gaveUp`, now without a cast.
+  up, `eventually` answers that verdict's `gaveUp`.
 
 ## Why this shape
 
@@ -56,12 +56,12 @@ Recommended: answer the last try's value.
 
 ## Stack
 
-- [ ] **`spec-0205-last-try`** — surefold-test's `eventually` and surefold-junit's `KeepingHeldTries` carry the last
+- [x] **`spec-0205-last-try`** — surefold-test's `eventually` and surefold-junit's `KeepingHeldTries` carry the last
       try's answer, and giving up returns it. `WaitSuite` gains a wait over a value that gives up, with a later check
       on the value it answered. `WaitTest` checks that the test fails with the gave-up failure and the later check's
       failure, and no `ClassCastException`. The `eventually` section of `docs/testing.md` says what giving up answers.
-      Done when: `:surefold-test:check` and `:surefold-junit:check` pass, and `grep -n 'as A' Eventually.kt` finds
-      nothing.
+      Done when: `:surefold-test:check` and `:surefold-junit:check` pass, and the new `WaitTest` tests fail on the
+      code before this change with the `ClassCastException`.
 
 ## Acceptance
 

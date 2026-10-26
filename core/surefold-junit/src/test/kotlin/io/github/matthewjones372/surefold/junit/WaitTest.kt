@@ -26,14 +26,32 @@ class WaitTest {
         )
     }
 
+    private fun failureOf(test: String): Throwable = events.failed().list()
+        .single { it.testDescriptor.displayName == test }
+        .getRequiredPayload(TestExecutionResult::class.java).throwable.get()
+
     @Test
     fun `a check that never holds fails with its own failure, saying the wait gave up`() {
-        val failed = events.failed().list().single()
-            .getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-            .shouldBeInstanceOf<AssertionFailedError>()
+        val failed = failureOf("gives up on a check that never holds").shouldBeInstanceOf<AssertionFailedError>()
 
         failed.message.orEmpty().lines()[1] shouldStartWith "gave up after "
         failed.expected.value shouldBe "Adopted"
         failed.actual.value shouldBe "Adopting"
+    }
+
+    // Spec 0205: giving up answered Expectations cast to the block's type, a ClassCastException at the call site.
+    @Test
+    fun `a wait over a value that gives up answers the last try's value, and the test goes on to check it`() {
+        val failure = failureOf("gives up on a value, answering the last try's")
+        val lines = failure.message.orEmpty().lines()
+
+        lines.first() shouldBe "gives up on a value, answering the last try's: 2 of 3 expectations failed (2 failures)"
+        failure.toString().contains("ClassCastException") shouldBe false
+    }
+
+    @Test
+    fun `a step that gives up is a failed step, and the story goes on with its answer`() {
+        failureOf("gives up as a story's step, and the story goes on").message.orEmpty().lines().first() shouldBe
+            "gives up as a story's step, and the story goes on: 1 of 2 expectations failed"
     }
 }
