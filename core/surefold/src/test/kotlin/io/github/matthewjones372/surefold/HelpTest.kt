@@ -1,6 +1,6 @@
 package io.github.matthewjones372.surefold
 
-import io.github.matthewjones372.surefold.assert.shouldBeRight
+import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.withClue
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CompletableFuture
@@ -30,7 +30,7 @@ class HelpTest {
         onOnePoolThread { single ->
             // The outer fork holds the pool's only thread; the inner one is queued behind it.
             val answer = CompletableFuture.supplyAsync {
-                flock<Nothing, Int>(on = single) {
+                scope(on = single) {
                     val outer = async {
                         val inner = async { 21 }
                         inner.await() * 2
@@ -39,7 +39,7 @@ class HelpTest {
                 }
             }
 
-            answer.get(ANSWER_SECONDS, TimeUnit.SECONDS) shouldBeRight 42
+            answer.get(ANSWER_SECONDS, TimeUnit.SECONDS) shouldBe 42
         }
     }
 
@@ -47,7 +47,7 @@ class HelpTest {
     fun `an interrupt sent to a fork run by the thread awaiting it ends with that fork`() {
         onOnePoolThread { single ->
             val answer = CompletableFuture.supplyAsync {
-                flock<Nothing, Boolean>(on = single) {
+                scope(on = single) {
                     val outer = async {
                         val running = CountDownLatch(1)
                         val inner = async {
@@ -72,7 +72,7 @@ class HelpTest {
             }
 
             withClue("the inner fork was stopped, and its interrupt left the awaiting thread clear") {
-                answer.get(ANSWER_SECONDS, TimeUnit.SECONDS) shouldBeRight true
+                answer.get(ANSWER_SECONDS, TimeUnit.SECONDS) shouldBe true
             }
         }
     }

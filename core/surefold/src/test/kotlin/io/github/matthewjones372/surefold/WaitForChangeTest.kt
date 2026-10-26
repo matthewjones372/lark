@@ -91,7 +91,7 @@ class WaitForChangeTest {
         val free = Shared(0)
         val held = Shared(0)
 
-        flock<Nothing, Unit> {
+        scope {
             val buyer = async {
                 transact {
                     if (free.get() == 0) waitForChange()

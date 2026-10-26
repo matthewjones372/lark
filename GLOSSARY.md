@@ -15,7 +15,7 @@ _Avoid_: transaction (the API's receiver type, not the concept), atomic block
 **Lifecycle**:
 The rules an actor follows from start to stop: taking a message, supervision and
 restart, timers, stash, receive timeout and the end sequence. One lifecycle, the
-same under a flock and under test actors.
+same under a scope and under test actors.
 _Avoid_: actor core, cell logic
 
 **Life**:

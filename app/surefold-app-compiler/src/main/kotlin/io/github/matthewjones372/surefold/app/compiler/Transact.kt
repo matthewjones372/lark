@@ -130,9 +130,9 @@ private val blocking = setOf(
     CallableId(FqName("kotlin"), Name.identifier("synchronized")),
 )
 
-private val forks = listOf("flock", "parZip", "parMap", "raceN")
+private val forks = listOf("scope", "parZip", "parMap", "raceN")
     .map { CallableId(surefold, Name.identifier(it)) }
-    .toSet() + member(surefold.asString(), "Flock", "async")
+    .toSet() + member(surefold.asString(), "Scope", "async")
 
 // Surefold's own effects: what a step most often wants to happen once it has committed.
 private val surefoldEffects = listOf("logDebug", "logInfo", "logWarn", "logError", "increment")

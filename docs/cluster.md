@@ -9,7 +9,7 @@ way a service meets these things.
 Every complete example below is compiled against the library by
 `GuideExampleTest`, so what you read is what builds. Each is written as an
 extension on the flock your service already has, since where that flock comes
-from, `flock { }` or `surefold-app-actor`'s `Actors.within`, is the service's
+from, `scope { }` or `surefold-app-actor`'s `Actors.within`, is the service's
 business.
 
 ```kotlin
