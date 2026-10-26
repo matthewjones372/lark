@@ -36,6 +36,7 @@ Facts worth having before anything else:
   `CompletionStage` or `Future`, and `surefoldFuture { }` to hand one back.
 - `surefold-compiler`: a K2 checker for surefold's structure rules; a `Deferred`,
   `Channel` or `Scope` returned from a scope or kept in a property fails to compile.
+  Applied by the Gradle plugin `io.github.matthewjones372.surefold.compiler`, in `surefold-app-gradle`.
 - `surefold-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
   awaited from a fork.
 - `surefold-stream`: `Stream<E, A>` as a description, with its failure in the type
@@ -72,7 +73,8 @@ Facts worth having before anything else:
 - `surefold-app-cluster`: a `surefold-cluster` membership as a node, joined as a HOCON
   section says.
 - `surefold-app-gradle`: the Gradle plugin `io.github.matthewjones372.surefold.wiring`,
-  which checks and draws every graph as it compiles. It is on Maven Central,
+  which checks and draws every graph as it compiles, and `io.github.matthewjones372.surefold.compiler`,
+  which applies `surefold-compiler`. It is on Maven Central,
   not the Plugin Portal, so `pluginManagement` needs `mavenCentral()`.
 - `surefold-app-compiler`: the K2 checker behind it, which shows the same faults
   and warnings in the editor.

@@ -71,7 +71,7 @@ own.
       Done when: a producer 1000 rows ahead of a slow consumer never holds more
       than `capacity`, and a consumer that cancels ends its producer without an
       interrupt reaching the scope.
-- [ ] **`spec-0038-select`** — `select` over channels and `Deferred`.
+- [x] **`spec-0038-select`** ([#732](https://github.com/matthewjones372/surefold/pull/732)) — `select` over channels and `Deferred`.
       Done when: a `select` on an empty channel and a fork answers with the fork,
       and the losing clause's waiter is gone afterwards.
 

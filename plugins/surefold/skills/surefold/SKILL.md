@@ -47,7 +47,7 @@ suppressing one, unless the call really means it.
 All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 
 - `surefold`: forks, resources, `Schedule`, `timeout`, `policy`, `Clock`, `TestClock`, logs and metrics, `capturingLogs`, `capturingMetrics`.
-- `surefold-compiler`: a checker for forks that outlive their scope.
+- `surefold-compiler`: a checker for forks that outlive their scope; plugin `io.github.matthewjones372.surefold.compiler`.
 - `surefold-pekko`: a Pekko dispatcher as the executor.
 - `surefold-stream`: `Stream<E, A>`, described once and run on a backend.
 - `surefold-stream-forks`: the usual backend, a pull loop on a virtual thread.
@@ -66,7 +66,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-app-pekko`: a Pekko typed actor as a node.
 - `surefold-app-actor`: a `surefold-actor` scope and actors as nodes.
 - `surefold-app-cluster`: a cluster membership as a node.
-- `surefold-app-gradle`: the wiring plugin.
+- `surefold-app-gradle`: the wiring plugin, and the plugin that applies `surefold-compiler`.
 - `surefold-app-compiler`: the checker behind the wiring plugin.
 - `surefold-otel`: traces across forks.
 - `surefold-openfeature`: OpenFeature's evaluation context across forks and messages.
