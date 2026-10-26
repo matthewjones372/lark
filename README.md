@@ -361,9 +361,8 @@ object InventorySuite : SharedSuite<Inventory>(limit = Limit.fixed(8), aspects =
 
 With Kotlin's power-assert plugin applied to the test source set, a failed
 `expect` draws the value of each part of its expression; a failed `shouldBe`
-carries expected and actual, so IntelliJ opens its diff. Compile tests with
-`-Xreturn-value-checker=check` and `allWarningsAsErrors`, so that an
-expectation built and then dropped fails the build. The
+carries expected and actual, so IntelliJ opens its diff. Each check counts as
+it is made, so a test is its checks written one after another. The
 [testing guide](docs/testing.md#suites) covers the shared resource, running a
 test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
 `tag` and `ignore`.

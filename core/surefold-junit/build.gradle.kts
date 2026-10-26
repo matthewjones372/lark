@@ -47,7 +47,7 @@ powerAssert {
 
 kotlin {
     compilerOptions {
-        // Expectations' file is @MustUseReturnValues; the checker reports a dropped one only where this is set.
+        // `val _ =` compiles only under the checker; Kotlin's own switch for it warns, and warnings fail the build.
         freeCompilerArgs.add("-Xreturn-value-checker=check")
     }
 }

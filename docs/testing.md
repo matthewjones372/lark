@@ -458,10 +458,9 @@ object OrderSuite : SharedSuite<Database>(concurrent = false) {
 ```
 
 The build needs the plugin, with `expect` in its functions, on the test
-source set. `Expectations` is marked for Kotlin's return-value checker, which
-reports a dropped one only under `-Xreturn-value-checker=check`, and fails the
-build only with `allWarningsAsErrors`. Without the flag, a test written
-`expect(a); expect(b)` compiles, and the first expectation is lost.
+source set. Nothing else: the engine records each check as it is made, so a
+test written `expect(a); expect(b)` counts both, and so does a helper that calls
+a check it is handed as a statement.
 
 ```kotlin
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
@@ -476,21 +475,13 @@ powerAssert {
     functions.add("io.github.matthewjones372.surefold.junit.expect")
     includedSourceSets.add("test")
 }
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.add("-Xreturn-value-checker=check")
-        allWarningsAsErrors = true
-    }
-}
 ```
 
 ## Stories in a suite
 
-`surefold-junit` has a `story` of its own, for a suite's test: its block returns
-`Expectations`, and so does the story. A step returns what its block does, so
-`Then("…") { a shouldBe b }` is `Expectations`, and joins the next step with
-`and`. A step whose expectations failed is marked `✗` and the story goes on,
+`surefold-junit` has a `story` of its own, for a suite's test. Each step is a
+statement, and each check a step makes counts, on a line of its own or not.
+A step whose expectations failed is marked `✗` and the story goes on,
 so every failed `Then` is reported; a step that throws still ends the story
 with a `StoryFailed`.
 
@@ -502,11 +493,6 @@ with a `StoryFailed`.
 - **Imports:** import `story` from `surefold-junit`, which brings `surefold-test` with
   it. `surefold-test`'s `story` returns `Unit`; a file importing both can call
   neither until one is imported under another name.
-
-The return-value checker does not catch a `Then` on a line of its own: the
-steps are `surefold-test`'s, generic over what their block returns, so their
-results are not marked for it. Join every `Then` with `and`, or end the story
-with it.
 
 <!-- testing-junit-story -->
 ```kotlin
