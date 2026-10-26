@@ -91,7 +91,7 @@ object RestartSuite : Suite() {
             press.stopped shouldBe true
         }
 
-        test("on threads, a restart waits on the flock's clock and the mailbox is intact") {
+        test("on threads, a restart waits on the scope's clock and the mailbox is intact") {
             val time = TestClock()
             val stamped = clock.locally(time) {
                 scope {

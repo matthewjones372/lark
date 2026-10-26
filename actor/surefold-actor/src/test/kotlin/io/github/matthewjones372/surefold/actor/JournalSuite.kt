@@ -22,7 +22,7 @@ private data class Note(val text: String) : Diary
 
 private data class Written(val reply: Reply<List<String>>) : Diary
 
-/** Writes each note straight to its flock's journal, and reads back what is there. */
+/** Writes each note straight to its scope's journal, and reads back what is there. */
 private fun diary() = behaviour<Diary, Long>(0L) { ctx, last, message ->
     when (message) {
         is Note -> {
@@ -50,7 +50,7 @@ object JournalSuite : Suite() {
             }
         }
 
-        test("on threads, an actor writes to its flock's journal") {
+        test("on threads, an actor writes to its scope's journal") {
             val journal = InMemoryJournal()
             val written = scope {
                 journal(journal)
@@ -63,9 +63,9 @@ object JournalSuite : Suite() {
             written shouldBeRight listOf("one", "two")
         }
 
-        test("on threads, a flock with no journal says so") {
+        test("on threads, a scope with no journal says so") {
             shouldThrow<IllegalStateException>({ scope { journal() } }) { failed ->
-                failed.message shouldBe "no journal: give the flock one with journal(…)"
+                failed.message shouldBe "no journal: give the scope one with journal(…)"
             }
         }
     }

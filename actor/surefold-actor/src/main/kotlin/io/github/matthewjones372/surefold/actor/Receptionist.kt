@@ -4,7 +4,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 /**
- * Who is listed under each key, and who follows each key, for one flock or one test. A change is told to its
+ * Who is listed under each key, and who follows each key, for one scope or one test. A change is told to its
  * followers while the lock is held, so each follower hears the listings in the order they changed; telling one must
  * therefore never wait.
  */

@@ -36,7 +36,7 @@ private fun chores(log: AtomicReference<List<String>>) = behaviour<Chore, Unit, 
 
 object InterruptSuite : Suite() {
     init {
-        test("closing the flock interrupts a step blocked forever, and the actor still takes its Stopping") {
+        test("closing the scope interrupts a step blocked forever, and the actor still takes its Stopping") {
             val log = AtomicReference<List<String>>(emptyList())
 
             scope {
@@ -48,7 +48,7 @@ object InterruptSuite : Suite() {
             log.get() shouldBe listOf("stopping")
         }
 
-        test("closing the flock cuts a restart's delay short") {
+        test("closing the scope cuts a restart's delay short") {
             val log = AtomicReference<List<String>>(emptyList())
 
             scope {

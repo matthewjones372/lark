@@ -32,7 +32,7 @@ private const val RETIRED = 2
 private val WATCH_NANOS = TimeUnit.MICROSECONDS.toNanos(50)
 
 /**
- * The virtual threads that run one flock's actors. A woken actor joins a queue, and [parallelism] runners, one per
+ * The virtual threads that run one scope's actors. A woken actor joins a queue, and [parallelism] runners, one per
  * carrier, take actors from it in turn, so a burst of wakes starts a handful of threads rather than one each. A
  * runner that finds nothing spins briefly, then parks until a submit wakes it or a second passes, so an actor whose
  * mailbox empties between messages starts no thread per message (spec 0143). A step that blocks parks

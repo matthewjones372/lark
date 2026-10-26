@@ -11,7 +11,7 @@ private data object MeteredTrip
 
 object ActorMetricsSuite : Suite() {
     init {
-        test("a tell to a stopped actor and a restart are each counted once, with the flock's tags") {
+        test("a tell to a stopped actor and a restart are each counted once, with the scope's tags") {
             capturingMetrics { captured ->
                 scope {
                     tagMetrics("node" to "shop-1")
@@ -36,7 +36,7 @@ object ActorMetricsSuite : Suite() {
             }
         }
 
-        test("a dead letter counted before the flock is tagged is counted with the tags once it is") {
+        test("a dead letter counted before the scope is tagged is counted with the tags once it is") {
             capturingMetrics { captured ->
                 scope {
                     val quiet = spawn("quiet", behaviour<MeteredTrip, Unit>(Unit) { _, _, _ -> stay() })

@@ -168,7 +168,7 @@ object PeriodicSuite : Suite() {
             heart.pendingTimers shouldBe 0
         }
 
-        test("on threads, the flock's clock drives a periodic timer and a receive timeout") {
+        test("on threads, the scope's clock drives a periodic timer and a receive timeout") {
             val moving = TestClock()
             val heard = clock.locally(moving) {
                 scope {

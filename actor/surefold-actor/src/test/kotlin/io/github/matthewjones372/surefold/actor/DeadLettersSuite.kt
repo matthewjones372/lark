@@ -92,7 +92,7 @@ object DeadLettersSuite : Suite() {
                 listOf(DeadLetter(postbox.address, Hold(7), DeadLetter.Why.Stopped))
         }
 
-        test("on threads, a flock hands every dead letter to its handler, once") {
+        test("on threads, a scope hands every dead letter to its handler, once") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
             scope {
                 onDeadLetter(letters::add)
@@ -115,7 +115,7 @@ object DeadLettersSuite : Suite() {
             }
         }
 
-        test("after its flock has closed, a dead letter is only logged, and a spawn is refused") {
+        test("after its scope has closed, a dead letter is only logged, and a spawn is refused") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
             val closed = scope {
                 onDeadLetter(letters::add)
@@ -129,12 +129,12 @@ object DeadLettersSuite : Suite() {
             shouldThrow<IllegalStateException> { closed.spawn("late", postbox()) }
         }
 
-        test("a dead letter the flock is told of while its actors stop reaches its handler") {
+        test("a dead letter the scope is told of while its actors stop reaches its handler") {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
 
             scope {
                 onDeadLetter(letters::add)
-                // As a transport does when its actor stops: what it could not deliver becomes this flock's
+                // As a transport does when its actor stops: what it could not deliver becomes this scope's
                 // dead letter.
                 val transport = behaviour<Int, Unit>(Unit) { _, _, _ -> stay() }.onSignal { ctx, _, signal ->
                     if (signal is Signal.Stopping) {
@@ -149,7 +149,7 @@ object DeadLettersSuite : Suite() {
         }
 
         test(
-            "a thread the flock did not fork, telling it of dead letters while it closes, stands no second guardian",
+            "a thread the scope did not fork, telling it of dead letters while it closes, stands no second guardian",
         ) {
             val failed = ConcurrentLinkedQueue<Throwable>()
             val letter = DeadLetter(Address("local", "/user/postbox", 1), Letter(1), DeadLetter.Why.Unreachable)

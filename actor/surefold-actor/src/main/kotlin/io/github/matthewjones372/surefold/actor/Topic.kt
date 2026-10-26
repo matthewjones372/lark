@@ -1,8 +1,8 @@
 package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Counter
-import io.github.matthewjones372.surefold.Flock
 import io.github.matthewjones372.surefold.Gauge
+import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.increment
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -43,11 +43,11 @@ class Topic<M : Any> internal constructor(val name: String, val ref: ActorRef<To
 }
 
 /**
- * The topic [name] on this flock, its actor at `/user/topic-<name>`. Each publish here is also handed to [forward],
+ * The topic [name] on this scope, its actor at `/user/topic-<name>`. Each publish here is also handed to [forward],
  * which is how a cluster's topic reaches the other members; a message from them arrives as [TopicMessage.Arrive].
  * It records `surefold.topic.published`, `surefold.topic.delivered` and `surefold.topic.subscribers` (spec 0081).
  */
-fun <M : Any> Flock<*>.topic(name: String, forward: (M) -> Unit = {}): Topic<M> {
+fun <M : Any> Scope<*>.topic(name: String, forward: (M) -> Unit = {}): Topic<M> {
     val steps = TopicSteps<M>(
         published = counter("surefold.topic.published", "topic" to name),
         delivered = counter("surefold.topic.delivered", "topic" to name),
