@@ -68,7 +68,7 @@ one that needs no witness.
       drops it, unsent because its connection is down or its queue is full, those asks end with `Unreachable`
       through `Unanswerable`, which the runtime's own ask implements. A tell has no reply to end, and stays the dead
       letter it was.
-- [ ] **`spec-0103-members-only`** — a region drops `Release` and `Released` from a node outside its cluster.
+- [x] **`spec-0103-members-only`** ([#760](https://github.com/matthewjones372/surefold/pull/760)) — a region drops `Release` and `Released` from a node outside its cluster.
       Done when: a `Release` sent from a node that is not a member leaves the shard where it was and is a dead
       letter.
       `WireIn.sender` is the node whose connection a message came in on, as its hello named it; `RegionCodec`
@@ -79,6 +79,12 @@ one that needs no witness.
       meters.
       Done when: two clusters in one JVM ask each other's entities; with the other cluster stopped, an ask fails
       with `Unreachable` and a tell is a dead letter; once it is back, asks succeed without a restart.
+      `federate(name, nodes, retryAfter)` answers a `Federated`, whose `sharding(kind, codec)` is a `FederatedKind`
+      with `entity(id)` alone: not `Sharded`, whose `reliable` producers to another cluster are out of scope.
+      `RemoteNode.failing(peer, within)` says a frame for a peer was dropped lately with no connection since; with
+      every node failing the first is sent to anyway, so #757's drop answers the ask. A frame written into a
+      connection the far side has closed, before this side sees it close, is lost rather than dropped, as at most
+      once allows: that ask waits out its time, and only the next one fails at once.
 - [ ] **`spec-0103-allow`** — a region refuses envelopes from another cluster unless that cluster is allowed
       (question 3), and `federate` makes TLS the default outside tests (question 2).
       Done when: a cluster not on the allow-list is refused, as a dead letter, and an allowed one is answered.
