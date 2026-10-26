@@ -72,7 +72,7 @@ object BusyEntitySuite : Suite() {
                 TillNode("t3", ports[2], seeds, emptySet(), open),
             )
             try {
-                val formed = nodes.forAll { n ->
+                nodes.forAll { n ->
                     n.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
                 }
                 val (host, sender) = nodes
@@ -81,10 +81,9 @@ object BusyEntitySuite : Suite() {
                 (1..5_000).forEach(till::tell)
                 open.countDown()
 
-                val inOrder =
-                    List(5_000) { host.heard.poll(1, TimeUnit.MINUTES) } shouldContainExactly (1..5_000).toList()
+                List(5_000) { host.heard.poll(1, TimeUnit.MINUTES) } shouldContainExactly (1..5_000).toList()
                 nodes.last().tills.entity("till-2").tell(7)
-                formed and inOrder and (host.heard.poll(1, TimeUnit.MINUTES) shouldBe 7)
+                host.heard.poll(1, TimeUnit.MINUTES) shouldBe 7
             } finally {
                 open.countDown()
                 nodes.forEach(TillNode::close)

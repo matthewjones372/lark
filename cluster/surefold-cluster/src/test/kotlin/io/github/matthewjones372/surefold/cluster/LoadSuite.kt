@@ -123,24 +123,24 @@ object LoadSuite : Suite() {
             val nodes =
                 ports.indices.map { LoadNode("l${it + 1}", ports[it], seeds, every, passivateAfter = 6.seconds) }
             try {
-                val up = nodes.forAll { n ->
+                nodes.forAll { n ->
                     n.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
                 }
 
                 val placed = (0 until 90).map { nodes[it % 3].tally("t-$it") }
                 (0 until 30).forEach { nodes[it % 3].plain("p-$it") }
                 val expected = nodes.associate { n -> n.name to placed.count { it == n.name } }
-                val running = nodes.forAll { n ->
-                    val seen = withClue({ "${n.name} sees ${n.running("tally")}, not $expected" }) {
+                nodes.forAll { n ->
+                    withClue({ "${n.name} sees ${n.running("tally")}, not $expected" }) {
                         n.cluster.await(20.seconds) { _ -> n.running("tally") == expected } shouldBe true
                     }
-                    seen and withClue("a kind that does not rebalance carries no load") {
+                    withClue("a kind that does not rebalance carries no load") {
                         n.cluster.balance.loads.values.none { "plain" in it } shouldBe true
                     }
                 }
 
                 val none = nodes.associate { it.name to 0 }
-                up and running and nodes.forAll { n ->
+                nodes.forAll { n ->
                     withClue({ "${n.name} sees ${n.running("tally")} once they passivate" }) {
                         n.cluster.await(20.seconds) { _ -> n.running("tally") == none } shouldBe true
                     }

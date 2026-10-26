@@ -29,8 +29,8 @@ object EnumConfigSuite : Suite() {
 
             (file + config<Moded>("petshop")).use { _: Moded -> }.leftOrNull().shouldNotBeNull { error ->
                 error.shouldBeInstanceOf<StartupError.Refused> { refused ->
-                    (refused.reason shouldContain "Fast or Safe, not Reckless") and
-                        (refused.reason shouldContain "Fast or Safe, not Slow")
+                    refused.reason shouldContain "Fast or Safe, not Reckless"
+                    refused.reason shouldContain "Fast or Safe, not Slow"
                 }
             }
         }

@@ -37,7 +37,7 @@ object DocsSuite : Suite() {
                         val published = modules.split(",").toSet()
                         val modulesPage = File(root, "docs/modules.md").readText()
                         val released = installedVersion(modulesPage)
-                        val agreed = withClue("docs/modules.md: the install block and the snapshot paragraph") {
+                        withClue("docs/modules.md: the install block and the snapshot paragraph") {
                             taggedVersion(modulesPage) shouldBe released
                         }
                         val wrong = pages.flatMap { page ->
@@ -47,7 +47,7 @@ object DocsSuite : Suite() {
                                 }
                                 .map { "${page.name}: ${it[0]}" }
                         }
-                        agreed and withClue("released version $released, as docs/modules.md says") {
+                        withClue("released version $released, as docs/modules.md says") {
                             wrong shouldBe emptyList()
                         }
                     }

@@ -76,16 +76,16 @@ object SectionReportSuite : Suite(concurrent = false) {
                 testApp(configOf(hocon) + shop) { _: Shop -> Unit }
 
                 val block = heard.block()
-                (block shouldContain "petshop.host") and
-                    (block shouldContain "9090") and
-                    withClue("only what the section read is printed") { block shouldNotContain "unread" } and
-                    withClue("the url's name says nothing; secret() is what masks it") {
-                        block shouldNotContain "hunter2"
-                    } and
-                    withClue("Secrets.default still masks a password read as a plain string") {
-                        block shouldNotContain "hunter3"
-                    } and
-                    (block shouldContain MASK)
+                block shouldContain "petshop.host"
+                block shouldContain "9090"
+                withClue("only what the section read is printed") { block shouldNotContain "unread" }
+                withClue("the url's name says nothing; secret() is what masks it") {
+                    block shouldNotContain "hunter2"
+                }
+                withClue("Secrets.default still masks a password read as a plain string") {
+                    block shouldNotContain "hunter3"
+                }
+                block shouldContain MASK
             }
         }
 
@@ -105,14 +105,14 @@ object SectionReportSuite : Suite(concurrent = false) {
                 val base = layeredConfigOf("base" to ConfigFactory.parseString(hocon))
 
                 val clue = "withFallback casts its argument to Typesafe's own Config, so the merge has to be one"
-                val merged = withClue(clue) {
+                withClue(clue) {
                     val above = ConfigFactory.parseString("petshop.port = 8081")
                     above.withFallback(base.config).getInt("petshop.port") shouldBe 8081
                 }
                 val app = configOf(hocon).overridingConfig("petshop.port = 8082", fallback = base.config) + shop
                 testApp(app) { _: Shop -> Unit }
 
-                merged and (heard.block() shouldContain "8082")
+                heard.block() shouldContain "8082"
             }
         }
 
@@ -134,10 +134,10 @@ object SectionReportSuite : Suite(concurrent = false) {
                 testApp(configOf(nested) + whole) { _: WholeDb -> Unit }
 
                 val block = heard.block()
-                (block shouldContain "petshop.db.user") and
-                    withClue("a password under an object read whole is still a password") {
-                        block shouldNotContain "hunter4"
-                    }
+                block shouldContain "petshop.db.user"
+                withClue("a password under an object read whole is still a password") {
+                    block shouldNotContain "hunter4"
+                }
             }
         }
 
@@ -147,9 +147,9 @@ object SectionReportSuite : Suite(concurrent = false) {
                 val second = layeredConfigOf("second" to ConfigFactory.parseString(hocon))
 
                 val clue = "Typesafe's equals ignores origins, so the two merges are equal and still not the same stack"
-                withClue(clue) { first.config shouldBe second.config } and
-                    (first.config.layeredOrNull()?.layers?.map { it.name } shouldBe listOf("first")) and
-                    (second.config.layeredOrNull()?.layers?.map { it.name } shouldBe listOf("second"))
+                withClue(clue) { first.config shouldBe second.config }
+                first.config.layeredOrNull()?.layers?.map { it.name } shouldBe listOf("first")
+                second.config.layeredOrNull()?.layers?.map { it.name } shouldBe listOf("second")
             }
         }
 
@@ -191,11 +191,11 @@ object SectionReportSuite : Suite(concurrent = false) {
                 val refused = app.use { _: Shop -> Unit }.leftOrNull()
 
                 val block = heard.block()
-                refused.shouldBeInstanceOf<StartupError.Refused>() and
-                    (block shouldContain "petshop.host") and
-                    withClue("a path asked for and absent says so, rather than vanishing from the report") {
-                        block shouldContain "petshop.port"
-                    }
+                refused.shouldBeInstanceOf<StartupError.Refused>()
+                block shouldContain "petshop.host"
+                withClue("a path asked for and absent says so, rather than vanishing from the report") {
+                    block shouldContain "petshop.port"
+                }
             }
         }
 
@@ -204,7 +204,8 @@ object SectionReportSuite : Suite(concurrent = false) {
                 val root = ConfigFactory.parseString(hocon)
                 val app = configOf(root) + root.choosing("petshop", { string("host") }) { single<Int> { 1 } }
 
-                (testApp(app) { host: String -> host } shouldBe "0.0.0.0") and (heard.blocks() shouldHaveSize 1)
+                testApp(app) { host: String -> host } shouldBe "0.0.0.0"
+                heard.blocks() shouldHaveSize 1
             }
         }
     }

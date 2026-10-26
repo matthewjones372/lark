@@ -37,9 +37,9 @@ object SectionsSuite : Suite() {
         test("everything HOCON can say still works through the reading") {
             file.reading { section("database", db()) }.getOrNull().shouldNotBeNull { db ->
                 withClue("substitution, a list and a duration, none of them re-encoded as a string") {
-                    (db.url shouldBe "jdbc:postgresql://db.internal/shopping") and
-                        (db.idle shouldBe 30.seconds) and
-                        (db.replicas shouldContainExactly listOf("one", "two"))
+                    db.url shouldBe "jdbc:postgresql://db.internal/shopping"
+                    db.idle shouldBe 30.seconds
+                    db.replicas shouldContainExactly listOf("one", "two")
                 }
             }
         }
@@ -49,11 +49,11 @@ object SectionsSuite : Suite() {
                 val said = faults.joinToString { it.why }
                 withClue("one message listing what is wrong beats one deploy per fault") {
                     faults.size shouldBe 4
-                } and
-                    (said shouldContain "url") and
-                    withClue("the exception's own message names the origin, which this could not word better") {
-                        said shouldContain "application.conf"
-                    }
+                }
+                said shouldContain "url"
+                withClue("the exception's own message names the origin, which this could not word better") {
+                    said shouldContain "application.conf"
+                }
             }
         }
 

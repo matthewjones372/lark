@@ -132,7 +132,7 @@ object ShardingSuite : Suite() {
             val running = TabsRunning()
             val bars = ports.mapIndexed { i, port -> Bar("n${i + 1}", port, seeds, running) }
             try {
-                val up = bars.forAll { bar ->
+                bars.forAll { bar ->
                     bar.cluster.await(1.minutes) { view -> view.members.count { it.status == Status.Up } == 3 } shouldBe
                         true
                 }
@@ -147,7 +147,7 @@ object ShardingSuite : Suite() {
                     tab.ask<Tab, String>(1.minutes) { Bill(it) }
                 }
 
-                up and (bills shouldBe listOf("$owner:10".right(), "$owner:20".right(), "$owner:30".right()))
+                bills shouldBe listOf("$owner:10".right(), "$owner:20".right(), "$owner:30".right())
             } finally {
                 bars.forEach(Bar::close)
             }
@@ -160,7 +160,7 @@ object ShardingSuite : Suite() {
             val bars = ports.take(3).mapIndexed { i, port -> Bar("n${i + 1}", port, seeds, running) }.toMutableList()
             val stop = AtomicBoolean(false)
             try {
-                val three = bars.awaitUp(3)
+                bars.awaitUp(3)
                 val tabs = bars.first().tabs
                 val ids = (1..200).map { "t-$it" }
                 // Tells and asks every tab from the first node for as long as the membership is changing. An ask
@@ -175,18 +175,17 @@ object ShardingSuite : Suite() {
                 }
 
                 bars += Bar("n4", ports[3], seeds, running)
-                val four = bars.awaitUp(4)
+                bars.awaitUp(4)
                 bars[1].cluster.leave()
-                val left = bars.filter { it.name != "n2" }.forAll { bar ->
+                bars.filter { it.name != "n2" }.forAll { bar ->
                     bar.cluster.await(1.minutes) { view -> view.members.none { it.node.name == "n2" } } shouldBe true
                 }
                 stop.set(true)
                 traffic.join()
 
-                val once = withClue("a tab ran on two nodes at once") { running.twice.get() shouldBe false }
+                withClue("a tab ran on two nodes at once") { running.twice.get() shouldBe false }
                 val unanswered = ids.filter { id -> tabs.entity(id).ask<Tab, String>(1.minutes) { Bill(it) }.isLeft() }
-                three and four and left and once and
-                    withClue("every tab answers once the membership has settled") { unanswered.shouldBeEmpty() }
+                withClue("every tab answers once the membership has settled") { unanswered.shouldBeEmpty() }
             } finally {
                 stop.set(true)
                 bars.forEach(Bar::close)

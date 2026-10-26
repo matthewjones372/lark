@@ -38,7 +38,8 @@ object FlagdFlagsSuite : Suite(concurrent = false) {
                 evaluatedFor("ada") { limit.value() } to evaluatedFor("bob") { limit.value() }
             }.getOrNull().shouldNotBeNull { (ada, bob) ->
                 withClue("flagd's in-process resolver evaluated the targeting against the bound key") {
-                    (ada shouldBe 5) and (bob shouldBe 3)
+                    ada shouldBe 5
+                    bob shouldBe 3
                 }
             }
         }
@@ -54,7 +55,8 @@ object FlagdFlagsSuite : Suite(concurrent = false) {
 
             graph.use { _: Client -> }.leftOrNull().shouldNotBeNull { refused ->
                 refused.shouldBeInstanceOf<StartupError.Refused> {
-                    (it.reason shouldContain "adoption.registry-check") and (it.reason shouldContain "String")
+                    it.reason shouldContain "adoption.registry-check"
+                    it.reason shouldContain "String"
                 }
             }
         }

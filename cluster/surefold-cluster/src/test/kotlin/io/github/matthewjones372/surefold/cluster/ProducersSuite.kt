@@ -52,24 +52,23 @@ object ProducersSuite : Suite() {
                     (payments.drain(1.minutes) shouldBe true)
             }
             try {
-                val up = banks.forAll { it.up() shouldBe true }
+                banks.forAll { it.up() shouldBe true }
                 val earlier = banks.removeLast()
                 val lives = mutableListOf(earlier.cluster.life)
-                val first = earlier.pay(1)
+                earlier.pay(1)
                 earlier.close()
                 val later = bank(2).also(banks::add)
-                val back = later.up() shouldBe true
+                later.up() shouldBe true
                 lives += later.cluster.life
-                val second = later.pay(2)
+                later.pay(2)
 
-                up and first and back and second and
-                    ids.forAll { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) } and
-                    (lives.distinct().size shouldBe 2) and
-                    // Each life kept its 20 payments and their confirmations, and nothing is kept under the id alone.
-                    lives.forAll { life ->
-                        journal.read(PersistenceId("surefold-producer", "account-checkout-$life")).size shouldBe 40
-                    } and
-                    journal.read(PersistenceId("surefold-producer", "account-checkout")).shouldBeEmpty()
+                ids.forAll { id -> journal.events(accountOf(id), paidPence) shouldBe listOf(1, 2) }
+                lives.distinct().size shouldBe 2
+                // Each life kept its 20 payments and their confirmations, and nothing is kept under the id alone.
+                lives.forAll { life ->
+                    journal.read(PersistenceId("surefold-producer", "account-checkout-$life")).size shouldBe 40
+                }
+                journal.read(PersistenceId("surefold-producer", "account-checkout")).shouldBeEmpty()
             } finally {
                 banks.forEach(Bank::close)
             }
@@ -81,7 +80,7 @@ object ProducersSuite : Suite() {
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val banks = ports.mapIndexed { i, port -> Bank("b${i + 1}", port, seeds, journal, Duration.ZERO) }
             try {
-                val up = banks.forAll { bank ->
+                banks.forAll { bank ->
                     bank.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     } shouldBe true
@@ -92,10 +91,9 @@ object ProducersSuite : Suite() {
                 val expected = lives.associate { life -> "account-checkout-$life" to Listed("account", life, life) }
                 val oldest = checkNotNull(Placement.oldest(banks.first().cluster.view.members))
                 val registry = checkNotNull(banks.single { it.cluster.self == oldest }.cluster.producers)
-                up and
-                    withClue({ "the registry lists ${registry.listed}" }) {
-                        registry.await(30.seconds) { it == expected } shouldBe true
-                    }
+                withClue({ "the registry lists ${registry.listed}" }) {
+                    registry.await(30.seconds) { it == expected } shouldBe true
+                }
             } finally {
                 banks.forEach(Bank::close)
             }
@@ -116,7 +114,7 @@ object ProducersSuite : Suite() {
             val banks = (0 until 3).map(bank).toMutableList()
             val ids = List(20) { "a-$it" }
             try {
-                val up = banks.forAll { b ->
+                banks.forAll { b ->
                     b.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     } shouldBe true
@@ -126,7 +124,7 @@ object ProducersSuite : Suite() {
                     payments to ids.forAll { id -> payments.send(id) { PayInto(i + 1, it) } shouldBe Unit.right() }
                 }
                 val payments = opened.map { it.first }
-                val sent = opened.forAll { it.second }
+                opened.forAll { it.second }
                 val oldest = checkNotNull(Placement.oldest(banks.first().cluster.view.members))
                 val resumer = banks.single { it.cluster.self == oldest }
                 val (stays, crashing) = banks - resumer
@@ -135,24 +133,23 @@ object ProducersSuite : Suite() {
 
                 crashing.close()
                 val resumed = checkNotNull(resumer.cluster.producers)
-                val resuming = resumed.await(30.seconds) { listed ->
+                resumed.await(30.seconds) { listed ->
                     listed?.get(outbox(crashing))?.runner == resumer.cluster.life
                 } shouldBe true
                 resumer.close()
                 banks += bank(3)
 
-                val drained = payments[banks.indexOf(stays)].drain(1.minutes) shouldBe true
+                payments[banks.indexOf(stays)].drain(1.minutes) shouldBe true
                 val registry = checkNotNull(stays.cluster.producers)
-                val listed = withClue({ "the registry lists ${registry.listed}" }) {
+                withClue({ "the registry lists ${registry.listed}" }) {
                     registry.await(30.seconds) { it?.keys == setOf(outbox(stays)) } shouldBe true
                 }
-                up and sent and resuming and drained and listed and
-                    ids.forAll { id -> journal.events(accountOf(id), paidPence).sorted() shouldBe listOf(1, 2, 3) } and
-                    journal.seen.shouldBeEmpty() and
-                    // A retired outbox keeps only its newest event, which the journal needs to check the next append.
-                    listOf(resumer, crashing).forAll { gone ->
-                        journal.read(PersistenceId("surefold-producer", outboxes.getValue(gone))).size shouldBe 1
-                    }
+                ids.forAll { id -> journal.events(accountOf(id), paidPence).sorted() shouldBe listOf(1, 2, 3) }
+                journal.seen.shouldBeEmpty()
+                // A retired outbox keeps only its newest event, which the journal needs to check the next append.
+                listOf(resumer, crashing).forAll { gone ->
+                    journal.read(PersistenceId("surefold-producer", outboxes.getValue(gone))).size shouldBe 1
+                }
             } finally {
                 banks.forEach(Bank::close)
             }

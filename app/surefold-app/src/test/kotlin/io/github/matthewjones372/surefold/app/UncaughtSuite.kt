@@ -21,10 +21,10 @@ object UncaughtSuite : Suite() {
             val thrown = failing("the database went away")
             logger.locally(Logger { lines.add(it) }) { Uncaught().uncaughtException(Thread.currentThread(), thrown) }
 
-            (lines shouldHaveSize 1) and
-                (lines.singleOrNull()?.level shouldBe LogLevel.Error) and
-                (lines.singleOrNull()?.message shouldContain "the database went away") and
-                (lines.singleOrNull()?.cause shouldBe thrown)
+            lines shouldHaveSize 1
+            lines.singleOrNull()?.level shouldBe LogLevel.Error
+            lines.singleOrNull()?.message shouldContain "the database went away"
+            lines.singleOrNull()?.cause shouldBe thrown
         }
 
         test(
@@ -39,7 +39,8 @@ object UncaughtSuite : Suite() {
                 uncaught.uncaughtException(Thread.currentThread(), failing("down"))
             }
 
-            (lines shouldHaveSize 2) and (lines.lastOrNull()?.message shouldContain "999 more like it")
+            lines shouldHaveSize 2
+            lines.lastOrNull()?.message shouldContain "999 more like it"
         }
 
         test("a different failure is logged at once, whatever the other did") {

@@ -76,8 +76,8 @@ object KubernetesSuite : Suite() {
             val config =
                 ConfigBuilder().withMasterUrl("http://127.0.0.1:$nowhere").withRequestRetryBackoffLimit(0).build()
             KubernetesClientBuilder().withConfig(config).build().use { unreachable ->
-                Kubernetes.discovery(unreachable, "shop", mapOf("app" to "orders"), 25520).seeds().shouldBeEmpty() and
-                    (Kubernetes.lease(unreachable, "shop", "orders").acquire("orders-0") shouldBe false)
+                Kubernetes.discovery(unreachable, "shop", mapOf("app" to "orders"), 25520).seeds().shouldBeEmpty()
+                Kubernetes.lease(unreachable, "shop", "orders").acquire("orders-0") shouldBe false
             }
         }
 
@@ -86,16 +86,15 @@ object KubernetesSuite : Suite() {
                 var at = start
                 val lease = KubernetesLease(client, "shop", "orders", 15.seconds) { at }
 
-                val first = lease.acquire("10.1.0.5") shouldBe true
+                lease.acquire("10.1.0.5") shouldBe true
                 at = at.plusSeconds(10)
-                val renewed = lease.acquire("10.1.0.5") shouldBe true
-                val refused = lease.acquire("10.1.0.9") shouldBe false
+                lease.acquire("10.1.0.5") shouldBe true
+                lease.acquire("10.1.0.9") shouldBe false
 
                 val held = client.leases().inNamespace("shop").withName("orders").get().spec
-                first and renewed and refused and
-                    (held.holderIdentity shouldBe "10.1.0.5") and
-                    (held.renewTime.toInstant() shouldBe at) and
-                    (held.leaseTransitions shouldBe 0)
+                held.holderIdentity shouldBe "10.1.0.5"
+                held.renewTime.toInstant() shouldBe at
+                held.leaseTransitions shouldBe 0
             }
         }
 
@@ -103,14 +102,13 @@ object KubernetesSuite : Suite() {
             withMockClient { client ->
                 var at = start
                 val lease = KubernetesLease(client, "shop", "orders", 15.seconds) { at }
-                val first = lease.acquire("10.1.0.5") shouldBe true
+                lease.acquire("10.1.0.5") shouldBe true
 
                 at = at.plusSeconds(16)
 
-                val passed = lease.acquire("10.1.0.9") shouldBe true
-                val refused = lease.acquire("10.1.0.5") shouldBe false
-                first and passed and refused and
-                    (client.leases().inNamespace("shop").withName("orders").get().spec.leaseTransitions shouldBe 1)
+                lease.acquire("10.1.0.9") shouldBe true
+                lease.acquire("10.1.0.5") shouldBe false
+                client.leases().inNamespace("shop").withName("orders").get().spec.leaseTransitions shouldBe 1
             }
         }
 
@@ -122,22 +120,21 @@ object KubernetesSuite : Suite() {
                     { KubernetesClientBuilder().withConfig(client.configuration).build().also { own = it } },
                     mapOf("app" to "orders"), 25520, "orders", "shop", 15.seconds, 20.seconds,
                 )
-                val whileOpen = joining.use {
-                    (it.discovery.seeds() shouldContainExactly listOf(Node("", "10.1.0.5", 25520))) and
-                        (Kubernetes.lease(own!!, "shop", "orders").acquire("10.1.0.5") shouldBe true)
+                joining.use {
+                    it.discovery.seeds() shouldContainExactly listOf(Node("", "10.1.0.5", 25520))
+                    Kubernetes.lease(own!!, "shop", "orders").acquire("10.1.0.5") shouldBe true
                 }
-                whileOpen and shouldThrow<IllegalStateException> { own!!.pods().inNamespace("shop").list() }
+                shouldThrow<IllegalStateException> { own!!.pods().inNamespace("shop").list() }
             }
         }
 
         test("the namespace is the service account's, else POD_NAMESPACE, else refused") {
             withTempDirectory { dir ->
                 val file = dir.resolve("namespace")
-                val fromEnv = Kubernetes.ownNamespace(file) { "from-env" } shouldBe "from-env"
+                Kubernetes.ownNamespace(file) { "from-env" } shouldBe "from-env"
                 val _ = Files.writeString(file, "shop\n")
-                val fromFile = Kubernetes.ownNamespace(file) { "from-env" } shouldBe "shop"
-                fromEnv and fromFile and
-                    shouldThrow<IllegalArgumentException> { Kubernetes.ownNamespace(dir.resolve("none")) { null } }
+                Kubernetes.ownNamespace(file) { "from-env" } shouldBe "shop"
+                shouldThrow<IllegalArgumentException> { Kubernetes.ownNamespace(dir.resolve("none")) { null } }
             }
         }
 

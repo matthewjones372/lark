@@ -19,11 +19,11 @@ object OverrideSuite : Suite() {
             val nodes = ports.indices.map { LoadNode("v${it + 1}", ports[it], seeds, rarely, 1.minutes) }
                 .toMutableList()
             try {
-                val up = nodes.forAll { n ->
+                nodes.forAll { n ->
                     n.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 3 } shouldBe true
                 }
                 val lead = nodes.first().cluster.view.leader
-                val led = nodes.forAll { n -> n.cluster.await(20.seconds) { v -> v.leader == lead } shouldBe true }
+                nodes.forAll { n -> n.cluster.await(20.seconds) { v -> v.leader == lead } shouldBe true }
                 val leader = nodes.first { it.cluster.self == lead }
                 val target = nodes.first { it != leader }
 
@@ -35,29 +35,28 @@ object OverrideSuite : Suite() {
 
                 // An ask can be lost while its shard moves, so one asked during the move may not be answered at all.
                 val during = (1..10).flatMap { round -> moving.mapNotNull { nodes[round % 3].tryTally(it) } }
-                val answered = withClue("asked during the move, only the old owner or the new answers") {
+                withClue("asked during the move, only the old owner or the new answers") {
                     (during.toSet() - setOf(before.getValue(moving.first()), target.name)).shouldBeEmpty()
                 }
-                val handedOff = nodes.forAll { n ->
+                nodes.forAll { n ->
                     n.cluster.await(20.seconds) { _ -> n.moved()[shard]?.node == target.cluster.self } shouldBe true
                 }
                 val after = ids.withIndex().associate { (i, id) -> id to nodes[(i + 1) % 3].tally(id) }
-                val placed = after shouldBe before + moving.associateWith { target.name }
-                val once = withClue("no entity ran on two nodes at once") {
+                after shouldBe before + moving.associateWith { target.name }
+                withClue("no entity ran on two nodes at once") {
                     ranTwice.filter { it.startsWith("o-") }.shouldBeEmpty()
                 }
 
                 target.close()
                 nodes -= target
-                val forgotten = nodes.forAll { n ->
+                nodes.forAll { n ->
                     val gone = n.cluster.await(30.seconds) { v ->
                         v.members.none { it.node == target.cluster.self } && n.moved().isEmpty()
                     }
                     withClue("${n.name} still has ${n.cluster.balance.moved}") { gone shouldBe true }
                 }
                 val owner = Placement.owner("tally", shard, nodes.first().cluster.view.members)?.name
-                up and led and answered and handedOff and placed and once and forgotten and
-                    (moving.map { nodes.first().tally(it) }.toSet() shouldBe setOf(owner))
+                moving.map { nodes.first().tally(it) }.toSet() shouldBe setOf(owner)
             } finally {
                 nodes.forEach(LoadNode::close)
             }

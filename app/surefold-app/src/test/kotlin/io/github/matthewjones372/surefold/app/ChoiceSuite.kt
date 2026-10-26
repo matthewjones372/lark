@@ -52,22 +52,22 @@ object ChoiceSuite : Suite() {
     init {
         test("the setting picks the branch, and only that branch is built") {
             val closed = CopyOnWriteArrayList<String>()
-            val built = testApp(bus(Kind.InProcess, closed)) { uses: Uses -> uses.bus.shouldBeInstanceOf<LocalBus>() }
-            built and (closed shouldBe listOf("uses", "hub"))
+            testApp(bus(Kind.InProcess, closed)) { uses: Uses -> uses.bus.shouldBeInstanceOf<LocalBus>() }
+            closed shouldBe listOf("uses", "hub")
         }
 
         test("overriding the setting picks the other branch") {
             val closed = CopyOnWriteArrayList<String>()
             val app = bus(Kind.InProcess, closed).overriding(single<Kind> { Kind.Remote })
 
-            val built = testApp(app) { uses: Uses -> uses.bus.shouldBeInstanceOf<RemoteBus>() }
-            built and (closed shouldBe listOf("uses", "producer"))
+            testApp(app) { uses: Uses -> uses.bus.shouldBeInstanceOf<RemoteBus>() }
+            closed shouldBe listOf("uses", "producer")
         }
 
         test("before anything runs, the choice is a node providing its key") {
             val closed = CopyOnWriteArrayList<String>()
-            (bus(Kind.InProcess, closed).validate().isRight() shouldBe true) and
-                (bus(Kind.InProcess, closed).render() shouldContain "ChoiceSuite_Kind --> ChoiceSuite_Bus")
+            bus(Kind.InProcess, closed).validate().isRight() shouldBe true
+            bus(Kind.InProcess, closed).render() shouldContain "ChoiceSuite_Kind --> ChoiceSuite_Bus"
         }
 
         test("a branch that does not provide the key refuses the start, naming it") {
@@ -95,8 +95,8 @@ object ChoiceSuite : Suite() {
             val closed = CopyOnWriteArrayList<String>()
             val app = bus(Kind.InProcess, closed).overriding(single<Bus> { object : Bus {} })
 
-            val built = testApp(app) { uses: Uses -> (uses.bus is LocalBus) shouldBe false }
-            built and (closed shouldBe listOf("uses"))
+            testApp(app) { uses: Uses -> (uses.bus is LocalBus) shouldBe false }
+            closed shouldBe listOf("uses")
         }
 
         test("a node only the chosen branch brings can be overridden") {

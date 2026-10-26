@@ -76,23 +76,23 @@ object TopicClusterSuite : Suite() {
             )
             try {
                 val up = { count: Int -> { view: View -> view.members.count { it.status == Status.Up } == count } }
-                val three = nodes.forAll { it.cluster.await(1.minutes, up(3)) shouldBe true }
+                nodes.forAll { it.cluster.await(1.minutes, up(3)) shouldBe true }
                 val publisher = nodes[2]
 
                 (1..100).forEach(publisher.prices::publish)
 
                 // The publisher's own subscriber among them: it hears each publish once, not again from the others.
-                val first = nodes.forAll { it.next(100) shouldBe (1..100).toList() }
+                nodes.forAll { it.next(100) shouldBe (1..100).toList() }
 
                 nodes += Exchange("x4", ports[3], seeds)
-                val four = nodes.forAll { it.cluster.await(1.minutes, up(4)) shouldBe true }
+                nodes.forAll { it.cluster.await(1.minutes, up(4)) shouldBe true }
                 (101..110).forEach(publisher.prices::publish)
 
-                val later = nodes.forAll { it.next(10) shouldBe (101..110).toList() }
+                nodes.forAll { it.next(10) shouldBe (101..110).toList() }
 
                 // Each hears the next publish next: in order, anything heard twice would have come before it.
                 publisher.prices.publish(111)
-                three and first and four and later and nodes.forAll { it.next(1) shouldBe listOf(111) }
+                nodes.forAll { it.next(1) shouldBe listOf(111) }
             } finally {
                 nodes.forEach(Exchange::close)
             }

@@ -105,9 +105,9 @@ object ClassConfigSuite : Suite() {
                     withClue(
                         "a port that is not a number, a duration that is not one, and a url missing a section down",
                     ) {
-                        (reason shouldContain "port") and
-                            (reason shouldContain "arrivalsEvery") and
-                            (reason shouldContain "url")
+                        reason shouldContain "port"
+                        reason shouldContain "arrivalsEvery"
+                        reason shouldContain "url"
                     }
                 }
             }
@@ -127,16 +127,16 @@ object ClassConfigSuite : Suite() {
                 error.shouldBeInstanceOf<StartupError.Refused> { refused ->
                     val reason = refused.reason
                     withClue(reason) {
-                        (reason shouldContain "host") and
-                            (reason shouldContain "'ratio': is a Double") and
-                            (reason shouldContain "'weight': is a Float") and
-                            (reason shouldContain "'small': is a Short") and
-                            (reason shouldContain "'tiny': is a Byte") and
-                            (reason shouldContain "'initial': is a Char") and
-                            (reason shouldContain "'ports': is a List<Int>") and
-                            (reason shouldContain "'tags': is a Set<String>") and
-                            (reason shouldContain "'limits': is a Map<String, Int>") and
-                            (reason shouldContain "'spare': is a Double?")
+                        reason shouldContain "host"
+                        reason shouldContain "'ratio': is a Double"
+                        reason shouldContain "'weight': is a Float"
+                        reason shouldContain "'small': is a Short"
+                        reason shouldContain "'tiny': is a Byte"
+                        reason shouldContain "'initial': is a Char"
+                        reason shouldContain "'ports': is a List<Int>"
+                        reason shouldContain "'tags': is a Set<String>"
+                        reason shouldContain "'limits': is a Map<String, Int>"
+                        reason shouldContain "'spare': is a Double?"
                     }
                 }
             }

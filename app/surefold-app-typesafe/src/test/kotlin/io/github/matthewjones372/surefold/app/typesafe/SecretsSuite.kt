@@ -41,9 +41,9 @@ object SecretsSuite : Suite() {
         test("a name that says what it is, is redacted") {
             val secrets = Secrets.default
 
-            (secrets.redacts("petshop.db.password") shouldBe true) and
-                (secrets.redacts("petshop.apiToken") shouldBe true) and
-                (secrets.redacts("petshop.aws.secretKey") shouldBe true)
+            secrets.redacts("petshop.db.password") shouldBe true
+            secrets.redacts("petshop.apiToken") shouldBe true
+            secrets.redacts("petshop.aws.secretKey") shouldBe true
         }
 
         test("a name that does not, is not") {
@@ -61,7 +61,8 @@ object SecretsSuite : Suite() {
 
             withClue("jdbc:postgresql://user:pass@host is the secret a name match misses") {
                 secrets.redacts("petshop.db.url") shouldBe true
-            } and (secrets.redacts("petshop.port") shouldBe false)
+            }
+            secrets.redacts("petshop.port") shouldBe false
         }
 
         test("the default cannot be shrunk, only added to") {

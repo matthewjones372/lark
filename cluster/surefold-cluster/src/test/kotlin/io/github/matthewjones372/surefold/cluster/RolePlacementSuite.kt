@@ -91,27 +91,26 @@ object RolePlacementSuite : Suite() {
                 RoleNode("o4", ports[3], seeds, setOf("web")),
             )
             try {
-                val up = offices.forAll { o ->
+                offices.forAll { o ->
                     o.cluster.await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 4 } shouldBe true
                 }
 
                 val answers = (0 until 500).map { offices[it % 4].where("l-$it") }
-                val onLedgers = answers.toSet() shouldBe setOf("o1", "o3")
+                answers.toSet() shouldBe setOf("o1", "o3")
                 val view = offices[1].cluster.view
                 val older = view.members.filter { "ledger" in it.roles }.minBy { it.upNumber }.node.name
-                val onOlder = offices.forAll { it.clock() shouldBe older }
+                offices.forAll { it.clock() shouldBe older }
 
                 val (o1, o2, o3, o4) = offices
                 listOf(o1, o3).forEach { it.close() }
-                val gone = listOf(o2, o4).forAll { o ->
+                listOf(o2, o4).forAll { o ->
                     o.cluster.await(1.minutes) { v -> v.members.none { "ledger" in it.roles } } shouldBe true
                 }
                 val waiting = CompletableFuture.supplyAsync { o2.where("l-1") }
                 offices += RoleNode("o5", ports[4], seeds, ledger)
 
-                up and onLedgers and onOlder and gone and
-                    (waiting.get(1, TimeUnit.MINUTES) shouldBe "o5") and
-                    (o4.clock() shouldBe "o5")
+                waiting.get(1, TimeUnit.MINUTES) shouldBe "o5"
+                o4.clock() shouldBe "o5"
             } finally {
                 offices.forEach(RoleNode::close)
             }

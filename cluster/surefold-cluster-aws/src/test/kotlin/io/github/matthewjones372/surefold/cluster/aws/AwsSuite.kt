@@ -121,11 +121,10 @@ object AwsSuite : Suite() {
                 ),
             )
 
-            val seeds = Aws.cloudMap(cloudMap, "shop.local", "orders", port = 25520).seeds() shouldContainExactly
+            Aws.cloudMap(cloudMap, "shop.local", "orders", port = 25520).seeds() shouldContainExactly
                 listOf(Node("", "10.2.0.4", 25520), Node("", "10.2.0.9", 25521))
-            seeds and
-                (cloudMap.asked?.namespaceName() shouldBe "shop.local") and
-                (cloudMap.asked?.serviceName() shouldBe "orders")
+            cloudMap.asked?.namespaceName() shouldBe "shop.local"
+            cloudMap.asked?.serviceName() shouldBe "orders"
         }
 
         test("the running tasks of the ECS service are the seeds, across every page of them") {
@@ -159,8 +158,8 @@ object AwsSuite : Suite() {
                 override fun close() = Unit
             }
 
-            Aws.cloudMap(cloudMap, "shop.local", "orders", 25520).seeds().shouldBeEmpty() and
-                (Aws.dynamoLease(dynamo, "leases", "orders").acquire("10.2.0.4") shouldBe false)
+            Aws.cloudMap(cloudMap, "shop.local", "orders", 25520).seeds().shouldBeEmpty()
+            Aws.dynamoLease(dynamo, "leases", "orders").acquire("10.2.0.4") shouldBe false
         }
 
         test("the first to ask holds the lease, asking again renews it, and it passes on once it lapses") {
@@ -168,36 +167,36 @@ object AwsSuite : Suite() {
             var at = Instant.parse("2026-09-26T10:00:00Z")
             val lease = DynamoLease(table, "leases", "orders", 15.seconds) { at }
 
-            val first = lease.acquire("10.2.0.4") shouldBe true
+            lease.acquire("10.2.0.4") shouldBe true
             at = at.plusSeconds(10)
-            val renewed = lease.acquire("10.2.0.4") shouldBe true
-            val refused = lease.acquire("10.2.0.9") shouldBe false
+            lease.acquire("10.2.0.4") shouldBe true
+            lease.acquire("10.2.0.9") shouldBe false
             at = at.plusSeconds(16)
-            val passed = lease.acquire("10.2.0.9") shouldBe true
+            lease.acquire("10.2.0.9") shouldBe true
 
-            first and renewed and refused and passed and
-                (table.items.getValue("orders").getValue("holder").s() shouldBe "10.2.0.9") and
-                table.everyWriteAskedFreeOrMine()
+            table.items.getValue("orders").getValue("holder").s() shouldBe "10.2.0.9"
+            table.everyWriteAskedFreeOrMine()
         }
 
         test("a joining finds seeds and takes the lease through its own clients, and closing it closes both") {
             val ecs = FakeEcs(listOf(task("t1", "RUNNING", "10.3.0.7")))
             val dynamo = FakeDynamo()
 
-            val whileOpen = Aws.joining({ ecs }, { dynamo }, "leases", "orders", 15.seconds, 20.seconds) { client ->
+            Aws.joining({ ecs }, { dynamo }, "leases", "orders", 15.seconds, 20.seconds) { client ->
                 Aws.ecs(client, "shop", "orders", 25520)
             }.use { joining ->
-                (joining.discovery.seeds() shouldContainExactly listOf(Node("", "10.3.0.7", 25520))) and
-                    (joining.downing shouldNotBe null) and
-                    ((ecs.closed || dynamo.closed) shouldBe false)
+                joining.discovery.seeds() shouldContainExactly listOf(Node("", "10.3.0.7", 25520))
+                joining.downing shouldNotBe null
+                (ecs.closed || dynamo.closed) shouldBe false
             }
-            whileOpen and (ecs.closed shouldBe true) and (dynamo.closed shouldBe true) and
-                dynamo.everyWriteAskedFreeOrMine()
+            ecs.closed shouldBe true
+            dynamo.closed shouldBe true
+            dynamo.everyWriteAskedFreeOrMine()
         }
 
         test("join = ecs and join = cloudmap are found by their names") {
-            Joins.available()["ecs"].shouldBeInstanceOf<EcsJoins>() and
-                Joins.available()["cloudmap"].shouldBeInstanceOf<CloudMapJoins>()
+            Joins.available()["ecs"].shouldBeInstanceOf<EcsJoins>()
+            Joins.available()["cloudmap"].shouldBeInstanceOf<CloudMapJoins>()
         }
     }
 }

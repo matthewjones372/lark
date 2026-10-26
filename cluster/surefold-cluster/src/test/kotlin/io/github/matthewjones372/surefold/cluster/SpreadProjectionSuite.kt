@@ -140,15 +140,15 @@ private class Spread {
             val every = withClue("every event is handled") { times.size shouldBe total }
             val restarted = started.toList().drop(startsBefore.size)
             val resumed = withClue("the leaving member's partitions started elsewhere: $restarted") {
-                (restarted.map { it.first }.toSet() shouldContainAll moved) and
-                    (restarted.none { it.second == leaving.name } shouldBe true)
+                restarted.map { it.first }.toSet() shouldContainAll moved
+                restarted.none { it.second == leaving.name } shouldBe true
             }
             // Only a moved partition can see an event twice: those it handled and had not yet saved when it stopped.
             val twice = times.filterValues { it.get() > 1 }.keys
             println("placed $placed; ${leaving.name} left; restarted $restarted; ${twice.size} handled twice")
             val fewTwice = withClue("${twice.size} events handled twice") {
-                (twice.all { (id, _) -> partitionOf(id) in moved } shouldBe true) and
-                    (twice.size shouldBeLessThanOrEqual moved.size * 256)
+                twice.all { (id, _) -> partitionOf(id) in moved } shouldBe true
+                twice.size shouldBeLessThanOrEqual moved.size * 256
             }
             return up and spread and every and resumed and fewTwice and
                 ids.forAll { id ->

@@ -35,13 +35,13 @@ object GuideConfigSuite : Suite() {
                 val read = section.reading { clusterSettings("shop.cluster") }
                 withClue(read.leftOrNull()) {
                     read.getOrNull().shouldNotBeNull { settings ->
-                        (settings.name shouldBe "shop-1") and
-                            (settings.port shouldBe 25520) and
-                            (settings.gossiping.ackWithin shouldBe 600.milliseconds) and
-                            (settings.whenDowned shouldBe WhenDowned.Exit) and
-                            settings.joining().use {
-                                it.discovery.seeds().map { seed -> seed.port } shouldContainExactly listOf(25520)
-                            }
+                        settings.name shouldBe "shop-1"
+                        settings.port shouldBe 25520
+                        settings.gossiping.ackWithin shouldBe 600.milliseconds
+                        settings.whenDowned shouldBe WhenDowned.Exit
+                        settings.joining().use {
+                            it.discovery.seeds().map { seed -> seed.port } shouldContainExactly listOf(25520)
+                        }
                     }
                 }
             }

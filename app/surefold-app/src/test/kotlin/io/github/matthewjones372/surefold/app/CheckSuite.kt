@@ -27,7 +27,8 @@ object CheckSuite : Suite() {
             testClasses { classes ->
                 val found = apps(classes).map { it::class.simpleName }
 
-                (found shouldContain "Sampled") and (found shouldContain "Faulty")
+                found shouldContain "Sampled"
+                found shouldContain "Faulty"
             }
         }
 
@@ -35,9 +36,9 @@ object CheckSuite : Suite() {
             testClasses { classes ->
                 val checked = checkWiring(classes)
 
-                (checked.failed shouldBe true) and
-                    (checked.report shouldContain "Faulty") and
-                    (checked.report shouldContain "missing File")
+                checked.failed shouldBe true
+                checked.report shouldContain "Faulty"
+                checked.report shouldContain "missing File"
             }
         }
 
@@ -56,7 +57,8 @@ object CheckSuite : Suite() {
             withTempDirectory { dir ->
                 val checked = checkWiring(listOf(dir.toFile()))
 
-                (checked.failed shouldBe false) and (checked.report shouldBe "")
+                checked.failed shouldBe false
+                checked.report shouldBe ""
             }
         }
 
@@ -68,7 +70,8 @@ object CheckSuite : Suite() {
 
                     withClue("Warned provides one key twice, which the default floor lets through") {
                         checkWiring(listOf(only)).failed shouldBe false
-                    } and (checkWiring(listOf(only), failOn = Severity.WARN).failed shouldBe true)
+                    }
+                    checkWiring(listOf(only), failOn = Severity.WARN).failed shouldBe true
                 }
             }
         }

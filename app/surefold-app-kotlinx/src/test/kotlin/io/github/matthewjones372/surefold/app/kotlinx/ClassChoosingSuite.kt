@@ -28,8 +28,8 @@ object ClassChoosingSuite : Suite() {
 
             val app = configOf(hocon) + hocon.choosing<Repo>("repo") { repo -> if (repo.useCache) cached else plain }
 
-            testApp(app) { inventory: Inventory -> inventory }.shouldBeInstanceOf<CachedInventory>() and
-                (testApp(app) { repo: Repo -> repo } shouldBe Repo(useCache = true))
+            testApp(app) { inventory: Inventory -> inventory }.shouldBeInstanceOf<CachedInventory>()
+            testApp(app) { repo: Repo -> repo } shouldBe Repo(useCache = true)
         }
     }
 }

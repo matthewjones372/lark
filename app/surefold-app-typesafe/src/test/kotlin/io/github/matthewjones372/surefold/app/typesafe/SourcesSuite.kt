@@ -44,11 +44,11 @@ object SourcesSuite : Suite() {
 
             val wanted = testApp(underTest) { wanted: Wanted -> wanted }
 
-            (wanted.poolSize shouldBe 1) and
-                withClue("the url and the idle came from the file, unrestated") {
-                    (wanted.url shouldBe "jdbc:postgresql://db.internal/shopping") and
-                        (wanted.idle shouldBe 30.seconds)
-                }
+            wanted.poolSize shouldBe 1
+            withClue("the url and the idle came from the file, unrestated") {
+                wanted.url shouldBe "jdbc:postgresql://db.internal/shopping"
+                wanted.idle shouldBe 30.seconds
+            }
         }
 
         test("what the service itself reads") {

@@ -93,7 +93,7 @@ object LateRegionSuite : Suite() {
             val ledger = LateNode("ledger", ports[0], seeds, setOf("ledger"), now)
             val web = LateNode("web", ports[1], seeds, setOf("web"), later)
             try {
-                val up = listOf(ledger, web).forAll { n ->
+                listOf(ledger, web).forAll { n ->
                     n.cluster().await(1.minutes) { v -> v.members.count { it.status == Status.Up } == 2 } shouldBe true
                 }
                 now.countDown()
@@ -104,7 +104,8 @@ object LateRegionSuite : Suite() {
                 val answered = CompletableFuture.supplyAsync { ledger.who("l-1") }
                 later.countDown()
 
-                up and (answered.get(1, TimeUnit.MINUTES) shouldBe "ledger") and (web.who("l-2") shouldBe "ledger")
+                answered.get(1, TimeUnit.MINUTES) shouldBe "ledger"
+                web.who("l-2") shouldBe "ledger"
             } finally {
                 listOf(web, ledger).forEach(LateNode::close)
             }
