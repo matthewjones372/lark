@@ -9,7 +9,6 @@ import io.github.matthewjones372.surefold.actor.StateCodec
 import io.github.matthewjones372.surefold.actor.every
 import io.github.matthewjones372.surefold.actor.persistent
 import io.github.matthewjones372.surefold.actor.testActors
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.stream.Forks
@@ -52,7 +51,7 @@ object PruningProjectionSuite : Suite() {
             val handled = AtomicInteger()
 
             /** Runs the `totals` projection until it has handled [count] events in all, and stops it. */
-            fun follow(count: Int): Expectations {
+            fun follow(count: Int) {
                 val reached = CountDownLatch(1)
                 val running = Projection.follow(journal, "ledger", amount, offsets, "totals")
                     .mapFollowed { event ->
@@ -60,23 +59,23 @@ object PruningProjectionSuite : Suite() {
                     }
                     .runProjecting()
                     .start(Forks())
-                val stopped = reached.await(1, TimeUnit.MINUTES) shouldBe true
+                reached.await(1, TimeUnit.MINUTES) shouldBe true
                 running.close()
-                return stopped
             }
 
-            val followed = testActors(journal = journal) {
+            testActors(journal = journal) {
                 val book = spawn("ledger", ledger(Prune.after(offsets, "totals")))
                 (1..1_050).forEach { book.send(Post(it)) }
-                val appended = journal.read(ledgerId).size shouldBe 1_050
+                journal.read(ledgerId).size shouldBe 1_050
 
-                val first = follow(1_050)
+                follow(1_050)
 
                 (1_051..1_150).forEach { book.send(Post(it)) }
-                appended and first and (journal.read(ledgerId).first().sequence shouldBe 1_001) and follow(1_150)
+                journal.read(ledgerId).first().sequence shouldBe 1_001
+                follow(1_150)
             }
 
-            followed and (handled.get() shouldBe 1_150)
+            handled.get() shouldBe 1_150
         }
     }
 }

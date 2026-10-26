@@ -22,7 +22,8 @@ object RunnersSuite : Suite() {
             release.countDown()
             runners.awaitIdle()
 
-            (ran.first() shouldBe "urgent") and (ran.size shouldBe 1_001)
+            ran.first() shouldBe "urgent"
+            ran.size shouldBe 1_001
         }
 
         // Spec 0143: a runner that runs out of work waits to be woken rather than leaving for a new one to start.

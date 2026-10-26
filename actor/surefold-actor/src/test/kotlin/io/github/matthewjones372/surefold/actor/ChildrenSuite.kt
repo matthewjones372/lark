@@ -47,32 +47,32 @@ object ChildrenSuite : Suite() {
     init {
         test("a child's Stopping comes before its parent's") {
             val log = AtomicReference<List<String>>(emptyList())
-            val hired = testActors {
+            testActors {
                 val manager = spawn("manager", manager(log))
                 manager.send(Hire("ann"))
                 manager.send(Hire("bob"))
 
-                val children = manager.children.map { it.address.path } shouldBe
+                manager.children.map { it.address.path } shouldBe
                     listOf("/user/manager/ann", "/user/manager/bob")
                 manager.send(Shut)
-                children
             }
 
-            hired and (log.get() shouldBe listOf("ann", "bob", "manager"))
+            log.get() shouldBe listOf("ann", "bob", "manager")
         }
 
         test("a parent's restart stops its children first, and the parent carries on") {
             val log = AtomicReference<List<String>>(emptyList())
-            val restarted = testActors {
+            testActors {
                 val manager = spawn("manager", manager(log), restart = Schedule.recurs(1))
                 manager.send(Hire("ann"))
 
                 manager.send(Trip)
 
-                (manager.stopped shouldBe false) and (manager.children shouldBe emptyList())
+                manager.stopped shouldBe false
+                manager.children shouldBe emptyList()
             }
 
-            restarted and (log.get() shouldBe listOf("ann"))
+            log.get() shouldBe listOf("ann")
         }
 
         test("on threads, a child's Stopping comes before its parent's") {

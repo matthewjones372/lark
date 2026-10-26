@@ -52,7 +52,8 @@ object JdbcSliceTableSuite : Suite() {
                 asked
             }
 
-            seen.forAll { it.get() shouldBe first } and (pool.opened.get() shouldBeLessThanOrEqual 2)
+            seen.forAll { it.get() shouldBe first }
+            pool.opened.get() shouldBeLessThanOrEqual 2
         }
 
         test("refreshes asked while one is reading share its read") {

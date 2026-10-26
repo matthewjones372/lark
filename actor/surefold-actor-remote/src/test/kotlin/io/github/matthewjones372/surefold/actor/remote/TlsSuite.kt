@@ -49,8 +49,8 @@ object TlsSuite : Suite() {
                 (1..100).forEach { first.send(n2, frameOf(it)) }
                 (1..100).forEach { second.send(n1, frameOf(it)) }
 
-                (toldN2.take(100) shouldBe (1..100).map { "n1" to it }) and
-                    (toldN1.take(100) shouldBe (1..100).map { "n2" to it })
+                toldN2.take(100) shouldBe (1..100).map { "n1" to it }
+                toldN1.take(100) shouldBe (1..100).map { "n2" to it }
             }
         }
 
@@ -69,13 +69,12 @@ object TlsSuite : Suite() {
                 (1..3).forEach { stranger.send(n2, frameOf(it)) }
                 (1..3).forEach { trusted.send(n4, frameOf(it)) }
 
-                val n4Dropped = toldN4.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
-                val n2Dropped = toldN2.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
-                n4Dropped and n2Dropped and
-                    (toldN4.dropped.toList() shouldContainExactly listOf(1, 2, 3)) and
-                    (toldN2.dropped.toList() shouldContainExactly listOf(1, 2, 3)) and
-                    (toldN2.received.isEmpty() shouldBe true) and
-                    (toldN4.received.isEmpty() shouldBe true)
+                toldN4.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+                toldN2.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+                toldN4.dropped.toList() shouldContainExactly listOf(1, 2, 3)
+                toldN2.dropped.toList() shouldContainExactly listOf(1, 2, 3)
+                toldN2.received.isEmpty() shouldBe true
+                toldN4.received.isEmpty() shouldBe true
             }
         }
 
@@ -93,11 +92,10 @@ object TlsSuite : Suite() {
                 (1..2).forEach { open.send(n1, frameOf(it)) }
                 (1..2).forEach { secure.send(plain, frameOf(it)) }
 
-                val plainDropped = toldPlain.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
-                val n1Dropped = toldN1.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
-                plainDropped and n1Dropped and
-                    (toldN1.received.isEmpty() shouldBe true) and
-                    (toldPlain.received.isEmpty() shouldBe true)
+                toldPlain.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+                toldN1.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+                toldN1.received.isEmpty() shouldBe true
+                toldPlain.received.isEmpty() shouldBe true
             }
         }
 
@@ -114,8 +112,8 @@ object TlsSuite : Suite() {
 
                 (1..2).forEach { client.send(n1, frameOf(it)) }
 
-                (toldAnonymous.allDropped.await(1, TimeUnit.MINUTES) shouldBe true) and
-                    (toldAnonymous.dropped.toList() shouldContainExactly listOf(1, 2))
+                toldAnonymous.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+                toldAnonymous.dropped.toList() shouldContainExactly listOf(1, 2)
             }
         }
 
@@ -131,8 +129,8 @@ object TlsSuite : Suite() {
 
                 (1..2).forEach { impostor.send(n3, frameOf(it)) }
 
-                (toldImpostor.allDropped.await(1, TimeUnit.MINUTES) shouldBe true) and
-                    (toldN3.received.isEmpty() shouldBe true)
+                toldImpostor.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+                toldN3.received.isEmpty() shouldBe true
             }
         }
 
@@ -147,8 +145,8 @@ object TlsSuite : Suite() {
 
                 (1..2).forEach { honest.send(claimsN2, frameOf(it)) }
 
-                (toldN3.allDropped.await(1, TimeUnit.MINUTES) shouldBe true) and
-                    (toldImpostor.received.isEmpty() shouldBe true)
+                toldN3.allDropped.await(1, TimeUnit.MINUTES) shouldBe true
+                toldImpostor.received.isEmpty() shouldBe true
             }
         }
 

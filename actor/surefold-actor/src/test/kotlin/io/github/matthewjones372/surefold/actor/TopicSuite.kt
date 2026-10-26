@@ -56,13 +56,13 @@ object TopicSuite : Suite() {
                     captured.gauge("surefold.topic.subscribers") shouldBe 1.0
                 }
 
-                during.shouldBeRight { it } and
-                    (heard.getValue("a").toList() shouldContainExactly (1..70).toList()) and
-                    (heard.getValue("b").toList() shouldContainExactly (1..60).toList()) and
-                    (heard.getValue("c").toList() shouldContainExactly (1..50).toList()) and
-                    (letters.toList() shouldBe emptyList()) and
-                    (captured.counter("surefold.topic.published") shouldBe 70.0) and
-                    (captured.counter("surefold.topic.delivered") shouldBe (50.0 * 3 + 10 * 2 + 10))
+                during.shouldBeRight { it }
+                heard.getValue("a").toList() shouldContainExactly (1..70).toList()
+                heard.getValue("b").toList() shouldContainExactly (1..60).toList()
+                heard.getValue("c").toList() shouldContainExactly (1..50).toList()
+                letters.toList() shouldBe emptyList()
+                captured.counter("surefold.topic.published") shouldBe 70.0
+                captured.counter("surefold.topic.delivered") shouldBe (50.0 * 3 + 10 * 2 + 10)
             }
         }
 
@@ -78,8 +78,8 @@ object TopicSuite : Suite() {
                 awaitIdle()
             }
 
-            (heard.getValue("a").toList() shouldContainExactly listOf(1, 2)) and
-                (forwarded.toList() shouldContainExactly listOf(1))
+            heard.getValue("a").toList() shouldContainExactly listOf(1, 2)
+            forwarded.toList() shouldContainExactly listOf(1)
         }
 
         test(
@@ -99,8 +99,8 @@ object TopicSuite : Suite() {
                 awaitIdle()
             }
 
-            (elsewhere.heard.toList() shouldContainExactly listOf(1, 2, 3)) and
-                (heard.getValue("a").toList() shouldContainExactly listOf(1, 2, 3, 4))
+            elsewhere.heard.toList() shouldContainExactly listOf(1, 2, 3)
+            heard.getValue("a").toList() shouldContainExactly listOf(1, 2, 3, 4)
         }
 
         test(
@@ -111,7 +111,7 @@ object TopicSuite : Suite() {
             val letters = ConcurrentLinkedQueue<DeadLetter>()
             val stalled = ConcurrentLinkedQueue<Int>()
 
-            val during = flock<Nothing, Expectations> {
+            val during = flock<Nothing, Unit> {
                 onDeadLetter(letters::add)
                 val prices = topic<Int>("prices")
                 val slow = spawn(
@@ -140,24 +140,23 @@ object TopicSuite : Suite() {
                 // All of them are more than a's mailbox and what is kept for it together, and a busy machine may not
                 // run a until every publish is in; so a catches up halfway, or some of a's would be full too.
                 (0..KEEP_AT_MOST).forEach(prices::publish)
-                val caught = caughtUp.await(1, TimeUnit.MINUTES) shouldBe true
+                caughtUp.await(1, TimeUnit.MINUTES) shouldBe true
                 (KEEP_AT_MOST + 1..KEEP_AT_MOST + 2_000).forEach(prices::publish)
                 // The topic still takes subscribers and publishes while one of them is stalled.
                 val late = LinkedBlockingQueue<Int>()
                 prices.subscribe(spawn("b", behaviour<Int, Unit>(Unit) { _, _, n -> stay().also { late += n } }))
                 prices.publish(-1)
-                val heardLate = late.poll(1, TimeUnit.MINUTES) shouldBe -1
+                late.poll(1, TimeUnit.MINUTES) shouldBe -1
                 open.countDown()
                 awaitIdle()
-                caught and heardLate
             }
 
             val full = letters.filter { it.why == DeadLetter.Why.Full }
-            during.shouldBeRight { it } and
-                (heard.getValue("a").toList() shouldContainExactly (0..KEEP_AT_MOST + 2_000).toList() + -1) and
-                (full.map { it.recipient.path }.toSet() shouldBe setOf("/user/slow")) and
-                ((stalled.size + full.size) shouldBe KEEP_AT_MOST + 2_001) and
-                (stalled.toList() shouldBe stalled.sorted())
+            during shouldBeRight Unit
+            heard.getValue("a").toList() shouldContainExactly (0..KEEP_AT_MOST + 2_000).toList() + -1
+            full.map { it.recipient.path }.toSet() shouldBe setOf("/user/slow")
+            (stalled.size + full.size) shouldBe KEEP_AT_MOST + 2_001
+            stalled.toList() shouldBe stalled.sorted()
         }
     }
 }

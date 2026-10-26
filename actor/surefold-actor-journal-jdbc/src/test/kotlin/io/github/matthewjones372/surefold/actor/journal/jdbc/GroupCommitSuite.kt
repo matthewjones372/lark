@@ -30,14 +30,13 @@ object GroupCommitSuite : Suite() {
             val journal = JdbcJournal(source, groupCommit = GroupCommit())
             val ids = (1..200).map { PersistenceId("till", "t-$it") }
 
-            val appended = Executors.newVirtualThreadPerTaskExecutor().use { threads ->
+            Executors.newVirtualThreadPerTaskExecutor().use { threads ->
                 ids.map { id -> threads.submit(Callable { journal.append(id, 0, listOf(byteArrayOf(1))) }) }
                     .forAll { it.get().isRight() shouldBe true }
             }
 
-            appended and
-                ids.forAll { id -> journal.read(id).size shouldBe 1 } and
-                (source.commits.get() shouldBeLessThan ids.size)
+            ids.forAll { id -> journal.read(id).size shouldBe 1 }
+            source.commits.get() shouldBeLessThan ids.size
         }
 
         test("a conflicting append in a group is answered alone, and the rest of the group commits") {
@@ -45,7 +44,7 @@ object GroupCommitSuite : Suite() {
             val source = CountedCommits(Postgres.fresh(), holdFirst = held)
             val journal = JdbcJournal(source, groupCommit = GroupCommit(committers = 1))
             val first = appendLater { journal.append(PersistenceId("till", "a"), 0, listOf(byteArrayOf(1))) }
-            val started = source.firstCommitStarted.await(10, TimeUnit.SECONDS) shouldBe true
+            source.firstCommitStarted.await(10, TimeUnit.SECONDS) shouldBe true
 
             // Queued while the first group commits, so they are the next group.
             val fine = appendLater { journal.append(PersistenceId("till", "b"), 0, listOf(byteArrayOf(1))) }
@@ -54,12 +53,11 @@ object GroupCommitSuite : Suite() {
             waitUntil { journal.queued() == 3 }
             held.countDown()
 
-            started and
-                (first.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L) and
-                (fine.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L) and
-                (stale.get(10, TimeUnit.SECONDS).leftOrNull()?.actual shouldBe 0L) and
-                (alsoFine.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L) and
-                (source.commits.get() shouldBe 2)
+            first.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L
+            fine.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L
+            stale.get(10, TimeUnit.SECONDS).leftOrNull()?.actual shouldBe 0L
+            alsoFine.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L
+            source.commits.get() shouldBe 2
         }
 
         test("a commit that fails fails every append in its group, and none of them is written") {
@@ -67,7 +65,7 @@ object GroupCommitSuite : Suite() {
             val source = CountedCommits(Postgres.fresh(), holdFirst = held, failSecond = true)
             val journal = JdbcJournal(source, groupCommit = GroupCommit(committers = 1))
             val first = appendLater { journal.append(PersistenceId("till", "a"), 0, listOf(byteArrayOf(1))) }
-            val started = source.firstCommitStarted.await(10, TimeUnit.SECONDS) shouldBe true
+            source.firstCommitStarted.await(10, TimeUnit.SECONDS) shouldBe true
 
             val lost = listOf("b", "c").map { id ->
                 appendLater { journal.append(PersistenceId("till", id), 0, listOf(byteArrayOf(1))) }
@@ -75,19 +73,18 @@ object GroupCommitSuite : Suite() {
             waitUntil { journal.queued() == 2 }
             held.countDown()
 
-            started and
-                (first.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L) and
-                lost.forAll { append ->
-                    shouldThrow<SQLException> {
-                        try {
-                            append.get(10, TimeUnit.SECONDS)
-                        } catch (failed: java.util.concurrent.ExecutionException) {
-                            throw checkNotNull(failed.cause)
-                        }
+            first.get(10, TimeUnit.SECONDS).getOrNull() shouldBe 1L
+            lost.forAll { append ->
+                shouldThrow<SQLException> {
+                    try {
+                        append.get(10, TimeUnit.SECONDS)
+                    } catch (failed: java.util.concurrent.ExecutionException) {
+                        throw checkNotNull(failed.cause)
                     }
-                } and
-                journal.read(PersistenceId("till", "b")).shouldBeEmpty() and
-                journal.read(PersistenceId("till", "c")).shouldBeEmpty()
+                }
+            }
+            journal.read(PersistenceId("till", "b")).shouldBeEmpty()
+            journal.read(PersistenceId("till", "c")).shouldBeEmpty()
         }
     }
 

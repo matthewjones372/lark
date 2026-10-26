@@ -65,15 +65,13 @@ object ShardedPostgresSuite : Suite() {
                 }
 
                 val fed = journal.feeds.associate { (database, feed) -> database to feed.after("till", 0, 10_000) }
-                ids.forAll { id -> journal.events(id, shardedCents) shouldContainExactly listOf(1, 2, 3) } and
-                    (
-                        fed.values.flatten().map { it.id to it.sequence } shouldContainExactlyInAnyOrder
-                            ids.flatMap { id -> (1L..3L).map { id to it } }
-                        ) and
-                    fed.entries.forAll { (database, events) ->
-                        events.all { journal.database(it.id) == database } shouldBe true
-                    } and
-                    fed.values.forAll { events -> events.isNotEmpty() shouldBe true }
+                ids.forAll { id -> journal.events(id, shardedCents) shouldContainExactly listOf(1, 2, 3) }
+                fed.values.flatten().map { it.id to it.sequence } shouldContainExactlyInAnyOrder
+                    ids.flatMap { id -> (1L..3L).map { id to it } }
+                fed.entries.forAll { (database, events) ->
+                    events.all { journal.database(it.id) == database } shouldBe true
+                }
+                fed.values.forAll { events -> events.isNotEmpty() shouldBe true }
             }
         }
 
@@ -103,10 +101,10 @@ object ShardedPostgresSuite : Suite() {
                     awaitIdle()
                 }
 
-                (JdbcSnapshots(a).latest(inA)?.sequence shouldBe 20) and
-                    (JdbcSnapshots(b).latest(inB)?.sequence shouldBe 20) and
-                    (journal.read(inA).first().sequence shouldBe 11) and
-                    (journal.read(inB).first().sequence shouldBe 1)
+                JdbcSnapshots(a).latest(inA)?.sequence shouldBe 20
+                JdbcSnapshots(b).latest(inB)?.sequence shouldBe 20
+                journal.read(inA).first().sequence shouldBe 11
+                journal.read(inB).first().sequence shouldBe 1
             }
         }
     }

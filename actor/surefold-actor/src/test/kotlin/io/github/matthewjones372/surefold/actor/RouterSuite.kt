@@ -3,7 +3,6 @@ package io.github.matthewjones372.surefold.actor
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.fail.right
 import io.github.matthewjones372.surefold.flock
-import io.github.matthewjones372.surefold.junit.Expectations
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
@@ -65,8 +64,8 @@ object RouterSuite : Suite() {
 
             repeat(8) { pool.send(Fetch("pet-$it")) }
 
-            (served.values.map { it.size } shouldContainExactly listOf(2, 2, 2, 2)) and
-                (served.keys shouldBe (1..4).map { "/user/pool/routee-$it" }.toSet())
+            served.values.map { it.size } shouldContainExactly listOf(2, 2, 2, 2)
+            served.keys shouldBe (1..4).map { "/user/pool/routee-$it" }.toSet()
         }
 
         test("hashing sends one key to one routee, always") {
@@ -76,10 +75,8 @@ object RouterSuite : Suite() {
 
             listOf("sam", "bo", "sam", "kit", "bo", "sam").forEach { pool.send(Fetch(it)) }
 
-            listOf("sam", "bo", "kit")
-                .map { pet -> served.values.count { pet in it } shouldBe 1 }
-                .reduce(Expectations::and) and
-                (served.values.flatten() shouldContainExactlyInAnyOrder listOf("sam", "bo", "sam", "kit", "bo", "sam"))
+            listOf("sam", "bo", "kit").forEach { pet -> served.values.count { pet in it } shouldBe 1 }
+            served.values.flatten() shouldContainExactlyInAnyOrder listOf("sam", "bo", "sam", "kit", "bo", "sam")
         }
 
         test("a failed routee restarts alone") {
@@ -89,8 +86,8 @@ object RouterSuite : Suite() {
             pool.send(Topple)
             repeat(4) { pool.send(Fetch("pet-$it")) }
 
-            (pool.routees().map { it.restarts } shouldContainExactly listOf(1, 0, 0, 0)) and
-                (served.values.map { it.size } shouldContainExactly listOf(1, 1, 1, 1))
+            pool.routees().map { it.restarts } shouldContainExactly listOf(1, 0, 0, 0)
+            served.values.map { it.size } shouldContainExactly listOf(1, 1, 1, 1)
         }
 
         test("a routee that stops leaves the pool smaller, and a pool with none left stops") {
@@ -104,7 +101,8 @@ object RouterSuite : Suite() {
 
             withClue("the first routee resigned, so the second took everything after") {
                 served shouldBe mapOf("/user/pool/routee-2" to listOf("sam", "bo"))
-            } and (pool.stopped shouldBe true)
+            }
+            pool.stopped shouldBe true
         }
 
         test("a group routes over refs already running, with no actor between") {
@@ -152,8 +150,8 @@ object RouterSuite : Suite() {
             }
 
             val routee2 = "/user/pool/routee-2".right()
-            (answers shouldBeRight listOf(routee2, Unit, routee2, routee2)) and
-                (served["/user/pool/routee-1"] shouldBe listOf("fills routee-1"))
+            answers shouldBeRight listOf(routee2, Unit, routee2, routee2)
+            served["/user/pool/routee-1"] shouldBe listOf("fills routee-1")
         }
     }
 }

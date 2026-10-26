@@ -71,17 +71,14 @@ object ShardedProjectionSuite : Suite() {
                         .runProjecting()
                         .start(Forks())
                 }
-                val reached = all.await(1, TimeUnit.MINUTES) shouldBe true
+                all.await(1, TimeUnit.MINUTES) shouldBe true
                 runs.forEach { it.close() }
 
-                reached and
-                    (
-                        seen.values.flatten() shouldContainExactlyInAnyOrder
-                            ids.flatMap { id -> (1L..5L).map { id to it } }
-                        ) and
-                    seen.entries.forAll { (database, events) ->
-                        events.all { (id, _) -> journal.database(id) == database } shouldBe true
-                    }
+                seen.values.flatten() shouldContainExactlyInAnyOrder
+                    ids.flatMap { id -> (1L..5L).map { id to it } }
+                seen.entries.forAll { (database, events) ->
+                    events.all { (id, _) -> journal.database(id) == database } shouldBe true
+                }
             }
         }
 
@@ -103,7 +100,8 @@ object ShardedProjectionSuite : Suite() {
                     }
                 }
 
-                (journal.read(inA).first().sequence shouldBe 101) and (journal.read(inB).first().sequence shouldBe 1)
+                journal.read(inA).first().sequence shouldBe 101
+                journal.read(inB).first().sequence shouldBe 1
             }
         }
     }

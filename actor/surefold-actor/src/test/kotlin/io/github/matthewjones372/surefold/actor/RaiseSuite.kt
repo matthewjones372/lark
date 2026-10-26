@@ -55,7 +55,8 @@ object RaiseSuite : Suite() {
 
             till.send(Sell(5))
 
-            (till.stopped shouldBe true) and (till.failure shouldBe Failure.Declared(OutOfStock))
+            till.stopped shouldBe true
+            till.failure shouldBe Failure.Declared(OutOfStock)
         }
 
         test("a bind on a Left is a raise") {
@@ -72,15 +73,16 @@ object RaiseSuite : Suite() {
             till.send(Try(5))
             till.send(Settle(2.right()))
 
-            (till.stopped shouldBe false) and (till.state shouldBe 1)
+            till.stopped shouldBe false
+            till.state shouldBe 1
         }
 
         test("a throw is a Thrown failure, and still reaches the test") {
             val till = till(3).test()
 
-            val thrown = shouldThrow<IllegalStateException> { till.send(Explode) }
+            shouldThrow<IllegalStateException> { till.send(Explode) }
 
-            thrown and till.failure.shouldBeInstanceOf<Failure.Thrown> { failure ->
+            till.failure.shouldBeInstanceOf<Failure.Thrown> { failure ->
                 failure.throwable.message shouldBe "the till caught fire"
             }
         }

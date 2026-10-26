@@ -74,9 +74,9 @@ object AssumingNewSuite : Suite() {
                 ada.ask { Sum(it) }
             }
 
-            (total shouldBe 7.right()) and
-                (journal.reads.get() shouldBe 0) and
-                (log.toList() shouldContainExactly listOf("started at 0", "added 5 to make 5", "added 2 to make 7"))
+            total shouldBe 7.right()
+            journal.reads.get() shouldBe 0
+            log.toList() shouldContainExactly listOf("started at 0", "added 5 to make 5", "added 2 to make 7")
         }
 
         test("an entity that existed recovers once its first append conflicts, and decides that command again") {
@@ -90,10 +90,10 @@ object AssumingNewSuite : Suite() {
             }
 
             // The guess's `then` never ran; the hooks ran again with what was recovered; supervision was not asked.
-            (total shouldBe 42.right()) and
-                (restarts shouldBe 0) and
-                (journal.events(tallyOf("ada"), tallyCodec) shouldContainExactly listOf(40, 2)) and
-                (log.toList() shouldContainExactly listOf("started at 0", "started at 40", "added 2 to make 42"))
+            total shouldBe 42.right()
+            restarts shouldBe 0
+            journal.events(tallyOf("ada"), tallyCodec) shouldContainExactly listOf(40, 2)
+            log.toList() shouldContainExactly listOf("started at 0", "started at 40", "added 2 to make 42")
         }
 
         test("a first command that persists nothing is answered from the recovered state, not the empty one") {
@@ -104,9 +104,9 @@ object AssumingNewSuite : Suite() {
                 spawn("ada", tally("ada", Start.assumingNew, log)).ask { Sum(it) }
             }
 
-            (total shouldBe 40.right()) and
-                (journal.reads.get() shouldBe 1) and
-                (log.toList() shouldContainExactly listOf("started at 0", "started at 40"))
+            total shouldBe 40.right()
+            journal.reads.get() shouldBe 1
+            log.toList() shouldContainExactly listOf("started at 0", "started at 40")
         }
 
         test("recovering, the default, reads the journal before the first command as before") {
@@ -133,9 +133,9 @@ object AssumingNewSuite : Suite() {
                 listOf(fresh.ask(1.minutes) { Sum(it) }, old.ask(1.minutes) { Sum(it) })
             }
 
-            (totals shouldBe listOf(5.right(), 42.right()).right()) and
-                (journal.reads.get() shouldBe 1) and
-                (journal.events(tallyOf("old"), tallyCodec) shouldContainExactly listOf(40, 2))
+            totals shouldBe listOf(5.right(), 42.right()).right()
+            journal.reads.get() shouldBe 1
+            journal.events(tallyOf("old"), tallyCodec) shouldContainExactly listOf(40, 2)
         }
     }
 }

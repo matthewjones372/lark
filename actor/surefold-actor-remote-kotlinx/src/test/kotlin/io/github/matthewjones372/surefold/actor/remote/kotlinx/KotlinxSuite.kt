@@ -69,15 +69,15 @@ object KotlinxSuite : Suite() {
     init {
         test("one data class crosses as its own bytes and reads back equal") {
             val takings = Takings(Pence(350), listOf("a", "b"), open = true)
-            (Kotlinx.codec(serializer<Takings>()).roundTrip(takings) shouldBe takings) and
-                (Kotlinx.state(serializer<Takings>()).let { it.decode(it.encode(takings)) } shouldBe takings)
+            Kotlinx.codec(serializer<Takings>()).roundTrip(takings) shouldBe takings
+            Kotlinx.state(serializer<Takings>()).let { it.decode(it.encode(takings)) } shouldBe takings
         }
 
         test(
             "each class of a table reads back as the class it was written as, between nodes and in the journal",
         ) {
-            (everyKind.map { tills.messages().roundTrip(it) } shouldBe everyKind) and
-                (everyKind.map { tills.events().let { codec -> codec.decode(codec.encode(it)) } } shouldBe everyKind)
+            everyKind.map { tills.messages().roundTrip(it) } shouldBe everyKind
+            everyKind.map { tills.events().let { codec -> codec.decode(codec.encode(it)) } } shouldBe everyKind
         }
 
         test("a table writes in any binary format it is given") {
@@ -90,35 +90,32 @@ object KotlinxSuite : Suite() {
         }
 
         test("a table with a tag or a class given twice fails when it is built") {
-            val tagTwice = shouldThrow<IllegalArgumentException>({
+            shouldThrow<IllegalArgumentException>({
                 Kotlinx.oneOf<Till> {
                     message<Till.Paid>(1)
                     message<Till.Refunded>(1)
                 }
             }) { e -> e.message shouldContain "tag 1" }
-            val classTwice = shouldThrow<IllegalArgumentException>({
+            shouldThrow<IllegalArgumentException>({
                 Kotlinx.oneOf<Till> {
                     message<Till.Paid>(1)
                     message<Till.Paid>(2)
                 }
             }) { e -> e.message shouldContain "Paid" }
-            tagTwice and classTwice
         }
 
         test("a class the table has no tag for is refused, and a tag it does not know is not read") {
             val short = Kotlinx.oneOf<Till> { message<Till.Paid>(1) }
-            val refused =
-                shouldThrow<IllegalArgumentException>({ short.write(Till.Closed) }) { e ->
-                    e.message shouldContain
-                        "Closed"
-                }
+            shouldThrow<IllegalArgumentException>({ short.write(Till.Closed) }) { e ->
+                e.message shouldContain
+                    "Closed"
+            }
 
             val closed = tills.write(Till.Closed)
-            refused and
-                shouldThrow<SerializationException>({ short.read(closed) }) { e -> e.message shouldContain "tag 3" } and
-                shouldThrow<WireException> {
-                    short.messages().decode(tills.messages().encode(Till.Closed, Kept()), Kept())
-                }
+            shouldThrow<SerializationException>({ short.read(closed) }) { e -> e.message shouldContain "tag 3" }
+            shouldThrow<WireException> {
+                short.messages().decode(tills.messages().encode(Till.Closed, Kept()), Kept())
+            }
         }
 
         test("an entity's events and snapshot are written through a table and survive a replay") {
@@ -152,10 +149,10 @@ object KotlinxSuite : Suite() {
                 }
             }
             val first = run()
-            val firstLife = first shouldBe Takings(Pence(150), listOf("order-42"), open = false)
-            val written = journal.read(id).size shouldBe 3
+            first shouldBe Takings(Pence(150), listOf("order-42"), open = false)
+            journal.read(id).size shouldBe 3
             // A second life replays what the first wrote, from its snapshot on, before taking three more.
-            firstLife and written and (run() shouldBe Takings(Pence(300), listOf("order-42", "order-42"), open = false))
+            run() shouldBe Takings(Pence(300), listOf("order-42", "order-42"), open = false)
         }
 
         test("an ask whose request is a data class is answered from another node") {

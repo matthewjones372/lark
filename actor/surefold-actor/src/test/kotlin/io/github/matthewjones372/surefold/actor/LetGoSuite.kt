@@ -85,9 +85,9 @@ object LetGoSuite : Suite() {
                 parent.send(Fledge("rex"))
 
                 parent.send(Shoo("rex"))
-                val quiet = parent.failure shouldBe null
+                parent.failure shouldBe null
 
-                quiet and shouldThrow<IllegalArgumentException> { parent.send(Meddle(stranger)) }
+                shouldThrow<IllegalArgumentException> { parent.send(Meddle(stranger)) }
             }
         }
 

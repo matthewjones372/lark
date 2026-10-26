@@ -56,8 +56,8 @@ object DeliveredSuite : Suite() {
                 till.send(TillCash(5))
                 till.send(TillSale(20, from(2)))
 
-                (till.state shouldBe 35) and
-                    (confirmed.toList() shouldContainExactly listOf(Confirmed("till", 1), Confirmed("till", 2)))
+                till.state shouldBe 35
+                confirmed.toList() shouldContainExactly listOf(Confirmed("till", 1), Confirmed("till", 2))
             }
         }
 
@@ -70,8 +70,8 @@ object DeliveredSuite : Suite() {
 
                 till.send(TillStuck(Delivery("checkout", "till", 1, confirms)))
 
-                (till.failure shouldBe Failure.Declared("stuck")) and
-                    (confirmed.toList() shouldContainExactly emptyList())
+                till.failure shouldBe Failure.Declared("stuck")
+                confirmed.toList() shouldContainExactly emptyList()
             }
         }
 
@@ -83,12 +83,11 @@ object DeliveredSuite : Suite() {
                 val till = spawn("till", shutTill())
 
                 till.send(TillSale(10, Delivery("checkout", "till", 1, confirms)))
-                val kept = confirmed.toList() shouldBe emptyList()
+                confirmed.toList() shouldBe emptyList()
 
                 till.send(TillCash(5))
-                kept and
-                    (till.state shouldBe 15) and
-                    (confirmed.toList() shouldContainExactly listOf(Confirmed("till", 1)))
+                till.state shouldBe 15
+                confirmed.toList() shouldContainExactly listOf(Confirmed("till", 1))
             }
         }
     }
