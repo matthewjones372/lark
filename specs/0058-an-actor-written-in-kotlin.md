@@ -98,6 +98,10 @@ wanted, it should be its own spec after this one.
       Done when: the body reads `isVirtual` as true, a `raise` arrives as a
       `Left` message, and a throw fails the actor rather than arriving as a
       message.
+      `raise` is `fail` since the error model was renamed. The throw is rethrown when the wrapped message is made,
+      which Pekko does on the actor's own turn, so the actor fails as any behaviour that throws does; a watching
+      parent sees `ChildFailed` with that throwable. The block's overload takes `wrap` first and the block last, so
+      `pipeToSelf(::Loaded) { … }` reads as the shape shows, and neither overload can be taken for Pekko's own.
 
 ## Acceptance
 
