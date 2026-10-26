@@ -251,7 +251,7 @@ private class OutboxSteps<M : Any>(
     ): Effect<OutboxEvent, Stored> {
         val sequence = stored.next[asked.to] ?: 1
         val (_, send) = stored.outboxes.kept(asked.to, sequence, asked.bytes)
-        return effects.persist(OutboxEvent.Kept(asked.to, sequence, asked.bytes)).then {
+        return effects.persist(OutboxEvent.Kept(asked.to, sequence, asked.bytes)).then { _ ->
             // Written: from here a throw leaves its room held, for the restart's replay to find it, and the caller
             // hears so before the send, which cannot take it back.
             holding += asked.to to sequence
