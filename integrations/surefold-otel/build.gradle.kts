@@ -6,11 +6,9 @@ dependencies {
     api(project(":surefold"))
     api("io.opentelemetry:opentelemetry-api:$otelVersion")
 
-    // The SDK, and not opentelemetry-sdk-testing: that artifact registers a
-    // ContextStorageProvider of its own, which would win the ServiceLoader race
-    // and leave this module's storage untested. The exporter it would have
-    // supplied is a dozen lines below.
-    testImplementation("io.opentelemetry:opentelemetry-sdk:$otelVersion")
+    // Spans to read, from surefold-otel-test's collector, and not opentelemetry-sdk-testing's: that artifact
+    // registers a ContextStorageProvider of its own, and two on the classpath leave this module's storage untested.
+    testImplementation(project(":surefold-otel-test"))
     // Actors to send to, for the trace carried across a message (spec 0122).
     testImplementation(project(":surefold-actor"))
     testImplementation(project(":surefold-assert"))

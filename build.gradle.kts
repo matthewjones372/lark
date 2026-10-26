@@ -96,6 +96,8 @@ val moduleDescriptions = mapOf(
         "A Pekko typed actor from Kotlin: ask one on a virtual thread, without the wiring graph.",
     "surefold-app-pekko" to "surefold-app on Pekko: an actor is a node, spawned in order and stopped in reverse.",
     "surefold-otel" to "surefold on OpenTelemetry: a Context that crosses a fork, so a trace survives a parMap.",
+    "surefold-otel-test" to
+        "For tests of a traced service: a tracer that keeps the spans it ends, beside surefold-otel's storage.",
     "surefold-slf4j" to "surefold's log lines through SLF4J, with a fork's annotations in the MDC.",
     "surefold-micrometer" to "surefold's metrics into a Micrometer registry.",
     "surefold-app-liquibase" to

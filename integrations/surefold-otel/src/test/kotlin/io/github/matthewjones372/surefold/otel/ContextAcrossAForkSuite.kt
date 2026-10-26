@@ -10,24 +10,8 @@ import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.logInfo
 import io.github.matthewjones372.surefold.parMap
 import io.opentelemetry.api.trace.Span
-import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.ContextStorage
-import io.opentelemetry.sdk.OpenTelemetrySdk
-import io.opentelemetry.sdk.trace.SdkTracerProvider
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
-
-/** A tracer and the spans it finished, made fresh for each test so one test never reads another's. */
-private class Tracing {
-    val exported = Collected()
-
-    val tracer: Tracer = OpenTelemetrySdk.builder()
-        .setTracerProvider(
-            SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exported)).build(),
-        )
-        .build()
-        .getTracer("surefold-otel-test")
-}
 
 /** What a trace does when the work forks, which is the thing a ThreadLocal cannot answer. */
 object ContextAcrossAForkSuite : Suite() {
@@ -39,7 +23,7 @@ object ContextAcrossAForkSuite : Suite() {
         }
 
         test("a context bound outside a parMap is current inside every branch") {
-            val tracer = Tracing().tracer
+            val tracer = Spans().tracer
             val outside = Context.root().with(tracer.spanBuilder("outer").startSpan())
 
             val seen = otelContext.locally(outside) { parMap(listOf(1, 2, 3)) { Context.current() } }
@@ -49,13 +33,13 @@ object ContextAcrossAForkSuite : Suite() {
         }
 
         test("a span opened before a fork is the parent of what each branch opens") {
-            val tracing = Tracing()
+            val tracing = Spans()
             val tracer = tracing.tracer
             val _ = tracer.span("outer") {
                 parMap(listOf(1, 2)) { tracer.span("branch-$it") { Span.current().spanContext.spanId } }
             }
 
-            val spans = tracing.exported.all()
+            val spans = tracing.all()
             val outer = spans.single { it.name == "outer" }
             val branches = spans.filter { it.name.startsWith("branch-") }
 
@@ -66,7 +50,7 @@ object ContextAcrossAForkSuite : Suite() {
         }
 
         test("attach puts back what it replaced") {
-            val first = Context.root().with(Tracing().tracer.spanBuilder("first").startSpan())
+            val first = Context.root().with(Spans().tracer.spanBuilder("first").startSpan())
             val before = Context.current()
 
             val detach = otelContext.attach(first)
@@ -77,7 +61,7 @@ object ContextAcrossAForkSuite : Suite() {
         }
 
         test("a traced span puts the trace on every line, including a branch's") {
-            val tracer = Tracing().tracer
+            val tracer = Spans().tracer
             val lines = capturingLogs { logs ->
                 val _ = tracer.tracedSpan("register") { parMap(listOf(1, 2)) { logInfo("branch $it") } }
                 logs.all()
