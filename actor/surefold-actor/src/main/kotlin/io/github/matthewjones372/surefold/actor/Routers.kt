@@ -19,7 +19,7 @@ fun <M : Any> hashing(key: (M) -> Any?): Route<M> = Route { message, of -> Math.
 
 /**
  * A router: [size] routees, each from [routee], spawned as its children on its first message, and each message told
- * to the one [route] picks. A routee whose mailbox is full is passed over for the next, and a step whose every routee
+ * to the one [route] picks. A routee whose mailbox is full is passed over for the next, and a turn whose every routee
  * is full fails. [restart] applies to each routee on its own, so one failing restarts without the others; one that
  * stops for good leaves the pool smaller, and a pool with none left stops.
  */

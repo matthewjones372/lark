@@ -155,18 +155,18 @@ internal interface Restartable {
 /**
  * A behaviour remembered by its events. On start, and after every restart, it replays its events from its scope's
  * journal through [event] before its first command. A command answers an [Effect]: `persist` writes its events on the
- * step's own thread, applies them, and then runs the effect's `then`; the next command sees the new state. An append
+ * turn's own thread, applies them, and then runs the effect's `then`; the next command sees the new state. An append
  * that conflicts with another writer is raised as the behaviour's failure, so supervision decides.
  *
  * With [snapshots], and a scope that has a store, a persist that carries the sequence number across a multiple of
  * its `every` saves the state it reached, before `then`; a start loads the newest snapshot and replays only the
- * events after it. A save that throws is logged and the step goes on: the events are already written, and the next
+ * events after it. A save that throws is logged and the turn goes on: the events are already written, and the next
  * multiple saves again.
  *
  * A [Delivered] command whose sequence number is no greater than the last this actor handled from its producer is
- * dropped without a step (spec 0079). One that persists events writes a mark of its delivery in the same append, so
+ * dropped without a turn (spec 0079). One that persists events writes a mark of its delivery in the same append, so
  * the actor remembers it across restarts and moves, as a snapshot does; one that persists nothing is remembered until
- * the actor stops, and handled again after that, where it changes nothing the journal holds. One its step stashes is
+ * the actor stops, and handled again after that, where it changes nothing the journal holds. One its turn stashes is
  * not remembered until it is handled once put back.
  *
  * With [start] of [Start.assumingNew], an actor's first start reads nothing until its first command shows whether it
@@ -191,7 +191,7 @@ fun <M : Any, Ev, S> persistent(
     require(batch == 1 || !start.guessing) { "a batch of $batch commands cannot start assuming new yet" }
     val initial = Remembered(empty, 0)
     val effects = Effects<Ev, S>()
-    val steps: (Fail<JournalConflict>.(Ctx<M>, Remembered<S>, Run<M>) -> Batched<Remembered<S>>)? =
+    val turns: (Fail<JournalConflict>.(Ctx<M>, Remembered<S>, Run<M>) -> Batched<Remembered<S>>)? =
         if (batch == 1) {
             null
         } else {
@@ -203,7 +203,7 @@ fun <M : Any, Ev, S> persistent(
         }
     return Behaviour<M, Remembered<S>, JournalConflict>(
         initial = initial,
-        step = { ctx, remembered, message ->
+        turn = { ctx, remembered, message ->
             val offered = (message as? Delivered)?.delivery
             if (remembered.handled(offered)) {
                 Next.Stay
@@ -229,7 +229,7 @@ fun <M : Any, Ev, S> persistent(
         },
         start = { ctx, _ -> begun(start, ctx) { recovered(id, empty, codec, event, snapshots, ctx) } },
         signal = null,
-        steps = steps,
+        turns = turns,
         batch = batch,
     )
 }
@@ -406,7 +406,7 @@ private fun <S> SnapshotStore.snapshot(
     }
 }
 
-/** Whether [work] finished; what it threw is logged as [failed], except an interrupt, which still stops the step. */
+/** Whether [work] finished; what it threw is logged as [failed], except an interrupt, which still stops the turn. */
 private inline fun logged(failed: String, work: () -> Unit): Boolean =
     try {
         work()

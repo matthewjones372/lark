@@ -36,8 +36,8 @@ private val WATCH_NANOS = TimeUnit.MICROSECONDS.toNanos(50)
  * The virtual threads that run one scope's actors. A woken actor joins a queue, and [parallelism] runners, one per
  * carrier, take actors from it in turn, so a burst of wakes starts a handful of threads rather than one each. A
  * runner that finds nothing spins briefly, then parks until a submit wakes it or a second passes, so an actor whose
- * mailbox empties between messages starts no thread per message (spec 0143). A step that blocks parks
- * its runner; when every runner is in a step and the queue stands still, a watcher adds runners, doubling each time
+ * mailbox empties between messages starts no thread per message (spec 0143). A turn that blocks parks
+ * its runner; when every runner is in a turn and the queue stands still, a watcher adds runners, doubling each time
  * it still stands still, up to [cap].
  */
 internal class Runners(private val parallelism: Int, private val cap: Int) {
@@ -61,7 +61,7 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
          */
         var spin = SPIN_NANOS
 
-        /** In a step that is parked on something: a lock, a sleep, a read. */
+        /** In a turn that is parked on something: a lock, a sleep, a read. */
         fun blocked(): Boolean = busy && thread.state.let { it == WAITING || it == TIMED_WAITING || it == BLOCKED }
     }
 
@@ -239,7 +239,7 @@ internal class Runners(private val parallelism: Int, private val cap: Int) {
     }
 
     /**
-     * While work is queued, keeps [parallelism] runners able to run: those parked in a blocking step do not count,
+     * While work is queued, keeps [parallelism] runners able to run: those parked in a blocking turn do not count,
      * and the shortfall is made up with new runners, doubling each tick it lasts, so a burst of blocking actors is
      * each on a runner of its own within a few ticks. Leaves once the queue is empty.
      */

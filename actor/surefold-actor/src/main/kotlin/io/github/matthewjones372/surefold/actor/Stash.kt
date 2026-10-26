@@ -8,7 +8,7 @@ internal class Stash(private val capacity: Int, private val owner: String) {
     private val kept = ArrayDeque<Any>()
     private val replay = ArrayDeque<Any>()
 
-    /** Keeps [message]; a full stash fails the step, so that supervision decides rather than a message being lost. */
+    /** Keeps [message]; a full stash fails the turn, so that supervision decides rather than a message being lost. */
     fun keep(message: Any) {
         check(kept.size < capacity) { "the stash of $owner is full, at $capacity" }
         kept.addLast(message)

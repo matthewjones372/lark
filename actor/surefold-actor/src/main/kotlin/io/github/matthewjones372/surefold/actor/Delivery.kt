@@ -44,30 +44,30 @@ interface Delivered {
 data class Confirmed(val to: String, val sequence: Long)
 
 /**
- * [behaviour], confirming each [Delivered] command once its step has returned, whatever the step answered. A step
+ * [behaviour], confirming each [Delivered] command once its turn has returned, whatever the turn answered. A turn
  * that fails confirms nothing, so the producer sends the command again, and one that stashes the command confirms it
- * when it is handled once put back. Duplicates reach the step: a persistent
+ * when it is handled once put back. Duplicates reach the turn: a persistent
  * behaviour drops those it remembers, and any other must handle a command twice as once.
  */
 fun <M : Any, S, E> delivered(behaviour: Behaviour<M, S, E>): Behaviour<M, S, E> = Behaviour(
     initial = behaviour.initial,
-    step = { ctx, state, message ->
+    turn = { ctx, state, message ->
         if (message is Delivered) {
             val stashing = Stashing(ctx)
-            behaviour.step(this, stashing, state, message).also {
+            behaviour.turn(this, stashing, state, message).also {
                 if (!stashing.kept(message)) message.delivery.confirm()
             }
         } else {
-            behaviour.step(this, ctx, state, message)
+            behaviour.turn(this, ctx, state, message)
         }
     },
     signal = behaviour.signal,
     start = behaviour.start,
     // A run confirms what it ran, once it returns: never what it left unrun by stopping first.
-    steps = behaviour.steps?.let { steps ->
+    turns = behaviour.turns?.let { turns ->
         { ctx, state, messages ->
             val stashing = Stashing(ctx)
-            steps(this, stashing, state, messages).also { batched ->
+            turns(this, stashing, state, messages).also { batched ->
                 messages.forEach { message ->
                     val handled = batched.unrun.none { it === message } && !stashing.kept(message)
                     if (message is Delivered && handled) message.delivery.confirm()
@@ -78,7 +78,7 @@ fun <M : Any, S, E> delivered(behaviour: Behaviour<M, S, E>): Behaviour<M, S, E>
     batch = behaviour.batch,
 )
 
-/** [ctx], keeping note of what a step stashes: a command stashed is not handled yet, so nothing may say it was. */
+/** [ctx], keeping note of what a turn stashes: a command stashed is not handled yet, so nothing may say it was. */
 internal class Stashing<M : Any>(private val ctx: Ctx<M>) : Ctx<M> by ctx {
     private val stashed = ArrayList<Any>(1)
 

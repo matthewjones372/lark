@@ -286,18 +286,18 @@ private class HeldRoom(private val room: Semaphore, private val keep: Int, priva
 }
 
 /**
- * This behaviour, telling [failed] of each throw from a step, with its message, or from a start, with none, on the
+ * This behaviour, telling [failed] of each throw from a turn, with its message, or from a start, with none, on the
  * throw's way to supervision. A raise is not a throw, and goes on untold.
  */
 private fun <M : Any, S, E> Behaviour<M, S, E>.onThrow(failed: (M?, Exception) -> Unit): Behaviour<M, S, E> {
-    val step = step
+    val turn = turn
     val start = start
     return Behaviour(
         initial = initial,
-        step = { ctx, state, message -> told(failed, message) { step(ctx, state, message) } },
+        turn = { ctx, state, message -> told(failed, message) { turn(ctx, state, message) } },
         signal = signal,
         start = start?.let { { ctx, state -> told(failed, null) { start(ctx, state) } } },
-        steps = steps,
+        turns = turns,
         batch = batch,
     )
 }
