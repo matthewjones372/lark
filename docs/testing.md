@@ -114,7 +114,7 @@ passed on the inherited clock. A step can wait the same way with
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-test:0.1.0")
+    testImplementation("io.github.matthewjones372:surefold-test:0.12.0")
 }
 ```
 
@@ -206,7 +206,7 @@ object SortingSuite : Suite() {
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-junit:0.1.0")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.12.0")
 }
 
 tasks.test { useJUnitPlatform() }

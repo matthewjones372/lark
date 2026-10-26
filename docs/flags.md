@@ -9,7 +9,7 @@ key, its type and its default, and read with no client passed in.
 ```kotlin
 dependencies {
     // brings surefold, the OpenFeature SDK and the slf4j-api it logs through
-    implementation("io.github.matthewjones372:surefold-openfeature:0.1.0")
+    implementation("io.github.matthewjones372:surefold-openfeature:0.12.0")
 }
 ```
 
