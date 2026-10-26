@@ -39,9 +39,13 @@ internal class TransactChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
         val said = when {
             called == peek -> "${named(symbol, called)} reads outside the step; read it with get()"
 
+            called == tell ->
+                "${named(symbol, called)} runs again each time the step does; once the step commits, tell it with " +
+                    "tellAfterCommit(ref, message)"
+
             called in surefoldEffects ->
                 "${named(symbol, called)} runs again each time the step does; once the step commits, run it in " +
-                    "afterCommit { } (spec 0211)"
+                    "afterCommit { }"
 
             refused(called) ->
                 "${named(symbol, called)} runs again each time the step does, not once per commit; " +
@@ -157,6 +161,9 @@ private val forks = listOf("scope", "parZip", "parMap", "raceN")
     .map { CallableId(surefold, Name.identifier(it)) }
     .toSet() + member(surefold.asString(), "Scope", "async")
 
+// An actor's tell has its own after-commit form, which surefold-actor names tellAfterCommit.
+private val tell = member("${surefold.asString()}.actor", "ActorRef", "tell")
+
 // Surefold's own effects: what a step most often wants to happen once it has committed.
 private val surefoldEffects = listOf("logDebug", "logInfo", "logWarn", "logError", "increment")
     .map { CallableId(surefold, Name.identifier(it)) }
@@ -166,7 +173,6 @@ private val surefoldEffects = listOf("logDebug", "logInfo", "logWarn", "logError
         member(surefold.asString(), "Counter", "increment"),
         member(surefold.asString(), "Gauge", "set"),
         member(surefold.asString(), "Histogram", "record"),
-        member("${surefold.asString()}.actor", "ActorRef", "tell"),
         member("${surefold.asString()}.stream", "Hub", "publish"),
     )
 

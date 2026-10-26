@@ -104,6 +104,11 @@ A step runs one message at a time, so the state needs no lock. Read it and
 answer with a new one; never share a mutable one with anything outside the
 actor.
 
+To tell an actor from inside `transact { }`, use `tellAfterCommit(ref, message)`
+rather than `tell`: the transaction can run more than once, and a `tell`
+written in it goes out each time. See
+[effects once the step commits](core.md#effects-once-the-step-commits).
+
 ## Failure
 
 A step fails in one of two ways:

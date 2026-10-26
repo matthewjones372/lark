@@ -532,6 +532,44 @@ nobody up. Every commit does go through one shared counter, though, and a long
 step that reads many values can keep losing to short ones that write them. Keep
 steps short, and do slow work before or after them.
 
+### Effects once the step commits
+
+A step usually has to tell someone what it did: a log line, a metric, a
+message to an actor. Written in the body, that happens once per run. Queued
+with `afterCommit { }`, it happens once the step has committed, and only then:
+
+<!-- core-after-commit -->
+```kotlin
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.logInfo
+import io.github.matthewjones372.surefold.transact
+
+class Seats(count: Int) {
+    private val free = Shared(count)
+
+    // Written once the seats are held, however many times the step ran to hold them.
+    fun hold(orderId: String, n: Int) = transact {
+        val left = free.get()
+        if (left < n) waitForChange()
+        free.set(left - n)
+        afterCommit { logInfo("held $n for $orderId, ${left - n} left") }
+    }
+}
+```
+
+- **Once per commit.** A run that starts again, waits, throws or fails drops
+  what it queued. A `transact` inside a step queues on the outer one, and a
+  `firstOf` branch that waited drops its effects with its writes.
+- **In order, before `transact` returns,** on the thread that committed, so
+  the caller sees them done.
+- **An effect that throws keeps the commit.** The rest still run, then
+  `transact` throws the first, with the others suppressed onto it.
+- **An effect may call `transact`,** which starts a step of its own.
+- **Not durable.** A crash between the commit and its effects loses them; a
+  message that must survive one belongs in the [journal](actors.md#remembering).
+- **To an actor,** `tellAfterCommit(ref, message)` from `surefold-actor` is
+  `afterCommit { ref.tell(message) }`.
+
 ## What a fork inherits
 
 A plain virtual thread inherits nothing from the thread that started it. A
