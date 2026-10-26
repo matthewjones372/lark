@@ -37,7 +37,7 @@ import kotlin.time.Duration
 
 /**
  * Spawns [behaviour] in this scope, on the scope's executor. The actor cannot outlive the scope: closing it stops
- * the actor, after any step already running has returned. A failure asks [restart], which restarts the actor from
+ * the actor, after any turn already running has returned. A failure asks [restart], which restarts the actor from
  * its initial state after its delay on this scope's clock, or stops it once done; with no schedule it stops. Its
  * stash keeps at most [stash] messages, and so do its children's. An [urgent] actor is run before any other the
  * scope's runners have waiting (spec 0104): for the few whose lateness the whole node pays for, such as the cluster's.
@@ -74,7 +74,7 @@ internal fun <M : Any> ActorRef<M>.offer(message: M): Boolean {
 
 /**
  * [message] told if this has room, or has stopped, where a tell is a dead letter: false only when it is an actor's
- * full mailbox, and a tell from a step would throw (spec 0095). An entity's ref asks its manager.
+ * full mailbox, and a tell from a turn would throw (spec 0095). An entity's ref asks its manager.
  */
 @PlumbingSeam
 fun <M : Any> ActorRef<M>.tellIfRoom(message: M): Boolean = when (this) {
@@ -177,7 +177,7 @@ fun <E> Scope<E>.deadLetter(letter: DeadLetter) {
 
 /**
  * The counter [name] of this scope (spec 0081): with the tags bound where the scope's actors first stood, those
- * [tagMetrics] added since, and [tags]. Measured through the `metrics` bound there, since an actor's step runs on a
+ * [tagMetrics] added since, and [tags]. Measured through the `metrics` bound there, since an actor's turn runs on a
  * thread the scope did not fork and would not inherit them. Held once looked up, so a hot path may call this.
  */
 fun Scope<*>.counter(name: String, vararg tags: Pair<String, String>): Counter =
@@ -195,7 +195,7 @@ fun Scope<*>.gauge(name: String, vararg tags: Pair<String, String>): Gauge =
 fun Scope<*>.tagMetrics(vararg tags: Pair<String, String>) = guardian().tag(tags)
 
 /**
- * Stops [ref] from outside, as the scope's close would: at once when it is idle, after its running step otherwise.
+ * Stops [ref] from outside, as the scope's close would: at once when it is idle, after its running turn otherwise.
  * The answer is its [Signal.Terminated], once it has stopped.
  */
 fun <F> Scope<F>.stop(ref: ActorRef<*>): Deferred<Signal.Terminated> {
@@ -268,7 +268,7 @@ private val asks = AtomicLong()
 
 /**
  * The most runners one scope's actors share. Runners beyond one per carrier are started only while others are parked
- * in blocking steps, so this bounds how many steps may block at once: far above Pekko's blocking dispatcher, and
+ * in blocking turns, so this bounds how many turns may block at once: far above Pekko's blocking dispatcher, and
  * far above any burst the benchmarks or a service have shown.
  */
 private const val RUNNERS = 2048
@@ -277,7 +277,7 @@ private const val RUNNERS = 2048
 private val PARALLELISM =
     Integer.getInteger("jdk.virtualThreadScheduler.parallelism", Runtime.getRuntime().availableProcessors())
 
-/** The actor whose step this thread is running, so a `tell` from inside one can refuse to wait. */
+/** The actor whose turn this thread is running, so a `tell` from inside one can refuse to wait. */
 private val stepping = ThreadLocal<Cell<*, *, *>>()
 
 /**
@@ -295,7 +295,7 @@ private val ROOM: AtomicIntegerFieldUpdater<Cell<*, *, *>> =
     AtomicIntegerFieldUpdater.newUpdater(Cell::class.java, "room")
 
 /**
- * Activations running or scheduled across one scope's actors. A step's tell schedules its target before its own
+ * Activations running or scheduled across one scope's actors. A turn's tell schedules its target before its own
  * activation ends, so the count reaches zero only once nothing is left to handle.
  */
 private class Backlog(private val runners: Runners?) {
@@ -481,7 +481,7 @@ private class Cell<M : Any, S, E>(
     @Volatile
     private var roomWaiters: ConcurrentLinkedQueue<Thread>? = null
 
-    // Held from the moment a message finds the actor idle until its activation ends, so one step runs at a time.
+    // Held from the moment a message finds the actor idle until its activation ends, so one turn runs at a time.
     @Volatile
     private var stopped = false
 
@@ -506,7 +506,7 @@ private class Cell<M : Any, S, E>(
     private var running: Thread? = null
     private val backlog = guardian.backlog
 
-    // Spawned by this actor's steps, so stopped before it. Only its own activation adds to it, and each child takes
+    // Spawned by this actor's turns, so stopped before it. Only its own activation adds to it, and each child takes
     // itself out as it ends.
     private val children: MutableSet<Cell<*, *, *>> = ConcurrentHashMap.newKeySet()
 
@@ -521,8 +521,8 @@ private class Cell<M : Any, S, E>(
     // The receive timeout, when one is on. Like the timers, only this actor's activation or its end touches it.
     private var silence: Silence? = null
 
-    // The timers of the state the actor is in, and those of a `ctx.become` in the step now running, which are the
-    // state's only if the step returns it.
+    // The timers of the state the actor is in, and those of a `ctx.become` in the turn now running, which are the
+    // state's only if the turn returns it.
     private var scoped: TimersOfState? = null
     private var asked: TimersOfState? = null
 
@@ -532,7 +532,7 @@ private class Cell<M : Any, S, E>(
         return Next.Become(state)
     }
 
-    /** The step returned [next]: timers it asked for are the new state's if it is theirs, and cancelled if not. */
+    /** The turn returned [next]: timers it asked for are the new state's if it is theirs, and cancelled if not. */
     private fun settled(next: Next<S>) {
         val asking = asked.also { asked = null }
         val becoming = (next as? Next.Become<S>)?.state
@@ -629,11 +629,11 @@ private class Cell<M : Any, S, E>(
     }
 
     /**
-     * Handles the timer's message. Unless the step cancelled or replaced it, a periodic one then starts again from
+     * Handles the timer's message. Unless the turn cancelled or replaced it, a periodic one then starts again from
      * now, and any other is done.
      */
     private fun timed(timer: Timer): Next<S> {
-        val next = stepped(timer.message)
+        val next = turned(timer.message)
         val live = armed
         if (live != null && live[timer.key] === timer) {
             val every = timer.every
@@ -820,9 +820,9 @@ private class Cell<M : Any, S, E>(
     }
 
     /**
-     * Stops the actor: at once when it is idle, and after its running step otherwise. On virtual threads that step is
+     * Stops the actor: at once when it is idle, and after its running turn otherwise. On virtual threads that turn is
      * interrupted, since each activation has a thread of its own that nothing else will run on; on any other executor
-     * an interrupt could land on the pool's next task, so the step is waited for.
+     * an interrupt could land on the pool's next task, so the turn is waited for.
      */
     fun stop() {
         stopped = true
@@ -842,10 +842,10 @@ private class Cell<M : Any, S, E>(
             run()
             returned = true
         } catch (interrupted: InterruptedException) {
-            // The interrupt a stop sends to a running step: the stop is the outcome, not a failure to report.
+            // The interrupt a stop sends to a running turn: the stop is the outcome, not a failure to report.
             if (!stopped) throw interrupted
         } finally {
-            // An interrupt a stop sent as the step returned is this actor's, and goes with it.
+            // An interrupt a stop sent as the turn returned is this actor's, and goes with it.
             synchronized(this) {
                 running = null
                 Thread.interrupted()
@@ -923,18 +923,18 @@ private class Cell<M : Any, S, E>(
      */
     private fun replayedOrPolled(left: Int): Next<S>? {
         val replayed = stashed?.next()
-        return if (replayed != null) stepped(replayed).also { heard() } else poll()?.let { handled(it, left) }
+        return if (replayed != null) turned(replayed).also { heard() } else poll()?.let { handled(it, left) }
     }
 
     /**
      * One item from the mailbox: a signal, a timer, a listing, the start's wake-up or a message. A message to a
-     * behaviour with `steps` takes the plain messages behind it along, up to its batch and to what is [left] of this
+     * behaviour with `turns` takes the plain messages behind it along, up to its batch and to what is [left] of this
      * activation's turn (spec 0086).
      */
     private fun handled(item: Any, left: Int): Next<S> = when (item) {
         Started -> Next.Stay
 
-        is Listed -> stepped(item.message).also { heard() }
+        is Listed -> turned(item.message).also { heard() }
 
         is Signalled -> {
             val handler = behaviour.signal
@@ -945,19 +945,19 @@ private class Cell<M : Any, S, E>(
         is Timer -> if (armed?.get(item.key) === item) timed(item) else Next.Stay
 
         else -> {
-            val steps = behaviour.steps
-            if (steps == null || behaviour.batch <= 1 || left <= 1) {
+            val turns = behaviour.turns
+            if (turns == null || behaviour.batch <= 1 || left <= 1) {
                 releaseRoom(1)
-                stepped(item).also { heard() }
+                turned(item).also { heard() }
             } else {
-                ran(steps, item, minOf(behaviour.batch, left))
+                ran(turns, item, minOf(behaviour.batch, left))
             }
         }
     }
 
-    /** [first] and the plain messages waiting behind it, at most [most], as one run through [steps]. */
+    /** [first] and the plain messages waiting behind it, at most [most], as one run through [turns]. */
     @Suppress("UNCHECKED_CAST")
-    private fun ran(steps: Fail<E>.(Ctx<M>, S, Run<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
+    private fun ran(turns: Fail<E>.(Ctx<M>, S, Run<M>) -> Batched<S>, first: Any, most: Int): Next<S> {
         val items = ArrayList<Any>(most)
         items += first
         while (items.size < most && isPlain(peek())) items += checkNotNull(poll())
@@ -966,9 +966,9 @@ private class Cell<M : Any, S, E>(
         // What each message carried, listed only when one carried something, so a run in no trace allocates none.
         val carried = if (items.any { it is Carried }) items.map { (it as? Carried)?.carried.orEmpty() } else null
         var batched: Batched<S>? = null
-        // One step for the run, inside no message's context: each is the step's to enter with `within` (spec 0198).
+        // One turn for the run, inside no message's context: each is the turn's to enter with `within` (spec 0198).
         val next = supervised {
-            steps(this, this@Cell, state, Carrying(run as List<M>, carried)).also { batched = it }.next
+            turns(this, this@Cell, state, Carrying(run as List<M>, carried)).also { batched = it }.next
         }
         batched?.let { done ->
             done.unhandled.forEach { dead(it, DeadLetter.Why.Unhandled) }
@@ -982,16 +982,16 @@ private class Cell<M : Any, S, E>(
     private fun isPlain(item: Any?): Boolean =
         item != null && item !== Started && item !is Listed && item !is Signalled && item !is Timer
 
-    /** One message through `step`, inside what it carried from its sender. */
-    private fun stepped(item: Any): Next<S> =
+    /** One message through `turn`, inside what it carried from its sender. */
+    private fun turned(item: Any): Next<S> =
         try {
-            if (item is Carried) Carriers.within(item.carried) { step(item.message) } else step(item)
+            if (item is Carried) Carriers.within(item.carried) { turn(item.message) } else turn(item)
         } catch (_: WrongGuess) {
             guessedWrong(item)
         }
 
     @Suppress("UNCHECKED_CAST")
-    private fun step(message: Any): Next<S> = supervised { behaviour.step(this, this@Cell, state, message as M) }
+    private fun turn(message: Any): Next<S> = supervised { behaviour.turn(this, this@Cell, state, message as M) }
         .also { if (it === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled) }
 
     /**
@@ -1035,7 +1035,7 @@ private class Cell<M : Any, S, E>(
             }
         }
 
-    /** A step or a signal's handler, its raise and its throw handed to supervision. Inline: nothing is allocated. */
+    /** A turn or a signal's handler, its raise and its throw handed to supervision. Inline: nothing is allocated. */
     // A throw is the actor's failure, handed to its schedule like a raise; only a fatal one is not.
     @Suppress("TooGenericExceptionCaught")
     private inline fun supervised(body: Fail<E>.() -> Next<S>): Next<S> =

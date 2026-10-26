@@ -2,17 +2,17 @@ package io.github.matthewjones372.surefold.actor
 
 import io.github.matthewjones372.surefold.Carriers
 
-/** A seam for surefold's own modules that hand messages on from a step to receivers that may be busy (spec 0095). */
+/** A seam for surefold's own modules that hand messages on from a turn to receivers that may be busy (spec 0095). */
 @RequiresOptIn("A seam for surefold's own modules that hand messages on from a step to receivers that may be busy.")
 @Retention(AnnotationRetention.BINARY)
 @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
 annotation class PlumbingSeam
 
 /**
- * Messages a step hands on to receivers that may be busy (spec 0095). Each is told if its receiver has room, or has
+ * Messages a turn hands on to receivers that may be busy (spec 0095). Each is told if its receiver has room, or has
  * stopped, where a tell is a dead letter. Otherwise it is kept, in order, under its key, and everything after it for
  * that key waits behind it. Past [KEEP_AT_MOST] kept under one key, a message is a dead letter for being
- * [DeadLetter.Why.Full]. The step calls [drain] on a timer of its own while anything is kept, and `awaitIdle` counts
+ * [DeadLetter.Why.Full]. The turn calls [drain] on a timer of its own while anything is kept, and `awaitIdle` counts
  * what is kept as not yet handled. Each is kept with what its handling carried, and handed on inside it (spec 0122).
  */
 @PlumbingSeam
@@ -71,7 +71,7 @@ class HandOn<K : Any, M : Any> {
     /** Drops what is kept under [key]: its receiver is owed nothing more. */
     fun forget(ctx: Ctx<*>, key: K) = take(ctx, key) {}
 
-    /** Every kept message, a dead letter for [why]: the step's own actor is stopping. */
+    /** Every kept message, a dead letter for [why]: the turn's own actor is stopping. */
     fun drop(ctx: Ctx<*>, why: DeadLetter.Why) {
         waiting.values.forEach { kept ->
             kept.forEach { ctx.deadLetter(DeadLetter(it.to.address, it.message, why)) }

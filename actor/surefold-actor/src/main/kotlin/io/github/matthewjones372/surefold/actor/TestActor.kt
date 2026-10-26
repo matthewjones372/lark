@@ -40,7 +40,7 @@ fun <A> testActors(
 
 /**
  * The actors of one test. A tell from the test returns once that message, and every message it caused, has been
- * handled; a tell from inside a step joins the queue behind whatever is already on it.
+ * handled; a tell from inside a turn joins the queue behind whatever is already on it.
  */
 class TestActors internal constructor(
     private val clock: Clock = fixedClock(),
@@ -67,7 +67,7 @@ class TestActors internal constructor(
         is Ordering.Seeded -> Random(order.seed)
     }
 
-    // The actor whose step is running, which is who a tell made now is from.
+    // The actor whose turn is running, which is who a tell made now is from.
     private val stepping = AtomicReference<TestActor<*, *, *>?>()
 
     private val steps = AtomicLong()
@@ -77,7 +77,7 @@ class TestActors internal constructor(
 
     private val traced = ConcurrentLinkedQueue<TraceEntry>()
 
-    // An actor that crashed in its own step, which goes down once that step is over.
+    // An actor that crashed in its own turn, which goes down once that turn is over.
     private val crashing = AtomicReference<TestActor<*, *, *>?>()
 
     /** Every message delivered so far, in order. */
@@ -296,7 +296,7 @@ class TestActor<M : Any, S, E> internal constructor(
     private val stashCapacity: Int,
 ) : ActorRef<M> {
 
-    // The actor whose step spawned this one, which lets it go as it ends.
+    // The actor whose turn spawned this one, which lets it go as it ends.
     private var parent: TestActor<*, *, *>? = null
 
     // Made with the first message kept; only the test's own thread touches it.
@@ -478,7 +478,7 @@ class TestActor<M : Any, S, E> internal constructor(
                 TestStarted -> started()
 
                 else -> {
-                    stepped(item as M)
+                    turned(item as M)
                     heard()
                 }
             }
@@ -492,9 +492,9 @@ class TestActor<M : Any, S, E> internal constructor(
 
     private fun dead(message: Any, why: DeadLetter.Why) = scope.dead(DeadLetter(address, message, why))
 
-    private fun stepped(message: M) {
+    private fun turned(message: M) {
         val next = try {
-            supervised { behaviour.step(this, ctx, state, message) }
+            supervised { behaviour.turn(this, ctx, state, message) }
         } catch (_: WrongGuess) {
             return guessedWrong(message)
         } ?: return
@@ -516,12 +516,12 @@ class TestActor<M : Any, S, E> internal constructor(
 
     /**
      * Only the timer still running under its key is handled: one cancelled or replaced since is dropped. Unless the
-     * step cancelled or replaced it, a periodic one then starts again from now, and any other is done.
+     * turn cancelled or replaced it, a periodic one then starts again from now, and any other is done.
      */
     private fun timed(timer: TestTimer) {
         if (run.get().timers[timer.key] !== timer) return
         @Suppress("UNCHECKED_CAST")
-        stepped(timer.message as M)
+        turned(timer.message as M)
         if (run.get().timers[timer.key] === timer) {
             val every = timer.every
             if (every == null) {
@@ -557,12 +557,12 @@ class TestActor<M : Any, S, E> internal constructor(
         if (starting.get()) started()
         val message = stashed.get()?.next() ?: return
         @Suppress("UNCHECKED_CAST")
-        stepped(message as M)
+        turned(message as M)
         heard()
         replayed()
     }
 
-    /** The step returned [next]: timers it asked for are the new state's if it is theirs, and cancelled if not. */
+    /** The turn returned [next]: timers it asked for are the new state's if it is theirs, and cancelled if not. */
     private fun settled(next: Next<S>) {
         val before = run.getAndUpdate { it.copy(asked = null) }
         val asking = before.asked
@@ -648,7 +648,7 @@ class TestActor<M : Any, S, E> internal constructor(
     }
 
     /**
-     * A step or a handler, with its raise and throw handed to the schedule; null where a throw restarted the actor.
+     * A turn or a handler, with its raise and throw handed to the schedule; null where a throw restarted the actor.
      * With no schedule a throw reaches the test.
      */
     @Suppress("TooGenericExceptionCaught")

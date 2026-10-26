@@ -45,7 +45,7 @@ private fun tally(
         event = Int::plus,
         start = start,
     )
-    return Behaviour(persistent.initial, persistent.step, persistent.signal, { ctx, state ->
+    return Behaviour(persistent.initial, persistent.turn, persistent.signal, { ctx, state ->
         val next = persistent.start?.invoke(this, ctx, state) ?: Next.Stay
         log += "started at ${((next as? Next.Become)?.state ?: state).value}"
         next

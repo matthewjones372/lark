@@ -20,7 +20,7 @@ sealed interface Ordering {
 
 /** What happened to one message in a test runtime, in the order it happened, to read back when a test fails. */
 sealed interface TraceEntry {
-    /** [message] reached [to]; [from] is the actor whose step told it, or null for the test itself. */
+    /** [message] reached [to]; [from] is the actor whose turn told it, or null for the test itself. */
     data class Delivered(val from: Address?, val to: Address, val message: Any) : TraceEntry
 
     /** [message], told by [from] to [to], was lost. */

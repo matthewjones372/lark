@@ -45,14 +45,14 @@ interface Ctx<M : Any> {
 
     /**
      * [state], with [timers] that belong to it: they end when the actor next becomes a state of another class, and a
-     * copy of this one keeps them. Becoming a state with timers again replaces the ones it had. Only a step that
+     * copy of this one keeps them. Becoming a state with timers again replaces the ones it had. Only a turn that
      * returns this becomes it; timers from one it does not return never start.
      */
     fun <S> become(state: S, timers: StateTimers<M>.() -> Unit): Next<S>
 
     /**
      * Keeps [message] to handle later, when [unstashAll] puts it back. The stash is bounded, and keeping one more than
-     * it holds fails the step. A restart or a stop drops it.
+     * it holds fails the turn. A restart or a stop drops it.
      */
     fun stash(message: M)
 
@@ -73,13 +73,13 @@ interface Ctx<M : Any> {
 
     /**
      * Stops [child], one of this actor's own, as a stop from outside would: at once when it is idle, after its running
-     * step otherwise. Watch it to hear when it has.
+     * turn otherwise. Watch it to hear when it has.
      */
     fun stop(child: ActorRef<*>)
 
     /**
      * A child: named under this actor, and stopped before it, whether this actor stops, fails or is restarted. A
-     * restarted parent has none until its step spawns them again.
+     * restarted parent has none until its turn spawns them again.
      */
     fun <C : Any, T, F> spawn(
         name: String,
@@ -89,7 +89,7 @@ interface Ctx<M : Any> {
 }
 
 /**
- * An actor's own timers. A timer's message arrives through the mailbox and is handled by the step like any other.
+ * An actor's own timers. A timer's message arrives through the mailbox and is handled by the turn like any other.
  * Starting a key that is running replaces it, and a message from a cancelled or replaced timer never arrives, even
  * one already in the mailbox.
  */
@@ -143,29 +143,34 @@ fun stop(): Next<Nothing> = Next.Stop
 fun unhandled(): Next<Nothing> = Next.Unhandled
 
 /**
- * An actor described: where it starts, and what one message does. Nothing runs until something runs it. A step
+ * An actor described: where it starts, and what one message does. Nothing runs until something runs it. A turn
  * leaves with a declared failure by raising [E]; one that never does is `Behaviour<M, S, Nothing>`.
  */
 class Behaviour<M : Any, S, out E> internal constructor(
     val initial: S,
-    val step: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+    /** What one message does: the actor's turn. */
+    val turn: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
     /** How it takes a [Signal]; with none, a signal changes nothing. */
     val signal: (Fail<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)?,
-    /** What it does before its first message, and again after each restart: a step with no message. */
+    /** What it does before its first message, and again after each restart: a turn with no message. */
     val start: (Fail<E>.(ctx: Ctx<M>, state: S) -> Next<S>)?,
     /**
-     * A step over a run of the plain messages already waiting, up to [batch] of them (spec 0086). With none, or a
-     * batch of 1, each message has a [step] of its own. Signals, timers and replayed messages always do.
+     * A turn over a run of the plain messages already waiting, up to [batch] of them (spec 0086). With none, or a
+     * batch of 1, each message has a [turn] of its own. Signals, timers and replayed messages always do.
      */
-    internal val steps: (Fail<E>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Batched<S>)?,
+    internal val turns: (Fail<E>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Batched<S>)?,
     internal val batch: Int,
 ) {
     constructor(
         initial: S,
-        step: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+        turn: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
         signal: (Fail<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>)? = null,
         start: (Fail<E>.(ctx: Ctx<M>, state: S) -> Next<S>)? = null,
-    ) : this(initial, step, signal, start, null, 1)
+    ) : this(initial, turn, signal, start, null, 1)
+
+    /** The [turn], under the name it had before spec 0222. */
+    @Deprecated("Named turn, as the actors guide calls it", ReplaceWith("turn"))
+    val step: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S> get() = turn
 }
 
 /**
@@ -175,8 +180,8 @@ class Behaviour<M : Any, S, out E> internal constructor(
 internal class Batched<out S>(val next: Next<S>, val unhandled: List<Any>, val unrun: List<Any>)
 
 /**
- * A run of messages handled by one step (spec 0198), in the order they came. Each carries what its sender had bound
- * (spec 0122), and the step runs inside none of it: [within] is where a message's own context is.
+ * A run of messages handled by one turn (spec 0198), in the order they came. Each carries what its sender had bound
+ * (spec 0122), and the turn runs inside none of it: [within] is where a message's own context is.
  */
 interface Run<out M : Any> : List<M> {
     /** Runs [block] inside what the message at [index] carried from its sender, and nobody else's. */
@@ -199,7 +204,7 @@ internal class Carrying<out M : Any>(
 }
 
 /**
- * A behaviour whose [steps] takes the plain messages already waiting, up to [batch] of them, as one [Run] (spec
+ * A behaviour whose [turns] takes the plain messages already waiting, up to [batch] of them, as one [Run] (spec
  * 0198). A message handled alone, such as a timer's, a stashed one put back, or any with a batch of 1, is a run of
  * one, inside its own sender's context. A run answered `unhandled()` sends every message of it to dead letters. Name
  * all three types, `batching<M, S, E>(…)`: left to inference, a call resolves to the overload that never raises.
@@ -208,16 +213,16 @@ internal class Carrying<out M : Any>(
 fun <M : Any, S, E> batching(
     initial: S,
     batch: Int,
-    steps: Fail<E>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Next<S>,
+    turns: Fail<E>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Next<S>,
 ): Behaviour<M, S, E> {
     require(batch > 0) { "a batch of $batch messages takes none" }
     return Behaviour(
         initial = initial,
-        step = { ctx, state, message -> steps(ctx, state, Carrying(listOf(message), null)) },
+        turn = { ctx, state, message -> turns(ctx, state, Carrying(listOf(message), null)) },
         signal = null,
         start = null,
-        steps = { ctx, state, run ->
-            val next = steps(ctx, state, run)
+        turns = { ctx, state, run ->
+            val next = turns(ctx, state, run)
             Batched(next, if (next === Next.Unhandled) run else emptyList(), emptyList())
         },
         batch = batch,
@@ -228,50 +233,50 @@ fun <M : Any, S, E> batching(
 fun <M : Any, S> batching(
     initial: S,
     batch: Int,
-    steps: Fail<Nothing>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Next<S>,
-): Behaviour<M, S, Nothing> = batching<M, S, Nothing>(initial, batch, steps)
+    turns: Fail<Nothing>.(ctx: Ctx<M>, state: S, messages: Run<M>) -> Next<S>,
+): Behaviour<M, S, Nothing> = batching<M, S, Nothing>(initial, batch, turns)
 
 /** This behaviour, taking signals with [handler]. */
 fun <M : Any, S, E> Behaviour<M, S, E>.onSignal(
     handler: Fail<E>.(ctx: Ctx<M>, state: S, signal: Signal) -> Next<S>,
-): Behaviour<M, S, E> = Behaviour(initial, step, handler, start, steps, batch)
+): Behaviour<M, S, E> = Behaviour(initial, turn, handler, start, turns, batch)
 
 /**
  * This behaviour, running [handler] before its first message and again after each restart, since a restart loses
  * what the actor had: its registrations, its subscriptions and its timers. A throw from it fails the actor as a
- * step's would. It runs after any start the behaviour already has, such as a persistent one's recovery.
+ * turn's would. It runs after any start the behaviour already has, such as a persistent one's recovery.
  */
 fun <M : Any, S, E> Behaviour<M, S, E>.onStart(handler: (ctx: Ctx<M>) -> Unit): Behaviour<M, S, E> {
     val before = start
     return Behaviour(
         initial,
-        step,
+        turn,
         signal,
         { ctx, state ->
             val next = before?.invoke(this, ctx, state) ?: Next.Stay
             handler(ctx)
             next
         },
-        steps,
+        turns,
         batch,
     )
 }
 
 /**
- * A behaviour whose step may raise [E]. Name all three types, `behaviour<M, S, E>(…)`: left to inference, a call
+ * A behaviour whose turn may raise [E]. Name all three types, `behaviour<M, S, E>(…)`: left to inference, a call
  * resolves to the overload that never raises.
  */
 @JvmName("raising")
 fun <M : Any, S, E> behaviour(
     initial: S,
-    step: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
-): Behaviour<M, S, E> = Behaviour(initial, step)
+    turn: Fail<E>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+): Behaviour<M, S, E> = Behaviour(initial, turn)
 
 /** A behaviour that never raises, so nothing has to name a failure type it does not have. */
 fun <M : Any, S> behaviour(
     initial: S,
-    step: Fail<Nothing>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
-): Behaviour<M, S, Nothing> = Behaviour(initial, step)
+    turn: Fail<Nothing>.(ctx: Ctx<M>, state: S, message: M) -> Next<S>,
+): Behaviour<M, S, Nothing> = Behaviour(initial, turn)
 
 /** Why an actor stopped other than by answering `stop()`: a failure it declared, or a throw nobody declared. */
 sealed interface Failure<out E> {
@@ -281,8 +286,8 @@ sealed interface Failure<out E> {
 }
 
 /**
- * The one boundary a step's `fail` unwinds to. Each actor has its own, and a failure carries it, so that a failure
- * belonging to an `attempt` inside the step is that `attempt`'s and never mistaken for the actor's.
+ * The one boundary a turn's `fail` unwinds to. Each actor has its own, and a failure carries it, so that a failure
+ * belonging to an `attempt` inside the turn is that `attempt`'s and never mistaken for the actor's.
  */
 internal class StepFail<E> : Fail<E> {
     override fun fail(error: E): Nothing = throw Raised(error, this)
@@ -307,13 +312,13 @@ internal class Raised(val error: Any?, val by: StepFail<*>) : RuntimeException(n
  */
 data class ServiceKey<M : Any>(val id: String)
 
-/** A message nobody handled: told to [recipient] after it stopped, or answered `unhandled()` by its step. */
+/** A message nobody handled: told to [recipient] after it stopped, or answered `unhandled()` by its turn. */
 data class DeadLetter(val recipient: Address, val message: Any, val why: Why) {
     enum class Why {
         /** The actor had stopped, or stopped with this still in its mailbox or its stash. */
         Stopped,
 
-        /** The actor's step answered `unhandled()`. */
+        /** The actor's turn answered `unhandled()`. */
         Unhandled,
 
         /** The node it was for could not be reached, or had no room left to send it: spec 0068. */
