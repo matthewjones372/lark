@@ -73,11 +73,11 @@ object ClusteredSuite : Suite() {
                     }
                 }
             }
-            val up = allUp.await(1, TimeUnit.MINUTES) shouldBe true
+            allUp.await(1, TimeUnit.MINUTES) shouldBe true
             done.countDown()
             nodes.forEach(Thread::join)
             // A node that never reached its reading never counted down, which fails the check above.
-            up and ready.mapNotNull { it.getNow(null) }.forAll { it shouldBe true }
+            ready.mapNotNull { it.getNow(null) }.forAll { it shouldBe true }
         }
 
         test("a backend not on the classpath refuses the start, naming the module to add") {
@@ -93,8 +93,8 @@ object ClusteredSuite : Suite() {
             val module = configOf("surefold.cluster { join = static }") + actors() + cluster("surefold.cluster")
             module.use { _: Cluster -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused> { refused ->
                 // Typesafe Config's own words, one fault for the name and one for the port, both said at once.
-                (refused.reason shouldContain "No configuration setting found for key 'node'") and
-                    (refused.reason.split("; ").size shouldBe 2)
+                refused.reason shouldContain "No configuration setting found for key 'node'"
+                refused.reason.split("; ").size shouldBe 2
             }
         }
 
@@ -126,10 +126,10 @@ object ClusteredSuite : Suite() {
             }
             stays.countDown()
             other.join()
-            joinedAtClose.get().shouldNotBeNull() and
-                (closed shouldBe true) and
-                // Leaving or already out: anything but still Up, which a joining closed before the leave would see.
-                (statusAtClose shouldNotBe Status.Up)
+            joinedAtClose.get().shouldNotBeNull()
+            closed shouldBe true
+            // Leaving or already out: anything but still Up, which a joining closed before the leave would see.
+            statusAtClose shouldNotBe Status.Up
         }
 
         test("a node restarted at its address is not ended by its earlier life's downing") {

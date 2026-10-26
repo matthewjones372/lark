@@ -97,8 +97,8 @@ object JoiningRegionSuite : Suite() {
                 telling.set(false)
                 teller.join()
 
-                lettersOnThird.filter { it.recipient.path.startsWith("/user/sharding-ledger") }.shouldBeEmpty() and
-                    (onThird.get() shouldBeGreaterThan 0)
+                lettersOnThird.filter { it.recipient.path.startsWith("/user/sharding-ledger") }.shouldBeEmpty()
+                onThird.get() shouldBeGreaterThan 0
             } finally {
                 telling.set(false)
                 done.countDown()

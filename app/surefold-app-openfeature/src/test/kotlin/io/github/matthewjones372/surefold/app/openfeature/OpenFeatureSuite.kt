@@ -77,13 +77,14 @@ object OpenFeatureSuite : Suite(concurrent = false) {
                 )
             }
 
-            withClue("start: ${result.leftOrNull()}") { result.isRight() shouldBe true } and
-                result.getOrNull().shouldNotBeNull { (state, injected, declared) ->
-                    (state shouldBe ProviderState.READY) and
-                        withClue("the injected client and a declared Flag read the one provider the graph set") {
-                            (injected shouldBe true) and (declared shouldBe true)
-                        }
+            withClue("start: ${result.leftOrNull()}") { result.isRight() shouldBe true }
+            result.getOrNull().shouldNotBeNull { (state, injected, declared) ->
+                state shouldBe ProviderState.READY
+                withClue("the injected client and a declared Flag read the one provider the graph set") {
+                    injected shouldBe true
+                    declared shouldBe true
                 }
+            }
         }
 
         test("a provider whose init throws refuses the start") {
@@ -96,7 +97,8 @@ object OpenFeatureSuite : Suite(concurrent = false) {
                     it.reason shouldContain
                         "the flag service is unreachable"
                 }
-            } and withClue("the refused start gave OpenFeature back, so the next graph can install it") {
+            }
+            withClue("the refused start gave OpenFeature back, so the next graph can install it") {
                 openFeature { Switchable() }.use { _: Client -> }.isRight() shouldBe true
             }
         }
@@ -110,7 +112,8 @@ object OpenFeatureSuite : Suite(concurrent = false) {
                 provider.goStale()
                 before to ready.health.readiness()
             }.getOrNull().shouldNotBeNull { (before, after) ->
-                (before shouldBe Health.Up) and (after shouldBe Health.Down(listOf("openfeature")))
+                before shouldBe Health.Up
+                after shouldBe Health.Down(listOf("openfeature"))
             }
         }
 
@@ -119,15 +122,16 @@ object OpenFeatureSuite : Suite(concurrent = false) {
 
             val started = openFeature { provider }.use { _: Client -> }
 
-            withClue("start: ${started.leftOrNull()}") { started.isRight() shouldBe true } and
-                (provider.shutDown shouldBe true) and
-                (OpenFeatureAPI.getInstance().providerMetadata?.name shouldBe "No-op Provider")
+            withClue("start: ${started.leftOrNull()}") { started.isRight() shouldBe true }
+            provider.shutDown shouldBe true
+            OpenFeatureAPI.getInstance().providerMetadata?.name shouldBe "No-op Provider"
         }
 
         test("a provider that throws before it is set gives OpenFeature back") {
             shouldThrow<IllegalStateException>({
                 openFeature { error("no provider configured") }.use { _: Client -> }
-            }) and withClue("the next graph can still install OpenFeature") {
+            })
+            withClue("the next graph can still install OpenFeature") {
                 openFeature { Switchable() }.use { _: Client -> }.isRight() shouldBe true
             }
         }

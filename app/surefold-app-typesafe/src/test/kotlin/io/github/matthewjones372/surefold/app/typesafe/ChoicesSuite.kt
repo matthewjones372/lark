@@ -63,12 +63,13 @@ object ChoicesSuite : Suite() {
 
             val app = configOf(uncached) + persistence(uncached, watched(built), plain())
 
-            testApp(app) { repo: Repo -> repo }.shouldBeInstanceOf<Plain>() and
-                withClue(
-                    "a node surefold-app holds is a node surefold-app builds, so the unchosen one must be absent",
-                ) {
-                    (built.get() shouldBe false) and (app.render() shouldNotContain "Caching")
-                }
+            testApp(app) { repo: Repo -> repo }.shouldBeInstanceOf<Plain>()
+            withClue(
+                "a node surefold-app holds is a node surefold-app builds, so the unchosen one must be absent",
+            ) {
+                built.get() shouldBe false
+                app.render() shouldNotContain "Caching"
+            }
         }
 
         test("the section the choice read is a node, so nothing reads the path twice") {
@@ -87,7 +88,8 @@ object ChoicesSuite : Suite() {
 
             app.use { _: Repo -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused> { error ->
                 withClue("one message listing what is wrong beats one deploy per fault") {
-                    (error.reason shouldContain "useCache") and (error.reason shouldContain "ttl")
+                    error.reason shouldContain "useCache"
+                    error.reason shouldContain "ttl"
                 }
             }
         }

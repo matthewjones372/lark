@@ -47,8 +47,8 @@ object SingleOfSuite : Suite() {
 
             app.validate().getOrNull().shouldNotBeNull { plan ->
                 withClue("re-keying moves the node rather than adding a second") {
-                    (plan.layers.flatten().contains(typeOf<Reader>()) shouldBe false) and
-                        (plan.layers.flatten().contains(typeOf<Reads>()) shouldBe true)
+                    plan.layers.flatten().contains(typeOf<Reader>()) shouldBe false
+                    plan.layers.flatten().contains(typeOf<Reads>()) shouldBe true
                 }
             }
         }
@@ -107,9 +107,9 @@ object SingleOfReleaseSuite : Suite() {
             val app = singleOf(::Borrowed, Borrowed::hand) +
                 single { borrowed: Borrowed -> taken.set(borrowed); "kept" }
 
-            val started = app.use { _: String -> }.getOrNull().shouldNotBeNull()
+            app.use { _: String -> }.getOrNull().shouldNotBeNull()
 
-            started and (taken.get().given shouldBe true)
+            taken.get().given shouldBe true
         }
     }
 }

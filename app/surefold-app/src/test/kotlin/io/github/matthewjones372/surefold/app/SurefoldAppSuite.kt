@@ -76,12 +76,12 @@ object SurefoldAppSuite : Suite() {
 
             // Parked in run rather than returned: the thread is waiting, and nothing has been released.
             while (running.state != Thread.State.WAITING) Thread.onSpinWait()
-            val heldWhileRunning = held.closed.get() shouldBe false
+            held.closed.get() shouldBe false
 
             shutdown.request()
             running.join()
 
-            heldWhileRunning and (held.closed.get() shouldBe true)
+            held.closed.get() shouldBe true
         }
 
         test("a faulty graph leaves with a failure rather than running the block") {
@@ -91,8 +91,8 @@ object SurefoldAppSuite : Suite() {
         test("an application is asked for its findings from the root it declares") {
             val findings = Faulty.module.findings(Faulty.root)
 
-            (findings.map { it.severity } shouldContainExactly listOf(Severity.FAIL)) and
-                findings.single().error.shouldBeMissingFile()
+            findings.map { it.severity } shouldContainExactly listOf(Severity.FAIL)
+            findings.single().error.shouldBeMissingFile()
         }
     }
 

@@ -33,9 +33,9 @@ object StartSuite : Suite() {
                 single { _: Leaf -> Right() } +
                 single { _: Left, _: Right -> Root() }
 
-            val started = module.use { _: Root -> }.getOrNull().shouldNotBeNull()
+            module.use { _: Root -> }.getOrNull().shouldNotBeNull()
 
-            started and (built.get() shouldBe 1)
+            built.get() shouldBe 1
         }
 
         test("independent nodes start on virtual threads of their own") {
@@ -50,9 +50,10 @@ object StartSuite : Suite() {
                 single<Right> { record(); Right() } +
                 single { _: Left, _: Right -> Root() }
 
-            val started = module.use { _: Root -> }.getOrNull().shouldNotBeNull()
+            module.use { _: Root -> }.getOrNull().shouldNotBeNull()
 
-            started and (threads shouldHaveSize 2) and (virtual shouldContainExactly setOf(true))
+            threads shouldHaveSize 2
+            virtual shouldContainExactly setOf(true)
         }
 
         test("a node that refuses leaves nothing acquired") {
@@ -61,10 +62,10 @@ object StartSuite : Suite() {
                 single<Root, Leaf> { refuse("the port is already taken") }
 
             module.use { _: Root -> }.leftOrNull().shouldNotBeNull { error ->
-                val refused = error.shouldBeInstanceOf<StartupError.Refused> { refusal ->
+                error.shouldBeInstanceOf<StartupError.Refused> { refusal ->
                     refusal.reason shouldBe "the port is already taken"
                 }
-                refused and withClue("what was acquired before the refusal is given back") {
+                withClue("what was acquired before the refusal is given back") {
                     released shouldContainExactly listOf("leaf")
                 }
             }
@@ -77,9 +78,9 @@ object StartSuite : Suite() {
                 refuse("the provider did not start")
             }
 
-            val refused = module.use { _: Root -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused>()
+            module.use { _: Root -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused>()
 
-            refused and withClue("the refusing node's own release ran, though the node was never built") {
+            withClue("the refusing node's own release ran, though the node was never built") {
                 released shouldContainExactly listOf("own")
             }
         }
@@ -98,9 +99,9 @@ object StartSuite : Suite() {
                     refuse("no")
                 }
 
-            val refused = module.use { _: Left -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused>()
+            module.use { _: Left -> }.leftOrNull().shouldBeInstanceOf<StartupError.Refused>()
 
-            refused and withClue("Left built beside the refusing Right and needs Leaf, so it is given back first") {
+            withClue("Left built beside the refusing Right and needs Leaf, so it is given back first") {
                 order shouldContainExactly listOf("left", "leaf")
             }
         }
@@ -111,9 +112,9 @@ object StartSuite : Suite() {
                 single { _: Leaf -> install({ Left() }) { _, _ -> released += "left" } } +
                 single { _: Left -> install({ Root() }) { _, _ -> released += "root" } }
 
-            val started = module.use { _: Root -> }.getOrNull().shouldNotBeNull()
+            module.use { _: Root -> }.getOrNull().shouldNotBeNull()
 
-            started and (released shouldContainExactly listOf("root", "left", "leaf"))
+            released shouldContainExactly listOf("root", "left", "leaf")
         }
 
         test("a graph that does not validate never builds") {

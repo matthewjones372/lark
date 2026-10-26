@@ -82,7 +82,7 @@ object TlsClusterSuite : Suite() {
             val offices = (1..3).map { Office("n$it", ports[it - 1], seeds, TestCertificates.tls("n$it")) }
             val opened = offices.toMutableList()
             try {
-                val formed = offices.forAll { office ->
+                offices.forAll { office ->
                     val up = office.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     }
@@ -91,7 +91,7 @@ object TlsClusterSuite : Suite() {
                 val shard = Placement.shardOf("d-7", Sharding.SHARDS)
                 val owner = Placement.owner("desk", shard, offices.first().cluster.view.members)?.name
 
-                val sharded = offices
+                offices
                     .map { it.desks.entity("d-7").ask<Desk, String>(1.minutes) { reply -> Desk(reply) } }
                     .forAll { answered -> answered.getOrNull() shouldBe owner }
 
@@ -101,12 +101,11 @@ object TlsClusterSuite : Suite() {
                 }
                 // Long enough for a node the cluster trusted to have joined several times over, at this gossip's pace.
                 val joined = stranger.cluster.await(3.seconds) { view -> view.members.size > 1 }
-                formed and sharded and
-                    withClue("n4, signed by another CA, joined") { joined shouldBe false } and
-                    offices.forAll { office ->
-                        office.cluster.view.members.map { it.node.name } shouldContainExactlyInAnyOrder
-                            listOf("n1", "n2", "n3")
-                    }
+                withClue("n4, signed by another CA, joined") { joined shouldBe false }
+                offices.forAll { office ->
+                    office.cluster.view.members.map { it.node.name } shouldContainExactlyInAnyOrder
+                        listOf("n1", "n2", "n3")
+                }
             } finally {
                 opened.forEach(Office::close)
             }

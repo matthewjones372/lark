@@ -19,12 +19,12 @@ object DiagnosticsSuite : Suite() {
         test("a missing dependency is a compiler error pointing at the line that asked") {
             val line = single { _: Hammer -> Nail() }.findings().diagnostics(sources)
 
-            (line shouldStartWith "e: file://") and
-                (line shouldContain "DiagnosticsSuite.kt:") and
-                (line shouldContain "Nail needs Hammer, and nothing builds it") and
-                withClue("a diagnostic that wraps is two diagnostics to whatever parses the output") {
-                    line.lines().size shouldBe 1
-                }
+            line shouldStartWith "e: file://"
+            line shouldContain "DiagnosticsSuite.kt:"
+            line shouldContain "Nail needs Hammer, and nothing builds it"
+            withClue("a diagnostic that wraps is two diagnostics to whatever parses the output") {
+                line.lines().size shouldBe 1
+            }
         }
 
         test("the file in the URI is one that exists, so the IDE has something to open") {
@@ -52,7 +52,8 @@ object DiagnosticsSuite : Suite() {
 
             val line = module.findings(typeOf<Nail>()).diagnostics(sources)
 
-            (line shouldStartWith "w: file://") and (line shouldContain "nothing reaches Hammer")
+            line shouldStartWith "w: file://"
+            line shouldContain "nothing reaches Hammer"
         }
 
         test("a key the graph builds under a name that reads the same is named beside the missing one") {

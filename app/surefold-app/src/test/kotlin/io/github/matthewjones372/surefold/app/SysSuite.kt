@@ -15,13 +15,14 @@ object SysSuite : Suite() {
 
     init {
         test("a fake reads what it was given and nothing of the process") {
-            (sys.env("DB_URL") shouldBe "jdbc:postgresql://db/app") and
-                (sys.property("java.vm.name") shouldBe "VM") and
-                (sys.env("PATH") shouldBe null)
+            sys.env("DB_URL") shouldBe "jdbc:postgresql://db/app"
+            sys.property("java.vm.name") shouldBe "VM"
+            sys.env("PATH") shouldBe null
         }
 
         test("the real one reads the process") {
-            (RealSys.env().isEmpty() shouldBe false) and RealSys.property("java.vm.name").shouldNotBeNull()
+            RealSys.env().isEmpty() shouldBe false
+            RealSys.property("java.vm.name").shouldNotBeNull()
         }
 
         test("a node takes the process rather than calling System getenv") {

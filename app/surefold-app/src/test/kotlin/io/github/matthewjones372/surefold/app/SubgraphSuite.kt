@@ -53,11 +53,11 @@ object SubgraphSuite : Suite() {
             val released = AtomicBoolean()
             val module = single<Prefs> { install({ Prefs() }) { _, _ -> released.set(true) } }
 
-            val failed = shouldThrow<AssertionError>({
+            shouldThrow<AssertionError>({
                 testApp(module) { _: Prefs -> throw AssertionError("the assertion the test made") }
             })
 
-            failed and (released.get() shouldBe true)
+            released.get() shouldBe true
         }
 
         test("testApp fails with what the start could not do") {

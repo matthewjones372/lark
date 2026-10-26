@@ -30,9 +30,9 @@ object ProbeSuite : Suite() {
                 .probe("broker", timeout = 5.seconds) { _: Broker -> ready.set(true); true } +
                 single { _: Broker -> sawReady.set(ready.get()); Consumer() }
 
-            val started = module.use { _: Consumer -> }.getOrNull().shouldNotBeNull()
+            module.use { _: Consumer -> }.getOrNull().shouldNotBeNull()
 
-            started and withClue("Consumer is built only after the broker answered") { sawReady.get() shouldBe true }
+            withClue("Consumer is built only after the broker answered") { sawReady.get() shouldBe true }
         }
 
         test("a probe that never passes fails the start, naming the node") {
@@ -40,7 +40,8 @@ object ProbeSuite : Suite() {
 
             module.use { _: Broker -> }.leftOrNull().shouldNotBeNull { error ->
                 error.shouldBeInstanceOf<StartupError.Unready> { unready ->
-                    (unready.name shouldBe "broker") and (unready.key shouldBe typeOf<Broker>())
+                    unready.name shouldBe "broker"
+                    unready.key shouldBe typeOf<Broker>()
                 }
             }
         }
@@ -51,10 +52,10 @@ object ProbeSuite : Suite() {
 
             module.use { _: Broker -> }.leftOrNull().shouldNotBeNull { error ->
                 error.shouldBeInstanceOf<StartupError.Unready> { unready ->
-                    (unready.name shouldBe "broker") and
-                        unready.cause.shouldBeInstanceOf<IllegalStateException> { cause ->
-                            cause.message shouldBe "connection refused"
-                        }
+                    unready.name shouldBe "broker"
+                    unready.cause.shouldBeInstanceOf<IllegalStateException> { cause ->
+                        cause.message shouldBe "connection refused"
+                    }
                 }
             }
         }
@@ -74,9 +75,9 @@ object ProbeSuite : Suite() {
             val module = single<Broker> { install({ Broker() }) { _, _ -> released.set(true) } } +
                 single<Consumer, Broker> { Consumer() }.probe("consumer", timeout = 5.seconds) { _: Consumer -> false }
 
-            val failed = module.use { _: Consumer -> }.leftOrNull().shouldNotBeNull()
+            module.use { _: Consumer -> }.leftOrNull().shouldNotBeNull()
 
-            failed and (released.get() shouldBe true)
+            released.get() shouldBe true
         }
 
         test("overriding a key drops the probe that was asked of it") {
@@ -88,9 +89,9 @@ object ProbeSuite : Suite() {
                 }
                 ).overriding(single<Broker> { Broker() })
 
-            val started = module.use { _: Broker -> }.getOrNull().shouldNotBeNull()
+            module.use { _: Broker -> }.getOrNull().shouldNotBeNull()
 
-            started and withClue("the fake is not the thing the probe was written about") { asked.get() shouldBe 0 }
+            withClue("the fake is not the thing the probe was written about") { asked.get() shouldBe 0 }
         }
 
         test("a subgraph keeps only the probes of the nodes it kept") {
@@ -133,10 +134,9 @@ object ProbeRetrySuite : Suite() {
                     asked.incrementAndGet() >= 3
                 }
 
-            val started =
-                clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
+            clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
 
-            started and (asked.get() shouldBe 3)
+            asked.get() shouldBe 3
         }
 
         test("a probe that throws is asked again, like one that answered no") {
@@ -147,10 +147,9 @@ object ProbeRetrySuite : Suite() {
                     true
                 }
 
-            val started =
-                clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
+            clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.getOrNull().shouldNotBeNull() }
 
-            started and (asked.get() shouldBe 3)
+            asked.get() shouldBe 3
         }
 
         test("a probe that never passes gives up after its attempts") {
@@ -160,10 +159,9 @@ object ProbeRetrySuite : Suite() {
                     asked.incrementAndGet(); false
                 }
 
-            val failed =
-                clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.leftOrNull().shouldNotBeNull() }
+            clock.locally(impatientClock(1.seconds)) { module.use { _: Broker -> }.leftOrNull().shouldNotBeNull() }
 
-            failed and (asked.get() shouldBe 3)
+            asked.get() shouldBe 3
         }
     }
 }

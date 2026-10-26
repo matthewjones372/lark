@@ -51,13 +51,13 @@ object DiscoverySuite : Suite() {
         }
 
         test("a name that resolves to nothing is no seeds") {
-            Discovery.dns("nowhere.invalid", 25520).seeds().shouldBeEmpty() and
-                Discovery.srv("_surefold._tcp.nowhere.invalid").seeds().shouldBeEmpty()
+            Discovery.dns("nowhere.invalid", 25520).seeds().shouldBeEmpty()
+            Discovery.srv("_surefold._tcp.nowhere.invalid").seeds().shouldBeEmpty()
         }
 
         test("the JDK resolver finds localhost, and reads an SRV record as a zone file writes it") {
-            (Resolver.Jdk.addresses("localhost") shouldContain "127.0.0.1") and
-                (Resolver.Jdk.parse("10 60 25520 a.orders.local.") shouldBe Service(10, 60, 25520, "a.orders.local."))
+            Resolver.Jdk.addresses("localhost") shouldContain "127.0.0.1"
+            Resolver.Jdk.parse("10 60 25520 a.orders.local.") shouldBe Service(10, 60, 25520, "a.orders.local.")
         }
 
         test("a node found by host and port alone has an empty name, and reads back the same") {

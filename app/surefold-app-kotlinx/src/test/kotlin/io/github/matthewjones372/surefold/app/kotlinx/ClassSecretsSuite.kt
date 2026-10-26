@@ -32,16 +32,15 @@ object ClassSecretsSuite : Suite() {
 
             val store = testApp(configOf(hocon) + config<Store>("petshop")) { store: Store -> store }
 
-            val masked = (store.dbUrl.reveal() shouldBe "jdbc:postgresql://user:hunter2@db/shop") and
-                (store.toString() shouldNotContain "hunter") and
-                (store.toString() shouldContain MASK)
+            store.dbUrl.reveal() shouldBe "jdbc:postgresql://user:hunter2@db/shop"
+            store.toString() shouldNotContain "hunter"
+            store.toString() shouldContain MASK
             val report =
                 ConfigFactory.parseString(hocon).origins(Secrets.default.andSecretsOf<Store>("petshop")).report()
-            masked and
-                withClue("neither name says secret, so only the class can tell the report") {
-                    (report shouldNotContain "hunter") and
-                        (report shouldContain "petshop.replica.readUrl")
-                }
+            withClue("neither name says secret, so only the class can tell the report") {
+                report shouldNotContain "hunter"
+                report shouldContain "petshop.replica.readUrl"
+            }
         }
     }
 }

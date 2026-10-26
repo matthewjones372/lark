@@ -100,16 +100,16 @@ object SingletonSuite : Suite() {
             val stations = ports.mapIndexed { i, port -> Station("n${i + 1}", port, seeds) }
             val stop = AtomicBoolean(false)
             try {
-                val up = stations.forAll { station ->
+                stations.forAll { station ->
                     station.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     } shouldBe true
                 }
-                val started = withClue("the clock starts before anyone asks it anything") {
+                withClue("the clock starts before anyone asks it anything") {
                     clockStarted.await(1, TimeUnit.MINUTES) shouldBe true
                 }
                 val oldest = checkNotNull(Placement.oldest(stations.first().cluster.view.members)).name
-                val onOldest = stations.map { it.where() } shouldBe List(3) { oldest.right() }
+                stations.map { it.where() } shouldBe List(3) { oldest.right() }
 
                 val leaving = stations.single { it.name == oldest }
                 val staying = stations - leaving
@@ -121,7 +121,7 @@ object SingletonSuite : Suite() {
                     }
                 }
                 leaving.cluster.leave()
-                val gone = staying.forAll { station ->
+                staying.forAll { station ->
                     station.cluster.await(1.minutes) { view -> view.members.none { it.node.name == oldest } } shouldBe
                         true
                 }
@@ -129,9 +129,8 @@ object SingletonSuite : Suite() {
                 traffic.join()
 
                 val next = checkNotNull(Placement.oldest(staying.first().cluster.view.members)).name
-                up and started and onOldest and gone and
-                    (staying.map { it.where() } shouldBe List(2) { next.right() }) and
-                    withClue("the clock ran on two nodes at once") { clocksTwice.get() shouldBe false }
+                staying.map { it.where() } shouldBe List(2) { next.right() }
+                withClue("the clock ran on two nodes at once") { clocksTwice.get() shouldBe false }
             } finally {
                 stop.set(true)
                 stations.forEach(Station::close)

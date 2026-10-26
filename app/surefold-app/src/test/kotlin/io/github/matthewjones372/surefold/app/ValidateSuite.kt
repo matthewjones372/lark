@@ -72,8 +72,8 @@ object ValidateSuite : Suite() {
                 errors.head.shouldBeInstanceOf<WiringError.Cycle> { cycle ->
                     val path = cycle.path
                     withClue("the path ends where it began") {
-                        (path.first() shouldBe path.last()) and
-                            (path.toSet() shouldBe setOf(typeOf<Pipe>(), typeOf<Store>()))
+                        path.first() shouldBe path.last()
+                        path.toSet() shouldBe setOf(typeOf<Pipe>(), typeOf<Store>())
                     }
                 }
             }
@@ -84,9 +84,9 @@ object ValidateSuite : Suite() {
 
             module.validate().leftOrNull().shouldNotBeNull { errors ->
                 val report = errors.report()
-                (report shouldContain "❯ missing Settings") and
-                    (report shouldContain "❯     for Pipe") and
-                    (report shouldContain "❯     for Buffer")
+                report shouldContain "❯ missing Settings"
+                report shouldContain "❯     for Pipe"
+                report shouldContain "❯     for Buffer"
             }
         }
     }
@@ -107,7 +107,8 @@ object AlikeKeySuite : Suite() {
             val said = faults.report(setOf(typeOf<Settings?>(), typeOf<Sdk>()))
 
             withClue("the graph held a Settings? and the reader was told so") {
-                (said shouldContain "missing Settings") and (said shouldContain "which is not the same type")
+                said shouldContain "missing Settings"
+                said shouldContain "which is not the same type"
             }
         }
 

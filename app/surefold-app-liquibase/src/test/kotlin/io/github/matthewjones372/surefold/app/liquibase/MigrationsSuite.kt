@@ -54,8 +54,8 @@ object MigrationsSuite : Suite() {
             testApp(app) { _: Orders -> }
 
             withClue("a changelog is a record of what has run, not a script that runs again") {
-                (first shouldBe 1) and
-                    (applied.get() shouldBe 0)
+                first shouldBe 1
+                applied.get() shouldBe 0
             }
         }
 
@@ -66,7 +66,8 @@ object MigrationsSuite : Suite() {
 
             withClue("an ordering nobody can see is an ordering nobody keeps") {
                 app.render() shouldContain "Migrated --> Orders"
-            } and app.validate().getOrNull().shouldNotBeNull()
+            }
+            app.validate().getOrNull().shouldNotBeNull()
         }
 
         test("a graph with no DataSource is refused before anything connects") {

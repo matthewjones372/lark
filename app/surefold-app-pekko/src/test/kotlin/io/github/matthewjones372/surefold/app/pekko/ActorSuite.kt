@@ -47,13 +47,13 @@ object ActorSuite : SharedSuite<ActorSystem>() {
             val counted = CountDownLatch(2)
             val module = single<ActorSystem> { system } + actor<Add>("counter") { counting(total, counted) }
 
-            val allCounted = testApp(module) { counter: ActorRef<Add> ->
+            testApp(module) { counter: ActorRef<Add> ->
                 counter.tell(Add(2))
                 counter.tell(Add(3))
                 counted.await(5, TimeUnit.SECONDS) shouldBe true
             }
 
-            allCounted and (total.get() shouldBe 5)
+            total.get() shouldBe 5
         }
 
         test("two protocols are two nodes") { system ->
@@ -68,7 +68,8 @@ object ActorSuite : SharedSuite<ActorSystem>() {
             val stopped = CountDownLatch(1)
             val module = single<ActorSystem> { system } + actor<Greet>("stopping") { greeting(stopped) }
 
-            module.use { _: ActorRef<Greet> -> }.getOrNull().shouldNotBeNull() and (stopped.count shouldBe 0L)
+            module.use { _: ActorRef<Greet> -> }.getOrNull().shouldNotBeNull()
+            stopped.count shouldBe 0L
         }
 
         test("an actor that never answers its probe fails the start") { system ->

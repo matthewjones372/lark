@@ -157,7 +157,7 @@ object RememberedSuite : Suite() {
             val seeds = Discovery.static(*ports.map { Node("", "127.0.0.1", it) }.toTypedArray())
             val shops = ports.mapIndexed { i, port -> Shop("s${i + 1}", port, seeds, journal, snapshots) }
             try {
-                val formed = shops.forAll { shop ->
+                shops.forAll { shop ->
                     val up = shop.cluster.await(1.minutes) { view ->
                         view.members.count { it.status == Status.Up } == 3
                     }
@@ -168,28 +168,27 @@ object RememberedSuite : Suite() {
                 val stays = shops.filter { it.name != owner }
                 val jar = stays.first().jars.entity("j-1")
 
-                val put = (1..10).forAll { put ->
+                (1..10).forAll { put ->
                     jar.ask<Jar, Int>(1.minutes) { Put(put, it) } shouldBe (put * (put + 1) / 2).right()
                 }
-                val counted = jar.ask<Jar, String>(1.minutes) { Count(it) } shouldBe "$owner:55".right()
+                jar.ask<Jar, String>(1.minutes) { Count(it) } shouldBe "$owner:55".right()
 
                 shops.single { it.name == owner }.cluster.leave()
-                val gone = stays.forAll { shop ->
+                stays.forAll { shop ->
                     shop.cluster.await(1.minutes) { view -> view.members.none { it.node.name == owner } } shouldBe true
                 }
 
                 journal.from.clear()
                 val recounted = jar.ask<Jar, String>(1.minutes) { Count(it) }.getOrNull()
-                val moved = withClue("the jar answers from another node, with all 55 pence") {
-                    (recounted?.substringBefore(':') shouldNotBe owner) and
-                        (recounted?.substringAfter(':') shouldBe "55")
+                withClue("the jar answers from another node, with all 55 pence") {
+                    recounted?.substringBefore(':') shouldNotBe owner
+                    recounted?.substringAfter(':') shouldBe "55"
                 }
-                val recovered = withClue(
+                withClue(
                     "the next owner recovers from the snapshot at the eighth coin, and reads the two after it",
                 ) {
                     journal.from.toList() shouldBe listOf(9L)
                 }
-                formed and put and counted and gone and moved and recovered
             } finally {
                 shops.forEach(Shop::close)
             }

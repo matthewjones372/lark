@@ -32,12 +32,10 @@ object StartedSuite : Suite() {
                     Spoke()
                 }
 
-            val started = module.use { _: Spoke -> log += "running" }.getOrNull().shouldNotBeNull()
+            module.use { _: Spoke -> log += "running" }.getOrNull().shouldNotBeNull()
 
-            started and (
-                log.toList() shouldContainExactly
-                    listOf("hub built", "spoke built", "hub started", "spoke started", "hub asked", "running")
-                )
+            log.toList() shouldContainExactly
+                listOf("hub built", "spoke built", "hub started", "spoke started", "hub asked", "running")
         }
 
         test("a WhenStarted probe that never passes fails the start, naming its node, after every node is built") {
@@ -47,8 +45,8 @@ object StartedSuite : Suite() {
                 single { _: Hub -> built += "spoke"; Spoke() }
 
             module.use { _: Spoke -> }.leftOrNull().shouldNotBeNull { error ->
-                error.shouldBeInstanceOf<StartupError.Unready> { unready -> unready.name shouldBe "hub" } and
-                    (built.toList() shouldContainExactly listOf("spoke"))
+                error.shouldBeInstanceOf<StartupError.Unready> { unready -> unready.name shouldBe "hub" }
+                built.toList() shouldContainExactly listOf("spoke")
             }
         }
 
@@ -57,14 +55,14 @@ object StartedSuite : Suite() {
         ) {
             val thrown = single<Hub> { onStarted { error("no broker") }; Hub() }.use { _: Hub -> }.leftOrNull()
 
-            val threw = thrown.shouldBeInstanceOf<StartupError.Refused> { refused ->
-                (refused.key shouldBe typeOf<Hub>()) and
-                    (refused.reason shouldBe "its onStarted threw IllegalStateException: no broker")
+            thrown.shouldBeInstanceOf<StartupError.Refused> { refused ->
+                refused.key shouldBe typeOf<Hub>()
+                refused.reason shouldBe "its onStarted threw IllegalStateException: no broker"
             }
 
             val declined = single<Hub> { onStarted { refuse("not today") }; Hub() }.use { _: Hub -> }.leftOrNull()
 
-            threw and (declined shouldBe StartupError.Refused(typeOf<Hub>(), "not today"))
+            declined shouldBe StartupError.Refused(typeOf<Hub>(), "not today")
         }
 
         test("a started hook asked for once the graph has started throws, rather than never running") {

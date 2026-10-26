@@ -63,10 +63,10 @@ object DeclaredFlagsSuite : Suite(concurrent = false) {
                     evaluatedFor("bob") { Declared.hours.value() },
                 )
             }.getOrNull().shouldNotBeNull { (ada, bob, mode, hours) ->
-                (ada shouldBe 5) and
-                    (bob shouldBe 3) and
-                    (mode shouldBe Checkout.Express) and
-                    (hours shouldBe Hours(9, 17))
+                ada shouldBe 5
+                bob shouldBe 3
+                mode shouldBe Checkout.Express
+                hours shouldBe Hours(9, 17)
             }
         }
 
@@ -88,15 +88,13 @@ object DeclaredFlagsSuite : Suite(concurrent = false) {
                 Declared.all,
             ) { reason ->
                 withClue(reason) {
-                    (reason shouldContain "flags at flags do not match their declarations") and
-                        (
-                            reason shouldContain
-                                "adoption.per-customer-limit: variant raised 5.5 is not a whole number (String: 4)"
-                            ) and
-                        (reason shouldContain "checkout.mode: variant new \"Fast\" did not decode as a Checkout") and
-                        (reason shouldContain "(String: 7)") and
-                        (reason shouldContain "checkout.registry-timeout: declared but not in the section") and
-                        (reason.lines().size shouldBe 4)
+                    reason shouldContain "flags at flags do not match their declarations"
+                    reason shouldContain
+                        "adoption.per-customer-limit: variant raised 5.5 is not a whole number (String: 4)"
+                    reason shouldContain "checkout.mode: variant new \"Fast\" did not decode as a Checkout"
+                    reason shouldContain "(String: 7)"
+                    reason shouldContain "checkout.registry-timeout: declared but not in the section"
+                    reason.lines().size shouldBe 4
                 }
             }
         }

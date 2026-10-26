@@ -116,7 +116,8 @@ object HealthSuite : Suite() {
 
             withClue("a node reading liveness while the graph is still coming up is told so") {
                 duringStart.get().shouldNotBeNull { it.shouldBeInstanceOf<Health.Down>() }
-            } and (afterStart shouldBe Health.Up)
+            }
+            afterStart shouldBe Health.Up
         }
     }
 }

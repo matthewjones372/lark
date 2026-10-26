@@ -17,7 +17,8 @@ object ModuleSuite : Suite() {
         test("render draws an edge for every dependency") {
             val rendered = (single<Knob> { Knob() } + single { _: Knob -> Pool() }).render()
 
-            (rendered shouldContain "graph TD") and (rendered shouldContain "Knob --> Pool")
+            rendered shouldContain "graph TD"
+            rendered shouldContain "Knob --> Pool"
         }
 
         test("a later module replaces an earlier node under the same key") {
@@ -25,10 +26,10 @@ object ModuleSuite : Suite() {
 
             val declarations = module.render().lines().filter { it.contains("Knob[") }
 
-            val oneNode = withClue("both recipes build a Knob, so the graph holds one node and one edge into Pool") {
+            withClue("both recipes build a Knob, so the graph holds one node and one edge into Pool") {
                 declarations.size shouldBe 1
             }
-            oneNode and (module.render() shouldContain "Knob --> Pool")
+            module.render() shouldContain "Knob --> Pool"
         }
 
         test("a recipe declares up to five dependencies as parameters") {
@@ -41,9 +42,9 @@ object ModuleSuite : Suite() {
 
             val rendered = module.render()
 
-            (rendered.lines().count { it.contains("[") } shouldBe 6) and
-                (rendered shouldContain "Metrics --> Server") and
-                (rendered shouldContain "Knob --> Server")
+            rendered.lines().count { it.contains("[") } shouldBe 6
+            rendered shouldContain "Metrics --> Server"
+            rendered shouldContain "Knob --> Server"
         }
 
         test("a dependency nothing builds is still drawn") {

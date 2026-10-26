@@ -39,7 +39,8 @@ object LayeredSuite : Suite() {
         test("a setting that was overridden names what it replaced") {
             val port = layered().origins().single { it.path == "petshop.port" }
 
-            (port.value shouldBe "9090") and port.overrides.shouldNotBeNull { was -> was.value shouldBe "8080" }
+            port.value shouldBe "9090"
+            port.overrides.shouldNotBeNull { was -> was.value shouldBe "8080" }
         }
 
         test("a setting only one layer supplied says nothing extra") {
@@ -49,7 +50,8 @@ object LayeredSuite : Suite() {
         test("the report says what a setting overrode") {
             val said = layered().origins().report()
 
-            (said shouldContain "petshop.port") and (said shouldContain "overrides 8080")
+            said shouldContain "petshop.port"
+            said shouldContain "overrides 8080"
         }
 
         test("an overridden secret does not print either value") {
@@ -61,8 +63,10 @@ object LayeredSuite : Suite() {
             val said = layers.origins().report()
 
             withClue("a report that masks the winner and prints the loser has leaked the secret") {
-                (said shouldNotContain "hunter2-new") and (said shouldNotContain "hunter2-old")
-            } and (said shouldContain "petshop.db.password")
+                said shouldNotContain "hunter2-new"
+                said shouldNotContain "hunter2-old"
+            }
+            said shouldContain "petshop.db.password"
         }
 
         test("a substitution across layers resolves against the whole document") {
@@ -71,21 +75,23 @@ object LayeredSuite : Suite() {
                 "reference.conf" to ConfigFactory.parseString("""petshop.db.name = "shop" """),
             )
 
-            (layers.config.getString("petshop.db.url") shouldBe "jdbc:shop") and
-                (layers.origins().single { it.path == "petshop.db.url" }.value shouldBe "jdbc:shop")
+            layers.config.getString("petshop.db.url") shouldBe "jdbc:shop"
+            layers.origins().single { it.path == "petshop.db.url" }.value shouldBe "jdbc:shop"
         }
 
         test("a default an unset environment variable would override keeps the default and names what it beat") {
             val bus = overridden("SUREFOLD_LAYERED_TEST_UNSET").origins().single { it.path == "petshop.bus" }
 
-            (bus.value shouldBe "in-process") and bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
+            bus.value shouldBe "in-process"
+            bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
         }
 
         test("a default a set environment variable overrides takes the variable and names what it beat") {
             System.getenv("PATH").shouldNotBeNull { path ->
                 val bus = overridden("PATH").origins().single { it.path == "petshop.bus" }
 
-                (bus.value shouldBe path) and bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
+                bus.value shouldBe path
+                bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
             }
         }
 
@@ -97,7 +103,8 @@ object LayeredSuite : Suite() {
 
             val bus = layers.origins().single { it.path == "petshop.bus" }
 
-            (bus.value shouldBe "local") and bus.overrides.shouldNotBeNull { it.value shouldBe "in-process" }
+            bus.value shouldBe "local"
+            bus.overrides.shouldNotBeNull { it.value shouldBe "in-process" }
         }
 
         test("an override pair whose substitution another layer supplies takes that layer's value") {
@@ -113,7 +120,8 @@ object LayeredSuite : Suite() {
 
             val bus = layers.origins().single { it.path == "petshop.bus" }
 
-            (bus.value shouldBe "nats") and bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
+            bus.value shouldBe "nats"
+            bus.overrides.shouldNotBeNull { it.value shouldBe "kafka" }
         }
 
         test("an optional substitution left unset supplies nothing to beat") {
@@ -124,7 +132,8 @@ object LayeredSuite : Suite() {
 
             val bus = layers.origins().single { it.path == "petshop.bus" }
 
-            (bus.value shouldBe "kafka") and bus.overrides.shouldBeNull()
+            bus.value shouldBe "kafka"
+            bus.overrides.shouldBeNull()
         }
     }
 }
@@ -143,16 +152,15 @@ object CleanLayersSuite : Suite() {
             try {
                 ConfigFactory.invalidateCaches()
 
-                val default = withClue("defaultReference merges system properties in, which is why it is not used") {
+                withClue("defaultReference merges system properties in, which is why it is not used") {
                     ConfigFactory.defaultReference().getInt(property) shouldBe 6000
                 }
                 val layers = layeredConfig().layers
 
-                default and
-                    withClue("a layer named for a file must hold only what that file said") {
-                        layers.none { it.name != "system properties" && it.config.hasPath(property) } shouldBe true
-                    } and
-                    (layers.first().name shouldBe "system properties")
+                withClue("a layer named for a file must hold only what that file said") {
+                    layers.none { it.name != "system properties" && it.config.hasPath(property) } shouldBe true
+                }
+                layers.first().name shouldBe "system properties"
             } finally {
                 System.clearProperty(property)
                 ConfigFactory.invalidateCaches()

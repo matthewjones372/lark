@@ -56,7 +56,7 @@ object RolesSuite : Suite() {
             val first = mapOf("r1" to roles[0], "r2" to roles[1], "r3" to roles[2])
             val workers = ports.indices.map { Worker("r${it + 1}", ports[it], seeds, roles[it]) }.toMutableList()
             try {
-                val seen = workers.forAll { w ->
+                workers.forAll { w ->
                     w.cluster.await(1.minutes) { view -> view.roles() == first } shouldBe true
                 }
 
@@ -64,7 +64,7 @@ object RolesSuite : Suite() {
                 workers += Worker("r3", ports[2], seeds, setOf("batch"))
 
                 val again = first + ("r3" to setOf("batch"))
-                seen and workers.forAll { it.cluster.await(1.minutes) { view -> view.roles() == again } shouldBe true }
+                workers.forAll { it.cluster.await(1.minutes) { view -> view.roles() == again } shouldBe true }
             } finally {
                 workers.forEach(Worker::close)
             }

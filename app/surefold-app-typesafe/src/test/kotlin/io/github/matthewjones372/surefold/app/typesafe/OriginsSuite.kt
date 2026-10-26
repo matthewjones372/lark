@@ -18,10 +18,10 @@ object OriginsSuite : Suite() {
             val origins = parsed("petshop { port = 9090 }").origins()
 
             val port = origins.single { it.path == "petshop.port" }
-            (port.value shouldBe "9090") and
-                withClue("a string parsed rather than read from a file has no filename, and says so") {
-                    port.where.shouldNotBeNull()
-                }
+            port.value shouldBe "9090"
+            withClue("a string parsed rather than read from a file has no filename, and says so") {
+                port.where.shouldNotBeNull()
+            }
         }
 
         test("a file names the file and the line") {
@@ -40,11 +40,11 @@ object OriginsSuite : Suite() {
             val origins = parsed("""petshop { db { password = "hunter2", pool = 4 } }""").origins()
 
             val password = origins.single { it.path == "petshop.db.password" }
-            (password.value shouldBe MASK) and
-                (password.redacted shouldBe true) and
-                withClue("the origin is still worth having: it says which file to go and edit") {
-                    password.where.shouldNotBeNull()
-                }
+            password.value shouldBe MASK
+            password.redacted shouldBe true
+            withClue("the origin is still worth having: it says which file to go and edit") {
+                password.where.shouldNotBeNull()
+            }
         }
 
         test("a declared path does not print its value either") {
@@ -60,11 +60,11 @@ object OriginsSuite : Suite() {
 
             val said = parsed(hocon).origins().report()
 
-            (said shouldContain "surefold-app configuration") and
-                (said shouldContain "petshop.port") and
-                (said shouldContain "9090") and
-                (said shouldContain "petshop.db.password") and
-                (said shouldNotContain "hunter2")
+            said shouldContain "surefold-app configuration"
+            said shouldContain "petshop.port"
+            said shouldContain "9090"
+            said shouldContain "petshop.db.password"
+            said shouldNotContain "hunter2"
         }
 
         test("a document with nothing in it reports nothing") {

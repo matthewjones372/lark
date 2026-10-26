@@ -29,11 +29,11 @@ object ClosingOfSuite : Suite() {
             val closed = CopyOnWriteArrayList<String>()
             val app = closingOf { -> Pool(closed) }
 
-            val held = testApp(app) { _: Pool ->
+            testApp(app) { _: Pool ->
                 withClue("not while the block holds it") { closed shouldBe emptyList() }
             }
 
-            held and (closed shouldBe listOf("pool"))
+            closed shouldBe listOf("pool")
         }
 
         test("in reverse dependency order, so a client is closed before the pool it holds") {
@@ -49,11 +49,11 @@ object ClosingOfSuite : Suite() {
             val closed = CopyOnWriteArrayList<String>()
             val app = closingOf { -> Pool(closed) } + closingOf { _: Pool -> Broken() }
 
-            val thrown = shouldThrow<IllegalStateException>({ testApp(app) { _: Broken -> } }) { thrown ->
+            shouldThrow<IllegalStateException>({ testApp(app) { _: Broken -> } }) { thrown ->
                 thrown.message shouldBe "would not close"
             }
 
-            thrown and (closed shouldBe listOf("pool"))
+            closed shouldBe listOf("pool")
         }
     }
 }

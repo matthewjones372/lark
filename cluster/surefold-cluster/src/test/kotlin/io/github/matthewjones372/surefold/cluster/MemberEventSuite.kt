@@ -23,11 +23,10 @@ object MemberEventSuite : Suite() {
         test("a member that becomes unreachable is said to be, and again once it is reachable") {
             val all = arrayOf(member(1), member(2), member(3))
 
-            val unreachable = changes(view(*all), view(*all, unreachable = setOf(3))) shouldContainExactly
+            changes(view(*all), view(*all, unreachable = setOf(3))) shouldContainExactly
                 listOf(MemberEvent.Unreachable(member(3)))
-            val reachable = changes(view(*all, unreachable = setOf(3)), view(*all)) shouldContainExactly
+            changes(view(*all, unreachable = setOf(3)), view(*all)) shouldContainExactly
                 listOf(MemberEvent.Reachable(member(3)))
-            unreachable and reachable
         }
 
         test("a member that is gone from the view is removed, and not said to be reachable on its way out") {
@@ -43,9 +42,9 @@ object MemberEventSuite : Suite() {
         test("a member downed is said to be, once") {
             val downed = view(member(1), member(2, Status.Down))
 
-            val once = changes(view(member(1), member(2)), downed) shouldContainExactly
+            changes(view(member(1), member(2)), downed) shouldContainExactly
                 listOf(MemberEvent.Downed(member(2, Status.Down)))
-            once and changes(downed, downed).shouldBeEmpty()
+            changes(downed, downed).shouldBeEmpty()
         }
 
         test("a view that has not changed says nothing") {
