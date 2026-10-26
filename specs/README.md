@@ -8,7 +8,9 @@ diff against.
 ## Layout
 
 One file per piece of work, `specs/NNNN-kebab-name.md`, numbered in order.
-Start from [TEMPLATE.md](TEMPLATE.md).
+Start from [TEMPLATE.md](TEMPLATE.md). Specs are drafted in parallel, so take the
+next number free on `main` and in open branches; `SpecsSuite` in surefold-app fails
+the build when two specs share a number or a heading names another.
 
 A draft is one page, near enough. Every heading in the template gets an answer,
 even where the answer is "nothing". Longer than that means the spec is
