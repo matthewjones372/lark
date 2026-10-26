@@ -40,7 +40,7 @@ second consumer that only asks, sees the group but not this member's position.
 
 - [x] **`spec-0160-producer`** ([#706](https://github.com/matthewjones372/surefold/pull/706)): `flush`, `partitionsFor`, `metrics` on `Producer`. Done when: tested against the
       test broker.
-- [ ] **`spec-0160-consumer`**: the questions above, posted to the polling thread. Done when: `lag()` reads 0
+- [x] **`spec-0160-consumer`** ([#709](https://github.com/matthewjones372/surefold/pull/709)): the questions above, posted to the polling thread. Done when: `lag()` reads 0
       after a run has committed everything, and N with N records unread.
 
 ## Acceptance

@@ -50,6 +50,8 @@ a large surface to keep up with Kafka for calls almost nobody makes from applica
 
 ## Open questions
 
+Answered (maintainer, 2026-10-26: go with the recommendations).
+
 1. **In `surefold-kafka`, or a `surefold-kafka-admin` module?** Recommended: `surefold-kafka`; it adds no dependency.
 2. **Which failures are values?** Recommended: `NoSuchTopic`, `TopicExists` (for a create that is not
    `ensure`), `GroupActive`; everything else a defect.
