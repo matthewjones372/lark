@@ -61,7 +61,7 @@ one that needs no witness.
 
 ## Stack
 
-- [ ] **`spec-0103-unreachable`** — an ask whose frame the remote transport drops as unreachable fails at once
+- [x] **`spec-0103-unreachable`** ([#757](https://github.com/matthewjones372/surefold/pull/757)) — an ask whose frame the remote transport drops as unreachable fails at once
       with `AskFailure.Unreachable`.
       Done when: an ask to an actor on a stopped node answers `Unreachable` well before its timeout.
       Each frame now carries the paths of the replies written into it for asks on this node. When the transport
@@ -71,6 +71,10 @@ one that needs no witness.
 - [ ] **`spec-0103-members-only`** — a region drops `Release` and `Released` from a node outside its cluster.
       Done when: a `Release` sent from a node that is not a member leaves the shard where it was and is a dead
       letter.
+      `WireIn.sender` is the node whose connection a message came in on, as its hello named it; `RegionCodec`
+      stamps it on a `Release` or `Released`, and the region drops one from a node not in its view's members as an
+      `Unhandled` dead letter. One told on its own node has no sender and is taken. A member the region's view does
+      not hold yet is refused too, and its `Release` is asked again on the winner's `AskAgain` timer.
 - [ ] **`spec-0103-federate`** — `Cluster.federate`, entity refs over another cluster's regions, node choice,
       meters.
       Done when: two clusters in one JVM ask each other's entities; with the other cluster stopped, an ask fails
