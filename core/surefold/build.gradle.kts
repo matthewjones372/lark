@@ -8,6 +8,10 @@ dependencies {
     // Test only: surefoldFuture's cancel has to reach surefold from a coroutine awaiting it with kotlinx's own
     // await, and NoOtherDependenciesTest keeps it off the main runtime classpath.
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+
+    // Test only (spec 0209): the lock-free commit is checked for linearizability across interleavings, not only by
+    // totals coming out right.
+    testImplementation("org.jetbrains.lincheck:lincheck:3.7")
 }
 
 tasks.test {
