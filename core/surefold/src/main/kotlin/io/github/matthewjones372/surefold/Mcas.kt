@@ -34,7 +34,8 @@ internal class Installed<T>(private val before: T, private val after: T, val swa
 
 private class Planned<T>(val change: Change<T>, val held: Installed<T>)
 
-private fun <T> planned(change: Change<T>, swap: Swap) = Planned(change, Installed(change.expected, change.desired, swap))
+private fun <T> planned(change: Change<T>, swap: Swap) =
+    Planned(change, Installed(change.expected, change.desired, swap))
 
 internal class Swap(changes: List<Change<*>>) {
     private val status = AtomicReference(Status.UNDECIDED)

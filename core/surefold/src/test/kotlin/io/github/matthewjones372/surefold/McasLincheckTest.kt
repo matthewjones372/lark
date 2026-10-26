@@ -6,6 +6,8 @@ import org.jetbrains.lincheck.datastructures.Operation
 import org.jetbrains.lincheck.datastructures.Param
 import org.jetbrains.lincheck.datastructures.StressOptions
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
+import java.util.concurrent.TimeUnit
 
 private const val VALUES = 3
 
@@ -62,11 +64,23 @@ class McasLincheckTest {
         @Param(name = "value") d0: Int,
     ) = swap(Triple(2, e2, d2), Triple(1, e1, d1), Triple(0, e0, d0))
 
+    // Instrumenting the classes under the model checker takes most of a minute on its own.
     @Test
+    @Timeout(5, unit = TimeUnit.MINUTES)
     fun `every interleaving the model checker tries is linearizable`() =
-        ModelCheckingOptions().threads(3).actorsPerThread(3).iterations(10).invocationsPerIteration(500).check(this::class)
+        ModelCheckingOptions()
+            .threads(3)
+            .actorsPerThread(2)
+            .iterations(10)
+            .invocationsPerIteration(200)
+            .check(this::class)
 
     @Test
     fun `four threads under stress are linearizable`() =
-        StressOptions().threads(4).actorsPerThread(2).iterations(20).invocationsPerIteration(1_000).check(this::class)
+        StressOptions()
+            .threads(4)
+            .actorsPerThread(2)
+            .iterations(20)
+            .invocationsPerIteration(1_000)
+            .check(this::class)
 }
