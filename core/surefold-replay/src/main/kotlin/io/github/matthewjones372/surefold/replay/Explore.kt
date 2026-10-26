@@ -41,12 +41,14 @@ private fun inOrder(order: Long, body: () -> Unit): Throwable? {
     val turns = Order(order)
     return takingTurns(turns) {
         turns.enter()
-        try {
+        val thrown = try {
             // Anything fatal, an interrupt among them, goes on up rather than being named as an order's failure.
             Either.catch(body).fold({ it }, { null })
         } finally {
             turns.leave()
         }
+        // A run that left determinism cannot promise its order replays, whatever it ended with (spec 0042).
+        turns.stuck?.let { AssertionError("the run left determinism: $it", thrown) } ?: thrown
     }
 }
 

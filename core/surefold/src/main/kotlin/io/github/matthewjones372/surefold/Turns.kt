@@ -23,8 +23,12 @@ interface Turns {
     /** This thread's fork body has ended: the turn goes on, and this thread takes no more. */
     fun ended()
 
-    /** This thread is about to park: the turn goes on until something wakes it. */
-    fun parking()
+    /**
+     * This thread is about to park, and the turn goes on: whether it should. A wake that came first answers false
+     * once this thread has the turn again, and the park returns at once, as a spurious wake, for the caller to look
+     * again: the JDK's own permit for that wake may already have been spent by a wait nothing here sees.
+     */
+    fun parking(): Boolean
 
     /** This thread is back from a park, and waits here for its turn. */
     fun woke()
