@@ -91,8 +91,9 @@ needs a field. Recommended: lines as text.
 
 ## Open questions
 
-1. Should `logs()` split a test's entry into lines, or answer the joined text? Recommended: lines. Every check here
-   is about a line, and `joinToString("\n")` gets the text back where it's wanted.
-2. Should `reported(key)` answer only the last value per test, or every value (`Map<String, List<String>>`)?
-   Recommended: the last value. No aspect here reports a key twice, and `logs()` already
-   covers the one entry that can repeat.
+Taken as recommended (maintainer, 2026-10-26).
+
+1. ~~Should `logs()` split a test's entry into lines, or answer the joined text?~~ Lines. Every check here is about a
+   line, and `joinToString("\n")` gets the text back where it's wanted.
+2. ~~Should `reported(key)` answer only the last value per test, or every value?~~ The last value. No aspect here
+   reports a key twice, and `logs()` already covers the one entry that can repeat.
