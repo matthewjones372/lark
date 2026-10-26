@@ -11,21 +11,15 @@ import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.scope
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.Tracer
-import io.opentelemetry.sdk.OpenTelemetrySdk
-import io.opentelemetry.sdk.trace.SdkTracerProvider
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlin.time.Duration.Companion.minutes
 
 private data class Handle(val reply: Reply<String>)
 
 /** A tracer and the spans it finished, made fresh for each test so one test never reads another's. */
 private class Traced {
-    val exported = Collected()
+    val exported = Spans()
 
-    val tracer: Tracer = OpenTelemetrySdk.builder()
-        .setTracerProvider(SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exported)).build())
-        .build()
-        .getTracer("surefold-otel-test")
+    val tracer: Tracer = exported.tracer
 
     fun handler() = behaviour<Handle, Unit>(Unit) { _, _, message ->
         stay().also { message.reply(tracer.span("handled") { Span.current().spanContext.traceId }) }
