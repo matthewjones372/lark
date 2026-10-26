@@ -45,6 +45,8 @@ internal data class Send<C>(val to: String, val sequence: Long, val command: C)
 
 // pure too; who holds room, for a producer whose recovered commands can exceed it
 internal data class Holding(val held: Set<Pair<String, Long>>) {
+    fun kept(to: String, sequence: Long): Holding                             // room `send` took
+    fun unheld(outboxes: Outboxes<*>): Int                                   // what a claim would want
     fun claim(outboxes: Outboxes<*>, free: Int): Pair<Holding, Int>          // how many it took
     fun confirmed(outboxes: Outboxes<*>, to: String, sequence: Long): Pair<Holding, Boolean> // released?
 }
@@ -56,6 +58,12 @@ internal data class Holding(val held: Set<Pair<String, Long>>) {
   live steps run the same code.
 - Each actor's job shrinks to two things: performing the `Send`s it is given,
   and moving the semaphore by what `Holding` says.
+
+`kept` and `unheld` were added to `Holding` while it was built. `kept` records
+the room `send` took. With `unheld`, the actor acquires exactly the room a
+claim can use, one permit at a time as before, never draining the semaphore
+from under a waiting `send`. The actor's semaphore adapter is `HeldRoom`, and
+its decode-and-send step is `Sending`.
 
 `KeptCommand` is a kept command and its number. The name `Kept` is taken on the
 test classpath, by `LetGoSuite`. `unconfirmed` and `isEmpty` were dropped from
@@ -82,7 +90,7 @@ room.
       head-only confirm, next-on-confirm and heads. `producing` runs on it.
       Done when: `ProducerTest` passes and `producing` has no queue logic of
       its own.
-- [ ] **`spec-0146-durable`**: `Outboxes<ByteArray>` under `outbox`; `applied`
+- [x] **`spec-0146-durable`** ([#682](https://github.com/matthewjones372/surefold/pull/682)): `Outboxes<ByteArray>` under `outbox`; `applied`
       folds through it.
       Done when: `DurableProducerTest` passes, and a journal written before
       this change replays (a fixture test).

@@ -14,7 +14,6 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicReference
@@ -155,7 +154,10 @@ private fun <M : Any> outbox(
     down: AtomicReference<Throwable?>,
     route: (String) -> ActorRef<M>,
 ): Behaviour<Any, Remembered<Stored>, JournalConflict> {
-    val steps = OutboxSteps(producer, codec, room, keep, meters, down, route)
+    // It outlives a restart, whose replay finds the commands that already hold room.
+    val held = HeldRoom(room, keep, meters)
+
+    val sending = Sending(producer, codec, meters, route)
     return persistent<Any, OutboxEvent, Stored>(
         id = PersistenceId("surefold-producer", producer),
         empty = Stored(),
@@ -163,27 +165,123 @@ private fun <M : Any> outbox(
         snapshots = every(SNAPSHOT_EVERY, OutboxesCodec, prune = Prune.always),
         command = { ctx, stored, message ->
             when (message) {
-                is KeepDurably -> steps.keep(this, ctx, stored, message)
+                is KeepDurably -> {
+                    val sequence = stored.next[message.to] ?: 1
+                    val (_, send) = stored.outboxes.kept(message.to, sequence, message.bytes)
+                    persist(OutboxEvent.Kept(message.to, sequence, message.bytes)).then { _ ->
+                        // Written: from here a throw leaves its room held, for the restart's replay to find it, and
+                        // the caller hears so before the send, which cannot take it back.
+                        held.kept(message.to, sequence)
+                        message.written()
+                        send?.let { sending.perform(ctx, it) }
+                    }
+                }
 
-                is Confirmed -> steps.confirmed(this, ctx, stored, message)
+                is Confirmed -> when (val confirmed = stored.outboxes.confirmed(message.to, message.sequence)) {
+                    null -> none()
 
-                ResendUnconfirmed -> none().then { now -> steps.resend(ctx, now) }
+                    else -> persist(OutboxEvent.Done(message.to, message.sequence)).then { after ->
+                        held.confirmed(after.outboxes, message.to, message.sequence)
+                        confirmed.second?.let { sending.perform(ctx, it) }
+                    }
+                }
+
+                ResendUnconfirmed -> none().then { now -> sending.resend(ctx, now.outboxes) }
 
                 Recovered -> none().then { now ->
-                    steps.claim(now)
+                    held.claim(now.outboxes)
                     recovered.countDown()
-                    steps.resend(ctx, now)
+                    sending.resend(ctx, now.outboxes)
                 }
 
                 else -> unhandled()
             }
         },
         event = ::applied,
-    ).onThrow(steps::threw).onStart { ctx ->
-        steps.replayed()
+    ).onThrow { message, cause -> threw(producer, down, held, message, cause) }.onStart { ctx ->
+        if (down.getAndSet(null) != null) logInfo("producer $producer writes to its journal again")
         ctx.timers.every(ResendUnconfirmed, resendAfter, ResendUnconfirmed)
         // What the start recovered holds room, and goes out at once rather than a resendAfter later.
         ctx.timers.after(Recovered, Duration.ZERO, Recovered)
+    }
+}
+
+/** How a durable producer sends what [Outboxes] says to: decoded from its bytes, and redelivered from it. */
+private class Sending<M : Any>(
+    private val producer: String,
+    private val codec: EventCodec<M>,
+    private val meters: ProducerMeters,
+    private val route: (String) -> ActorRef<M>,
+) {
+    fun perform(ctx: Ctx<Any>, send: Send<ByteArray>) {
+        val (to, sequence, bytes) = send
+        val kept = codec.decode(bytes)
+        check(kept is Delivered) { "a durable producer sends only Delivered commands, not $kept" }
+        // A copy that finds the entity's mailbox full is not lost: it is sent again on the next resend.
+        @Suppress("UNCHECKED_CAST")
+        route(to).handed(kept.redeliver(Delivery(producer, to, sequence, ctx.self)) as M)
+    }
+
+    fun resend(ctx: Ctx<Any>, outboxes: Outboxes<ByteArray>) = outboxes.heads().forEach {
+        meters.resent.increment()
+        perform(ctx, it)
+    }
+}
+
+/**
+ * The journal threw, on [message] or on a replay: [producer] is [down] until a replay succeeds, and a command that
+ * was not written is answered [Unwritten] and gives its room back.
+ */
+private fun threw(
+    producer: String,
+    down: AtomicReference<Throwable?>,
+    held: HeldRoom,
+    message: Any?,
+    cause: Exception,
+) {
+    if (down.getAndSet(cause) == null) {
+        logWarn("producer $producer cannot write to its journal, and answers Unwritten until it can: $cause")
+    }
+    if (message is KeepDurably && !message.isAnswered) {
+        held.refund()
+        message.unwritten(cause)
+    }
+}
+
+/**
+ * A durable producer's [room], moved by what [Holding] says: the commands that hold it are each kept here, and each
+ * recovered that there was room for, so room never exceeds keep and a drain waits for what was recovered as well as
+ * what was sent.
+ */
+private class HeldRoom(private val room: Semaphore, private val keep: Int, private val meters: ProducerMeters) {
+    private val holding = AtomicReference(Holding())
+
+    /** [to]'s [sequence] is written, and holds the room `send` took for it. */
+    fun kept(to: String, sequence: Long) = moved { it.kept(to, sequence) to 0 }
+
+    /** Room for each of [outboxes]' commands that holds none yet, as far as there is room. */
+    fun claim(outboxes: Outboxes<*>) = moved { holding ->
+        val wanted = holding.unheld(outboxes)
+        var free = 0
+        while (free < wanted && room.tryAcquire()) free++
+        holding.claim(outboxes, free).first to 0
+    }
+
+    /** [to]'s [sequence] is confirmed, leaving [outboxes]: its room is handed on, or released. */
+    fun confirmed(outboxes: Outboxes<*>, to: String, sequence: Long) = moved { holding ->
+        val (after, released) = holding.confirmed(outboxes, to, sequence)
+        after to if (released) 1 else 0
+    }
+
+    /** A command `send` took room for was not written, and gives it back. */
+    fun refund() = moved { it to 1 }
+
+    private fun moved(step: (Holding) -> Pair<Holding, Int>) {
+        val (after, released) = step(holding.get())
+        holding.set(after)
+        room.release(released)
+        // Room taken is what `send` has kept and no entity has confirmed yet.
+        meters.unconfirmed.set((keep - room.availablePermits()).toDouble())
     }
 }
 
@@ -218,110 +316,6 @@ private inline fun <M : Any, S, E> Fail<E>.told(
         failed(message, thrown)
         throw thrown
     }.bind()
-
-/** What a durable producer does with each message; the journal has the rest. */
-private class OutboxSteps<M : Any>(
-    private val producer: String,
-    private val codec: EventCodec<M>,
-    private val room: Semaphore,
-    private val keep: Int,
-    private val meters: ProducerMeters,
-    private val down: AtomicReference<Throwable?>,
-    private val route: (String) -> ActorRef<M>,
-) {
-    // The commands that hold room: each kept here, and each recovered that there was room for, so room never
-    // exceeds keep and a drain waits for what was recovered as well as what was sent.
-    private val holding = ConcurrentHashMap.newKeySet<Pair<String, Long>>()
-
-    /** Takes room for each recovered command that holds none yet, as far as there is room. */
-    fun claim(stored: Stored) {
-        stored.outboxes.queues.forEach { (to, kept) ->
-            kept.forEach { (sequence, _) ->
-                if (to to sequence !in holding && room.tryAcquire()) holding += to to sequence
-            }
-        }
-        measure()
-    }
-
-    fun keep(
-        effects: Effects<OutboxEvent, Stored>,
-        ctx: Ctx<Any>,
-        stored: Stored,
-        asked: KeepDurably,
-    ): Effect<OutboxEvent, Stored> {
-        val sequence = stored.next[asked.to] ?: 1
-        val (_, send) = stored.outboxes.kept(asked.to, sequence, asked.bytes)
-        return effects.persist(OutboxEvent.Kept(asked.to, sequence, asked.bytes)).then { _ ->
-            // Written: from here a throw leaves its room held, for the restart's replay to find it, and the caller
-            // hears so before the send, which cannot take it back.
-            holding += asked.to to sequence
-            asked.written()
-            measure()
-            send?.let { ctx.send(it) }
-        }
-    }
-
-    /**
-     * The journal threw, on [message] or on a replay: the producer is down until a replay succeeds, and a command
-     * that was not written is answered [Unwritten] and gives its room back.
-     */
-    fun threw(message: Any?, cause: Exception) {
-        if (down.getAndSet(cause) == null) {
-            logWarn("producer $producer cannot write to its journal, and answers Unwritten until it can: $cause")
-        }
-        if (message is KeepDurably && !message.isAnswered) {
-            room.release()
-            message.unwritten(cause)
-        }
-        measure()
-    }
-
-    /** A start read the journal, so it is back. */
-    fun replayed() {
-        if (down.getAndSet(null) != null) logInfo("producer $producer writes to its journal again")
-    }
-
-    fun confirmed(
-        effects: Effects<OutboxEvent, Stored>,
-        ctx: Ctx<Any>,
-        stored: Stored,
-        confirmed: Confirmed,
-    ): Effect<OutboxEvent, Stored> {
-        val (_, next) = stored.outboxes.confirmed(confirmed.to, confirmed.sequence) ?: return effects.none()
-        return effects.persist(OutboxEvent.Done(confirmed.to, confirmed.sequence)).then { after ->
-            if (holding.remove(confirmed.to to confirmed.sequence)) handOnRoom(after)
-            measure()
-            next?.let { ctx.send(it) }
-        }
-    }
-
-    /**
-     * The room a confirmed command held, passed to a recovered command that holds none yet, or freed when none is
-     * left: passed, not freed and claimed, so a drain cannot take it in between and answer while one is unconfirmed.
-     */
-    private fun handOnRoom(stored: Stored) {
-        val waiting = stored.outboxes.queues.asSequence()
-            .flatMap { (to, kept) -> kept.asSequence().map { (sequence, _) -> to to sequence } }
-            .firstOrNull { it !in holding }
-        if (waiting == null) room.release() else holding += waiting
-    }
-
-    fun resend(ctx: Ctx<Any>, stored: Stored) = stored.outboxes.heads().forEach {
-        meters.resent.increment()
-        ctx.send(it)
-    }
-
-    private fun measure() = meters.unconfirmed.set((keep - room.availablePermits()).toDouble())
-
-    private fun Ctx<Any>.send(send: Send<ByteArray>) {
-        val (to, sequence, bytes) = send
-        val kept = codec.decode(bytes)
-        check(kept is Delivered) { "a durable producer sends only Delivered commands, not $kept" }
-        // A copy that finds the entity's mailbox full is not lost: it is sent again on the next resend.
-        @Suppress("UNCHECKED_CAST")
-        route(to).handed(kept.redeliver(Delivery(producer, to, sequence, self)) as M)
-    }
-}
 
 /** [stored] after [event], through the same [Outboxes] steps a live command takes. */
 private fun applied(stored: Stored, event: OutboxEvent): Stored = when (event) {
