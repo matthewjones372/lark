@@ -69,12 +69,14 @@ compiler-version guard.
 
 ## Stack
 
-- [ ] **`spec-0041-module`** — `surefold-compiler` and `DEFERRED_ESCAPES_SCOPE`.
+- [x] **`spec-0041-module`** ([#733](https://github.com/matthewjones372/surefold/pull/733)) — `surefold-compiler` and `DEFERRED_ESCAPES_SCOPE`.
       Done when: a compile test shows the error on a returned `Deferred` and
       none on a returned `await()` value.
 - [ ] **`spec-0041-gradle`** — the Gradle plugin `io.github.matthewjones372.surefold.compiler` that applies it, with
       the compiler-version guard `surefold-app-compiler` has.
       Done when: a TestKit build applying the plugin fails on a returned `Deferred`.
+      The plugin lives in `surefold-app-gradle` beside the wiring plugin, under its own id: that jar already
+      publishes Gradle plugins and runs their TestKit builds, and nothing in it ties this plugin to surefold-app.
 - [ ] **`spec-0041-threads`** — `AWAIT_ACROSS_FORK` and `RAISE_ACROSS_FORK`.
       Done when: both examples above fail to compile, and awaiting in the
       scope's own block still compiles.

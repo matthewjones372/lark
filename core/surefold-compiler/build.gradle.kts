@@ -8,6 +8,18 @@ dependencies {
     testImplementation(project(":surefold-assert"))
 }
 
+// What this was built against, written into the jar so the plugin can compare it with the compiler it finds itself in,
+// as surefold-app-compiler does. Named for this plugin: a compiler loads every plugin jar into one classloader, where
+// two resources of one name would answer for each other.
+val builtFor = tasks.register<WriteProperties>("builtFor") {
+    destinationFile.set(layout.buildDirectory.file("generated/surefold-forks/surefold-forks.properties"))
+    property("kotlin", rootProject.extra["surefoldKotlinVersion"].toString())
+}
+
+sourceSets.main {
+    resources.srcDir(builtFor.map { it.destinationFile.get().asFile.parentFile })
+}
+
 // A snippet's compiler loads the plugin as a consumer's does, from its classes and its service files.
 tasks.withType<Test>().configureEach {
     val plugin = sourceSets.main.get().output

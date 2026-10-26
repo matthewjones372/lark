@@ -16,9 +16,9 @@ transitive dependency fails the build.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold:0.12.0")
-    implementation("io.github.matthewjones372:surefold-app:0.12.0")
-    testImplementation("io.github.matthewjones372:surefold-test:0.12.0")
+    implementation("io.github.matthewjones372:surefold:0.13.0")
+    implementation("io.github.matthewjones372:surefold-app:0.13.0")
+    testImplementation("io.github.matthewjones372:surefold-test:0.13.0")
 }
 ```
 
@@ -27,7 +27,7 @@ describe the `main` branch, which can be ahead of the latest release; features
 not yet released are marked where they are documented.
 
 **Snapshots.** An untagged commit builds as the next patch version with
-`-SNAPSHOT` (after `v0.12.0`, `0.12.1-SNAPSHOT`). Snapshots are published by
+`-SNAPSHOT` (after `v0.13.0`, `0.13.1-SNAPSHOT`). Snapshots are published by
 hand rather than on every push, to
 `https://central.sonatype.com/repository/maven-snapshots/`, and expire after
 90 days. To try `main` reliably, build it locally:
@@ -71,7 +71,7 @@ against; the library's own transitive dependencies come with it.
 |---|---|---|---|---|
 | `surefold` | forks, errors, resources, schedules, policies, context, logs, metrics, `await` on any future ([guide](core.md)) | none | nothing | yes |
 | `surefold-pekko` | a Pekko dispatcher as the executor; `await` on Pekko's Scala futures ([guide](core.md#running-forks-on-pekko)) | `surefold` | `pekko-actor` 1.2.1 | yes |
-| `surefold-compiler` | a K2 checker: a `Deferred`, `Channel` or `Scope` returned from a scope or kept in a property is an error (spec 0041) | none | the Kotlin compiler, already present | yes |
+| `surefold-compiler` | a K2 checker: a `Deferred`, `Channel` or `Scope` returned from a scope or kept in a property is an error (spec 0041); applied by `io.github.matthewjones372.surefold.compiler` | none | the Kotlin compiler, already present | yes |
 | `surefold-structured` | `parZip`, `parMap`, `raceN`, `timeout` on the JDK's `StructuredTaskScope` (preview in JDK 27) | `surefold` | none | no |
 
 ### Applications
@@ -87,7 +87,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-app-pekko` | a Pekko typed actor as a node ([cookbook](cookbook.md#spawn-a-pekko-actor)) | `surefold-app`, `surefold-pekko` | `pekko-actor-typed` 1.2.1 | yes |
 | `surefold-app-actor` | a `surefold-actor` scope and actors as nodes ([cookbook](cookbook.md#spawn-a-surefold-actor)) | `surefold-app`, `surefold-actor` | none | yes |
 | `surefold-app-cluster` | a cluster membership as a node, joined from HOCON ([guide](cluster.md#joined-from-config)) | `surefold-app-actor`, `surefold-app-typesafe`, `surefold-cluster` | none beyond Typesafe Config | yes |
-| `surefold-app-gradle` | the Gradle plugin `io.github.matthewjones372.surefold.wiring` ([guide](app.md#checking-the-graph-in-the-build)) | none | Gradle API | yes |
+| `surefold-app-gradle` | the Gradle plugins `io.github.matthewjones372.surefold.wiring` ([guide](app.md#checking-the-graph-in-the-build)) and `io.github.matthewjones372.surefold.compiler`, which applies `surefold-compiler` | none | Gradle API | yes |
 | `surefold-app-compiler` | the K2 compiler checker the plugin applies ([guide](app.md#checking-the-graph-in-the-editor)) | none | the Kotlin compiler, already present | yes |
 
 ### Streams
