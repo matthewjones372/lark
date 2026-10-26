@@ -7,9 +7,12 @@ import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldNotBeNull
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.test.eventually
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.LockSupport
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 private const val COUNT = 20_000
 private const val GENEROUS_SECONDS = 30L
@@ -29,13 +32,10 @@ private fun <T> onVirtualThread(body: () -> T): CompletableFuture<T> {
     return answer
 }
 
-private fun waitUntilParked(thread: Thread) {
-    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(GENEROUS_SECONDS)
-    while (thread.state != Thread.State.WAITING) {
-        check(System.nanoTime() < deadline) { "$thread never parked" }
-        Thread.onSpinWait()
+private fun waitUntilParked(thread: Thread) =
+    eventually(GENEROUS_SECONDS.seconds, every = 1.milliseconds) {
+        check(thread.state == Thread.State.WAITING) { "$thread never parked" }
     }
-}
 
 /** What each ring's producer put, as `ring * COUNT + n`, split back by ring. */
 private fun byRing(taken: List<Any?>, rings: Int) =

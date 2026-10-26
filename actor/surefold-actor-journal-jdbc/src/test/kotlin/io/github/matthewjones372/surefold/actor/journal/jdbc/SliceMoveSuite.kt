@@ -14,11 +14,13 @@ import io.github.matthewjones372.surefold.junit.shouldBeEmpty
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.test.eventually
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 private val ids = (1..1_000).map { PersistenceId("till", "t-$it") }
@@ -73,9 +75,7 @@ object SliceMoveSuite : Suite() {
                     }
                 }
                 // Every id has events before the move, however long a round trip to the database takes.
-                val warm = System.nanoTime() + 30.seconds.inWholeNanoseconds
-                while (appended.size < ids.size && System.nanoTime() < warm) Thread.sleep(50)
-                val warmed = appended.size shouldBe ids.size
+                val warmed = eventually(30.seconds, every = 50.milliseconds) { appended.size shouldBe ids.size }
                 val move = SliceMover(databases).move(moving, "db-2")
                 Thread.sleep(1_000)
                 stop.set(true)
