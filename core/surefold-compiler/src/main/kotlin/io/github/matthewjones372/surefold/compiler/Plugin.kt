@@ -57,6 +57,7 @@ internal class ForkCheckers(session: FirSession) : FirAdditionalCheckersExtensio
     }
 
     override val expressionCheckers: ExpressionCheckers = object : ExpressionCheckers() {
-        override val functionCallCheckers: Set<FirFunctionCallChecker> = setOf(ReturnedScopeChecker())
+        override val functionCallCheckers: Set<FirFunctionCallChecker> =
+            setOf(ReturnedScopeChecker(), ForkBoundaryChecker())
     }
 }

@@ -78,6 +78,10 @@ compiler-version guard.
 - [ ] **`spec-0041-threads`** — `AWAIT_ACROSS_FORK` and `RAISE_ACROSS_FORK`.
       Done when: both examples above fail to compile, and awaiting in the
       scope's own block still compiles.
+      The examples are spelled `scope { }` and `attempt { }` since spec 0214. Each `async` check reads its own
+      block and stops at the `async` calls nested in it, so an await two forks deep is reported once, by the
+      innermost. Only a local or a parameter is judged: a `Deferred` reached through a property is the
+      `DEFERRED_ESCAPES_SCOPE` case already.
 - [ ] **`spec-0041-catch`** — `CATCH_EATS_RAISE`.
       Done when: the example warns, a `catch` that rethrows doesn't, and
       `catch (e: IOException)` doesn't.
