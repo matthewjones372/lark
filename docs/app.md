@@ -19,7 +19,7 @@ A node is a function, and a module is an ordinary Kotlin expression.
 ```kotlin
 dependencies {
     // brings surefold, and through it nothing else
-    implementation("io.github.matthewjones372:surefold-app:0.12.0")
+    implementation("io.github.matthewjones372:surefold-app:0.13.0")
 }
 ```
 
@@ -304,7 +304,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.4.10"
-    id("io.github.matthewjones372.surefold.wiring") version "0.12.0"
+    id("io.github.matthewjones372.surefold.wiring") version "0.13.0"
 }
 
 repositories { mavenCentral() }
@@ -390,7 +390,7 @@ Each is a warning, silenced where it is intended by name, for example
 
 ### What the compiler plugin refuses inside a step
 
-*Not yet released.* A [`transact`](core.md#values-changed-together) step can
+A [`transact`](core.md#values-changed-together) step can
 run more than once, so anything in it besides changing `Shared` values happens
 once per run, not once per commit. Inside a step (a `transact { }` block, a
 `firstOf` branch, or a function taking `Transaction` as its receiver) the

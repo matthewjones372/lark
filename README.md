@@ -47,8 +47,7 @@ and carries no context. Surefold adds:
 - **Resources and policies.** Acquire and release in reverse order on every
   exit path, and retry, time out, break or limit calls with composable values.
 - **Shared state without locks.** `transact { }` changes several `Shared`
-  values as one step, waits until the state allows it, and never deadlocks
-  (not yet released).
+  values as one step, waits until the state allows it, and never deadlocks.
 - **Context that crosses forks.** Log annotations, metric tags, trace context
   and the clock are inherited by every fork, so a correlation id or a test
   clock reaches the branches of a `parMap`.
@@ -216,7 +215,7 @@ kotlin { jvmToolchain(25) }
 
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:surefold:0.12.0")
+    implementation("io.github.matthewjones372:surefold:0.13.0")
 }
 ```
 
@@ -269,7 +268,7 @@ than 200.
 
 Every published module uses the same group and version, so adding another is
 one more line, for example
-`implementation("io.github.matthewjones372:surefold-app:0.12.0")`. The
+`implementation("io.github.matthewjones372:surefold-app:0.13.0")`. The
 [module guide](docs/modules.md) has the coordinates, what each module brings,
 and how to use a snapshot or a local build.
 
@@ -310,7 +309,7 @@ read the results unchanged.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-junit:0.12.0")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.13.0")
 }
 
 tasks.test { useJUnitPlatform() }

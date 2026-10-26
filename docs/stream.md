@@ -45,14 +45,14 @@ Each backend module brings `surefold-stream` with it:
 ```kotlin
 dependencies {
     // a pull loop on a virtual thread: brings surefold-stream and nothing else
-    implementation("io.github.matthewjones372:surefold-stream-forks:0.12.0")
+    implementation("io.github.matthewjones372:surefold-stream-forks:0.13.0")
     // or Pekko Streams: brings surefold-stream, surefold-pekko and pekko-stream
-    // implementation("io.github.matthewjones372:surefold-stream-pekko:0.12.0")
+    // implementation("io.github.matthewjones372:surefold-stream-pekko:0.13.0")
     // or actors of a surefold-actor scope
-    // implementation("io.github.matthewjones372:surefold-stream-actors:0.12.0")
+    // implementation("io.github.matthewjones372:surefold-stream-actors:0.13.0")
 
     // time a test owns
-    testImplementation("io.github.matthewjones372:surefold-stream-test:0.12.0")
+    testImplementation("io.github.matthewjones372:surefold-stream-test:0.13.0")
 }
 ```
 
