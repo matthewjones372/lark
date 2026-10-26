@@ -19,7 +19,7 @@ A node is a function, and a module is an ordinary Kotlin expression.
 ```kotlin
 dependencies {
     // brings surefold, and through it nothing else
-    implementation("io.github.matthewjones372:surefold-app:0.10.1")
+    implementation("io.github.matthewjones372:surefold-app:0.1.0")
 }
 ```
 
@@ -159,8 +159,7 @@ which is no order to release in.
 - **`run`.** A service writes no `run`: the default calls `awaitShutdown()`,
   which parks until the process is asked to stop, and the graph's release then
   stops the server. A job overrides `AppScope.run(root)` with its work, and the
-  graph is released when it returns. *Unreleased: in 0.10.1, `run` has no
-  default, and a service writes `override fun AppScope.run(root: HttpServer) = awaitShutdown()`.*
+  graph is released when it returns.
 - **`refuse(reason)`.** A node that cannot start says why, and the start fails
   with that reason rather than a stack trace:
   `single { sys: Sys -> DbConfig(sys.env("DB_URL") ?: refuse("DB_URL is not set")) }`.
@@ -283,8 +282,7 @@ Each integration is a separate module that makes something a node:
 A choice between modules can also be made inside the graph:
 `choice<Settings, Provided> { settings -> if (…) moduleA else moduleB }` is a
 node that depends on a setting and expands into the chosen module once the
-setting is built, so the other branch is never built. *Unreleased: `choice` is
-on `main` and not in 0.10.1.* See the [cookbook](cookbook.md#a-setting-that-picks-a-module).
+setting is built, so the other branch is never built. See the [cookbook](cookbook.md#a-setting-that-picks-a-module).
 
 ## Checking the graph in the build
 
@@ -306,7 +304,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.4.10"
-    id("io.github.matthewjones372.surefold.wiring") version "0.10.1"
+    id("io.github.matthewjones372.surefold.wiring") version "0.1.0"
 }
 
 repositories { mavenCentral() }

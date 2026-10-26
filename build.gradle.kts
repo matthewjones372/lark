@@ -70,7 +70,9 @@ spotless {
 
 /** One line per module, so a Maven search result says what the artifact is. */
 val moduleDescriptions = mapOf(
-    "surefold" to "Arrow's fx on virtual threads: parZip, parMap, raceN, resources and schedules, minus the suspend.",
+    "surefold" to
+        "Structured concurrency on virtual threads, without coroutines. " +
+        "Plus checked application graphs, streams, actors and clusters.",
     "surefold-pekko" to
         "surefold on Pekko: a dispatcher as the executor, and Pekko's stages awaited from a virtual thread.",
     "surefold-stream" to "A stream that names its failure: Stream<E, A> described once, run on the backend you pick.",

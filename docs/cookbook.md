@@ -12,8 +12,8 @@ write each piece.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app:0.10.1")
-    implementation("io.github.matthewjones372:surefold-app-pekko:0.10.1")  // Pekko actors only
+    implementation("io.github.matthewjones372:surefold-app:0.1.0")
+    implementation("io.github.matthewjones372:surefold-app-pekko:0.1.0")  // Pekko actors only
 }
 ```
 
@@ -214,8 +214,7 @@ fun main(): Unit = exitProcess(runApp(TheApp).code)
 ```
 
 With no `run` of its own, `TheApp` parks until the process is asked to stop,
-then releases the graph. *Unreleased: in 0.10.1, write
-`override fun AppScope.run(root: HttpServer) = awaitShutdown()`.*
+then releases the graph.
 
 The same without a `SurefoldApp`, with the root's work written inline:
 
@@ -447,8 +446,7 @@ requests.
 
 `surefold-app-typesafe` makes a HOCON section a node, read by the module that
 needs it. `surefold-app-kotlinx` reads it from a `@Serializable` class, each
-property a path named after it. *Unreleased: `surefold-app-kotlinx` is on `main`
-and not in 0.10.1, so its coordinate is the [snapshot](modules.md#requirements-and-coordinates).*
+property a path named after it.
 
 ```kotlin
 plugins {
@@ -456,7 +454,7 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app-kotlinx:0.10.2-SNAPSHOT")
+    implementation("io.github.matthewjones372:surefold-app-kotlinx:0.1.0")
 }
 ```
 
@@ -489,7 +487,7 @@ substitution, merging, `getDuration` and `getMemorySize` all still work.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app-typesafe:0.10.1")
+    implementation("io.github.matthewjones372:surefold-app-typesafe:0.1.0")
 }
 ```
 
@@ -635,7 +633,7 @@ not be in it.
 
 `choice` is a node that depends on the setting and provides what every branch
 provides. Its value is the module Surefold builds into the graph once the setting
-is built. *Unreleased: `choice` is on `main` and not in 0.10.1.*
+is built.
 
 ```kotlin
 import io.github.matthewjones372.surefold.app.choice
@@ -679,7 +677,7 @@ the graph enforces and `render()` draws:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app-liquibase:0.10.1")
+    implementation("io.github.matthewjones372:surefold-app-liquibase:0.1.0")
 }
 ```
 

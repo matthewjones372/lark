@@ -213,7 +213,7 @@ kotlin { jvmToolchain(25) }
 
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:surefold:0.10.1")
+    implementation("io.github.matthewjones372:surefold:0.1.0")
 }
 ```
 
@@ -266,7 +266,7 @@ than 200.
 
 Every published module uses the same group and version, so adding another is
 one more line, for example
-`implementation("io.github.matthewjones372:surefold-app:0.10.1")`. The
+`implementation("io.github.matthewjones372:surefold-app:0.1.0")`. The
 [module guide](docs/modules.md) has the coordinates, what each module brings,
 and how to use a snapshot or a local build.
 
@@ -307,7 +307,7 @@ read the results unchanged.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-junit:0.10.1")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.1.0")
 }
 
 tasks.test { useJUnitPlatform() }

@@ -114,7 +114,7 @@ passed on the inherited clock. A step can wait the same way with
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-test:0.10.1")
+    testImplementation("io.github.matthewjones372:surefold-test:0.1.0")
 }
 ```
 
@@ -170,7 +170,6 @@ at FlockTest.kt:322
 `shouldBe` and `shouldContainExactly` carry both sides, so an IDE can show
 them side by side. `withClue(clue) { }` puts the clue above any failure inside
 its block; a clue written as a lambda is only worked out if something fails.
-*Unreleased: `surefold-assert` is on `main` and not in 0.10.1.*
 
 ## Suites
 
@@ -207,7 +206,7 @@ object SortingSuite : Suite() {
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-junit:0.10.1")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.1.0")
 }
 
 tasks.test { useJUnitPlatform() }
