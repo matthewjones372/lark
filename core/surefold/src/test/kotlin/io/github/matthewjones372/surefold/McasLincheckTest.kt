@@ -15,6 +15,8 @@ private const val VALUES = 3
  * Lincheck runs these operations from several threads and fails on any result that no one-at-a-time order of the same
  * operations could give. Values come from a fixed set of instances, because the swap compares by identity.
  */
+// Lincheck instruments the classes once, which takes most of a minute on its own, and whichever test runs first pays.
+@Timeout(5, unit = TimeUnit.MINUTES)
 @Param(name = "value", gen = IntGen::class, conf = "0:2")
 class McasLincheckTest {
 
@@ -64,9 +66,7 @@ class McasLincheckTest {
         @Param(name = "value") d0: Int,
     ) = swap(Triple(2, e2, d2), Triple(1, e1, d1), Triple(0, e0, d0))
 
-    // Instrumenting the classes under the model checker takes most of a minute on its own.
     @Test
-    @Timeout(5, unit = TimeUnit.MINUTES)
     fun `every interleaving the model checker tries is linearizable`() =
         ModelCheckingOptions()
             .threads(3)
