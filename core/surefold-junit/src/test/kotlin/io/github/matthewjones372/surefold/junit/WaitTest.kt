@@ -4,9 +4,9 @@ import io.github.matthewjones372.surefold.assert.shouldBe
 import io.github.matthewjones372.surefold.assert.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.assert.shouldStartWith
 import io.github.matthewjones372.surefold.junit.samples.WaitSuite
+import io.github.matthewjones372.surefold.junit.testkit.failureOf
 import io.github.matthewjones372.surefold.junit.testkit.shouldHaveSucceeded
 import org.junit.jupiter.api.Test
-import org.junit.platform.engine.TestExecutionResult
 import org.junit.platform.engine.discovery.DiscoverySelectors.selectClass
 import org.junit.platform.testkit.engine.EngineTestKit
 import org.opentest4j.AssertionFailedError
@@ -27,13 +27,9 @@ class WaitTest {
         )
     }
 
-    private fun failureOf(test: String): Throwable = events.failed().list()
-        .single { it.testDescriptor.displayName == test }
-        .getRequiredPayload(TestExecutionResult::class.java).throwable.get()
-
     @Test
     fun `a check that never holds fails with its own failure, saying the wait gave up`() {
-        val failed = failureOf("gives up on a check that never holds").shouldBeInstanceOf<AssertionFailedError>()
+        val failed = events.failureOf("gives up on a check that never holds").shouldBeInstanceOf<AssertionFailedError>()
 
         failed.message.orEmpty().lines()[1] shouldStartWith "gave up after "
         failed.expected.value shouldBe "Adopted"
@@ -43,7 +39,7 @@ class WaitTest {
     // Spec 0205: giving up answered Expectations cast to the block's type, a ClassCastException at the call site.
     @Test
     fun `a wait over a value that gives up answers the last try's value, and the test goes on to check it`() {
-        val failure = failureOf("gives up on a value, answering the last try's")
+        val failure = events.failureOf("gives up on a value, answering the last try's")
         val lines = failure.message.orEmpty().lines()
 
         lines.first() shouldBe "gives up on a value, answering the last try's: 2 of 3 expectations failed (2 failures)"
@@ -52,7 +48,7 @@ class WaitTest {
 
     @Test
     fun `a step that gives up is a failed step, and the story goes on with its answer`() {
-        failureOf("gives up as a story's step, and the story goes on").message.orEmpty().lines().first() shouldBe
+        events.failureOf("gives up as a story's step, and the story goes on").message.orEmpty().lines().first() shouldBe
             "gives up as a story's step, and the story goes on: 1 of 2 expectations failed"
     }
 }
