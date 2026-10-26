@@ -94,7 +94,7 @@ wanted, it should be its own spec after this one.
       nullable `answer` fails to compile (both via `EmbeddedKotlin`).
       `receive` takes its protocol as an ordinary type parameter, not a reified one: `receiveMessage` needs no class
       token, and the two overloads differ by the lambda's arity alone.
-- [ ] **`spec-0058-pipe`** — the two `pipeToSelf` overloads.
+- [x] **`spec-0058-pipe`** ([#753](https://github.com/matthewjones372/surefold/pull/753)) — the two `pipeToSelf` overloads.
       Done when: the body reads `isVirtual` as true, a `raise` arrives as a
       `Left` message, and a throw fails the actor rather than arriving as a
       message.

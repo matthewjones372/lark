@@ -420,12 +420,17 @@ private class Guardian(private val scope: Scope<*>, val on: Executor, val clock:
     }
 }
 
-private class Answer<A : Any>(override val address: Address) : Reply<A> {
+private class Answer<A : Any>(override val address: Address) : Reply<A>, Unanswerable {
     val outcome = AtomicReference<Either<AskFailure, A>>()
     val done = CountDownLatch(1)
 
     override fun invoke(answer: A) {
         check(complete(answer.right())) { "a second reply, $answer, after ${outcome.get()}" }
+    }
+
+    // Ignored when the answer came first: whichever completes the outcome first is the ask's.
+    override fun unanswered(why: AskFailure) {
+        complete(why.left())
     }
 
     fun complete(outcome: Either<AskFailure, A>): Boolean =

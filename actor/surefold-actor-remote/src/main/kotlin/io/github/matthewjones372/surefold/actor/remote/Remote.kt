@@ -6,9 +6,11 @@ import io.github.matthewjones372.surefold.LogLine
 import io.github.matthewjones372.surefold.Scope
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Address
+import io.github.matthewjones372.surefold.actor.AskFailure
 import io.github.matthewjones372.surefold.actor.DeadLetter
 import io.github.matthewjones372.surefold.actor.Reply
 import io.github.matthewjones372.surefold.actor.Signal
+import io.github.matthewjones372.surefold.actor.Unanswerable
 import io.github.matthewjones372.surefold.actor.Watchable
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.counter
@@ -283,10 +285,29 @@ class RemoteNode internal constructor(
 
         override fun dropped(peer: Node, frame: Frame) {
             measure(peer).dropped.getValue(laneOf(frame.path)).increment()
+            // An ask whose message did not go answers now, rather than waiting out its time (spec 0103).
+            frame.replies.forEach { path ->
+                (pending.remove(path)?.reply as? Unanswerable)?.unanswered(AskFailure.Unreachable)
+            }
             val recipient = Address(peer.toString(), frame.path, frame.incarnation)
             val message = frame.message ?: UnreadMessage(frame.payload)
             scope.deadLetter(DeadLetter(recipient, message, DeadLetter.Why.Unreachable))
             maybeUnreachable(peer)
+        }
+    }
+
+    // The replies written while one frame's payload is encoded, on the thread encoding it.
+    private val written = ThreadLocal<MutableList<String>?>()
+
+    /** [encode] run, with the paths of the replies it wrote for asks on this node. */
+    private fun writingReplies(encode: () -> ByteArray): Pair<ByteArray, List<String>> {
+        val outer = written.get()
+        val mine = mutableListOf<String>()
+        written.set(mine)
+        return try {
+            encode() to mine
+        } finally {
+            written.set(outer)
         }
     }
 
@@ -308,6 +329,7 @@ class RemoteNode internal constructor(
                 if (count % SWEEP_EVERY == 0L) forgetOldReplies()
                 val path = "$REPLIES$count"
                 pending[path] = Pending(reply, answers, System.nanoTime())
+                written.get()?.add(path)
                 Address(self.toString(), path, 0)
             }
 
@@ -335,11 +357,10 @@ class RemoteNode internal constructor(
         override val address: Address,
         private val codec: MessageCodec<M>,
     ) : ActorRef<M>, Watchable {
-        override fun tell(message: M) =
-            send(
-                peer,
-                Frame(address.path, address.incarnation, codec.encode(message, refs), message, Carriers.capture()),
-            )
+        override fun tell(message: M) {
+            val (payload, replies) = writingReplies { codec.encode(message, refs) }
+            send(peer, Frame(address.path, address.incarnation, payload, message, Carriers.capture(), replies))
+        }
 
         override fun onTerminated(notify: () -> Unit) = watch(peer, address, notify)
 
@@ -357,9 +378,9 @@ class RemoteNode internal constructor(
         private val answers: MessageCodec<A>,
     ) : Reply<A> {
         // An answer is part of the trace it is given in, as a tell is: an actor answering another continues it.
-        override fun invoke(answer: A) = send(
-            peer,
-            Frame(address.path, address.incarnation, answers.encode(answer, refs), answer, Carriers.capture()),
-        )
+        override fun invoke(answer: A) {
+            val (payload, replies) = writingReplies { answers.encode(answer, refs) }
+            send(peer, Frame(address.path, address.incarnation, payload, answer, Carriers.capture(), replies))
+        }
     }
 }

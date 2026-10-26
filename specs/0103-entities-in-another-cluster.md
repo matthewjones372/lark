@@ -64,6 +64,10 @@ one that needs no witness.
 - [ ] **`spec-0103-unreachable`** — an ask whose frame the remote transport drops as unreachable fails at once
       with `AskFailure.Unreachable`.
       Done when: an ask to an actor on a stopped node answers `Unreachable` well before its timeout.
+      Each frame now carries the paths of the replies written into it for asks on this node. When the transport
+      drops it, unsent because its connection is down or its queue is full, those asks end with `Unreachable`
+      through `Unanswerable`, which the runtime's own ask implements. A tell has no reply to end, and stays the dead
+      letter it was.
 - [ ] **`spec-0103-members-only`** — a region drops `Release` and `Released` from a node outside its cluster.
       Done when: a `Release` sent from a node that is not a member leaves the shard where it was and is a dead
       letter.
@@ -82,6 +86,8 @@ one that needs no witness.
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-26: go with the recommendations).
 
 1. **Should the other cluster's nodes be found by Discovery (static, DNS, Kubernetes) as seeds are?**
    Recommended: yes, the same `Discovery` backends as spec 0096, from config: `federation.south.join = dns`. Only
