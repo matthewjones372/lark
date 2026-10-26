@@ -388,6 +388,28 @@ The same plugin warns where code hand-rolls something Surefold provides:
 Each is a warning, silenced where it is intended by name, for example
 `@Suppress("SUREFOLD_SLEEP_IN_TEST")`.
 
+### What the compiler plugin refuses inside a step
+
+*Not yet released.* A [`transact`](core.md#values-changed-together) step can
+run more than once, so anything in it besides changing `Shared` values happens
+once per run, not once per commit. Inside a step (a `transact { }` block, a
+`firstOf` branch, or a function taking `Transaction` as its receiver) the
+plugin reports `SUREFOLD_EFFECT_IN_TRANSACT`, an **error**, on:
+
+| On | Do instead |
+|---|---|
+| Any call into `java.io`, `java.net`, `java.nio.channels` or `java.sql` | Do it before or after `transact` |
+| `Thread.sleep`, `TimeUnit.sleep`, `Future.get`, `CompletableFuture.get` or `join`, `Deferred.await`, `Lock.lock`, `synchronized` | Wait with `waitForChange()`, or before or after `transact` |
+| `flock`, `async`, `parZip`, `parMap`, `raceN` | Fork before or after `transact` |
+| `logDebug`/`logInfo`/`logWarn`/`logError`, `Logger.log`, `Counter.increment`, `Gauge.set`, `Histogram.record`, `ActorRef.tell`, `Hub.publish` | `afterCommit { }` (spec 0211), or after `transact` |
+| A write to a `var` the step did not declare: a local of the enclosing function, a property of the enclosing object, or a top-level one | Keep the value in a `Shared` |
+| `Shared.peek()` | `get()` |
+
+A write to a property of some other object the step was handed is not judged,
+because the plugin cannot see where that object came from. Calls into
+functions from other modules are trusted. One finding is silenced with
+`@Suppress("SUREFOLD_EFFECT_IN_TRANSACT")`.
+
 ## Limitations
 
 - **One instance per key.** There are no scopes or named instances; use a
