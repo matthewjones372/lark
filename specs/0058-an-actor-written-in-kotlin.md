@@ -88,7 +88,7 @@ wanted, it should be its own spec after this one.
       It lives in `integrations/` beside `surefold-pekko`, under `io.github.matthewjones372.surefold.actor.pekko`.
       `ask` keeps its signature; only its import moves, in `AskTest` and the cookbook. The dependency test allows
       what `pekko-actor-typed` brings with it (`pekko-slf4j`, `slf4j-api`), as `surefold-app-pekko`'s does.
-- [ ] **`spec-0058-receive`** — `receive`, `same`, `stopped` and `answer`, with
+- [x] **`spec-0058-receive`** ([#752](https://github.com/matthewjones372/surefold/pull/752)) — `receive`, `same`, `stopped` and `answer`, with
       `AskTest`'s ledger rewritten in them.
       Done when: a sealed protocol missing a branch fails to compile, and a
       nullable `answer` fails to compile (both via `EmbeddedKotlin`).
@@ -98,6 +98,10 @@ wanted, it should be its own spec after this one.
       Done when: the body reads `isVirtual` as true, a `raise` arrives as a
       `Left` message, and a throw fails the actor rather than arriving as a
       message.
+      `raise` is `fail` since the error model was renamed. The throw is rethrown when the wrapped message is made,
+      which Pekko does on the actor's own turn, so the actor fails as any behaviour that throws does; a watching
+      parent sees `ChildFailed` with that throwable. The block's overload takes `wrap` first and the block last, so
+      `pipeToSelf(::Loaded) { … }` reads as the shape shows, and neither overload can be taken for Pekko's own.
 
 ## Acceptance
 
