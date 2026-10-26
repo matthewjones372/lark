@@ -1,9 +1,9 @@
 # Actors on one node
 
-`surefold-actor` is an actor as a value: a state, and a step that takes one
-message at a time. Actors run on virtual threads inside the same structured
+`surefold-actor` is an actor as a value: a state, and a turn for each message,
+one at a time. Actors run on virtual threads inside the same structured
 scope, `scope`, that the core uses for forks, so there is no actor system to
-start and stop, and a step may block.
+start and stop, and a turn may block.
 
 This page covers actors in one process: failure and supervision, timers,
 finding and routing, persistence, batched writes and testing. A second node, a cluster and
@@ -30,7 +30,7 @@ dependencies {
 
 ## An actor
 
-A `behaviour` is where an actor starts and what one message does to it. A step gets
+A `behaviour` is where an actor starts and what one message does to it. A turn gets
 the actor's context, its state and one message, and answers what happens next:
 
 - `stay()` keeps the state;
@@ -41,17 +41,17 @@ the actor's context, its state and one message, and answers what happens next:
 Nothing runs until the behaviour is spawned. An actor lives in a `scope`, the
 structured scope `surefold` already has, and cannot outlive it: when the scope's
 block ends, every actor in it is stopped, and the scope returns only once they
-have. On virtual threads a step still running at that point is interrupted; on
+have. On virtual threads a turn still running at that point is interrupted; on
 another executor it is waited for.
 
 An idle actor holds no thread. An actor with messages waiting is run by the
 scope's runners, virtual threads shared by its actors, one per carrier thread
-to start with and more while steps are blocked. So a step may block on JDBC or
+to start with and more while turns are blocked. So a turn may block on JDBC or
 a client with no async API without starving the other actors.
 
 `tell` sends and returns. A mailbox holds 1,024 messages by default
 (`capacity` on `spawn`): a sender outside any actor waits while it is full,
-and a step that tells a full mailbox fails. `ask` sends a message carrying a
+and a turn that tells a full mailbox fails. `ask` sends a message carrying a
 `Reply` and blocks the caller for up to a timeout, answering with an
 `Either`: an actor that stopped, took too long or could not be reached is an
 `AskFailure` value rather than an exception.
@@ -100,9 +100,9 @@ fun main() {
 }
 ```
 
-A step runs one message at a time, so the state needs no lock. Read it and
-answer with a new one; never share a mutable one with anything outside the
-actor.
+A turn handles one message, and turns run one at a time, so the state needs no
+lock. Read it and answer with a new one; never share a mutable one with
+anything outside the actor.
 
 To tell an actor from inside `transact { }`, use `tellAfterCommit(ref, message)`
 rather than `tell`: the transaction can run more than once, and a `tell`
@@ -111,10 +111,10 @@ written in it goes out each time. See
 
 ## Failure
 
-A step fails in one of two ways:
+A turn fails in one of two ways:
 
 - **It fails** with a failure it declared. A behaviour names its failure type
-  as its third type parameter, `behaviour<M, S, E>`, and its step fails with
+  as its third type parameter, `behaviour<M, S, E>`, and its turn fails with
   `fail`. A behaviour that never fails is a
   `Behaviour<M, S, Nothing>`.
 - **It throws**, for what nobody declared: a bug, or a dependency that broke.
@@ -128,11 +128,11 @@ one a retry takes, and it sees each failure as a `Failure.Declared` or a
 
 Signals are what happens to an actor rather than what is sent to it:
 `Signal.Stopping` as it ends, and `Signal.Terminated` when an actor it watches
-has stopped. `onSignal` takes them beside the step, and `onStart` runs before
+has stopped. `onSignal` takes them beside the message turns, and `onStart` runs before
 the first message and again after each restart.
 
 An actor spawns children with `ctx.spawn`. A child is stopped before its parent
-stops or restarts, so a parent that restarts has no children until its step
+stops or restarts, so a parent that restarts has no children until a turn
 spawns them again. `ctx.watch` asks to hear when another actor stops, child or
 not; `watch` on the scope gives the same as a `Deferred` to await.
 
@@ -192,8 +192,8 @@ fun feeds() = behaviour<Pair<String, Feed>, Map<String, ActorRef<Feed>>>(emptyMa
 fun Scope<Nothing>.untilStopped(feed: ActorRef<Feed>): Signal.Terminated = watch(feed).await()
 ```
 
-A failure that belongs to an `attempt { }` inside the step is that `attempt`'s,
-and never mistaken for the actor's own, so a step can use `attempt` as it would
+A failure that belongs to an `attempt { }` inside the turn is that `attempt`'s,
+and never mistaken for the actor's own, so a turn can use `attempt` as it would
 anywhere else.
 
 ## Time
@@ -548,14 +548,14 @@ codec, so it never meets an old shape.
 ## A run at a time
 
 An actor that writes somewhere other than the journal can still write a batch
-at once. `batching(initial, batch = n)` hands its step the messages already
-waiting, up to `n`, as one `Run`: a list, in the order they came. The step
+at once. `batching(initial, batch = n)` hands one turn the messages already
+waiting, up to `n`, as one `Run`: a list, in the order they came. The turn
 decides them all against its state, writes once, replies to each, and answers
 one next state for the run. A lone message is never held back for a second; it
 is a run of one, as are a timer's message and a stashed one put back.
 
 Each message carries what its sender had bound, its trace and its
-annotations. The step runs inside none of it, since the run has many senders:
+annotations. The turn runs inside none of it, since the run has many senders:
 `within(i) { … }` runs a block inside message `i`'s own, which is where a row
 that records its request's trace is written, and where its reply is sent. A
 run answered `unhandled()` sends all its messages to dead letters, and a
@@ -602,7 +602,7 @@ fun main() {
 
 ## Testing
 
-Everything above runs without threads, stepped by the test itself.
+Everything above runs without threads, driven by the test itself.
 `behaviour.test()` runs one actor on the calling thread, and `testActors { }`
 runs several that talk to each other. A tell from the test returns once that
 message, and everything it caused, has been handled, so a test asserts straight
@@ -733,7 +733,7 @@ class TillTest {
 }
 ```
 
-A test that needs real threads, a blocking client in a step say, runs the
+A test that needs real threads, a blocking client in a turn say, runs the
 same behaviours in a `scope` instead, with a `TestClock` for its time.
 
 Where a second node comes in, the [cluster guide](cluster.md) takes over.

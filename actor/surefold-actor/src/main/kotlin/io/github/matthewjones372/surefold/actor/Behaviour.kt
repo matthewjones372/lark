@@ -180,7 +180,7 @@ class Behaviour<M : Any, S, out E> internal constructor(
 internal class Batched<out S>(val next: Next<S>, val unhandled: List<Any>, val unrun: List<Any>)
 
 /**
- * A run of messages handled by one turn (spec 0198), in the order they came. Each carries what its sender had bound
+ * A run of messages handled by one turn (spec 0223), in the order they came. Each carries what its sender had bound
  * (spec 0122), and the turn runs inside none of it: [within] is where a message's own context is.
  */
 interface Run<out M : Any> : List<M> {
@@ -205,7 +205,7 @@ internal class Carrying<out M : Any>(
 
 /**
  * A behaviour whose [turns] takes the plain messages already waiting, up to [batch] of them, as one [Run] (spec
- * 0198). A message handled alone, such as a timer's, a stashed one put back, or any with a batch of 1, is a run of
+ * 0223). A message handled alone, such as a timer's, a stashed one put back, or any with a batch of 1, is a run of
  * one, inside its own sender's context. A run answered `unhandled()` sends every message of it to dead letters. Name
  * all three types, `batching<M, S, E>(…)`: left to inference, a call resolves to the overload that never raises.
  */

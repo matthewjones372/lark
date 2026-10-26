@@ -78,7 +78,7 @@ decide who wins.
 
 ## Stack
 
-- [ ] **`spec-0216-table`** — module, changelog, UUIDv7, `enqueue`, `cancel`, `reschedule`.
+- [x] **`spec-0216-table`** ([#755](https://github.com/matthewjones372/surefold/pull/755)) — module, changelog, UUIDv7, `enqueue`, `cancel`, `reschedule`.
       Done when: enqueueing in a rolled-back transaction leaves no row, and the same key twice leaves one.
 - [ ] **`spec-0216-claim`** — claim with lease, sweep, finish into history, retention.
       Done when: two workers claiming 1,000 jobs concurrently never claim the same one, and a lease left by a

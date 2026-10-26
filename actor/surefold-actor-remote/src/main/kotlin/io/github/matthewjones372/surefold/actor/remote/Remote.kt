@@ -100,6 +100,9 @@ class RemoteNode internal constructor(
     private val unreachableAfter: Duration,
     tls: Tls? = null,
 ) {
+    /** Whether every connection to and from this node is TLS (spec 0073). */
+    val secured: Boolean = tls != null
+
     /** One peer's instruments, looked up once: counting a frame is then a map hit and no allocation. */
     private inner class PeerMetrics(peer: Node) {
         private val name = peer.toString()
@@ -150,6 +153,16 @@ class RemoteNode internal constructor(
     internal val transport = Transport(self, Inbound(), tls = tls)
 
     /** Lets other nodes tell [ref] messages written with [codec], at its path. */
+    // When a frame for each peer was last dropped unsent, by System.nanoTime, until it next connects (spec 0103).
+    private val droppedAt = ConcurrentHashMap<Node, Long>()
+
+    /**
+     * Whether a frame for [peer] was dropped unsent within [within], with no connection to it since: a sender with
+     * other nodes to choose from skips it a while (spec 0103).
+     */
+    fun failing(peer: Node, within: Duration): Boolean =
+        droppedAt[peer]?.let { System.nanoTime() - it < within.inWholeNanoseconds } ?: false
+
     fun <M : Any> expose(ref: ActorRef<M>, codec: MessageCodec<M>, lane: Lane = Lane.Data) {
         if (lane == Lane.Control) control += ref.address.path
         exposed[ref.address.path] = Exposed(ref, codec)
@@ -276,6 +289,7 @@ class RemoteNode internal constructor(
 
         override fun connected(peer: Node, lane: Lane) {
             measure(peer).connected.set(1.0)
+            droppedAt.remove(peer)
             up += peer to lane
         }
 
@@ -287,6 +301,7 @@ class RemoteNode internal constructor(
 
         override fun dropped(peer: Node, frame: Frame) {
             measure(peer).dropped.getValue(laneOf(frame.path)).increment()
+            droppedAt[peer] = System.nanoTime()
             // An ask whose message did not go answers now, rather than waiting out its time (spec 0103).
             frame.replies.forEach { path ->
                 (pending.remove(path)?.reply as? Unanswerable)?.unanswered(AskFailure.Unreachable)

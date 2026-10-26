@@ -18,6 +18,11 @@ per run)
 
 ## Actors
 
+**Turn**:
+One message handled by an actor: the behaviour's `step` function run once
+against the actor's state. Turns run one at a time, so the state needs no lock.
+_Avoid_: step (in prose; that is a `transact` run), tick
+
 **Lifecycle**:
 The rules an actor follows from start to stop: taking a message, supervision and
 restart, timers, stash, receive timeout and the end sequence. One lifecycle, the
