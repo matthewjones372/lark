@@ -209,6 +209,7 @@ class SurefoldEngineTest {
             "TimingSuite",
             "UnacquirableSuite",
             "UnreleasableSuite",
+            "WaitSuite",
             "WrappedSuite",
         )
         run(selectClass(NotAnObject::class.java)).testEvents().started().count() shouldBe 0L
