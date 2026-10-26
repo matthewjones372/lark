@@ -151,6 +151,11 @@ fun registering(tracer: Tracer) =
 line written inside it, so a log line names its trace and a trace names its
 log lines.
 
+A [`transact`](core.md#why-a-step-ran-again) step that ran more than once adds
+a `transact.retried` event to the current span when it commits, with its name,
+its `attempts` and a `retries.<cause>` count for each value it lost to. A step
+that commits on its first run adds nothing.
+
 ### Across messages, events and records
 
 Log annotations and, with `surefold-otel`, the trace context travel further than
