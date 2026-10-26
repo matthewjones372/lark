@@ -34,6 +34,8 @@ Facts worth having before anything else:
   `SurefoldLocal`, `Clock`, `TestClock`, the log and metrics calls,
   `capturingLogs` and `capturingMetrics` for tests, `await()` for a
   `CompletionStage` or `Future`, and `surefoldFuture { }` to hand one back.
+- `surefold-compiler`: a K2 checker for surefold's structure rules; a `Deferred`,
+  `Channel` or `Flock` returned from a scope or kept in a property fails to compile.
 - `surefold-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
   awaited from a fork.
 - `surefold-stream`: `Stream<E, A>` as a description, with its failure in the type

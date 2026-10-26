@@ -105,6 +105,8 @@ val moduleDescriptions = mapOf(
     "surefold-app-gradle" to "surefold-app as a build gate: every graph in a project checked and drawn as it compiles.",
     "surefold-app-compiler" to
         "surefold-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
+    "surefold-compiler" to
+        "surefold's structure rules in the compiler: a Deferred that outlives its scope fails to compile.",
     "surefold-structured" to "surefold over the JDK's StructuredTaskScope: a flock the thread dump can see.",
     "surefold-kafka" to
         "Kafka as a surefold Stream on any backend: a record is committed only after the work on it is done.",
@@ -149,6 +151,10 @@ val gradlePluginModules = setOf("surefold-app-gradle")
 // The same argument for the compiler plugin: it runs inside the Kotlin compiler, so the only honest
 // test of it is a compilation, and those live in surefold-app-gradle where the build that runs them is.
 val testedByRunningABuild = gradlePluginModules + "surefold-app-compiler"
+
+// The other compiler plugin, whose tests compile snippets in their own JVM: on 21 with the build tools, and on
+// Jupiter, as the plugins beside it are.
+val compilerPlugins = setOf("surefold-app-compiler", "surefold-compiler")
 
 // surefold-junit and what it runs on keep their tests on Jupiter: a runner cannot report on its own parts (spec 0197).
 val surefoldJunitRunsOn =
@@ -206,7 +212,7 @@ subprojects {
         // 25: the first LTS where a virtual thread blocked in `synchronized` no longer pins its carrier, which
         // every library here runs on. What runs inside the build tools stays at 21, the JDK a Gradle daemon or a
         // Kotlin daemon may still be on: the Gradle plugin and the compiler plugin it registers.
-        jvmToolchain(if (project.name in setOf("surefold-app-gradle", "surefold-app-compiler")) 21 else 25)
+        jvmToolchain(if (project.name in gradlePluginModules + compilerPlugins) 21 else 25)
 
         compilerOptions {
             // A warning nobody reads is a defect nobody fixed; the build says so.
@@ -230,7 +236,7 @@ subprojects {
 
     // A module's tests are surefold-junit suites (spec 0197), and a failed `expect` draws its values. Not for what
     // surefold-junit is built on, which a bug would break the runner reporting it, nor for the JDK 21 build tools.
-    if (name !in surefoldJunitRunsOn + testedByRunningABuild + benchmarkModules) {
+    if (name !in surefoldJunitRunsOn + testedByRunningABuild + compilerPlugins + benchmarkModules) {
         apply(plugin = "org.jetbrains.kotlin.plugin.power-assert")
         dependencies { "testImplementation"(project(":surefold-junit")) }
         @OptIn(org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class)

@@ -16,6 +16,7 @@ fun module(group: String, name: String) {
 
 module("core", "surefold")
 module("core", "surefold-test")
+module("core", "surefold-compiler")
 module("core", "surefold-arrow")
 module("core", "surefold-assert")
 module("core", "surefold-junit")

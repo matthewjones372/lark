@@ -47,6 +47,7 @@ suppressing one, unless the call really means it.
 All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 
 - `surefold`: forks, resources, `Schedule`, `timeout`, `policy`, `Clock`, `TestClock`, logs and metrics, `capturingLogs`, `capturingMetrics`.
+- `surefold-compiler`: a checker for forks that outlive their scope.
 - `surefold-pekko`: a Pekko dispatcher as the executor.
 - `surefold-stream`: `Stream<E, A>`, described once and run on a backend.
 - `surefold-stream-forks`: the usual backend, a pull loop on a virtual thread.
