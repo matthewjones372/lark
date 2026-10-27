@@ -72,6 +72,10 @@ lock to explain, but it retries unrelated bookings that touched the same index p
 - [ ] **`spec-0232-slots`** — courts, `Slot`, a booking of several slots in one transaction, and the clash refused.
       Done when: two back-to-back slots on one court are one booking; a booking with a slot that overlaps another
       booking's is 409 and leaves none of its slots; the same court and time in another tenant does not clash.
+      `booking_slots` holds each slot as a `tstzrange` under the forced tenant policy, with an exclusion constraint per
+      tenant and court; a booking's slots go in one batch in its transaction. A clash (`23P01`) is 409 and an unknown
+      court (`23503`) 422, and either releases the idempotency key, since nothing was made. `addCourt` needs
+      `bookings:manage`. `bookings.starts_at` stays, as the first slot's start, for `list`.
 - [ ] **`spec-0232-limits`** — `Limits` per tenant, counted per member per day and week in the tenant's zone.
       Done when: a member at 2 today is refused a third and booked tomorrow; at 5 this week is refused on any day of
       it; two concurrent bookings that together pass the cap are not both made.
@@ -88,6 +92,8 @@ lock to explain, but it retries unrelated bookings that touched the same index p
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-27: go with the recommendations).
 
 1. **What does a limit count: slots or bookings?** Two back-to-back hours could be one or two against "2 a day".
    Recommended: slots, since the scarce thing is court time.

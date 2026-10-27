@@ -17,17 +17,19 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 
 /** Sessions, tenancy, jobs, idempotency and files together, on Postgres with row-level security (spec 0229). */
 object BookingsSuite : Suite() {
     private val at = Instant.parse("2026-11-01T19:30:00Z")
+    private val table = BookingRequest("Table for two", listOf(Slot("court-1", at, 60.minutes)))
     private val pdf = "%PDF-1.7 ticket".toByteArray()
 
     init {
         test("a booking retried with its key is made once, and confirmed once by the worker as its tenant") {
-            val venue = Venue()
+            val venue = Venue("acme")
             val staff = venue.signIn("acme", BookingService.CREATE, BookingService.VIEW)
-            val request = BookingRequest("Table for two", at)
+            val request = table
             val first = venue.bookings.book(staff, "k-1", request)
             first.status shouldBe 201
             venue.bookings.book(staff, "k-1", request) shouldBe first
@@ -41,10 +43,10 @@ object BookingsSuite : Suite() {
         }
 
         test("another tenant's session sees none of a booking, cannot attach to it, and cannot link its ticket") {
-            val venue = Venue()
+            val venue = Venue("acme", "globex")
             val acme = venue.signIn("acme", BookingService.CREATE, BookingService.VIEW)
             val globex = venue.signIn("globex", BookingService.CREATE, BookingService.VIEW)
-            val id = venue.bookings.book(acme, "k-1", BookingRequest("Table for two", at)).body.substringAfter(' ')
+            val id = venue.bookings.book(acme, "k-1", table).body.substringAfter(' ')
                 .toLong()
             venue.bookings.attachTicket(acme, id, pdf.inputStream(), pdf.size.toLong()).status shouldBe 201
             venue.bookings.ticketLink(acme, id).status shouldBe 200
@@ -53,21 +55,63 @@ object BookingsSuite : Suite() {
                 Answer(404, "no booking $id")
             venue.bookings.ticketLink(globex, id) shouldBe Answer(404, "no booking $id")
             // The same idempotency key in another tenant is another booking, not acme's replayed.
-            venue.bookings.book(globex, "k-1", BookingRequest("Table for two", at)).body shouldBe "booking ${id + 1}"
+            venue.bookings.book(globex, "k-1", table).body shouldBe "booking ${id + 1}"
         }
 
         test("a session without the permission is refused, and no session at all is told to sign in") {
-            val venue = Venue()
+            val venue = Venue("acme")
             val viewer = venue.signIn("acme", BookingService.VIEW)
-            venue.bookings.book(viewer, "k-1", BookingRequest("Table for two", at)) shouldBe
+            venue.bookings.book(viewer, "k-1", table) shouldBe
                 Answer(403, "not allowed to bookings:create")
             venue.bookings.list(viewer).status shouldBe 200
             venue.bookings.list(Secret("not-a-token")) shouldBe Answer(401, "sign in")
+            venue.bookings.addCourt(viewer, Court("court-9")) shouldBe Answer(403, "not allowed to bookings:manage")
+        }
+
+        test("two back-to-back slots are one booking, and a slot that clashes makes none of its booking") {
+            val venue = Venue("acme")
+            val member = venue.signIn("acme", BookingService.CREATE, BookingService.VIEW)
+            val evening = listOf(Slot("court-2", at, 60.minutes), Slot("court-2", at.plusSeconds(HOUR), 60.minutes))
+            venue.bookings.book(member, "k-1", BookingRequest("Evening hit", evening)).status shouldBe 201
+
+            // Court 1 is free at 20:00, but court 2 is not: neither is held, and court 1 can still be booked.
+            val clashing =
+                listOf(Slot("court-1", at.plusSeconds(HALF_HOUR), 60.minutes), Slot("court-2", at, 30.minutes))
+            venue.bookings.book(member, "k-2", BookingRequest("Doubles", clashing)) shouldBe
+                Answer(409, "a slot is already taken")
+            venue.bookings.book(member, "k-3", BookingRequest("Singles", clashing.take(1))).status shouldBe 201
+            venue.bookings.list(member).body.lines().size shouldBe 2
+            // Ending as the next begins is no clash.
+            val after = Slot("court-2", at.plusSeconds(2 * HOUR), 60.minutes)
+            venue.bookings.book(member, "k-4", BookingRequest("Late", listOf(after))).status shouldBe 201
+        }
+
+        test("the same court at the same time in another venue is another court") {
+            val venue = Venue("acme", "globex")
+            val acme = venue.signIn("acme", BookingService.CREATE)
+            val globex = venue.signIn("globex", BookingService.CREATE)
+            venue.bookings.book(acme, "k-1", table).status shouldBe 201
+            venue.bookings.book(globex, "k-1", table).status shouldBe 201
+        }
+
+        test("a booking with no slot, an empty slot or a court the venue has not got is refused") {
+            val venue = Venue("acme")
+            val member = venue.signIn("acme", BookingService.CREATE, BookingService.VIEW)
+            venue.bookings.book(member, "k-1", BookingRequest("Nothing", emptyList())) shouldBe
+                Answer(422, "a booking needs a slot")
+            venue.bookings.book(member, "k-2", BookingRequest("Blink", listOf(Slot("court-1", at, 0.minutes)))) shouldBe
+                Answer(422, "a slot needs a length")
+            venue.bookings.book(member, "k-3", BookingRequest("Lost", listOf(Slot("court-7", at, 60.minutes)))) shouldBe
+                Answer(422, "no such court")
+            venue.bookings.list(member) shouldBe Answer(200, "")
         }
     }
 
-    /** A service on a fresh database, whose requests run as the application's role that the policies bind. */
-    private class Venue {
+    /**
+     * A service on a fresh database, whose requests run as the application's role that the policies bind, and where
+     * each of [venues] has courts 1 and 2.
+     */
+    private class Venue(vararg venues: String) {
         val db = RlsDatabase(bookings = false).apply {
             Schema.changelogs.forEach(::apply)
             // Every table to both roles: the policies, not the grants, keep tenants apart.
@@ -80,6 +124,13 @@ object BookingsSuite : Suite() {
         val bookings = BookingService(tenants, sessions, PostgresIdempotency(db.app), InMemoryFiles())
         private var users = 0
 
+        init {
+            venues.forEach { tenant ->
+                val manager = signIn(tenant, BookingService.MANAGE)
+                listOf("court-1", "court-2").forEach { bookings.addCourt(manager, Court(it)).status shouldBe 201 }
+            }
+        }
+
         /** A new member of [tenant]'s staff, with a role allowing [permissions], signed in. */
         fun signIn(tenant: String, vararg permissions: String): Secret {
             val user = UserId("user-${++users}")
@@ -91,6 +142,8 @@ object BookingsSuite : Suite() {
     }
 
     private const val ROLES = "surefold_app, surefold_system"
+    private const val HOUR = 3_600L
+    private const val HALF_HOUR = 1_800L
 
     private class RecordingMailer(expected: Int) : Mailer {
         val sent = ConcurrentLinkedQueue<String>()
