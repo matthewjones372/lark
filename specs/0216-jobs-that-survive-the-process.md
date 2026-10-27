@@ -85,7 +85,7 @@ decide who wins.
       "crashed" worker is claimed again after the `TestClock` passes `locked_until`.
 - [x] **`spec-0216-handlers`** ([#769](https://github.com/matthewjones372/surefold/pull/769)) — `JobKind`, `JobResult`, registry, deadline, backoff, expiry, decode failures.
       Done when: a throwing handler is retried with growing delays and fails at `max_attempts`.
-- [ ] **`spec-0216-worker`** — the polling worker, per-kind concurrency, and `surefold-app-jobs` with the graph
+- [x] **`spec-0216-worker`** ([#772](https://github.com/matthewjones372/surefold/pull/772)) — the polling worker, per-kind concurrency, and `surefold-app-jobs` with the graph
       node and graceful release.
       Done when: release with a run in flight lets it finish within `drain`, and claims nothing after.
 - [ ] **`spec-0216-docs`** — metrics, `docs/jobs.md` with a compiled fence, `modules.md`, `llms.txt`, `SKILL.md`.
