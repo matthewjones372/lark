@@ -58,7 +58,7 @@ Recommended: Bouncy Castle.
 
 - [x] **`spec-0227-passwords`** — `surefold-auth`, `Secret`, `Passwords`, `Argon2Settings`, rehash.
       Done when: a hash made at one cost verifies, and verifying it after the settings change answers a rehash.
-- [ ] **`spec-0227-sessions`** — `PostgresSessions`: create, resolve, rotate, revoke, its changelog.
+- [x] **`spec-0227-sessions`** — `PostgresSessions`: create, resolve, rotate, revoke, its changelog.
       Done when: on a `TestClock`, a session dies after `idle` unresolved and after `absolute` however often resolved,
       a rotated token stops resolving, and a revoked one stops on another instance.
 - [ ] **`spec-0227-links`** — `PostgresMagicLinks`.
