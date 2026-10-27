@@ -141,6 +141,33 @@ object BookingsSuite : Suite() {
             statuses.clear()
         }
 
+        test("only staff with the permission host an event, and its courts are held against members' bookings") {
+            val venue = Venue("acme")
+            val member = venue.signIn("acme", BookingService.CREATE)
+            val staff = venue.signIn("acme", BookingService.HOST)
+            val saturday = Instant.parse("2026-11-07T13:00:00Z")
+            val courts = listOf("court-1", "court-2").map { Slot(it, saturday, 240.minutes) }
+            val party = EventRequest("Junior tournament", 24, courts)
+            venue.bookings.host(member, "k-1", party) shouldBe Answer(403, "not allowed to bookings:host")
+            venue.bookings.host(staff, "k-2", party).status shouldBe 201
+            venue.bookings.book(member, "k-3", one("court-2", saturday.plusSeconds(HOUR))) shouldBe
+                Answer(409, "a slot is already taken")
+            venue.bookings.host(staff, "k-4", party.copy(guests = 0)) shouldBe Answer(422, "an event needs a guest")
+        }
+
+        test("an event counts toward no one's limit, the host's included") {
+            val venue = Venue("acme")
+            venue.limits("acme", Limits(perDay = 1, perWeek = 1, ZoneId.of("Europe/London")))
+            val host = venue.signIn("acme", BookingService.CREATE, BookingService.HOST)
+            val monday = Instant.parse("2026-11-02T10:00:00Z")
+            val party = EventRequest("Birthday", 12, listOf("court-1", "court-2").map { Slot(it, monday, 120.minutes) })
+            venue.bookings.host(host, "k-1", party).status shouldBe 201
+            // Four court-hours on one day, and the host's own single slot is still theirs to book.
+            venue.bookings.book(host, "k-2", one("court-1", monday.plusSeconds(4 * HOUR))).status shouldBe 201
+            venue.bookings.book(host, "k-3", one("court-2", monday.plusSeconds(4 * HOUR))) shouldBe
+                Answer(422, "1 slots a day, and 1 are booked on 2026-11-02")
+        }
+
         test("a booking with no slot, an empty slot or a court the venue has not got is refused") {
             val venue = Venue("acme")
             val member = venue.signIn("acme", BookingService.CREATE, BookingService.VIEW)

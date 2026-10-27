@@ -89,3 +89,8 @@ alter table member_quota force row level security;
 create policy tenant_isolation on member_quota
     using (tenant_id = current_setting('app.tenant_id', true))
     with check (tenant_id = current_setting('app.tenant_id', true));
+
+--changeset example:events
+-- An event or a party staff host: a booking of its own kind, with a guest count, that no member's limit counts.
+alter table bookings add column kind text not null default 'booking' check (kind in ('booking', 'event'));
+alter table bookings add column guests integer check (guests > 0);

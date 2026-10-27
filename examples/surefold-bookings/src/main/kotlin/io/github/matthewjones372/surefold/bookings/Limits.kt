@@ -77,11 +77,11 @@ private fun Connection.lockMember(member: String) {
     }
 }
 
-/** How many slots [member] holds that start in [from, until). */
+/** How many slots [member] holds that start in [from, until), of their own bookings: events count toward nobody. */
 private fun Connection.held(member: String, from: Instant, until: Instant): Int = prepareStatement(
     """
     select count(*) from booking_slots s join bookings b on b.id = s.booking_id
-    where b.member = ? and lower(s.during) >= ? and lower(s.during) < ?
+    where b.member = ? and b.kind = 'booking' and lower(s.during) >= ? and lower(s.during) < ?
     """.trimIndent(),
 ).use {
     listOf(member, from.atOffset(UTC), until.atOffset(UTC)).forEachIndexed { at, value -> it.setObject(at + 1, value) }
