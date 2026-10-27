@@ -32,7 +32,8 @@ class AfterCommitTest {
         val runs = AtomicInteger()
         val effects = AtomicInteger()
 
-        transact {
+        // Never alone: alone, the run below would wait on a commit that waits on it.
+        transact(soloAfter = Int.MAX_VALUE) {
             val left = free.get()
             // Another step changes what this run read, so this run cannot commit.
             if (runs.incrementAndGet() <=
