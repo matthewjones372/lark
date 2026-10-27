@@ -59,12 +59,12 @@ runs with a declared error. That is honest, but it hands the caller the problem
 
 ## Stack
 
-- [ ] **`spec-0231-solo`** — the `solo` word in every swap, a step going solo
+- [x] **`spec-0231-solo`** ([#826](https://github.com/matthewjones372/surefold/pull/826)) — the `solo` word in every swap, a step going solo
       after `soloAfter` lost runs, and giving it up on throw, fail or wait.
       Done when: a step reading 1,000 values commits within 11 runs while 8
       threads commit to one of those values in a loop, and a Lincheck test of
       solo against ordinary commits finds no lost write.
-- [ ] **`spec-0231-report`** — the `solo` outcome tag, the `solo` span
+- [x] **`spec-0231-report`** ([#830](https://github.com/matthewjones372/surefold/pull/830)) — the `solo` outcome tag, the `solo` span
       attribute, and a "When a step keeps losing" section in `docs/core.md`.
       Done when: a step forced solo records `outcome=solo` once, and the guide's
       fence compiles.
