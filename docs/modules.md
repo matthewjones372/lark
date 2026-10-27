@@ -138,7 +138,8 @@ against; the library's own transitive dependencies come with it.
 | `surefold-jobs-load` | a Proofload load test: jobs enqueued at a fixed rate, drained by 1, 4 and 16 workers (`./gradlew :surefold-jobs-load:run`) | | Proofload, Testcontainers | no |
 | `surefold-files` | files on any S3-compatible store, with typed failures, presigned URLs and an in-memory fake ([guide](files.md)) | `surefold` | AWS SDK 2.55.6 `s3`, on its URL-connection client | yes |
 | `surefold-files-test` | MinIO in Testcontainers, a fresh bucket a call, for a service's own tests ([guide](files.md#testing)) | `surefold-files` | Testcontainers 2.0.5 | yes |
-| `surefold-tenancy` | a tenant forks and messages carry, and Postgres row-level security set for every transaction (spec 0225, in progress) | `surefold` | none (bring your own driver and pool) | yes |
+| `surefold-tenancy` | a tenant forks and messages carry, and Postgres row-level security set for every transaction ([guide](tenancy.md)) | `surefold` | none (bring your own driver and pool) | yes |
+| `surefold-tenancy-test` | a check that a service's tables keep two tenants apart ([guide](tenancy.md#testing-isolation)) | `surefold-tenancy` | none | yes |
 | `surefold-jobs-otel` | a span per run of a job, in its own trace and linked to the span that enqueued it ([guide](jobs.md#traces)) | `surefold-jobs`, `surefold-otel` | none beyond `opentelemetry-api` | yes |
 
 ### Observability and testing
