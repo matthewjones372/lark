@@ -38,8 +38,14 @@ class BookingService(
      */
     fun book(token: Secret, idempotencyKey: String, request: BookingRequest): Answer =
         signedIn(token, CREATE) { tenant ->
-            refused(request) ?: booked(tenant, idempotencyKey, request)
+            refused(request) ?: booked(tenant, user.value, idempotencyKey, request)
         }
+
+    /** Sets how many slots each member of the caller's venue may hold in a day and a week. */
+    fun setLimits(token: Secret, limits: Limits): Answer = signedIn(token, MANAGE) { tenant ->
+        tenants.transaction(TenantId(tenant)) { it.setLimits(limits) }
+        Answer(OK, "${limits.perDay} a day, ${limits.perWeek} a week, in ${limits.zone}")
+    }
 
     /** Adds [court] to the caller's venue, for its bookings to name. */
     fun addCourt(token: Secret, court: Court): Answer = signedIn(token, MANAGE) { tenant ->
@@ -54,12 +60,12 @@ class BookingService(
         else -> null
     }
 
-    private fun booked(tenant: String, idempotencyKey: String, request: BookingRequest): Answer {
+    private fun booked(tenant: String, member: String, idempotencyKey: String, request: BookingRequest): Answer {
         val key = IdempotencyKey(scope = tenant, key = idempotencyKey)
         return when (val reservation = keys.reserve(key, fingerprint = request.fingerprint)) {
             is Reservation.Reserved -> {
                 val answer = try {
-                    made(tenant, request)
+                    made(tenant, member, request)
                 } catch (failed: SQLException) {
                     keys.release(key, reservation.token)
                     throw failed
@@ -114,11 +120,12 @@ class BookingService(
 
     /**
      * The booking, its slots and its confirmation in one transaction, as [tenant]: all commit, or none does. A clash or
-     * a court the venue has not got rolls it back and is answered.
+     * a court the venue has not got rolls it back and is answered; so is [member] already holding their limit.
      */
-    private fun made(tenant: String, request: BookingRequest): Answer = try {
+    private fun made(tenant: String, member: String, request: BookingRequest): Answer = try {
         tenants.transaction(TenantId(tenant)) {
-            val id = Booking.insert(it, request)
+            it.overLimit(member, request.slots)?.let { why -> return@transaction Answer(UNPROCESSABLE, why) }
+            val id = Booking.insert(it, request, member)
             Jobs.enqueue(it, SendConfirmation, Confirmation(id), dedupeKey = "confirm-$id", tenant = tenant)
             Answer(CREATED, "booking $id")
         }
@@ -140,12 +147,12 @@ class BookingService(
 
     private fun notFound(bookingId: Long) = Answer(NOT_FOUND, "no booking $bookingId")
 
-    private fun signedIn(token: Secret, permission: String, block: (tenant: String) -> Answer): Answer {
+    private fun signedIn(token: Secret, permission: String, block: Principal.(tenant: String) -> Answer): Answer {
         val principal: Principal = sessions.resolve(token) ?: return Answer(UNAUTHORIZED, "sign in")
         val tenant = principal.tenant
         return when {
             tenant == null || !principal.can(permission) -> Answer(FORBIDDEN, "not allowed to $permission")
-            else -> block(tenant)
+            else -> principal.block(tenant)
         }
     }
 

@@ -69,7 +69,7 @@ lock to explain, but it retries unrelated bookings that touched the same index p
 
 ## Stack
 
-- [ ] **`spec-0232-slots`** — courts, `Slot`, a booking of several slots in one transaction, and the clash refused.
+- [x] **`spec-0232-slots`** ([#822](https://github.com/matthewjones372/surefold/pull/822)) — courts, `Slot`, a booking of several slots in one transaction, and the clash refused.
       Done when: two back-to-back slots on one court are one booking; a booking with a slot that overlaps another
       booking's is 409 and leaves none of its slots; the same court and time in another tenant does not clash.
       `booking_slots` holds each slot as a `tstzrange` under the forced tenant policy, with an exclusion constraint per
@@ -79,6 +79,10 @@ lock to explain, but it retries unrelated bookings that touched the same index p
 - [ ] **`spec-0232-limits`** — `Limits` per tenant, counted per member per day and week in the tenant's zone.
       Done when: a member at 2 today is refused a third and booked tomorrow; at 5 this week is refused on any day of
       it; two concurrent bookings that together pass the cap are not both made.
+      `bookings.member` records the session's user. `setLimits` (`bookings:manage`) upserts the tenant's
+      `booking_limits`; with none, nothing is counted. A booking takes its member's `member_quota` row `for update`,
+      then counts their slots starting in each touched day and ISO week in the zone, and is 422 naming the limit,
+      the count and the day or week. With the lock removed, the concurrency test fails.
 - [ ] **`spec-0232-events`** — `host`, `EventRequest`, `bookings:host`, and events left out of member limits.
       Done when: a member without `bookings:host` is refused; an event's courts are held against members' bookings;
       an event leaves every member's count where it was.

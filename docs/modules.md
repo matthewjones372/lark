@@ -278,4 +278,7 @@ its own tables. The application's role needs to read and write its own tables, t
 A booking holds one or more slots, each a court the venue has added and a time range, and makes all of them or none
 (spec 0232). Postgres refuses two slots that overlap on one court with an exclusion constraint, so two members racing
 for the same hour cannot both win: the second booking is 409 and its transaction makes nothing. The constraint needs
-the `btree_gist` extension, which the example's changelog creates; a managed Postgres must allow it.
+the `btree_gist` extension, which the example's changelog creates; a managed Postgres must allow it. A venue can cap
+how many slots one member holds in a day and an ISO week, in its own zone (`setLimits`). The booking locks the
+member's own row before it counts, so two bookings a member sends at once cannot both slip under the cap, and other
+members never wait on it.

@@ -28,14 +28,16 @@ data class BookingRequest(val name: String, val slots: List<Slot>) {
 data class Booking(val id: Long, val name: String, val startsAt: Instant) {
     companion object {
         /**
-         * Inserts [request] and each of its slots as the transaction's tenant, which the tables' defaults fill in. A
-         * slot that overlaps one already held on its court throws the exclusion constraint's [java.sql.SQLException].
+         * Inserts [request] and each of its slots as the transaction's tenant, which the tables' defaults fill in, as
+         * [member]'s. A slot that overlaps one already held on its court throws the exclusion constraint's
+         * [java.sql.SQLException].
          */
-        fun insert(connection: Connection, request: BookingRequest): Long {
-            val id = connection.prepareStatement("insert into bookings (name, starts_at) values (?, ?) returning id")
+        fun insert(connection: Connection, request: BookingRequest, member: String): Long {
+            val id = connection
+                .prepareStatement("insert into bookings (name, starts_at, member) values (?, ?, ?) returning id")
                 .use {
-                    it.setString(1, request.name)
-                    it.setObject(2, request.slots.minOf { slot -> slot.startsAt }.atOffset(ZoneOffset.UTC))
+                    val first = request.slots.minOf { slot -> slot.startsAt }.atOffset(ZoneOffset.UTC)
+                    listOf(request.name, first, member).forEachIndexed { at, value -> it.setObject(at + 1, value) }
                     it.executeQuery().use { rows ->
                         rows.next()
                         rows.getLong(1)
