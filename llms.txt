@@ -63,8 +63,8 @@ Facts worth having before anything else:
   came from (`origins`).
 - `surefold-app-kotlinx`: a HOCON section read from its `@Serializable` class,
   `config<Settings>("section")` with no block.
-- `surefold-app-liquibase`: a changelog as a node (`migrations`); readers take a
-  `Migrated`.
+- `surefold-app-liquibase`: a changelog as a node (`migrations`); readers take
+  `surefold-app`'s `Migrated`.
 - `surefold-app-openfeature`: `openFeature { provider }`, the provider as a node; a
   `Client` node and `Flag.value()` read it, and readiness follows it.
 - `surefold-app-openfeature-flagd`: `flagdFlags("flags")`, flags in flagd's schema

@@ -58,10 +58,10 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-test`: `story`, `eventually`.
 - `surefold-junit`: `Suite` objects run by a JUnit Platform engine.
 - `surefold-junit-testkit`: `shouldHaveSucceeded`, `shouldHaveFailed` and `failureOf` on a suite's run.
-- `surefold-app`: the graph, `SurefoldApp`, `closingOf`, probes, `testApp`.
+- `surefold-app`: the graph, `SurefoldApp`, `closingOf`, probes, `testApp`, `Migrated`.
 - `surefold-app-typesafe`: `config`, `secret`, `choosing`, `overridingConfig`.
 - `surefold-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.
-- `surefold-app-liquibase`: `migrations` and `Migrated`.
+- `surefold-app-liquibase`: `migrations`, which provides `Migrated`.
 - `surefold-app-openfeature`: `openFeature { provider }`, a flag provider as a node.
 - `surefold-app-openfeature-flagd`: `flagdFlags(path)`, flags in the service's HOCON; `flagdFlags(path, declared)` checks their variants against the declared `Flag`s at start.
 - `surefold-actor-pekko`: `ask`, `receive`, `same`, `stopped`, `answer` and `pipeToSelf` for a Pekko typed actor, without the wiring graph.
