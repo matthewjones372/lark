@@ -127,7 +127,7 @@ private fun afterCommitted(): Boolean {
 
 private fun refused(called: CallableId): Boolean {
     val owner = called.classId?.packageFqName ?: called.packageName
-    return io.any { owner == it || owner.startsWith(it) } || called in blocking || called in forks
+    return io.any { owner == it || owner.startsWith(it) } || owner in kotlinIo || called in blocking || called in forks
 }
 
 private val surefold = FqName("io.github.matthewjones372.surefold")
@@ -139,6 +139,9 @@ private val afterCommit = CallableId(transaction, Name.identifier("afterCommit")
 private val peek = CallableId(ClassId(surefold, Name.identifier("Shared")), Name.identifier("peek"))
 
 private val io = listOf("java.io", "java.net", "java.nio.channels", "java.sql").map(::FqName)
+
+// Kotlin's own files, paths and console, by exact package: kotlin.io.encoding only computes.
+private val kotlinIo = setOf(FqName("kotlin.io"), FqName("kotlin.io.path"))
 
 private fun member(pkg: String, cls: String, name: String) =
     CallableId(ClassId(FqName(pkg), Name.identifier(cls)), Name.identifier(name))
