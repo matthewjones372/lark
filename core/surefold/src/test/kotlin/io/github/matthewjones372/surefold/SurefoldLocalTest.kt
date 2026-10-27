@@ -17,6 +17,13 @@ class SurefoldLocalTest {
     }
 
     @Test
+    fun `unbound answers the initial value inside a binding`() {
+        val local = surefoldLocal { "initial" }
+
+        local.locally("bound") { local.unbound() } shouldBe "initial"
+    }
+
+    @Test
     fun `a binding is put back when its block leaves`() {
         val local = surefoldLocal { "initial" }
 

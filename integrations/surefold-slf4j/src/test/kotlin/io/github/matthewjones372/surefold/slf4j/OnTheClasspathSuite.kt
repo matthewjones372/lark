@@ -7,10 +7,6 @@ import io.github.matthewjones372.surefold.junit.shouldBeInstanceOf
 import io.github.matthewjones372.surefold.junit.withClue
 import io.github.matthewjones372.surefold.logger
 import java.util.ServiceLoader
-import java.util.concurrent.FutureTask
-
-/** What [read] answers on a new thread, where nothing is bound: a suite's test runs under a capture of its own. */
-private fun <A> unbound(read: () -> A): A = FutureTask(read).also { Thread.ofVirtual().start(it) }.get()
 
 /**
  * The whole of the wiring: this jar is on the classpath, so this is where a line goes.
@@ -21,8 +17,8 @@ private fun <A> unbound(read: () -> A): A = FutureTask(read).also { Thread.ofVir
 object OnTheClasspathSuite : Suite() {
     init {
         test("nothing is bound, and a line still goes to the backend") {
-            withClue("no logger.locally anywhere above this line, which is the point of the module") {
-                unbound { logger.get() }.shouldBeInstanceOf<Slf4jLogger>()
+            withClue("what main reads with no logger.locally above it, which is the point of the module") {
+                logger.unbound().shouldBeInstanceOf<Slf4jLogger>()
             }
         }
 

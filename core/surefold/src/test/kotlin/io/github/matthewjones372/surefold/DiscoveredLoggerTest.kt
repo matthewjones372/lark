@@ -46,4 +46,9 @@ class DiscoveredLoggerTest {
 
         logger.locally(mine) { logger.get() } shouldBe mine
     }
+
+    @Test
+    fun `unbound answers what the classpath had, under a binding of another`() {
+        logger.locally(Logger { }) { logger.unbound() } shouldBe StderrLogger
+    }
 }
