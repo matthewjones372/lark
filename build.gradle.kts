@@ -152,6 +152,8 @@ val moduleDescriptions = mapOf(
         "Durable jobs on Postgres, enqueued in the caller's own transaction so they commit with its change.",
     "surefold-app-jobs" to
         "surefold-app on surefold-jobs: a worker is a node, started after the migrations and drained on release.",
+    "surefold-jobs-otel" to
+        "surefold-jobs on OpenTelemetry: a span per run of a job, linked to the span that enqueued it.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
