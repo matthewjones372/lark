@@ -381,6 +381,8 @@ test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
   maturity, performance and limitations.
 - [`surefold-bank`](docs/modules.md#the-example-application): three nodes of a
   small bank, using actors, persistence, remoting and clustering together.
+- [`surefold-bookings`](docs/modules.md#the-booking-example): a multi-tenant
+  booking service using sessions, tenancy, jobs, idempotency and files together.
 
 **Using a capability**
 

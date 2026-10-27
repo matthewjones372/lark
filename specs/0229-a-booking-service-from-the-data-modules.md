@@ -52,7 +52,7 @@ against, since it would build the HTTP layer Pelican owns and add a server to th
 
 ## Stack
 
-- [ ] **`spec-0229-bookings`** — the module, `BookingService`, the confirmation job, and a suite that runs the whole
+- [x] **`spec-0229-bookings`** — the module, `BookingService`, the confirmation job, and a suite that runs the whole
       flow on Postgres with row-level security.
       Done when: a booking retried with its key is made once and confirmed once by the worker as its tenant; a
       second tenant's session sees none of it, cannot attach to it, and cannot link its ticket; a session without the

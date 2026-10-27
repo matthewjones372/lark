@@ -194,8 +194,9 @@ val benchmarkModules =
 
 // Built and tested, never published: surefold-structured calls StructuredTaskScope, a preview API until
 // JDK 28 (JEP 543), and a release must not promise an API the JDK has not. surefold-bank is an application
-// to run, not a library to depend on (spec 0094).
-val unpublished = setOf("surefold-structured", "surefold-stream-parity", "surefold-bank") + benchmarkModules
+// to run, not a library to depend on (spec 0094), and surefold-bookings an example of the data modules (spec 0229).
+val unpublished =
+    setOf("surefold-structured", "surefold-stream-parity", "surefold-bank", "surefold-bookings") + benchmarkModules
 
 // What llms.txt and the surefold skill must name, no more and no fewer: AgentDocsSuite in surefold-app reads it.
 extra["publishedModules"] = subprojects.map { it.name }.filterNot { it in unpublished }.sorted()
