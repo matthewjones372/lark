@@ -2,6 +2,7 @@ package io.github.matthewjones372.surefold.bookings
 
 import java.sql.Connection
 import java.sql.ResultSet
+import java.sql.Types
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -17,6 +18,11 @@ data class Slot(val court: String, val startsAt: Instant, val length: Duration) 
     val endsAt: Instant get() = startsAt + length.toJavaDuration()
 }
 
+/** An event or a party staff host, of every one of [slots] for [guests] people: no member's limit counts it. */
+data class EventRequest(val title: String, val guests: Int, val slots: List<Slot>) {
+    internal val booking: BookingRequest get() = BookingRequest(title, slots)
+}
+
 /** A booking of every one of [slots], made together or not at all. */
 data class BookingRequest(val name: String, val slots: List<Slot>) {
     /** What the idempotency key's first use is held to: a retry must ask for the same booking. */
@@ -28,19 +34,24 @@ data class BookingRequest(val name: String, val slots: List<Slot>) {
 data class Booking(val id: Long, val name: String, val startsAt: Instant) {
     companion object {
         /**
-         * Inserts [request] and each of its slots as the transaction's tenant, which the tables' defaults fill in. A
-         * slot that overlaps one already held on its court throws the exclusion constraint's [java.sql.SQLException].
+         * Inserts [request] and each of its slots as the transaction's tenant, which the tables' defaults fill in, as
+         * [member]'s: an event for [guests] when there are any. A slot that overlaps one already held on its court
+         * throws the exclusion constraint's [java.sql.SQLException].
          */
-        fun insert(connection: Connection, request: BookingRequest): Long {
-            val id = connection.prepareStatement("insert into bookings (name, starts_at) values (?, ?) returning id")
-                .use {
-                    it.setString(1, request.name)
-                    it.setObject(2, request.slots.minOf { slot -> slot.startsAt }.atOffset(ZoneOffset.UTC))
-                    it.executeQuery().use { rows ->
-                        rows.next()
-                        rows.getLong(1)
-                    }
+        fun insert(connection: Connection, request: BookingRequest, member: String, guests: Int? = null): Long {
+            val id = connection.prepareStatement(
+                "insert into bookings (name, starts_at, member, kind, guests) values (?, ?, ?, ?, ?) returning id",
+            ).use {
+                val first = request.slots.minOf { slot -> slot.startsAt }.atOffset(ZoneOffset.UTC)
+                val kind = if (guests == null) "booking" else "event"
+                listOf(request.name, first, member, kind, guests).forEachIndexed { at, value ->
+                    if (value == null) it.setNull(at + 1, Types.INTEGER) else it.setObject(at + 1, value)
                 }
+                it.executeQuery().use { rows ->
+                    rows.next()
+                    rows.getLong(1)
+                }
+            }
             connection.prepareStatement(
                 "insert into booking_slots (booking_id, court, during) values (?, ?, tstzrange(?, ?, '[)'))",
             ).use { insert ->
