@@ -62,7 +62,7 @@ nothing.
 
 ## Stack
 
-- [ ] **`spec-0222-turn`** — `Behaviour.turn`, the deprecated `step` getter, the
+- [x] **`spec-0222-turn`** ([#767](https://github.com/matthewjones372/surefold/pull/767)) — `Behaviour.turn`, the deprecated `step` getter, the
       `turn`/`turns` parameters, internal names, KDoc, and every caller in the
       repo moved over.
       Done when: nothing in the repo reads `Behaviour.step` (the build has no
