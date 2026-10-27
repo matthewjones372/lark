@@ -142,6 +142,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-tenancy-test` | a check that a service's tables keep two tenants apart ([guide](tenancy.md#testing-isolation)) | `surefold-tenancy` | none | yes |
 | `surefold-jobs-tenancy` | each job's handler runs as the tenant its row names ([guide](tenancy.md#jobs)) | `surefold-jobs`, `surefold-tenancy` | none | yes |
 | `surefold-idempotency` | idempotency keys on Postgres, reserved atomically across instances, answers replayed ([guide](http-stores.md)) | `surefold`, `surefold-jobs` | none (bring your own driver and pool) | yes |
+| `surefold-pelican-idempotency` | Pelican's `IdempotencyStore` on `surefold-idempotency`, so a keyed endpoint's keys are shared by every instance ([guide](http-stores.md#on-pelican)) | `surefold-idempotency` | `pelican-core` 1.2.0 | yes |
 | `surefold-ratelimit` | token buckets by key, in memory or on Postgres, shared by every instance ([guide](http-stores.md#rate-limits)) | `surefold` | none (bring your own driver and pool) | yes |
 | `surefold-auth` | sessions and credentials: Argon2id passwords, rotating sessions, magic links, TOTP, roles ([guide](auth.md)) | `surefold` | `bcprov-jdk18on` 1.85 | yes |
 | `surefold-auth-oidc` | sign-in with an OpenID Connect provider: the code flow with PKCE, and the ID token's signature, issuer, audience, expiry and nonce checked ([guide](auth.md#signing-in-elsewhere)) | `surefold-auth` | `oauth2-oidc-sdk` 11.37.2 | yes |

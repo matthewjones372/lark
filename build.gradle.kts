@@ -165,6 +165,8 @@ val moduleDescriptions = mapOf(
         "surefold-jobs on surefold-tenancy: each job's handler runs as the tenant its row names.",
     "surefold-idempotency" to
         "Idempotent requests on Postgres: keys reserved atomically across instances, and answers replayed.",
+    "surefold-pelican-idempotency" to
+        "Pelican's IdempotencyStore on surefold-idempotency: a keyed endpoint's keys shared by every instance.",
     "surefold-ratelimit" to "Rate limits as token buckets, in memory or on Postgres, shared by every instance.",
     "surefold-auth" to
         "Sessions and credentials on Postgres: Argon2id passwords, rotating sessions, magic links, TOTP, roles.",

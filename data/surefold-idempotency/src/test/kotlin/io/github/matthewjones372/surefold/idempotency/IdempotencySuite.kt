@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import javax.sql.DataSource
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /** Keys reserved atomically, answers replayed, and leases taken over (spec 0226). */
@@ -84,6 +85,27 @@ object IdempotencySuite : Suite() {
                 store.complete(key, token, created)
                 time.adjust(2.hours)
                 (store.reserve(key, "f2") is Reservation.Reserved) shouldBe true
+            }
+        }
+
+        test("a lookup answers what a key holds without taking it, under a lease and a ttl of the request's own") {
+            val store = PostgresIdempotency(database())
+            val time = TestClock(noon)
+            clock.locally(time) {
+                store.lookup(key) shouldBe null
+                val token = (store.reserve(key, "f1", ttl = 10.seconds, lease = 10.seconds) as Reservation.Reserved)
+                    .token
+                store.lookup(key) shouldBe Reservation.InProgress
+                store.complete(key, token, created, ttl = 1.hours) shouldBe true
+                time.adjust(59.minutes)
+                store.lookup(key) shouldBe Reservation.Replay(created)
+                time.adjust(1.minutes)
+                store.lookup(key) shouldBe null
+                val abandoned = store.reserve(key, "f1", ttl = 1.hours, lease = 10.seconds)
+                time.adjust(10.seconds)
+                store.lookup(key) shouldBe null
+                store.complete(key, UUID.randomUUID(), created, ttl = 1.hours) shouldBe false
+                (abandoned is Reservation.Reserved) shouldBe true
             }
         }
 

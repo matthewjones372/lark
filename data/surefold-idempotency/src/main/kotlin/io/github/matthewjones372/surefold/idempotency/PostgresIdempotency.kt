@@ -5,6 +5,7 @@ import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 import javax.sql.DataSource
@@ -19,7 +20,11 @@ import kotlin.time.toJavaDuration
  */
 class PostgresIdempotency(private val source: DataSource, private val lease: Duration = 1.minutes) : IdempotencyStore {
 
-    override fun reserve(key: IdempotencyKey, fingerprint: String, ttl: Duration): Reservation {
+    override fun reserve(key: IdempotencyKey, fingerprint: String, ttl: Duration): Reservation =
+        reserve(key, fingerprint, ttl, lease)
+
+    /** [reserve], holding the key for this request's own [lease] rather than the store's. */
+    fun reserve(key: IdempotencyKey, fingerprint: String, ttl: Duration, lease: Duration): Reservation {
         val now = clock.get().now()
         val token = UUID.randomUUID()
         return source.connection.use { connection ->
@@ -67,6 +72,47 @@ class PostgresIdempotency(private val source: DataSource, private val lease: Dur
                 statement.executeUpdate() == 1
             }
         }
+
+    /** [complete], keeping [response] for [ttl] from now rather than until the expiry [reserve] set. */
+    fun complete(key: IdempotencyKey, token: UUID, response: StoredResponse, ttl: Duration): Boolean =
+        source.connection.use { connection ->
+            connection.prepareStatement(COMPLETE_FOR).use { statement ->
+                statement.bind(
+                    response.status,
+                    connection.createArrayOf("text", response.headers.map { it.first }.toTypedArray()),
+                    connection.createArrayOf("text", response.headers.map { it.second }.toTypedArray()),
+                    response.body,
+                    clock.get().now() + ttl.toJavaDuration(),
+                    key.scope,
+                    key.key,
+                    token,
+                )
+                statement.executeUpdate() == 1
+            }
+        }
+
+    /**
+     * What [key] holds now, without taking it: [Reservation.Replay] once answered, [Reservation.InProgress] while a
+     * request holds it on a live lease, or null when nothing does.
+     */
+    fun lookup(key: IdempotencyKey): Reservation? = source.connection.use { connection ->
+        val now = clock.get().now()
+        connection.prepareStatement(LOOKUP).use { statement ->
+            statement.bind(key.scope, key.key, now)
+            statement.executeQuery().use { rows ->
+                when {
+                    !rows.next() -> null
+
+                    rows.getString("status") == "done" -> Reservation.Replay(rows.response())
+
+                    rows.getObject("locked_until", OffsetDateTime::class.java).toInstant() > now ->
+                        Reservation.InProgress
+
+                    else -> null
+                }
+            }
+        }
+    }
 
     override fun release(key: IdempotencyKey, token: UUID): Boolean = source.connection.use { connection ->
         connection.prepareStatement(RELEASE).use { statement ->
@@ -121,6 +167,17 @@ class PostgresIdempotency(private val source: DataSource, private val lease: Dur
             update surefold_idempotency set status = 'done', locked_until = null, response_status = ?,
                 header_names = ?, header_values = ?, body = ?
             where scope = ? and key = ? and holder = ? and status = 'running'
+        """
+
+        const val COMPLETE_FOR = """
+            update surefold_idempotency set status = 'done', locked_until = null, response_status = ?,
+                header_names = ?, header_values = ?, body = ?, expires_at = ?
+            where scope = ? and key = ? and holder = ? and status = 'running'
+        """
+
+        const val LOOKUP = """
+            select status, locked_until, response_status, header_names, header_values, body
+            from surefold_idempotency where scope = ? and key = ? and expires_at > ?
         """
 
         const val PRUNE = """

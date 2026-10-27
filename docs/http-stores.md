@@ -11,10 +11,9 @@ dependencies {
 }
 ```
 
-Pelican is adding `IdempotencyStore` and `RateLimiter` interfaces for its HTTP side: reading the `Idempotency-Key`
-header, fingerprinting the request, and answering 409, 422 or 429. Until they are released, a service calls these
-stores from its handlers, as below; the adapters, `surefold-pelican-idempotency` and `surefold-pelican-ratelimit`,
-will be a few lines each.
+A service on Pelican hands its keyed endpoints to `surefold-pelican-idempotency` instead, and Pelican reads the
+`Idempotency-Key` header, fingerprints the request and answers the 409 and 422 itself: see [On Pelican](#on-pelican).
+Pelican has no `RateLimiter` interface yet, so a service calls these stores from its handlers, as below.
 
 <!-- http-stores -->
 ```kotlin
@@ -82,6 +81,26 @@ jobWorker(
 ```
 
 The table ships as `surefold/idempotency/postgres.sql`, for the service's changelog to include.
+
+### On Pelican
+
+`surefold-pelican-idempotency` puts `PostgresIdempotency` behind Pelican's `IdempotencyStore` (spec 0230), so the keys
+of an endpoint declared with `idempotencyKey()` are shared by every instance:
+
+```kotlin
+implementation("io.github.matthewjones372:surefold-pelican-idempotency:0.13.0")
+
+val api = api {
+    idempotency(PelicanIdempotencyStore(PostgresIdempotency(dataSource)), ttl = 24.hours, lease = 1.minutes)
+}
+```
+
+A key is scoped to its operation and its caller's subject, so one caller's key never answers another's. Pelican passes
+the lease to each reservation and the ttl to each answer it keeps, and completes or releases a key on the instance
+that reserved it; the adapter keeps the token until then, so an instance whose lease was taken over still writes
+nothing over the new holder's answer. The response's media type is kept as a `:media-type` pseudo-header. A key
+longer than 255 characters is kept by its SHA-256. The keys share `surefold_idempotency`, and the prune above, with
+any the service keeps itself.
 
 ## Rate limits
 

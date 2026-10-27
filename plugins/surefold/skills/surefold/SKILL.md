@@ -91,6 +91,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-tenancy-test`: a tenant isolation check for tests.
 - `surefold-jobs-tenancy`: jobs run as their tenant.
 - `surefold-idempotency`: idempotency keys on Postgres.
+- `surefold-pelican-idempotency`: Pelican's idempotency keys on Postgres.
 - `surefold-ratelimit`: token-bucket rate limits.
 - `surefold-auth`: sessions, passwords and second factors.
 - `surefold-auth-oidc`: sign-in with an OpenID Connect provider.
