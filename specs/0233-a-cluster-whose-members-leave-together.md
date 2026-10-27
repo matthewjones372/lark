@@ -78,7 +78,7 @@ member go, so this changes nothing a test can see. Not recommended.
 
 ## Stack
 
-- [ ] **`spec-0233-leaving-quiet`** — the leader removes an unreachable `Leaving` member without `stableAfter`.
+- [x] **`spec-0233-leaving-quiet`** — the leader removes an unreachable `Leaving` member without `stableAfter`.
       `converged` and `decide` stop counting it. Lands with a `MembershipSuite` test: a member stops once it is seen
       leaving, a second member leaves, and every other view shows both gone within 5 s of simulated time.
       Done when: `:surefold-cluster:check` passes. The existing downing tests are unchanged and pass.

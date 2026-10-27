@@ -263,10 +263,20 @@ internal class Membership(
             .entries.minWithOrNull(compareBy({ it.value.upNumber }, { it.key.node.toString() }))?.key
     }
 
+    /**
+     * Whether every member agrees on this node's view. A member that went quiet while leaving is not asked: it said it
+     * was going, and the view it last agreed to may never come round again (spec 0233).
+     */
     private fun converged(): Boolean {
         val mine = gossip.digests[self]?.hash
-        return gossip.unreachable().isEmpty() && gossip.live().all { gossip.digests[it]?.hash == mine }
+        val quiet = quiet()
+        return (gossip.unreachable() - quiet).isEmpty() &&
+            (gossip.live() - quiet).all { gossip.digests[it]?.hash == mine }
     }
+
+    /** The `Leaving` members that are unreachable: gone, most likely, and removed rather than downed (spec 0233). */
+    private fun quiet(): Set<Incarnation> =
+        gossip.unreachable().filterTo(mutableSetOf()) { it != self && gossip.members[it]?.status == Status.Leaving }
 
     /**
      * Moves members on, if this node leads and every member agrees. A member it removes after leaving is sent the
@@ -298,8 +308,9 @@ internal class Membership(
      * one member at a time would otherwise hold still between two probes, and be decided on half of it.
      */
     private fun decide(now: Duration): List<Send> {
-        val live = gossip.live()
-        val unreachable = gossip.unreachable()
+        val quiet = quiet()
+        val live = gossip.live() - quiet
+        val unreachable = gossip.unreachable() - quiet
         if (shape != live to unreachable) {
             shape = live to unreachable
             shapeSince = now
