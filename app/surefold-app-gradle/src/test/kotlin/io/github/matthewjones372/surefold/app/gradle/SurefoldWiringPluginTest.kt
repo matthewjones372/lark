@@ -512,7 +512,13 @@ class SurefoldWiringPluginTest {
             "raceN",
             "scope",
             "Scope.async",
+            "readText",
+            "writeText",
+            "readln",
         ).forEach { call -> result.output shouldContain "$call runs again each time the step does" }
+        withClue("kotlin.io.encoding only computes, so Base64 is left alone") {
+            result.output shouldNotContain "Base64"
+        }
         withClue("a helper taking Transaction, and a firstOf branch, are inside the step too") {
             result.output.split("Thread.sleep runs again").size shouldBe 4
         }
@@ -877,6 +883,10 @@ import java.sql.DriverManager
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
+import java.io.File
+import java.nio.file.Path
+import kotlin.io.encoding.Base64
+import kotlin.io.path.writeText
 
 val seats = Shared(10)
 val guard = ReentrantLock()
@@ -901,6 +911,10 @@ fun effects(future: Future<Int>, deferred: Deferred<Int>) = transact {
     raceN({ 1 }, { 2 })
     scope { async { 1 }.await() }
     firstOf({ Thread.sleep(1) }, { take() })
+    File("seats.txt").readText()
+    Path.of("seats.txt").writeText("10")
+    readln()
+    Base64.encode(byteArrayOf(1))
 }
 """
 
