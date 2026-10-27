@@ -101,9 +101,11 @@ hits the 60 s limit.
 
 ## Open questions
 
-1. **Does the farewell wait for an `Ack`?** Recommended: no, it is sent once. Early removal covers a lost farewell
-   within a probe round, and waiting would hold up stop.
-2. **Is an unreachable `Leaving` member removed at once, or after a grace period?** Recommended: at once. SWIM only
-   calls a member unreachable after `ackWithin` and indirect probes, which is the grace period.
-3. **Are `RebalanceSuite` and `AdminPageSuite` rechecked here or apart?** Recommended: apart. Run each 20 times after
-   the second PR merges, and open an issue for any that still fails.
+Answered by the owner, who took each recommendation (2026-10-27).
+
+1. **Does the farewell wait for an `Ack`?** No, it is sent once. Early removal covers a lost farewell within a probe
+   round, and waiting would hold up stop.
+2. **Is an unreachable `Leaving` member removed at once, or after a grace period?** At once. SWIM only calls a member
+   unreachable after `ackWithin` and indirect probes, which is the grace period.
+3. **Are `RebalanceSuite` and `AdminPageSuite` rechecked here or apart?** Apart. Run each 20 times after the second PR
+   merges, and open an issue for any that still fails.
