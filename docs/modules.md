@@ -133,8 +133,8 @@ against; the library's own transitive dependencies come with it.
 
 | Module | For | Surefold deps | Adds | Published |
 |---|---|---|---|---|
-| `surefold-jobs` | durable jobs on Postgres, enqueued in the caller's own transaction (spec 0216, in progress) | `surefold` | none (bring your own driver and pool) | yes |
-| `surefold-app-jobs` | a job worker as a node, started after the migrations and drained on release | `surefold-app-liquibase`, `surefold-jobs` | none beyond Liquibase | yes |
+| `surefold-jobs` | durable jobs on Postgres, enqueued in the caller's own transaction ([guide](jobs.md)) | `surefold` | none (bring your own driver and pool) | yes |
+| `surefold-app-jobs` | a job worker as a node, started after the migrations and drained on release ([guide](jobs.md#a-kind-a-handler-and-a-worker)) | `surefold-app-liquibase`, `surefold-jobs` | none beyond Liquibase | yes |
 
 ### Observability and testing
 
