@@ -281,4 +281,5 @@ for the same hour cannot both win: the second booking is 409 and its transaction
 the `btree_gist` extension, which the example's changelog creates; a managed Postgres must allow it. A venue can cap
 how many slots one member holds in a day and an ISO week, in its own zone (`setLimits`). The booking locks the
 member's own row before it counts, so two bookings a member sends at once cannot both slip under the cap, and other
-members never wait on it.
+members never wait on it. Staff with `bookings:host` hold several courts for an event or a party with `host`, which
+clashes like any booking but counts toward no member's limit.

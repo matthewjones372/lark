@@ -76,7 +76,7 @@ lock to explain, but it retries unrelated bookings that touched the same index p
       tenant and court; a booking's slots go in one batch in its transaction. A clash (`23P01`) is 409 and an unknown
       court (`23503`) 422, and either releases the idempotency key, since nothing was made. `addCourt` needs
       `bookings:manage`. `bookings.starts_at` stays, as the first slot's start, for `list`.
-- [ ] **`spec-0232-limits`** — `Limits` per tenant, counted per member per day and week in the tenant's zone.
+- [x] **`spec-0232-limits`** ([#823](https://github.com/matthewjones372/surefold/pull/823)) — `Limits` per tenant, counted per member per day and week in the tenant's zone.
       Done when: a member at 2 today is refused a third and booked tomorrow; at 5 this week is refused on any day of
       it; two concurrent bookings that together pass the cap are not both made.
       `bookings.member` records the session's user. `setLimits` (`bookings:manage`) upserts the tenant's
@@ -86,6 +86,10 @@ lock to explain, but it retries unrelated bookings that touched the same index p
 - [ ] **`spec-0232-events`** — `host`, `EventRequest`, `bookings:host`, and events left out of member limits.
       Done when: a member without `bookings:host` is refused; an event's courts are held against members' bookings;
       an event leaves every member's count where it was.
+      `bookings.kind` is `booking` or `event`, with `guests` for an event. `host` takes the same idempotency, clash
+      and court handling as `book`, skips the limit check, and its fingerprint includes the guest count; the limit's
+      count takes only `kind = 'booking'`. A guest count below 1 is 422. With that filter removed, the test that a
+      host's own slot is still theirs fails.
 - [ ] **`spec-0232-hairdresser`** — the second venue in the suite, and the example's guide section on both.
       Done when: the suite runs both venues' flows, each under its own limits, neither seeing the other's courts.
 
