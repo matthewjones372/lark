@@ -156,6 +156,8 @@ val moduleDescriptions = mapOf(
         "surefold-jobs on OpenTelemetry: a span per run of a job, linked to the span that enqueued it.",
     "surefold-files" to
         "Files on any S3-compatible store: put, get, list and presigned URLs, typed failures, and a fake for tests.",
+    "surefold-files-test" to
+        "MinIO in Testcontainers for a service's own tests of surefold-files: a fresh bucket a call.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does

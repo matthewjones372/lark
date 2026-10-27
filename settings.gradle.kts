@@ -70,6 +70,7 @@ module("data", "surefold-jobs")
 module("data", "surefold-app-jobs")
 module("data", "surefold-jobs-otel")
 module("data", "surefold-files")
+module("data", "surefold-files-test")
 
 module("bench", "surefold-stream-benchmarks")
 module("bench", "surefold-actor-benchmarks")
