@@ -51,13 +51,19 @@ sharding's envelope. Recommended: the behaviour option.
 
 ## Stack
 
-- [ ] **`start-assuming-new`** — `Start.assumingNew` on `persistent`, single-step only, and the restart a wrong
+- [x] **`start-assuming-new`** ([#624](https://github.com/matthewjones372/surefold/pull/624)) — `Start.assumingNew` on `persistent`, single-step only, and the restart a wrong
       guess makes, in both the flock's runtime and `TestActors`.
       Done when: a new entity's first persisting command makes no `read` (a counting journal shows 0), an existing
       one decided lazily ends in the same state and answer as with `Start.recovering`, and a command that persists
       nothing on a lazy start answers from the recovered state.
-- [ ] **`start-assuming-new-batched`** — the same for `batch > 1`.
+- [x] **`start-assuming-new-batched`** ([#820](https://github.com/matthewjones372/surefold/pull/820)) — the same for `batch > 1`.
       Done when: the batched tests above pass with `batch = 8`.
+      `AssumingNewSuite` runs the first entry's tests at `batch = 1` and `batch = 8`. Three more on threads hold the
+      start until the commands are waiting, so the first turn is a real run: one append and no read for a new entity;
+      a conflict that recovers and decides the run again, in order; a run that writes nothing decided again against
+      what was recovered. A guessed run that writes nothing or conflicts throws before any `then`, and the runtime
+      hands every message of the run back through the stash, sized for the whole run. `TestActors` gives each message
+      its own turn, so its single-step handling already covers it.
 
 ## Acceptance
 
@@ -66,6 +72,8 @@ sharding's envelope. Recommended: the behaviour option.
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-27: go with the recommendations).
 
 1. ~~Should `onStart` wait for the real state?~~ Answered by building (2026-10-25): a hook is wrapped around the
    start from outside (`onStart`, or surefold-bank's own `onRecovered`), so `persistent` cannot hold it back until its

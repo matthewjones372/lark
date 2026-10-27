@@ -398,7 +398,7 @@ plugin reports `SUREFOLD_EFFECT_IN_TRANSACT`, an **error**, on:
 
 | On | Do instead |
 |---|---|
-| Any call into `java.io`, `java.net`, `java.nio.channels` or `java.sql` | Do it before or after `transact` |
+| Any call into `java.io`, `java.net`, `java.nio.channels`, `java.sql`, `kotlin.io` or `kotlin.io.path` (`File.readText`, `readln`, …) | Do it before or after `transact` |
 | `Thread.sleep`, `TimeUnit.sleep`, `Future.get`, `CompletableFuture.get` or `join`, `Deferred.await`, `Lock.lock`, `synchronized` | Wait with `waitForChange()`, or before or after `transact` |
 | `scope`, `async`, `parZip`, `parMap`, `raceN` | Fork before or after `transact` |
 | `logDebug`/`logInfo`/`logWarn`/`logError`, `Logger.log`, `Counter.increment`, `Gauge.set`, `Histogram.record`, `Hub.publish`, `print`, `println` | [`afterCommit { }`](core.md#effects-once-the-step-commits), or after `transact` |

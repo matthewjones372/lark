@@ -78,7 +78,7 @@ callers until they recompile.
       Done when: a call from a class, from a lambda inside it, from its
       companion, from a nested class, from an anonymous `object`, and from a top-level
       function each capture the expected `origin`.
-- [ ] **`spec-0127-library-origins`** — the five direct `LogLine(...)` sites
+- [x] **`spec-0127-library-origins`** ([#770](https://github.com/matthewjones372/surefold/pull/770)) — the five direct `LogLine(...)` sites
       pass their own class.
       Done when: each site's existing test asserts its `origin`.
       Each names the top-level class it is written in, as `logWarn` would from

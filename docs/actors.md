@@ -394,7 +394,9 @@ checks the guess: an append that expects no events before it proves the
 entity new. If it conflicts, or the command persists nothing, the actor
 restarts without asking supervision, recovers, runs its start hooks again and
 handles the same command against what it recovered. Its `then` never ran for
-the guess. It needs `batch = 1` for now.
+the guess. With `batch = n`, the first run of commands is checked the same way:
+one append for all of them proves the entity new, and a run that writes nothing
+or conflicts is handed back whole, in order, once the actor has recovered.
 
 The journal and the snapshot store are the scope's. `InMemoryJournal` and
 `InMemorySnapshots` keep everything in the process, for tests and for trying

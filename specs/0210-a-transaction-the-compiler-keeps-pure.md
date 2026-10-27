@@ -40,6 +40,7 @@ What the checker reports, inside a `transact` lambda or a function taking `Trans
 - `Thread.sleep`, `Deferred.await`, `Future.get`, and the forking combinators (`async`, `parZip`, `parMap`, `raceN`);
 - Surefold's own effects: `Logger`, `Metrics`, `ActorRef.tell`, `Hub.publish`;
 - Kotlin's `print` and `println`;
+- the rest of `kotlin.io` and `kotlin.io.path`, but not `kotlin.io.encoding`, which only computes;
 - writing to a `var` or property captured from outside the lambda;
 - `Shared.peek()`.
 
@@ -65,6 +66,9 @@ families above. Spec 0211 gives each family a legal way to run after commit, so 
 
 - [x] **`spec-0210-println`** ([#754](https://github.com/matthewjones372/surefold/pull/754)) — Kotlin's `print` and `println`, with the message naming `afterCommit { }`.
       Done when: `println` inside `transact` is reported, and outside it is not.
+- [x] **`spec-0210-kotlin-io`** ([#817](https://github.com/matthewjones372/surefold/pull/817)) — the rest of `kotlin.io` and `kotlin.io.path`, refused as I/O.
+      Done when: `File.readText()`, `Path.writeText` and `readln()` inside `transact` are reported, and
+      `Base64.encode` is not.
 
 ## Acceptance
 
