@@ -160,6 +160,7 @@ val moduleDescriptions = mapOf(
         "MinIO in Testcontainers for a service's own tests of surefold-files: a fresh bucket a call.",
     "surefold-tenancy" to
         "Tenancy Postgres enforces: a tenant forks inherit, row-level security per transaction, and an audited bypass.",
+    "surefold-tenancy-test" to "A check that a service's tables keep two tenants apart under row-level security.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does

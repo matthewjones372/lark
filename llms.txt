@@ -113,6 +113,7 @@ Facts worth having before anything else:
 - `surefold-files`: files on any S3-compatible store, with typed failures and an in-memory fake.
 - `surefold-files-test`: MinIO in Testcontainers, a fresh bucket a call, for a service's own tests.
 - `surefold-tenancy`: a tenant forks inherit, and Postgres row-level security set for every transaction.
+- `surefold-tenancy-test`: a check that a service's tables keep two tenants apart.
 - `surefold-actor-projection`: a journal as a `Stream`, for a read model that
   resumes where it left off.
 - `surefold-actor-remote`: `surefold-actor` across nodes over one TCP connection per
@@ -161,6 +162,6 @@ Facts worth having before anything else:
 - [Core](https://github.com/matthewjones372/lark/blob/main/docs/core.md): forks, cancellation, errors, resources, schedules, timeouts, policies, context, Pekko dispatchers.
 - [Applications](https://github.com/matthewjones372/lark/blob/main/docs/app.md): the graph, starting and stopping, probes, testing, the Gradle and compiler plugins.
 - [Application cookbook](https://github.com/matthewjones372/lark/blob/main/docs/cookbook.md): one recipe per task, most compiled by a test.
-- [Streams](https://github.com/matthewjones372/lark/blob/main/docs/stream.md), [Kafka](https://github.com/matthewjones372/lark/blob/main/docs/kafka.md), [Actors](https://github.com/matthewjones372/lark/blob/main/docs/actors.md), [Remoting and clusters](https://github.com/matthewjones372/lark/blob/main/docs/cluster.md), [Jobs](https://github.com/matthewjones372/lark/blob/main/docs/jobs.md), [Files](https://github.com/matthewjones372/lark/blob/main/docs/files.md).
+- [Streams](https://github.com/matthewjones372/lark/blob/main/docs/stream.md), [Kafka](https://github.com/matthewjones372/lark/blob/main/docs/kafka.md), [Actors](https://github.com/matthewjones372/lark/blob/main/docs/actors.md), [Remoting and clusters](https://github.com/matthewjones372/lark/blob/main/docs/cluster.md), [Jobs](https://github.com/matthewjones372/lark/blob/main/docs/jobs.md), [Files](https://github.com/matthewjones372/lark/blob/main/docs/files.md), [Tenancy](https://github.com/matthewjones372/lark/blob/main/docs/tenancy.md).
 - [Observability](https://github.com/matthewjones372/lark/blob/main/docs/observability.md) and [Testing](https://github.com/matthewjones372/lark/blob/main/docs/testing.md).
 - [Feature flags](https://github.com/matthewjones372/lark/blob/main/docs/flags.md): `Flag`, `evaluatedFor`, `featureClient`.
