@@ -62,6 +62,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-app-typesafe`: `config`, `secret`, `choosing`, `overridingConfig`.
 - `surefold-app-kotlinx`: `config<A>(path)` for a `@Serializable` class, no block.
 - `surefold-app-liquibase`: `migrations`, which provides `Migrated`.
+- `surefold-app-flyway`: `flyway` and `migrate`, Flyway's SQL scripts, which provide `Migrated`.
 - `surefold-app-openfeature`: `openFeature { provider }`, a flag provider as a node.
 - `surefold-app-openfeature-flagd`: `flagdFlags(path)`, flags in the service's HOCON; `flagdFlags(path, declared)` checks their variants against the declared `Flag`s at start.
 - `surefold-actor-pekko`: `ask`, `receive`, `same`, `stopped`, `answer` and `pipeToSelf` for a Pekko typed actor, without the wiring graph.

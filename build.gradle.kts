@@ -102,6 +102,8 @@ val moduleDescriptions = mapOf(
     "surefold-micrometer" to "surefold's metrics into a Micrometer registry.",
     "surefold-app-liquibase" to
         "surefold-app on Liquibase: a migration is a node, and reading the database depends on it.",
+    "surefold-app-flyway" to
+        "surefold-app on Flyway: SQL migrations as a node, with the settings a production database wants pinned.",
     "surefold-app-typesafe" to
         "surefold-app on Typesafe Config: a section is a node, and a bad file says every fault at once.",
     "surefold-app-kotlinx" to
