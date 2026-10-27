@@ -118,6 +118,7 @@ Facts worth having before anything else:
 - `surefold-idempotency`: idempotency keys on Postgres, reserved atomically across instances, answers replayed.
 - `surefold-ratelimit`: token buckets in memory or on Postgres, shared by every instance.
 - `surefold-auth`: sessions and credentials: Argon2id passwords, rotating sessions, magic links, TOTP, roles.
+- `surefold-auth-oidc`: OpenID Connect sign-in on Nimbus: the code flow with PKCE, every ID token check.
 - `surefold-actor-projection`: a journal as a `Stream`, for a read model that
   resumes where it left off.
 - `surefold-actor-remote`: `surefold-actor` across nodes over one TCP connection per

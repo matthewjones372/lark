@@ -168,6 +168,8 @@ val moduleDescriptions = mapOf(
     "surefold-ratelimit" to "Rate limits as token buckets, in memory or on Postgres, shared by every instance.",
     "surefold-auth" to
         "Sessions and credentials on Postgres: Argon2id passwords, rotating sessions, magic links, TOTP, roles.",
+    "surefold-auth-oidc" to
+        "OpenID Connect sign-in on Nimbus: the code flow with PKCE, and each ID token check its own error.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
