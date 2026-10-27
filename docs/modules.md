@@ -136,7 +136,8 @@ against; the library's own transitive dependencies come with it.
 | `surefold-jobs` | durable jobs on Postgres, enqueued in the caller's own transaction ([guide](jobs.md)) | `surefold` | none (bring your own driver and pool) | yes |
 | `surefold-app-jobs` | a job worker as a node, started after the migrations and drained on release ([guide](jobs.md#a-kind-a-handler-and-a-worker)) | `surefold-app-liquibase`, `surefold-jobs` | none beyond Liquibase | yes |
 | `surefold-jobs-load` | a Proofload load test: jobs enqueued at a fixed rate, drained by 1, 4 and 16 workers (`./gradlew :surefold-jobs-load:run`) | | Proofload, Testcontainers | no |
-| `surefold-files` | files on any S3-compatible store, with typed failures and an in-memory fake (spec 0224, in progress) | `surefold` | none yet | yes |
+| `surefold-files` | files on any S3-compatible store, with typed failures and an in-memory fake (spec 0224, in progress) | `surefold` | AWS SDK 2.55.6 `s3`, on its URL-connection client | yes |
+| `surefold-files-test` | MinIO in Testcontainers, a fresh bucket a call, for a service's own tests | `surefold-files` | Testcontainers 2.0.5 | yes |
 | `surefold-jobs-otel` | a span per run of a job, in its own trace and linked to the span that enqueued it ([guide](jobs.md#traces)) | `surefold-jobs`, `surefold-otel` | none beyond `opentelemetry-api` | yes |
 
 ### Observability and testing
