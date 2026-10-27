@@ -77,7 +77,7 @@ the hub adds only its queues.
       - a full subscriber refuses `publish` for all;
       - a stopped subscriber no longer counts towards "full";
       - `close` ends every subscription `Done`.
-- [ ] **`spec-0057-petshop`** (in petshop): replace `QueueBus` with `Hub`.
+- [x] **`spec-0057-petshop`** (in petshop) ([petshop#29](https://github.com/matthewjones372/petshop/pull/29)): replace `QueueBus` with `Hub`.
       Done when: `BusSpec` and `EventsSpec` pass unchanged against the hub.
 
 ## Acceptance

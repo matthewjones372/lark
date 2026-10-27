@@ -41,13 +41,13 @@ instances; recommended against. Reflection for `PGConnection` keeps the "no driv
 
 ## Stack
 
-- [ ] **`spec-0217-tenants`** — `perTenant` on `JobSettings`, the ranked claim.
+- [x] **`spec-0217-tenants`** ([#775](https://github.com/matthewjones372/surefold/pull/775)) — `perTenant` on `JobSettings`, the ranked claim.
       Done when: 100 jobs of tenant A and 5 of tenant B, claimed 10 at a time with `perTenant = 5`, give B all 5 in
       the first claim.
-- [ ] **`spec-0217-rate`** — `JobRate`, the buckets table, a claim that takes tokens.
+- [x] **`spec-0217-rate`** ([#777](https://github.com/matthewjones372/surefold/pull/777)) — `JobRate`, the buckets table, a claim that takes tokens.
       Done when: two workers draining 100 jobs of a kind limited to 10 a second, with a burst of 10, run at most
       10 + 10 per second elapsed on a `TestClock`.
-- [ ] **`spec-0217-notify`** — `pg_notify` on enqueue, a listening connection in the worker.
+- [x] **`spec-0217-notify`** ([#777](https://github.com/matthewjones372/surefold/pull/777)) — `pg_notify` on enqueue, a listening connection in the worker.
       Done when: with `poll = 1.minutes`, a job enqueued now runs within a second.
 
 ## Acceptance

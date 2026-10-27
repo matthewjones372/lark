@@ -35,12 +35,12 @@ parent is OpenTelemetry's own advice for work queued and run later.
 
 ## Stack
 
-- [ ] **`spec-0220-watcher`** — `JobRunWatcher` and `JobRunInfo` in `surefold-jobs`, called around each run.
+- [x] **`spec-0220-watcher`** ([#783](https://github.com/matthewjones372/surefold/pull/783)) — `JobRunWatcher` and `JobRunInfo` in `surefold-jobs`, called around each run.
       Done when: a test watcher sees every run's kind, attempt and result, in order.
-- [ ] **`spec-0220-otel`** — `surefold-jobs-otel`, a span per run linked to the enqueuer.
+- [x] **`spec-0220-otel`** ([#784](https://github.com/matthewjones372/surefold/pull/784)) — `surefold-jobs-otel`, a span per run linked to the enqueuer.
       Done when: a job enqueued inside a span runs in a new trace whose root links to it, with the handler's span as
       a child.
-- [ ] **`spec-0220-load`** — the Proofload bench.
+- [x] **`spec-0220-load`** ([#785](https://github.com/matthewjones372/surefold/pull/785)) — the Proofload bench.
       Done when: it runs with `./gradlew :surefold-jobs-load:run` and prints claims per second per worker count.
 
 ## Acceptance

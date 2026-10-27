@@ -50,14 +50,14 @@ application's connections never hold cannot be switched on from them.
 
 ## Stack
 
-- [ ] **`spec-0225-context`** — the module, `TenantId`, the local, `withTenant`, `TenantCarrier`.
+- [x] **`spec-0225-context`** ([#792](https://github.com/matthewjones372/surefold/pull/792)) — the module, `TenantId`, the local, `withTenant`, `TenantCarrier`.
       Done when: a tenant bound before a `parMap` is read in every branch, and crosses `Carriers.capture`.
-- [ ] **`spec-0225-transactions`** — `TenantTransactions`, the audit changelog, `NoTenant`.
+- [x] **`spec-0225-transactions`** ([#793](https://github.com/matthewjones372/surefold/pull/793)) — `TenantTransactions`, the audit changelog, `NoTenant`.
       Done when: on Postgres with a forced policy, a transaction as tenant A reads none of tenant B's rows, one with
       no tenant is refused, and a system transaction reads both and leaves an audit row.
-- [ ] **`spec-0225-testkit`** — `surefold-tenancy-test`, and `docs/tenancy.md` with the policy and changelog.
+- [x] **`spec-0225-testkit`** ([#794](https://github.com/matthewjones372/surefold/pull/794)) — `surefold-tenancy-test`, and `docs/tenancy.md` with the policy and changelog.
       Done when: the kit fails a table whose policy was left out, and passes one with it.
-- [ ] **`spec-0225-jobs`** — `surefold-jobs-tenancy`.
+- [x] **`spec-0225-jobs`** ([#795](https://github.com/matthewjones372/surefold/pull/795)) — `surefold-jobs-tenancy`.
       Done when: a job enqueued with tenant B runs its handler with `currentTenant()` B.
 
 ## Acceptance

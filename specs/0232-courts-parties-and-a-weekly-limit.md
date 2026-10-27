@@ -83,7 +83,7 @@ lock to explain, but it retries unrelated bookings that touched the same index p
       `booking_limits`; with none, nothing is counted. A booking takes its member's `member_quota` row `for update`,
       then counts their slots starting in each touched day and ISO week in the zone, and is 422 naming the limit,
       the count and the day or week. With the lock removed, the concurrency test fails.
-- [ ] **`spec-0232-events`** — `host`, `EventRequest`, `bookings:host`, and events left out of member limits.
+- [x] **`spec-0232-events`** ([#825](https://github.com/matthewjones372/surefold/pull/825)) — `host`, `EventRequest`, `bookings:host`, and events left out of member limits.
       Done when: a member without `bookings:host` is refused; an event's courts are held against members' bookings;
       an event leaves every member's count where it was.
       `bookings.kind` is `booking` or `event`, with `guests` for an event. `host` takes the same idempotency, clash
