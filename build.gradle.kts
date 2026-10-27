@@ -168,6 +168,8 @@ val moduleDescriptions = mapOf(
     "surefold-idempotency" to
         "Idempotent requests on Postgres: keys reserved atomically across instances, and answers replayed.",
     "surefold-ratelimit" to "Rate limits as token buckets, in memory or on Postgres, shared by every instance.",
+    "surefold-postgres-notify" to
+        "Postgres's LISTEN and NOTIFY as a surefold Stream: one connection, notifications in commit order.",
     "surefold-auth" to
         "Sessions and credentials on Postgres: Argon2id passwords, rotating sessions, magic links, TOTP, roles.",
     "surefold-auth-oidc" to

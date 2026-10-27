@@ -77,6 +77,7 @@ module("data", "surefold-tenancy-test")
 module("data", "surefold-jobs-tenancy")
 module("data", "surefold-idempotency")
 module("data", "surefold-ratelimit")
+module("data", "surefold-postgres-notify")
 module("data", "surefold-auth")
 module("data", "surefold-auth-oidc")
 
