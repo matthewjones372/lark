@@ -61,7 +61,7 @@ would mean different things under one name, and a block returning `Boolean` woul
 
 ## Stack
 
-- [ ] **`spec-0200-holds`** — `holds { }` in `surefold-junit`, with tests and a sample: a block that returns, one
+- [x] **`spec-0200-holds`** ([#662](https://github.com/matthewjones372/surefold/pull/662)) — `holds { }` in `surefold-junit`, with tests and a sample: a block that returns, one
       that throws an `AssertionError`, one that throws `AssertionFailedError` with expected and actual, and one
       that throws something else. Also a line in `docs/testing.md`'s matcher list, and `surefold-bank`'s two page
       suites on it, without their `expect(true)`.

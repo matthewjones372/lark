@@ -52,7 +52,7 @@ would then be ambiguous, or would quietly pick a different return type. Recommen
 
 ## Stack
 
-- [ ] **`claude/flock-nothing-design-1ix8zy`** — `scope` in `Flock.kt`, with a test, and every `flock<Nothing, …>` in
+- [x] **`claude/flock-nothing-design-1ix8zy`** ([#723](https://github.com/matthewjones372/surefold/pull/723)) — `scope` in `Flock.kt`, with a test, and every `flock<Nothing, …>` in
       the repo swapped for it.
       Done when: `:surefold:check` passes with a test that `scope` answers its block's value and rethrows an
       unawaited fork's throw, and `grep -rn 'flock<Nothing' --include=*.kt --include=*.md . | grep -v '^./specs'`

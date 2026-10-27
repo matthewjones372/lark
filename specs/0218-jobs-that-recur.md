@@ -43,13 +43,13 @@ RRULE later if a rule cron cannot say comes up.
 
 ## Stack
 
-- [ ] **`spec-0218-cron`** — `Cron.parse` and `next` in a zone. Pure, no database.
+- [x] **`spec-0218-cron`** ([#778](https://github.com/matthewjones372/surefold/pull/778)) — `Cron.parse` and `next` in a zone. Pure, no database.
       Done when: "30 1 * * *" in Europe/London fires at 02:00 BST (01:00 UTC) on 2026-03-29, and once, at 00:30 UTC,
       on 2026-10-25. (The first draft said "30 2", but London changes its clocks at 01:00, so 02:30 is never skipped
       or repeated.)
-- [ ] **`spec-0218-schedules`** — system entries enqueued by the worker's housekeeping.
+- [x] **`spec-0218-schedules`** ([#779](https://github.com/matthewjones372/surefold/pull/779)) — system entries enqueued by the worker's housekeeping.
       Done when: two workers on one `TestClock` across an hour of a "*/5" entry run it 12 times, not 24.
-- [ ] **`spec-0218-recurrence`** — the `recurrence` column, `enqueueRecurring`, the next occurrence on finish.
+- [x] **`spec-0218-recurrence`** ([#780](https://github.com/matthewjones372/surefold/pull/780)) — the `recurrence` column, `enqueueRecurring`, the next occurrence on finish.
       Done when: a daily 08:00 Europe/London rule run across the October change fires at 07:00 UTC then 08:00 UTC.
 
 ## Acceptance

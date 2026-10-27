@@ -56,7 +56,7 @@ existing suite, but the name a reader meets first stays the long form. Recommend
 
 ## Stack
 
-- [ ] **`spec-0199-suite`** — `Suite` and `SharedSuite<R>` in `surefold-junit`, and every suite in the repo on its
+- [x] **`spec-0199-suite`** ([#660](https://github.com/matthewjones372/surefold/pull/660)) — `Suite` and `SharedSuite<R>` in `surefold-junit`, and every suite in the repo on its
       new header: `Suite<Unit>` with nothing shared becomes `Suite`, every other `Suite<R>` becomes
       `SharedSuite<R>`. One PR, since the repo cannot build with only one half. The move is test code, so the
       PR stays inside the line cap.

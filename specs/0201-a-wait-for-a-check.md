@@ -52,12 +52,12 @@ story steps would need a third name. Recommended: the interface.
 
 ## Stack
 
-- [ ] **`spec-0201-wait`** — the interface and `eventually` reading it in `surefold-test`, `Expectations`
+- [x] **`spec-0201-wait`** ([#678](https://github.com/matthewjones372/surefold/pull/678)) — the interface and `eventually` reading it in `surefold-test`, `Expectations`
       implementing it, tests for each case, and a paragraph in `docs/testing.md`.
       Done when: `:surefold-test:check` and `:surefold-junit:check` pass.
       The tests cover a check that holds on the third try, one that never holds, a step that waits, and a block
       that throws.
-- [ ] **`spec-0201-loops`** — the hand-rolled deadline loops in surefold's suites that wait for a condition
+- [x] **`spec-0201-loops`** ([#679](https://github.com/matthewjones372/surefold/pull/679)) — the hand-rolled deadline loops in surefold's suites that wait for a condition
       become `eventually`. The Kafka loops that gather records as they poll stay as they are.
       Done when: each remaining `nanoTime()` deadline in a suite is a gathering loop, named in the PR.
 

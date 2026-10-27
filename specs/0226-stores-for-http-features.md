@@ -50,15 +50,15 @@ recommended against, since a store nobody prunes grows without end.
 
 ## Stack
 
-- [ ] **`spec-0226-idempotency`** — `surefold-idempotency`: the store, its changelog, reserve, complete, release.
+- [x] **`spec-0226-idempotency`** ([#797](https://github.com/matthewjones372/surefold/pull/797)) — `surefold-idempotency`: the store, its changelog, reserve, complete, release.
       Done when: 50 threads reserving one key at once get exactly one `Reserved`, a replay answers the stored
       response, a different fingerprint is a mismatch, and a lease left by a dead instance is taken over.
-- [ ] **`spec-0226-prune`** — `prune`, `IdempotencyPrune` and its cron entry.
+- [x] **`spec-0226-prune`** ([#798](https://github.com/matthewjones372/surefold/pull/798)) — `prune`, `IdempotencyPrune` and its cron entry.
       Done when: a worker with the entry deletes expired keys and keeps live ones.
-- [ ] **`spec-0226-ratelimit`** — `surefold-ratelimit`: `RateLimits`, in memory and on Postgres.
+- [x] **`spec-0226-ratelimit`** ([#799](https://github.com/matthewjones372/surefold/pull/799)) — `surefold-ratelimit`: `RateLimits`, in memory and on Postgres.
       Done when: 8 threads taking 1,000 times from one bucket of 10 a second, burst 20, over 5 seconds of a
       `TestClock`, are allowed exactly 70, on both.
-- [ ] **`spec-0226-docs`** — `docs/http-stores.md`, the module tables.
+- [x] **`spec-0226-docs`** ([#800](https://github.com/matthewjones372/surefold/pull/800)) — `docs/http-stores.md`, the module tables.
       Done when: the guide's example is held to a compiled source.
 
 ## Acceptance
