@@ -58,7 +58,7 @@ Recommended: `unbound()`.
 
 ## Stack
 
-- [ ] **`spec-0234-unbound`** — `SurefoldLocal.unbound()`, `get()` on it, a core test, surefold-slf4j's suite on it,
+- [x] **`spec-0234-unbound`** ([#847](https://github.com/matthewjones372/surefold/pull/847)) — `SurefoldLocal.unbound()`, `get()` on it, a core test, surefold-slf4j's suite on it,
       and the docs.
       Done when: `:surefold:check` and `:surefold-slf4j:check` pass, and a test shows `logger.unbound()` is
       `StderrLogger` inside `logger.locally(…)`.
