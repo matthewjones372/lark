@@ -61,7 +61,7 @@ Recommended: Bouncy Castle.
 - [x] **`spec-0227-sessions`** — `PostgresSessions`: create, resolve, rotate, revoke, its changelog.
       Done when: on a `TestClock`, a session dies after `idle` unresolved and after `absolute` however often resolved,
       a rotated token stops resolving, and a revoked one stops on another instance.
-- [ ] **`spec-0227-links`** — `PostgresMagicLinks`.
+- [x] **`spec-0227-links`** — `PostgresMagicLinks`.
       Done when: a link redeems once, and 20 threads redeeming one link at once get it once between them.
 - [ ] **`spec-0227-roles`** — roles and permissions, loaded into the principal.
       Done when: a user with a role in one tenant has its permissions there and not in another.
