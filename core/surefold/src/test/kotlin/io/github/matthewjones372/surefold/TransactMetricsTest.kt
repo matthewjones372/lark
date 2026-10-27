@@ -47,6 +47,18 @@ class TransactMetricsTest {
     }
 
     @Test
+    fun `a step that ran alone records its run as solo, once`() {
+        val free = Shared(10)
+
+        capturingMetrics { measured ->
+            transact("report", soloAfter = 0) { free.update { it - 1 } }
+
+            measured.counter("surefold.transact.runs") shouldBe 1.0
+            measured.tags("surefold.transact.runs") shouldBe mapOf("transact" to "report", "outcome" to "solo")
+        }
+    }
+
+    @Test
     fun `a step that throws or fails records a failed run`() {
         capturingMetrics { measured ->
             shouldThrow<IllegalStateException> { transact("hold") { error("payment refused") } }

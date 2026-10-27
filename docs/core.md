@@ -577,7 +577,7 @@ says which value it lost to. Each is recorded through
 
 | Metric | Kind | Tags |
 |---|---|---|
-| `surefold.transact.runs` | counter | `transact`, `outcome` (`committed`, `failed`, `cancelled`) |
+| `surefold.transact.runs` | counter | `transact`, `outcome` (`committed`, `solo`, `failed`, `cancelled`) |
 | `surefold.transact.retries` | counter | `transact`, `cause`: the name of the first value it had read that changed, `unnamed`, or `waited` |
 | `surefold.transact.attempts` | histogram | `transact`; runs per commit |
 
@@ -587,7 +587,32 @@ step that commits on its first run records one run and one attempt.
 
 With `surefold-otel` on the classpath, a step that ran more than once also adds
 one `transact.retried` event to the span it ran in when it commits, carrying
-`transact`, `attempts` and a `retries.<cause>` count for each value it lost to.
+`transact`, `attempts` and a `retries.<cause>` count for each value it lost to,
+and `solo` when it [ran alone](#when-a-step-keeps-losing).
+
+### When a step keeps losing
+
+A step that reads many values loses to every short step that writes one of
+them first. Under steady contention it could run again forever, so after
+`soloAfter` lost runs, 10 unless the step says otherwise, its next run is
+alone: no other step commits until it has, so it commits on that run. Other
+steps that try to commit meanwhile wait for it, then carry on.
+
+<!-- core-solo -->
+```kotlin
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.transact
+
+val sections = List(1_000) { Shared(120) }
+
+// Runs alone after 3 lost runs, rather than racing every hold on every section.
+fun seatsLeft(): Int = transact("report", soloAfter = 3) { sections.sumOf { it.get() } }
+```
+
+A run alone is counted with `outcome=solo`. While it runs, every other commit
+waits, so keep a step that may run alone short, and never have it wait on
+another step's commit: alone, that commit waits on it. `soloAfter =
+Int.MAX_VALUE` never runs alone.
 
 ## What a fork inherits
 

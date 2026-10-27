@@ -4,12 +4,13 @@ import java.util.ServiceConfigurationError
 import java.util.ServiceLoader
 
 /**
- * Told of a step that committed after running more than once (spec 0212), with how many runs it took and how many
- * of them gave up on each cause. Registered through `META-INF/services`, as a [Carrier] is: `surefold-otel` adds it to
- * the current span. A step that commits on its first run tells nothing.
+ * Told of a step that committed after running more than once (spec 0212), with how many runs it took, how many of
+ * them gave up on each cause, and whether the run that committed ran alone (spec 0231). Registered through
+ * `META-INF/services`, as a [Carrier] is: `surefold-otel` adds it to the current span. A step that commits on its
+ * first run tells nothing.
  */
 interface RetryWatcher {
-    fun committed(transact: String, attempts: Int, causes: Map<String, Int>)
+    fun committed(transact: String, attempts: Int, causes: Map<String, Int>, solo: Boolean)
 }
 
 internal object RetryWatchers {
@@ -25,7 +26,7 @@ internal object RetryWatchers {
         }
     }
 
-    fun committed(transact: String, attempts: Int, causes: Map<String, Int>) {
-        registered.forEach { it.committed(transact, attempts, causes) }
+    fun committed(transact: String, attempts: Int, causes: Map<String, Int>, solo: Boolean) {
+        registered.forEach { it.committed(transact, attempts, causes, solo) }
     }
 }

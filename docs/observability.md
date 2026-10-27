@@ -153,7 +153,8 @@ log lines.
 
 A [`transact`](core.md#why-a-step-ran-again) step that ran more than once adds
 a `transact.retried` event to the current span when it commits, with its name,
-its `attempts` and a `retries.<cause>` count for each value it lost to. A step
+its `attempts`, a `retries.<cause>` count for each value it lost to, and
+`solo` when it [ran alone](core.md#when-a-step-keeps-losing) in the end. A step
 that commits on its first run adds nothing.
 
 ### Across messages, events and records

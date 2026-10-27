@@ -47,9 +47,9 @@ private fun <A> untilCommitted(name: String, soloAfter: Int, block: Transaction.
             val step = Transaction(if (attempts > soloAfter) Solo.take() else null)
             val answer = step.attempt(block)
             if (answer !== Again) {
-                counter(RUNS, "transact" to name, "outcome" to "committed").increment()
+                counter(RUNS, "transact" to name, "outcome" to if (step.alone) "solo" else "committed").increment()
                 histogram(ATTEMPTS, "transact" to name).record(attempts.toDouble())
-                causes?.let { RetryWatchers.committed(name, attempts, it) }
+                causes?.let { RetryWatchers.committed(name, attempts, it, step.alone) }
                 // Only Again is not the block's answer, so this is an A.
                 @Suppress("UNCHECKED_CAST")
                 return step to answer as A
@@ -115,6 +115,9 @@ private val running = ThreadLocal<Transaction?>()
 
 /** The step a [transact] block runs in. A [Shared] is read and written only through it. */
 class Transaction internal constructor(private var solo: Any?) {
+    // Whether this run ran alone (spec 0231), which it still did after giving the word up.
+    internal val alone = solo != null
+
     private var readAt: Tick = commits.read()
     private val reads = HashMap<Shared<*>, Versioned<*>>()
     private val writes = HashMap<Shared<*>, Any?>()
