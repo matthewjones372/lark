@@ -173,7 +173,8 @@ val surefoldJunitRunsOn =
     setOf("surefold", "surefold-assert", "surefold-test", "surefold-junit", "surefold-junit-testkit")
 
 // Measured, not tested: a benchmark has no assertions for a coverage floor to count.
-val benchmarkModules = setOf("surefold-stream-benchmarks", "surefold-actor-benchmarks", "surefold-kafka-benchmarks")
+val benchmarkModules =
+    setOf("surefold-stream-benchmarks", "surefold-actor-benchmarks", "surefold-kafka-benchmarks", "surefold-jobs-load")
 
 // Built and tested, never published: surefold-structured calls StructuredTaskScope, a preview API until
 // JDK 28 (JEP 543), and a release must not promise an API the JDK has not. surefold-bank is an application

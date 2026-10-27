@@ -73,5 +73,6 @@ module("data", "surefold-jobs-otel")
 module("bench", "surefold-stream-benchmarks")
 module("bench", "surefold-actor-benchmarks")
 module("bench", "surefold-kafka-benchmarks")
+module("bench", "surefold-jobs-load")
 
 module("examples", "surefold-bank")
