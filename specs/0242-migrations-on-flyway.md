@@ -49,6 +49,10 @@ val applied: Int = migrate(ownerSource, SurefoldSchema.JOBS, service = "classpat
   `.sql.conf` with `executeInTransaction=false`; `postgresql.transactional.lock = false`, so such a script cannot
   wait on the lock's own transaction; `connectRetries = 0`, since a service that cannot reach Postgres should fail start
   and be restarted. Repeatable `R__` scripts are allowed for the service; the modules ship none.
+- **A history table starts at a baseline of `0`**: Flyway refuses a non-empty schema that has no history table, which
+  every table after the first meets, so one with nothing applied is baselined at `0` and then migrated. No script is
+  skipped (a `V0` is refused), and Flyway's own refusal is replaced by `relation already exists` on a first script that
+  meets existing tables, and by refusing a database with `databasechangelog` unless `fromLiquibase` is set.
 - **From Liquibase**: `flyway(…, fromLiquibase = "doorlist:0014-live-updates")` baselines at `V1` only when there is no
   Flyway history and `databasechangelog`'s last row is that id, else refuses to start; modules baseline at the version
   matching their last applied changeset. `docs/flyway.md` takes a service through it: `V1` is a schema-only dump of
@@ -74,7 +78,7 @@ in the build. What Flyway Community loses: rollback blocks, preconditions, conte
       an edited applied script fails start naming its checksum; `clean()` throws; with `connect`, the tables are
       owned by the owner role and that pool is closed before `Migrated` is answered.
 - [x] **`spec-0242-liquibase-connect`** — `connect` on `migrations`. Done when: the same owner-role test passes.
-- [ ] **`spec-0242-module-scripts`** — Flyway scripts in the five data modules, `SurefoldSchema`, the equality check.
+- [x] **`spec-0242-module-scripts`** — Flyway scripts in the five data modules, `SurefoldSchema`, the equality check.
       Done when: per module, the catalog (tables, columns, constraints, indexes, policies, grants, functions) after
       Flyway equals that after Liquibase; jobs listed before tenancy still runs after it.
 - [ ] **`spec-0242-from-liquibase`** — `fromLiquibase`, `docs/flyway.md`, cookbook and module tables.
