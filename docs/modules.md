@@ -141,6 +141,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-tenancy` | a tenant forks and messages carry, and Postgres row-level security set for every transaction ([guide](tenancy.md)) | `surefold` | none (bring your own driver and pool) | yes |
 | `surefold-tenancy-test` | a check that a service's tables keep two tenants apart ([guide](tenancy.md#testing-isolation)) | `surefold-tenancy` | none | yes |
 | `surefold-jobs-tenancy` | each job's handler runs as the tenant its row names ([guide](tenancy.md#jobs)) | `surefold-jobs`, `surefold-tenancy` | none | yes |
+| `surefold-idempotency` | idempotency keys on Postgres, reserved atomically across instances, answers replayed (spec 0226, in progress) | `surefold` | none (bring your own driver and pool) | yes |
 | `surefold-jobs-otel` | a span per run of a job, in its own trace and linked to the span that enqueued it ([guide](jobs.md#traces)) | `surefold-jobs`, `surefold-otel` | none beyond `opentelemetry-api` | yes |
 
 ### Observability and testing

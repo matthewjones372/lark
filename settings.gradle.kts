@@ -74,6 +74,7 @@ module("data", "surefold-files-test")
 module("data", "surefold-tenancy")
 module("data", "surefold-tenancy-test")
 module("data", "surefold-jobs-tenancy")
+module("data", "surefold-idempotency")
 
 module("bench", "surefold-stream-benchmarks")
 module("bench", "surefold-actor-benchmarks")
