@@ -109,6 +109,7 @@ Facts worth having before anything else:
 - `surefold-actor-journal-jdbc`: `surefold-actor`'s journal and snapshots on JDBC.
 - `surefold-jobs`: durable jobs on Postgres, enqueued in the caller's own transaction.
 - `surefold-app-jobs`: a job worker as a `surefold-app` node, started after the migrations.
+- `surefold-jobs-otel`: a span per run of a job, linked to the span that enqueued it.
 - `surefold-actor-projection`: a journal as a `Stream`, for a read model that
   resumes where it left off.
 - `surefold-actor-remote`: `surefold-actor` across nodes over one TCP connection per
