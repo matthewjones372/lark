@@ -81,6 +81,11 @@ callers until they recompile.
 - [ ] **`spec-0127-library-origins`** — the five direct `LogLine(...)` sites
       pass their own class.
       Done when: each site's existing test asserts its `origin`.
+      Each names the top-level class it is written in, as `logWarn` would from
+      there: `RemoteNode`, `PullRun` and `Pulling` in Forks, `Restarts`, and the
+      file classes `TimedKt` and `BackendKt`, taken once from
+      `MethodHandles.lookup()` in a file-level initializer. Remote's unreadable
+      frame had no test, so `RemoteSuite` gains one.
 - [x] **`spec-0127-slf4j-by-origin`** — `Slf4jLogger` names its SLF4J logger by
       `origin` unless it was given a name. README and cookbook say so, including
       the change for anyone who configured `<logger name="surefold">`.
@@ -95,6 +100,8 @@ callers until they recompile.
 ```
 
 ## Open questions
+
+Answered (maintainer, 2026-10-26: go with the recommendations).
 
 1. **Should the `ClassValue` hold the SLF4J logger too?** It would save
    `getLogger`'s own cache lookup, but `surefold` cannot name an SLF4J type.

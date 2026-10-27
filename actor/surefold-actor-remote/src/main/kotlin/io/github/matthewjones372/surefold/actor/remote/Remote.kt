@@ -265,6 +265,7 @@ class RemoteNode internal constructor(
                         "surefold-actor-remote: a frame from $from for ${frame.path} could not be read: $unreadable",
                         time.now(),
                         unreadable,
+                        origin = RemoteNode::class.java.name,
                     ),
                 )
             }

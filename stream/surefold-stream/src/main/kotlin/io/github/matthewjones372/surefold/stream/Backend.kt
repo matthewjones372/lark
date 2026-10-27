@@ -4,8 +4,12 @@ import io.github.matthewjones372.surefold.LogLevel
 import io.github.matthewjones372.surefold.LogLine
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.logger
+import java.lang.invoke.MethodHandles
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
+
+// The file's own class, as `logWarn` would name it from here (spec 0127): a top-level initializer runs in it.
+private val BACKEND: String = MethodHandles.lookup().lookupClass().name
 
 /** What runs a described [Run]: Pekko Streams, forks, or a test's own clock. The description never says which. */
 interface StreamBackend {
@@ -73,7 +77,7 @@ private fun Run<*, *>.refusedBy(backend: StreamBackend): Throwable? {
     }
     val refusal = IllegalStateException("surefold-stream: $reason")
     // A defect is logged before the Exit carrying it is handed back: the stage may be one nobody reads.
-    logger.get().log(LogLine(LogLevel.Error, refusal.message.orEmpty(), clock.get().now(), refusal))
+    logger.get().log(LogLine(LogLevel.Error, refusal.message.orEmpty(), clock.get().now(), refusal, origin = BACKEND))
     return refusal
 }
 

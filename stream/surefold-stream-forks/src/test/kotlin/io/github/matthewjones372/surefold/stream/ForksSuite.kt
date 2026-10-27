@@ -1,5 +1,8 @@
 package io.github.matthewjones372.surefold.stream
 
+import io.github.matthewjones372.surefold.LogLevel
+import io.github.matthewjones372.surefold.LogLine
+import io.github.matthewjones372.surefold.Logger
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.bind
 import io.github.matthewjones372.surefold.fail.left
@@ -13,6 +16,7 @@ import io.github.matthewjones372.surefold.junit.shouldContain
 import io.github.matthewjones372.surefold.junit.shouldContainExactly
 import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.junit.withClue
+import io.github.matthewjones372.surefold.logger
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -107,12 +111,16 @@ object ForksSuite : Suite() {
         }
 
         test("a defect ends the run Died, naming the operator, the element and the line that wrote it") {
-            val exit = Stream.of(1, 2).map { n -> check(n < 2) { "too big" }; n }.collected()
+            val lines = ConcurrentLinkedQueue<LogLine>()
+            val exit = logger.locally(Logger { lines += it }) {
+                Stream.of(1, 2).map { n -> check(n < 2) { "too big" }; n }.collected()
+            }
 
             exit.shouldBeInstanceOf<Exit.Died> { died ->
                 died.cause.shouldBeInstanceOf<IllegalStateException>()
                 died.cause.suppressed.single().message shouldContain "map died on 2, built at ForksSuite.kt:"
             }
+            lines.map { it.level to it.origin } shouldBe listOf(LogLevel.Error to Pulling::class.java.name)
         }
 
         test("in a fused run a defect names the step that threw, its element and its line") {

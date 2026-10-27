@@ -192,6 +192,7 @@ object TestStreamsSuite : Suite() {
                 LogLevel.Warn to Instant.EPOCH,
                 LogLevel.Warn to Instant.EPOCH.plusSeconds(30),
             )
+            lines.map { it.origin }.distinct() shouldBe listOf("io.github.matthewjones372.surefold.stream.TimedKt")
         }
 
         test("stopping a run that waits on the clock ends it Done with what it had") {

@@ -60,7 +60,7 @@ repeats 0115. Recommended: snapshot here, wait there.
 
 ## Stack
 
-- [ ] **`spec-0117-topic-reader`** — `Kafka.reading`, `TopicReader`,
+- [x] **`spec-0117-topic-reader`** ([#766](https://github.com/matthewjones372/surefold/pull/766)) — `Kafka.reading`, `TopicReader`,
       `committedOffset` and `committedOffsets`.
       Done when: against an embedded broker, `records()` on a topic holding
       three records across two partitions answers all three and returns
