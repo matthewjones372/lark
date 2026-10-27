@@ -128,6 +128,24 @@ object MembershipSuite : Suite() {
             removed shouldBe true
         }
 
+        test("a member that goes quiet once it is seen leaving is removed without waiting to be downed") {
+            val net = Net()
+            net.fiveUp()
+
+            net.nodes.getValue(at(2)).leave()
+            net.until { net.view(3).members.any { it.node == at(2) && it.status == Status.Leaving } } shouldBe true
+            net.stop(2)
+            withClue("the leader has not removed it yet") { net.view(1).members.any { it.node == at(2) } shouldBe true }
+            // A second leaver changes the view the first last agreed to, so every member can never agree with it.
+            net.nodes.getValue(at(4)).leave()
+
+            // Well short of the 20 s keepMajority waits before it downs an unreachable member.
+            val removed = net.until(steps = 50) {
+                listOf(1, 3, 5).all { v -> net.view(v).members.none { it.node == at(2) || it.node == at(4) } }
+            }
+            removed shouldBe true
+        }
+
         test("nodes of another cluster that probe this one are not taken in") {
             val net = Net()
             (1..3).forEach { net.start(it, seeds(1)) }
