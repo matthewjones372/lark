@@ -20,10 +20,15 @@ class Shared<T>(initial: T, val name: String? = null) {
  * Runs [block] as one step: its writes land together when it commits, or not at all if it throws or fails. A step whose
  * reads were changed by another commit first runs again, so [block] can run more than once. Inside another step, it
  * joins that step. Effects queued with [Transaction.afterCommit] run once it has committed, before this returns.
+ *
+ * A step that lost [soloAfter] runs runs alone (spec 0231): no other step commits until it has, so it commits on that
+ * run. Every other commit waits for it meanwhile, so a solo run that blocks holds them all up. `Int.MAX_VALUE` never
+ * runs alone.
  */
-fun <A> transact(name: String? = null, block: Transaction.() -> A): A {
+fun <A> transact(name: String? = null, soloAfter: Int = SOLO_AFTER, block: Transaction.() -> A): A {
+    require(soloAfter >= 0) { "A step cannot run alone after $soloAfter lost runs." }
     running.get()?.let { return it.block() }
-    val (step, answer) = untilCommitted(name ?: UNNAMED, block)
+    val (step, answer) = untilCommitted(name ?: UNNAMED, soloAfter, block)
     // Outside the step, so an effect that calls transact starts a step of its own; and after the run is counted
     // committed, so an effect that throws does not count it failed.
     step.runEffects()
@@ -31,14 +36,15 @@ fun <A> transact(name: String? = null, block: Transaction.() -> A): A {
 }
 
 // Runs the step until a run commits, recording each run's outcome and each retry's cause (spec 0212).
-private fun <A> untilCommitted(name: String, block: Transaction.() -> A): Pair<Transaction, A> {
+private fun <A> untilCommitted(name: String, soloAfter: Int, block: Transaction.() -> A): Pair<Transaction, A> {
     var attempts = 0
     // Null until the first retry, so a step that commits on its first run allocates nothing for it.
     var causes: Map<String, Int>? = null
     try {
         while (true) {
             attempts++
-            val step = Transaction()
+            // Taken before the run starts, so every value it reads was committed before anyone else was stopped.
+            val step = Transaction(if (attempts > soloAfter) Solo.take() else null)
             val answer = step.attempt(block)
             if (answer !== Again) {
                 counter(RUNS, "transact" to name, "outcome" to "committed").increment()
@@ -71,9 +77,12 @@ private fun <A> Transaction.attempt(block: Transaction.() -> A): Any? {
         Again
     } catch (_: Wait) {
         cause = WAITED
+        // A solo run that waits gives the word up first: the commit it waits for could not land otherwise.
+        giveUpSolo()
         awaitChange()
         Again
     } finally {
+        giveUpSolo()
         running.remove()
     }
 }
@@ -83,6 +92,8 @@ private object Again
 private const val UNNAMED = "unnamed"
 
 private const val WAITED = "waited"
+
+private const val SOLO_AFTER = 10
 
 /** Told why each run of a step gave up: the step's name, and the value it lost to or `waited` (spec 0212). */
 internal fun interface Retried {
@@ -103,7 +114,7 @@ private const val ATTEMPTS = "surefold.transact.attempts"
 private val running = ThreadLocal<Transaction?>()
 
 /** The step a [transact] block runs in. A [Shared] is read and written only through it. */
-class Transaction internal constructor() {
+class Transaction internal constructor(private var solo: Any?) {
     private var readAt: Tick = commits.read()
     private val reads = HashMap<Shared<*>, Versioned<*>>()
     private val writes = HashMap<Shared<*>, Any?>()
@@ -185,6 +196,11 @@ class Transaction internal constructor() {
         }
     }
 
+    internal fun giveUpSolo() {
+        solo?.let(Solo::give)
+        solo = null
+    }
+
     private fun changed() = lostTo() != null
 
     private fun lostTo(): Shared<*>? = reads.entries.firstOrNull { (read, held) -> read.word.read() !== held }?.key
@@ -206,7 +222,8 @@ class Transaction internal constructor() {
     }
 
     // The commit count is one of the swapped words, so a commit's writes and its version land together. Words only
-    // read are swapped for themselves, which fails the commit if any changed since they were read.
+    // read are swapped for themselves, which fails the commit if any changed since they were read. The solo word is
+    // swapped too: expected free, so no commit lands while a step runs alone, or held by this run, which frees it.
     internal fun commit(): Boolean {
         if (writes.isEmpty()) return true
         while (true) {
@@ -214,11 +231,14 @@ class Transaction internal constructor() {
             val next = Tick(now.n + 1)
             val unwritten = reads.filterKeys { it !in writes }.map { (read, held) -> unchanged(read, held) }
             val written = writes.map { (shared, value) -> written(shared, reads[shared], value, next.n) }
-            if (swapAll(listOf(Change(commits, now, next)) + unwritten + written)) {
+            val alone = Change(Solo.word, solo ?: Free, Free)
+            if (swapAll(listOf(Change(commits, now, next), alone) + unwritten + written)) {
                 writes.keys.forEach { shared -> shared.waiters.forEach(Waiting::unpark) }
                 return true
             }
             lostTo()?.let { lose(it); return false }
+            // Lost to nothing it read, so another step runs alone: try again once that step is done.
+            if (solo == null) Solo.awaitFree()
         }
     }
 }
@@ -229,6 +249,42 @@ internal class Versioned<T>(val value: T, val version: Long)
 internal class Tick(val n: Long)
 
 private val commits = Word(Tick(0))
+
+/** One step at a time may run alone (spec 0231), holding [word] with a token of its own until it is done. */
+private object Solo {
+    val word = Word<Any>(Free)
+
+    // Threads parked until the step running alone is done. Each takes itself off when it wakes.
+    private val waiters = ConcurrentLinkedQueue<Thread>()
+
+    fun take(): Any {
+        val mine = Any()
+        while (!swapAll(listOf(Change(word, Free, mine)))) awaitFree()
+        return mine
+    }
+
+    // A run that committed writes has freed the word already; this then frees nothing, and only wakes.
+    fun give(mine: Any) {
+        swapAll(listOf(Change(word, mine, Free)))
+        waiters.forEach(Waiting::unpark)
+    }
+
+    // Registered before the check, and give wakes after the word is free, so a give is either seen here or wakes us.
+    fun awaitFree() {
+        val me = Thread.currentThread()
+        waiters.add(me)
+        try {
+            while (word.read() !== Free) {
+                Waiting.park(this)
+                if (Thread.interrupted()) throw InterruptedException()
+            }
+        } finally {
+            waiters.remove(me)
+        }
+    }
+}
+
+private object Free
 
 private object Conflict : Throwable(null, null, false, false)
 
