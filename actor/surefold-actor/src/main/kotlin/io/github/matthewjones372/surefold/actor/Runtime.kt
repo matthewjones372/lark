@@ -967,8 +967,12 @@ private class Cell<M : Any, S, E>(
         val carried = if (items.any { it is Carried }) items.map { (it as? Carried)?.carried.orEmpty() } else null
         var batched: Batched<S>? = null
         // One turn for the run, inside no message's context: each is the turn's to enter with `within` (spec 0223).
-        val next = supervised {
-            turns(this, this@Cell, state, Carrying(run as List<M>, carried)).also { batched = it }.next
+        val next = try {
+            supervised {
+                turns(this, this@Cell, state, Carrying(run as List<M>, carried)).also { batched = it }.next
+            }
+        } catch (_: WrongGuess) {
+            return guessedWrong(items)
         }
         batched?.let { done ->
             done.unhandled.forEach { dead(it, DeadLetter.Why.Unhandled) }
@@ -987,7 +991,7 @@ private class Cell<M : Any, S, E>(
         try {
             if (item is Carried) Carriers.within(item.carried) { turn(item.message) } else turn(item)
         } catch (_: WrongGuess) {
-            guessedWrong(item)
+            guessedWrong(listOf(item))
         }
 
     @Suppress("UNCHECKED_CAST")
@@ -995,17 +999,19 @@ private class Cell<M : Any, S, E>(
         .also { if (it === Next.Unhandled) dead(message, DeadLetter.Why.Unhandled) }
 
     /**
-     * A start that guessed the entity was new, shown wrong by its first command: restarts as a failure would, without
-     * asking supervision or counting a restart, and puts [item] back to be handled first once the start has run.
+     * A start that guessed the entity was new, shown wrong by its first command or run of commands: restarts as a
+     * failure would, without asking supervision or counting a restart, and puts [items] back, in order, to be handled
+     * first once the start has run.
      */
-    private fun guessedWrong(item: Any): Next<S> {
+    private fun guessedWrong(items: List<Any>): Next<S> {
         stopChildren()
         letGo()
         state = behaviour.initial
         restarted = true
         starting = behaviour.start != null
-        stashed = Stash(stashCapacity, address.path).apply {
-            keep(item)
+        // Room for the whole run, whatever the stash's own capacity: these were already this actor's to handle.
+        stashed = Stash(maxOf(stashCapacity, items.size), address.path).apply {
+            items.forEach(::keep)
             unstashAll()
         }
         return Next.Stay
