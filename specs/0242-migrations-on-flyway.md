@@ -69,7 +69,7 @@ in the build. What Flyway Community loses: rollback blocks, preconditions, conte
 
 - [x] **`spec-0242-migrated`** — `Migrated` in `surefold-app`, the alias, `surefold-app-jobs` and the compiler's name.
       Done when: `surefold-app-jobs`' `NoOtherDependenciesTest` allows no Liquibase and its suite passes unchanged.
-- [ ] **`spec-0242-flyway`** — `surefold-app-flyway`: `flyway`, `migrate`, `connect`, the pinned settings.
+- [x] **`spec-0242-flyway`** — `surefold-app-flyway`: `flyway`, `migrate`, `connect`, the pinned settings.
       Done when: on Testcontainers Postgres, a reader of `Migrated` starts after the scripts; a second run applies none;
       an edited applied script fails start naming its checksum; `clean()` throws; with `connect`, the tables are
       owned by the owner role and that pool is closed before `Migrated` is answered.

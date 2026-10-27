@@ -274,6 +274,7 @@ Each integration is a separate module that makes something a node:
 | `surefold-app-typesafe` | `config<T>("section") { … }`, a HOCON section read into a type, with every fault in a bad file reported at once; `secret(path)`; where each setting came from | [Configuration](cookbook.md#configuration-a-module-owns) |
 | `surefold-app-kotlinx` | `config<T>("section")`, the section read from `T`'s own `@Serializable` properties, every fault at once | [Configuration](cookbook.md#configuration-a-module-owns) |
 | `surefold-app-liquibase` | `migrations("db/changelog.xml")`, a node providing `surefold-app`'s `Migrated`, so readers of the database start after migrations | [Migrations](cookbook.md#run-migrations-as-a-step) |
+| `surefold-app-flyway` | `flyway(service = "classpath:db/migration")`, the same `Migrated` from Flyway's SQL scripts, with `clean` disabled and validation on | [Migrations](cookbook.md#run-migrations-as-a-step) |
 | `surefold-app-openfeature` | `openFeature { provider }`, an OpenFeature provider set before anything reads a flag, keyed by `Client`, ready while the provider is, and shut down on release | [Feature flags](flags.md) |
 | `surefold-app-pekko` | `actor<T>("name") { … }`, a Pekko typed actor keyed by `ActorRef<T>`, stopped with `gracefulStop` | [Pekko actor](cookbook.md#spawn-a-pekko-actor) |
 | `surefold-app-actor` | `actors()`, a `surefold-actor` scope that lives as long as the application, and `actor("name") { … }`, keyed by Surefold's `ActorRef<M>` | [Surefold actor](cookbook.md#spawn-a-surefold-actor) |
@@ -355,7 +356,7 @@ knows:
 - `single`, `singleOf`, `closingOf` and `choice`;
 - `surefold-app-typesafe`'s `config` and its `loadedConfig`, `configOf`,
   `configFromResource` and `configFromFile`; `surefold-app-kotlinx`'s `config`;
-  `surefold-app-liquibase`'s `migrations`; `surefold-app-openfeature`'s `openFeature`; `surefold-app-openfeature-flagd`'s `flagdFlags`;
+  `surefold-app-liquibase`'s `migrations`; `surefold-app-flyway`'s `flyway`; `surefold-app-openfeature`'s `openFeature`; `surefold-app-openfeature-flagd`'s `flagdFlags`;
   `surefold-app-pekko`'s `actor`;
   `surefold-app-actor`'s `actors` and `actor`;
 - `plus`, `overriding`, `overridingConfig`, `boundTo` and `probe`;

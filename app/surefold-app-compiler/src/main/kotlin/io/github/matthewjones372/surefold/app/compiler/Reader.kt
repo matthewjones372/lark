@@ -292,6 +292,9 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
 
+        // flyway(…) needs the graph's DataSource; flyway(…) { s: S -> source } needs its S instead.
+        called == FLYWAY -> node(MIGRATED, arguments.ifEmpty { listOf(DATA_SOURCE) }, at)
+
         // openFeature { provider } needs nothing; openFeature { d: D -> provider } needs its D.
         called == OPEN_FEATURE -> node(OPENFEATURE_CLIENT, arguments, at)
 
@@ -372,6 +375,7 @@ private val CONFIGS = setOf(
 
 private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
 private val MIGRATIONS = extension("liquibase", "migrations")
+private val FLYWAY = extension("flyway", "flyway")
 private val OPEN_FEATURE = extension("openfeature", "openFeature")
 private val FLAGD_FLAGS = extension("flagd", "flagdFlags")
 private val JOB_WORKER = extension("jobs", "jobWorker")
