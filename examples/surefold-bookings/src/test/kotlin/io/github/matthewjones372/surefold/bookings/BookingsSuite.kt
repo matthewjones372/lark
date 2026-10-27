@@ -13,6 +13,7 @@ import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.tenancy.RlsDatabase
 import io.github.matthewjones372.surefold.tenancy.TenantTransactions
 import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -94,6 +95,79 @@ object BookingsSuite : Suite() {
             venue.bookings.book(globex, "k-1", table).status shouldBe 201
         }
 
+        test("a member at their limit for a day is refused another slot that day, and booked the next") {
+            val venue = Venue("acme")
+            venue.limits("acme", Limits(perDay = 2, perWeek = 5, ZoneId.of("Europe/London")))
+            val member = venue.signIn("acme", BookingService.CREATE)
+            val monday = Instant.parse("2026-11-02T18:00:00Z")
+            val two = listOf(Slot("court-1", monday, 60.minutes), Slot("court-1", monday.plusSeconds(HOUR), 60.minutes))
+            venue.bookings.book(member, "k-1", BookingRequest("Evening", two)).status shouldBe 201
+            venue.bookings.book(member, "k-2", one("court-2", monday)) shouldBe
+                Answer(422, "2 slots a day, and 2 are booked on 2026-11-02")
+            venue.bookings.book(member, "k-3", one("court-2", monday.plusSeconds(DAY))).status shouldBe 201
+            // Another member's share is their own.
+            val other = venue.signIn("acme", BookingService.CREATE)
+            venue.bookings.book(other, "k-4", one("court-2", monday.plusSeconds(HOUR))).status shouldBe 201
+        }
+
+        test("a member at their limit for a week is refused on any day of it, and booked the week after") {
+            val venue = Venue("acme")
+            venue.limits("acme", Limits(perDay = 2, perWeek = 3, ZoneId.of("Europe/London")))
+            val member = venue.signIn("acme", BookingService.CREATE)
+            val monday = Instant.parse("2026-11-02T18:00:00Z")
+            (0L..2L).forEach { day ->
+                venue.bookings.book(member, "k-$day", one("court-1", monday.plusSeconds(day * DAY))).status shouldBe 201
+            }
+            venue.bookings.book(member, "k-6", one("court-1", monday.plusSeconds(6 * DAY))) shouldBe
+                Answer(422, "3 slots a week, and 3 are booked in the week of 2026-11-02")
+            venue.bookings.book(member, "k-7", one("court-1", monday.plusSeconds(7 * DAY))).status shouldBe 201
+        }
+
+        test("two bookings a member sends at once that together pass the limit are not both made") {
+            val venue = Venue("acme")
+            venue.limits("acme", Limits(perDay = 1, perWeek = 5, ZoneId.of("Europe/London")))
+            val member = venue.signIn("acme", BookingService.CREATE)
+            val monday = Instant.parse("2026-11-02T18:00:00Z")
+            val start = CountDownLatch(1)
+            val sent = listOf("court-1", "court-2").map { court ->
+                Thread.ofVirtual().start {
+                    start.await()
+                    statuses += venue.bookings.book(member, court, one(court, monday)).status
+                }
+            }
+            start.countDown()
+            sent.forEach { it.join() }
+            statuses.sorted() shouldBe listOf(201, 422)
+            statuses.clear()
+        }
+
+        test("only staff with the permission host an event, and its courts are held against members' bookings") {
+            val venue = Venue("acme")
+            val member = venue.signIn("acme", BookingService.CREATE)
+            val staff = venue.signIn("acme", BookingService.HOST)
+            val saturday = Instant.parse("2026-11-07T13:00:00Z")
+            val courts = listOf("court-1", "court-2").map { Slot(it, saturday, 240.minutes) }
+            val party = EventRequest("Junior tournament", 24, courts)
+            venue.bookings.host(member, "k-1", party) shouldBe Answer(403, "not allowed to bookings:host")
+            venue.bookings.host(staff, "k-2", party).status shouldBe 201
+            venue.bookings.book(member, "k-3", one("court-2", saturday.plusSeconds(HOUR))) shouldBe
+                Answer(409, "a slot is already taken")
+            venue.bookings.host(staff, "k-4", party.copy(guests = 0)) shouldBe Answer(422, "an event needs a guest")
+        }
+
+        test("an event counts toward no one's limit, the host's included") {
+            val venue = Venue("acme")
+            venue.limits("acme", Limits(perDay = 1, perWeek = 1, ZoneId.of("Europe/London")))
+            val host = venue.signIn("acme", BookingService.CREATE, BookingService.HOST)
+            val monday = Instant.parse("2026-11-02T10:00:00Z")
+            val party = EventRequest("Birthday", 12, listOf("court-1", "court-2").map { Slot(it, monday, 120.minutes) })
+            venue.bookings.host(host, "k-1", party).status shouldBe 201
+            // Four court-hours on one day, and the host's own single slot is still theirs to book.
+            venue.bookings.book(host, "k-2", one("court-1", monday.plusSeconds(4 * HOUR))).status shouldBe 201
+            venue.bookings.book(host, "k-3", one("court-2", monday.plusSeconds(4 * HOUR))) shouldBe
+                Answer(422, "1 slots a day, and 1 are booked on 2026-11-02")
+        }
+
         test("a booking with no slot, an empty slot or a court the venue has not got is refused") {
             val venue = Venue("acme")
             val member = venue.signIn("acme", BookingService.CREATE, BookingService.VIEW)
@@ -131,6 +205,11 @@ object BookingsSuite : Suite() {
             }
         }
 
+        /** Sets [tenant]'s [limits], as its manager. */
+        fun limits(tenant: String, limits: Limits) {
+            bookings.setLimits(signIn(tenant, BookingService.MANAGE), limits).status shouldBe 200
+        }
+
         /** A new member of [tenant]'s staff, with a role allowing [permissions], signed in. */
         fun signIn(tenant: String, vararg permissions: String): Secret {
             val user = UserId("user-${++users}")
@@ -144,6 +223,12 @@ object BookingsSuite : Suite() {
     private const val ROLES = "surefold_app, surefold_system"
     private const val HOUR = 3_600L
     private const val HALF_HOUR = 1_800L
+    private const val DAY = 86_400L
+
+    private val statuses = ConcurrentLinkedQueue<Int>()
+
+    /** A booking of [court] for an hour from [at]. */
+    private fun one(court: String, at: Instant) = BookingRequest("Hit", listOf(Slot(court, at, 60.minutes)))
 
     private class RecordingMailer(expected: Int) : Mailer {
         val sent = ConcurrentLinkedQueue<String>()

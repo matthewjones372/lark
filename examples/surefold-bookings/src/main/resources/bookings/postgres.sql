@@ -55,3 +55,42 @@ alter table booking_slots force row level security;
 create policy tenant_isolation on booking_slots
     using (tenant_id = current_setting('app.tenant_id', true))
     with check (tenant_id = current_setting('app.tenant_id', true));
+
+--changeset example:limits
+-- Who made each booking, so a venue's limit counts what one member holds. Spec 0232.
+alter table bookings add column member text;
+
+-- How many slots one member may hold in a day and in an ISO week, in the venue's own zone. No row, no limit.
+create table booking_limits (
+    tenant_id text    primary key default current_setting('app.tenant_id', true),
+    per_day   integer not null check (per_day > 0),
+    per_week  integer not null check (per_week > 0),
+    zone      text    not null
+);
+
+alter table booking_limits enable row level security;
+alter table booking_limits force row level security;
+
+create policy tenant_isolation on booking_limits
+    using (tenant_id = current_setting('app.tenant_id', true))
+    with check (tenant_id = current_setting('app.tenant_id', true));
+
+-- One row per member, locked by each of their bookings before it counts: two bookings from one member queue, and the
+-- second counts the first. Other members never wait on it.
+create table member_quota (
+    tenant_id text not null default current_setting('app.tenant_id', true),
+    member    text not null,
+    primary key (tenant_id, member)
+);
+
+alter table member_quota enable row level security;
+alter table member_quota force row level security;
+
+create policy tenant_isolation on member_quota
+    using (tenant_id = current_setting('app.tenant_id', true))
+    with check (tenant_id = current_setting('app.tenant_id', true));
+
+--changeset example:events
+-- An event or a party staff host: a booking of its own kind, with a guest count, that no member's limit counts.
+alter table bookings add column kind text not null default 'booking' check (kind in ('booking', 'event'));
+alter table bookings add column guests integer check (guests > 0);

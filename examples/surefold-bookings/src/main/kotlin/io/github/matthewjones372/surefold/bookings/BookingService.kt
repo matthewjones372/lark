@@ -38,8 +38,26 @@ class BookingService(
      */
     fun book(token: Secret, idempotencyKey: String, request: BookingRequest): Answer =
         signedIn(token, CREATE) { tenant ->
-            refused(request) ?: booked(tenant, idempotencyKey, request)
+            refused(request) ?: booked(tenant, user.value, idempotencyKey, request)
         }
+
+    /**
+     * Holds every slot of [request] for an event or a party, once per [idempotencyKey], as a booking does: a clash is
+     * 409 and holds nothing. Staff only; no member's limit counts it, the host's included.
+     */
+    fun host(token: Secret, idempotencyKey: String, request: EventRequest): Answer = signedIn(token, HOST) { tenant ->
+        if (request.guests < 1) {
+            Answer(UNPROCESSABLE, "an event needs a guest")
+        } else {
+            refused(request.booking) ?: booked(tenant, user.value, idempotencyKey, request.booking, request.guests)
+        }
+    }
+
+    /** Sets how many slots each member of the caller's venue may hold in a day and a week. */
+    fun setLimits(token: Secret, limits: Limits): Answer = signedIn(token, MANAGE) { tenant ->
+        tenants.transaction(TenantId(tenant)) { it.setLimits(limits) }
+        Answer(OK, "${limits.perDay} a day, ${limits.perWeek} a week, in ${limits.zone}")
+    }
 
     /** Adds [court] to the caller's venue, for its bookings to name. */
     fun addCourt(token: Secret, court: Court): Answer = signedIn(token, MANAGE) { tenant ->
@@ -54,12 +72,19 @@ class BookingService(
         else -> null
     }
 
-    private fun booked(tenant: String, idempotencyKey: String, request: BookingRequest): Answer {
+    private fun booked(
+        tenant: String,
+        member: String,
+        idempotencyKey: String,
+        request: BookingRequest,
+        guests: Int? = null,
+    ): Answer {
         val key = IdempotencyKey(scope = tenant, key = idempotencyKey)
-        return when (val reservation = keys.reserve(key, fingerprint = request.fingerprint)) {
+        val fingerprint = guests?.let { "event for $it|${request.fingerprint}" } ?: request.fingerprint
+        return when (val reservation = keys.reserve(key, fingerprint)) {
             is Reservation.Reserved -> {
                 val answer = try {
-                    made(tenant, request)
+                    made(tenant, member, request, guests)
                 } catch (failed: SQLException) {
                     keys.release(key, reservation.token)
                     throw failed
@@ -114,11 +139,15 @@ class BookingService(
 
     /**
      * The booking, its slots and its confirmation in one transaction, as [tenant]: all commit, or none does. A clash or
-     * a court the venue has not got rolls it back and is answered.
+     * a court the venue has not got rolls it back and is answered; so is [member] already holding their limit, unless
+     * this is an event for [guests].
      */
-    private fun made(tenant: String, request: BookingRequest): Answer = try {
+    private fun made(tenant: String, member: String, request: BookingRequest, guests: Int?): Answer = try {
         tenants.transaction(TenantId(tenant)) {
-            val id = Booking.insert(it, request)
+            if (guests == null) {
+                it.overLimit(member, request.slots)?.let { why -> return@transaction Answer(UNPROCESSABLE, why) }
+            }
+            val id = Booking.insert(it, request, member, guests)
             Jobs.enqueue(it, SendConfirmation, Confirmation(id), dedupeKey = "confirm-$id", tenant = tenant)
             Answer(CREATED, "booking $id")
         }
@@ -140,12 +169,12 @@ class BookingService(
 
     private fun notFound(bookingId: Long) = Answer(NOT_FOUND, "no booking $bookingId")
 
-    private fun signedIn(token: Secret, permission: String, block: (tenant: String) -> Answer): Answer {
+    private fun signedIn(token: Secret, permission: String, block: Principal.(tenant: String) -> Answer): Answer {
         val principal: Principal = sessions.resolve(token) ?: return Answer(UNAUTHORIZED, "sign in")
         val tenant = principal.tenant
         return when {
             tenant == null || !principal.can(permission) -> Answer(FORBIDDEN, "not allowed to $permission")
-            else -> block(tenant)
+            else -> principal.block(tenant)
         }
     }
 
@@ -153,6 +182,7 @@ class BookingService(
         const val CREATE = "bookings:create"
         const val VIEW = "bookings:view"
         const val MANAGE = "bookings:manage"
+        const val HOST = "bookings:host"
 
         // Postgres's SQLSTATEs for the two refusals a booking expects.
         private const val EXCLUSION_VIOLATION = "23P01"
