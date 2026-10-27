@@ -146,6 +146,24 @@ object MembershipSuite : Suite() {
             removed shouldBe true
         }
 
+        test("a member that goes the moment it is out first tells the others it is leaving") {
+            val net = Net()
+            val three = listOf(1, 2, 3)
+            val members = three.map { net.start(it, seeds(1, 2, 3)) }
+            net.until { three.all { net.view(it).up().size == 3 } } shouldBe true
+
+            // Node 1 hears the other two leaving, then leaves itself and is out at once, with no other member Up.
+            listOf(2, 3).forEach { members[it - 1].leave() }
+            net.until { net.view(1).members.count { it.status == Status.Leaving } == 2 } shouldBe true
+            members[0].leave()
+            net.goWhenOut(1)
+            net.stopped(1) shouldBe true
+
+            // Well short of the 20 s keepMajority waits before it downs a member that went without a word.
+            val out = net.until(steps = 50) { listOf(2, 3).onEach(net::goWhenOut).all(net::stopped) }
+            out shouldBe true
+        }
+
         test("nodes of another cluster that probe this one are not taken in") {
             val net = Net()
             (1..3).forEach { net.start(it, seeds(1)) }

@@ -36,6 +36,15 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
         stopped += at(n)
     }
 
+    fun stopped(n: Int) = at(n) in stopped
+
+    /** Stops [n] once it is out of the cluster, after its last word, as a node's scope does when it closes. */
+    fun goWhenOut(n: Int) {
+        if (stopped(n) || !view(n).outFor(at(n))) return
+        deliver(nodes.getValue(at(n)).farewell().mapTo(ArrayDeque()) { at(n) to it })
+        stop(n)
+    }
+
     fun cut(a: Int, b: Int) {
         cut += setOf(at(a), at(b))
     }
@@ -68,14 +77,18 @@ internal class Net(private val seed: Int = 1, private val downing: Downing = Dow
             now += every
             val flying = ArrayDeque<Pair<Node, Send>>()
             live().forEach { (node, m) -> m.tick(now).forEach { flying += node to it } }
-            while (flying.isNotEmpty()) {
-                val (from, send) = flying.removeFirst()
-                val to = live().keys.firstOrNull { node -> reaches(send.to, node) && carried(from, node, send.message) }
-                to?.let { there -> nodes.getValue(there).receive(send.message, now).forEach { flying += there to it } }
-            }
+            deliver(flying)
             if (done()) return true
         }
         return false
+    }
+
+    private fun deliver(flying: ArrayDeque<Pair<Node, Send>>) {
+        while (flying.isNotEmpty()) {
+            val (from, send) = flying.removeFirst()
+            val to = live().keys.firstOrNull { node -> reaches(send.to, node) && carried(from, node, send.message) }
+            to?.let { there -> nodes.getValue(there).receive(send.message, now).forEach { flying += there to it } }
+        }
     }
 
     private fun live() = nodes.filterKeys { it !in stopped }

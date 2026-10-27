@@ -241,6 +241,8 @@ private class Steps(
 
     private fun publish(ctx: Ctx<Step>, subscribers: Subscribers) {
         val next = membership.view()
+        // Before the view that lets stop return is published, so the scope's close does not stop the node first.
+        if (next.outFor(node.self, cluster.uid)) send(membership.farewell())
         // A downed node is out of the cluster: every other member is gone as far as it is concerned.
         val gone = if (membership.downed) next.members.filter { it.node != node.self } else emptyList()
         val events = changes(cluster.view, next) + gone.map(MemberEvent::Removed)
