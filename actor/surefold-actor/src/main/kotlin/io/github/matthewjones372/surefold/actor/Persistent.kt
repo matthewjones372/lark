@@ -169,8 +169,8 @@ internal interface Restartable {
  * the actor stops, and handled again after that, where it changes nothing the journal holds. One its turn stashes is
  * not remembered until it is handled once put back.
  *
- * With [start] of [Start.assumingNew], an actor's first start reads nothing until its first command shows whether it
- * is new.
+ * With [start] of [Start.assumingNew], an actor's first start reads nothing until its first command, or its first
+ * run of commands with a [batch], shows whether it is new.
  */
 fun <M : Any, Ev, S> persistent(
     id: PersistenceId,
@@ -188,7 +188,6 @@ fun <M : Any, Ev, S> persistent(
     start: Start = Start.recovering,
 ): Behaviour<M, Remembered<S>, JournalConflict> {
     require(batch > 0) { "a batch of $batch commands decides none" }
-    require(batch == 1 || !start.guessing) { "a batch of $batch commands cannot start assuming new yet" }
     val initial = Remembered(empty, 0)
     val effects = Effects<Ev, S>()
     val turns: (Fail<JournalConflict>.(Ctx<M>, Remembered<S>, Run<M>) -> Batched<Remembered<S>>)? =
@@ -198,7 +197,8 @@ fun <M : Any, Ev, S> persistent(
             { ctx, remembered, messages ->
                 val deciding = Deciding(effects, command, event, codec, ctx, remembered)
                 // One append for the batch, so one context: the first command's (spec 0122).
-                messages.within(0) { decided(id, snapshots, deciding, ctx, remembered, messages) }
+                val guessed = start.guessing && remembered === initial
+                messages.within(0) { decided(id, snapshots, deciding, ctx, remembered, messages, guessed) }
             }
         }
     return Behaviour<M, Remembered<S>, JournalConflict>(
@@ -334,7 +334,9 @@ private class Deciding<M : Any, Ev, S>(
 
 /**
  * A batch of [messages] decided in turn, each against the state the one before left, and every event and delivery
- * mark among them written in one append; then each `then` runs, in order, with the state its own command left.
+ * mark among them written in one append; then each `then` runs, in order, with the state its own command left. On a
+ * [guessed] state, a batch that writes nothing, or whose append conflicts, is the guess shown wrong: no `then` has run,
+ * and the whole batch is handed back once the actor has recovered.
  */
 private fun <M : Any, Ev, S> Fail<JournalConflict>.decided(
     id: PersistenceId,
@@ -343,14 +345,11 @@ private fun <M : Any, Ev, S> Fail<JournalConflict>.decided(
     ctx: Ctx<M>,
     remembered: Remembered<S>,
     messages: List<M>,
+    guessed: Boolean,
 ): Batched<Remembered<S>> {
     var taken = 0
     while (taken < messages.size && !deciding.stopped) deciding.take(messages[taken++])
-    val sequence = if (deciding.written.isEmpty()) {
-        remembered.sequence
-    } else {
-        ctx.journal.append(id, remembered.sequence, deciding.written).bind()
-    }
+    val sequence = appended(id, ctx, remembered.sequence, deciding.written, guessed)
     val reached = Remembered(deciding.value, sequence, deciding.delivered)
     if (snapshots != null && sequence != remembered.sequence) {
         ctx.snapshots?.snapshot(id, remembered.sequence, reached, snapshots, ctx.journal)
@@ -362,6 +361,24 @@ private fun <M : Any, Ev, S> Fail<JournalConflict>.decided(
         else -> Next.Become(reached)
     }
     return Batched(next, deciding.unhandled, messages.drop(taken))
+}
+
+/**
+ * The sequence [written] reaches once appended after [sequence], which is [sequence] itself for nothing to write. On a
+ * [guessed] state, as for one command, only an append accepted after nothing shows the answers decided from it right:
+ * writing nothing, or a conflict, is the guess shown wrong.
+ */
+private fun Fail<JournalConflict>.appended(
+    id: PersistenceId,
+    ctx: Ctx<*>,
+    sequence: Long,
+    written: List<ByteArray>,
+    guessed: Boolean,
+): Long {
+    if (written.isEmpty()) return if (guessed) throw WrongGuess else sequence
+    val appended = ctx.journal.append(id, sequence, written)
+    if (guessed && appended.isLeft()) throw WrongGuess
+    return appended.bind()
 }
 
 /** Whether [delivery] is one this state already handled: no later than the last from its producer. */

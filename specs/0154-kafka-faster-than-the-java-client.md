@@ -65,8 +65,10 @@ necessary (entry 3).
       `TransactTest` pass unchanged.
 - [x] **`spec-0154-revoked-handles`** ([#444](https://github.com/matthewjones372/lark/pull/444)): a record handled after its partition was revoked commits nothing.
       Done when: a test that handles a record after its revoke sees no offset for that partition.
-- [ ] **`spec-0154-blocking-ready`**: the overload above; Pekko batches; surefold-kafka answers it. Done
+- [x] **`spec-0154-blocking-ready`** ([#445](https://github.com/matthewjones372/lark/pull/445)): the overload above; Pekko batches; surefold-kafka answers it. Done
       when: `surefoldPekko` is within 10% of `surefoldForks`.
+      Measured on #445, same flags and machine as the baseline: `surefoldPekko` 594 ± 4 ms against
+      `surefoldForks` 596 ± 5 ms (854 and 657 before).
 
 ## Acceptance
 
