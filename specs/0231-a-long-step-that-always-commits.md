@@ -77,6 +77,8 @@ runs with a declared error. That is honest, but it hands the caller the problem
 
 ## Open questions
 
+Taken as recommended (maintainer, 2026-10-27). Each answer is the question's recommendation.
+
 1. **Default `soloAfter`?** Recommended: 10. Spec 0212's retry metrics should
    show nearly every step committing well inside that.
 2. **Can it be turned off?** Recommended: `soloAfter = Int.MAX_VALUE` turns it
