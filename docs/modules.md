@@ -274,3 +274,8 @@ A service includes the changelogs in the order `Schema.changelogs` lists them: t
 its own tables. The application's role needs to read and write its own tables, the idempotency and auth tables, and
 `surefold_jobs` for enqueueing. The system role, which has `BYPASSRLS`, needs the jobs tables and
 `surefold_tenancy_audit`. There is no HTTP here: routes, cookies and status codes are Pelican's.
+
+A booking holds one or more slots, each a court the venue has added and a time range, and makes all of them or none
+(spec 0232). Postgres refuses two slots that overlap on one court with an exclusion constraint, so two members racing
+for the same hour cannot both win: the second booking is 409 and its transaction makes nothing. The constraint needs
+the `btree_gist` extension, which the example's changelog creates; a managed Postgres must allow it.
