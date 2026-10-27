@@ -21,7 +21,7 @@ val nightly = Cron.parse("30 2 * * *", ZoneId.of("Europe/London"))
 nightly.next(after = instant)                                 // the next firing, as an Instant
 
 // System entries: every worker enqueues the next firing, deduplicated per instant, so any number of instances is safe.
-JobWorker(source, handlers, settings, schedules = listOf(Schedule("prune-holds", Cron.parse("*/5 * * * *", UTC), PruneHolds, Unit)))
+JobWorker(source, handlers, settings, cron = listOf(CronEntry("prune-holds", Cron.parse("*/5 * * * *", UTC), PruneHolds, Unit)))
 
 // A rule per tenant or per customer: finishing one occurrence enqueues the next in the same transaction.
 Jobs.enqueueRecurring(connection, SendDigest, Digest(tenantId), dedupeKey = "digest", rule = Cron.parse("0 8 * * *", zone), tenant = tenantId)
