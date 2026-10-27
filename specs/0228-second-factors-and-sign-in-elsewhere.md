@@ -44,7 +44,7 @@ tokens for Pelican's own `authenticated`; recommended against here, since the br
 
 - [x] **`spec-0228-totp`** — `PostgresTotp`, enrolment, confirm, verify, encrypted secrets.
       Done when: RFC 6238's test vectors pass, and a code verifies once and not again.
-- [ ] **`spec-0228-oidc`** — `OidcSignIn` in `surefold-auth`, `surefold-auth-oidc` on Nimbus.
+- [x] **`spec-0228-oidc`** — `OidcSignIn` in `surefold-auth`, `surefold-auth-oidc` on Nimbus.
       Done when: against a provider stubbed in the test with its own keys, a good callback answers the identity, and a
       wrong state, nonce, audience, issuer, expiry or signature each answer their own `OidcError`.
 - [ ] **`spec-0228-docs`** — `docs/auth.md`, the module tables.
