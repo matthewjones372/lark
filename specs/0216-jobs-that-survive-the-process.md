@@ -83,7 +83,7 @@ decide who wins.
 - [x] **`spec-0216-claim`** ([#758](https://github.com/matthewjones372/surefold/pull/758)) — claim with lease, sweep, finish into history, retention.
       Done when: two workers claiming 1,000 jobs concurrently never claim the same one, and a lease left by a
       "crashed" worker is claimed again after the `TestClock` passes `locked_until`.
-- [ ] **`spec-0216-handlers`** — `JobKind`, `JobResult`, registry, deadline, backoff, expiry, decode failures.
+- [x] **`spec-0216-handlers`** ([#769](https://github.com/matthewjones372/surefold/pull/769)) — `JobKind`, `JobResult`, registry, deadline, backoff, expiry, decode failures.
       Done when: a throwing handler is retried with growing delays and fails at `max_attempts`.
 - [ ] **`spec-0216-worker`** — the polling worker, per-kind concurrency, and `surefold-app-jobs` with the graph
       node and graceful release.

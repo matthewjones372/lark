@@ -150,6 +150,8 @@ val moduleDescriptions = mapOf(
         "surefold-app-openfeature on flagd: flags in flagd's schema as a section of the service's own HOCON.",
     "surefold-jobs" to
         "Durable jobs on Postgres, enqueued in the caller's own transaction so they commit with its change.",
+    "surefold-app-jobs" to
+        "surefold-app on surefold-jobs: a worker is a node, started after the migrations and drained on release.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does

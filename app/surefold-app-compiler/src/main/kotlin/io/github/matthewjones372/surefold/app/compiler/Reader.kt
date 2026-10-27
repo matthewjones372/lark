@@ -297,6 +297,8 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == FLAGD_FLAGS -> node(OPENFEATURE_CLIENT, listOf(TYPESAFE_CONFIG), at)
 
+        called == JOB_WORKER -> node(JOBS_WORKER, listOf(DATA_SOURCE, MIGRATED, JOBS_SETTINGS), at)
+
         // A source provides its Layered and the merge of it, which is the Config: reaching one reaches both.
         called in SOURCES -> node(TYPESAFE_CONFIG, listOf(LAYERED), at) + node(LAYERED, emptyList(), at)
 
@@ -372,6 +374,7 @@ private val OVERRIDING_CONFIG = extension("typesafe", "overridingConfig")
 private val MIGRATIONS = extension("liquibase", "migrations")
 private val OPEN_FEATURE = extension("openfeature", "openFeature")
 private val FLAGD_FLAGS = extension("flagd", "flagdFlags")
+private val JOB_WORKER = extension("jobs", "jobWorker")
 
 /**
  * The factories surefold ships whose bodies are not in the source being compiled.
@@ -399,3 +402,5 @@ private const val LAYERED = "$APP.typesafe.Layered"
 private const val DATA_SOURCE = "javax.sql.DataSource"
 private const val MIGRATED = "$APP.liquibase.Migrated"
 private const val OPENFEATURE_CLIENT = "dev.openfeature.sdk.Client"
+private const val JOBS_WORKER = "io.github.matthewjones372.surefold.jobs.JobWorker"
+private const val JOBS_SETTINGS = "io.github.matthewjones372.surefold.jobs.JobSettings"
