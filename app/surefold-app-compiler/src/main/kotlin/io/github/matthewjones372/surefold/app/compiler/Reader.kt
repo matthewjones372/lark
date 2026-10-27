@@ -290,10 +290,8 @@ private fun factory(called: CallableId, arguments: List<String>, at: KtSourceEle
 
         called == SUREFOLD_ACTOR -> key?.let { node("$SUREFOLD_ACTOR_REF<$it>", listOf(SUREFOLD_ACTORS) + rest, at) }
 
-        called == MIGRATIONS -> node(MIGRATED, listOf(DATA_SOURCE), at)
-
-        // flyway(…) needs the graph's DataSource; flyway(…) { s: S -> source } needs its S instead.
-        called == FLYWAY -> node(MIGRATED, arguments.ifEmpty { listOf(DATA_SOURCE) }, at)
+        // Either needs the graph's DataSource, or with connect, `{ s: S -> source }`, its S instead.
+        called == MIGRATIONS || called == FLYWAY -> node(MIGRATED, arguments.ifEmpty { listOf(DATA_SOURCE) }, at)
 
         // openFeature { provider } needs nothing; openFeature { d: D -> provider } needs its D.
         called == OPEN_FEATURE -> node(OPENFEATURE_CLIENT, arguments, at)
