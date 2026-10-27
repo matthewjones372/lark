@@ -40,6 +40,8 @@ internal class Membership(
     // When this node last heard from each member, directly or through a helper's probe.
     private val heard = HashMap<Incarnation, Duration>()
 
+    private var saidFarewell = false
+
     private class Probe(val target: Incarnation, val seq: Long, val at: Duration) {
         var helped = false
         var answered = false
@@ -86,6 +88,16 @@ internal class Membership(
     /** Asks to leave: the leader removes this member once every member has seen it leaving. */
     fun leave() {
         if (status == Status.Joining || status == Status.Up) change(self, Status.Leaving)
+    }
+
+    /**
+     * This member's last word, once it is out while still `Leaving`: its gossip, to every other live member, which may
+     * still see it `Up` and would otherwise wait to down it (spec 0233). Sent once; empty after, or if not leaving.
+     */
+    fun farewell(): List<Send> {
+        if (status != Status.Leaving || saidFarewell) return emptyList()
+        saidFarewell = true
+        return others().map { Send(it.node, Swim.Ping(self, it, ++seq, gossip)) }
     }
 
     /** Whether this node has been downed, by its own side or the other. */
