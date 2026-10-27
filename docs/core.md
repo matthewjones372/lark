@@ -9,7 +9,7 @@ inherit. Everything on this page is in the package
 ```kotlin
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:surefold:0.13.0")
+    implementation("io.github.matthewjones372:surefold:0.14.0")
 }
 ```
 
@@ -659,7 +659,7 @@ configured there the executor Surefold forks on, and lets a fork wait for Pekko'
 ```kotlin
 dependencies {
     // brings surefold and pekko-actor
-    implementation("io.github.matthewjones372:surefold-pekko:0.13.0")
+    implementation("io.github.matthewjones372:surefold-pekko:0.14.0")
 }
 ```
 

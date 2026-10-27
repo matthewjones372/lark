@@ -118,7 +118,7 @@ check.
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-test:0.13.0")
+    testImplementation("io.github.matthewjones372:surefold-test:0.14.0")
 }
 ```
 
@@ -210,7 +210,7 @@ object SortingSuite : Suite() {
 
 ```kotlin
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-junit:0.13.0")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.14.0")
 }
 
 tasks.test { useJUnitPlatform() }
