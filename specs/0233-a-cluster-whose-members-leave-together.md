@@ -55,8 +55,8 @@ net.until(steps = 50) {
 ```
 
 - **A last word.** `Membership.farewell()` returns a `Ping` carrying this member's gossip to every other live member,
-  as `lead` already does for a member it removes. `Cluster.stop` sends it once `outFor` holds, before the scope stops
-  the node's actors. A peer that hears it sees the member `Leaving` (or already `Removed`) and stops probing it as `Up`.
+  as `lead` already does for a member it removes. The cluster actor sends it once `outFor` holds, before it publishes
+  the view that lets `Cluster.stop` return, so before the scope stops the node's actors. A peer that hears it sees the member `Leaving` (or already `Removed`) and stops probing it as `Up`.
 - **A leaving member that goes quiet is removed.** If a `Leaving` member is unreachable, the leader removes it without
   `stableAfter`: it said it was going, and SWIM has already given it `ackWithin` and indirect probes. Gossip no longer
   counts it when deciding whether every member agrees (`converged`), or when sizing a side in `decide`.
@@ -82,8 +82,9 @@ member go, so this changes nothing a test can see. Not recommended.
       `converged` and `decide` stop counting it. Lands with a `MembershipSuite` test: a member stops once it is seen
       leaving, a second member leaves, and every other view shows both gone within 5 s of simulated time.
       Done when: `:surefold-cluster:check` passes. The existing downing tests are unchanged and pass.
-- [x] **`spec-0233-farewell`** — `Membership.farewell()`, sent by `Cluster.stop` once `outFor` holds. Lands with the
-      `MembershipSuite` test in Shape, and a `Net` helper (`stopped`) if the test needs one.
+- [x] **`spec-0233-farewell`** — `Membership.farewell()`, sent by the cluster actor once `outFor` holds. Lands with a
+      `MembershipSuite` test in which one member is out and goes before the others hear it leaving, and `Net` helpers
+      (`stopped`, `goWhenOut`).
       Done when: the Shape test passes. Twenty local runs of `ClusteredSuite` "three nodes join from config alone…"
       each finish in under 5 s.
 
