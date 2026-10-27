@@ -44,7 +44,9 @@ RRULE later if a rule cron cannot say comes up.
 ## Stack
 
 - [ ] **`spec-0218-cron`** — `Cron.parse` and `next` in a zone. Pure, no database.
-      Done when: "30 2 * * *" in Europe/London fires at 03:30 BST on 2026-03-29 and once, at 01:30 UTC, on 2026-10-25.
+      Done when: "30 1 * * *" in Europe/London fires at 02:00 BST (01:00 UTC) on 2026-03-29, and once, at 00:30 UTC,
+      on 2026-10-25. (The first draft said "30 2", but London changes its clocks at 01:00, so 02:30 is never skipped
+      or repeated.)
 - [ ] **`spec-0218-schedules`** — system entries enqueued by the worker's housekeeping.
       Done when: two workers on one `TestClock` across an hour of a "*/5" entry run it 12 times, not 24.
 - [ ] **`spec-0218-recurrence`** — the `recurrence` column, `enqueueRecurring`, the next occurrence on finish.
