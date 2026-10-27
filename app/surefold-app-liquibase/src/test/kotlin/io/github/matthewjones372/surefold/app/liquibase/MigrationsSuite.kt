@@ -12,7 +12,10 @@ import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldContain
 import io.github.matthewjones372.surefold.junit.shouldNotBeNull
 import io.github.matthewjones372.surefold.junit.withClue
+import org.postgresql.ds.PGSimpleDataSource
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import javax.sql.DataSource
 
 private const val CHANGELOG = "db/changelog.sql"
@@ -21,6 +24,26 @@ private const val CHANGELOG = "db/changelog.sql"
 private class Orders(val rows: Int)
 
 private fun database(): DataSource = Postgres.empty()
+
+private const val OWNER = "schema_owner"
+
+/** Where the schema's owner logs in: a node the migration connects from. */
+private class OwnerUrl(val url: String)
+
+/** A source logged in as the schema's owner, as a service's owner pool is, that says whether it was closed. */
+private class OwnerPool(url: String, private val inner: PGSimpleDataSource = PGSimpleDataSource()) :
+    DataSource by inner,
+    AutoCloseable {
+    val closed = AtomicBoolean()
+
+    init {
+        inner.setUrl(url)
+        inner.user = OWNER
+        inner.password = OWNER
+    }
+
+    override fun close() = closed.set(true)
+}
 
 private fun counting(source: DataSource): Int =
     source.connection.use { connection ->
@@ -85,6 +108,38 @@ object MigrationsSuite : Suite() {
             val app = single<DataSource> { database() } + migrations(CHANGELOG) + reader
 
             testApp(app) { orders: Orders -> orders.rows } shouldBe 1
+        }
+
+        test("with connect, the schema's owner owns the tables, and its pool is closed before Migrated is answered") {
+            val url = Postgres.emptyUrl()
+            val admin = PGSimpleDataSource().apply { setUrl(url) }
+            admin.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("create role $OWNER login password '$OWNER'")
+                    statement.execute("grant create on schema public to $OWNER")
+                }
+            }
+            val opened = AtomicReference<OwnerPool>()
+            val app = single { -> OwnerUrl(url) } +
+                single<DataSource> { admin } +
+                migrations(CHANGELOG) { owner: OwnerUrl -> OwnerPool(owner.url).also(opened::set) } +
+                single { db: DataSource, _: Migrated ->
+                    withClue("the owner's pool is the migration's, and gone before any reader is built") {
+                        opened.get().closed.get() shouldBe true
+                    }
+                    Orders(counting(db))
+                }
+
+            testApp(app) { orders: Orders -> orders.rows } shouldBe 0
+            val owner = admin.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("select tableowner from pg_tables where tablename = 'orders'").use { rows ->
+                        rows.next()
+                        rows.getString(1)
+                    }
+                }
+            }
+            owner shouldBe OWNER
         }
     }
 }

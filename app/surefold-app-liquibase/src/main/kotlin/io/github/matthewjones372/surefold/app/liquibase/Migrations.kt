@@ -34,6 +34,29 @@ fun migrations(
 }
 
 /**
+ * [migrations] on a source [connect] opens from [S], a node in the graph, such as a pool logged in as the schema's
+ * owner. It is closed, if it is `AutoCloseable`, before the node answers: the application never holds it.
+ */
+inline fun <reified S : Any> migrations(
+    changelog: String,
+    contexts: Contexts = Contexts(),
+    labels: LabelExpression = LabelExpression(),
+    noinline connect: (S) -> DataSource,
+): Module = single { key: S ->
+    val applied = connected(connect(key)) { source -> migrate(source, changelog, contexts, labels) }
+    io.github.matthewjones372.surefold.app.Migrated(applied)
+}
+
+/** [use] on [source], closing it afterwards if it can be closed. */
+@PublishedApi
+internal fun <T> connected(source: DataSource, use: (DataSource) -> T): T =
+    try {
+        use(source)
+    } finally {
+        (source as? AutoCloseable)?.close()
+    }
+
+/**
  * Runs [changelog], a classpath resource, against [source] now, and answers how many changesets it applied. For a
  * database outside a graph; [migrations] is this as a node.
  */

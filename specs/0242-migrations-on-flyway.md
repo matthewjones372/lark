@@ -73,7 +73,7 @@ in the build. What Flyway Community loses: rollback blocks, preconditions, conte
       Done when: on Testcontainers Postgres, a reader of `Migrated` starts after the scripts; a second run applies none;
       an edited applied script fails start naming its checksum; `clean()` throws; with `connect`, the tables are
       owned by the owner role and that pool is closed before `Migrated` is answered.
-- [ ] **`spec-0242-liquibase-connect`** — `connect` on `migrations`. Done when: the same owner-role test passes.
+- [x] **`spec-0242-liquibase-connect`** — `connect` on `migrations`. Done when: the same owner-role test passes.
 - [ ] **`spec-0242-module-scripts`** — Flyway scripts in the five data modules, `SurefoldSchema`, the equality check.
       Done when: per module, the catalog (tables, columns, constraints, indexes, policies, grants, functions) after
       Flyway equals that after Liquibase; jobs listed before tenancy still runs after it.

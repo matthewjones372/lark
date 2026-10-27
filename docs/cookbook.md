@@ -694,8 +694,10 @@ val database: Module =
 `PgUserRepo` cannot be built before the changelog has run. The connection the
 migration used is returned to the pool before the node finishes.
 `Migrated` is `surefold-app`'s, so a reader does not name the migration tool;
-`Migrated.applied` is the number of changesets that ran. Outside a graph,
-`migrate(dataSource, changelog)` runs a changelog immediately.
+`Migrated.applied` is the number of changesets that ran. To migrate as the
+schema's owner, `migrations(changelog) { s: DbConfig -> ownerPool(s) }` runs it
+on a source opened from that node and closed before `Migrated` is answered.
+Outside a graph, `migrate(dataSource, changelog)` runs a changelog immediately.
 
 ## Spawn a Pekko actor
 
