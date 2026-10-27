@@ -60,7 +60,7 @@ Recommended: the stream, in a module of its own, **`surefold-postgres-notify`**,
 - [x] **`spec-0238-listen`** ([#849](https://github.com/matthewjones372/surefold/pull/849)) — `surefold-postgres-notify`: `listen`, `Notice`, `notify`, the dependency test.
       Done when: on Postgres, a notification sent in a transaction that commits arrives once and one that rolls back
       never does, on two channels, and stopping the run closes the connection.
-- [ ] **`spec-0238-reconnect`** — reconnect on the schedule, `Gap`, the counter.
+- [x] **`spec-0238-reconnect`** ([#851](https://github.com/matthewjones372/surefold/pull/851)) — reconnect on the schedule, `Gap`, the counter.
       Done when: after `pg_terminate_backend` on the listening connection, the stream emits `Gap` and then the next
       notification, and reconnects follow the schedule on a `TestClock`.
 - [ ] **`spec-0238-jobs`** — `surefold-jobs` on this module; `docs/postgres-notify.md`.
