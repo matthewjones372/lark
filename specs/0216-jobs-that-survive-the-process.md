@@ -88,7 +88,7 @@ decide who wins.
 - [x] **`spec-0216-worker`** ([#772](https://github.com/matthewjones372/surefold/pull/772)) — the polling worker, per-kind concurrency, and `surefold-app-jobs` with the graph
       node and graceful release.
       Done when: release with a run in flight lets it finish within `drain`, and claims nothing after.
-- [ ] **`spec-0216-docs`** — metrics, `docs/jobs.md` with a compiled fence, `modules.md`, `llms.txt`, `SKILL.md`.
+- [x] **`spec-0216-docs`** ([#773](https://github.com/matthewjones372/surefold/pull/773)) — metrics, `docs/jobs.md` with a compiled fence, `modules.md`, `llms.txt`, `SKILL.md`.
       Done when: the `<!-- jobs -->` fence compiles and `AgentDocsSuite` passes.
 
 ## Acceptance

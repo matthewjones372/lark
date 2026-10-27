@@ -41,9 +41,9 @@ a separate cursor column; recommended against, since it splits one piece of stat
 
 ## Stack
 
-- [ ] **`spec-0219-continue`** — `JobResult.Continue`, the payload write, progress counters.
+- [x] **`spec-0219-continue`** ([#781](https://github.com/matthewjones372/surefold/pull/781)) — `JobResult.Continue`, the payload write, progress counters.
       Done when: a handler that walks 10,000 rows 500 at a time, killed after run 7, finishes from row 3,501.
-- [ ] **`spec-0219-operations`** — `dryRun`, `startOperation`, the operations table, `Jobs.progress`.
+- [x] **`spec-0219-operations`** ([#782](https://github.com/matthewjones372/surefold/pull/782)) — `dryRun`, `startOperation`, the operations table, `Jobs.progress`.
       Done when: a dry run reports the same progress as the real one and writes nothing the test can see.
 
 ## Acceptance
