@@ -82,7 +82,7 @@ member go, so this changes nothing a test can see. Not recommended.
       `converged` and `decide` stop counting it. Lands with a `MembershipSuite` test: a member stops once it is seen
       leaving, a second member leaves, and every other view shows both gone within 5 s of simulated time.
       Done when: `:surefold-cluster:check` passes. The existing downing tests are unchanged and pass.
-- [ ] **`spec-0233-farewell`** — `Membership.farewell()`, sent by `Cluster.stop` once `outFor` holds. Lands with the
+- [x] **`spec-0233-farewell`** — `Membership.farewell()`, sent by `Cluster.stop` once `outFor` holds. Lands with the
       `MembershipSuite` test in Shape, and a `Net` helper (`stopped`) if the test needs one.
       Done when: the Shape test passes. Twenty local runs of `ClusteredSuite` "three nodes join from config alone…"
       each finish in under 5 s.
