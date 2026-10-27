@@ -46,7 +46,7 @@ suppressing one, unless the call really means it.
 
 All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 
-- `surefold`: forks, resources, `Schedule`, `timeout`, `policy`, `Clock`, `TestClock`, logs and metrics, `capturingLogs`, `capturingMetrics`.
+- `surefold`: forks, resources, `Schedule`, `timeout`, `policy`, `Clock`, `TestClock`, logs and metrics, `capturingLogs`, `capturingMetrics`, `logger.unbound()` for what `main` reads.
 - `surefold-replay`: `explore` and `replay`, a test's forks in seeded orders.
 - `surefold-compiler`: a checker for forks that outlive their scope; plugin `io.github.matthewjones372.surefold.compiler`.
 - `surefold-pekko`: a Pekko dispatcher as the executor.

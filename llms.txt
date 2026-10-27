@@ -32,7 +32,8 @@ Facts worth having before anything else:
 - `surefold`: `scope`, `parZip`, `parMap`, `raceN`, `resourceScope`, `Schedule`,
   `timeout`, `policy` (retry, circuit breaker, bulkhead, rate limiter),
   `SurefoldLocal`, `Clock`, `TestClock`, the log and metrics calls,
-  `capturingLogs` and `capturingMetrics` for tests, `await()` for a
+  `capturingLogs` and `capturingMetrics` for tests (`logger.unbound()` for
+  what `main` reads), `await()` for a
   `CompletionStage` or `Future`, and `surefoldFuture { }` to hand one back.
 - `surefold-replay`: `explore(runs) { }` runs a test's forks in a different seeded
   order each time and names the order that broke it; `replay(order) { }` runs that order again.

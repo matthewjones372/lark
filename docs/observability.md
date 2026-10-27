@@ -63,7 +63,8 @@ The module compiles against `slf4j-api` 1.7 and works with 2.x.
 **Your own logger.** `Logger` is a `fun interface` over `LogLine`, which carries
 `level`, `message`, `at`, `cause`, `annotations` and `origin`. Binding one with
 `logger.locally(MyLogger()) { … }` takes priority over anything registered on
-the classpath, for a whole application or for one block.
+the classpath, for a whole application or for one block. `logger.unbound()`
+answers what the classpath registered, whatever is bound around it.
 
 ## Metrics
 

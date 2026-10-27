@@ -99,6 +99,11 @@ fun stampedTogether(): List<LogLine> = clock.locally(fixedClock()) {
 
 Both are in the core `surefold` module.
 
+A surefold-junit test runs with its logger and registry bound to a capture, so
+`logger.get()` inside one is never what `main` gets. `logger.unbound()` is:
+the logger the classpath registered, or `StderrLogger`. To run a block as
+`main` would log, bind that back with `logger.locally(logger.unbound()) { … }`.
+
 ## Stories and waiting
 
 `surefold-test` is for tests of a whole service. `story { }` writes a test as

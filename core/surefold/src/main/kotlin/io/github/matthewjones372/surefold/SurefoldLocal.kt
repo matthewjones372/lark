@@ -11,8 +11,11 @@ class SurefoldLocal<A> internal constructor(private val initial: () -> A) {
         val bound = Bindings.snapshot()
         // Only `locally` writes the map, and it writes an A under this key.
         @Suppress("UNCHECKED_CAST")
-        return if (bound.containsKey(this)) bound[this] as A else initial()
+        return if (bound.containsKey(this)) bound[this] as A else unbound()
     }
+
+    /** What [get] answers where nothing is bound, which is what `main` reads, whatever is bound around the call. */
+    fun unbound(): A = initial()
 
     /** Runs [block] with [value] bound, and puts back what was bound before on the way out. */
     fun <B> locally(value: A, block: () -> B): B = Bindings.under(Bindings.snapshot() + (this to value), block)
