@@ -699,6 +699,16 @@ schema's owner, `migrations(changelog) { s: DbConfig -> ownerPool(s) }` runs it
 on a source opened from that node and closed before `Migrated` is answered.
 Outside a graph, `migrate(dataSource, changelog)` runs a changelog immediately.
 
+`surefold-app-flyway` does the same with Flyway's SQL scripts, the data modules' first and then the service's, and
+hands a database Liquibase has migrated over once ([Flyway](flyway.md)):
+
+```kotlin
+val database: Module =
+    closingOf { cfg: DbConfig -> HikariDataSource(cfg) }.boundTo<DataSource>() +
+    flyway(SurefoldSchema.TENANCY, SurefoldSchema.JOBS, service = "classpath:db/migration") +
+    single { db: DataSource, _: Migrated -> PgUserRepo(db) as UserRepo }
+```
+
 ## Spawn a Pekko actor
 
 `surefold-app-pekko` makes a Pekko typed actor a node keyed by the `ActorRef<T>`

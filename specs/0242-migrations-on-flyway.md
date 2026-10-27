@@ -81,7 +81,7 @@ in the build. What Flyway Community loses: rollback blocks, preconditions, conte
 - [x] **`spec-0242-module-scripts`** — Flyway scripts in the five data modules, `SurefoldSchema`, the equality check.
       Done when: per module, the catalog (tables, columns, constraints, indexes, policies, grants, functions) after
       Flyway equals that after Liquibase; jobs listed before tenancy still runs after it.
-- [ ] **`spec-0242-from-liquibase`** — `fromLiquibase`, `docs/flyway.md`, cookbook and module tables.
+- [x] **`spec-0242-from-liquibase`** — `fromLiquibase`, `docs/flyway.md`, cookbook and module tables.
       Done when: a database migrated by Liquibase is baselined and then dropped of Liquibase's tables, and one whose
       last changeset differs is refused; the guide's fences compile.
 
