@@ -48,13 +48,13 @@ it. **Alternative:** MinIO's own Java client; recommended against, since it is S
 
 ## Stack
 
-- [ ] **`spec-0224-api`** — the module, `Files`, `FileKey`, `TenantPrefix`, `FileError`, `InMemoryFiles`.
+- [x] **`spec-0224-api`** ([#787](https://github.com/matthewjones372/surefold/pull/787)) — the module, `Files`, `FileKey`, `TenantPrefix`, `FileError`, `InMemoryFiles`.
       Done when: the contract suite passes against the fake, and a key with `..` is refused.
-- [ ] **`spec-0224-s3`** — `S3Files` for put, get, head, delete, list and copy; `surefold-files-test` with MinIO.
+- [x] **`spec-0224-s3`** ([#788](https://github.com/matthewjones372/surefold/pull/788)) — `S3Files` for put, get, head, delete, list and copy; `surefold-files-test` with MinIO.
       Done when: the contract suite passes against MinIO, and a stopped MinIO answers `Unavailable` within the deadline.
-- [ ] **`spec-0224-presign`** — presigned PUT and GET with expiry, content type and size, and multipart upload.
+- [x] **`spec-0224-presign`** ([#789](https://github.com/matthewjones372/surefold/pull/789)) — presigned PUT and GET with expiry, content type and size, and multipart upload.
       Done when: a presigned PUT of the wrong size is refused by MinIO, and a 12 MB upload in three parts reads back.
-- [ ] **`spec-0224-docs`** — `docs/files.md`, the module tables, metrics.
+- [x] **`spec-0224-docs`** ([#790](https://github.com/matthewjones372/surefold/pull/790)) — `docs/files.md`, the module tables, metrics.
       Done when: the guide's example is held to a compiled source, as the jobs guide is.
 
 ## Acceptance

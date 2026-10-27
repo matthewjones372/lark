@@ -49,13 +49,13 @@ single way to get a typed scope, which is already the documented way.
 
 ## Stack
 
-- [ ] **`spec-0210-core`** — `Scope`, `Fail<E>.scope` and the top-level form dropped, in `surefold`, with `ScopeTest`
+- [x] **`spec-0210-core`** ([#726](https://github.com/matthewjones372/surefold/pull/726)) — `Scope`, `Fail<E>.scope` and the top-level form dropped, in `surefold`, with `ScopeTest`
       and the resolution test. `docs/core.md`, `GLOSSARY.md`, the README and every call of the old functions follow. Every module still compiles against
       `typealias Flock<E> = Scope<E>`, kept for this entry only.
       Done when: `:surefold:check` passes and `ScopeTest` covers `attempt { scope { fail(e) } }` answering `Left(e)`.
-- [ ] **`spec-0210-actors`** — `surefold-actor`, `-actor-remote`, `-stream-actors` and their docs move to `Scope`.
+- [x] **`spec-0210-actors`** ([#727](https://github.com/matthewjones372/surefold/pull/727)) — `surefold-actor`, `-actor-remote`, `-stream-actors` and their docs move to `Scope`.
       Done when: their `check` passes and `grep -rnw Flock` finds nothing in them.
-- [ ] **`spec-0210-rest`** — cluster, app, benches, the example and `README.md`. The typealias goes.
+- [x] **`spec-0210-rest`** ([#728](https://github.com/matthewjones372/surefold/pull/728)) — cluster, app, benches, the example and `README.md`. The typealias goes.
       Done when: `./gradlew build` passes and `grep -rnwi 'flock' --include=*.kt --include=*.md . | grep -v '^./specs'`
       finds nothing.
 
