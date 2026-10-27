@@ -1,6 +1,7 @@
 package io.github.matthewjones372.surefold.app.liquibase
 
 import io.github.matthewjones372.surefold.actor.journal.jdbc.Postgres
+import io.github.matthewjones372.surefold.app.Migrated
 import io.github.matthewjones372.surefold.app.render
 import io.github.matthewjones372.surefold.app.report
 import io.github.matthewjones372.surefold.app.single
@@ -74,6 +75,16 @@ object MigrationsSuite : Suite() {
             val app = migrations(CHANGELOG) + single { _: Migrated -> Orders(0) }
 
             app.validate().leftOrNull().shouldNotBeNull { errors -> errors.report() shouldContain "missing DataSource" }
+        }
+
+        test("the old name is surefold-app's Migrated, so a reader written against it still finds the node") {
+            // The deprecated alias is the claim under test.
+            @Suppress("DEPRECATION")
+            val reader =
+                single { done: io.github.matthewjones372.surefold.app.liquibase.Migrated -> Orders(done.applied) }
+            val app = single<DataSource> { database() } + migrations(CHANGELOG) + reader
+
+            testApp(app) { orders: Orders -> orders.rows } shouldBe 1
         }
     }
 }

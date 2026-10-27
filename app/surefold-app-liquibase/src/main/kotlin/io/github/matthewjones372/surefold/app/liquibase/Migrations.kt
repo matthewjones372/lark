@@ -11,18 +11,16 @@ import liquibase.database.jvm.JdbcConnection
 import liquibase.resource.ClassLoaderResourceAccessor
 import javax.sql.DataSource
 
-/**
- * The database is at the changelog's latest version.
- *
- * A node that reads the database takes one of these, which makes "after the migrations" an edge in
- * the graph rather than a line in a comment: the reader cannot be built before the writer has run,
- * and `render()` draws the ordering.
- */
-class Migrated internal constructor(val applied: Int)
+/** surefold-app's `Migrated` under this module's name, for code written against it. */
+@Deprecated(
+    "Migrated is surefold-app's, so a reader does not depend on which tool migrated.",
+    ReplaceWith("Migrated", "io.github.matthewjones372.surefold.app.Migrated"),
+)
+typealias Migrated = io.github.matthewjones372.surefold.app.Migrated
 
 /**
  * Runs [changelog] against the [DataSource] the graph provides, once, before anything that takes a
- * [Migrated] is built.
+ * [io.github.matthewjones372.surefold.app.Migrated] is built.
  *
  * The connection is the application's, and is given back before the node answers: a migration that
  * held one for the life of the process would be a pool slot nothing ever uses again.
@@ -31,7 +29,9 @@ fun migrations(
     changelog: String,
     contexts: Contexts = Contexts(),
     labels: LabelExpression = LabelExpression(),
-): Module = single { source: DataSource -> Migrated(migrate(source, changelog, contexts, labels)) }
+): Module = single { source: DataSource ->
+    io.github.matthewjones372.surefold.app.Migrated(migrate(source, changelog, contexts, labels))
+}
 
 /**
  * Runs [changelog], a classpath resource, against [source] now, and answers how many changesets it applied. For a

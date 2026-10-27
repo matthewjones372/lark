@@ -134,7 +134,7 @@ against; the library's own transitive dependencies come with it.
 | Module | For | Surefold deps | Adds | Published |
 |---|---|---|---|---|
 | `surefold-jobs` | durable jobs on Postgres, enqueued in the caller's own transaction ([guide](jobs.md)) | `surefold` | none (bring your own driver and pool) | yes |
-| `surefold-app-jobs` | a job worker as a node, started after the migrations and drained on release ([guide](jobs.md#a-kind-a-handler-and-a-worker)) | `surefold-app-liquibase`, `surefold-jobs` | none beyond Liquibase | yes |
+| `surefold-app-jobs` | a job worker as a node, started after the migrations and drained on release ([guide](jobs.md#a-kind-a-handler-and-a-worker)) | `surefold-app`, `surefold-jobs` | none: the service picks its migration tool | yes |
 | `surefold-jobs-load` | a Proofload load test: jobs enqueued at a fixed rate, drained by 1, 4 and 16 workers (`./gradlew :surefold-jobs-load:run`) | | Proofload, Testcontainers | no |
 | `surefold-files` | files on any S3-compatible store, with typed failures, presigned URLs and an in-memory fake ([guide](files.md)) | `surefold` | AWS SDK 2.55.6 `s3`, on its URL-connection client | yes |
 | `surefold-files-test` | MinIO in Testcontainers, a fresh bucket a call, for a service's own tests ([guide](files.md#testing)) | `surefold-files` | Testcontainers 2.0.5 | yes |

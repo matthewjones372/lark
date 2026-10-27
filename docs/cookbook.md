@@ -682,7 +682,7 @@ dependencies {
 ```
 
 ```kotlin
-import io.github.matthewjones372.surefold.app.liquibase.Migrated
+import io.github.matthewjones372.surefold.app.Migrated
 import io.github.matthewjones372.surefold.app.liquibase.migrations
 
 val database: Module =
@@ -693,6 +693,7 @@ val database: Module =
 
 `PgUserRepo` cannot be built before the changelog has run. The connection the
 migration used is returned to the pool before the node finishes.
+`Migrated` is `surefold-app`'s, so a reader does not name the migration tool;
 `Migrated.applied` is the number of changesets that ran. Outside a graph,
 `migrate(dataSource, changelog)` runs a changelog immediately.
 
