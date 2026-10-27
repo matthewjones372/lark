@@ -85,6 +85,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-jobs`: durable jobs on Postgres.
 - `surefold-app-jobs`: a job worker as a node.
 - `surefold-jobs-otel`: a span per job run.
+- `surefold-files`: files on any S3-compatible store.
 - `surefold-actor-projection`: a journal as a resumable `Stream`.
 - `surefold-actor-remote`: actors across nodes.
 - `surefold-actor-remote-protobuf`: remote messages in Protobuf.
