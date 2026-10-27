@@ -143,6 +143,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-jobs-tenancy` | each job's handler runs as the tenant its row names ([guide](tenancy.md#jobs)) | `surefold-jobs`, `surefold-tenancy` | none | yes |
 | `surefold-idempotency` | idempotency keys on Postgres, reserved atomically across instances, answers replayed ([guide](http-stores.md)) | `surefold`, `surefold-jobs` | none (bring your own driver and pool) | yes |
 | `surefold-ratelimit` | token buckets by key, in memory or on Postgres, shared by every instance ([guide](http-stores.md#rate-limits)) | `surefold` | none (bring your own driver and pool) | yes |
+| `surefold-auth` | sessions and credentials: Argon2id passwords, rotating sessions, magic links, TOTP, roles (specs 0227 and 0228, in progress) | `surefold` | `bcprov-jdk18on` 1.85 | yes |
 | `surefold-jobs-otel` | a span per run of a job, in its own trace and linked to the span that enqueued it ([guide](jobs.md#traces)) | `surefold-jobs`, `surefold-otel` | none beyond `opentelemetry-api` | yes |
 
 ### Observability and testing

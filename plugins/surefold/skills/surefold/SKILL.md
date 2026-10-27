@@ -92,6 +92,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-jobs-tenancy`: jobs run as their tenant.
 - `surefold-idempotency`: idempotency keys on Postgres.
 - `surefold-ratelimit`: token-bucket rate limits.
+- `surefold-auth`: sessions, passwords and second factors.
 - `surefold-actor-projection`: a journal as a resumable `Stream`.
 - `surefold-actor-remote`: actors across nodes.
 - `surefold-actor-remote-protobuf`: remote messages in Protobuf.
