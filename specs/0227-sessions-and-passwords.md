@@ -63,7 +63,7 @@ Recommended: Bouncy Castle.
       a rotated token stops resolving, and a revoked one stops on another instance.
 - [x] **`spec-0227-links`** — `PostgresMagicLinks`.
       Done when: a link redeems once, and 20 threads redeeming one link at once get it once between them.
-- [ ] **`spec-0227-roles`** — roles and permissions, loaded into the principal.
+- [x] **`spec-0227-roles`** — roles and permissions, loaded into the principal.
       Done when: a user with a role in one tenant has its permissions there and not in another.
 
 ## Acceptance
