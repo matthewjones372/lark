@@ -114,6 +114,7 @@ Facts worth having before anything else:
 - `surefold-files-test`: MinIO in Testcontainers, a fresh bucket a call, for a service's own tests.
 - `surefold-tenancy`: a tenant forks inherit, and Postgres row-level security set for every transaction.
 - `surefold-tenancy-test`: a check that a service's tables keep two tenants apart.
+- `surefold-jobs-tenancy`: each job's handler runs as the tenant its row names.
 - `surefold-actor-projection`: a journal as a `Stream`, for a read model that
   resumes where it left off.
 - `surefold-actor-remote`: `surefold-actor` across nodes over one TCP connection per

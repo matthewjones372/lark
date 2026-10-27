@@ -161,6 +161,8 @@ val moduleDescriptions = mapOf(
     "surefold-tenancy" to
         "Tenancy Postgres enforces: a tenant forks inherit, row-level security per transaction, and an audited bypass.",
     "surefold-tenancy-test" to "A check that a service's tables keep two tenants apart under row-level security.",
+    "surefold-jobs-tenancy" to
+        "surefold-jobs on surefold-tenancy: each job's handler runs as the tenant its row names.",
 )
 
 // A Gradle plugin publishes through `java-gradle-plugin`'s own marker publication, and what it does
