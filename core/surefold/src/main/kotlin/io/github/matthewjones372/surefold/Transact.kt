@@ -14,6 +14,27 @@ class Shared<T>(initial: T, val name: String? = null) {
 
     /** The latest committed value, read outside any step: deciding a write on it races every other step. */
     fun peek(): T = word.read().value
+
+    /**
+     * Changes the value by [change] as a step of its own, named [name] (spec 0247). Inside a step, it is part of that
+     * step, so `transact { a.update { … }; b.update { … } }` still lands both together.
+     */
+    fun update(change: (T) -> T) {
+        transact(name) { this@Shared.set(change(this@Shared.get())) }
+    }
+
+    /** Changes the value by [change] and answers what [change] answers beside it, as one step, as [update] does. */
+    fun <A> modify(change: (T) -> Pair<T, A>): A = transact(name) {
+        val (next, answer) = change(this@Shared.get())
+        this@Shared.set(next)
+        answer
+    }
+
+    /** Parks until a committed value makes [holds] true, and answers it, as [Transaction.waitForChange] parks. */
+    fun awaitUntil(holds: (T) -> Boolean): T = transact(name) {
+        val value = this@Shared.get()
+        if (holds(value)) value else waitForChange()
+    }
 }
 
 /**
@@ -138,8 +159,6 @@ class Transaction internal constructor(private var solo: Any?) {
     fun <T> Shared<T>.set(value: T) {
         writes[this] = value
     }
-
-    fun <T> Shared<T>.update(change: (T) -> T) = set(change(get()))
 
     /**
      * Runs [effect] once the step has committed, in the order effects were queued (spec 0211). A run that retries,

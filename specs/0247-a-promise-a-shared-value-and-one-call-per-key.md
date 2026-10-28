@@ -31,7 +31,7 @@ primitive of its own:
 val started = Promise<StartError, Parts>()
 started.succeed(parts)                       // or started.fail(StartError.PortTaken); a second completion is false
 started.await()                              // Either<StartError, Parts>; parks on a virtual thread
-started.await(within = 10.seconds)           // Either<…>, or Timeout on the bound clock, so a TestClock moves it
+started.await(within = 10.seconds)           // Either<…>, or null past 10 seconds on the bound clock
 
 val stopped = Promise<Nothing, Unit>()       // a latch is a promise of Unit
 stopped.succeed(Unit)
@@ -49,7 +49,8 @@ flights.run("sku-1") { loadPrice("sku-1") }  // the first caller runs it; the re
 
 - **`Promise`** is a `Shared` holding no answer yet, and `await` is `transact { get() ?: waitForChange() }`, so it
   costs no new machinery and wakes on the same commit as any other change. `succeed` and `fail` answer whether they
-  completed it. `await` is cancelled with the scope it is called in. `within` reads the bound clock.
+  completed it. `await` is cancelled with the scope it is called in. `within` reads the bound clock, and answers null
+  once it passes, as `timeoutOrNull` does.
 - **`Shared.update`**, **`modify`** and **`awaitUntil`** are one-value transactions with the same retry and
   `name` metric as `transact`, so a `Shared` changed both ways stays consistent.
 - **`SingleFlight.run(key)`** runs the block once per key while it is in flight. Callers arriving meanwhile wait on
@@ -69,17 +70,17 @@ model of shared state beside `transact`.
 
 ## Stack
 
-- [ ] **`spec-0247-shared`**: `Shared.update`, `modify` and `awaitUntil`.
+- [x] **`spec-0247-shared`** ([#873](https://github.com/matthewjones372/surefold/pull/873)): `Shared.update`, `modify` and `awaitUntil`.
       Done when:
       - a thousand forks each `update { it + 1 }` and the value is a thousand;
       - `awaitUntil` wakes on the change that makes it true, and not before.
-- [ ] **`spec-0247-promise`**: `Promise`, `succeed`, `fail`, `await`, `await(within)`.
+- [x] **`spec-0247-promise`** ([#876](https://github.com/matthewjones372/surefold/pull/876)): `Promise`, `succeed`, `fail`, `await`, `await(within)`.
       Done when:
       - twenty waiters all get the value;
       - a second `succeed` answers false and changes nothing;
-      - on a `TestClock`, `await(within = 10.seconds)` answers `Timeout` once the clock passes 10 seconds;
+      - on a `TestClock`, `await(within = 10.seconds)` answers null once the clock passes 10 seconds;
       - a waiter's scope cancelled mid-wait stops it.
-- [ ] **`spec-0247-single-flight`**: `SingleFlight`.
+- [x] **`spec-0247-single-flight`** ([#879](https://github.com/matthewjones372/surefold/pull/879)): `SingleFlight`.
       Done when:
       - twenty forks calling `run("k")` at once run the block once and all get its `Either`;
       - a cancelled waiter does not stop the block;
@@ -88,6 +89,10 @@ model of shared state beside `transact`.
 - [ ] **`spec-0247-uses`**: the bank example and `surefold-app`'s `Run.kt` on `Promise` and `Shared`.
       Done when: none of `BankNode`, `Main`, `Members`, `Sse` or `Run.kt` imports `CountDownLatch`,
       `CompletableFuture` or `ReentrantLock`, and their tests pass unchanged.
+- [ ] **`spec-0247-app`**: `surefold-app`'s `Start.kt`, `surefold-app-actor`'s `Actors.kt` and
+      `surefold-app-openfeature`'s holder on `Promise` and `Shared`.
+      Done when: none of them imports `CompletableFuture`, `ReentrantLock` or `AtomicReference`, and their tests pass
+      unchanged.
 
 ## Acceptance
 
