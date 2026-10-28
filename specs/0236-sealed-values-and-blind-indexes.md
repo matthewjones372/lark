@@ -54,7 +54,7 @@ leaks equality the same way and makes the encryption key also the lookup key.
 
 ## Stack
 
-- [ ] **`spec-0236-seal`** — `TenantCipher`: seal, open, the envelope, associated data, padding, `SealError`.
+- [x] **`spec-0236-seal`** ([#863](https://github.com/matthewjones372/surefold/pull/863)) — `TenantCipher`: seal, open, the envelope, associated data, padding, `SealError`.
       Done when: NIST's GCM vectors pass, a value opens in its place, and fails as `Tampered` after its bytes are
       copied to another row, column or tenant.
 - [ ] **`spec-0236-versions`** — opening by version, `reseal`, the encryption count.
