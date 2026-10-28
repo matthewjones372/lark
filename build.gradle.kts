@@ -170,6 +170,8 @@ val moduleDescriptions = mapOf(
     "surefold-ratelimit" to "Rate limits as token buckets, in memory or on Postgres, shared by every instance.",
     "surefold-tenancy-crypto" to
         "A key per tenant, rooted in a KMS key no backup holds: delete the root and every copy is unreadable.",
+    "surefold-tenancy-crypto-aws" to
+        "surefold-tenancy-crypto on AWS KMS: one customer managed key per tenant, found by alias.",
     "surefold-postgres-notify" to
         "Postgres's LISTEN and NOTIFY as a surefold Stream: one connection, notifications in commit order.",
     "surefold-auth" to

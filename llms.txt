@@ -120,6 +120,7 @@ Facts worth having before anything else:
 - `surefold-tenancy`: a tenant forks inherit, and Postgres row-level security set for every transaction.
 - `surefold-tenancy-test`: a check that a service's tables keep two tenants apart.
 - `surefold-tenancy-crypto`: a key per tenant under a KMS root key no backup holds, and an in-memory KMS.
+- `surefold-tenancy-crypto-aws`: `AwsKms`, one AWS KMS key per tenant, found by alias.
 - `surefold-jobs-tenancy`: each job's handler runs as the tenant its row names.
 - `surefold-idempotency`: idempotency keys on Postgres, reserved atomically across instances, answers replayed.
 - `surefold-ratelimit`: token buckets in memory or on Postgres, shared by every instance.

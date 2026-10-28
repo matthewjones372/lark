@@ -79,6 +79,7 @@ module("data", "surefold-idempotency")
 module("data", "surefold-ratelimit")
 module("data", "surefold-postgres-notify")
 module("data", "surefold-tenancy-crypto")
+module("data", "surefold-tenancy-crypto-aws")
 module("data", "surefold-auth")
 module("data", "surefold-auth-oidc")
 
