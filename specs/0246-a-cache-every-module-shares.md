@@ -129,7 +129,7 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
 
 ## Stack
 
-- [ ] **`spec-0246-cache`**: `surefold-cache` in core, with `Cache`, `get`, `ttl` by result, `stale`, `invalidate`
+- [x] **`spec-0246-cache`** ([#886](https://github.com/matthewjones372/surefold/pull/886)): `surefold-cache` in core, with `Cache`, `get`, `ttl` by result, `stale`, `invalidate`
       and `stats`, over `InMemory` without a bound yet.
       Done when: on a `TestClock`:
       - twenty threads asking for one missing key run its lookup once;

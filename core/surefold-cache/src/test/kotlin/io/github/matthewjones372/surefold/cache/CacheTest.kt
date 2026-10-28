@@ -26,7 +26,7 @@ class CacheTest {
         ttl: (Either<E, V>) -> kotlin.time.Duration,
         stale: kotlin.time.Duration = kotlin.time.Duration.ZERO,
         lookup: (String) -> Either<E, V>,
-    ): Cache<String, E, V> = clock.locally(moving) { Cache(ttl, stale, lookup) }
+    ): Cache<String, E, V> = clock.locally(moving) { Cache(ttl, stale, lookup = lookup) }
 
     @Test
     fun `twenty callers asking for one missing key run its lookup once`() {
