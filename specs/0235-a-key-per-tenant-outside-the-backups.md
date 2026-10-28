@@ -65,7 +65,7 @@ not the default. The module is **`surefold-tenancy-crypto`**, not `surefold-cryp
       KMS is called once per tenant per soft period however many threads ask.
 - [x] **`spec-0235-aws`** ([#861](https://github.com/matthewjones372/surefold/pull/861)) — `surefold-tenancy-crypto-aws`: `AwsKms`, against LocalStack's KMS.
       Done when: provision, unwrap, a context mismatch refused, and a scheduled deletion all hold on LocalStack.
-- [ ] **`spec-0235-shred`** — `shred`, and `docs/tenancy-crypto.md` with the table's policy and a key policy to copy.
+- [x] **`spec-0235-shred`** ([#862](https://github.com/matthewjones372/surefold/pull/862)) — `shred`, and `docs/tenancy-crypto.md` with the table's policy and a key policy to copy.
       Done when: after `shred`, the tenant's rows from a copy of the database taken before it cannot be unwrapped.
 
 ## Acceptance
