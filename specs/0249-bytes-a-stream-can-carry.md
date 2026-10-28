@@ -91,12 +91,12 @@ always be changed, it has no structural equality, and slicing it means copying.
 
 ## Open questions
 
-1. **Does `ByteChunk` live in `surefold` or `surefold-stream`?** Recommended: `surefold`, so `surefold-files` and
+1. **Does `ByteChunk` live in `surefold` or `surefold-stream`?** Answered: `surefold`, so `surefold-files` and
    `actor-remote` can take it without depending on streams.
 2. **What is it called?** Answered: `ByteChunk`. `Bytes` clashes with Guava's `Bytes` and the AWS SDK's `SdkBytes`
    (already in `surefold-files`), and `ByteString` with Pekko's, okio's and kotlinx-io's. `ByteChunk` is ZIO's name
    for the same thing and is free on the JVM.
-3. **What does `decodeUtf8` do with malformed input?** Recommended: replace it with U+FFFD, as Kotlin's own
+3. **What does `decodeUtf8` do with malformed input?** Answered: replace it with U+FFFD, as Kotlin's own
    `decodeToString` does. A strict `decodeUtf8(strict = true)` that fails the run can follow.
-4. **Is an `IOException` from `read` a defect, or a typed error?** Recommended: a defect, as in every other blocking
+4. **Is an `IOException` from `read` a defect, or a typed error?** Answered: a defect, as in every other blocking
    source. `catchAll` already turns one into a value where a caller wants that.
