@@ -37,7 +37,7 @@ fun loadAllFromDb(ids: List<Id>): Either<NotFound, List<User>> = ids.parTraverse
 - `fun <E, A, B> Iterable<A>.traverse(f: Fail<E>.(A) -> B): Either<E, List<B>>` in `fail/`, beside `attempt`: runs
   `f` on each element in order on the calling thread; the first failure ends it and no later element runs.
 - `fun <E, A, B> Iterable<A>.parTraverse(limit: Limit = Limit.fixed(PAR_TRAVERSE_DEFAULT, "parTraverse"),
-  f: Fail<E>.(A) -> B): Either<E, List<B>>` in `Par.kt`: `attempt { parMap(this, limit, …) }`, so the first failure
+  f: Fail<E>.(A) -> B): Either<E, List<B>>` in `Traverse.kt` (`Par.kt` is at detekt's 40-function cap): `attempt { parMap(this, limit, …) }`, so the first failure
   interrupts the rest exactly as `parMap` does, and no fork starts after one has failed.
 - **Bounded by default.** With no `limit`, at most `PAR_TRAVERSE_DEFAULT` (64) elements run at once, so a list of a
   million ids parks 64 forks, not a million. Passing a `Limit` overrides it: a fixed one for a different number, or a
@@ -76,15 +76,15 @@ it called", and the answer would still be "nothing". **Alternative B:** `forEach
 
 ## Open questions
 
-1. **Name:** `traverse`, `mapOrFail`, or `attemptEach`? Recommend `traverse`: it is the name both ZIO users (via
+1. **Name:** `traverse`, `mapOrFail`, or `attemptEach`? **Answered: `traverse`** (maintainer, 2026-10-28). Recommend `traverse`: it is the name both ZIO users (via
    Cats) and Arrow users already know, and Surefold's `parZip`/`parMap` already borrow Arrow's vocabulary.
-2. **`sequence`** for an `Iterable<Either<E, A>>` already computed? Recommend deferred: its only honest use is on
+2. **`sequence`** for an `Iterable<Either<E, A>>` already computed? **Deferred** (maintainer, 2026-10-28). Recommend deferred: its only honest use is on
    results that already exist, and it invites the eager `map(::load)` mistake above.
-3. **A `Fail` receiver form** too, `Fail<E>.traverse(xs, f): List<B>`, for use inside a scope? Recommend no: inside a
+3. **A `Fail` receiver form** too, `Fail<E>.traverse(xs, f): List<B>`, for use inside a scope? **Answered: no** (maintainer, 2026-10-28). Recommend no: inside a
    scope, Kotlin's `map` already is that function.
-4. **`parTraverse` name:** keep it, or have users write `attempt { parMap(…) }`? Recommend keep: without it,
+4. **`parTraverse` name:** keep it, or have users write `attempt { parMap(…) }`? **Answered: keep** (maintainer, 2026-10-28). Recommend keep: without it,
    `traverse` would be the one traversal with no parallel twin, which `parZip`/`parMap` have taught users to expect.
 5. **The default bound:** `Limit.fixed(64)`, `Limit.fixed(availableProcessors)` as `Suite` uses, or a fresh
-   `Limit.adaptive` per call? Recommend fixed 64: traversals are mostly I/O on virtual threads, where a CPU count is
+   `Limit.adaptive` per call? **Answered: fixed 64, overridable** (maintainer, 2026-10-28). Recommend fixed 64: traversals are mostly I/O on virtual threads, where a CPU count is
    too low; an adaptive limit made per call starts from nothing each time and guards no shared dependency, so
    adaptive belongs in the override, not the default. A public `PAR_TRAVERSE_DEFAULT` makes the number visible.

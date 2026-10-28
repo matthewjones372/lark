@@ -57,6 +57,12 @@ fun <E, A> attempt(block: Fail<E>.() -> A): Either<E, A> {
     }
 }
 
+/**
+ * Runs [f] on each element in order on the calling thread, answering with every value in order, or with the first
+ * failure, after which no later element runs (spec 0245).
+ */
+fun <E, A, B> Iterable<A>.traverse(f: Fail<E>.(A) -> B): Either<E, List<B>> = attempt { map { f(it) } }
+
 /** Runs [block], answering a failure with [recover] instead. */
 inline fun <E, A> recover(noinline block: Fail<E>.() -> A, recover: (E) -> A): A = attempt(block).getOrElse(recover)
 
