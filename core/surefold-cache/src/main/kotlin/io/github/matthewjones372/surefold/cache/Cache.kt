@@ -1,10 +1,15 @@
 package io.github.matthewjones372.surefold.cache
 
+import io.github.matthewjones372.surefold.Schedule
+import io.github.matthewjones372.surefold.ScheduleStep
 import io.github.matthewjones372.surefold.SingleFlight
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.logWarn
+import io.github.matthewjones372.surefold.surefoldFuture
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
 import kotlin.time.toJavaDuration
@@ -44,6 +49,12 @@ data class CacheStats(
  * Under its own memory, a cache asks [layers] in turn before it looks up: a hit in one is written into its own memory
  * and every nearer layer, keeping its expiry, so a value is never younger near than it was far. A good value looked up
  * is written into every layer; a failure is kept in its own memory only.
+ *
+ * [retry] runs a failing lookup again inside one lookup, after the delays it answers on the cache's clock, before its
+ * failure is kept; every caller waiting on that key shares the retries. [refreshing] looks a key up again ahead of its
+ * expiry: after each lookup it is stepped with the result, and its delay is when the key is looked up again in the
+ * background, for as long as someone has read it since the last time; a key nobody read is left to expire. A cache is
+ * closed when its owner is done with it, which stops every refresh and every lookup in flight.
  */
 class Cache<K : Any, E, V>(
     private val ttl: (Either<E, V>) -> Duration,
@@ -51,8 +62,10 @@ class Cache<K : Any, E, V>(
     capacity: Int = DEFAULT_CAPACITY,
     private val onEvict: (K, V) -> Unit = { _, _ -> },
     private val layers: List<Layer<K, V>> = emptyList(),
+    private val retry: Schedule<E, *>? = null,
+    private val refreshing: Schedule<Either<E, V>, *>? = null,
     private val lookup: (K) -> Either<E, V>,
-) {
+) : AutoCloseable {
     init {
         require(!stale.isNegative()) { "a stale value cannot be kept for $stale" }
     }
@@ -81,10 +94,26 @@ class Cache<K : Any, E, V>(
     private val layerHits = AtomicLong()
     private val layerFailures = AtomicLong()
 
+    // Each key refreshed ahead: the schedule's next step, whether it was read since its last lookup, and its sleeper.
+    private class Ahead<E, V>(val next: ScheduleStep<Either<E, V>, *>) {
+        @Volatile
+        var read = false
+
+        @Volatile
+        var sleeper: Future<Unit>? = null
+    }
+
+    private val ahead = ConcurrentHashMap<K, Ahead<E, V>>()
+
+    @Volatile
+    private var closed = false
+
     /** [key]'s answer: from memory while it is young, else from one [lookup] however many ask. */
     fun get(key: K): Either<E, V> {
+        check(!closed) { "the cache has closed" }
         val held = entries.read(key)
         if (held != null && time.now() < held.until) {
+            ahead[key]?.read = true
             hits.incrementAndGet()
             if (held.isStale) staleAnswers.incrementAndGet()
             return held.answer
@@ -92,6 +121,23 @@ class Cache<K : Any, E, V>(
         misses.incrementAndGet()
         return flights.run(key) { load(key) }
     }
+
+    /** Looks [key] up again in the background now; until it answers, and if it fails, `get` answers what it has. */
+    fun refresh(key: K) {
+        check(!closed) { "the cache has closed" }
+        background { flights.run(key) { load(key, refreshing = true) } }
+    }
+
+    /** Stops every refresh ahead and every lookup in flight; a `get` after this is refused. */
+    override fun close() {
+        closed = true
+        ahead.values.forEach { it.sleeper?.cancel(true) }
+        ahead.clear()
+        flights.cancelAll()
+    }
+
+    // How many keys are refreshed ahead now, for a test that waits for a key to be let go.
+    internal fun ahead(): Int = ahead.size
 
     /**
      * Forgets [what] in every layer, farthest first so a nearer one is not refilled from a stale copy, and then in its
@@ -120,12 +166,18 @@ class Cache<K : Any, E, V>(
             layerHits.get(), layerFailures.get(), entries.size,
         )
 
-    private fun load(key: K): Either<E, V> {
+    private fun load(key: K, refreshing: Boolean = false): Either<E, V> {
         val began = generation.get()
-        fromLayers(key, began)?.let { return it }
-        loads.incrementAndGet()
-        val result = lookup(key)
+        if (!refreshing) fromLayers(key, began)?.let { return it }
+        val result = retried(key)
         val now = time.now()
+        val young = entries.peek(key)?.takeIf { refreshing && now < it.until }
+        if (result is Either.Left && young != null) {
+            // A refresh that failed keeps what it was refreshing, which is still young.
+            failures.incrementAndGet()
+            ahead(key, result)
+            return young.answer
+        }
         val entry = when (result) {
             is Either.Right -> Entry<E, V>(result, now + ttl(result).toJavaDuration(), Good(result.value, now), false)
             is Either.Left -> failed(result, entries.peek(key)?.good, now)
@@ -137,9 +189,47 @@ class Cache<K : Any, E, V>(
                 val stored = Stored(result.value, now, entry.until)
                 layers.forEach { layer -> safely("write $key") { layer.write(key, stored) } }
             }
+            ahead(key, result)
         }
         return entry.answer
     }
+
+    // The lookup, run again on a failure for as long as [retry] carries on, sleeping on the cache's clock between.
+    private fun retried(key: K): Either<E, V> {
+        loads.incrementAndGet()
+        var result = lookup(key)
+        var next = retry?.step ?: return result
+        while (result is Either.Left) {
+            when (val decision = next(result.value)) {
+                is Schedule.Decision.Done -> return result
+
+                is Schedule.Decision.Continue -> {
+                    time.sleep(decision.delay)
+                    next = decision.step
+                    loads.incrementAndGet()
+                    result = lookup(key)
+                }
+            }
+        }
+        return result
+    }
+
+    // Steps [refreshing] with [result], and sleeps until its delay to look [key] up again, if it was read meanwhile.
+    private fun ahead(key: K, result: Either<E, V>) {
+        val schedule = refreshing ?: return
+        val step = ahead.remove(key)?.next ?: schedule.step
+        val decision = step(result) as? Schedule.Decision.Continue ?: return
+        if (closed) return
+        // In the map before its sleeper starts, so a sleeper with no delay finds itself there.
+        val mine = Ahead<E, V>(decision.step).also { ahead[key] = it }
+        mine.sleeper = background {
+            time.sleep(decision.delay)
+            if (ahead[key] === mine && mine.read && !closed) flights.run(key) { load(key, refreshing = true) }
+            ahead.remove(key, mine)
+        }
+    }
+
+    private fun background(block: () -> Unit): Future<Unit> = surefoldFuture(block)
 
     // The first layer holding a young value for [key], written into memory and every nearer layer on the way back.
     private fun fromLayers(key: K, began: Long): Either<E, V>? {
