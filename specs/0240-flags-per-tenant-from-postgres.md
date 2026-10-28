@@ -74,7 +74,7 @@ that only needs on and off per tenant. The module is **`surefold-openfeature-pos
       Done when: on a `TestClock`, a row changed by another process is seen after `ttl` and not before, a row `set`
       in this process is seen at once, and a provider whose database is down reports `STALE` and serves the cached
       values until `stale` runs out.
-- [ ] **`spec-0240-notify`** — the trigger, and `listening`.
+- [x] **`spec-0240-notify`** ([#915](https://github.com/matthewjones372/surefold/pull/915)) — the trigger, and `listening`.
       Done when: on Postgres, a tenant row changed by plain SQL from another connection is seen before `ttl` by
       that tenant only, a null row's change is seen by every tenant, and a `Gap` drops every scope.
 - [ ] **`spec-0240-docs`** — `docs/flags.md`'s section on flags per tenant, with the policy.

@@ -14,7 +14,8 @@ import java.io.File
 /**
  * The complete examples in `docs/core.md`, `docs/observability.md`, `docs/testing.md`, `docs/arrow.md`,
  * `docs/flags.md` and the README's suite, each compiled on its own: this module's test classpath holds the core,
- * surefold-pekko, surefold-junit, surefold-arrow and surefold-openfeature, which is all they use.
+ * surefold-pekko, surefold-junit, surefold-arrow, surefold-openfeature and surefold-openfeature-postgres, which is all
+ * they use.
  */
 class CoreGuideTest {
 
