@@ -49,7 +49,7 @@ fun check(order: Order): Either<NonEmptyList<Invalid>, Order> = attempt {
 - `zipOrAccumulate` / `mapOrAccumulate` live in `ZipOrAccumulate.kt` beside `Accumulate.kt` (which is at detekt's
   40-function cap), receivers
   `Fail<NonEmptyList<E>>` and `Fail<E>` plus `combine`. Each branch runs in its own `attempt`; no `Flight`, no executor.
-- `bindAll()` on `Either<NonEmptyList<E>, A>` inside a `Fail<NonEmptyList<E>>`-shaped branch keeps every error rather
+- `bindAll()` on `Either<NonEmptyList<E>, A>` inside a `FailAll<E>` branch keeps every error rather
   than `mapLeft { it.first() }` as the guide's example does today.
 - `accumulate { }` opens an `Accumulating<E>` scope in a `Fail<NonEmptyList<E>>`; `ensureOrAccumulate` and
   `bindOrAccumulate` record and carry on; plain `fail` inside it records and ends the block. At the end, any recorded
@@ -71,8 +71,13 @@ The arity overloads are mechanical; they cost lines, not design.
       (`Thread.currentThread()` read inside each); a throw in branch 1 stops branch 2 and is rethrown as the same instance.
 - [x] **`spec-0243-zip-wide`** ([#854](https://github.com/matthewjones372/surefold/pull/854)) — `zipOrAccumulate` at arities 6–9, both receiver forms.
       Done when: each arity answers its values in order, and its failures in branch order.
-- [ ] **`spec-0243-map`** — `mapOrAccumulate` both forms, and `bindAll`.
+- [x] **`spec-0243-map`** ([#855](https://github.com/matthewjones372/surefold/pull/855)) — `mapOrAccumulate` both forms. `bindAll` moved to
+      its own entry (2026-10-28): it needs a scope that can fail with several errors.
       Done when: a list with failures at 1 and 3 answers with both, in input order; an empty list answers `emptyList()`.
+- [ ] **`spec-0243-bind-all`** — `FailAll<E> : Fail<E>`, which can fail with a `NonEmptyList<E>`; the sequential
+      forms' branches take it as their receiver, and `bindAll()` compiles only there (maintainer, 2026-10-28; over a
+      runtime check that would drop errors outside a branch).
+      Done when: a nested list's errors all come back, in order, from a map element and from a zip branch.
 - [ ] **`spec-0243-accumulate`** — `accumulate { }`, `ensureOrAccumulate`, `bindOrAccumulate`.
       Done when: three failed `ensureOrAccumulate` answer all three; a leaked `Accumulating` is refused like a leaked `Fail`.
 - [ ] **`spec-0243-docs`** — `docs/core.md`, `docs/arrow.md` table, `llms.txt`; compiled fence `<!-- core-accumulate -->`.
