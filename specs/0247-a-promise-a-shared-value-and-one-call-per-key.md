@@ -89,7 +89,7 @@ model of shared state beside `transact`.
 - [x] **`spec-0247-uses`** ([#882](https://github.com/matthewjones372/surefold/pull/882)): the bank example and `surefold-app`'s `Run.kt` on `Promise` and `Shared`.
       Done when: none of `BankNode`, `Main`, `Members`, `Sse` or `Run.kt` imports `CountDownLatch`,
       `CompletableFuture` or `ReentrantLock`, and their tests pass unchanged.
-- [ ] **`spec-0247-app`**: `surefold-app`'s `Start.kt`, `surefold-app-actor`'s `Actors.kt` and
+- [x] **`spec-0247-app`** ([#883](https://github.com/matthewjones372/surefold/pull/883)): `surefold-app`'s `Start.kt`, `surefold-app-actor`'s `Actors.kt` and
       `surefold-app-openfeature`'s holder on `Promise` and `Shared`.
       Done when: none of them imports `CompletableFuture`, `ReentrantLock` or `AtomicReference`, and their tests pass
       unchanged.
