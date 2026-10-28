@@ -171,7 +171,6 @@ against; the library's own transitive dependencies come with it.
 | Module | For | Published |
 |---|---|---|
 | `surefold-bank` | an example application; see [below](#the-example-application) | no |
-| `surefold-bookings` | an example of the data modules together; see [below](#the-booking-example) | no |
 
 ## Stability
 
@@ -259,31 +258,3 @@ The HTTP server is the JDK's own `HttpServer`, and the pages are plain HTML and
 JavaScript, tested in headless Chromium through Playwright. It is not
 published and is not a real bank: there is no authentication, and an account
 is chosen by its id.
-
-## The booking example
-
-`surefold-bookings` is the layer of a multi-tenant booking service that an HTTP handler would call, built on
-`surefold-auth`, `surefold-tenancy`, `surefold-jobs`, `surefold-idempotency` and `surefold-files` (spec 0229). Every
-operation starts from a session token. The session's tenant is the only tenant it binds, and the session's
-permissions gate what the caller may do. A booking is inserted under row-level security, and its confirmation job is
-enqueued on the same connection, so both commit or neither does. The idempotency key is scoped to the tenant. The jobs
-worker claims on the system `DataSource`, and each handler runs as its job's tenant. Tickets are stored under the
-tenant's prefix.
-
-```bash
-./gradlew :surefold-bookings:test
-```
-
-A service includes the changelogs in the order `Schema.changelogs` lists them: tenancy, jobs, idempotency, auth, then
-its own tables. The application's role needs to read and write its own tables, the idempotency and auth tables, and
-`surefold_jobs` for enqueueing. The system role, which has `BYPASSRLS`, needs the jobs tables and
-`surefold_tenancy_audit`. There is no HTTP here: routes, cookies and status codes are Pelican's.
-
-A booking holds one or more slots, each a court the venue has added and a time range, and makes all of them or none
-(spec 0232). Postgres refuses two slots that overlap on one court with an exclusion constraint, so two members racing
-for the same hour cannot both win: the second booking is 409 and its transaction makes nothing. The constraint needs
-the `btree_gist` extension, which the example's changelog creates; a managed Postgres must allow it. A venue can cap
-how many slots one member holds in a day and an ISO week, in its own zone (`setLimits`). The booking locks the
-member's own row before it counts, so two bookings a member sends at once cannot both slip under the cap, and other
-members never wait on it. Staff with `bookings:host` hold several courts for an event or a party with `host`, which
-clashes like any booking but counts toward no member's limit.

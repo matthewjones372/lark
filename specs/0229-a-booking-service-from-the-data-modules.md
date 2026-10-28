@@ -1,5 +1,7 @@
 # 0229 — A booking service from the data modules
 
+> Removed by spec 0248: booking is product code, not Surefold's; the example is no longer in the tree.
+
 ## Problem
 
 Each data module has its own guide and its own tests, and none shows them together. A team building the multi-tenant
