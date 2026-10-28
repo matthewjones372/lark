@@ -20,7 +20,7 @@ row, then the tenant's row, cached 30 seconds).
 ```kotlin
 val CheckoutPaused = Flag.boolean("checkout.paused", default = false)     // 0181's declared flag
 val flags: Module = openFeature {
-    PostgresFlags(tenants, fallback = InMemoryProvider(defaults), ttl = 30.seconds, stale = 10.minutes)
+    PostgresFlags(app, fallback = InMemoryProvider(defaults), ttl = 30.seconds, stale = 10.minutes)
 }
 PostgresFlags.listening(notices, provider)  // a Run: another process's change, seen before the ttl runs out
 
@@ -34,9 +34,11 @@ PostgresFlags.clear(connection, "checkout.paused", tenant = TenantId("acme"))   
 ```
 
 - **One table**, `surefold_feature_flags (key, tenant_id null, value text, reason, updated_by, updated_at)`, with
-  `tenant_id` null for the row every tenant gets. The guide's policy lets a tenant read its rows and the null ones.
+  `tenant_id` null for the row every tenant gets. The changelog's policy lets a tenant read its rows and the null ones.
 - **Whose rows**: the tenant is the evaluation context's `tenant` attribute if set, else `currentTenant()`. The read
-  runs in that tenant's `TenantTransactions.transaction`, so the policy, not the provider, decides what it sees.
+  runs in that tenant's `TenantTransactions.transaction` on `app`, the application's `DataSource`, so the policy, not
+  the provider, decides what it sees. With no tenant, it runs in a transaction with `app.tenant_id` cleared, which a
+  `TenantTransactions` cannot give, so the provider takes the `DataSource`.
 - **Precedence**: the tenant's row, then the null row, then `fallback`, then the caller's default. The resolution's
   reason says which: `TARGETING_MATCH` for a tenant row, `STATIC` for the null row, the fallback's own otherwise.
 - **Types**: a row's text is read as the type asked for; one that does not parse answers the default with
