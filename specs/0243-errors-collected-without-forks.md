@@ -46,7 +46,8 @@ fun check(order: Order): Either<NonEmptyList<Invalid>, Order> = attempt {
 }
 ```
 
-- `zipOrAccumulate` / `mapOrAccumulate` live in `Accumulate.kt` beside the `par` forms, receivers
+- `zipOrAccumulate` / `mapOrAccumulate` live in `ZipOrAccumulate.kt` beside `Accumulate.kt` (which is at detekt's
+  40-function cap), receivers
   `Fail<NonEmptyList<E>>` and `Fail<E>` plus `combine`. Each branch runs in its own `attempt`; no `Flight`, no executor.
 - `bindAll()` on `Either<NonEmptyList<E>, A>` inside a `Fail<NonEmptyList<E>>`-shaped branch keeps every error rather
   than `mapLeft { it.first() }` as the guide's example does today.
@@ -64,9 +65,12 @@ The arity overloads are mechanical; they cost lines, not design.
 
 ## Stack
 
-- [ ] **`spec-0243-zip`** — `zipOrAccumulate` at arities 2–9, both receiver forms.
+- [ ] **`spec-0243-zip`** — `zipOrAccumulate` at arities 2–5, both receiver forms. Split from 6–9 (2026-10-27): the
+      sixteen overloads run past the cap together.
       Done when: two failing branches answer with both errors in branch order; every branch ran on the calling thread
       (`Thread.currentThread()` read inside each); a throw in branch 1 stops branch 2 and is rethrown as the same instance.
+- [ ] **`spec-0243-zip-wide`** — `zipOrAccumulate` at arities 6–9, both receiver forms.
+      Done when: each arity answers its values in order, and its failures in branch order.
 - [ ] **`spec-0243-map`** — `mapOrAccumulate` both forms, and `bindAll`.
       Done when: a list with failures at 1 and 3 answers with both, in input order; an empty list answers `emptyList()`.
 - [ ] **`spec-0243-accumulate`** — `accumulate { }`, `ensureOrAccumulate`, `bindOrAccumulate`.
@@ -82,10 +86,10 @@ The arity overloads are mechanical; they cost lines, not design.
 
 ## Open questions
 
-1. **Names: `zipOrAccumulate` / `mapOrAccumulate`, or Surefold's own?** Recommended: these. They pair with the `par`
+1. ~~Names: `zipOrAccumulate` / `mapOrAccumulate`, or Surefold's own?~~ Answered (2026-10-27): these. They pair with the `par`
    names already shipped, and 0168 kept `par*OrAccumulate` as they were.
-2. **Ship `accumulate { }` at all?** Recommended: yes, as the last entry, so it can be cut here without touching the
+2. ~~Ship `accumulate { }` at all?~~ Answered (2026-10-27): yes, as the last entry, so it can be cut here without touching the
    rest. `Config.reading` is the in-tree case for it.
-3. **What does `bindOrAccumulate` answer when it failed?** Options: return `A?` (honest, but every caller writes `!!`
-   or `?:`), or Arrow's lazy value that throws if read before the block ends. Recommended: `A?`, with no hidden throw.
-4. **Arity 9, as `par`, or stop at 5?** Recommended: 9, matching `par`, so no one hits a ceiling in one and not the other.
+3. ~~What does `bindOrAccumulate` answer when it failed?~~ Answered (2026-10-27): `A?`. Options were: return `A?` (honest, but every caller writes `!!`
+   or `?:`), or Arrow's lazy value that throws if read before the block ends. `A?` has no hidden throw.
+4. ~~Arity 9, as `par`, or stop at 5?~~ Answered (2026-10-27): 9, matching `par`, so no one hits a ceiling in one and not the other.

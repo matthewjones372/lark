@@ -1,0 +1,123 @@
+package io.github.matthewjones372.surefold
+
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.Fail
+import io.github.matthewjones372.surefold.fail.NonEmptyList
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.getOrElse
+import io.github.matthewjones372.surefold.fail.toNonEmptyListOrNull
+
+/**
+ * Runs both branches in order on the calling thread and keeps every failure: a fail ends only its own
+ * branch, so both run and their errors answer together, in branch order. A throw is not kept; it ends
+ * the call where it happens.
+ */
+fun <E, A, B, C> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    transform: (A, B) -> C,
+): C {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    failAll(a, b)
+    return transform(a.settled(), b.settled())
+}
+
+/** The same two branches, their failures folded with [combine] into the error this scope declares. */
+fun <E, A, B, C> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    transform: (A, B) -> C,
+): C = combined(combine) { zipOrAccumulate(fa, fb, transform) }
+
+/** Three branches, in order. */
+fun <E, A, B, C, D> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    transform: (A, B, C) -> D,
+): D {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    val c = attempt(fc)
+    failAll(a, b, c)
+    return transform(a.settled(), b.settled(), c.settled())
+}
+
+/** Three branches, their failures folded with [combine]. */
+fun <E, A, B, C, D> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    transform: (A, B, C) -> D,
+): D = combined(combine) { zipOrAccumulate(fa, fb, fc, transform) }
+
+/** Four branches, in order. */
+fun <E, A, B, C, D, F> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    transform: (A, B, C, D) -> F,
+): F {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    val c = attempt(fc)
+    val d = attempt(fd)
+    failAll(a, b, c, d)
+    return transform(a.settled(), b.settled(), c.settled(), d.settled())
+}
+
+/** Four branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    transform: (A, B, C, D) -> F,
+): F = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, transform) }
+
+/** Five branches, in order. */
+fun <E, A, B, C, D, F, G> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    transform: (A, B, C, D, F) -> G,
+): G {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    val c = attempt(fc)
+    val d = attempt(fd)
+    val e = attempt(fe)
+    failAll(a, b, c, d, e)
+    return transform(a.settled(), b.settled(), c.settled(), d.settled(), e.settled())
+}
+
+/** Five branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    transform: (A, B, C, D, F) -> G,
+): G = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, fe, transform) }
+
+/** Fails with every branch's error together, or returns so the caller can read their values. */
+private fun <E> Fail<NonEmptyList<E>>.failAll(vararg branches: Either<E, *>) {
+    // A null error is still an error, so Left is matched rather than leftOrNull.
+    branches.mapNotNull { it as? Either.Left }.map { it.value }.toNonEmptyListOrNull()?.let { fail(it) }
+}
+
+/** The value of a branch that [failAll] has already seen succeed. */
+private fun <A> Either<*, A>.settled(): A = (this as Either.Right<A>).value
+
+/** Runs [block] collecting into a list, then fails this scope with that list folded by [combine]. */
+private fun <E, A> Fail<E>.combined(combine: (E, E) -> E, block: Fail<NonEmptyList<E>>.() -> A): A =
+    attempt(block).getOrElse { fail(it.reduce(combine)) }
