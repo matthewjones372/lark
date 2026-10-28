@@ -69,7 +69,7 @@ The arity overloads are mechanical; they cost lines, not design.
       sixteen overloads run past the cap together.
       Done when: two failing branches answer with both errors in branch order; every branch ran on the calling thread
       (`Thread.currentThread()` read inside each); a throw in branch 1 stops branch 2 and is rethrown as the same instance.
-- [ ] **`spec-0243-zip-wide`** — `zipOrAccumulate` at arities 6–9, both receiver forms.
+- [x] **`spec-0243-zip-wide`** ([#854](https://github.com/matthewjones372/surefold/pull/854)) — `zipOrAccumulate` at arities 6–9, both receiver forms.
       Done when: each arity answers its values in order, and its failures in branch order.
 - [ ] **`spec-0243-map`** — `mapOrAccumulate` both forms, and `bindAll`.
       Done when: a list with failures at 1 and 3 answers with both, in input order; an empty list answers `emptyList()`.
