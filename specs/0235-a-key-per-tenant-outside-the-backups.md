@@ -57,7 +57,7 @@ not the default. The module is **`surefold-tenancy-crypto`**, not `surefold-cryp
 
 - [x] **`spec-0235-port`** ([#856](https://github.com/matthewjones372/surefold/pull/856)) — `surefold-tenancy-crypto`: `Kms`, `KeyError`, `InMemoryKms`, the dependency test.
       Done when: a key wrapped under tenant A's context does not unwrap under B's, and a deleted root answers `Denied`.
-- [ ] **`spec-0235-keys`** — `TenantKeys`, its changelog, provision, current, version, rotate, retire.
+- [x] **`spec-0235-keys`** ([#857](https://github.com/matthewjones372/surefold/pull/857)) — `TenantKeys`, its changelog, provision, current, version, rotate, retire.
       Done when: on Postgres, rotation makes version 2 current while version 1 still answers, and tenant A's
       transaction reads none of B's key rows.
 - [ ] **`spec-0235-cache`** — `KeyCache`: soft, hard, size, evict.
