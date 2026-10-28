@@ -54,6 +54,9 @@ object PetShopSuite : SharedSuite<PetShop>() {
   suite's.
 - Two cases with the same name fail registration, naming the group and the name, as two tests do today.
 - An empty `cases` registers an empty container, which the platform reports as passing with no tests.
+- Two groups with the same name fail registration too, as the group's name is its ID (added in build).
+- A case's failure message, story title and printed logs name it `group [case]`, so a failure says which group
+  it is in (added in build).
 
 ## Why this shape
 
@@ -85,11 +88,11 @@ small change, and it is what users of `@ParameterizedTest` expect to see.
 
 ## Open questions
 
-1. **Name:** `testEach`, `each`, or an overload `test(name, cases) { … }`? Recommend `testEach`: it reads as what it
+1. **Name:** `testEach`, `each`, or an overload `test(name, cases) { … }`? **Answered: `testEach`** (maintainer, 2026-10-28). Recommend `testEach`: it reads as what it
    does, and an overload of `test` taking a list is easy to misread at the call site.
-2. **Default case name:** `toString()`, or `"[1] toString()"` with the index as Jupiter does? Recommend plain
+2. **Default case name:** `toString()`, or `"[1] toString()"` with the index as Jupiter does? **Answered: `toString()`** (maintainer, 2026-10-28). Recommend plain
    `toString()`; an index makes names shift when a case is inserted, which breaks rerun-by-ID.
-3. **Do the group's cases run concurrently with each other** like any tests, or one after another? Recommend
-   concurrently, as everything else in a suite; `aspects = alone` already gives the other.
-4. **Two-row shorthand:** add `testEach(name, vararg pairs: Pair<A, B>) { a, b -> }`? Recommend deferred: data
+3. **Do the group's cases run concurrently with each other** like any tests, or one after another? **Answered: concurrently** (maintainer,
+   2026-10-28). Recommend concurrently, as everything else in a suite; `aspects = alone` already gives the other.
+4. **Two-row shorthand:** add `testEach(name, vararg pairs: Pair<A, B>) { a, b -> }`? **Deferred** (maintainer, 2026-10-28). Recommend deferred: data
    classes and destructuring cover it, and it doubles the overloads.
