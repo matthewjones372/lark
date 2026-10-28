@@ -3,6 +3,7 @@ package io.github.matthewjones372.surefold.junit
 import io.github.matthewjones372.surefold.Limit
 import io.github.matthewjones372.surefold.Resource
 import io.github.matthewjones372.surefold.resource
+import org.junit.platform.commons.annotation.Testable
 
 /**
  * Tests written as a Kotlin `object` so the `surefold` engine finds it with no annotation: a [Suite] when they share
@@ -12,7 +13,9 @@ import io.github.matthewjones372.surefold.resource
  * Each test logs and measures into a capture of its own, and a failed test's log lines are reported with it.
  * A [story] told without a title takes the test's name, and its transcript is one of those log lines.
  * `testEach` registers a test for each case, under a container named for the group (spec 0244).
+ * It is [Testable] so that IntelliJ, which looks for that on a class's superclasses too, gives each suite a run icon.
  */
+@Testable
 abstract class AnySuite<R> internal constructor(
     internal val limit: Limit,
     internal val concurrent: Boolean,

@@ -49,7 +49,7 @@ Recommended: `@Testable` on `AnySuite`.
 
 ## Stack
 
-- [ ] **`spec-0251-testable`** — `@Testable` on `AnySuite`, `junit-platform-commons` as `api`, and the
+- [x] **`spec-0251-testable`** — `@Testable` on `AnySuite`, `junit-platform-commons` as `api`, and the
       `docs/testing.md` line. A test asserts that a suite object's class finds `@Testable` on a superclass.
       Done when: `./gradlew :surefold-junit:check` passes, and in IntelliJ a suite object in `petshop` or
       `surefold-junit`'s tests shows a run icon that runs only that suite.
