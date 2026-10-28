@@ -118,6 +118,13 @@ it next. Run it last, after the final edit, so nothing lands unformatted:
 ./gradlew spotlessApply && ./gradlew build
 ```
 
+A pull request's CI builds less than this: the modules it changes, everything
+that depends on them, and `surefold-app`'s suites, from
+`.github/affected-tasks.sh`, or `SpecsSuite` alone for a change only to `specs/`.
+Run the script with the base (`origin/main`) to
+see that list. A push to main still runs the whole build, the coverage floor
+across every module included.
+
 One Gradle build at a time per checkout. Two at once fail with timeouts and
 missing test results that look like real failures.
 
