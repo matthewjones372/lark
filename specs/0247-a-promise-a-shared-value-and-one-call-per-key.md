@@ -80,7 +80,7 @@ model of shared state beside `transact`.
       - a second `succeed` answers false and changes nothing;
       - on a `TestClock`, `await(within = 10.seconds)` answers null once the clock passes 10 seconds;
       - a waiter's scope cancelled mid-wait stops it.
-- [ ] **`spec-0247-single-flight`**: `SingleFlight`.
+- [x] **`spec-0247-single-flight`** ([#879](https://github.com/matthewjones372/surefold/pull/879)): `SingleFlight`.
       Done when:
       - twenty forks calling `run("k")` at once run the block once and all get its `Either`;
       - a cancelled waiter does not stop the block;
