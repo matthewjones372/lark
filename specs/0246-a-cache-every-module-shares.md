@@ -139,7 +139,7 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
       Done when:
       - a key read a hundred times survives a scan of ten thousand keys read once;
       - `onEvict` sees every entry that goes.
-- [ ] **`spec-0246-layers`**: the `Layer` port, reads down and writes up, failures kept near, a failing layer
+- [x] **`spec-0246-layers`** ([#890](https://github.com/matthewjones372/surefold/pull/890)): the `Layer` port, reads down and writes up, failures kept near, a failing layer
       skipped.
       Done when, over an in-memory fake of a shared layer:
       - a hit in the far layer fills the near one with its original expiry;
