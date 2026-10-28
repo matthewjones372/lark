@@ -3,6 +3,7 @@ package io.github.matthewjones372.surefold.cache
 import io.github.matthewjones372.surefold.SingleFlight
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.logWarn
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
@@ -23,6 +24,8 @@ data class CacheStats(
     val failures: Long,
     val stale: Long,
     val evictions: Long,
+    val layerHits: Long,
+    val layerFailures: Long,
     val size: Int,
 )
 
@@ -37,12 +40,17 @@ data class CacheStats(
  * At most [capacity] keys are kept. Past it, a new key is kept only if it has been asked for more often lately than
  * the least recently read key it would push out (TinyLFU), so a scan of keys read once cannot flush the keys read all
  * day. [onEvict] is handed each value no entry holds any more: pushed out, invalidated, or replaced by a newer one.
+ *
+ * Under its own memory, a cache asks [layers] in turn before it looks up: a hit in one is written into its own memory
+ * and every nearer layer, keeping its expiry, so a value is never younger near than it was far. A good value looked up
+ * is written into every layer; a failure is kept in its own memory only.
  */
 class Cache<K : Any, E, V>(
     private val ttl: (Either<E, V>) -> Duration,
     private val stale: Duration = Duration.ZERO,
     capacity: Int = DEFAULT_CAPACITY,
     private val onEvict: (K, V) -> Unit = { _, _ -> },
+    private val layers: List<Layer<K, V>> = emptyList(),
     private val lookup: (K) -> Either<E, V>,
 ) {
     init {
@@ -70,6 +78,8 @@ class Cache<K : Any, E, V>(
     private val loads = AtomicLong()
     private val failures = AtomicLong()
     private val staleAnswers = AtomicLong()
+    private val layerHits = AtomicLong()
+    private val layerFailures = AtomicLong()
 
     /** [key]'s answer: from memory while it is young, else from one [lookup] however many ask. */
     fun get(key: K): Either<E, V> {
@@ -83,9 +93,18 @@ class Cache<K : Any, E, V>(
         return flights.run(key) { load(key) }
     }
 
-    /** Forgets [what], so the next `get` for it looks up again. A lookup in flight answers its callers, unkept. */
+    /**
+     * Forgets [what] in every layer, farthest first so a nearer one is not refilled from a stale copy, and then in its
+     * own memory. The next `get` for it looks up again; a lookup in flight answers its callers, unkept.
+     */
     fun invalidate(what: Invalidation<K>) {
         generation.incrementAndGet()
+        layers.asReversed().forEach { layer ->
+            when (what) {
+                is Invalidation.Key -> safely("remove ${what.key}") { layer.remove(what.key) }
+                Invalidation.All -> safely("clear") { layer.clear() }
+            }
+        }
         when (what) {
             is Invalidation.Key -> entries.remove(what.key)
             Invalidation.All -> entries.clear()
@@ -97,11 +116,13 @@ class Cache<K : Any, E, V>(
 
     fun stats(): CacheStats =
         CacheStats(
-            hits.get(), misses.get(), loads.get(), failures.get(), staleAnswers.get(), evictions.get(), entries.size,
+            hits.get(), misses.get(), loads.get(), failures.get(), staleAnswers.get(), evictions.get(),
+            layerHits.get(), layerFailures.get(), entries.size,
         )
 
     private fun load(key: K): Either<E, V> {
         val began = generation.get()
+        fromLayers(key, began)?.let { return it }
         loads.incrementAndGet()
         val result = lookup(key)
         val now = time.now()
@@ -111,11 +132,44 @@ class Cache<K : Any, E, V>(
         }
         if (entry.isStale) staleAnswers.incrementAndGet()
         if (generation.get() == began) {
-            val replaced = entries.write(key, entry)
-            // A stale answer keeps the good value it answers with, so only a value nothing holds any more goes.
-            replaced?.good?.takeIf { it !== entry.good }?.let { onEvict(key, it.value) }
+            keep(key, entry)
+            if (result is Either.Right) {
+                val stored = Stored(result.value, now, entry.until)
+                layers.forEach { layer -> safely("write $key") { layer.write(key, stored) } }
+            }
         }
         return entry.answer
+    }
+
+    // The first layer holding a young value for [key], written into memory and every nearer layer on the way back.
+    private fun fromLayers(key: K, began: Long): Either<E, V>? {
+        val now = time.now()
+        layers.forEachIndexed { at, layer ->
+            val stored = safely("read $key") { layer.read(key) }?.takeIf { now < it.expiresAt } ?: return@forEachIndexed
+            layerHits.incrementAndGet()
+            if (generation.get() == began) {
+                val good = Good(stored.value, stored.storedAt)
+                keep(key, Entry(Either.Right(stored.value), stored.expiresAt, good, false))
+                layers.take(at).forEach { nearer -> safely("write $key") { nearer.write(key, stored) } }
+            }
+            return Either.Right(stored.value)
+        }
+        return null
+    }
+
+    private fun keep(key: K, entry: Entry<E, V>) {
+        val replaced = entries.write(key, entry)
+        // A stale answer keeps the good value it answers with, so only a value nothing holds any more goes.
+        replaced?.good?.takeIf { it !== entry.good }?.let { onEvict(key, it.value) }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // a layer that fails is a miss, logged and counted, never the caller's error
+    private inline fun <A> safely(what: String, block: () -> A): A? = try {
+        block()
+    } catch (failed: Exception) {
+        layerFailures.incrementAndGet()
+        logWarn("surefold-cache: a layer could not $what: $failed")
+        null
     }
 
     // A failed lookup: the last good value while it is younger than [stale], kept no longer than either allows.
