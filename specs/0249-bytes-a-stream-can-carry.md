@@ -77,7 +77,7 @@ always be changed, it has no structural equality, and slicing it means copying.
 
 ## Stack
 
-- [ ] **`spec-0249-byte-chunk`**: `ByteChunk` in `surefold`.
+- [x] **`spec-0249-byte-chunk`** ([#893](https://github.com/matthewjones372/surefold/pull/893)): `ByteChunk` in `surefold`.
       Done when: every `from` and `toByteArray` copy, so changing the array or buffer afterwards leaves the chunk
       unchanged; `slice` copies nothing; `asReadOnlyBuffer` cannot write; two chunks with equal contents are equal
       and hash the same.
