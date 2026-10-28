@@ -65,7 +65,7 @@ The arity overloads are mechanical; they cost lines, not design.
 
 ## Stack
 
-- [ ] **`spec-0243-zip`** — `zipOrAccumulate` at arities 2–5, both receiver forms. Split from 6–9 (2026-10-27): the
+- [x] **`spec-0243-zip`** ([#853](https://github.com/matthewjones372/surefold/pull/853)) — `zipOrAccumulate` at arities 2–5, both receiver forms. Split from 6–9 (2026-10-27): the
       sixteen overloads run past the cap together.
       Done when: two failing branches answer with both errors in branch order; every branch ran on the calling thread
       (`Thread.currentThread()` read inside each); a throw in branch 1 stops branch 2 and is rethrown as the same instance.
