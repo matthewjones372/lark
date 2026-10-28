@@ -19,8 +19,3 @@ tasks.test {
         },
     )
 }
-
-dependencies {
-    // A cluster made in the actors' scope, to show it leaves as the application is released (spec 0080).
-    testImplementation(project(":surefold-cluster"))
-}
