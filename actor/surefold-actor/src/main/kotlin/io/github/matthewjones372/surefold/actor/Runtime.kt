@@ -502,7 +502,8 @@ private class Cell<M : Any, S, E>(
     private var terminated = false
 
     // The runner running this actor's activation, for a stop to interrupt. A runner moves on to other actors, so it is
-    // set, cleared and interrupted only under this cell's monitor: an interrupt can never land on another actor.
+    // set, cleared and interrupted only under this cell's monitor: an interrupt can never land on another actor. Each
+    // activation clears only the thread it set, since the next can set its own before the last has finished.
     private var running: Thread? = null
     private val backlog = guardian.backlog
 
@@ -845,9 +846,11 @@ private class Cell<M : Any, S, E>(
             // The interrupt a stop sends to a running turn: the stop is the outcome, not a failure to report.
             if (!stopped) throw interrupted
         } finally {
-            // An interrupt a stop sent as the turn returned is this actor's, and goes with it.
+            // An interrupt a stop sent as the turn returned is this actor's, and goes with it. Once this activation
+            // has let go of `scheduled`, the next may already be running on another runner: that one is a stop's to
+            // interrupt, so this one clears only its own.
             synchronized(this) {
-                running = null
+                if (running === Thread.currentThread()) running = null
                 Thread.interrupted()
             }
             stepping.remove()
