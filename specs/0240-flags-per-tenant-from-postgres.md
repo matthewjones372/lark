@@ -19,7 +19,10 @@ row, then the tenant's row, cached 30 seconds).
 
 ```kotlin
 val CheckoutPaused = Flag.boolean("checkout.paused", default = false)     // 0181's declared flag
-val flags: Module = openFeature { PostgresFlags(tenants, fallback = InMemoryProvider(defaults), ttl = 30.seconds) }
+val flags: Module = openFeature {
+    PostgresFlags(tenants, fallback = InMemoryProvider(defaults), ttl = 30.seconds, stale = 10.minutes)
+}
+PostgresFlags.listening(notices, provider)  // a Run: another process's change, seen before the ttl runs out
 
 withTenant(TenantId("acme")) {
     CheckoutPaused.value()          // acme's row, else the default row, else the fallback, else false
@@ -38,26 +41,39 @@ PostgresFlags.clear(connection, "checkout.paused", tenant = TenantId("acme"))   
   reason says which: `TARGETING_MATCH` for a tenant row, `STATIC` for the null row, the fallback's own otherwise.
 - **Types**: a row's text is read as the type asked for; one that does not parse answers the default with
   `PARSE_ERROR`, which 0180's hook logs and counts.
-- **Cache**: one query loads a tenant's rows and the null rows together, kept for `ttl`; `set` and `clear` evict
-  in this process. The provider is `STALE` while Postgres cannot be read and a cached copy is being served.
+- **Cache**: a 0246 `Cache`, keyed by scope, a tenant or none. Its lookup is one query that loads a tenant's rows and
+  the null rows together; `ttl` is the cache's. Not `TenantCache`: that keys by the bound tenant alone, and the
+  context's attribute comes first here. One lookup per scope however many evaluate at once, from 0246's
+  `SingleFlight`.
+- **Stale**: while Postgres cannot be read, the cache's `stale` answers the last rows read, and the provider reports
+  `STALE`. Past `stale`, or with nothing cached, the flag answers the fallback and the provider reports `ERROR`.
+- **Invalidation**: a trigger on the table sends `NOTIFY surefold_feature_flags` with the row's tenant, or an empty
+  payload for a null row, so any writer is heard, not only `set` and `clear`. `listening`, over
+  `surefold-cache-postgres`, drops that tenant's scope for a tenant row, and every scope for a null row or a `Gap`.
+  `set` and `clear` also drop it in their own process at once.
 - **With no tenant** (a health check, a job with none), only null rows and the fallback answer.
 
 ## Why this shape
 
 A table read under the tenant's own policy keeps flags on the same guarantee as every other row, and makes the
-provider a few lines over `TenantTransactions`. **Alternative:** flagd's schema stored as JSON per tenant, so a
+provider a few lines over `TenantTransactions` and 0246's `Cache`, which already has the ttl, the stale value, one
+lookup per key and invalidation from `NOTIFY`. **Alternative:** flagd's schema stored as JSON per tenant, so a
 tenant's row could target users; recommended against for now, since it brings flagd and its gRPC into every service
 that only needs on and off per tenant. The module is **`surefold-openfeature-postgres`** in `data/`, on
-`surefold-openfeature` and `surefold-tenancy`.
+`surefold-openfeature`, `surefold-tenancy`, `surefold-cache` and `surefold-cache-postgres`.
 
 ## Stack
 
 - [ ] **`spec-0240-provider`** — the module, `PostgresFlags`, its changelog, precedence, types, the dependency test.
       Done when: on Postgres, a flag answers acme's row for acme, the null row for globex, the fallback when neither
       exists, and a row of another tenant is never read.
-- [ ] **`spec-0240-cache`** — the ttl cache, `set`, `clear`, `STALE`.
-      Done when: on a `TestClock`, a row changed by another process is seen after `ttl` and not before, and a
-      provider whose database is down reports `STALE` and serves the cached values.
+- [ ] **`spec-0240-cache`** — the provider on `Cache`, `set`, `clear`, `stale` and `STALE`.
+      Done when: on a `TestClock`, a row changed by another process is seen after `ttl` and not before, a row `set`
+      in this process is seen at once, and a provider whose database is down reports `STALE` and serves the cached
+      values until `stale` runs out.
+- [ ] **`spec-0240-notify`** — the trigger, and `listening`.
+      Done when: on Postgres, a tenant row changed by plain SQL from another connection is seen before `ttl` by
+      that tenant only, a null row's change is seen by every tenant, and a `Gap` drops every scope.
 - [ ] **`spec-0240-docs`** — `docs/flags.md`'s section on flags per tenant, with the policy.
       Done when: the guide's example is held to a compiled source.
 
@@ -71,7 +87,8 @@ that only needs on and off per tenant. The module is **`surefold-openfeature-pos
 
 1. **Context attribute or `currentTenant()`?** Recommended: both, the attribute first, so a test or an operator
    tool can evaluate as another tenant without binding it.
-2. **Evict across processes when a row changes?** Recommended: by `NOTIFY` once spec 0238 ships; until then `ttl`.
+2. **Evict across processes when a row changes?** Chosen: by `NOTIFY` (0238), through 0246's
+   `surefold-cache-postgres`, from a trigger on the table, so a row changed by hand is heard too.
 3. **Check declared flags at start, as 0195 does for flagd?** Recommended: check the null rows' values parse as the
    declared types; tenant rows can change at any time, so they are checked when read.
 4. **HOCON defaults as the fallback**? `flagdFlags` installs its provider rather than answering

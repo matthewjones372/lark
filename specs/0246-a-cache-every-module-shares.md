@@ -166,7 +166,7 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
       - a value one cache stored is read by a second cache with an empty memory, without its lookup running;
       - Redis expires it at its `expiresAt`;
       - a published invalidation drops it from both caches.
-- [ ] **`spec-0246-keys`**: `KeyCache`'s one unwrap per key on `SingleFlight`, keeping its own rules: a loader per
+- [x] **`spec-0246-keys`** ([#903](https://github.com/matthewjones372/surefold/pull/903)): `KeyCache`'s one unwrap per key on `SingleFlight`, keeping its own rules: a loader per
       call, the clock bound at each call, stale only while the KMS is unreachable, and its bound and eviction by owner.
       `Cache` is not bent to fit those four.
       Done when: `KeyCacheSuite` passes unchanged, and `KeyCache` holds no lock map of its own.
