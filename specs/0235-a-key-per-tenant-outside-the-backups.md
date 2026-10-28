@@ -60,7 +60,7 @@ not the default. The module is **`surefold-tenancy-crypto`**, not `surefold-cryp
 - [x] **`spec-0235-keys`** ([#857](https://github.com/matthewjones372/surefold/pull/857)) — `TenantKeys`, its changelog, provision, current, version, rotate, retire.
       Done when: on Postgres, rotation makes version 2 current while version 1 still answers, and tenant A's
       transaction reads none of B's key rows.
-- [ ] **`spec-0235-cache`** — `KeyCache`: soft, hard, size, evict.
+- [x] **`spec-0235-cache`** ([#858](https://github.com/matthewjones372/surefold/pull/858)) — `KeyCache`: soft, hard, size, evict.
       Done when: on a `TestClock` with `InMemoryKms` failing, a key is served at 59 minutes and refused at 61, and
       KMS is called once per tenant per soft period however many threads ask.
 - [ ] **`spec-0235-aws`** — `surefold-tenancy-crypto-aws`: `AwsKms`, against LocalStack's KMS.

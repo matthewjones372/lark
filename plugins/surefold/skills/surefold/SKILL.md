@@ -91,6 +91,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-tenancy`: tenancy on Postgres row-level security.
 - `surefold-tenancy-test`: a tenant isolation check for tests.
 - `surefold-tenancy-crypto`: a key per tenant, in a KMS.
+- `surefold-tenancy-crypto-aws`: those keys on AWS KMS.
 - `surefold-jobs-tenancy`: jobs run as their tenant.
 - `surefold-idempotency`: idempotency keys on Postgres.
 - `surefold-ratelimit`: token-bucket rate limits.

@@ -142,6 +142,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-tenancy` | a tenant forks and messages carry, and Postgres row-level security set for every transaction ([guide](tenancy.md)) | `surefold` | none (bring your own driver and pool) | yes |
 | `surefold-tenancy-test` | a check that a service's tables keep two tenants apart ([guide](tenancy.md#testing-isolation)) | `surefold-tenancy` | none | yes |
 | `surefold-tenancy-crypto` | a key per tenant under a root key a KMS holds and no backup does; `InMemoryKms` for tests | `surefold-tenancy` | none | yes |
+| `surefold-tenancy-crypto-aws` | `AwsKms`: one customer managed key per tenant on AWS KMS, found by alias | `surefold-tenancy-crypto` | AWS SDK 2.55.6 `kms`, on its URL-connection client | yes |
 | `surefold-jobs-tenancy` | each job's handler runs as the tenant its row names ([guide](tenancy.md#jobs)) | `surefold-jobs`, `surefold-tenancy` | none | yes |
 | `surefold-idempotency` | idempotency keys on Postgres, reserved atomically across instances, answers replayed ([guide](http-stores.md)) | `surefold`, `surefold-jobs` | none (bring your own driver and pool) | yes |
 | `surefold-ratelimit` | token buckets by key, in memory or on Postgres, shared by every instance ([guide](http-stores.md#rate-limits)) | `surefold` | none (bring your own driver and pool) | yes |
