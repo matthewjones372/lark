@@ -84,7 +84,7 @@ always be changed, it has no structural equality, and slicing it means copying.
 - [x] **`spec-0249-read-write`** ([#897](https://github.com/matthewjones372/surefold/pull/897)): `Stream.read` and `runInto` in `surefold-stream`.
       Done when: a 1 MiB input comes out the same in every backend; the `InputStream` is closed on success, failure
       and `stop()`; a `stop()` wakes a `read` that is blocked.
-- [ ] **`spec-0249-text`**: `decodeUtf8`, `encodeUtf8`, `lines`.
+- [x] **`spec-0249-text`** ([#908](https://github.com/matthewjones372/surefold/pull/908)): `decodeUtf8`, `encodeUtf8`, `lines`.
       Done when: a text with 1-, 2-, 3- and 4-byte characters, split at every byte offset, decodes to the same
       `String`; `lines` gives the same lines however the input is split.
 - [ ] **`spec-0249-frames`**: `framed` and `unframed`.

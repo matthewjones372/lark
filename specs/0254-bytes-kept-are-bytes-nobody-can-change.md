@@ -22,7 +22,7 @@ and make up for it by hand:
   key should be zeroable after use, and a `ByteChunk` cannot be.
 - **Kafka.** Its record types belong to `kafka-clients`.
 - **`surefold-files`.** Streaming a file through `Stream.read` is a spec of its own.
-- **`Wire.kt`.** Its frames move to 0249's `framed` and `unframed` in that spec's last entry.
+- **`Wire.kt`.** Moving its frames onto 0249's `framed` and `unframed` is a spec of its own, as 0249 says.
 
 ## Shape
 

@@ -1,8 +1,10 @@
 package io.github.matthewjones372.surefold.stream
 
 import io.github.matthewjones372.surefold.ByteChunk
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 
@@ -88,4 +90,64 @@ private fun decoded(bytes: ByteChunk, endOfInput: Boolean): Pair<ByteChunk, Stri
     decoder.decode(input, output, endOfInput)
     if (endOfInput) decoder.flush(output)
     return bytes.slice(input.position(), bytes.size) to output.flip().toString()
+}
+
+private const val DEFAULT_MAX_FRAME = 16 shl 20
+
+/** Each frame after its length, a 4-byte big-endian `Int`, as `DataOutputStream.writeInt` writes one. */
+fun Pipe.Companion.framed(): Pipe<Nothing, ByteChunk, ByteChunk> =
+    Pipe.mapConcat { frame -> listOf(lengthOf(frame), frame) }
+
+fun <E, In> Pipe<E, In, ByteChunk>.framed(): Pipe<E, In, ByteChunk> = via(Pipe.framed())
+
+fun <E> Stream<E, ByteChunk>.framed(): Stream<E, ByteChunk> = via(Pipe.framed())
+
+/**
+ * The frames [framed] wrote, one element each, however the bytes were split on the way. A length over [maxSize]
+ * is a defect before any of the frame is read, and so is a stream that ends partway through one.
+ */
+fun Pipe.Companion.unframed(maxSize: Int = DEFAULT_MAX_FRAME): Pipe<Nothing, ByteChunk, ByteChunk> {
+    require(maxSize >= 0) { "a frame can be empty but no shorter, and maxSize $maxSize was asked for" }
+    return Pipe.statefulMap<ByteChunk, Held, List<ByteChunk>>(
+        { Held(emptyList()) },
+        { held, chunk -> (held + chunk).frames(maxSize, emptyList()) },
+        { held ->
+            check(held.size == 0) { "the stream ended partway through a frame, ${held.size} bytes into it" }
+            null
+        },
+    ).mapConcat { it }
+}
+
+fun <E, In> Pipe<E, In, ByteChunk>.unframed(maxSize: Int = DEFAULT_MAX_FRAME): Pipe<E, In, ByteChunk> =
+    via(Pipe.unframed(maxSize))
+
+fun <E> Stream<E, ByteChunk>.unframed(maxSize: Int = DEFAULT_MAX_FRAME): Stream<E, ByteChunk> =
+    via(Pipe.unframed(maxSize))
+
+private fun lengthOf(frame: ByteChunk): ByteChunk =
+    ByteChunk.from(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(frame.size).flip())
+
+/** Bytes read but not yet a whole frame, kept as they came, so a long frame is copied once, when it is whole. */
+private class Held(val chunks: List<ByteChunk>) {
+    val size: Int = chunks.sumOf { it.size }
+
+    operator fun plus(chunk: ByteChunk): Held = if (chunk.isEmpty()) this else Held(chunks + chunk)
+
+    fun joined(): ByteChunk = chunks.singleOrNull() ?: ByteArrayOutputStream(size).let { out ->
+        chunks.forEach { it.writeTo(out) }
+        ByteChunk.from(out.toByteArray())
+    }
+
+    fun first(n: Int): ByteChunk = chunks.first().takeIf { it.size >= n }?.slice(0, n) ?: joined().slice(0, n)
+}
+
+/** Every whole frame [this] holds, after [found], and what is left of the next. */
+private tailrec fun Held.frames(maxSize: Int, found: List<ByteChunk>): Pair<Held, List<ByteChunk>> {
+    if (size < Int.SIZE_BYTES) return this to found
+    val length = first(Int.SIZE_BYTES).asReadOnlyBuffer().int
+    check(length in 0..maxSize) { "a frame of $length bytes, where maxSize is $maxSize" }
+    val end = Int.SIZE_BYTES + length
+    if (size < end) return this to found
+    val whole = joined()
+    return Held(listOf(whole.slice(end, whole.size))).frames(maxSize, found + whole.slice(Int.SIZE_BYTES, end))
 }
