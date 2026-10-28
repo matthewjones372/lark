@@ -87,7 +87,7 @@ always be changed, it has no structural equality, and slicing it means copying.
 - [x] **`spec-0249-text`** ([#908](https://github.com/matthewjones372/surefold/pull/908)): `decodeUtf8`, `encodeUtf8`, `lines`.
       Done when: a text with 1-, 2-, 3- and 4-byte characters, split at every byte offset, decodes to the same
       `String`; `lines` gives the same lines however the input is split.
-- [ ] **`spec-0249-frames`**: `framed` and `unframed`.
+- [x] **`spec-0249-frames`** ([#910](https://github.com/matthewjones372/surefold/pull/910)): `framed` and `unframed`.
       Done when: frames survive a round trip at every split; a length over `maxSize` and an end partway through a
       frame are defects.
 
