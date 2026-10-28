@@ -348,6 +348,94 @@ object ShopSuite : SharedSuite<Shop>() {
 }
 ```
 
+### Suites side by side
+
+Suites run one after another by default, each with its own tests running
+together. The `surefold.junit.suites.limit` configuration parameter or system
+property lets that many suites run at once. Raise it once your suites are safe
+beside each other: no two of them may claim the same port, system property or
+file. A suite that must still run alone, such as one that migrates a schema,
+says `isolated = true`: it waits for the suites before it, and holds back the
+ones after it.
+
+```kotlin
+tasks.test {
+    useJUnitPlatform()
+    systemProperty("surefold.junit.suites.limit", "4")
+}
+```
+
+Suites side by side would each start their own database, and could open more
+connections at once than it allows. A `Guarded` resource is the one copy for
+the whole run, declared as an `object`. It is started the first time a test
+uses it, released after the last suite, and lent to at most `permits` tests at
+once, from every suite together. A `SharedSuite` whose `shared` is its
+`lease()` holds a permit in each test for the test's whole body. A plain
+suite's test holds one for a block with `use { }`. A test that leases a guard
+must not also `use` it, or with one permit left it would wait for itself.
+
+<!-- testing-junit-guarded -->
+```kotlin
+import io.github.matthewjones372.surefold.Resource
+import io.github.matthewjones372.surefold.junit.Guarded
+import io.github.matthewjones372.surefold.junit.SharedSuite
+import io.github.matthewjones372.surefold.junit.Suite
+import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.resource
+import java.util.concurrent.ConcurrentHashMap
+
+// Stands in for a database: started once for the whole run, closed after its last suite.
+class Database {
+    private val rows = ConcurrentHashMap<String, Int>()
+
+    fun save(id: String, total: Int) {
+        rows[id] = total
+    }
+
+    fun total(id: String): Int = rows[id] ?: 0
+
+    fun close() = rows.clear()
+}
+
+// One database for the run, with at most 20 tests on it at once, whichever suites they are in.
+object TestDatabase : Guarded<Database>(permits = 20) {
+    override val resource: Resource<Database> = resource { install({ Database() }) { db, _ -> db.close() } }
+}
+
+object OrdersSuite : SharedSuite<Database>() {
+    // Each test holds a permit for its whole body. It waits for one before it starts, so its timeout does not run.
+    override val shared: Resource<Database> = TestDatabase.lease()
+
+    init {
+        test("an order is saved once") { db ->
+            db.save("order-1", 3)
+            db.total("order-1") shouldBe 3
+        }
+    }
+}
+
+object InvoicesSuite : Suite() {
+    init {
+        test("an invoice totals its lines") {
+            // The same database from a plain suite, holding a permit for the block only.
+            TestDatabase.use { db ->
+                db.save("invoice-1", 7)
+                db.total("invoice-1") shouldBe 7
+            }
+        }
+    }
+}
+
+// Runs alone in the whole run, however many suites run side by side.
+object SchemaSuite : Suite(isolated = true) {
+    init {
+        test("the schema is migrated before anything reads it") {
+            TestDatabase.use { db -> db.total("schema-version") shouldBe 0 }
+        }
+    }
+}
+```
+
 ### State in a suite
 
 A suite is one `object`, so its properties are shared by every test in it, and
