@@ -86,7 +86,7 @@ model of shared state beside `transact`.
       - a cancelled waiter does not stop the block;
       - a throw reaches every waiter;
       - the next `run("k")` after it ends runs again.
-- [ ] **`spec-0247-uses`**: the bank example and `surefold-app`'s `Run.kt` on `Promise` and `Shared`.
+- [x] **`spec-0247-uses`** ([#882](https://github.com/matthewjones372/surefold/pull/882)): the bank example and `surefold-app`'s `Run.kt` on `Promise` and `Shared`.
       Done when: none of `BankNode`, `Main`, `Members`, `Sse` or `Run.kt` imports `CountDownLatch`,
       `CompletableFuture` or `ReentrantLock`, and their tests pass unchanged.
 - [ ] **`spec-0247-app`**: `surefold-app`'s `Start.kt`, `surefold-app-actor`'s `Actors.kt` and

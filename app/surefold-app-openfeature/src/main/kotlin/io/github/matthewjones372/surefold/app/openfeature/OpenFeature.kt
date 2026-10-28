@@ -5,27 +5,27 @@ import dev.openfeature.sdk.FeatureProvider
 import dev.openfeature.sdk.OpenFeatureAPI
 import dev.openfeature.sdk.ProviderState
 import dev.openfeature.sdk.exceptions.OpenFeatureError
+import io.github.matthewjones372.surefold.Shared
 import io.github.matthewjones372.surefold.app.Module
 import io.github.matthewjones372.surefold.app.Wiring
 import io.github.matthewjones372.surefold.app.probe
 import io.github.matthewjones372.surefold.app.single
 import io.github.matthewjones372.surefold.openfeature.useSurefold
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * Who holds the process-wide `OpenFeatureAPI`. Two graphs in one JVM would otherwise set each other's provider
  * and shut it down under each other, so the second is refused instead.
  */
-private val holder = AtomicReference<String?>(null)
+private val holder = Shared<String?>(null, name = "surefold.app.openfeature")
 
 /** Shuts the SDK down and lets the next graph install it, whether or not the shutdown throws. */
 private fun given(api: OpenFeatureAPI) {
     try {
         api.shutdown()
     } finally {
-        holder.set(null)
+        holder.update { null }
     }
 }
 
@@ -57,7 +57,7 @@ internal val ready: (Client) -> Boolean = { client ->
 @PublishedApi
 internal fun Wiring.started(provider: Wiring.() -> FeatureProvider): Client {
     val holding = "a graph started at ${Instant.now()} on ${Thread.currentThread()}"
-    holder.compareAndExchange(null, holding)?.let { held ->
+    holder.modify { was -> (was ?: holding) to was }?.let { held ->
         refuse("OpenFeature is already installed in this JVM, by $held")
     }
     // Installed before the provider starts: a start that refuses or throws from here still gives OpenFeature back.

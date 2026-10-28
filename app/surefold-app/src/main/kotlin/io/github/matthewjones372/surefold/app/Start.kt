@@ -2,6 +2,7 @@ package io.github.matthewjones372.surefold.app
 
 import io.github.matthewjones372.surefold.ExitCase
 import io.github.matthewjones372.surefold.ResourceScope
+import io.github.matthewjones372.surefold.Shared
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.Fail
@@ -14,8 +15,6 @@ import io.github.matthewjones372.surefold.parMap
 import io.github.matthewjones372.surefold.resourceScope
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 
@@ -217,11 +216,10 @@ private class Refusal(val key: KType, val reason: String) : RuntimeException(rea
  */
 private class Releases {
 
-    private val lock = ReentrantLock()
-    private val byKey = mutableMapOf<KType, MutableList<(ExitCase) -> Unit>>()
+    private val byKey = Shared(emptyMap<KType, List<(ExitCase) -> Unit>>(), name = "surefold.app.releases")
 
     fun add(key: KType, release: (ExitCase) -> Unit) {
-        lock.withLock { byKey.getOrPut(key) { mutableListOf() }.add(release) }
+        byKey.update { held -> held + (key to held[key].orEmpty() + release) }
     }
 
     /**
@@ -230,10 +228,9 @@ private class Releases {
      * that was built depends on it.
      */
     fun release(order: List<KType>, exit: ExitCase) {
-        val installed = lock.withLock {
-            val unfinished = byKey.keys - order.toSet()
-            (unfinished + order.reversed()).flatMap { byKey[it].orEmpty().reversed() }
-        }
+        val held = byKey.peek()
+        val unfinished = held.keys - order.toSet()
+        val installed = (unfinished + order.reversed()).flatMap { held[it].orEmpty().reversed() }
         val failures = installed.mapNotNull { release -> thrownBy(release, exit) }
         failures.firstOrNull()?.let { first ->
             failures.drop(1).forEach(first::addSuppressed)
@@ -245,9 +242,8 @@ private class Releases {
 /** What each node asked to run once the graph is built, kept by node so they run in the graph's order. */
 private class Starts {
 
-    private val lock = ReentrantLock()
-    private val byKey = mutableMapOf<KType, MutableList<() -> Unit>>()
-    private var ran = false
+    // The hooks by node, and whether they have been run: an add after the run is refused in the same step.
+    private val held = Shared(emptyMap<KType, List<() -> Unit>>() to false, name = "surefold.app.starts")
 
     @Volatile
     var running = false
@@ -255,17 +251,16 @@ private class Starts {
 
     // A hook asked for after the run would never run, and nothing would say so.
     fun add(key: KType, started: () -> Unit) {
-        lock.withLock {
+        held.update { (byKey, ran) ->
             check(!ran) { "${labelOf(key)} asked for onStarted after the graph had started" }
-            byKey.getOrPut(key) { mutableListOf() }.add(started)
+            byKey + (key to byKey[key].orEmpty() + started) to false
         }
     }
 
     /** Runs every hook, in [order]; one that throws ends the start, naming its node, as a refusal does. */
     fun run(order: List<KType>, failing: Fail<StartupError>) {
-        val hooks = lock.withLock {
-            ran = true
-            order.flatMap { key -> byKey[key].orEmpty().map { key to it } }
+        val hooks = held.modify { (byKey, _) ->
+            (byKey to true) to order.flatMap { key -> byKey[key].orEmpty().map { key to it } }
         }
         running = true
         try {
