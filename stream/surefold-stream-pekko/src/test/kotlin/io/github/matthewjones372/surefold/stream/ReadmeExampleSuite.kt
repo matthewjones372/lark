@@ -51,6 +51,9 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
     /** A stream under an adaptive limit (spec 0171). */
     private const val LIMIT = "<!-- limit-example -->"
 
+    /** Bytes read from an InputStream and written to an OutputStream (spec 0249). */
+    private const val BYTES = "<!-- bytes-example -->"
+
     /** One description, started on Pekko, Forks and TestStreams. */
     private const val BACKENDS = "<!-- backend-example -->"
 
@@ -58,7 +61,7 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
     private const val QUICKSTART = "<!-- quickstart-example -->"
 
     private val inTheDocument =
-        listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING, BLOCKING, UNORDERED, LIMIT, BACKENDS)
+        listOf(MARKER, FIXTURES, BEFORE, AFTER, MISSING, BLOCKING, UNORDERED, LIMIT, BYTES, BACKENDS)
 
     private fun marked(marker: String) = Regex("""$marker\s*```kotlin\n(.*?)\n```""", RegexOption.DOT_MATCHES_ALL)
 
@@ -172,6 +175,10 @@ object ReadmeExampleSuite : SharedSuite<PekkoSystem>() {
 
         test("the limited stream the document shows compiles") { _ ->
             document { stream -> only(stream, LIMIT) { compiles(it) } }
+        }
+
+        test("the bytes the document reads and writes compile") { _ ->
+            document { stream -> only(stream, BYTES) { compiles(it) } }
         }
 
         // The same pipeline, line for line, run: what the document shows is compiled and also true.

@@ -160,6 +160,7 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Stream.fromStage(stage: CompletionStage<A>, ifNull: E): Stream<E, A>` | the same, with the absence named: a `null` completion is `Failed(ifNull)` |
 | `Stream.blocking(open, next, wake, close): Stream<Nothing, A>` | a resource opened per run and read by blocking, on any backend: `next` answering `null` ends it, `stop()` calls `wake` to reach a `next` that is blocked, and `close` runs once however the run ended. Pekko reads it on its blocking-IO dispatcher |
 | `Stream.blocking(open, next, ready, wake, close)` | the same, with `ready` saying the next `next` will not block. Pekko reads those along with the read before them and hands them to the stream together; Forks never asks |
+| `Stream.read(open: () -> InputStream, chunkSize: Int = 65536): Stream<Nothing, ByteChunk>` | an `InputStream` as `ByteChunk`s of at most `chunkSize` bytes; see [Bytes in and out](#bytes-in-and-out) |
 | `Hub<A>(capacity).subscribe(): Stream<Nothing, A>` | everything a `Hub` is sent while a run of it lasts, on any backend; the first run ever also gets what was published before it. See [one publisher, many readers](#one-publisher-many-readers) |
 | `Stream<Nothing, A>.publishTo(hub: Hub<A>): Stream<HubRefused, A>` | each element published to the hub as it passes; a refusal, `Full` or `Closed`, ends the stream with it |
 | `Stream.hooked(source: (RunHooks) -> Source<A, *>): Stream<Nothing, A>` | opt-in (`@SourceSeam`), for a module adding a source of its own: each run hands the source hooks, so it can drain on `stop()` and clean up once the run has ended. `surefold-kafka-pekko`'s `Kafka.subscribe` is built on it *(Pekko)* |
@@ -212,6 +213,7 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
+| `Stream<E, ByteChunk>.runInto(out: OutputStream): Run<E, Long>` | a run described, writing each chunk to `out` and answering how many bytes it wrote |
 | `Stream<E, A>.runWith(sink: Sink<A, CompletionStage<M>>): Run<E, M>` | a run described, to the sink named; the sink's materialised value is the run's. `M : Any`, and a sink that materialises `null` anyway is `Died`, never `Done(null)` *(Pekko)* |
 | `Run<E, R>.run(backend: StreamBackend): CompletionStage<Exit<E, R>>` | the one call that materialises, on the backend it names |
 | `Run<E, R>.start(backend: StreamBackend): Running<E, R>` | the same run with a handle: `exit` is what `run` answers, `stop()` ends it now as `Done` with what the sink has, and `close()` stops and waits. A source that drains, such as a Kafka consumer, is stopped by draining, so what it already sent still reaches the end |
@@ -340,6 +342,35 @@ The same limit goes to `parMap(ids, orders) { … }` and to a policy's
 `guard(orders)`, so all three draw on one budget. It publishes
 `surefold.limit.current` and `surefold.limit.in_use`, so a dashboard shows where it
 settled.
+
+## Bytes in and out
+
+A stream of `Byte` would box every byte, so bytes travel as `ByteChunk`s: blocks
+from core `surefold` that nothing can change once made. `Stream.read` opens an
+`InputStream` once per run and closes it however the run ends, and `runInto`
+writes each chunk as it arrives:
+
+<!-- bytes-example -->
+```kotlin
+import io.github.matthewjones372.surefold.stream.Run
+import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.read
+import io.github.matthewjones372.surefold.stream.runInto
+import java.io.ByteArrayOutputStream
+import java.nio.file.Files
+import java.nio.file.Path
+
+val out = ByteArrayOutputStream()
+
+val copied: Run<Nothing, Long> =
+    Stream.read({ Files.newInputStream(Path.of("orders.csv")) }, chunkSize = 64 * 1024)   // Stream<Nothing, ByteChunk>
+        .runInto(out)                                                                      // the bytes it wrote
+```
+
+A read that throws is a defect, as from any blocking source, and `stop()`
+closes the `InputStream` to reach a read that is blocked, since
+`InputStream.read` ignores an interrupt. `runInto` leaves `out` open: whoever
+opened it closes it.
 
 ## Missing is a failure, not an empty stream
 

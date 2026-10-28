@@ -102,7 +102,8 @@ actors and Surefold actors into nodes.
 **Typed streams.** [`surefold-stream`](docs/stream.md) is `Stream<E, A>`, a
 pipeline whose declared failure is part of its type. A stream is a description,
 and you choose where it runs: a pull loop on a virtual thread, Pekko Streams,
-Surefold actors, or a test backend with a clock the test controls.
+Surefold actors, or a test backend with a clock the test controls. Bytes travel
+as `ByteChunk`s, read from an `InputStream` and written to an `OutputStream`.
 
 **Actors, persistence and clusters.** [`surefold-actor`](docs/actors.md) runs
 actors on virtual threads within a `scope`, with supervision, timers, routers,
