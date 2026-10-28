@@ -109,6 +109,161 @@ fun <E, A, B, C, D, F, G> Fail<E>.zipOrAccumulate(
     transform: (A, B, C, D, F) -> G,
 ): G = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, fe, transform) }
 
+/** Six branches, in order. */
+fun <E, A, B, C, D, F, G, H> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    transform: (A, B, C, D, F, G) -> H,
+): H {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    val c = attempt(fc)
+    val d = attempt(fd)
+    val e = attempt(fe)
+    val f = attempt(ff)
+    failAll(a, b, c, d, e, f)
+    return transform(
+        a.settled(), b.settled(), c.settled(), d.settled(), e.settled(), f.settled(),
+    )
+}
+
+/** Six branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    transform: (A, B, C, D, F, G) -> H,
+): H = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, fe, ff, transform) }
+
+/** Seven branches, in order. */
+fun <E, A, B, C, D, F, G, H, I> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    transform: (A, B, C, D, F, G, H) -> I,
+): I {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    val c = attempt(fc)
+    val d = attempt(fd)
+    val e = attempt(fe)
+    val f = attempt(ff)
+    val g = attempt(fg)
+    failAll(a, b, c, d, e, f, g)
+    return transform(
+        a.settled(), b.settled(), c.settled(), d.settled(), e.settled(), f.settled(), g.settled(),
+    )
+}
+
+/** Seven branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H, I> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    transform: (A, B, C, D, F, G, H) -> I,
+): I = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, fe, ff, fg, transform) }
+
+/** Eight branches, in order. */
+fun <E, A, B, C, D, F, G, H, I, J> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    transform: (A, B, C, D, F, G, H, I) -> J,
+): J {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    val c = attempt(fc)
+    val d = attempt(fd)
+    val e = attempt(fe)
+    val f = attempt(ff)
+    val g = attempt(fg)
+    val h = attempt(fh)
+    failAll(a, b, c, d, e, f, g, h)
+    return transform(
+        a.settled(), b.settled(), c.settled(), d.settled(), e.settled(), f.settled(), g.settled(), h.settled(),
+    )
+}
+
+/** Eight branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H, I, J> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    transform: (A, B, C, D, F, G, H, I) -> J,
+): J = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, fe, ff, fg, fh, transform) }
+
+/** Nine branches, in order. */
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<NonEmptyList<E>>.zipOrAccumulate(
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
+    transform: (A, B, C, D, F, G, H, I, J) -> K,
+): K {
+    val a = attempt(fa)
+    val b = attempt(fb)
+    val c = attempt(fc)
+    val d = attempt(fd)
+    val e = attempt(fe)
+    val f = attempt(ff)
+    val g = attempt(fg)
+    val h = attempt(fh)
+    val i = attempt(fi)
+    failAll(a, b, c, d, e, f, g, h, i)
+    return transform(
+        a.settled(), b.settled(), c.settled(), d.settled(), e.settled(),
+        f.settled(), g.settled(), h.settled(), i.settled(),
+    )
+}
+
+/** Nine branches, their failures folded with [combine]. */
+fun <E, A, B, C, D, F, G, H, I, J, K> Fail<E>.zipOrAccumulate(
+    combine: (E, E) -> E,
+    fa: Fail<E>.() -> A,
+    fb: Fail<E>.() -> B,
+    fc: Fail<E>.() -> C,
+    fd: Fail<E>.() -> D,
+    fe: Fail<E>.() -> F,
+    ff: Fail<E>.() -> G,
+    fg: Fail<E>.() -> H,
+    fh: Fail<E>.() -> I,
+    fi: Fail<E>.() -> J,
+    transform: (A, B, C, D, F, G, H, I, J) -> K,
+): K = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, fe, ff, fg, fh, fi, transform) }
+
 /** Fails with every branch's error together, or returns so the caller can read their values. */
 private fun <E> Fail<NonEmptyList<E>>.failAll(vararg branches: Either<E, *>) {
     // A null error is still an error, so Left is matched rather than leftOrNull.

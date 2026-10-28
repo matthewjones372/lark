@@ -128,4 +128,85 @@ class ZipOrAccumulateTest {
             }
         } shouldBeLeft Bad("b")
     }
+
+    @Test
+    fun `zipOrAccumulate combines six to nine branches`() {
+        attempt<NonEmptyList<Bad>, String> {
+            zipOrAccumulate({ "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }) { a, b, c, d, e, f ->
+                a + b + c + d + e + f
+            }
+        } shouldBeRight "abcdef"
+        attempt<NonEmptyList<Bad>, String> {
+            zipOrAccumulate({ "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }) { a, b, c, d, e, f, g ->
+                a + b + c + d + e + f + g
+            }
+        } shouldBeRight "abcdefg"
+        attempt<NonEmptyList<Bad>, String> {
+            zipOrAccumulate({ "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }, { "h" }) {
+                    a, b, c, d, e, f, g, h ->
+                a + b + c + d + e + f + g + h
+            }
+        } shouldBeRight "abcdefgh"
+        attempt<NonEmptyList<Bad>, String> {
+            zipOrAccumulate({ "a" }, { "b" }, { "c" }, { "d" }, { "e" }, { "f" }, { "g" }, { "h" }, { "i" }) {
+                    a, b, c, d, e, f, g, h, i ->
+                a + b + c + d + e + f + g + h + i
+            }
+        } shouldBeRight "abcdefghi"
+    }
+
+    @Test
+    fun `six to nine branches answer their failures in branch order`() {
+        attempt<NonEmptyList<Bad>, Int> {
+            zipOrAccumulate({ fail(Bad("1")) }, { "b" }, { "c" }, { "d" }, { "e" }, { fail(Bad("6")) }) {
+                    _: String, _, _, _, _, _: String ->
+                0
+            }
+        } shouldBeLeft nonEmptyListOf(Bad("1"), Bad("6"))
+        attempt<NonEmptyList<Bad>, Int> {
+            zipOrAccumulate({ "a" }, { fail(Bad("2")) }, { "c" }, { "d" }, { "e" }, { "f" }, { fail(Bad("7")) }) {
+                    _, _: String, _, _, _, _, _: String ->
+                0
+            }
+        } shouldBeLeft nonEmptyListOf(Bad("2"), Bad("7"))
+        attempt<NonEmptyList<Bad>, Int> {
+            zipOrAccumulate(
+                { "a" }, { "b" }, { fail(Bad("3")) }, { "d" }, { "e" }, { "f" }, { "g" }, { fail(Bad("8")) },
+            ) { _, _, _: String, _, _, _, _, _: String -> 0 }
+        } shouldBeLeft nonEmptyListOf(Bad("3"), Bad("8"))
+        attempt<NonEmptyList<Bad>, Int> {
+            zipOrAccumulate(
+                { "a" }, { "b" }, { "c" }, { fail(Bad("4")) }, { "e" }, { "f" }, { "g" }, { "h" }, { fail(Bad("9")) },
+            ) { _, _, _, _: String, _, _, _, _, _: String -> 0 }
+        } shouldBeLeft nonEmptyListOf(Bad("4"), Bad("9"))
+    }
+
+    @Test
+    fun `the combine form combines six to nine branches`() {
+        val both: (Bad, Bad) -> Bad = { left, right -> Bad(left.why + right.why) }
+
+        attempt<Bad, Int> {
+            zipOrAccumulate(both, { fail(Bad("1")) }, { 2 }, { 3 }, { 4 }, { 5 }, { fail(Bad("6")) }) {
+                    _: Int, _, _, _, _, _: Int ->
+                0
+            }
+        } shouldBeLeft Bad("16")
+        attempt<Bad, Int> {
+            zipOrAccumulate(both, { 1 }, { 2 }, { 3 }, { 4 }, { 5 }, { 6 }, { 7 }) { a, b, c, d, e, f, g ->
+                a + b + c + d + e + f + g
+            }
+        } shouldBeRight 28
+        attempt<Bad, Int> {
+            zipOrAccumulate(both, { 1 }, { 2 }, { 3 }, { 4 }, { 5 }, { 6 }, { 7 }, { fail(Bad("8")) }) {
+                    _, _, _, _, _, _, _, _: Int ->
+                0
+            }
+        } shouldBeLeft Bad("8")
+        attempt<Bad, Int> {
+            zipOrAccumulate(both, { 1 }, { 2 }, { 3 }, { 4 }, { 5 }, { 6 }, { 7 }, { 8 }, { 9 }) {
+                    a, b, c, d, e, f, g, h, i ->
+                a + b + c + d + e + f + g + h + i
+            }
+        } shouldBeRight 45
+    }
 }
