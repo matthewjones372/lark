@@ -90,6 +90,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-files-test`: MinIO for a service's own tests.
 - `surefold-tenancy`: tenancy on Postgres row-level security.
 - `surefold-tenancy-test`: a tenant isolation check for tests.
+- `surefold-tenancy-crypto`: a key per tenant, in a KMS.
 - `surefold-jobs-tenancy`: jobs run as their tenant.
 - `surefold-idempotency`: idempotency keys on Postgres.
 - `surefold-ratelimit`: token-bucket rate limits.

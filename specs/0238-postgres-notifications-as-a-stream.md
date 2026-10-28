@@ -63,7 +63,7 @@ Recommended: the stream, in a module of its own, **`surefold-postgres-notify`**,
 - [x] **`spec-0238-reconnect`** ([#851](https://github.com/matthewjones372/surefold/pull/851)) — reconnect on the schedule, `Gap`, the counter.
       Done when: after `pg_terminate_backend` on the listening connection, the stream emits `Gap` and then the next
       notification, and reconnects follow the schedule on a `TestClock`.
-- [ ] **`spec-0238-jobs`** — `surefold-jobs` on this module; `docs/postgres-notify.md`.
+- [x] **`spec-0238-jobs`** ([#852](https://github.com/matthewjones372/surefold/pull/852)) — `surefold-jobs` on this module; `docs/postgres-notify.md`.
       Done when: the jobs suite's "a job enqueued to run now starts before the next poll" passes unchanged.
 
 ## Acceptance
