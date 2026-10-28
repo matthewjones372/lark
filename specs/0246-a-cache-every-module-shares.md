@@ -161,14 +161,15 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
 - [x] **`spec-0246-postgres`** ([#892](https://github.com/matthewjones372/surefold/pull/892)): `surefold-cache-postgres`, with `invalidations`, the first adapter.
       Done when: on Postgres, a `NOTIFY` from another connection drops its key before its ttl, and a `Gap` drops
       every entry.
-- [ ] **`spec-0246-redis`**: `surefold-cache-redis`, with `RedisLayer`, a `Codec`, and `RedisInvalidations`.
+- [x] **`spec-0246-redis`** ([#902](https://github.com/matthewjones372/surefold/pull/902)): `surefold-cache-redis`, with `RedisLayer`, a `Codec`, and `RedisInvalidations`.
       Done when, on Redis:
       - a value one cache stored is read by a second cache with an empty memory, without its lookup running;
       - Redis expires it at its `expiresAt`;
       - a published invalidation drops it from both caches.
-- [ ] **`spec-0246-keys`**: `KeyCache` on `Cache` with one `InMemory` layer, keeping its zeroing and per-caller
-      copies.
-      Done when: `KeyCacheSuite` passes unchanged, and `KeyCache` holds no lock or map of its own.
+- [ ] **`spec-0246-keys`**: `KeyCache`'s one unwrap per key on `SingleFlight`, keeping its own rules: a loader per
+      call, the clock bound at each call, stale only while the KMS is unreachable, and its bound and eviction by owner.
+      `Cache` is not bent to fit those four.
+      Done when: `KeyCacheSuite` passes unchanged, and `KeyCache` holds no lock map of its own.
 
 ## Acceptance
 
