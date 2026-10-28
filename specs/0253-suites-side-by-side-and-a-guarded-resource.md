@@ -25,7 +25,7 @@ what breaks: the database runs out of connections and tests fail with `too many 
 **Suites run side by side** under one engine-wide limit. It is set by the configuration parameter
 `surefold.junit.suites.limit`, default 1: today's behaviour, until a build whose suites are safe side by side raises
 it. A suite that must run
-alone in the whole run says so: `Suite(alone = true)`.
+alone in the whole run says so: `Suite(isolated = true)`.
 
 **A guarded resource** is acquired on first use in the run, released after the last suite, and lent to at most
 `permits` tests at once:
@@ -68,7 +68,7 @@ name and cannot express "20 at once". A permit count covers both: `permits = 1` 
 - [ ] **`spec-0253-guarded`** — `Guarded<R>`, `lease()` and `use { }`; acquired once per engine run, released after
       the last suite.
       Done when: a test of 50 concurrent users of a `Guarded(permits = 3)` never sees more than 3 holders.
-- [ ] **`spec-0253-side-by-side`** — suites run concurrently under `surefold.junit.suites.limit`; `alone = true`.
+- [ ] **`spec-0253-side-by-side`** — suites run concurrently under `surefold.junit.suites.limit`; `isolated = true`.
       Done when: two suites each sleeping on a latch finish together, and with the limit at 1 they run in turn.
 - [ ] **`spec-0253-docs`** — `docs/testing.md`: a section on running suites side by side, with the database
       example.
@@ -83,12 +83,12 @@ name and cannot express "20 at once". A permit count covers both: `permits = 1` 
 
 ## Open questions
 
-1–4 answered by the owner, 2026-10-28.
+Answered by the owner, 2026-10-28.
 
 1. ~~**Default `surefold.junit.suites.limit`.**~~ **1.** The repo's own suites were written to run one at a time (ports,
    system properties, thread-count assertions, actor systems), so a build opts in once its suites are safe.
 2. ~~**Permits per test or per suite.**~~ Per test, so a long suite does not hold permits between its tests.
 3. ~~**Is a guard's acquisition lazy?**~~ Yes, on first use, so a run that never touches the database never starts it.
 4. ~~**Reporting.**~~ Deferred; see Not doing.
-5. **The name of a suite that runs alone in the whole run.** `Suite(alone = true)` reuses the name of the per-test
-   `alone` aspect, which means alone within its suite. Recommended: `Suite(isolated = true)`.
+5. ~~**The name of a suite that runs alone in the whole run.**~~ `Suite(isolated = true)`. `alone` already names the
+   per-test aspect, which means alone within its suite.
