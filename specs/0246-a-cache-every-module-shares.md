@@ -146,7 +146,7 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
       - a `Left` never reaches the far layer;
       - a far layer that throws is a miss and the lookup still answers;
       - `invalidate` removes from the far layer before the near.
-- [ ] **`spec-0246-schedules`**: `retry`, `refreshing`, `refresh`, and closing the cache.
+- [x] **`spec-0246-schedules`** ([#891](https://github.com/matthewjones372/surefold/pull/891)): `retry`, `refreshing`, `refresh`, and closing the cache.
       Done when, on a `TestClock`:
       - a lookup failing twice then succeeding, under `recurs(2)`, answers the value, with one lookup in flight;
       - with `refreshing = spaced(25.seconds)`, a key read within each window is looked up at 25 and 50 seconds;
