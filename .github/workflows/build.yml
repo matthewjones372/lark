@@ -59,18 +59,25 @@ jobs:
       # below are still uploaded when it is hit. Two workers, not one per core: the Namespace machine has
       # 8 GB, and four at once (test JVMs of up to 2 GB, TestKit's own Gradle, the Kotlin daemon beside
       # Gradle's) got the daemon OOM-killed on a build with nothing cached.
-      # A pull request that changes only specs/ runs SpecsSuite, the one test that reads them. A pull request's
-      # checkout is GitHub's merge commit, so its first parent is the base and HEAD^1..HEAD is the change.
+      # A pull request builds what it affects: the modules it changes, everything that depends on them, and
+      # surefold-app's repository-wide suites, or SpecsSuite alone when it changes only specs/.
+      # .github/affected-tasks.sh says which, and answers the whole build for a change to the build itself. A pull
+      # request's checkout is GitHub's merge commit, so its first parent is the base. A push to main and a manual
+      # run build everything, the coverage floor across every module included, so nothing a pull request skipped
+      # reaches a release unchecked.
       - name: Build and test
         timeout-minutes: 25
         env:
           EVENT: ${{ github.event_name }}
         run: |
-          if [ "$EVENT" = pull_request ] && ! git diff --name-only HEAD^1 HEAD | grep -qv '^specs/'; then
-            ./gradlew :surefold-app:test --tests '*SpecsSuite*' --max-workers=2 --stacktrace
+          set -f
+          if [ "$EVENT" = pull_request ]; then
+            tasks=$(.github/affected-tasks.sh HEAD^1)
           else
-            ./gradlew build ${{ matrix.gradleArgs }} --max-workers=2 --stacktrace
+            tasks=build
           fi
+          echo "Building: $tasks"
+          ./gradlew $tasks ${{ matrix.gradleArgs }} --max-workers=2 --stacktrace
 
       # The suites run an Api in memory and assert on which thread a body ran
       # on, so a failure is worth reading rather than guessing at.
