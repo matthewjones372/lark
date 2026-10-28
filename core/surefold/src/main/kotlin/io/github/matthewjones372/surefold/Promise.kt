@@ -26,6 +26,9 @@ class Promise<E, A>(name: String = "promise") {
     /** How this completed, or null while it has not: a look, not a wait. */
     fun peek(): Either<E, A>? = answer.peek()
 
+    // How many threads are parked on this now, for a test that must release a flight only once all have joined it.
+    internal fun waiting(): Int = answer.waiters.size
+
     private fun complete(with: Either<E, A>): Boolean = answer.modify { was -> (was ?: with) to (was == null) }
 }
 
