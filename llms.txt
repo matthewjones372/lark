@@ -130,6 +130,7 @@ Facts worth having before anything else:
 - `surefold-postgres-notify`: Postgres's `LISTEN` as a `Stream` of notifications in commit order, and `notify` to send.
 - `surefold-cache-postgres`: `invalidating(cache) { payload -> key }`, a `Cache` told by `NOTIFY` that a row changed.
 - `surefold-cache-tenancy`: `TenantCache`, a cache keyed by the bound tenant; `NoTenant` with none bound.
+- `surefold-cache-redis`: `RedisLayer`, a cache layer every instance shares on Redis, and `RedisInvalidations` over pub/sub.
 - `surefold-auth`: sessions and credentials: Argon2id passwords, rotating sessions, magic links, TOTP, roles.
 - `surefold-auth-oidc`: OpenID Connect sign-in on Nimbus: the code flow with PKCE, every ID token check.
 - `surefold-actor-projection`: a journal as a `Stream`, for a read model that
