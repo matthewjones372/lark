@@ -74,7 +74,7 @@ model of shared state beside `transact`.
       Done when:
       - a thousand forks each `update { it + 1 }` and the value is a thousand;
       - `awaitUntil` wakes on the change that makes it true, and not before.
-- [ ] **`spec-0247-promise`**: `Promise`, `succeed`, `fail`, `await`, `await(within)`.
+- [x] **`spec-0247-promise`** ([#876](https://github.com/matthewjones372/surefold/pull/876)): `Promise`, `succeed`, `fail`, `await`, `await(within)`.
       Done when:
       - twenty waiters all get the value;
       - a second `succeed` answers false and changes nothing;
