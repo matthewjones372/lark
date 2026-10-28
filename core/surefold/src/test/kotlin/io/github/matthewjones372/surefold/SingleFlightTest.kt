@@ -8,6 +8,9 @@ import java.util.concurrent.atomic.AtomicInteger
 
 private const val CALLERS = 20
 
+// Enough rounds that a cancel landing as a block starts, before its flight is registered, is all but certain.
+private const val ROUNDS = 500
+
 /** One call per key while it is in flight, however many ask (spec 0247). */
 class SingleFlightTest {
 
@@ -34,6 +37,29 @@ class SingleFlightTest {
         ) { all, _ -> all }
         answers.toSet() shouldBe setOf(Either.Right(7))
         runs.get() shouldBe 1
+    }
+
+    @Test
+    fun `cancelAll stops a block however soon after it started`() {
+        repeat(ROUNDS) {
+            val flights = SingleFlight<String, Nothing, Int>()
+            val started = Promise<Nothing, Unit>()
+            parZip(
+                {
+                    shouldThrow<InterruptedException> {
+                        flights.run("k") {
+                            started.succeed(Unit)
+                            Promise<Nothing, Unit>().awaitValue()
+                            Either.Right(1)
+                        }
+                    }
+                },
+                {
+                    started.awaitValue()
+                    flights.cancelAll()
+                },
+            ) { _, _ -> }
+        }
     }
 
     @Test

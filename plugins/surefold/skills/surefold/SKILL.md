@@ -99,6 +99,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-postgres-notify`: Postgres notifications as a stream.
 - `surefold-cache-postgres`: a cache invalidated by Postgres notifications.
 - `surefold-cache-tenancy`: a cache keyed by the bound tenant.
+- `surefold-openfeature-postgres`: flags per tenant from Postgres.
 - `surefold-cache-redis`: a shared cache layer on Redis.
 - `surefold-auth`: sessions, passwords and second factors.
 - `surefold-auth-oidc`: sign-in with an OpenID Connect provider.

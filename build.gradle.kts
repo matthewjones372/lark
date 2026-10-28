@@ -174,6 +174,8 @@ val moduleDescriptions = mapOf(
         "A key per tenant, rooted in a KMS key no backup holds: delete the root and every copy is unreadable.",
     "surefold-tenancy-crypto-aws" to
         "surefold-tenancy-crypto on AWS KMS: one customer managed key per tenant, found by alias.",
+    "surefold-openfeature-postgres" to
+        "Feature flags per tenant from a Postgres table, read under its row-level security policy, for OpenFeature.",
     "surefold-cache-redis" to
         "surefold-cache on Redis: a layer every instance shares, and invalidation over Redis pub/sub.",
     "surefold-cache-tenancy" to
