@@ -22,7 +22,7 @@ val CheckoutPaused = Flag.boolean("checkout.paused", default = false)     // 018
 val flags: Module = openFeature {
     PostgresFlags(app, fallback = InMemoryProvider(defaults), ttl = 30.seconds, stale = 10.minutes)
 }
-PostgresFlags.listening(notices, provider)  // a Run: another process's change, seen before the ttl runs out
+provider.listening(notices)  // a Run: another process's change, seen before the ttl runs out
 
 withTenant(TenantId("acme")) {
     CheckoutPaused.value()          // acme's row, else the default row, else the fallback, else false
@@ -50,8 +50,9 @@ provider.clear(connection, "checkout.paused", tenant = TenantId("acme"))   // ba
 - **Stale**: while Postgres cannot be read, the cache's `stale` answers the last rows read, and the provider reports
   `STALE`. Past `stale`, or with nothing cached, the flag answers the fallback and the provider reports `ERROR`.
 - **Invalidation**: a trigger on the table sends `NOTIFY surefold_feature_flags` with the row's tenant, or an empty
-  payload for a null row, so any writer is heard, not only `set` and `clear`. `listening`, over
-  `surefold-cache-postgres`, drops that tenant's scope for a tenant row, and every scope for a null row or a `Gap`.
+  payload for a null row, so any writer is heard, not only `set` and `clear`. `listening`, over 0238's notices,
+  drops that tenant's scope for a tenant row, and every scope for a null row or a `Gap`. Not through
+  `surefold-cache-postgres`, whose payload names one key: a null row's change is every scope's.
   `set` and `clear` also drop it in their own process at once.
 - **With no tenant** (a health check, a job with none), only null rows and the fallback answer.
 
@@ -62,14 +63,14 @@ provider a few lines over `TenantTransactions` and 0246's `Cache`, which already
 lookup per key and invalidation from `NOTIFY`. **Alternative:** flagd's schema stored as JSON per tenant, so a
 tenant's row could target users; recommended against for now, since it brings flagd and its gRPC into every service
 that only needs on and off per tenant. The module is **`surefold-openfeature-postgres`** in `data/`, on
-`surefold-openfeature`, `surefold-tenancy`, `surefold-cache` and `surefold-cache-postgres`.
+`surefold-openfeature`, `surefold-tenancy`, `surefold-cache` and `surefold-postgres-notify`.
 
 ## Stack
 
 - [x] **`spec-0240-provider`** ([#905](https://github.com/matthewjones372/surefold/pull/905)) — the module, `PostgresFlags`, its changelog, precedence, types, the dependency test.
       Done when: on Postgres, a flag answers acme's row for acme, the null row for globex, the fallback when neither
       exists, and a row of another tenant is never read.
-- [ ] **`spec-0240-cache`** — the provider on `Cache`, `set`, `clear`, `stale` and `STALE`.
+- [x] **`spec-0240-cache`** ([#913](https://github.com/matthewjones372/surefold/pull/913)) — the provider on `Cache`, `set`, `clear`, `stale` and `STALE`.
       Done when: on a `TestClock`, a row changed by another process is seen after `ttl` and not before, a row `set`
       in this process is seen at once, and a provider whose database is down reports `STALE` and serves the cached
       values until `stale` runs out.
@@ -89,8 +90,8 @@ that only needs on and off per tenant. The module is **`surefold-openfeature-pos
 
 1. **Context attribute or `currentTenant()`?** Recommended: both, the attribute first, so a test or an operator
    tool can evaluate as another tenant without binding it.
-2. **Evict across processes when a row changes?** Chosen: by `NOTIFY` (0238), through 0246's
-   `surefold-cache-postgres`, from a trigger on the table, so a row changed by hand is heard too.
+2. **Evict across processes when a row changes?** Chosen: by `NOTIFY` (0238), from a trigger on the table, so a row
+   changed by hand is heard too.
 3. **Check declared flags at start, as 0195 does for flagd?** Recommended: check the null rows' values parse as the
    declared types; tenant rows can change at any time, so they are checked when read.
 4. **HOCON defaults as the fallback**? `flagdFlags` installs its provider rather than answering
