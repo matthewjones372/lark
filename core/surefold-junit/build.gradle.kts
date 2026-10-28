@@ -3,7 +3,8 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 // Surefold's tests on the JUnit Platform (spec 0174): a TestEngine that runs Suite objects, so Gradle, the IDE and
 // CI read the results as they read Jupiter's. It depends on surefold, surefold-assert for how a failed expectation is
 // reported (spec 0175), surefold-test for the stories a suite tells (spec 0188), and junit-platform-engine, and nothing
-// else, which NoOtherDependenciesTest asserts.
+// else, which NoOtherDependenciesTest asserts. junit-platform-commons, which the engine brings, is an API: a suite is
+// `@Testable` (spec 0251), and IntelliJ looks for that annotation on the test's own classpath.
 plugins {
     kotlin("plugin.power-assert")
 }
@@ -13,6 +14,7 @@ dependencies {
     implementation(project(":surefold-assert"))
     api(project(":surefold-test"))
     implementation("org.junit.platform:junit-platform-engine:6.1.3")
+    api("org.junit.platform:junit-platform-commons:6.1.3")
 
     testImplementation(project(":surefold-junit-testkit"))
     testImplementation("org.junit.platform:junit-platform-testkit")

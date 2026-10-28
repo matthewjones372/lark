@@ -212,7 +212,9 @@ object SortingSuite : Suite() {
 - **Reporting:** results go through the JUnit Platform, so Gradle's JUnit XML,
   IntelliJ's test tree and CI read a suite as they read a Jupiter class, and
   the two run side by side in one `test` task. A test's name is its display
-  name and its ID, so two tests in a suite cannot share one.
+  name and its ID, so two tests in a suite cannot share one. IntelliJ gives
+  each suite a run icon of its own; a single test is rerun from the results
+  tree, as its tests are calls rather than methods.
 
 ```kotlin
 dependencies {
