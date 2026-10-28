@@ -210,6 +210,9 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Stream<E, A>.orElse(other: Stream<E, A>): Stream<E, A>` | `other` on a failure, not on an empty stream |
 | `Stream<E, A>.mapError(f: (E) -> E2): Stream<E2, A>` | the declared failure said in another vocabulary, without saying recovery |
 | `Stream<E, A>.restartOnDefect(schedule: Schedule<Throwable, *>): Stream<E, A>` | on a defect, the same description run again after the schedule's delay, with a warn line each time; a declared failure passes through, and a schedule that is done lets the defect through as `Died` |
+| `Stream<E, ByteChunk>.decodeUtf8(): Stream<E, String>` | chunks as UTF-8 text, a character split across chunks decoded once both have come; what is not UTF-8 is U+FFFD |
+| `Stream<E, String>.encodeUtf8(): Stream<E, ByteChunk>` | each string as UTF-8, one chunk per string |
+| `Stream<E, String>.lines(): Stream<E, String>` | text as lines, ended by `\n` or `\r\n` however it was split; the last needs no ending |
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
@@ -354,7 +357,11 @@ writes each chunk as it arrives:
 ```kotlin
 import io.github.matthewjones372.surefold.stream.Run
 import io.github.matthewjones372.surefold.stream.Stream
+import io.github.matthewjones372.surefold.stream.decodeUtf8
+import io.github.matthewjones372.surefold.stream.drop
+import io.github.matthewjones372.surefold.stream.lines
 import io.github.matthewjones372.surefold.stream.read
+import io.github.matthewjones372.surefold.stream.runCollect
 import io.github.matthewjones372.surefold.stream.runInto
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
@@ -365,7 +372,18 @@ val out = ByteArrayOutputStream()
 val copied: Run<Nothing, Long> =
     Stream.read({ Files.newInputStream(Path.of("orders.csv")) }, chunkSize = 64 * 1024)   // Stream<Nothing, ByteChunk>
         .runInto(out)                                                                      // the bytes it wrote
+
+val rows: Run<Nothing, List<String>> =
+    Stream.read({ Files.newInputStream(Path.of("orders.csv")) })
+        .decodeUtf8()   // a character split between two reads is decoded once both have come
+        .lines()        // so is a line
+        .drop(1)        // the header
+        .runCollect()
 ```
+
+Text needs no buffering of its own: `decodeUtf8` holds the bytes of a character
+a read ended inside until the next read brings the rest, and `lines` holds the
+line so far until a `\n` ends it.
 
 A read that throws is a defect, as from any blocking source, and `stop()`
 closes the `InputStream` to reach a read that is blocked, since

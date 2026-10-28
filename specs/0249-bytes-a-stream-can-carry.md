@@ -81,7 +81,7 @@ always be changed, it has no structural equality, and slicing it means copying.
       Done when: every `from` and `toByteArray` copy, so changing the array or buffer afterwards leaves the chunk
       unchanged; `slice` copies nothing; `asReadOnlyBuffer` cannot write; two chunks with equal contents are equal
       and hash the same.
-- [ ] **`spec-0249-read-write`**: `Stream.read` and `runInto` in `surefold-stream`.
+- [x] **`spec-0249-read-write`** ([#897](https://github.com/matthewjones372/surefold/pull/897)): `Stream.read` and `runInto` in `surefold-stream`.
       Done when: a 1 MiB input comes out the same in every backend; the `InputStream` is closed on success, failure
       and `stop()`; a `stop()` wakes a `read` that is blocked.
 - [ ] **`spec-0249-text`**: `decodeUtf8`, `encodeUtf8`, `lines`.
