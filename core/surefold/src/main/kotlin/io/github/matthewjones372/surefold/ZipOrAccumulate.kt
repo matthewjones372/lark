@@ -264,8 +264,28 @@ fun <E, A, B, C, D, F, G, H, I, J, K> Fail<E>.zipOrAccumulate(
     transform: (A, B, C, D, F, G, H, I, J) -> K,
 ): K = combined(combine) { zipOrAccumulate(fa, fb, fc, fd, fe, ff, fg, fh, fi, transform) }
 
+/**
+ * Runs [transform] on each element in order on the calling thread and keeps every failure: a fail ends only
+ * its own element, so every element runs and their errors answer together, in the input's order.
+ */
+fun <E, A, B> Fail<NonEmptyList<E>>.mapOrAccumulate(iterable: Iterable<A>, transform: Fail<E>.(A) -> B): List<B> {
+    val results = iterable.map { element -> attempt<E, B> { transform(element) } }
+    failAll(results)
+    return results.map { it.settled() }
+}
+
+/** The same map, its failures folded with [combine] into the error this scope declares. */
+fun <E, A, B> Fail<E>.mapOrAccumulate(
+    combine: (E, E) -> E,
+    iterable: Iterable<A>,
+    transform: Fail<E>.(A) -> B,
+): List<B> = combined(combine) { mapOrAccumulate(iterable, transform) }
+
 /** Fails with every branch's error together, or returns so the caller can read their values. */
-private fun <E> Fail<NonEmptyList<E>>.failAll(vararg branches: Either<E, *>) {
+private fun <E> Fail<NonEmptyList<E>>.failAll(vararg branches: Either<E, *>) = failAll(branches.asList())
+
+/** The same, for branches already in a list. */
+private fun <E> Fail<NonEmptyList<E>>.failAll(branches: List<Either<E, *>>) {
     // A null error is still an error, so Left is matched rather than leftOrNull.
     branches.mapNotNull { it as? Either.Left }.map { it.value }.toNonEmptyListOrNull()?.let { fail(it) }
 }
