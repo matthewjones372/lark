@@ -149,6 +149,7 @@ against; the library's own transitive dependencies come with it.
 | `surefold-ratelimit` | token buckets by key, in memory or on Postgres, shared by every instance ([guide](http-stores.md#rate-limits)) | `surefold` | none (bring your own driver and pool) | yes |
 | `surefold-postgres-notify` | Postgres's `LISTEN` as a `Stream` of notifications in commit order, on one connection of its own, and `notify` to send ([guide](postgres-notify.md)) | `surefold-stream` | none (bring your own driver) | yes |
 | `surefold-cache-postgres` | a `Cache` told by Postgres `NOTIFY` that a row changed: a payload drops its key, a gap drops every key (spec 0246) | `surefold-cache`, `surefold-postgres-notify` | none | yes |
+| `surefold-cache-tenancy` | `TenantCache`: a `Cache` whose every entry is one tenant's, looked up as that tenant (spec 0246) | `surefold-cache`, `surefold-tenancy` | none | yes |
 | `surefold-auth` | sessions and credentials: Argon2id passwords, rotating sessions, magic links, TOTP, roles ([guide](auth.md)) | `surefold` | `bcprov-jdk18on` 1.85 | yes |
 | `surefold-auth-oidc` | sign-in with an OpenID Connect provider: the code flow with PKCE, and the ID token's signature, issuer, audience, expiry and nonce checked ([guide](auth.md#signing-in-elsewhere)) | `surefold-auth` | `oauth2-oidc-sdk` 11.37.2 | yes |
 | `surefold-jobs-otel` | a span per run of a job, in its own trace and linked to the span that enqueued it ([guide](jobs.md#traces)) | `surefold-jobs`, `surefold-otel` | none beyond `opentelemetry-api` | yes |
