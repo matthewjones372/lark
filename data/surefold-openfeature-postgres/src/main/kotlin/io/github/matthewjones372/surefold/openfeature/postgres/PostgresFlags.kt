@@ -28,7 +28,7 @@ const val TENANT_ATTRIBUTE = "tenant"
  *
  * The tenant is the context's [TENANT_ATTRIBUTE] if set, else the bound one; with neither, only null rows answer. A
  * row's text is read as the type asked for, and one that does not parse answers the default with `PARSE_ERROR`.
- * There are no object flags: an object is [fallback]'s, or the default.
+ * There are no object flags: an object is [fallback]'s, or the default. [fallback] starts and stops with this provider.
  */
 class PostgresFlags(
     private val app: DataSource,
@@ -37,6 +37,15 @@ class PostgresFlags(
     private val tenants = TenantTransactions(app)
 
     override fun getMetadata() = Metadata { "surefold-postgres" }
+
+    // The SDK starts and stops only the provider it was given, so the fallback is started and stopped with this one.
+    override fun initialize(evaluationContext: EvaluationContext) {
+        fallback?.initialize(evaluationContext)
+    }
+
+    override fun shutdown() {
+        fallback?.shutdown()
+    }
 
     override fun getBooleanEvaluation(key: String, defaultValue: Boolean, ctx: EvaluationContext) =
         evaluate(key, defaultValue, ctx, "a boolean", { it.toBooleanStrictOrNull() }) {

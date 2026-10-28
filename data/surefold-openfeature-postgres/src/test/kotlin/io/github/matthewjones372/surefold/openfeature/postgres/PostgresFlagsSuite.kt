@@ -1,6 +1,7 @@
 package io.github.matthewjones372.surefold.openfeature.postgres
 
 import dev.openfeature.sdk.ErrorCode
+import dev.openfeature.sdk.EvaluationContext
 import dev.openfeature.sdk.ImmutableContext
 import dev.openfeature.sdk.Reason
 import dev.openfeature.sdk.Value
@@ -11,6 +12,7 @@ import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.tenancy.RlsDatabase
 import io.github.matthewjones372.surefold.tenancy.TenantId
 import io.github.matthewjones372.surefold.tenancy.withTenant
+import org.postgresql.ds.PGSimpleDataSource
 
 /** Whose row a flag answers, on Postgres under the table's own policy (spec 0240). */
 object PostgresFlagsSuite : Suite() {
@@ -28,7 +30,7 @@ object PostgresFlagsSuite : Suite() {
             "('$key', ${tenant?.let { "'$it'" } ?: "null"}, '$value', 'a test', 'ops:test', now())",
     )
 
-    private val fallback = InMemoryProvider(
+    private fun fallback() = InMemoryProvider(
         mapOf(
             "checkout.paused" to Flag.builder<Boolean>()
                 .variants(mapOf("on" to true))
@@ -42,7 +44,7 @@ object PostgresFlagsSuite : Suite() {
             val database = database()
             database.row("checkout.limit", "acme", "5")
             database.row("checkout.limit", null, "10")
-            val flags = PostgresFlags(database.app, fallback).also { it.initialize(nobody) }
+            val flags = PostgresFlags(database.app, fallback()).also { it.initialize(nobody) }
 
             val forAcme = withTenant(acme) { flags.getIntegerEvaluation("checkout.limit", 0, nobody) }
             forAcme.value shouldBe 5
@@ -62,6 +64,15 @@ object PostgresFlagsSuite : Suite() {
             val read = flags.getObjectEvaluation("layout", Value("grid"), nobody)
             read.value shouldBe Value("grid")
             read.reason shouldBe Reason.DEFAULT.name
+        }
+
+        test("the fallback is started and stopped with the provider, since the SDK starts only the one it is given") {
+            val fallen = Recording()
+            val flags = PostgresFlags(PGSimpleDataSource(), fallen)
+
+            flags.initialize(nobody)
+            flags.shutdown()
+            fallen.calls shouldBe listOf("initialize", "shutdown")
         }
 
         test("a row of another tenant is never read") {
@@ -104,5 +115,20 @@ object PostgresFlagsSuite : Suite() {
             read.errorCode shouldBe ErrorCode.PARSE_ERROR
             flags.getDoubleEvaluation("limit", 0.5, nobody).errorCode shouldBe ErrorCode.PARSE_ERROR
         }
+    }
+}
+
+/** A fallback that says when it was started and stopped. */
+private class Recording : InMemoryProvider(emptyMap()) {
+    val calls = mutableListOf<String>()
+
+    override fun initialize(evaluationContext: EvaluationContext) {
+        calls += "initialize"
+        super.initialize(evaluationContext)
+    }
+
+    override fun shutdown() {
+        calls += "shutdown"
+        super.shutdown()
     }
 }
