@@ -297,9 +297,12 @@ call it directly, with `TestClock`, `capturingLogs`, `story`, `eventually` and
 - **Aspects.** `flaky`, `nonFlaky`, `timeout`, `tag` and `ignore` are values
   you combine with `+`. `nonFlaky(50)` proves that a load-sensitive test is
   stable.
+- **A test for each case.** `testEach(name, cases) { case -> }` registers a
+  test per case under one container, each run and reported on its own, with
+  plain Kotlin values for cases rather than `@MethodSource` strings.
 
-Stay on Jupiter for tests that need its extensions, such as parameterized
-tests, `@TempDir`, or a framework's own extension. The two engines run side by
+Stay on Jupiter for tests that need its extensions, such as `@TempDir` or a
+framework's own extension. The two engines run side by
 side in one `test` task.
 
 Because `surefold-junit` is a JUnit Platform engine, its suites run beside JUnit

@@ -15,6 +15,7 @@ sleep.
 | checks that name the test's line on failure | `shouldBe`, `shouldBeRight`, `withClue { }` | `surefold-assert` |
 | tests that run concurrently | `object … : Suite()` | `surefold-junit` |
 | tests that share a resource and run concurrently | `object … : SharedSuite<R>()` | `surefold-junit` |
+| one test for each of a list of cases | `testEach(name, cases) { case -> }` | `surefold-junit` |
 | a story as a suite's test, returning its expectations | `story { }` | `surefold-junit` |
 | one class | its constructor, with fakes as arguments | nothing |
 | several nodes together, one faked | `testApp(module.subgraph<Root>().overriding(…)) { }` | `surefold-app` |
@@ -358,6 +359,47 @@ test calls to make a fresh one. Put what the tests share on purpose in
 A test that needs a directory of its own, as Jupiter's `@TempDir` gives one,
 calls `withTempDirectory { dir -> … }`. The directory is new and empty, and
 it is deleted with everything in it once the block returns or throws.
+
+### A test for each case
+
+`testEach` registers one test for each case in a list, under a container named
+for the group, as Jupiter's `@ParameterizedTest` does. The cases are any
+Kotlin values; a data class keeps each one readable.
+
+- **Each case is a test.** Each runs on a fork of its own beside the suite's
+  other tests, with its own logs and checks, so every case runs and a wrong
+  one fails alone. Its failures and logs name it `group [case]`.
+- **Names:** a case is named by `named`, `toString()` by default. The name
+  is its ID, `[suite:…]/[group:…]/[test:…]`, so an IDE reruns a group or one
+  case; two cases with one name, or two groups, are refused.
+- **Aspects** given to `testEach` apply to every case, inside the suite's.
+- In a `SharedSuite`, the body takes the shared resource and the case,
+  `{ shared, case -> }`.
+
+<!-- testing-junit-each -->
+```kotlin
+import io.github.matthewjones372.surefold.junit.Suite
+import io.github.matthewjones372.surefold.junit.expect
+import io.github.matthewjones372.surefold.junit.tag
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+data class Parsed(val text: String, val expected: Duration)
+
+object DurationSuite : Suite() {
+    init {
+        testEach(
+            "a duration parses",
+            listOf(Parsed("1s", 1.seconds), Parsed("2m", 2.minutes), Parsed("1h30m", 90.minutes)),
+            aspects = tag("parsing"),
+            named = { it.text },                    // tests "1s", "2m" and "1h30m" under "a duration parses"
+        ) { case ->
+            expect(Duration.parse(case.text) == case.expected)
+        }
+    }
+}
+```
 
 ## Expectations
 
