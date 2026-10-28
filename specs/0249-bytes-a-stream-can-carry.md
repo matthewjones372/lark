@@ -28,9 +28,16 @@ read boundary, and length-prefixed frames.
 ## Shape
 
 ```kotlin
-// A block of bytes nobody can change. Slicing shares the array; of and toByteArray copy.
-val bytes: ByteChunk = ByteChunk.of("héllo".encodeToByteArray())
+// A block of bytes nobody can change. Slicing shares the array; from and toByteArray copy.
+ByteChunk.of(0x01, 0x02)                     // bytes listed one by one, as Stream.of
+ByteChunk.from(array)                        // a copy of a ByteArray
+ByteChunk.from(array, from = 4, until = 12)  // a copy of part of one
+ByteChunk.from(buffer)                       // a copy of a ByteBuffer's remaining bytes; its position is untouched
+ByteChunk.from("héllo")                      // UTF-8
+ByteChunk.empty()
+val bytes: ByteChunk = ByteChunk.from("héllo")
 bytes.size; bytes[0]; bytes.slice(0, 2); bytes + other; bytes.decodeToString(); bytes.writeTo(out)
+bytes.toByteArray(); bytes.asReadOnlyBuffer()   // a copy; a read-only ByteBuffer over the same bytes, no copy
 
 // In and out of an InputStream and an OutputStream.
 Stream.read({ socket.getInputStream() }, chunkSize = 64 * 1024)   // Stream<Nothing, ByteChunk>
@@ -71,8 +78,9 @@ always be changed, it has no structural equality, and slicing it means copying.
 ## Stack
 
 - [ ] **`spec-0249-byte-chunk`**: `ByteChunk` in `surefold`.
-      Done when: `of` and `toByteArray` copy, so changing either array leaves the chunk unchanged; `slice` copies
-      nothing; two chunks with equal contents are equal and hash the same.
+      Done when: every `from` and `toByteArray` copy, so changing the array or buffer afterwards leaves the chunk
+      unchanged; `slice` copies nothing; `asReadOnlyBuffer` cannot write; two chunks with equal contents are equal
+      and hash the same.
 - [ ] **`spec-0249-read-write`**: `Stream.read` and `runInto` in `surefold-stream`.
       Done when: a 1 MiB input comes out the same in every backend; the `InputStream` is closed on success, failure
       and `stop()`; a `stop()` wakes a `read` that is blocked.
