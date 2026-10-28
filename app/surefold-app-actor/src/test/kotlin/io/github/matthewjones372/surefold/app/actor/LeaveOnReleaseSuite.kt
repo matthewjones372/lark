@@ -1,12 +1,10 @@
-package io.github.matthewjones372.surefold.app.cluster
+package io.github.matthewjones372.surefold.app.actor
 
 import io.github.matthewjones372.surefold.actor.behaviour
 import io.github.matthewjones372.surefold.actor.remote.Node
 import io.github.matthewjones372.surefold.actor.remote.node
 import io.github.matthewjones372.surefold.actor.spawn
 import io.github.matthewjones372.surefold.actor.stay
-import io.github.matthewjones372.surefold.app.actor.Actors
-import io.github.matthewjones372.surefold.app.actor.actors
 import io.github.matthewjones372.surefold.app.single
 import io.github.matthewjones372.surefold.app.testApp
 import io.github.matthewjones372.surefold.cluster.Cluster
