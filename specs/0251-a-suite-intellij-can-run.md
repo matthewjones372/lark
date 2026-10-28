@@ -64,10 +64,11 @@ Then, in IntelliJ: open any suite object, click the gutter icon, and see only th
 
 ## Open questions
 
-1. **IntelliJ also flags the abstract `Suite` and `SharedSuite` themselves, since its check returns true before it
-   checks for an abstract class.** They're in main sources, where IntelliJ draws no test icon, so this is harmless.
-   Recommended: accept it.
-2. **Should `petshop` and the other consumers get a line in their docs?** No. The icon just appears once they're on
+Taken as recommended (owner, 2026-10-28).
+
+1. ~~IntelliJ also flags the abstract `Suite` and `SharedSuite` themselves, since its check returns true before it
+   checks for an abstract class.~~ Accepted. They're in main sources, where IntelliJ draws no test icon.
+2. ~~Should `petshop` and the other consumers get a line in their docs?~~ No. The icon just appears once they're on
    the new version.
-3. **Should each test carry a source line (`FileSource` with a line from the `test(…)` call's stack frame) so the
-   results tree opens it in place?** Recommended: deferred to its own spec. It touches registration, not discovery.
+3. ~~Should each test carry a source line (`FileSource` with a line from the `test(…)` call's stack frame) so the
+   results tree opens it in place?~~ Deferred to its own spec. It touches registration, not discovery.
