@@ -1,5 +1,9 @@
 # 0230 — Pelican's idempotency keys on Postgres
 
+**Withdrawn (maintainer, 2026-10-28).** Surefold is the foundation and depends on no framework built on it, Pelican
+included. An adapter from Pelican's `IdempotencyStore` to `PostgresIdempotency` belongs in Pelican, which can depend on
+`surefold-idempotency`; it is not built here. #815, which built it, was closed unmerged.
+
 ## Problem
 
 Pelican's spec 0092 gives an endpoint `idempotencyKey()` and an `Api` `idempotency(store, ttl)`. Pelican answers the
@@ -43,7 +47,7 @@ complete by scope alone, last writer wins; recommended against, since it reopens
 
 ## Stack
 
-- [ ] **`spec-0230-adapter`** — the store additions, `PelicanIdempotencyStore`, its module, and docs.
+- [x] ~~**`spec-0230-adapter`**~~ — withdrawn, see the note at the top: the store additions, `PelicanIdempotencyStore`, its module, and docs.
       Done when: Pelican's own idempotency tests' cases hold against the adapter on Postgres: fifty reservations of
       one key at once give one `Reserved`; a completed key replays to every node; a released key runs again; a
       different body is a `Mismatch`; and one subject's key is not another's.
