@@ -371,8 +371,9 @@ With Kotlin's power-assert plugin applied to the test source set, a failed
 carries expected and actual, so IntelliJ opens its diff. Each check counts as
 it is made, so a test is its checks written one after another. The
 [testing guide](docs/testing.md#suites) covers the shared resource, running a
-test alone, the diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`,
-`tag` and `ignore`.
+test alone, suites side by side with a resource guarded across them, the
+diagram, and aspects such as `flaky`, `nonFlaky`, `timeout`, `tag` and
+`ignore`.
 
 ## Where next
 

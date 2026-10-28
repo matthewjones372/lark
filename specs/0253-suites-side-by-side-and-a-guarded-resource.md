@@ -70,7 +70,7 @@ name and cannot express "20 at once". A permit count covers both: `permits = 1` 
       Done when: a test of 50 concurrent users of a `Guarded(permits = 3)` never sees more than 3 holders.
 - [x] **`spec-0253-side-by-side`** — suites run concurrently under `surefold.junit.suites.limit`; `isolated = true`.
       Done when: two suites each sleeping on a latch finish together, and with the limit at 1 they run in turn.
-- [ ] **`spec-0253-docs`** — `docs/testing.md`: a section on running suites side by side, with the database
+- [x] **`spec-0253-docs`** — `docs/testing.md`: a section on running suites side by side, with the database
       example.
       Done when: `CoreGuideTest` compiles the sample, found by its `<!-- marker -->`.
 
