@@ -40,7 +40,7 @@ fun check(order: Order): Either<NonEmptyList<Invalid>, Order> = attempt {
     accumulate {
         ensureOrAccumulate(order.lines.isNotEmpty()) { Invalid("lines") }
         order.lines.forEach { line -> ensureOrAccumulate(line.qty > 0) { Invalid("qty:${line.sku}") } }
-        val total = order.total.bindOrAccumulate()           // answers a placeholder if it failed; see question 3
+        val total = order.total.bindOrAccumulate()           // null once the error is recorded (question 3)
     }
     order
 }
@@ -74,7 +74,7 @@ The arity overloads are mechanical; they cost lines, not design.
 - [x] **`spec-0243-map`** ([#855](https://github.com/matthewjones372/surefold/pull/855)) — `mapOrAccumulate` both forms. `bindAll` moved to
       its own entry (2026-10-28): it needs a scope that can fail with several errors.
       Done when: a list with failures at 1 and 3 answers with both, in input order; an empty list answers `emptyList()`.
-- [ ] **`spec-0243-bind-all`** — `FailAll<E> : Fail<E>`, which can fail with a `NonEmptyList<E>`; the sequential
+- [x] **`spec-0243-bind-all`** ([#859](https://github.com/matthewjones372/surefold/pull/859)) — `FailAll<E> : Fail<E>`, which can fail with a `NonEmptyList<E>`; the sequential
       forms' branches take it as their receiver, and `bindAll()` compiles only there (maintainer, 2026-10-28; over a
       runtime check that would drop errors outside a branch).
       Done when: a nested list's errors all come back, in order, from a map element and from a zip branch.
