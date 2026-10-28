@@ -28,9 +28,9 @@ withTenant(TenantId("acme")) {
     CheckoutPaused.value()          // acme's row, else the default row, else the fallback, else false
 }
 
-PostgresFlags.set(connection, "checkout.paused", tenant = TenantId("acme"), value = "true", reason = "fire alarm",
-                  by = "ops:sam")
-PostgresFlags.clear(connection, "checkout.paused", tenant = TenantId("acme"))   // back to the default row
+provider.set(connection, "checkout.paused", tenant = TenantId("acme"), value = "true", reason = "fire alarm",
+             by = "ops:sam")                                   // the provider's own cache drops acme at once
+provider.clear(connection, "checkout.paused", tenant = TenantId("acme"))   // back to the default row
 ```
 
 - **One table**, `surefold_feature_flags (key, tenant_id null, value text, reason, updated_by, updated_at)`, with
@@ -66,7 +66,7 @@ that only needs on and off per tenant. The module is **`surefold-openfeature-pos
 
 ## Stack
 
-- [ ] **`spec-0240-provider`** — the module, `PostgresFlags`, its changelog, precedence, types, the dependency test.
+- [x] **`spec-0240-provider`** ([#905](https://github.com/matthewjones372/surefold/pull/905)) — the module, `PostgresFlags`, its changelog, precedence, types, the dependency test.
       Done when: on Postgres, a flag answers acme's row for acme, the null row for globex, the fallback when neither
       exists, and a row of another tenant is never read.
 - [ ] **`spec-0240-cache`** — the provider on `Cache`, `set`, `clear`, `stale` and `STALE`.
