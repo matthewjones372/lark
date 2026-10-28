@@ -53,7 +53,7 @@ val redis: Layer<String, Price> = RedisLayer(client, prefix = "prices", codec = 
 val prices2 = Cache(ttl = { 30.seconds }, layers = listOf(InMemory(10_000), redis)) { sku -> loadPrice(sku) }
 RedisInvalidations.listen(client, "prices") { message -> message }.forEach(prices2::invalidate)  // pub/sub
 
-val settings = Cache.perTenant(ttl = { 1.minutes }, layers = listOf(InMemory(1_000))) { key: String -> load(key) }
+val settings = TenantCache(ttl = { 1.minutes }) { key: String -> load(key) }   // surefold-cache-tenancy
 ```
 
 ```kotlin
@@ -95,7 +95,8 @@ interface Layer<K : Any, V : Any> {
   entry that goes; `KeyCache` zeroes its keys there.
 - **Time** is the clock bound where the cache was made. A `TestClock` moves every age in every layer, so no test
   sleeps.
-- **`perTenant`** keys every entry, in every layer, by `(currentTenant(), key)`. With no tenant bound, `get` answers
+- **`TenantCache`**, in `surefold-cache-tenancy` so `surefold-cache` stays on core alone, keys every entry, in every
+  layer, by `TenantKey(currentTenant(), key)`, and looks up as the key's tenant. With no tenant bound, `get` answers
   `NoTenant` rather than sharing an entry between tenants.
 - **`RedisLayer`** in `surefold-cache-redis` stores each `Right` as the codec's bytes under `prefix:key`, with
   Redis's own expiry set from `Stored.expiresAt`, so Redis drops it when memory would. `RedisInvalidations` is the
@@ -153,11 +154,11 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
       - a key not read since its last refresh is not refreshed again;
       - during a refresh, `get` answers the old value, and a failed refresh keeps it;
       - closing the cache stops a refresh that is blocked in its lookup.
-- [ ] **`spec-0246-tenant`**: `Cache.perTenant`.
+- [ ] **`spec-0246-tenant`**: `TenantCache`, in `surefold-cache-tenancy`.
       Done when:
       - two tenants reading one key each look up their own value, in every layer;
       - with no tenant bound, `get` answers `NoTenant`.
-- [ ] **`spec-0246-postgres`**: `surefold-cache-postgres`, with `invalidations`, the first adapter.
+- [x] **`spec-0246-postgres`** ([#892](https://github.com/matthewjones372/surefold/pull/892)): `surefold-cache-postgres`, with `invalidations`, the first adapter.
       Done when: on Postgres, a `NOTIFY` from another connection drops its key before its ttl, and a `Gap` drops
       every entry.
 - [ ] **`spec-0246-redis`**: `surefold-cache-redis`, with `RedisLayer`, a `Codec`, and `RedisInvalidations`.
