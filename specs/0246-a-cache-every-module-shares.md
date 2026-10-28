@@ -135,7 +135,7 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
       - twenty threads asking for one missing key run its lookup once;
       - a `Left` with a 2-second ttl is looked up again after 2 seconds and not before;
       - a failing lookup answers the stale value until `stale` runs out, and the error after.
-- [ ] **`spec-0246-admission`**: `InMemory`'s `capacity`, the frequency sketch, `onEvict`.
+- [x] **`spec-0246-admission`** ([#889](https://github.com/matthewjones372/surefold/pull/889)): `InMemory`'s `capacity`, the frequency sketch, `onEvict`.
       Done when:
       - a key read a hundred times survives a scan of ten thousand keys read once;
       - `onEvict` sees every entry that goes.
