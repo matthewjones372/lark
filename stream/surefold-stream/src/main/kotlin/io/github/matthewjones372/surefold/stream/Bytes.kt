@@ -138,7 +138,11 @@ private class Held(val chunks: List<ByteChunk>) {
         ByteChunk.from(out.toByteArray())
     }
 
-    fun first(n: Int): ByteChunk = chunks.first().takeIf { it.size >= n }?.slice(0, n) ?: joined().slice(0, n)
+    /** The first [n] bytes, joining only the chunks they span: a length split across reads copies four bytes. */
+    fun first(n: Int): ByteChunk {
+        val spanned = chunks.runningFold(0) { read, chunk -> read + chunk.size }.drop(1).indexOfFirst { it >= n } + 1
+        return Held(chunks.take(spanned)).joined().slice(0, n)
+    }
 }
 
 /** Every whole frame [this] holds, after [found], and what is left of the next. */
@@ -149,5 +153,5 @@ private tailrec fun Held.frames(maxSize: Int, found: List<ByteChunk>): Pair<Held
     val end = Int.SIZE_BYTES + length
     if (size < end) return this to found
     val whole = joined()
-    return Held(listOf(whole.slice(end, whole.size))).frames(maxSize, found + whole.slice(Int.SIZE_BYTES, end))
+    return (Held(emptyList()) + whole.slice(end, whole.size)).frames(maxSize, found + whole.slice(Int.SIZE_BYTES, end))
 }
