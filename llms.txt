@@ -43,6 +43,8 @@ Facts worth having before anything else:
   Applied by the Gradle plugin `io.github.matthewjones372.surefold.compiler`, in `surefold-app-gradle`.
 - `surefold-pekko`: a Pekko dispatcher as the executor, and Pekko's Scala futures
   awaited from a fork.
+- `surefold-cache`: `Cache(ttl, stale) { lookup }`, one lookup per key however many ask,
+  a ttl read from each result so failures are kept too, and the last good value while the source fails.
 - `surefold-stream`: `Stream<E, A>` as a description, with its failure in the type
   and no backend named.
 - `surefold-stream-forks`: runs a `Stream` as a pull loop on one virtual thread;

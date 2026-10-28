@@ -111,6 +111,8 @@ val moduleDescriptions = mapOf(
     "surefold-app-gradle" to "surefold-app as a build gate: every graph in a project checked and drawn as it compiles.",
     "surefold-app-compiler" to
         "surefold-app in the compiler: a K2 checker, so the IDE reports a graph's faults as you type.",
+    "surefold-cache" to
+        "A cache with its lookup fixed when it is made: one lookup per key, a ttl by result, stale on failure.",
     "surefold-replay" to
         "surefold forks in a seeded order: explore finds the order that breaks a test, replay runs it again.",
     "surefold-compiler" to

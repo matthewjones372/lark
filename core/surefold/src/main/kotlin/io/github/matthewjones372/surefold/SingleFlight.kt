@@ -25,8 +25,8 @@ class SingleFlight<K : Any, E, V>(private val name: String = "single-flight") {
     /** How many keys have a call in flight now. */
     fun inFlight(): Int = flights.size
 
-    // How many callers are parked on [key]'s flight now.
-    internal fun waiting(key: K): Int = flights[key]?.waiting() ?: 0
+    /** How many callers are parked on [key]'s flight now: none once it has ended, or before one starts. */
+    fun waiting(key: K): Int = flights[key]?.waiting() ?: 0
 
     @Suppress("TooGenericExceptionCaught") // whatever the block throws is every waiter's to see, not this class's
     private fun fly(key: K, flight: Promise<Throwable, Either<E, V>>, block: () -> Either<E, V>) {

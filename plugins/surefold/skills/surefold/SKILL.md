@@ -50,6 +50,7 @@ All on Maven Central as `io.github.matthewjones372:<module>`, on one version.
 - `surefold-replay`: `explore` and `replay`, a test's forks in seeded orders.
 - `surefold-compiler`: a checker for forks that outlive their scope; plugin `io.github.matthewjones372.surefold.compiler`.
 - `surefold-pekko`: a Pekko dispatcher as the executor.
+- `surefold-cache`: a cache with one lookup per key and stale values while the source fails.
 - `surefold-stream`: `Stream<E, A>`, described once and run on a backend.
 - `surefold-stream-forks`: the usual backend, a pull loop on a virtual thread.
 - `surefold-stream-pekko`: the Pekko Streams backend.
