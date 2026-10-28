@@ -89,4 +89,3 @@ module("bench", "surefold-kafka-benchmarks")
 module("bench", "surefold-jobs-load")
 
 module("examples", "surefold-bank")
-module("examples", "surefold-bookings")

@@ -1,5 +1,7 @@
 # 0232 — Courts, parties and a weekly limit
 
+> Removed by spec 0248: booking is product code, not Surefold's; the example is no longer in the tree.
+
 ## Problem
 
 The booking example (spec 0229) books a name at a time, and nothing more. A tennis club, which is what a team
