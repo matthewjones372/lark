@@ -4,7 +4,6 @@ import io.github.matthewjones372.surefold.SingleFlight
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.Either
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
 import kotlin.time.toJavaDuration
@@ -23,6 +22,7 @@ data class CacheStats(
     val loads: Long,
     val failures: Long,
     val stale: Long,
+    val evictions: Long,
     val size: Int,
 )
 
@@ -33,10 +33,16 @@ data class CacheStats(
  * asked once per its `Left`'s ttl, not once per caller. When a lookup fails and the last `Right` for the key is younger
  * than [stale], that `Right` answers instead, until [stale] runs out. Ages are read from the clock bound where the
  * cache is made, so a `TestClock` moves every one.
+ *
+ * At most [capacity] keys are kept. Past it, a new key is kept only if it has been asked for more often lately than
+ * the least recently read key it would push out (TinyLFU), so a scan of keys read once cannot flush the keys read all
+ * day. [onEvict] is handed each value no entry holds any more: pushed out, invalidated, or replaced by a newer one.
  */
 class Cache<K : Any, E, V>(
     private val ttl: (Either<E, V>) -> Duration,
     private val stale: Duration = Duration.ZERO,
+    capacity: Int = DEFAULT_CAPACITY,
+    private val onEvict: (K, V) -> Unit = { _, _ -> },
     private val lookup: (K) -> Either<E, V>,
 ) {
     init {
@@ -49,7 +55,11 @@ class Cache<K : Any, E, V>(
     private class Good<V>(val value: V, val at: Instant)
 
     private val time = clock.get()
-    private val entries = ConcurrentHashMap<K, Entry<E, V>>()
+    private val evictions = AtomicLong()
+    private val entries = Memory<K, Entry<E, V>>(capacity) { key, gone ->
+        evictions.incrementAndGet()
+        gone.good?.let { onEvict(key, it.value) }
+    }
     private val flights = SingleFlight<K, E, V>("surefold.cache")
 
     // Moved on by every invalidation, so a lookup that began before one does not write its answer after it.
@@ -63,7 +73,7 @@ class Cache<K : Any, E, V>(
 
     /** [key]'s answer: from memory while it is young, else from one [lookup] however many ask. */
     fun get(key: K): Either<E, V> {
-        val held = entries[key]
+        val held = entries.read(key)
         if (held != null && time.now() < held.until) {
             hits.incrementAndGet()
             if (held.isStale) staleAnswers.incrementAndGet()
@@ -86,7 +96,9 @@ class Cache<K : Any, E, V>(
     internal fun waiting(key: K): Int = flights.waiting(key)
 
     fun stats(): CacheStats =
-        CacheStats(hits.get(), misses.get(), loads.get(), failures.get(), staleAnswers.get(), entries.size)
+        CacheStats(
+            hits.get(), misses.get(), loads.get(), failures.get(), staleAnswers.get(), evictions.get(), entries.size,
+        )
 
     private fun load(key: K): Either<E, V> {
         val began = generation.get()
@@ -95,10 +107,14 @@ class Cache<K : Any, E, V>(
         val now = time.now()
         val entry = when (result) {
             is Either.Right -> Entry<E, V>(result, now + ttl(result).toJavaDuration(), Good(result.value, now), false)
-            is Either.Left -> failed(result, entries[key]?.good, now)
+            is Either.Left -> failed(result, entries.peek(key)?.good, now)
         }
         if (entry.isStale) staleAnswers.incrementAndGet()
-        if (generation.get() == began) entries[key] = entry
+        if (generation.get() == began) {
+            val replaced = entries.write(key, entry)
+            // A stale answer keeps the good value it answers with, so only a value nothing holds any more goes.
+            replaced?.good?.takeIf { it !== entry.good }?.let { onEvict(key, it.value) }
+        }
         return entry.answer
     }
 
@@ -114,3 +130,6 @@ class Cache<K : Any, E, V>(
         }
     }
 }
+
+/** How many keys a cache keeps unless it is told otherwise. */
+const val DEFAULT_CAPACITY = 10_000
