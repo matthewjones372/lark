@@ -213,6 +213,8 @@ operator also exists on `Pipe`, a reusable middle section of a pipeline.
 | `Stream<E, ByteChunk>.decodeUtf8(): Stream<E, String>` | chunks as UTF-8 text, a character split across chunks decoded once both have come; what is not UTF-8 is U+FFFD |
 | `Stream<E, String>.encodeUtf8(): Stream<E, ByteChunk>` | each string as UTF-8, one chunk per string |
 | `Stream<E, String>.lines(): Stream<E, String>` | text as lines, ended by `\n` or `\r\n` however it was split; the last needs no ending |
+| `Stream<E, ByteChunk>.framed(): Stream<E, ByteChunk>` | each chunk as a frame: its length as a 4-byte big-endian `Int`, then the chunk, as `DataOutputStream.writeInt` and `write` put them |
+| `Stream<E, ByteChunk>.unframed(maxSize: Int = 16 MiB): Stream<E, ByteChunk>` | the frames `framed` wrote, one element each, however the bytes were split; a length over `maxSize`, or an end partway through a frame, is a defect |
 | **Running** | |
 | `Stream<E, A>.runCollect(): Run<E, List<A>>` | a run described, collecting every element |
 | `Stream<E, A>.runFold(zero: R, f: (R, A) -> R): Run<E, R>` | a run described, folding into `R` |
@@ -384,6 +386,12 @@ val rows: Run<Nothing, List<String>> =
 Text needs no buffering of its own: `decodeUtf8` holds the bytes of a character
 a read ended inside until the next read brings the rest, and `lines` holds the
 line so far until a `\n` ends it.
+
+A protocol that sends messages over one connection needs to know where each
+ends. `framed` writes each chunk after its length, and `unframed` reads them
+back as one element per message, however the reads split them:
+`Stream.read({ socket.getInputStream() }).unframed()` on one side and
+`messages.framed().runInto(socket.getOutputStream())` on the other.
 
 A read that throws is a defect, as from any blocking source, and `stop()`
 closes the `InputStream` to reach a read that is blocked, since
