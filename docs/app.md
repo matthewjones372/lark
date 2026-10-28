@@ -19,7 +19,7 @@ A node is a function, and a module is an ordinary Kotlin expression.
 ```kotlin
 dependencies {
     // brings surefold, and through it nothing else
-    implementation("io.github.matthewjones372:surefold-app:0.14.0")
+    implementation("io.github.matthewjones372:surefold-app:0.15.0")
 }
 ```
 
@@ -305,7 +305,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "2.4.10"
-    id("io.github.matthewjones372.surefold.wiring") version "0.14.0"
+    id("io.github.matthewjones372.surefold.wiring") version "0.15.0"
 }
 
 repositories { mavenCentral() }
