@@ -3,12 +3,12 @@
 ## Problem
 
 Spec 0225's `system` runs on a role with `BYPASSRLS`. It is audited, but whatever runs on that role reads every
-tenant's every row: one careless query on the system `DataSource`, or one injection into it, is a full leak. Doorlist,
-a venue booking service on 0.14.0, chose a stricter model (its ADR 0003): its system role holds no table grants at
+tenant's every row: one careless query on the system `DataSource`, or one injection into it, is a full leak. A stricter
+model is better: its system role holds no table grants at
 all and may only `EXECUTE` a pinned list of `SECURITY DEFINER` functions, each returning the fewest columns its
 purpose needs, and a schema test fails the build when that list changes. It also sets the acting user and member
 role in every tenant transaction, so restrictive policies can narrow by role and fail closed when it is missing.
-Doorlist hand-rolls all three: `SystemAccess`, its own `TenantTransactions`, and the schema test.
+Today a service has to hand-roll all three.
 
 ## Not doing
 
@@ -76,7 +76,7 @@ policy covers whole rows and every column, where a function answers only what it
 
 1. **Carry the settings across a `tell` and into a job, as the tenant is?** Recommended: no; a job runs later and is
    not its enqueuer acting, so it runs as the tenant with every setting `absent`.
-2. **Audit every call by default?** Doorlist's host lookup runs on every request. Recommended: log always, audit row
+2. **Audit every call by default?** A host lookup can run on every request. Recommended: log always, audit row
    off by default, on for writes and operator work.
 3. **One class with two modes, or `SystemFunctions` beside `TenantTransactions`?** Recommended: beside, so a service
    on this mode has no `system` method to reach for.

@@ -6,8 +6,8 @@ Row-level security (spec 0225) keeps one tenant's rows from another tenant's que
 reads the database another way: a snapshot shared by mistake, a restored side database, an operator's `psql`. Nor can
 a closed tenant's personal data be erased from twelve months of backups. Encrypting each tenant's fields under keys
 that tenant alone owns, rooted in a KMS key that lives in no backup, answers both: delete the root key and every copy
-is unreadable. Doorlist, a venue booking service on 0.14.0, decided exactly this (its ADR 0013) and is building the
-key half itself: a provider port, a `tenant_keys` table, a cache with soft and hard limits, rotation and shredding.
+is unreadable. A service that wants this today builds the key half itself: a provider port, a `tenant_keys` table, a
+cache with soft and hard limits, rotation and shredding.
 
 ## Not doing
 
@@ -76,11 +76,11 @@ not the default. The module is **`surefold-tenancy-crypto`**, not `surefold-cryp
 
 ## Open questions
 
-1. **A platform key beside the tenants'?** Doorlist encrypts its own staff and contacts under a platform root.
+1. **A platform key beside the tenants'?** A service's own staff and contacts belong to no tenant.
    Recommended: a `KeyOwner` that is a tenant or `Platform`, so one cache and one table serve both.
 2. **Evict across processes on rotation or shredding?** Recommended: `TenantKeys` sends `NOTIFY surefold_tenant_keys`
    and each process evicts on it, once spec 0238's listener ships; until then, at most `soft` late.
-3. **Who may provision and rotate?** In Doorlist only the worker may `GenerateDataKey`. Recommended: the guide says so
-   and gives the key policy; the API does not split it.
+3. **Who may provision and rotate?** Least privilege says only a worker may `GenerateDataKey`. Recommended: the
+   guide says so and gives the key policy; the API does not split it.
 4. **Multi-Region replicas** for a disaster-recovery copy: recommended later, as an `AwsKms` setting, once the
    deletion order of a primary and its replicas is verified on a real account.

@@ -4,7 +4,7 @@
 
 Spec 0184 keeps flags in the service's HOCON, the same for every tenant, and a change is a redeploy. A multi-tenant
 service needs more: pause checkout for one venue tonight, turn a feature on for the three tenants piloting it, and
-do either from an operator's screen without a deploy. Doorlist, a venue booking service on 0.14.0, keeps these in a
+do either from an operator's screen without a deploy. A service can keep these in a
 `feature_flags` table, one row per flag for every tenant and one per tenant that differs, read under row-level
 security, and has to write its own OpenFeature provider over it (its spec 0023: HOCON defaults, then the default
 row, then the tenant's row, cached 30 seconds).
@@ -74,7 +74,7 @@ that only needs on and off per tenant. The module is **`surefold-openfeature-pos
 2. **Evict across processes when a row changes?** Recommended: by `NOTIFY` once spec 0238 ships; until then `ttl`.
 3. **Check declared flags at start, as 0195 does for flagd?** Recommended: check the null rows' values parse as the
    declared types; tenant rows can change at any time, so they are checked when read.
-4. **HOCON defaults as the fallback**, as Doorlist wants? `flagdFlags` installs its provider rather than answering
+4. **HOCON defaults as the fallback**? `flagdFlags` installs its provider rather than answering
    one. Recommended: a `flagdProvider(config, path)` beside it in `surefold-app-openfeature-flagd`, in a spec of
    its own.
 5. **Keep a history of changes?** Recommended: no table of our own; `reason` and `updated_by` are on the row, and a

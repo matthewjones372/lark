@@ -8,8 +8,8 @@ for "any organisation" works differently. Its `organizations` document names the
 `https://login.microsoftonline.com/{tenantid}/v2.0`, a template, so `discover` refuses it, and each token's `iss`
 names the signing-in organisation's own tenant. Entra also says an email is verified with `xms_edov`, not
 `email_verified`, so `OidcIdentity.email` is always null for it, and its stable user is `tid` plus `oid`, neither of
-which the identity carries. Doorlist, a venue booking service on 0.14.0, offers Google and Microsoft side by side,
-and builds a verifier per token tenant from the unverified `tid`, over `pelican-oidc`, to get round the same check.
+which the identity carries. A service that offers Google and Microsoft side by side today
+builds a verifier per token tenant over `pelican-oidc` to get round the same check.
 
 ## Not doing
 
@@ -44,9 +44,9 @@ identity.map { it.subject to it.organisation }      // "tid:oid", and the tid
 
 ## Why this shape
 
-The `tid` is read only after the signature verifies, which Doorlist's pre-verification parse cannot promise: a token
-cannot choose which issuer it is checked against. **Alternative:** a `NimbusOidc` per allowed tenant, each with its
-own discovery; it works for an allow-list and cannot serve "any organisation", which is the case that needs this.
+The `tid` is read only after the signature verifies, so a token never chooses which issuer it is checked against.
+**Alternative:** a `NimbusOidc` per allowed tenant, each with its own discovery; it works for an allow-list and cannot
+serve "any organisation", which is the case that needs this.
 
 ## Stack
 
@@ -70,7 +70,7 @@ own discovery; it works for an allow-list and cannot serve "any organisation", w
 1. **`OidcStart` gains a field**, a change to a 0.x data class. Recommended: accept it, with `provider` defaulting
    to empty for a lone `NimbusOidc`.
 2. **Entra's subject: `sub` or `tid:oid`?** `sub` is pairwise per app, so it changes if the app is re-registered.
-   Recommended: `tid:oid`, as Doorlist uses, documented as Entra's.
+   Recommended: `tid:oid`, documented as Entra's.
 3. **Trust `xms_edov`?** It is an optional claim the app registration must request. Recommended: yes when present
    and true; absent means unverified, so the email is null.
 4. **Tenants with their own signing keys** (an app with a custom key): recommended later; refused as `Signature`

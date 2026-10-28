@@ -5,8 +5,8 @@
 Spec 0228 gave venue staff TOTP as a second factor and left WebAuthn out. Passkeys are now what people expect: a
 sign-in with no password to steal and no code to phish, bound to the site's origin by the browser. Verifying one is
 a long list of checks (origin, RP ID, challenge, flags, algorithm, signature, sign count, backup state), and the
-challenges and credentials have to be stored somewhere every instance shares. Doorlist, a venue booking service on
-0.14.0, built it itself: a `WebAuthn` interface over webauthn4j-core, two tables, single-use challenges, and a
+challenges and credentials have to be stored somewhere every instance shares. A service that wants passkeys
+today builds it itself: a `WebAuthn` interface over webauthn4j-core, two tables, single-use challenges, and a
 software authenticator for its tests.
 
 ## Not doing
@@ -51,7 +51,7 @@ passkeys.list(UserId("staff-1")); passkeys.remove(UserId("staff-1"), PasskeyId(i
 
 ## Why this shape
 
-webauthn4j, wrapped, as Doorlist does: Apache-2.0, maintained, Level 3 JSON parsing built in, and its own
+webauthn4j, wrapped: Apache-2.0, maintained, Level 3 JSON parsing built in, and its own
 Jackson emits the options, so it is the module's one external library. **Alternative:** Yubico's
 `java-webauthn-server`, with a credential-repository interface we would implement; recommended against, since it
 wants its own storage shape and adds more dependencies. Writing CBOR and COSE ourselves is not an option worth one.
@@ -78,7 +78,7 @@ wants its own storage shape and adds more dependencies. Writing CBOR and COSE ou
 
 1. **Module or inside `surefold-auth`?** Recommended: its own module, as `surefold-auth-oidc` is, so a service with
    no passkeys does not carry webauthn4j and Jackson.
-2. **What `boundTo` is.** Doorlist binds a sign-in challenge to the browser that asked and the others to a session.
+2. **What `boundTo` is.** A sign-in challenge binds to the browser that asked, and the others to a session.
    Recommended: an opaque string the caller chooses, required, compared in constant time.
 3. **Suspend on a cloned count, or only refuse?** Synced passkeys always send 0, which is allowed. Recommended:
    suspend, since a count going back on a device-bound key means a copy exists.

@@ -7,9 +7,9 @@ can have Postgres tell it: a trigger calls `pg_notify` in the changing transacti
 notification after commit, in commit order, to every listener. Listening well is the fiddly part: one connection
 held outside the pool, the driver's `getNotifications` reached without naming the driver, reconnecting with backoff
 when the connection drops, and telling the consumer that notifications were missed meanwhile, so it can resync.
-Doorlist, a venue booking service on 0.14.0, hand-rolls this as `LiveListener` and fans it out to server-sent events
-(its ADR 0014). `surefold-jobs` has its own `Listener`, private to it, which wakes the worker, retries at a fixed
-interval, reads no payload and does not report a gap.
+A service that wants it today hand-rolls a listener and fans it out to server-sent events itself. `surefold-jobs` has
+its own `Listener`, private to it, which wakes the worker, retries at a fixed interval, reads no payload and does not
+report a gap.
 
 ## Not doing
 
@@ -51,9 +51,9 @@ PostgresNotifications.notify(connection, "bookings_live", payload)   // pg_notif
 ## Why this shape
 
 A stream, because the consumers already are: a `Hub` per process feeding every open `sse` response, and `map`,
-`filter` and `publishTo` over it. **Alternative:** a callback object with `start` and `close`, as Doorlist's is; it
+`filter` and `publishTo` over it. **Alternative:** a callback object with `start` and `close`; it
 needs no `surefold-stream`, but every consumer then rebuilds the stopping, backpressure and fan-out a stream has.
-Recommended: the stream, in a module of its own, **`surefold-postgres-notify`**, as Doorlist asked for.
+Recommended: the stream, in a module of its own, **`surefold-postgres-notify`**.
 
 ## Stack
 
@@ -76,7 +76,7 @@ Recommended: the stream, in a module of its own, **`surefold-postgres-notify`**,
 
 1. **Should `surefold-jobs` take `surefold-stream` on its classpath?** It is Surefold's own and has no external
    dependency. Recommended: yes; the alternative is two listeners to keep in step.
-2. **The default `reconnect`?** Recommended: the sketch's, equal jitter from 500 ms to 30 s, as Doorlist's; jobs
+2. **The default `reconnect`?** Recommended: the sketch's, equal jitter from 500 ms to 30 s; jobs
    keeps its `poll` as the first delay.
 3. **Payload as `String` or bytes?** Postgres's payload is text. Recommended: `String`; a service sends ids, not data.
 4. **A `Gap` on the first connect too**, so a consumer started after events refetches once? Recommended: no; the

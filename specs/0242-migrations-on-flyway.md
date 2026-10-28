@@ -3,12 +3,12 @@
 ## Problem
 
 A service on Surefold migrates with `surefold-app-liquibase`, and every data module ships its tables only as Liquibase
-formatted SQL, so Liquibase is on every such service's classpath. The owner of Surefold and Doorlist wants Flyway
-instead ("it's way better") and wants Doorlist rid of Liquibase entirely. On the merits: Doorlist's 51 changesets all
+formatted SQL, so Liquibase is on every such service's classpath. The owner of Surefold wants Flyway
+instead ("it's way better") and services rid of Liquibase entirely. On the merits: a typical service's changesets all
 read `splitStatements:false` and use no rollback, precondition or context, so it pays for a changelog format and XML
 master file and gets only an ordered list of SQL files, which is what Flyway is. Two gaps exist whichever tool runs:
 `surefold-app-jobs` takes `Migrated` from `surefold-app-liquibase`, and `migrations()` runs on the graph's `DataSource`,
-so a service that migrates as a schema-owner role (Doorlist's `Database.kt`) hand-rolls a one-connection pool and
+so a service that migrates as a schema-owner role hand-rolls a one-connection pool and
 its own `Schema` marker instead.
 
 ## Not doing
@@ -16,7 +16,7 @@ its own `Schema` marker instead.
 - No Flyway Teams features (undo, dry run, cherry-pick) and no Java-based migrations in the data modules.
 - No removal of `surefold-app-liquibase` or of the modules' Liquibase changelogs; both stay supported.
 - No running both tools on one database beyond the one-time handover below.
-- No Doorlist changes: it moves itself once this ships.
+- No changes to the services built on Surefold: each moves itself once this ships.
 
 ## Shape
 
@@ -53,7 +53,7 @@ val applied: Int = migrate(ownerSource, SurefoldSchema.JOBS, service = "classpat
   every table after the first meets, so one with nothing applied is baselined at `0` and then migrated. No script is
   skipped (a `V0` is refused), and Flyway's own refusal is replaced by `relation already exists` on a first script that
   meets existing tables, and by refusing a database with `databasechangelog` unless `fromLiquibase` is set.
-- **From Liquibase**: `flyway(…, fromLiquibase = "doorlist:0014-live-updates")` baselines at `V1` only when there is no
+- **From Liquibase**: `flyway(…, fromLiquibase = "service:0014-live-updates")` baselines at `V1` only when there is no
   Flyway history and `databasechangelog`'s last row is that id, else refuses to start; modules baseline at the version
   matching their last applied changeset. `docs/flyway.md` takes a service through it: `V1` is a schema-only dump of
   today's schema, a test proves it equal to the changelog's, and a later release ships
@@ -67,7 +67,7 @@ which breaks the first time a module adds a script after the service's `V1`; and
 hides SQL behind code and puts a module's schema on a Flyway API. Both rejected. The cost is two copies of each
 module's SQL, held equal by a test, not by generation; generating Flyway scripts from changelogs would put Liquibase
 in the build. What Flyway Community loses: rollback blocks, preconditions, contexts and labels, and `runOnChange`
-(an `R__` script covers the last). Nothing in Surefold's modules or Doorlist uses the others.
+(an `R__` script covers the last). Nothing in Surefold's modules uses the others.
 
 ## Stack
 
