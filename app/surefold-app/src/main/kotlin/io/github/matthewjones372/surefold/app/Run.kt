@@ -1,25 +1,26 @@
 package io.github.matthewjones372.surefold.app
 
+import io.github.matthewjones372.surefold.Promise
+import io.github.matthewjones372.surefold.awaitValue
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.fold
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 // A release that has not finished by then is one the process stops waiting for: a shutdown hook that
 // never returns is a container that has to be killed rather than stopped.
-private const val TEARDOWN_LIMIT_SECONDS = 30L
+private val TEARDOWN_LIMIT = 30.seconds
 
 /** The process being asked to stop, as a value, so a test can ask without a signal. */
 class Shutdown {
 
-    private val requested = CountDownLatch(1)
+    private val requested = Promise<Nothing, Unit>("surefold.app.shutdown")
 
     fun request() {
-        requested.countDown()
+        requested.succeed(Unit)
     }
 
     internal fun await() {
-        requested.await()
+        requested.awaitValue()
     }
 }
 
@@ -87,15 +88,15 @@ inline fun <reified A : Any> runApp(module: Module, noinline block: AppScope.(A)
 @PublishedApi
 internal fun leaving(run: (Shutdown) -> Either<StartupError, Unit>): ExitCode {
     val shutdown = Shutdown()
-    val torndown = CountDownLatch(1)
+    val torndown = Promise<Nothing, Unit>("surefold.app.teardown")
     val hook = Thread {
         shutdown.request()
-        torndown.await(TEARDOWN_LIMIT_SECONDS, TimeUnit.SECONDS)
+        torndown.await(within = TEARDOWN_LIMIT)
     }
 
     Runtime.getRuntime().addShutdownHook(hook)
     val outcome = uncaughtLogged { run(shutdown) }
-    torndown.countDown()
+    torndown.succeed(Unit)
     // Removing it during a shutdown it is already running in is the illegal state, and by then the
     // process is leaving anyway.
     try {

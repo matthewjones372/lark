@@ -34,3 +34,6 @@ class Promise<E, A>(name: String = "promise") {
 
 /** [Promise.await] for a promise that cannot fail: its value. */
 fun <A> Promise<Nothing, A>.awaitValue(): A = (await() as Either.Right).value
+
+/** [Promise.await] within [within], for a promise that cannot fail: its value, or null once [within] passes. */
+fun <A> Promise<Nothing, A>.awaitValue(within: Duration): A? = (await(within) as Either.Right?)?.value
