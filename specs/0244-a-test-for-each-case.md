@@ -68,11 +68,11 @@ small change, and it is what users of `@ParameterizedTest` expect to see.
 
 ## Stack
 
-- [ ] **`spec-0244-test-each`** — `testEach` on `Suite` and `SharedSuite`, a `GroupDescriptor` container, and
+- [x] **`spec-0244-test-each`** ([#877](https://github.com/matthewjones372/surefold/pull/877)) — `testEach` on `Suite` and `SharedSuite`, a `GroupDescriptor` container, and
       the unique-ID resolver taking `[group:…]`.
       Done when: a sample suite's three cases report under one container in `EngineTestKit` events; one failing case
       fails alone; selecting `…/[group:g]/[test:2m]` runs only that case; a duplicate case name fails registration.
-- [ ] **`spec-0244-docs`** — `docs/testing.md` gains "A test for each case" with a compiled fence
+- [x] **`spec-0244-docs`** ([#878](https://github.com/matthewjones372/surefold/pull/878)) — `docs/testing.md` gains "A test for each case" with a compiled fence
       (`<!-- testing-junit-each -->`), and `SurefoldSchemaSuite` moves to `testEach`.
       Done when: the guide's fence compiles under `CoreGuideTest`.
 

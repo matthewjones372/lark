@@ -56,7 +56,7 @@ it called", and the answer would still be "nothing". **Alternative B:** `forEach
 
 ## Stack
 
-- [ ] **`spec-0245-traverse`** — `traverse`, `parTraverse` (bounded by default, a `Limit` to override), and the guide section with
+- [x] **`spec-0245-traverse`** ([#874](https://github.com/matthewjones372/surefold/pull/874)) — `traverse`, `parTraverse` (bounded by default, a `Limit` to override), and the guide section with
       a compiled fence (`<!-- core-traverse -->`).
       Done when: a failure at element 2 of 4 answers `Left` and elements 3 and 4 never ran; every element ran on the
       calling thread (`Thread.currentThread()` read in each); an empty list answers `Right(emptyList())`;
