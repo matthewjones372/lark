@@ -2,10 +2,10 @@
 
 ## Problem
 
-Spec 0235 gives each tenant its own data keys. Using them well is where services go wrong: a nonce reused, a
-ciphertext that can be copied from one row or tenant to another and still decrypts, an old key version nobody can
-read once rotation starts, or an email column that can no longer be looked up once it is encrypted. Doorlist (its
-ADR 0013) needs every personal field sealed under the tenant's `enc` key, bound to its place, and found by equality
+Spec 0235 gives each tenant its own data keys. Using them well is where services go wrong: a nonce reused, a ciphertext
+that can be copied from one row or tenant to another and still decrypts, an old key version nobody can read once
+rotation starts, or an email column that can no longer be looked up once it is encrypted. A service that encrypts
+personal data needs every personal field sealed under the tenant's `enc` key, bound to its place, and found by equality
 through an HMAC under a separate `bidx` key, during rotation as well as after. `surefold-auth`'s `AesKey` seals TOTP
 secrets under one key from configuration, with no versions and no index.
 
@@ -14,7 +14,7 @@ secrets under one key from configuration, with no versions and no index.
 - No search beyond equality: prefix, trigram and name search leak through frequency, and are the service's.
 - No normalising: the caller passes the value it wants matched (an email lower-cased, a phone as E.164).
 - No column types or ORM mapping: a sealed value is a `ByteArray` for a `bytea` column; mapping rows is the service's.
-- No purpose audit of reads ("who looked at Jo's details"): the service writes it, as Doorlist does, around `open`.
+- No purpose audit of reads ("who looked at Jo's details"): the service writes it, around `open`.
 
 ## Shape
 
@@ -76,5 +76,5 @@ leaks equality the same way and makes the encryption key also the lookup key.
    fixed length such as secrets.
 2. **Move `PostgresTotp` onto this?** Recommended: not here; its single `AesKey` stays, and a later spec lets it take
    a `TenantCipher` when a service wants TOTP secrets shreddable.
-3. **A typed wrapper for opened values** (Doorlist's `Personal<T>`, whose `toString` is masked)? Recommended: no;
+3. **A typed wrapper for opened values** (whose `toString` is masked)? Recommended: no;
    `surefold-auth`'s `Secret` already masks, and a service that wants a type of its own wraps the bytes.
