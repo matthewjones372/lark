@@ -221,19 +221,19 @@ fun loadAllFromUsers(ids: List<Int>): Either<NotFound, List<User>> =
 
 ## Collecting every error
 
-`parZipOrAccumulate` and `parMapOrAccumulate` run every branch to completion
-and return all the failures instead of only the first, which suits validation:
+`zipOrAccumulate` and `mapOrAccumulate` run every branch, in order, on the
+calling thread, and fail with all the errors instead of only the first, which
+suits validation:
 
 <!-- core-accumulate -->
 ```kotlin
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.fail.NonEmptyList
 import io.github.matthewjones372.surefold.fail.attempt
-import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.fail.bindAll
 import io.github.matthewjones372.surefold.fail.ensure
-import io.github.matthewjones372.surefold.fail.mapLeft
-import io.github.matthewjones372.surefold.parMapOrAccumulate
-import io.github.matthewjones372.surefold.parZipOrAccumulate
+import io.github.matthewjones372.surefold.mapOrAccumulate
+import io.github.matthewjones372.surefold.zipOrAccumulate
 
 data class Form(val name: String, val email: String)
 
@@ -242,23 +242,75 @@ data class Account(val name: String, val email: String)
 data class Invalid(val field: String)
 
 fun validate(form: Form): Either<NonEmptyList<Invalid>, Account> = attempt {
-    parZipOrAccumulate(
+    zipOrAccumulate(
         { form.name.also { ensure(it.isNotBlank()) { Invalid("name") } } },
         { form.email.also { ensure('@' in it) { Invalid("email") } } },
     ) { name, email -> Account(name, email) }
 }
 
 fun validateAll(forms: List<Form>): Either<NonEmptyList<Invalid>, List<Account>> = attempt {
-    parMapOrAccumulate(forms) { form -> validate(form).mapLeft { it.first() }.bind() }
+    mapOrAccumulate(forms) { form -> validate(form).bindAll() }
 }
 ```
 
-- Errors are returned in branch order (or the input's order), whichever branch
-  failed first.
+- Errors come back in branch order, or the input's order.
+- `bindAll()` keeps every error of a nested `NonEmptyList`. It compiles only
+  inside a branch, where something will keep them.
 - Each function also has a form taking `combine: (E, E) -> E` as its first
   argument, for a scope with a single error type that knows how to merge two.
-- A thrown exception is not accumulated. It interrupts the other branches, as
-  in `parZip`, and the same instance is rethrown.
+- A thrown exception is not accumulated: it ends the call where it happens.
+
+When the number of checks is not known up front, `accumulate { }` keeps what
+`ensureOrAccumulate` and `bindOrAccumulate` record and carries on, then fails
+with all of it once the block is over:
+
+<!-- core-accumulate-block -->
+```kotlin
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.NonEmptyList
+import io.github.matthewjones372.surefold.fail.accumulate
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.ensureOrAccumulate
+
+data class Line(val sku: String, val qty: Int)
+
+data class Invalid(val field: String)
+
+fun check(lines: List<Line>): Either<NonEmptyList<Invalid>, List<Line>> = attempt {
+    accumulate {
+        ensureOrAccumulate(lines.isNotEmpty()) { Invalid("lines") }
+        lines.forEach { line -> ensureOrAccumulate(line.qty > 0) { Invalid("qty:${line.sku}") } }
+    }
+    lines
+}
+```
+
+`bindOrAccumulate()` answers `null` once it has recorded an error. A plain
+`fail` inside the block keeps its error too, but ends the block.
+
+`parZipOrAccumulate` and `parMapOrAccumulate` take the same arguments and run
+each branch on a fork of its own. They are worth it when the branches wait on
+I/O; for checks that only compute, the sequential forms avoid the forks.
+
+<!-- core-accumulate-par -->
+```kotlin
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.NonEmptyList
+import io.github.matthewjones372.surefold.fail.attempt
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.parZipOrAccumulate
+
+data class Invalid(val field: String)
+
+fun lookUp(id: String): Either<Invalid, String> = Either.Right(id)
+
+fun both(a: String, b: String): Either<NonEmptyList<Invalid>, String> = attempt {
+    parZipOrAccumulate({ lookUp(a).bind() }, { lookUp(b).bind() }) { x, y -> x + y }
+}
+```
+
+A thrown exception in a `par` form interrupts the other branches, as in
+`parZip`, and the same instance is rethrown.
 
 ## Resources
 
@@ -574,6 +626,10 @@ fun holdAtEither(east: BoxOffice, west: BoxOffice, order: Order) =
 - **A throw or a `fail` writes nothing.** Inside `attempt { }`, a `fail` from a
   step is the block's `Left`, as anywhere else.
 - **A `transact` inside a `transact`** joins the outer step.
+- **One value needs no written-out step.** `members.update { it + joined }`,
+  `members.modify { it - left to (left in it) }` and
+  `ready.awaitUntil { it >= 3 }` are each a step of their own, named after the
+  `Shared`. Inside a step they join it, so `update` reads the same either way.
 - **The compiler checks the body.** With the Gradle plugin applied, I/O, a
   blocking wait, a fork, a log line, a metric, a `tell`, a write to a `var`
   from outside the step or a `peek()` inside a step is a compile error. See
