@@ -5,10 +5,12 @@ import dev.openfeature.sdk.EvaluationContext
 import dev.openfeature.sdk.ImmutableContext
 import dev.openfeature.sdk.Reason
 import dev.openfeature.sdk.Value
+import dev.openfeature.sdk.exceptions.FlagNotFoundError
 import dev.openfeature.sdk.providers.memory.Flag
 import dev.openfeature.sdk.providers.memory.InMemoryProvider
 import io.github.matthewjones372.surefold.junit.Suite
 import io.github.matthewjones372.surefold.junit.shouldBe
+import io.github.matthewjones372.surefold.junit.shouldThrow
 import io.github.matthewjones372.surefold.tenancy.RlsDatabase
 import io.github.matthewjones372.surefold.tenancy.TenantId
 import io.github.matthewjones372.surefold.tenancy.withTenant
@@ -53,7 +55,10 @@ object PostgresFlagsSuite : Suite() {
             forGlobex.value shouldBe 10
             forGlobex.reason shouldBe Reason.STATIC.name
             withTenant(acme) { flags.getBooleanEvaluation("checkout.paused", false, nobody) }.value shouldBe true
-            withTenant(acme) { flags.getStringEvaluation("theme", "plain", nobody) }.value shouldBe "plain"
+            // A flag the fallback lacks is its FlagNotFoundError, as alone, which the SDK answers with the default.
+            shouldThrow<FlagNotFoundError> { withTenant(acme) { flags.getStringEvaluation("theme", "plain", nobody) } }
+            val alone = PostgresFlags(database.app)
+            withTenant(acme) { alone.getStringEvaluation("theme", "plain", nobody) }.value shouldBe "plain"
         }
 
         test("an object flag is the fallback's, since a row holds no object") {

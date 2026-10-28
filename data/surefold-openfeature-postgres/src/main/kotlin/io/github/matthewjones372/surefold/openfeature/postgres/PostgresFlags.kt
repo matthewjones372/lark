@@ -23,7 +23,7 @@ const val TENANT_ATTRIBUTE = "tenant"
  * under the table's row-level security policy. A flag answers, in order:
  * - the tenant's row, with the reason `TARGETING_MATCH`;
  * - the row every tenant gets, whose `tenant_id` is null, with the reason `STATIC`;
- * - [fallback]'s answer, as it gives it;
+ * - [fallback]'s answer, as it gives it, a `FlagNotFoundError` for a flag it does not hold included;
  * - the caller's default.
  *
  * The tenant is the context's [TENANT_ATTRIBUTE] if set, else the bound one; with neither, only null rows answer. A
