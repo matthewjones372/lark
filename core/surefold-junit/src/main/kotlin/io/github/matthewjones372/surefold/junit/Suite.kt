@@ -20,6 +20,8 @@ abstract class AnySuite<R> internal constructor(
     internal val limit: Limit,
     internal val concurrent: Boolean,
     private val aspects: Aspect,
+    /** Runs alone in the whole run, when suites run side by side (spec 0253). */
+    internal val isolated: Boolean,
 ) {
 
     /** What the suite acquires once, hands to each test, and releases after the last. */
@@ -73,7 +75,8 @@ abstract class Suite(
     limit: Limit = Limit.fixed(Runtime.getRuntime().availableProcessors()),
     concurrent: Boolean = true,
     aspects: Aspect = Aspect.none,
-) : AnySuite<Unit>(limit, concurrent, aspects) {
+    isolated: Boolean = false,
+) : AnySuite<Unit>(limit, concurrent, aspects, isolated) {
 
     final override val toAcquire: Resource<Unit> = resource { }
 
@@ -96,7 +99,8 @@ abstract class SharedSuite<R>(
     limit: Limit = Limit.fixed(Runtime.getRuntime().availableProcessors()),
     concurrent: Boolean = true,
     aspects: Aspect = Aspect.none,
-) : AnySuite<R>(limit, concurrent, aspects) {
+    isolated: Boolean = false,
+) : AnySuite<R>(limit, concurrent, aspects, isolated) {
 
     /**
      * Acquired once for the suite, handed to each test, and released after the last. If acquiring throws, each
