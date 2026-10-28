@@ -172,7 +172,9 @@ class SurefoldEngineTest {
 
     @Test
     fun `a package selector finds the suite objects in it and passes over a suite class`() {
-        val suites = run(selectPackage(MixedSuite::class.java.packageName)).containerEvents().started().names()
+        // testEach's groups are containers too, inside their suites; this is about the suites.
+        val suites = run(selectPackage(MixedSuite::class.java.packageName)).containerEvents().started()
+            .list().map { it.testDescriptor }.filter { it.uniqueId.lastSegment.type != "group" }.map { it.displayName }
 
         suites.sorted() shouldBe listOf(
             "AloneSuite",
@@ -180,6 +182,7 @@ class SurefoldEngineTest {
             "ContainingSuite",
             "CountedSuite",
             "DefaultTimeoutSuite",
+            "EachSuite",
             "ExpectingSuite",
             "FailingSiblingSuite",
             "ForAllSuite",
@@ -196,6 +199,7 @@ class SurefoldEngineTest {
             "PartlyTaggedSuite",
             "RecordedSuite",
             "SequentialSuite",
+            "SharedEachSuite",
             "StorySuite",
             "Surefold",
             "TaggedSuite",

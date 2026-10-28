@@ -67,9 +67,12 @@ class SurefoldEngine : TestEngine {
         val tests = suite.tests
         val report = Report(listener)
         // Ignored tests are skipped before the resource is acquired, so a failed acquisition does not fail them.
-        val (ignored, cases) = descriptor.children.filterIsInstance<TestCaseDescriptor>()
-            .partition { tests.getValue(it.displayName).aspects.ignored != null }
-        ignored.forEach { test -> tests.getValue(test.displayName).aspects.ignored?.let { report.skipped(test, it) } }
+        // A group is started before its cases and finished after the last, so it is open while any of them runs.
+        val groups = descriptor.children.filterIsInstance<GroupDescriptor>()
+        groups.forEach(report::started)
+        val (ignored, cases) = descriptor.descendants.filterIsInstance<TestCaseDescriptor>()
+            .partition { tests.getValue(it.key).aspects.ignored != null }
+        ignored.forEach { test -> tests.getValue(test.key).aspects.ignored?.let { report.skipped(test, it) } }
         var acquired = false
         val outcome = outcomeOf {
             suite.toAcquire.use { shared ->
@@ -77,7 +80,7 @@ class SurefoldEngine : TestEngine {
                 scope {
                     val running = mutableListOf<Deferred<Unit>>()
                     cases.forEach { test ->
-                        val registered = tests.getValue(test.displayName)
+                        val registered = tests.getValue(test.key)
                         val aspects = registered.aspects.timedOrWithin(fallback)
                         if (registered.aspects.alone) running.awaitAll()
                         val started = CountDownLatch(1)
@@ -86,12 +89,12 @@ class SurefoldEngine : TestEngine {
                                 report.started(test)
                                 started.countDown()
                                 val (result, lines) = capturingLogs { logs ->
-                                    tellingStories(test.displayName) {
+                                    tellingStories(test.key.title) {
                                         capturingMetrics {
                                             outcomeOf {
                                                 aspects.run({ k, v -> report.entry(test, k, v) }) {
                                                     val (_, checks) = recording { registered.body(shared) }
-                                                    checks.verify(test.displayName)
+                                                    checks.verify(test.key.title)
                                                 }
                                             }
                                         }
@@ -108,17 +111,29 @@ class SurefoldEngine : TestEngine {
                 }
             }
         }
-        if (acquired) {
-            // The tests carry their own results, so a failure left here is from around them, such as the release's.
-            listener.executionFinished(descriptor, outcome)
-        } else {
-            // Each test carries the cause, so it is reported under every test's name and not again for the suite.
-            cases.forEach {
-                report.started(it)
-                report.finished(it, outcome)
-            }
-            listener.executionFinished(descriptor, TestExecutionResult.successful())
+        close(descriptor, groups, cases.takeUnless { acquired }, outcome, report, listener)
+    }
+
+    /**
+     * Finishes [suite] and its [groups] after their tests. [unacquired] are the tests the resource was never handed
+     * to, failed here with the acquisition's [outcome]; otherwise the tests carry their own results, so a failure left
+     * in [outcome] is from around them, such as the release's, and is the suite's.
+     */
+    private fun close(
+        suite: SuiteDescriptor,
+        groups: List<GroupDescriptor>,
+        unacquired: List<TestCaseDescriptor>?,
+        outcome: TestExecutionResult,
+        report: Report,
+        listener: EngineExecutionListener,
+    ) {
+        // Each test carries the cause, so it is reported under every test's name and not again for the suite.
+        unacquired?.forEach {
+            report.started(it)
+            report.finished(it, outcome)
         }
+        groups.forEach { listener.executionFinished(it, TestExecutionResult.successful()) }
+        listener.executionFinished(suite, if (unacquired == null) outcome else TestExecutionResult.successful())
     }
 
     private fun MutableList<Deferred<Unit>>.awaitAll() {
@@ -154,7 +169,7 @@ private class Report(private val listener: EngineExecutionListener) {
             if (result.status == TestExecutionResult.Status.FAILED && lines.isNotEmpty()) {
                 val logs = lines.joinToString("\n") { it.rendered() }
                 listener.reportingEntryPublished(test, ReportEntry.from("logs", logs))
-                println("${test.displayName} logged:\n$logs")
+                println("${(test as? TestCaseDescriptor)?.key?.title ?: test.displayName} logged:\n$logs")
             }
             listener.executionFinished(test, result)
         }
@@ -186,18 +201,17 @@ private object SuiteResolver : SelectorResolver {
             .orElse(Resolution.unresolved())
     }
 
-    /** `[engine:surefold]/[suite:…]` or `…/[test:…]`, which is how an IDE reruns a suite or one of its tests. */
+    /**
+     * `[engine:surefold]/[suite:…]`, `…/[test:…]`, `…/[group:…]` or `…/[group:…]/[test:…]`, which is how an IDE
+     * reruns a suite, one of its tests, a group, or one of a group's cases.
+     */
     override fun resolve(selector: UniqueIdSelector, context: SelectorResolver.Context): Resolution {
         val segments = selector.uniqueId.segments
         val type = segments.firstOrNull { it.type == "suite" }?.let { loaded(it.value) }
             ?.takeIf(::isSuiteObject) ?: return Resolution.unresolved()
-        val test = segments.firstOrNull { it.type == "test" }?.value
+        val selected = segments.dropWhile { it.type != "suite" }.drop(1)
         return context.addToParent { parent ->
-            Optional.of(
-                SuiteDescriptor.of(parent.uniqueId, type).also { suite ->
-                    if (test != null) suite.children.filter { it.displayName != test }.forEach(suite::removeChild)
-                },
-            )
+            Optional.of(SuiteDescriptor.of(parent.uniqueId, type).also { it.keepOnly(selected) })
         }.map { Resolution.match(Match.exact(it)) }.orElse(Resolution.unresolved())
     }
 }
@@ -212,21 +226,46 @@ internal class SuiteDescriptor private constructor(id: UniqueId, type: Class<*>,
 
     override fun getType(): TestDescriptor.Type = TestDescriptor.Type.CONTAINER
 
+    /** Drops every child but the one [path] names, and inside a group every case but the one it names, if it does. */
+    fun keepOnly(path: List<UniqueId.Segment>) {
+        var within: TestDescriptor = this
+        for (segment in path) {
+            within.children.filter { it.uniqueId.lastSegment != segment }.forEach(within::removeChild)
+            within = within.children.singleOrNull() ?: return
+        }
+    }
+
     companion object {
         fun of(parent: UniqueId, type: Class<*>): SuiteDescriptor {
             val suite = type.getField("INSTANCE").get(null) as AnySuite<*>
             val descriptor = SuiteDescriptor(parent.append("suite", type.name), type, suite)
-            suite.tests.forEach { (name, test) ->
-                val id = descriptor.uniqueId.append("test", name)
-                descriptor.addChild(TestCaseDescriptor(id, name, type, test.aspects.tags))
+            val groups = LinkedHashMap<String, GroupDescriptor>()
+            fun group(name: String, empty: Boolean = false) = groups.getOrPut(name) {
+                GroupDescriptor(descriptor.uniqueId.append("group", name), name, type, empty).also(descriptor::addChild)
             }
+            suite.tests.forEach { (key, test) ->
+                val under = key.group?.let { group(it) } ?: descriptor
+                val id = under.uniqueId.append("test", key.name)
+                under.addChild(TestCaseDescriptor(id, key, type, test.aspects.tags))
+            }
+            suite.groupNames.forEach { group(it, empty = true) }
             return descriptor
         }
     }
 }
 
-internal class TestCaseDescriptor(id: UniqueId, name: String, type: Class<*>, private val tags: Set<TestTag>) :
+/** A `testEach`'s cases, each a test of its own. */
+internal class GroupDescriptor(id: UniqueId, name: String, type: Class<*>, private val registeredEmpty: Boolean) :
     AbstractTestDescriptor(id, name, ClassSource.from(type)) {
+
+    override fun getType(): TestDescriptor.Type = TestDescriptor.Type.CONTAINER
+
+    // Registered with no cases, it is still reported, as an empty container; one a filter emptied is pruned.
+    override fun mayRegisterTests(): Boolean = registeredEmpty
+}
+
+internal class TestCaseDescriptor(id: UniqueId, val key: AnySuite.Key, type: Class<*>, private val tags: Set<TestTag>) :
+    AbstractTestDescriptor(id, key.name, ClassSource.from(type)) {
 
     override fun getType(): TestDescriptor.Type = TestDescriptor.Type.TEST
 
