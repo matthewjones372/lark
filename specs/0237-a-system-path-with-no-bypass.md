@@ -40,7 +40,7 @@ checkSystemFunctions(superuserSource, role = "booking_system", expected = setOf(
   only `one`, `optional` or `query` a function by name in `schema`: `select * from sys.resolve_host(?)`. No
   `Connection` is handed out. Names are checked as identifiers; arguments are bound.
 - **Audit**: every `call` logs its actor and reason; `audited = true` also writes the 0225 audit row, through
-  `surefold.tenancy_audit(actor, reason)`, a definer function in Surefold's changelog, so the role needs no grant.
+  `surefold_tenancy_audit_write(actor, reason)`, a definer function in Surefold's changelog, so the role needs no grant.
 - **`checkSystemFunctions`** in `surefold-tenancy-test` fails, naming the difference, when: the set of `SECURITY
   DEFINER` functions the role may execute differs from `expected`; one of them has no pinned `search_path`; the role
   holds any table, sequence or schema-create privilege; or it is a superuser or `BYPASSRLS`.
@@ -56,7 +56,7 @@ policy covers whole rows and every column, where a function answers only what it
 
 ## Stack
 
-- [ ] **`spec-0237-settings`** — `Setting`, `withTenant` with values, set in every `transaction`.
+- [x] **`spec-0237-settings`** ([#867](https://github.com/matthewjones372/surefold/pull/867)) — `Setting`, `withTenant` with values, set in every `transaction`.
       Done when: a restrictive policy on `app.member_role` hides a row from `none` and shows it to `manager`, and a
       pooled connection's next transaction sees `none`.
 - [ ] **`spec-0237-functions`** — `SystemFunctions`, `FunctionCalls`, the audit function.
