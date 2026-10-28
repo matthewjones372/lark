@@ -1,4 +1,4 @@
-# 0224 — A journal the nodes keep among themselves
+# 0252 — A journal the nodes keep among themselves
 
 ## Problem
 
@@ -60,17 +60,17 @@ price is too high: proven and faster on the wire, but it brings a media driver, 
 
 ## Stack
 
-- [ ] **`spec-0224-log`** — the segmented log: append, grouped flush, read by index, cut after an index, CRC.
+- [ ] **`spec-0252-log`** — the segmented log: append, grouped flush, read by index, cut after an index, CRC.
       Done when: a log cut at every byte of its last record reopens with every flushed record and nothing torn.
-- [ ] **`spec-0224-election`** — Raft's terms, votes and timeouts as a pure state machine, on a simulated network.
+- [ ] **`spec-0252-election`** — Raft's terms, votes and timeouts as a pure state machine, on a simulated network.
       Done when: across 10,000 seeds of partitions, drops, reorders and crashes, no term has two leaders.
-- [ ] **`spec-0224-replication`** — appending entries, the commit index, and a follower's log repaired.
+- [ ] **`spec-0252-replication`** — appending entries, the commit index, and a follower's log repaired.
       Done when: across the same seeds, every entry answered as committed is in every later leader's log.
-- [ ] **`spec-0224-journal`** — `RaftJournal` as `Journal` and `SlicedFeed`, forwarding, `JournalUnavailable`.
+- [ ] **`spec-0252-journal`** — `RaftJournal` as `Journal` and `SlicedFeed`, forwarding, `JournalUnavailable`.
       Done when: `JournalContract` passes on three voters in one JVM, and a killed leader loses no answered append.
-- [ ] **`spec-0224-wire`** — Raft's frames on `surefold-actor-remote`'s `Transport`.
+- [ ] **`spec-0252-wire`** — Raft's frames on `surefold-actor-remote`'s `Transport`.
       Done when: `JournalContract` passes on three voters talking over loopback sockets.
-- [ ] **`spec-0224-measured`** — `SpreadPersistentBenchmark` against `JdbcJournal` with group commit, both
+- [ ] **`spec-0252-measured`** — `SpreadPersistentBenchmark` against `JdbcJournal` with group commit, both
       durabilities, and the bank's 400-a-second profile. Done when: the numbers are in this spec.
 
 ## Acceptance
