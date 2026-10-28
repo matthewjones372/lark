@@ -65,7 +65,7 @@ name and cannot express "20 at once". A permit count covers both: `permits = 1` 
 
 ## Stack
 
-- [ ] **`spec-0253-guarded`** — `Guarded<R>`, `lease()` and `use { }`; acquired once per engine run, released after
+- [x] **`spec-0253-guarded`** — `Guarded<R>`, `lease()` and `use { }`; acquired once per engine run, released after
       the last suite.
       Done when: a test of 50 concurrent users of a `Guarded(permits = 3)` never sees more than 3 holders.
 - [ ] **`spec-0253-side-by-side`** — suites run concurrently under `surefold.junit.suites.limit`; `isolated = true`.

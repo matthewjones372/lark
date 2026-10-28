@@ -4,8 +4,8 @@ import io.github.matthewjones372.surefold.Deferred
 import io.github.matthewjones372.surefold.LogLine
 import io.github.matthewjones372.surefold.capturingLogs
 import io.github.matthewjones372.surefold.capturingMetrics
+import io.github.matthewjones372.surefold.resourceScope
 import io.github.matthewjones372.surefold.scope
-import io.github.matthewjones372.surefold.use
 import org.junit.platform.engine.EngineDiscoveryRequest
 import org.junit.platform.engine.EngineExecutionListener
 import org.junit.platform.engine.ExecutionRequest
@@ -52,16 +52,24 @@ class SurefoldEngine : TestEngine {
         val fallback = request.configurationParameters.get(DEFAULT_TIMEOUT).map { value ->
             requireNotNull(Duration.parseOrNull(value.trim())) { "$DEFAULT_TIMEOUT is $value, which is not a duration" }
         }.orElse(null)
-        engine.children.filterIsInstance<SuiteDescriptor>().forEach { run(it.suite, it, listener, fallback) }
+        // A release that throws leaves the engine unfinished, which the platform reports as the engine's failure.
+        GuardedRun.opened { guards ->
+            engine.children.filterIsInstance<SuiteDescriptor>()
+                .forEach { run(it.suite, it, listener, fallback, guards) }
+        }
         listener.executionFinished(engine, TestExecutionResult.successful())
     }
 
-    /** Runs [suite]; a test with no timeout of its own, nor its suite's, is held to [fallback] if there is one. */
+    /**
+     * Runs [suite]; a test with no timeout of its own, nor its suite's, is held to [fallback] if there is one. Each
+     * test holds a permit of every guard the suite leased, taken before it starts, as the suite's limit is.
+     */
     private fun <R> run(
         suite: AnySuite<R>,
         descriptor: SuiteDescriptor,
         listener: EngineExecutionListener,
         fallback: Duration?,
+        guards: GuardedRun,
     ) {
         listener.executionStarted(descriptor)
         val tests = suite.tests
@@ -75,7 +83,8 @@ class SurefoldEngine : TestEngine {
         ignored.forEach { test -> tests.getValue(test.key).aspects.ignored?.let { report.skipped(test, it) } }
         var acquired = false
         val outcome = outcomeOf {
-            suite.toAcquire.use { shared ->
+            resourceScope {
+                val (shared, leased) = guards.leasesOf { suite.toAcquire.bind() }
                 acquired = true
                 scope {
                     val running = mutableListOf<Deferred<Unit>>()
@@ -86,21 +95,23 @@ class SurefoldEngine : TestEngine {
                         val started = CountDownLatch(1)
                         running += async {
                             suite.limit.withPermit {
-                                report.started(test)
-                                started.countDown()
-                                val (result, lines) = capturingLogs { logs ->
-                                    tellingStories(test.key.title) {
-                                        capturingMetrics {
-                                            outcomeOf {
-                                                aspects.run({ k, v -> report.entry(test, k, v) }) {
-                                                    val (_, checks) = recording { registered.body(shared) }
-                                                    checks.verify(test.key.title)
+                                holding(leased) {
+                                    report.started(test)
+                                    started.countDown()
+                                    val (result, lines) = capturingLogs { logs ->
+                                        tellingStories(test.key.title) {
+                                            capturingMetrics {
+                                                outcomeOf {
+                                                    aspects.run({ k, v -> report.entry(test, k, v) }) {
+                                                        val (_, checks) = recording { registered.body(shared) }
+                                                        checks.verify(test.key.title)
+                                                    }
                                                 }
                                             }
-                                        }
-                                    } to logs.all()
+                                        } to logs.all()
+                                    }
+                                    report.finished(test, result, lines)
                                 }
-                                report.finished(test, result, lines)
                             }
                         }
                         // Waiting for each test to take its permit starts them in registration order.
@@ -135,6 +146,10 @@ class SurefoldEngine : TestEngine {
         groups.forEach { listener.executionFinished(it, TestExecutionResult.successful()) }
         listener.executionFinished(suite, if (unacquired == null) outcome else TestExecutionResult.successful())
     }
+
+    /** Runs [block] holding a permit of each of [guards], taken in the order given. */
+    private fun holding(guards: List<Guarded<*>>, block: () -> Unit): Unit =
+        guards.foldRight(block) { guard, inner -> { guard.withPermit(inner) } }()
 
     private fun MutableList<Deferred<Unit>>.awaitAll() {
         forEach { it.await() }
