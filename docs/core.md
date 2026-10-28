@@ -520,6 +520,10 @@ fun holdAtEither(east: BoxOffice, west: BoxOffice, order: Order) =
 - **A throw or a `fail` writes nothing.** Inside `attempt { }`, a `fail` from a
   step is the block's `Left`, as anywhere else.
 - **A `transact` inside a `transact`** joins the outer step.
+- **One value needs no written-out step.** `members.update { it + joined }`,
+  `members.modify { it - left to (left in it) }` and
+  `ready.awaitUntil { it >= 3 }` are each a step of their own, named after the
+  `Shared`. Inside a step they join it, so `update` reads the same either way.
 - **The compiler checks the body.** With the Gradle plugin applied, I/O, a
   blocking wait, a fork, a log line, a metric, a `tell`, a write to a `var`
   from outside the step or a `peek()` inside a step is a compile error. See
