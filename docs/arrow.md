@@ -19,6 +19,7 @@ virtual threads, so its core depends on nothing but the Kotlin standard library.
 | `Option<A>` | `A?` |
 | `Either.catch { }` | the same, from `io.github.matthewjones372.surefold.fail` |
 | `parZip`, `parMap`, `raceN`, `parZipOrAccumulate`, `parMapOrAccumulate` | the same names in `io.github.matthewjones372.surefold`, without `suspend` |
+| `zipOrAccumulate`, `mapOrAccumulate`, `accumulate`, `ensureOrAccumulate`, `bindOrAccumulate` | the same names, run in order on the calling thread; `accumulate` and its two checks are in `io.github.matthewjones372.surefold.fail`. `bindOrAccumulate` answers `A?` |
 
 <!-- arrow-renames -->
 ```kotlin
