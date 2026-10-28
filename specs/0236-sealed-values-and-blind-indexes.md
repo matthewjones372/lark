@@ -60,7 +60,7 @@ leaks equality the same way and makes the encryption key also the lookup key.
 - [x] **`spec-0236-versions`** ([#864](https://github.com/matthewjones372/surefold/pull/864)) — opening by version, `reseal`, the encryption count.
       Done when: after a rotation, a value sealed at version 1 opens, reseals to version 2, and `UnknownVersion`
       once version 1 is retired.
-- [ ] **`spec-0236-index`** — `BlindIndex`: `of`, `candidates`, and the guide's section on lookups and what they leak.
+- [x] **`spec-0236-index`** ([#866](https://github.com/matthewjones372/surefold/pull/866)) — `BlindIndex`: `of`, `candidates`, and the guide's section on lookups and what they leak.
       Done when: on Postgres, mid-rotation, `any(candidates)` finds a row indexed under each version, and tenant A's
       index of an email differs from B's.
 
