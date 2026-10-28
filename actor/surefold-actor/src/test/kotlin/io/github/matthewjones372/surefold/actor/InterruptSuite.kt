@@ -104,7 +104,7 @@ object InterruptSuite : Suite() {
         }
 
         // The second message, told as the first activation ends, starts a new one on another runner. The ending one
-        // let go of the runner it was on after the new one had taken its own, so a stop found no turn to interrupt.
+        // cleared the running thread after the new one had set its own, so a stop found no turn to interrupt.
         test("a stop interrupts a turn told as the actor's last activation was ending") {
             scope {
                 repeat(ROUNDS) { round ->
