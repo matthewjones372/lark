@@ -14,8 +14,9 @@
 # - surefold-app's tests always, since its suites check the whole repository: specs, docs, module lists, names.
 #
 # A change that can reach every module (the root build, settings, the wrapper, this script or the workflow, or what
-# the root build puts in every module's tests: surefold-junit and what it runs on) prints `build`, the full build. So does a pull request whose base cannot be found. A push to main always runs the full
-# build in the workflow, so a test this narrowing skips still runs before anything is released.
+# the root build puts in every module's tests: surefold-junit and what it runs on) prints `build`, the full build. So
+# does a pull request whose base cannot be found. A push to main always runs the full build in the workflow, so a test
+# this narrowing skips still runs before anything is released.
 set -euo pipefail
 
 base="${1:?usage: affected-tasks.sh <base ref>}"
