@@ -80,7 +80,7 @@ The arity overloads are mechanical; they cost lines, not design.
       Done when: a nested list's errors all come back, in order, from a map element and from a zip branch.
 - [x] **`spec-0243-accumulate`** ([#865](https://github.com/matthewjones372/surefold/pull/865)) — `accumulate { }`, `ensureOrAccumulate`, `bindOrAccumulate`.
       Done when: three failed `ensureOrAccumulate` answer all three; a leaked `Accumulating` is refused like a leaked `Fail`.
-- [ ] **`spec-0243-docs`** — `docs/core.md`, `docs/arrow.md` table, `llms.txt`; compiled fence `<!-- core-accumulate -->`.
+- [x] **`spec-0243-docs`** ([#881](https://github.com/matthewjones372/surefold/pull/881)) — `docs/core.md`, `docs/arrow.md` table, `llms.txt`; compiled fence `<!-- core-accumulate -->`.
       Done when: `CoreGuideTest` passes with the sequential example.
 
 ## Acceptance
