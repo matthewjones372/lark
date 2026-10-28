@@ -49,9 +49,9 @@ prices.invalidate(Invalidation.All)          // "something may have been missed"
 prices.stats()                               // per layer: hits, misses, loads, failures, stale, evictions, size
 
 // Two layers: memory, then Redis, which every instance shares, then the source (surefold-cache-redis).
-val redis: Layer<String, Price> = RedisLayer(client, prefix = "prices", codec = priceCodec)
+val redis: Layer<String, Price> = RedisLayer(connection, prefix = "prices", codec = priceCodec)
 val prices2 = Cache(ttl = { 30.seconds }, layers = listOf(InMemory(10_000), redis)) { sku -> loadPrice(sku) }
-RedisInvalidations.listen(client, "prices") { message -> message }.forEach(prices2::invalidate)  // pub/sub
+RedisInvalidations.listen(client, "prices", prices2) { message -> message }  // pub/sub; close it to stop
 
 val settings = TenantCache(ttl = { 1.minutes }) { key: String -> load(key) }   // surefold-cache-tenancy
 ```
@@ -154,7 +154,7 @@ Against Caffeine, this keeps its admission policy and stats and adds what it lac
       - a key not read since its last refresh is not refreshed again;
       - during a refresh, `get` answers the old value, and a failed refresh keeps it;
       - closing the cache stops a refresh that is blocked in its lookup.
-- [ ] **`spec-0246-tenant`**: `TenantCache`, in `surefold-cache-tenancy`.
+- [x] **`spec-0246-tenant`** ([#895](https://github.com/matthewjones372/surefold/pull/895)): `TenantCache`, in `surefold-cache-tenancy`.
       Done when:
       - two tenants reading one key each look up their own value, in every layer;
       - with no tenant bound, `get` answers `NoTenant`.
