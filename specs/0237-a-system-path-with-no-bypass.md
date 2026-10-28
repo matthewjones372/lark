@@ -59,7 +59,7 @@ policy covers whole rows and every column, where a function answers only what it
 - [x] **`spec-0237-settings`** ([#867](https://github.com/matthewjones372/surefold/pull/867)) — `Setting`, `withTenant` with values, set in every `transaction`.
       Done when: a restrictive policy on `app.member_role` hides a row from `none` and shows it to `manager`, and a
       pooled connection's next transaction sees `none`.
-- [ ] **`spec-0237-functions`** — `SystemFunctions`, `FunctionCalls`, the audit function.
+- [x] **`spec-0237-functions`** ([#868](https://github.com/matthewjones372/surefold/pull/868)) — `SystemFunctions`, `FunctionCalls`, the audit function.
       Done when: on a role with only `EXECUTE`, a call returns the function's rows, writes an audit row, and a plain
       `select` on the same role is refused by Postgres.
 - [ ] **`spec-0237-check`** — `checkSystemFunctions`, and `docs/tenancy.md`'s section on this mode.
