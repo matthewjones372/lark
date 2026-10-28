@@ -85,7 +85,7 @@ running behind it.
 ## What you can build
 
 **Concurrent, resource-safe code.** [`surefold`](docs/core.md) provides `parZip`,
-`parMap`, `raceN`, `scope { async { } }`, `resourceScope`, `Schedule`,
+`parMap`, `traverse`, `parTraverse`, `raceN`, `scope { async { } }`, `resourceScope`, `Schedule`,
 `timeout`, `policy`, which combines a deadline, retries, a circuit breaker,
 a rate limiter and a bulkhead, and `transact` over `Shared` values. `surefold-pekko` lets those forks run on a Pekko
 dispatcher.

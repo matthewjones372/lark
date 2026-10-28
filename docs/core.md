@@ -18,14 +18,15 @@ are compiled by `CoreGuideTest`.
 
 1. [Forking](#forking)
 2. [Failure and cancellation](#failure-and-cancellation)
-3. [Collecting every error](#collecting-every-error)
-4. [Resources](#resources)
-5. [Schedules, retries and timeouts](#schedules-retries-and-timeouts)
-6. [Policies](#policies)
-7. [Values changed together](#values-changed-together)
-8. [What a fork inherits](#what-a-fork-inherits)
-9. [Running forks on Pekko](#running-forks-on-pekko)
-10. [Requirements and limitations](#requirements-and-limitations)
+3. [Traversing a list](#traversing-a-list)
+4. [Collecting every error](#collecting-every-error)
+5. [Resources](#resources)
+6. [Schedules, retries and timeouts](#schedules-retries-and-timeouts)
+7. [Policies](#policies)
+8. [Values changed together](#values-changed-together)
+9. [What a fork inherits](#what-a-fork-inherits)
+10. [Running forks on Pekko](#running-forks-on-pekko)
+11. [Requirements and limitations](#requirements-and-limitations)
 
 ## Forking
 
@@ -164,6 +165,59 @@ scope did not fork is refused. The combinators carry a branch's failure back
 to the scope that started it, but work handed to some
 other thread, such as a callback, should answer with an `Either` that the
 handler binds.
+
+## Traversing a list
+
+`traverse` runs a function that can fail over every element, in order on the
+calling thread, and answers with every value or with the first failure; no
+element after it runs. `parTraverse` runs each element on a fork of its own,
+and the first to fail interrupts the rest.
+
+<!-- core-traverse -->
+```kotlin
+import io.github.matthewjones372.surefold.Limit
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.fail.left
+import io.github.matthewjones372.surefold.fail.right
+import io.github.matthewjones372.surefold.fail.traverse
+import io.github.matthewjones372.surefold.parTraverse
+
+data class User(val id: Int)
+
+data class NotFound(val id: Int)
+
+fun load(id: Int): Either<NotFound, User> = if (id > 0) User(id).right() else NotFound(id).left()
+
+// One at a time; stops at the first NotFound.
+fun loadAll(ids: List<Int>): Either<NotFound, List<User>> = ids.traverse { id -> load(id).bind() }
+
+// At most 64 at once, the default.
+fun loadAllAtOnce(ids: List<Int>): Either<NotFound, List<User>> = ids.parTraverse { id -> load(id).bind() }
+
+// One limit per dependency, shared by every caller, so traversals count against its budget.
+val users = Limit.adaptive("users")
+
+fun loadAllFromUsers(ids: List<Int>): Either<NotFound, List<User>> =
+    ids.parTraverse(users) { id -> load(id).bind() }
+```
+
+- **Bounded by default.** With no `Limit`, `parTraverse` runs at most
+  `PAR_TRAVERSE_DEFAULT` (64) elements at once, so a long list never parks a
+  thread per element. A `Limit` you pass replaces it.
+- **Inside a scope, `map` is the traversal.** In an `attempt { }` block,
+  `ids.map { load(it).bind() }` does what `traverse` does; `traverse` is for
+  code outside one.
+- A thrown exception is not a failure. It leaves `traverse` unchanged, as it
+  leaves `attempt`.
+
+| ZIO | Surefold |
+|---|---|
+| `ZIO.foreach` | `traverse`, or `map` inside `attempt` |
+| `ZIO.foreachDiscard` | `forEach` inside `attempt` |
+| `ZIO.foreachPar` | `parTraverse` |
+| `ZIO.foreachPar(…).withParallelism(n)` | `parTraverse(Limit.fixed(n))` |
+| `ZIO.validate` | `mapOrAccumulate`, `parMapOrAccumulate` |
 
 ## Collecting every error
 
