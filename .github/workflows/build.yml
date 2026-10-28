@@ -37,7 +37,10 @@ jobs:
             gradleArgs: ""
 
     steps:
+      # The merge commit and the base under it, so the build step can see what a pull request changed.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
 
       # 27 as well as the matrix JDK: surefold-structured compiles against 27's StructuredTaskScope, and
       # Gradle finds an installed JDK before it downloads one. Its own download picks foojay's
@@ -56,9 +59,18 @@ jobs:
       # below are still uploaded when it is hit. Two workers, not one per core: the Namespace machine has
       # 8 GB, and four at once (test JVMs of up to 2 GB, TestKit's own Gradle, the Kotlin daemon beside
       # Gradle's) got the daemon OOM-killed on a build with nothing cached.
+      # A pull request that changes only specs/ runs SpecsSuite, the one test that reads them. A pull request's
+      # checkout is GitHub's merge commit, so its first parent is the base and HEAD^1..HEAD is the change.
       - name: Build and test
         timeout-minutes: 25
-        run: ./gradlew build ${{ matrix.gradleArgs }} --max-workers=2 --stacktrace
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ] && ! git diff --name-only HEAD^1 HEAD | grep -qv '^specs/'; then
+            ./gradlew :surefold-app:test --tests '*SpecsSuite*' --max-workers=2 --stacktrace
+          else
+            ./gradlew build ${{ matrix.gradleArgs }} --max-workers=2 --stacktrace
+          fi
 
       # The suites run an Api in memory and assert on which thread a body ran
       # on, so a failure is worth reading rather than guessing at.
