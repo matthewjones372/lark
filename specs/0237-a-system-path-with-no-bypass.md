@@ -62,7 +62,7 @@ policy covers whole rows and every column, where a function answers only what it
 - [x] **`spec-0237-functions`** ([#868](https://github.com/matthewjones372/surefold/pull/868)) — `SystemFunctions`, `FunctionCalls`, the audit function.
       Done when: on a role with only `EXECUTE`, a call returns the function's rows, writes an audit row, and a plain
       `select` on the same role is refused by Postgres.
-- [ ] **`spec-0237-check`** — `checkSystemFunctions`, and `docs/tenancy.md`'s section on this mode.
+- [x] **`spec-0237-check`** ([#869](https://github.com/matthewjones372/surefold/pull/869)) — `checkSystemFunctions`, and `docs/tenancy.md`'s section on this mode.
       Done when: the check fails on an extra function, a function without `search_path`, a table grant and
       `BYPASSRLS`, each with its own message, and passes the guide's example.
 
