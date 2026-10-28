@@ -4,9 +4,8 @@
 
 `Downing.lease` breaks an even split, or a two-node cluster, with a lock held outside the cluster. Surefold ships two:
 `Kubernetes.lease` and `Aws.dynamoLease`. A service on ECS whose only datastore is Postgres has to add a DynamoDB
-table, an IAM grant and a second store to reason about, just for one row. Doorlist hits this: its ADR 0002 says
-Postgres is the only datastore, and its spec 0034 needs a cluster on ECS. Today it would write its own `Lease`
-against its own table, untested against Surefold's downing contract.
+table, an IAM grant and a second store to reason about, just for one row, or write its own `Lease` against its own
+table, untested against Surefold's downing contract.
 
 ## Not doing
 
@@ -22,9 +21,9 @@ A new module, `surefold-cluster-jdbc` (in `cluster/`), on `surefold-cluster` and
 
 ```kotlin
 // One row per lease name; a holder keeps it for holdFor from its last acquire, and only it renews it.
-val lease: Lease = JdbcLease(dataSource, name = "doorlist-split-brain", holdFor = 15.seconds)
+val lease: Lease = JdbcLease(dataSource, name = "shop-split-brain", holdFor = 15.seconds)
 
-val joining = Joining(Aws.ecs(EcsClient.create(), "doorlist-prod", "api", 25520), Downing.lease(lease))
+val joining = Joining(Aws.ecs(EcsClient.create(), "shop-prod", "api", 25520), Downing.lease(lease))
 ```
 
 `acquire(holder)` runs one statement and is true when it changed a row:
