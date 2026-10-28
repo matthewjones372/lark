@@ -1,0 +1,77 @@
+# 0245 — A list traversed to one Either
+
+## Problem
+
+Running a failing function over a list, stopping at the first failure, is `attempt { xs.map { f(it) } }`. It is
+correct, but nobody coming from ZIO (`ZIO.foreach`) or Arrow (`traverse`, `mapOrAccumulate`) looks for it there: the
+guide never shows it, and the nearest named functions, `parMap` and `mapOrAccumulate`, are both something else. Users
+ask what the traversal is called, and the answer is "there isn't one, use `map`".
+
+## Not doing
+
+- No `bind()` on `Iterable<Either<E, A>>`. `ids.map(::load).bind()` reads like a traversal but runs every `load`
+  before looking at any result, so it never stops early.
+- No `sequence` for a list of `Either`s already computed; see question 2.
+- No traversal over `Map`, `Sequence` or `Array`; `Iterable` only.
+- No change to `parMap`, `mapOrAccumulate` or `attempt`.
+
+## Shape
+
+<!-- sketch -->
+```kotlin
+import io.github.matthewjones372.surefold.Limit
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.bind
+import io.github.matthewjones372.surefold.fail.traverse
+import io.github.matthewjones372.surefold.parTraverse
+
+fun loadAll(ids: List<Id>): Either<NotFound, List<User>> = ids.traverse { id -> load(id).bind() }
+
+fun loadAllAtOnce(ids: List<Id>): Either<NotFound, List<User>> =
+    ids.parTraverse(Limit.fixed(8)) { id -> load(id).bind() }
+```
+
+- `fun <E, A, B> Iterable<A>.traverse(f: Fail<E>.(A) -> B): Either<E, List<B>>` in `fail/`, beside `attempt`: runs
+  `f` on each element in order on the calling thread; the first failure ends it and no later element runs.
+- `parTraverse(f)` and `parTraverse(limit, f)` in `Par.kt`: `attempt { parMap(this, …) }`, so the first failure
+  interrupts the rest exactly as `parMap` does.
+- A throw is not a failure: it leaves `traverse` unchanged, as it leaves `attempt`.
+- `docs/core.md` gains "Traversing a list" before "Collecting every error": the two functions, and a table of the
+  ZIO names (`foreach`, `foreachPar`, `foreachDiscard`, `validate`) against Surefold's.
+
+## Why this shape
+
+`traverse` is one line over `attempt` and `map`; what it buys is a name people search for and a place in the guide.
+**Alternative A:** only the guide section, no new function — costs nothing, but the question it answers is "what is
+it called", and the answer would still be "nothing". **Alternative B:** `forEach`, ZIO's name — clashes with Kotlin's
+`Iterable.forEach`, which returns `Unit`. Recommended: `traverse`, Arrow's and Cats' name, plus the guide section.
+
+## Stack
+
+- [ ] **`spec-0245-traverse`** — `traverse`, `parTraverse` (with and without a `Limit`), and the guide section with
+      a compiled fence (`<!-- core-traverse -->`).
+      Done when: a failure at element 2 of 4 answers `Left` and elements 3 and 4 never ran; every element ran on the
+      calling thread (`Thread.currentThread()` read in each); an empty list answers `Right(emptyList())`;
+      `parTraverse` with a failing element interrupts a sibling blocked in a sleep; the fence compiles under
+      `CoreGuideTest`.
+
+## Acceptance
+
+```bash
+./gradlew :surefold:test
+```
+
+```bash
+./gradlew spotlessApply && ./gradlew build
+```
+
+## Open questions
+
+1. **Name:** `traverse`, `mapOrFail`, or `attemptEach`? Recommend `traverse`: it is the name both ZIO users (via
+   Cats) and Arrow users already know, and Surefold's `parZip`/`parMap` already borrow Arrow's vocabulary.
+2. **`sequence`** for an `Iterable<Either<E, A>>` already computed? Recommend deferred: its only honest use is on
+   results that already exist, and it invites the eager `map(::load)` mistake above.
+3. **A `Fail` receiver form** too, `Fail<E>.traverse(xs, f): List<B>`, for use inside a scope? Recommend no: inside a
+   scope, Kotlin's `map` already is that function.
+4. **`parTraverse` name:** keep it, or have users write `attempt { parMap(…) }`? Recommend keep: without it,
+   `traverse` would be the one traversal with no parallel twin, which `parZip`/`parMap` have taught users to expect.
