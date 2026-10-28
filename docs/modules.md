@@ -16,9 +16,9 @@ transitive dependency fails the build.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold:0.14.0")
-    implementation("io.github.matthewjones372:surefold-app:0.14.0")
-    testImplementation("io.github.matthewjones372:surefold-test:0.14.0")
+    implementation("io.github.matthewjones372:surefold:0.15.0")
+    implementation("io.github.matthewjones372:surefold-app:0.15.0")
+    testImplementation("io.github.matthewjones372:surefold-test:0.15.0")
 }
 ```
 
@@ -27,7 +27,7 @@ describe the `main` branch, which can be ahead of the latest release; features
 not yet released are marked where they are documented.
 
 **Snapshots.** An untagged commit builds as the next patch version with
-`-SNAPSHOT` (after `v0.14.0`, `0.14.1-SNAPSHOT`). Snapshots are published by
+`-SNAPSHOT` (after `v0.15.0`, `0.15.1-SNAPSHOT`). Snapshots are published by
 hand rather than on every push, to
 `https://central.sonatype.com/repository/maven-snapshots/`, and expire after
 90 days. To try `main` reliably, build it locally:
