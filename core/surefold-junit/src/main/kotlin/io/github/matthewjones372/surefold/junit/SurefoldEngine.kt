@@ -1,6 +1,7 @@
 package io.github.matthewjones372.surefold.junit
 
 import io.github.matthewjones372.surefold.Deferred
+import io.github.matthewjones372.surefold.Limit
 import io.github.matthewjones372.surefold.LogLine
 import io.github.matthewjones372.surefold.capturingLogs
 import io.github.matthewjones372.surefold.capturingMetrics
@@ -37,7 +38,16 @@ import kotlin.time.Duration
  */
 internal const val DEFAULT_TIMEOUT = "surefold.junit.timeout.default"
 
-/** Runs every [AnySuite] object the platform's selectors reach, one suite at a time and its tests as forks. */
+/**
+ * The configuration parameter, or system property, that says how many suites run at once (spec 0253). One, the
+ * default, runs them one after another.
+ */
+internal const val SUITES_LIMIT = "surefold.junit.suites.limit"
+
+/**
+ * Runs every [AnySuite] object the platform's selectors reach, at most [SUITES_LIMIT] suites at once and an isolated
+ * one alone, and each suite's tests as forks.
+ */
 class SurefoldEngine : TestEngine {
 
     override fun getId(): String = "surefold"
@@ -52,12 +62,44 @@ class SurefoldEngine : TestEngine {
         val fallback = request.configurationParameters.get(DEFAULT_TIMEOUT).map { value ->
             requireNotNull(Duration.parseOrNull(value.trim())) { "$DEFAULT_TIMEOUT is $value, which is not a duration" }
         }.orElse(null)
+        val limit = request.configurationParameters.get(SUITES_LIMIT).map { value ->
+            requireNotNull(value.trim().toIntOrNull()?.takeIf { it >= 1 }) {
+                "$SUITES_LIMIT is $value, which is not a number of suites of 1 or more"
+            }
+        }.orElse(1)
+        val suites = engine.children.filterIsInstance<SuiteDescriptor>()
+        val report = Report(listener)
         // A release that throws leaves the engine unfinished, which the platform reports as the engine's failure.
         GuardedRun.opened { guards ->
-            engine.children.filterIsInstance<SuiteDescriptor>()
-                .forEach { run(it.suite, it, listener, fallback, guards) }
+            if (limit == 1) {
+                suites.forEach { run(it.suite, it, report, fallback, guards) }
+            } else {
+                sideBySide(suites, Limit.fixed(limit)) { run(it.suite, it, report, fallback, guards) }
+            }
         }
         listener.executionFinished(engine, TestExecutionResult.successful())
+    }
+
+    /**
+     * Runs each of [suites] as a fork within [limit], started in order; an isolated suite waits for those before it,
+     * and those after it wait for it.
+     */
+    private fun sideBySide(suites: List<SuiteDescriptor>, limit: Limit, run: (SuiteDescriptor) -> Unit) = scope {
+        val running = mutableListOf<Deferred<Unit>>()
+        suites.forEach { suite ->
+            if (suite.suite.isolated) running.awaitAll()
+            val started = CountDownLatch(1)
+            running += async {
+                limit.withPermit {
+                    started.countDown()
+                    run(suite)
+                }
+            }
+            // Waiting for each suite to take its permit starts them in order.
+            started.await()
+            if (suite.suite.isolated) running.awaitAll()
+        }
+        running.awaitAll()
     }
 
     /**
@@ -67,13 +109,12 @@ class SurefoldEngine : TestEngine {
     private fun <R> run(
         suite: AnySuite<R>,
         descriptor: SuiteDescriptor,
-        listener: EngineExecutionListener,
+        report: Report,
         fallback: Duration?,
         guards: GuardedRun,
     ) {
-        listener.executionStarted(descriptor)
+        report.started(descriptor)
         val tests = suite.tests
-        val report = Report(listener)
         // Ignored tests are skipped before the resource is acquired, so a failed acquisition does not fail them.
         // A group is started before its cases and finished after the last, so it is open while any of them runs.
         val groups = descriptor.children.filterIsInstance<GroupDescriptor>()
@@ -122,7 +163,7 @@ class SurefoldEngine : TestEngine {
                 }
             }
         }
-        close(descriptor, groups, cases.takeUnless { acquired }, outcome, report, listener)
+        close(descriptor, groups, cases.takeUnless { acquired }, outcome, report)
     }
 
     /**
@@ -136,15 +177,14 @@ class SurefoldEngine : TestEngine {
         unacquired: List<TestCaseDescriptor>?,
         outcome: TestExecutionResult,
         report: Report,
-        listener: EngineExecutionListener,
     ) {
         // Each test carries the cause, so it is reported under every test's name and not again for the suite.
         unacquired?.forEach {
             report.started(it)
             report.finished(it, outcome)
         }
-        groups.forEach { listener.executionFinished(it, TestExecutionResult.successful()) }
-        listener.executionFinished(suite, if (unacquired == null) outcome else TestExecutionResult.successful())
+        groups.forEach { report.finished(it, TestExecutionResult.successful()) }
+        report.finished(suite, if (unacquired == null) outcome else TestExecutionResult.successful())
     }
 
     /** Runs [block] holding a permit of each of [guards], taken in the order given. */
@@ -167,7 +207,7 @@ class SurefoldEngine : TestEngine {
     }
 }
 
-/** Forks report from their own threads, and a listener need not be thread-safe. */
+/** Suites and their forks report from their own threads, and a listener need not be thread-safe. */
 private class Report(private val listener: EngineExecutionListener) {
     private val lock = ReentrantLock()
 
