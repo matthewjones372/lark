@@ -1,8 +1,10 @@
 package io.github.matthewjones372.surefold.app.actor
 
 import io.github.matthewjones372.surefold.Deferred
+import io.github.matthewjones372.surefold.Promise
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.Scope
+import io.github.matthewjones372.surefold.Shared
 import io.github.matthewjones372.surefold.actor.ActorRef
 import io.github.matthewjones372.surefold.actor.Behaviour
 import io.github.matthewjones372.surefold.actor.DeadLetter
@@ -18,26 +20,23 @@ import io.github.matthewjones372.surefold.actor.watch
 import io.github.matthewjones372.surefold.app.Module
 import io.github.matthewjones372.surefold.app.Wiring
 import io.github.matthewjones372.surefold.app.single
+import io.github.matthewjones372.surefold.awaitValue
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.logDebug
 import io.github.matthewjones372.surefold.logger
 import io.github.matthewjones372.surefold.metricTags
 import io.github.matthewjones372.surefold.metrics
 import io.github.matthewjones372.surefold.scope
-import java.util.concurrent.BlockingQueue
-import java.util.concurrent.CompletableFuture
+import io.github.matthewjones372.surefold.transact
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.FutureTask
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 /**
  * A scope held open for the application's life, for its actors to live in. It is opened on a thread of its own that
  * waits until the node is released, and releasing it closes the scope: its close hooks run first, and then every
  * actor stops after its running step. Everything here is the scope's own call.
  */
-class Actors internal constructor(private val scope: Scope<Nothing>, private val tasks: BlockingQueue<Runnable>) {
+class Actors internal constructor(private val scope: Scope<Nothing>, private val tasks: Tasks) {
 
     fun <M : Any, S, E> spawn(
         name: String,
@@ -65,11 +64,8 @@ class Actors internal constructor(private val scope: Scope<Nothing>, private val
     fun <A> within(block: Scope<Nothing>.() -> A): A {
         if (Thread.currentThread() === holder) return scope.block()
         val task = FutureTask { scope.block() }
-        // Checked and queued under the lock close takes, so no task is queued behind Close and never run.
-        lock.withLock {
-            check(!closed) { "the actors' scope has closed" }
-            tasks.put(task)
-        }
+        // Checked and queued in the one step close changes, so no task is queued behind Close and never run.
+        tasks.offer(task)
         return try {
             task.get()
         } catch (failed: ExecutionException) {
@@ -80,16 +76,32 @@ class Actors internal constructor(private val scope: Scope<Nothing>, private val
     // The thread holding the scope open, set as soon as it has started.
     internal lateinit var holder: Thread
 
-    private val lock = ReentrantLock()
-    private var closed = false
-
     /** Lets the scope close, and waits for it to have: every actor has stopped once this returns. */
     internal fun close() {
-        lock.withLock {
-            closed = true
-            tasks.put(Close)
-        }
+        tasks.close()
         holder.join()
+    }
+}
+
+/** What `within` hands the scope's thread, and whether the scope still takes any: changed together, in one step. */
+internal class Tasks {
+    private val held = Shared(emptyList<Runnable>() to false, name = "surefold.app.actors")
+
+    /** Queues [task]; refused once the scope has closed. */
+    fun offer(task: Runnable) = held.update { (queue, closed) ->
+        check(!closed) { "the actors' scope has closed" }
+        queue + task to false
+    }
+
+    /** Queues [Close] last, and refuses every task after it. */
+    fun close() = held.update { (queue, _) -> queue + Close to true }
+
+    /** The oldest task, parking until there is one. */
+    fun take(): Runnable = transact(held.name) {
+        val (queue, closed) = held.get()
+        if (queue.isEmpty()) waitForChange()
+        held.set(queue.drop(1) to closed)
+        queue.first()
     }
 }
 
@@ -112,8 +124,8 @@ private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
     val measured = metrics.get()
     val tags = metricTags.get()
     val logs = logger.get()
-    val opened = CompletableFuture<Actors>()
-    val tasks = LinkedBlockingQueue<Runnable>()
+    val opened = Promise<Nothing, Actors>("surefold.app.actors.opened")
+    val tasks = Tasks()
     val holder = Thread.ofVirtual().name("surefold-app-actors").start {
         clock.locally(waits) {
             metrics.locally(measured) {
@@ -122,7 +134,7 @@ private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
                         scope {
                             // The guardian stands up here, on the scope's own thread, before any spawn from elsewhere.
                             onDeadLetter(onDeadLetter)
-                            opened.complete(Actors(this, tasks))
+                            opened.succeed(Actors(this, tasks))
                             // The scope's thread runs what `within` hands it until the node is released.
                             generateSequence { tasks.take() }.takeWhile { it !== Close }.forEach(Runnable::run)
                         }
@@ -131,7 +143,7 @@ private fun open(onDeadLetter: (DeadLetter) -> Unit): Actors {
             }
         }
     }
-    return opened.join().also { it.holder = holder }
+    return opened.awaitValue().also { it.holder = holder }
 }
 
 /** Spawns [behaviour] on [actors] and stops it when the scope ends, waiting until it has stopped. */
