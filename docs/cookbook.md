@@ -30,6 +30,7 @@ and the same-cache layer reentry restriction.
 | retain answers by capacity without expiry | `Cache(ttl = { Duration.INFINITE }, capacity = …)` | `surefold-cache` |
 | retain by result-specific expiry, with last-good fallback | `Cache(ttl = …, stale = …)` | `surefold-cache` |
 | finish shared cache work before releasing its dependencies | `Cache.closeAndJoin` in `onRelease` | `surefold-cache` |
+| explicit regional KMS roots, exact contexts and owned clients | [`KeyOperations`, `AwsKeyOperations`, `awsKeyOperations`](kms-operations.md) | `surefold-tenancy-crypto-aws` (unreleased) |
 
 The types the recipes are written against:
 
