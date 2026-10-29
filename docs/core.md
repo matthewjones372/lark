@@ -26,7 +26,8 @@ are compiled by `CoreGuideTest`.
 8. [Values changed together](#values-changed-together)
 9. [What a fork inherits](#what-a-fork-inherits)
 10. [Running forks on Pekko](#running-forks-on-pekko)
-11. [Requirements and limitations](#requirements-and-limitations)
+11. [Cache retention](#cache-retention)
+12. [Requirements and limitations](#requirements-and-limitations)
 
 ## Forking
 
@@ -941,6 +942,161 @@ the future and surefold stops the branches.
 Import kotlinx's `await` and not surefold's in a file like this. With both
 imported, surefold's is the closer match for a `CompletableFuture` and wins, and it
 blocks.
+
+## Cache retention
+
+`Cache` in `surefold-cache` fixes its lookup at construction and shares one lookup
+per key through `SingleFlight`. The zero and infinite retention semantics below
+are implemented in the spec 0258 review stack for the next release. **Published
+0.16.0 does not provide these semantics**: zero results can occupy retained
+capacity, and infinite TTL can overflow. These examples compile against this
+checkout; they do not identify a published upgrade version. In this repository:
+
+```kotlin
+dependencies {
+    implementation(project(":surefold-cache")) // includes surefold
+}
+```
+
+### Share without retaining
+
+`Duration.ZERO` delivers either a `Right` or a `Left` to overlapping waiters,
+then forgets it. A later call rechecks layers and the source. Cancelling one
+waiter leaves the shared lookup running for the others. Zero results consume
+no retained capacity, write no layers and start no refresh-ahead schedule; a
+zero result also stops an existing schedule without cancelling an active lookup
+needed by its waiters.
+
+<!-- core-cache-zero -->
+```kotlin
+import io.github.matthewjones372.surefold.cache.Cache
+import io.github.matthewjones372.surefold.fail.right
+import kotlin.time.Duration
+
+fun noRetention() {
+    Cache<String, Nothing, String>(
+        ttl = { Duration.ZERO },
+        onEvict = { _, _ -> error("a never-retained value has no eviction callback") },
+    ) { key -> key.uppercase().right() }.use { cache ->
+        check(cache.get("one") == "ONE".right())
+        check(cache.get("one") == "ONE".right())
+        check(cache.stats().loads == 2L)
+        check(cache.stats().size == 0)
+        check(cache.stats().evictions == 0L)
+    }
+}
+```
+
+A young layer hit whose result has zero TTL is delivered without admission to
+memory or nearer layers. Its shared record stays untouched, so the next call
+may read it again until its original expiry.
+
+### Retain by capacity alone
+
+`Duration.INFINITE` keeps an admitted fresh `Right` or `Left` in memory without
+a time deadline. It performs no far-future `Instant` arithmetic. Capacity still
+applies: TinyLFU can reject a new key or evict a retained one; invalidation and
+replacement still remove retained values. Infinite retention does not guarantee
+admission or reserve a slot for every key.
+
+<!-- core-cache-infinite -->
+```kotlin
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.TestClock
+import io.github.matthewjones372.surefold.cache.Cache
+import io.github.matthewjones372.surefold.cache.Invalidation
+import io.github.matthewjones372.surefold.clock
+import io.github.matthewjones372.surefold.fail.right
+import java.time.Instant
+import kotlin.time.Duration
+
+fun capacityOnly() {
+    val moving = TestClock()
+    val removed = Shared(emptyList<String>())
+    val cache = clock.locally(moving) {
+        Cache<String, Nothing, String>(
+            ttl = { Duration.INFINITE },
+            capacity = 100,
+            onEvict = { _, value -> removed.update { it + value } },
+        ) { key -> key.right() }
+    }
+    cache.use {
+        check(cache.get("one") == "one".right())
+        moving.setTime(Instant.MAX)
+        check(cache.get("one") == "one".right())
+        check(cache.stats().loads == 1L)
+        cache.invalidate(Invalidation.Key("one"))
+        check(cache.stats().size == 0)
+        check(removed.peek() == listOf("one"))
+    }
+}
+```
+
+Fresh infinite results never write layers: `Stored` and Redis keep their finite
+expiry format. A finite layer hit under an infinite local policy still keeps its
+original expiry in memory and nearer layers; local policy cannot extend it.
+Failures stay in memory only, under every retention policy.
+
+### Result-specific policy and fallback
+
+Finite TTL keeps its exact boundary: an answer is young strictly before its
+expiry. The cache captures the bound clock at construction. A finite `Left` TTL
+still controls retry traffic; configured retries remain shared within one lookup.
+A large finite TTL is not a substitute for infinite retention and can overflow.
+
+This policy keeps good answers briefly and shares failures without retaining
+them. At expiry a failed lookup may still answer with the last good value while
+it is younger than `stale`; that fallback does not retain the new zero result.
+
+<!-- core-cache-finite -->
+```kotlin
+import io.github.matthewjones372.surefold.Shared
+import io.github.matthewjones372.surefold.TestClock
+import io.github.matthewjones372.surefold.cache.Cache
+import io.github.matthewjones372.surefold.clock
+import io.github.matthewjones372.surefold.fail.Either
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+fun zeroFailureFallback() {
+    val moving = TestClock()
+    val source = Shared<Either<String, String>>(Either.Right("last good"))
+    val cache = clock.locally(moving) {
+        Cache<String, String, String>(
+            ttl = { if (it is Either.Right) 1.seconds else Duration.ZERO },
+            stale = 10.seconds,
+        ) { source.peek() }
+    }
+    cache.use {
+        check(cache.get("one") == Either.Right("last good"))
+        source.update { Either.Left("unavailable") }
+        moving.adjust(1.seconds)
+        check(cache.get("one") == Either.Right("last good"))
+        check(cache.stats().stale == 1L)
+        check(cache.stats().size == 0)
+        check(cache.get("one") == Either.Left("unavailable"))
+    }
+}
+```
+
+An expired prior entry is removed after answering this zero-result fallback.
+A failed explicit or ahead refresh of a still-young value preserves that value,
+including for a zero failure TTL, but zero stops further refresh-ahead. An infinite
+failure TTL cannot extend the finite stale deadline. Infinite retention can use
+a finite refresh-ahead schedule; an infinite schedule delay starts no sleeper.
+
+`stats().size` counts retained entries. Each `get` is a hit or miss; concurrent
+misses can share one load, and layer hits need no source load. Failures and stale
+answers are still counted. Never-retained zero outcomes cause neither an
+eviction nor `onEvict`: their recipients own their lifetime. Existing retained
+value replacement and invalidation callbacks remain once-only under their
+existing rules; replacement is not an eviction count.
+
+Invalidation advances the generation: a lookup already running may answer its
+waiters but cannot repopulate memory or layers or schedule a refresh for that
+generation. `close()` refuses later `get` and `refresh` calls and interrupts
+lookups and sleepers. It is interrupt-only: returning does not establish that
+workers or their cleanup have finished. Awaited release belongs to spec 0259.
 
 ## Requirements and limitations
 

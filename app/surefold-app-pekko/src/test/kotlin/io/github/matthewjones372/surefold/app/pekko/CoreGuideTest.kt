@@ -62,6 +62,16 @@ class CoreGuideTest {
     }
 
     @Test
+    fun `the core guide demonstrates each cache retention choice`() {
+        val examples = fences("docs/core.md", "core")
+        listOf("core-cache-zero", "core-cache-infinite", "core-cache-finite").forEach { marker ->
+            withClue("the retention guide needs a compiled example for $marker") {
+                examples.keys shouldContain marker
+            }
+        }
+    }
+
+    @Test
     fun `the testing guide tells a story in a suite`() {
         fences("docs/testing.md", "testing").keys shouldContain "testing-junit-story"
     }
