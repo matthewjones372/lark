@@ -17,6 +17,17 @@ dependencies {
 }
 ```
 
+For shared work and retained answers, choose the existing primitive by need.
+The zero/infinite rows describe the next-release review stack, not published 0.16.0;
+see [cache retention](core.md#cache-retention) for compatibility and compiled examples.
+
+| Need | Use | Module |
+|---|---|---|
+| share one in-flight block per key | `SingleFlight.run` | `surefold` |
+| share a fixed lookup without retaining its result | `Cache(ttl = { Duration.ZERO })` | `surefold-cache` |
+| retain answers by capacity without expiry | `Cache(ttl = { Duration.INFINITE }, capacity = …)` | `surefold-cache` |
+| retain by result-specific expiry, with last-good fallback | `Cache(ttl = …, stale = …)` | `surefold-cache` |
+
 The types the recipes are written against:
 
 <!-- cookbook-fixtures -->
