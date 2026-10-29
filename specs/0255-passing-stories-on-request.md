@@ -8,7 +8,7 @@ story's Given / When / Then is never seen. Checked on `main` (2026-10-28).
 
 Spec 0188 chose that, so that a passing build is quiet. But someone writing or reviewing a story wants to
 read it while it passes, to check that the steps say what the test does and to see what each step cost.
-Today the only way to get it is to break the test. Doorlist hits this: about 400 suite tests, all stories,
+Today the only way to get it is to break the test. A consumer hits this: about 400 suite tests, all stories,
 and none of them can be read in the console.
 
 ## Not doing
