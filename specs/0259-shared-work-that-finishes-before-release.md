@@ -1,6 +1,6 @@
 # 0259 — Shared work that finishes before release
 
-Approved by the owner2026-10-29: recommendations1–4 and named branch stack agreed; release approval remains separate.
+Approved by the owner on 2026-10-29: recommendations 1–4 and the named stack agreed; release approval remains separate.
 
 ## Problem
 
@@ -50,9 +50,11 @@ allocation explicit but adds a path; strengthening close is smaller but changes 
 
 ## Stack
 
-Owner agreed these entries and branch names2026-10-29.
-- [ ] **`codex/0259-flight-release`** — closed admission, cancellation and joined SingleFlight workers.
+Owner approved the four-entry delivery split on 2026-10-29; public contracts and release gating are unchanged.
+- [x] **`codex/0259-flight-release`** — closed admission, cancellation and joined SingleFlight workers ([925](https://github.com/matthewjones372/surefold/pull/925)).
       Done when: startup/cancel races, waiter isolation and reusable cancelAll are proven.
+- [ ] **`codex/0259-cache-workers`** — privately own background startup, bindings and displaced sleepers.
+      Done when: accepted work is owned before submission and ordinary close remains interrupt-only.
 - [ ] **`codex/0259-cache-release`** — join every cache worker and prevent late publication.
       Done when: explicit/ahead refresh, layer/callback cleanup and dependency order are proven.
 - [ ] **`codex/0259-release-guide`** — resource example and existing-caller compatibility coverage.
