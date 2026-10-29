@@ -37,11 +37,11 @@ data class CacheStats(
 /**
  * A function with a memory (spec 0246): [lookup] is given once, here, and [get] answers from memory while an answer is
  * young, and looks up again once it is not. However many ask for one key at once, one lookup runs, through
- * `SingleFlight`. A zero [ttl] shares the answer without keeping it or writing layers; other answers are kept for
- * as long as [ttl] says for them, a `Left` included, so a source that is down is
- * asked once per its `Left`'s ttl, not once per caller. When a lookup fails and the last `Right` for the key is younger
- * than [stale], that `Right` answers instead, until [stale] runs out. Ages are read from the clock bound where the
- * cache is made, so a `TestClock` moves every one.
+ * `SingleFlight`. A zero [ttl] shares the answer without keeping it or writing layers; an infinite [ttl] keeps a
+ * fresh result only in memory without a deadline. Other answers are kept as long as [ttl] says, a `Left` included,
+ * so a source that is down is asked once per its `Left`'s ttl, not once per caller. When a lookup fails and the last
+ * `Right` for the key is younger than [stale], that `Right` answers instead, until [stale] runs out. Ages are read
+ * from the clock bound where the cache is made, so a `TestClock` moves every one.
  *
  * At most [capacity] keys are kept. Past it, a new key is kept only if it has been asked for more often lately than
  * the least recently read key it would push out (TinyLFU), so a scan of keys read once cannot flush the keys read all
@@ -49,7 +49,7 @@ data class CacheStats(
  *
  * Under its own memory, a cache asks [layers] in turn before it looks up: a hit in one is written into its own memory
  * and every nearer layer, keeping its expiry, so a value is never younger near than it was far. A good value looked up
- * is written into every layer; a failure is kept in its own memory only.
+ * with a finite ttl is written into every layer; a failure is kept in its own memory only.
  *
  * [retry] runs a failing lookup again inside one lookup, after the delays it answers on the cache's clock, before its
  * failure is kept; every caller waiting on that key shares the retries. [refreshing] looks a key up again ahead of its
@@ -72,7 +72,9 @@ class Cache<K : Any, E, V>(
     }
 
     // A key's answer, until when, and the last good value behind it, kept to answer for it while lookups fail.
-    private class Entry<E, V>(val answer: Either<E, V>, val until: Instant, val good: Good<V>?, val isStale: Boolean)
+    private class Entry<E, V>(val answer: Either<E, V>, val until: Instant?, val good: Good<V>?, val isStale: Boolean) {
+        fun young(now: Instant): Boolean = until == null || now < until
+    }
 
     private class Good<V>(val value: V, val at: Instant)
 
@@ -113,7 +115,7 @@ class Cache<K : Any, E, V>(
     fun get(key: K): Either<E, V> {
         check(!closed) { "the cache has closed" }
         val held = entries.read(key)
-        if (held != null && time.now() < held.until) {
+        if (held != null && held.young(time.now())) {
             ahead[key]?.read = true
             hits.incrementAndGet()
             if (held.isStale) staleAnswers.incrementAndGet()
@@ -172,7 +174,7 @@ class Cache<K : Any, E, V>(
         if (!refreshing) fromLayers(key, began)?.let { return it }
         val result = retried(key)
         val now = time.now()
-        val young = entries.peek(key)?.takeIf { refreshing && now < it.until }
+        val young = entries.peek(key)?.takeIf { refreshing && it.young(now) }
         val retention = ttl(result)
         if (result is Either.Left && young != null) {
             // A refresh that failed keeps what it was refreshing, which is still young.
@@ -183,7 +185,7 @@ class Cache<K : Any, E, V>(
             return young.answer
         }
         val entry = when (result) {
-            is Either.Right -> Entry<E, V>(result, now + retention.toJavaDuration(), Good(result.value, now), false)
+            is Either.Right -> Entry<E, V>(result, deadline(now, retention), Good(result.value, now), false)
             is Either.Left -> failed(result, entries.peek(key)?.good, now, retention)
         }
         if (entry.isStale) staleAnswers.incrementAndGet()
@@ -198,7 +200,7 @@ class Cache<K : Any, E, V>(
             return
         }
         keep(key, entry)
-        if (result is Either.Right) {
+        if (result is Either.Right && entry.until != null) {
             val stored = Stored(result.value, now, entry.until)
             layers.forEach { layer -> safely("write $key") { layer.write(key, stored) } }
         }
@@ -230,7 +232,7 @@ class Cache<K : Any, E, V>(
         val schedule = refreshing ?: return
         val step = ahead.remove(key)?.next ?: schedule.step
         val decision = step(result) as? Schedule.Decision.Continue ?: return
-        if (closed) return
+        if (closed || decision.delay == Duration.INFINITE) return
         // In the map before its sleeper starts, so a sleeper with no delay finds itself there.
         val mine = Ahead<E, V>(decision.step).also { ahead[key] = it }
         mine.sleeper = background {
@@ -287,14 +289,17 @@ class Cache<K : Any, E, V>(
     // A failed lookup: the last good value while it is younger than [stale], kept no longer than either allows.
     private fun failed(result: Either<E, V>, good: Good<V>?, now: Instant, retention: Duration): Entry<E, V> {
         failures.incrementAndGet()
-        val until = now + retention.toJavaDuration()
+        val until = deadline(now, retention)
         val staleUntil = good?.let { it.at + stale.toJavaDuration() }
         return if (good != null && staleUntil != null && now < staleUntil) {
-            Entry(Either.Right(good.value), minOf(until, staleUntil), good, true)
+            Entry(Either.Right(good.value), until?.let { minOf(it, staleUntil) } ?: staleUntil, good, true)
         } else {
             Entry(result, until, null, false)
         }
     }
+
+    private fun deadline(now: Instant, retention: Duration): Instant? =
+        if (retention == Duration.INFINITE) null else now + retention.toJavaDuration()
 }
 
 /** How many keys a cache keeps unless it is told otherwise. */
