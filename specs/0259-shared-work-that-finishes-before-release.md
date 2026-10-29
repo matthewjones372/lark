@@ -1,6 +1,7 @@
 # 0259 — Shared work that finishes before release
 
 Approved by the owner on 2026-10-29: recommendations 1–4 and the named stack agreed; release approval remains separate.
+The owner also approved the publication-ordering contract and five-entry stack below on 2026-10-29.
 
 ## Problem
 
@@ -22,7 +23,7 @@ new dependencies, replacing reusable cancelAll, or retention policy ([0258](0258
 
 Proposed additive signatures: `SingleFlight.closeAndJoin(): Unit` and
 `Cache.closeAndJoin(): Unit`. An existing Resource release can call the latter;
-no resource wrapper or constructor change is required. Decisions below remain open.
+no resource wrapper or constructor change is required. Approved decisions are recorded below.
 
 - Owner release closes admission atomically with worker registration: every accepted
   lookup/explicit refresh/sleeper is owned before it can start, or is refused.
@@ -43,6 +44,40 @@ no resource wrapper or constructor change is required. Decisions below remain op
   interrupt-only; adoption of the awaited path is explicit. Finite cache behaviour,
   lookup failures, first-caller bindings and KeyCache.run remain covered by regression tests.
 
+## Publication ordering (owner-approved amendment)
+
+Checked v0.16.0 (`6db3daad`) and main `858605ab`: a generation check followed by a
+separate memory/layer write can restore obsolete data after invalidation. A layer
+read during removal can also readmit old data. Existing race regressions block before
+the final generation check. A global FIFO would block unrelated keys and deadlock
+existing completing reentry. An opaque layer can invalidate then finish its outer
+write afterward; waiting for that write deadlocks. The owner approved these rules:
+
+- Layer operations must not invoke, or synchronously await work invoking,
+  get/refresh/invalidate on their owning Cache. Direct calls and inherited Surefold
+  ownership context fail with IllegalStateException before admission/mutation.
+  Arbitrary foreign-executor cycles cannot be detected. Other caches and stats remain
+  callable; existing close stays interrupt-only and awaited self-close stays refused.
+  This intentionally restricts existing reentrant layers; signatures remain unchanged.
+- Preserve existing completing eviction/TTL/schedule reentry, including acyclic get
+  of another key, without promising support for already-deadlocking cycles. Run TTL
+  and schedule decisions outside conflict reservations, then conditionally admit their
+  effects. Release memory-mutation reservations before eviction notifications, while
+  retaining callback lifetime ownership through completion.
+- Reserve actual key conflicts with an All barrier: unrelated B can progress while A
+  layer work blocks, except where All requires a common boundary. Keep global generation
+  suppression for publication not yet admitted, including unrelated keys. Earlier admitted
+  unrelated phases finish independently; Key removal waits for earlier conflicting phases.
+- Invalidation orders farthest-first layer-removal attempts, memory removal and its own
+  eviction notifications before returning. Preserve current failing-layer handling; an
+  unavailable layer is not promised to lose its record. Admit each publication,
+  readmission, write and schedule phase conditionally on generation/closing; callback
+  invalidation cannot authorize later obsolete phases. Eviction may load a fresh value.
+- No layer IO, callback or wait runs inside admission locks or Shared transactions.
+  Closing refuses new work, cancels/joins accepted work and finishes owned callbacks.
+  Retention, waiter isolation and finish-all cleanup remain. Key-scoped generations are
+  deferred. A versioned Layer protocol or deferred nested invalidation was not chosen.
+
 ## Why this shape
 
 Additive awaited release preserves close timing. An owned Resource factory makes
@@ -50,11 +85,13 @@ allocation explicit but adds a path; strengthening close is smaller but changes 
 
 ## Stack
 
-Owner approved the four-entry delivery split on 2026-10-29; public contracts and release gating are unchanged.
+Owner approved the five-entry delivery split and layer rule above on 2026-10-29; release approval remains separate.
 - [x] **`codex/0259-flight-release`** — closed admission, cancellation and joined SingleFlight workers ([925](https://github.com/matthewjones372/surefold/pull/925)).
       Done when: startup/cancel races, waiter isolation and reusable cancelAll are proven.
 - [ ] **`codex/0259-cache-workers`** — privately own background startup, bindings and displaced sleepers.
       Done when: accepted work is owned before submission and ordinary close remains interrupt-only.
+- [ ] **`codex/0259-cache-ordering`** — order conflicting effects and preserve completing callback reentry.
+      Done when: after-admission invalidation/readmission races, independent-key progress and layer rejection are proven.
 - [ ] **`codex/0259-cache-release`** — join every cache worker and prevent late publication.
       Done when: explicit/ahead refresh, layer/callback cleanup and dependency order are proven.
 - [ ] **`codex/0259-release-guide`** — resource example and existing-caller compatibility coverage.
@@ -65,6 +102,11 @@ Owner approved the four-entry delivery split on 2026-10-29; public contracts and
 Tests first: multiple keys/waiters, late registration, blocked and cancellation-resistant
 lookup/finally, worker versus cleanup failure reporting, zero-delay refresh, invalidation races,
 repeated/concurrent/interrupted/self close and dependency release ordering.
+Also prove invalidation after admission, reads during removal, canceled/failed reservation
+retirement, independent-key/All boundaries, reentry/invalidation between effect phases,
+fresh get from eviction, direct/inherited layer rejection without mutation and global-generation
+compatibility. Document foreign-executor limits. Require a concrete per-entry line ledger
+before code, near 200 changed non-test lines; further splits need approval, no cap exception.
 Use existing Promise/Shared/Resource/scoped work/TestClock/eventually, no new dependency.
 ```bash
 ./gradlew :surefold:test :surefold-cache:test :surefold-tenancy-crypto:test
