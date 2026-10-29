@@ -54,9 +54,9 @@ needs an additive API and migration; it remains an option in question 1.
 ## Stack
 
 Owner agreed these entries and branch names2026-10-29.
-- [ ] **`codex/0258-zero-retention`** — zero-result admission, schedules and regression tests.
+- [x] **`codex/0258-zero-retention`** — zero-result admission, schedules and regression tests ([923](https://github.com/matthewjones372/surefold/pull/923)).
       Done when: Right/Left overlap shares once; later calls reload without quota/layer writes.
-- [ ] **`codex/0258-capacity-only`** — infinite retention and the approved layer policy.
+- [x] **`codex/0258-capacity-only`** — infinite retention and the approved layer policy ([924](https://github.com/matthewjones372/surefold/pull/924)).
       Done when: clock advance cannot expire it; capacity/invalidation still remove it.
 - [ ] **`codex/0258-retention-guide`** — compiled usage and compatibility documentation.
       Done when: zero/stale/callback/layer decisions and finite compatibility are demonstrated.
