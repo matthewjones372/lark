@@ -1,15 +1,17 @@
 package io.github.matthewjones372.surefold.cache
 
+import io.github.matthewjones372.surefold.Promise
 import io.github.matthewjones372.surefold.Schedule
 import io.github.matthewjones372.surefold.ScheduleStep
+import io.github.matthewjones372.surefold.Shared
 import io.github.matthewjones372.surefold.SingleFlight
 import io.github.matthewjones372.surefold.clock
 import io.github.matthewjones372.surefold.fail.Either
 import io.github.matthewjones372.surefold.logWarn
+import io.github.matthewjones372.surefold.resourceScope
 import io.github.matthewjones372.surefold.surefoldFuture
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration
 import kotlin.time.toJavaDuration
@@ -103,13 +105,41 @@ class Cache<K : Any, E, V>(
         var read = false
 
         @Volatile
-        var sleeper: Future<Unit>? = null
+        var sleeper: Background? = null
     }
 
     private val ahead = ConcurrentHashMap<K, Ahead<E, V>>()
 
-    @Volatile
-    private var closed = false
+    private class Background {
+        private val runner = Promise<Nothing, Thread?>()
+        private val cancelled = Shared(false)
+
+        fun run(block: () -> Unit) {
+            runner.succeed(Thread.currentThread())
+            if (!cancelled.peek()) block()
+        }
+
+        fun cancel() {
+            try {
+                cancelled.update { true }
+            } finally {
+                (runner.peek() as? Either.Right)?.value?.interrupt()
+            }
+        }
+
+        fun abandoned() { runner.succeed(null) }
+
+        // Keep the actual thread after its body answers: future completion is not termination.
+        fun ended(): Boolean {
+            val started = runner.peek() as? Either.Right ?: return false
+            return started.value?.isAlive != true
+        }
+    }
+
+    private data class Work(val closed: Boolean = false, val workers: List<Background> = emptyList())
+
+    private val work = Shared(Work(), "surefold.cache.backgrounds")
+    private val closed: Boolean get() = work.peek().closed
 
     /** [key]'s answer: from memory while it is young, else from one [lookup] however many ask. */
     fun get(key: K): Either<E, V> {
@@ -133,10 +163,13 @@ class Cache<K : Any, E, V>(
 
     /** Stops every refresh ahead and every lookup in flight; a `get` after this is refused. */
     override fun close() {
-        closed = true
-        ahead.values.forEach { it.sleeper?.cancel(true) }
-        ahead.clear()
-        flights.cancelAll()
+        // Instrumentation can throw after a state commit; every cancellation still has to be attempted.
+        resourceScope {
+            onRelease { flights.cancelAll() }
+            onRelease { ahead.clear() }
+            onRelease { cancelBackgrounds() }
+            work.update { it.copy(closed = true) }
+        }
     }
 
     // How many keys are refreshed ahead now, for a test that waits for a key to be let go.
@@ -235,18 +268,54 @@ class Cache<K : Any, E, V>(
         if (closed || decision.delay == Duration.INFINITE) return
         // In the map before its sleeper starts, so a sleeper with no delay finds itself there.
         val mine = Ahead<E, V>(decision.step).also { ahead[key] = it }
+        startAhead(key, mine, decision.delay)
+    }
+
+    private fun startAhead(key: K, mine: Ahead<E, V>, delay: Duration) {
         mine.sleeper = background {
-            time.sleep(decision.delay)
+            time.sleep(delay)
             if (ahead[key] === mine && mine.read && !closed) flights.run(key) { load(key, refreshing = true) }
             ahead.remove(key, mine)
         }
+        if (mine.sleeper == null) ahead.remove(key, mine)
     }
 
     private fun stopAhead(key: K) {
-        ahead.remove(key)?.sleeper?.cancel(true)
+        ahead.remove(key)?.sleeper?.cancel()
     }
 
-    private fun background(block: () -> Unit): Future<Unit> = surefoldFuture(block)
+    private fun background(block: () -> Unit): Background? {
+        val worker = Background()
+        var submitted = false
+        try {
+            val accepted = work.modify {
+                if (it.closed) {
+                    it to false
+                } else {
+                    it.copy(workers = it.workers.filterNot { held -> held.ended() } + worker) to true
+                }
+            }
+            if (!accepted) return null
+            surefoldFuture {
+                worker.run {
+                    try {
+                        block()
+                    } finally {
+                        // Close may interrupt this waiter before the lookup it starts registers with SingleFlight.
+                        if (closed) flights.cancelAll()
+                    }
+                }
+            }
+            submitted = true
+        } finally {
+            if (!submitted) worker.abandoned()
+        }
+        return worker
+    }
+
+    private fun cancelBackgrounds() = resourceScope {
+        work.peek().workers.forEach { worker -> onRelease { worker.cancel() } }
+    }
 
     // The first layer holding a young value for [key], written into memory and every nearer layer on the way back.
     private fun fromLayers(key: K, began: Long): Either<E, V>? {
