@@ -49,7 +49,8 @@ new state enum adds less explicit meaning or another type. Recommend two named c
 
 ## Stack
 
-- [ ] **`codex/0257-notification-lifecycle`** - overload, connection-lifecycle calls, regressions and guide.
+- [x] **`codex/0257-notification-lifecycle`** ([#921](https://github.com/matthewjones372/surefold/pull/921)) -
+      overload, connection-lifecycle calls, regressions and guide.
       Done when: real Postgres proves readiness/disconnect ordering and joined release, old calls still compile,
       callback defects do not reconnect, and notices retain the existing initial/reconnect semantics.
 
@@ -75,4 +76,5 @@ Retain existing notification/reconnect/jobs tests, dependency guards and compile
 1. Callback pair versus one state callback? **Accepted:** the pair shown above, with no new public type.
 2. Disconnect on downstream completion as well as loss? **Accepted:** yes, once per established subscription.
 3. Callback `SQLException` is a defect rather than a reconnect? **Accepted:** yes; caller effects are not JDBC retry.
-4. Release version? **Deferred:** separate owner decision after merge, under the repository's release policy.
+4. Release version? **Accepted:** `0.16.0`, published on Maven Central on 2026-10-29.
+   Tag `v0.16.0` names merge `6db3daad0fcdb739a9000a3357a90242033ab7f7`.
