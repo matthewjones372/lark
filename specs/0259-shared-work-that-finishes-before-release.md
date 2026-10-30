@@ -92,9 +92,9 @@ Owner approved the five-entry delivery split and layer rule above on 2026-10-29;
       Done when: accepted work is owned before submission and ordinary close remains interrupt-only.
 - [x] **`codex/0259-cache-ordering`** — order conflicting effects and preserve completing callback reentry ([936](https://github.com/matthewjones372/surefold/pull/936)).
       Done when: after-admission invalidation/readmission races, independent-key progress and layer rejection are proven.
-- [ ] **`codex/0259-cache-release`** — join every cache worker and prevent late publication.
+- [x] **`codex/0259-cache-release`** — join every cache worker and prevent late publication ([937](https://github.com/matthewjones372/surefold/pull/937)).
       Done when: explicit/ahead refresh, layer/callback cleanup and dependency order are proven.
-- [ ] **`codex/0259-release-guide`** — resource example and existing-caller compatibility coverage.
+- [x] **`codex/0259-release-guide`** — resource example and existing-caller compatibility coverage ([938](https://github.com/matthewjones372/surefold/pull/938)).
       Done when: release interruption/self-close decisions and both close paths are documented.
 
 ## Acceptance
