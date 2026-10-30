@@ -37,7 +37,7 @@ Expose the already-tested private ownership boundary rather than copying it into
 each application. A new multi-service client factory would also share credentials,
 but would mix client configuration and ownership policy into a broader API.
 
-Implementation base: fresh #948 tip87c19ff2. The spec lands on main first. Its true two-tip difference from Doorlist's pinned
+Implementation base: fresh #948 tip87c19ff2. The spec lands on main first. Its true two-tip difference from the consumer's pinned
 2f34332c contains only documentation; all production/test/build/spec source matches.
 No source correction needs porting. Existing feature branches remain unchanged.
 
@@ -64,9 +64,9 @@ checks, then formatting and the required build/CI gates without weakening checks
 
 ## Open questions
 
-Resolved by independent director technical review under the Doorlist owner delegation,
+Resolved by independent director technical review under the consumer owner delegation,
 30 October 2026: borrowedAwsCredentialsProvider is public in the existing AWS module.
 The two-entry additive stack and exact forwarding/ownership contract are approved. A new
 unique source-pinned development snapshot may follow review; stable publication
-waits for the Doorlist R00 release gate. Normal integration of S1/S2/helper with
+waits for the consumer R00 release gate. Normal integration of S1/S2/helper with
 current main and complete release evidence remains required; no rebasing or force.
