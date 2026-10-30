@@ -12,16 +12,16 @@ write each piece.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app:0.16.0")
-    implementation("io.github.matthewjones372:surefold-app-pekko:0.16.0")  // Pekko actors only
+    implementation("io.github.matthewjones372:surefold-app:0.17.0")
+    implementation("io.github.matthewjones372:surefold-app-pekko:0.17.0")  // Pekko actors only
 }
 ```
 
 For shared work and retained answers, choose the existing primitive by need.
-The zero/infinite rows describe this checkout, not published 0.16.0;
-see [cache retention](core.md#cache-retention) for compatibility and compiled examples.
-Awaited cache release is also unreleased; see [cache release](core.md#cache-release)
-for dependency order, interruption and the same-cache layer reentry restriction.
+The zero/infinite rows and awaited cache release are available from 0.17.0;
+see [cache retention](core.md#cache-retention) for compatibility and compiled examples,
+and [cache release](core.md#cache-release) for dependency order, interruption
+and the same-cache layer reentry restriction.
 
 | Need | Use | Module |
 |---|---|---|
@@ -468,7 +468,7 @@ plugins {
 }
 
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app-kotlinx:0.16.0")
+    implementation("io.github.matthewjones372:surefold-app-kotlinx:0.17.0")
 }
 ```
 
@@ -501,7 +501,7 @@ substitution, merging, `getDuration` and `getMemorySize` all still work.
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app-typesafe:0.16.0")
+    implementation("io.github.matthewjones372:surefold-app-typesafe:0.17.0")
 }
 ```
 
@@ -691,7 +691,7 @@ the graph enforces and `render()` draws:
 
 ```kotlin
 dependencies {
-    implementation("io.github.matthewjones372:surefold-app-liquibase:0.16.0")
+    implementation("io.github.matthewjones372:surefold-app-liquibase:0.17.0")
 }
 ```
 

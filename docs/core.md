@@ -9,7 +9,7 @@ inherit. Everything on this page is in the package
 ```kotlin
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:surefold:0.16.0")
+    implementation("io.github.matthewjones372:surefold:0.17.0")
 }
 ```
 
@@ -771,7 +771,7 @@ configured there the executor Surefold forks on, and lets a fork wait for Pekko'
 ```kotlin
 dependencies {
     // brings surefold and pekko-actor
-    implementation("io.github.matthewjones372:surefold-pekko:0.16.0")
+    implementation("io.github.matthewjones372:surefold-pekko:0.17.0")
 }
 ```
 
@@ -947,15 +947,13 @@ blocks.
 ## Cache retention
 
 `Cache` in `surefold-cache` fixes its lookup at construction and shares one lookup
-per key through `SingleFlight`. The zero and infinite retention semantics below
-are implemented in this checkout for the next release. **Published
-0.16.0 does not provide these semantics**: zero results can occupy retained
-capacity, and infinite TTL can overflow. These examples compile against this
-checkout; they do not identify a published upgrade version. In this repository:
+per key through `SingleFlight`. Zero and infinite retention are available from
+0.17.0. In 0.16.0, zero results can occupy retained capacity, and infinite TTL
+can overflow.
 
 ```kotlin
 dependencies {
-    implementation(project(":surefold-cache")) // includes surefold
+    implementation("io.github.matthewjones372:surefold-cache:0.17.0") // includes surefold
 }
 ```
 
@@ -1110,9 +1108,7 @@ supported acyclic reentry, including a fresh `get`, without support for already-
 
 ## Cache release
 
-The awaited methods and layer restriction describe this checkout and are **not
-available in published 0.16.0**. These examples compile against the repository
-dependencies above; a published upgrade version has not been assigned here.
+The awaited methods and same-cache layer reentry restriction are available from 0.17.0.
 
 Register a dependency's release first, then its cache's awaited release.
 `resourceScope` releases in reverse order, so cache work and cleanup finish while

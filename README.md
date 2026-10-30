@@ -91,7 +91,7 @@ a rate limiter and a bulkhead, and `transact` over `Shared` values. `surefold-pe
 dispatcher.
 
 [Awaited cache release](docs/core.md#cache-release) finishes work before dependencies are released.
-It is implemented in this checkout and is not available in published 0.16.0.
+Available from 0.17.0.
 
 **An application as a dependency graph.** [`surefold-app`](docs/app.md) describes
 a service as a value: each node says what it builds and what it needs. The
@@ -219,7 +219,7 @@ kotlin { jvmToolchain(25) }
 
 dependencies {
     // brings nothing but the Kotlin standard library
-    implementation("io.github.matthewjones372:surefold:0.16.0")
+    implementation("io.github.matthewjones372:surefold:0.17.0")
 }
 ```
 
@@ -272,7 +272,7 @@ than 200.
 
 Every published module uses the same group and version, so adding another is
 one more line, for example
-`implementation("io.github.matthewjones372:surefold-app:0.16.0")`. The
+`implementation("io.github.matthewjones372:surefold-app:0.17.0")`. The
 [module guide](docs/modules.md) has the coordinates, what each module brings,
 and how to use a snapshot or a local build.
 
@@ -316,7 +316,7 @@ read the results unchanged.
 ```kotlin
 // build.gradle.kts
 dependencies {
-    testImplementation("io.github.matthewjones372:surefold-junit:0.16.0")
+    testImplementation("io.github.matthewjones372:surefold-junit:0.17.0")
 }
 
 tasks.test { useJUnitPlatform() }
