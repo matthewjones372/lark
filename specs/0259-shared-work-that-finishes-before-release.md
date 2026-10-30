@@ -88,9 +88,9 @@ allocation explicit but adds a path; strengthening close is smaller but changes 
 Owner approved the five-entry delivery split and layer rule above on 2026-10-29; release approval remains separate.
 - [x] **`codex/0259-flight-release`** — closed admission, cancellation and joined SingleFlight workers ([925](https://github.com/matthewjones372/surefold/pull/925)).
       Done when: startup/cancel races, waiter isolation and reusable cancelAll are proven.
-- [ ] **`codex/0259-cache-workers`** — privately own background startup, bindings and displaced sleepers.
+- [x] **`codex/0259-cache-workers`** — privately own background startup, bindings and displaced sleepers ([935](https://github.com/matthewjones372/surefold/pull/935)).
       Done when: accepted work is owned before submission and ordinary close remains interrupt-only.
-- [ ] **`codex/0259-cache-ordering`** — order conflicting effects and preserve completing callback reentry.
+- [x] **`codex/0259-cache-ordering`** — order conflicting effects and preserve completing callback reentry ([936](https://github.com/matthewjones372/surefold/pull/936)).
       Done when: after-admission invalidation/readmission races, independent-key progress and layer rejection are proven.
 - [ ] **`codex/0259-cache-release`** — join every cache worker and prevent late publication.
       Done when: explicit/ahead refresh, layer/callback cleanup and dependency order are proven.

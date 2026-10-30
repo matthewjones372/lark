@@ -58,7 +58,7 @@ Owner agreed these entries and branch names2026-10-29.
       Done when: Right/Left overlap shares once; later calls reload without quota/layer writes.
 - [x] **`codex/0258-capacity-only`** — infinite retention and the approved layer policy ([924](https://github.com/matthewjones372/surefold/pull/924)).
       Done when: clock advance cannot expire it; capacity/invalidation still remove it.
-- [ ] **`codex/0258-retention-guide`** — compiled usage and compatibility documentation.
+- [x] **`codex/0258-retention-guide`** — compiled usage and compatibility documentation ([933](https://github.com/matthewjones372/surefold/pull/933)).
       Done when: zero/stale/callback/layer decisions and finite compatibility are demonstrated.
 
 ## Acceptance
