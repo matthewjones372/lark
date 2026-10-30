@@ -7,8 +7,10 @@ import io.github.matthewjones372.surefold.junit.SharedSuite
 import io.github.matthewjones372.surefold.junit.shouldBe
 import io.github.matthewjones372.surefold.junit.shouldBeRight
 import io.github.matthewjones372.surefold.junit.shouldThrow
+import io.github.matthewjones372.surefold.test.eventually
 import org.apache.kafka.clients.admin.AdminClientConfig
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /** Spec 0162: the topic calls a service's start-up and a runbook make. */
 object AdminSuite : SharedSuite<KafkaBroker>() {
@@ -40,7 +42,10 @@ object AdminSuite : SharedSuite<KafkaBroker>() {
             admin(kafka).use { admin ->
                 admin.ensure(topic, partitions = 5, config = mapOf("retention.ms" to "1000")) shouldBe
                     Ensured(created = false, grownFrom = 2, differing = mapOf("retention.ms" to "604800000"))
-                admin.describe(topic).shouldBeRight { it.partitions().size shouldBe 5 }
+                // Kafka acknowledges the increase before every broker sees the new partitions.
+                eventually(SETTLE_SECONDS.seconds) {
+                    admin.describe(topic).shouldBeRight { it.partitions().size shouldBe 5 }
+                }
             }
         }
 
