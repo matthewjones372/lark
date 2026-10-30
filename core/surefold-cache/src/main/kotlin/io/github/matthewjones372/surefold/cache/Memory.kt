@@ -10,10 +10,11 @@ import kotlin.concurrent.withLock
  * often lately than the least recently read entry on probation, by [Sketch], or it is answered and not kept. So a scan
  * of keys read once only ever competes with itself, and cannot flush the keys read all day.
  *
- * [onEvict] sees every entry pushed out, removed or cleared; one replaced by a write for its key is handed back by
- * [write] instead, for the caller to judge.
+ * Mutations return the entries they remove, so the caller can notify their owners outside its own reservations.
  */
-internal class Memory<K : Any, T>(private val capacity: Int, private val onEvict: (K, T) -> Unit) {
+internal class Memory<K : Any, T>(private val capacity: Int) {
+    class Written<K, T>(val replaced: T?, val evicted: Pair<K, T>?)
+
     init {
         require(capacity >= 1) { "a cache holds at least one entry, not $capacity" }
     }
@@ -35,9 +36,9 @@ internal class Memory<K : Any, T>(private val capacity: Int, private val onEvict
 
     /**
      * Keeps [value] for [key], pushing out the least recently read entry on probation if [key] has been asked for
-     * more often, and answers the entry it replaced for [key], if any.
+     * more often, and answers both the replacement and the capacity victim, if any.
      */
-    fun write(key: K, value: T): T? {
+    fun write(key: K, value: T): Written<K, T> {
         var pushedOut: Pair<K, T>? = null
         val replaced = lock.withLock {
             when {
@@ -53,22 +54,18 @@ internal class Memory<K : Any, T>(private val capacity: Int, private val onEvict
                 }
             }
         }
-        pushedOut?.let { (was, held) -> onEvict(was, held) }
-        return replaced
+        return Written(replaced, pushedOut)
     }
 
-    fun remove(key: K) {
-        lock.withLock { protected.remove(key) ?: probation.remove(key) }?.let { onEvict(key, it) }
-    }
+    fun remove(key: K): T? = lock.withLock { protected.remove(key) ?: probation.remove(key) }
 
-    fun clear() {
-        val all = lock.withLock {
+    fun clear(): List<Pair<K, T>> {
+        return lock.withLock {
             (protected.toList() + probation.toList()).also {
                 protected.clear()
                 probation.clear()
             }
         }
-        all.forEach { (key, value) -> onEvict(key, value) }
     }
 
     val size: Int get() = lock.withLock { probation.size + protected.size }
