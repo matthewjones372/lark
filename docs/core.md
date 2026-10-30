@@ -27,7 +27,8 @@ are compiled by `CoreGuideTest`.
 9. [What a fork inherits](#what-a-fork-inherits)
 10. [Running forks on Pekko](#running-forks-on-pekko)
 11. [Cache retention](#cache-retention)
-12. [Requirements and limitations](#requirements-and-limitations)
+12. [Cache release](#cache-release)
+13. [Requirements and limitations](#requirements-and-limitations)
 
 ## Forking
 
@@ -947,7 +948,7 @@ blocks.
 
 `Cache` in `surefold-cache` fixes its lookup at construction and shares one lookup
 per key through `SingleFlight`. The zero and infinite retention semantics below
-are implemented in the spec 0258 review stack for the next release. **Published
+are implemented in this checkout for the next release. **Published
 0.16.0 does not provide these semantics**: zero results can occupy retained
 capacity, and infinite TTL can overflow. These examples compile against this
 checkout; they do not identify a published upgrade version. In this repository:
@@ -1092,11 +1093,86 @@ eviction nor `onEvict`: their recipients own their lifetime. Existing retained
 value replacement and invalidation callbacks remain once-only under their
 existing rules; replacement is not an eviction count.
 
-Invalidation advances the generation: a lookup already running may answer its
-waiters but cannot repopulate memory or layers or schedule a refresh for that
-generation. `close()` refuses later `get` and `refresh` calls and interrupts
-lookups and sleepers. It is interrupt-only: returning does not establish that
-workers or their cleanup have finished. Awaited release belongs to spec 0259.
+Invalidation advances a global generation: older phases not yet admitted are suppressed, even for
+another key.
+Already-admitted unrelated phases finish independently; a key removal waits for earlier conflicting
+phases, and `All` is a common barrier.
+Each publication, layer readmission, layer write and schedule effect checks generation and closing
+when admitted.
+Invalidation attempts farthest-layer removal first, then memory and its eviction notifications
+before returning; an unavailable layer may retain its record.
+Layers must not call, or synchronously await calls to, their owning Cache's `get`, `refresh` or
+`invalidate`; direct calls and work inheriting an active layer's Surefold ownership context fail
+before admission or mutation. Foreign-executor cycles cannot be detected; ordinary layer-failure
+handling still applies.
+Other caches and `stats` remain callable; completing eviction, TTL and schedule callbacks retain
+supported acyclic reentry, including a fresh `get`, without support for already-deadlocking cycles.
+
+## Cache release
+
+The awaited methods and layer restriction describe this checkout and are **not
+available in published 0.16.0**. These examples compile against the repository
+dependencies above; a published upgrade version has not been assigned here.
+
+Register a dependency's release first, then its cache's awaited release.
+`resourceScope` releases in reverse order, so cache work and cleanup finish while
+the client is still available. An existing Resource release can call
+`closeAndJoin`; no new resource type is needed. A cache-owned lookup or callback
+must not be the owner releasing the surrounding scope.
+
+<!-- core-cache-release -->
+```kotlin
+import io.github.matthewjones372.surefold.cache.Cache
+import io.github.matthewjones372.surefold.fail.Either
+import io.github.matthewjones372.surefold.fail.right
+import io.github.matthewjones372.surefold.resourceScope
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import kotlin.time.Duration.Companion.minutes
+
+fun cachedBody(uri: URI): Either<Nothing, String> = resourceScope {
+    val client = HttpClient.newHttpClient()
+    onRelease { client.close() }
+    val cache = Cache<URI, Nothing, String>(ttl = { 1.minutes }) { key ->
+        client.send(
+            HttpRequest.newBuilder(key).GET().build(),
+            HttpResponse.BodyHandlers.ofString(),
+        ).body().right()
+    }
+    onRelease { cache.closeAndJoin() }
+    cache.get(uri)
+}
+```
+
+`Cache.closeAndJoin()` closes admission, interrupts accepted lookups, explicit
+refreshes and sleepers, then joins actual workers and owned layer, TTL, schedule
+and `onEvict` work before clearing memory. Accepted late work may answer existing
+waiters, but cannot admit new retained, layer or schedule effects after closing.
+New `get`, `refresh` and `invalidate` calls fail with `IllegalStateException`;
+`stats` remains readable. Concurrent and repeated releases share completion,
+including after an earlier ordinary `close()`.
+
+Interruption of the owner does not return early: joining and cleanup finish,
+then its interrupt flag is restored. Cancellation-resistant code or cleanup can
+delay release indefinitely. Owned lookup, cleanup and callback self-close is
+rejected before state changes; an external owner performs the release.
+
+Memory is cleared after joining. `onEvict` runs once per removed `(key, value)`,
+including distinct keys holding the same object; shared layers remain intact.
+Every cleanup is attempted after a defect, aggregating new cleanup defects with
+suppressed failures. Worker outcomes already delivered to waiters are not
+reported again. A never-retained result does not become an eviction, and finite
+layer expiry formats and the retention choices above remain unchanged.
+
+Existing `close()`, `.use {}` and `AutoCloseable` remain interrupt-only with their
+existing source and binary surface: return does not prove workers or their
+`finally` blocks have ended. Awaited release is an explicit adoption.
+`SingleFlight.closeAndJoin()` gives bare flights the terminal joined boundary;
+`cancelAll()` stays reusable and interrupt-only. Cancelling one waiter still
+leaves shared work and other waiters alone. The intentional behavior restriction
+is same-cache layer reentry; existing non-reentrant callers keep their surface.
 
 ## Requirements and limitations
 

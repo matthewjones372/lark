@@ -90,6 +90,9 @@ running behind it.
 a rate limiter and a bulkhead, and `transact` over `Shared` values. `surefold-pekko` lets those forks run on a Pekko
 dispatcher.
 
+[Awaited cache release](docs/core.md#cache-release) finishes work before dependencies are released.
+It is implemented in this checkout and is not available in published 0.16.0.
+
 **An application as a dependency graph.** [`surefold-app`](docs/app.md) describes
 a service as a value: each node says what it builds and what it needs. The
 graph is checked before anything is constructed, started in dependency order

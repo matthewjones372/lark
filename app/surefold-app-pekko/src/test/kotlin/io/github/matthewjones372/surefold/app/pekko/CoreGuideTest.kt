@@ -72,6 +72,13 @@ class CoreGuideTest {
     }
 
     @Test
+    fun `the core guide demonstrates explicit awaited cache release`() {
+        withClue("the release guide needs a compiled resource example") {
+            fences("docs/core.md", "core").keys shouldContain "core-cache-release"
+        }
+    }
+
+    @Test
     fun `the testing guide tells a story in a suite`() {
         fences("docs/testing.md", "testing").keys shouldContain "testing-junit-story"
     }

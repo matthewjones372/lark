@@ -18,8 +18,10 @@ dependencies {
 ```
 
 For shared work and retained answers, choose the existing primitive by need.
-The zero/infinite rows describe the next-release review stack, not published 0.16.0;
+The zero/infinite rows describe this checkout, not published 0.16.0;
 see [cache retention](core.md#cache-retention) for compatibility and compiled examples.
+Awaited cache release is also unreleased; see [cache release](core.md#cache-release)
+for dependency order, interruption and the same-cache layer reentry restriction.
 
 | Need | Use | Module |
 |---|---|---|
@@ -27,6 +29,7 @@ see [cache retention](core.md#cache-retention) for compatibility and compiled ex
 | share a fixed lookup without retaining its result | `Cache(ttl = { Duration.ZERO })` | `surefold-cache` |
 | retain answers by capacity without expiry | `Cache(ttl = { Duration.INFINITE }, capacity = …)` | `surefold-cache` |
 | retain by result-specific expiry, with last-good fallback | `Cache(ttl = …, stale = …)` | `surefold-cache` |
+| finish shared cache work before releasing its dependencies | `Cache.closeAndJoin` in `onRelease` | `surefold-cache` |
 
 The types the recipes are written against:
 
