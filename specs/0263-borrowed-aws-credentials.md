@@ -37,15 +37,16 @@ Expose the already-tested private ownership boundary rather than copying it into
 each application. A new multi-service client factory would also share credentials,
 but would mix client configuration and ownership policy into a broader API.
 
-Base: fresh #948 tip87c19ff2. Its true two-tip difference from Doorlist's pinned
+Implementation base: fresh #948 tip87c19ff2. The spec lands on main first. Its true two-tip difference from Doorlist's pinned
 2f34332c contains only documentation; all production/test/build/spec source matches.
 No source correction needs porting. Existing feature branches remain unchanged.
 
 ## Stack
 
-- [ ] **`codex/kms-borrowed-credentials-spec`** — this additive contract only, on87c.
-      Done when: independently reviewed spec committed; SpecsSuite green.
-- [ ] **`codex/kms-borrowed-credentials`** — expose/reuse the view, tests and module docs.
+- [ ] **`codex/kms-borrowed-credentials-main-spec`** — this additive contract only, on main.
+      Done when: independently reviewed spec merged to main; SpecsSuite/main CI green.
+- [ ] **`codex/kms-borrowed-credentials`** — on87c with the approved main spec: expose/reuse
+      the view, tests and module docs.
       Done when: lazy forwarding, same identity/failure, refreshing values and actual
       SDK client-close retention tests pass; existing operations/resources stay green.
 
