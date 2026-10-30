@@ -96,10 +96,13 @@ class Cache<K : Any, E, V>(
     private val admission = ReentrantLock()
     private var generation = 0L
     private var stopped = false
+    private var closing: Promise<Throwable, Unit>? = null
+    private val owners = surefoldLocal<List<() -> Boolean>> { emptyList() }
     private var operations = emptyList<Operation<K>>()
     private val layerCall = surefoldLocal<Promise<Nothing, Unit>?> { null }
 
-    private class Operation<K>(val what: Invalidation<K>) {
+    private class Operation<K>(val what: Invalidation<K>?) {
+        val thread: Thread = Thread.currentThread()
         val released = Promise<Nothing, Unit>()
         val finished = Promise<Nothing, Unit>()
     }
@@ -142,6 +145,8 @@ class Cache<K : Any, E, V>(
 
         fun abandoned() { runner.succeed(null) }
 
+        fun join() { runner.awaitValue()?.join() }
+
         // Keep the actual thread after its body answers: future completion is not termination.
         fun ended(): Boolean {
             val started = runner.peek() as? Either.Right ?: return false
@@ -155,25 +160,30 @@ class Cache<K : Any, E, V>(
     private val closed: Boolean get() = work.peek().closed
 
     /** [key]'s answer: from memory while it is young, else from one [lookup] however many ask. */
-    fun get(key: K): Either<E, V> {
-        checkLayer()
-        check(!closed) { "the cache has closed" }
+    fun get(key: K): Either<E, V> = borrowed { mine ->
         val held = entries.read(key)
         if (held != null && held.young(time.now())) {
             ahead[key]?.read = true
             hits.incrementAndGet()
             if (held.isStale) staleAnswers.incrementAndGet()
-            return held.answer
+            return@borrowed held.answer
         }
         misses.incrementAndGet()
-        return flights.run(key) { load(key) }
+        handoff(mine)
+        flights.run(key) {
+            ownWorker()
+            load(key)
+        }
     }
 
     /** Looks [key] up again in the background now; until it answers, and if it fails, `get` answers what it has. */
-    fun refresh(key: K) {
-        checkLayer()
-        check(!closed) { "the cache has closed" }
-        background { flights.run(key) { load(key, refreshing = true) } }
+    fun refresh(key: K): Unit = borrowed {
+        background {
+            flights.run(key) {
+                ownWorker()
+                load(key, refreshing = true)
+            }
+        }
     }
 
     /** Stops every refresh ahead and every lookup in flight; a `get` after this is refused. */
@@ -186,6 +196,104 @@ class Cache<K : Any, E, V>(
             admission.withLock { stopped = true }
             work.update { it.copy(closed = true) }
         }
+    }
+
+    /** Closes admission, joins owned work and clears memory, finishing release even if its caller is interrupted. */
+    fun closeAndJoin() {
+        check(owners.get().none { it() }) { "Owned cache work cannot close its owner" }
+        val mine = Promise<Throwable, Unit>()
+        val (completion, accepted) = admission.withLock {
+            closing?.let { it to null } ?: run {
+                closing = mine
+                stopped = true
+                mine to operations
+            }
+        }
+        if (accepted != null) {
+            owners.locally(owners.get() + { mine.peek() == null }) { release(mine, accepted) }
+        }
+        when (val ended = finishing { completion.await() }) {
+            is Either.Right -> Unit
+            is Either.Left -> throw ended.value
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // Release defects are published once to every owner waiting for completion.
+    private fun release(completion: Promise<Throwable, Unit>, accepted: List<Operation<K>>) {
+        var interrupted = Thread.interrupted()
+        fun remember() { if (Thread.interrupted()) interrupted = true }
+        fun cleanup(action: () -> Unit) {
+            remember()
+            try {
+                action()
+            } catch (stop: InterruptedException) {
+                interrupted = true
+                throw stop
+            } finally {
+                remember()
+            }
+        }
+        try {
+            try {
+                resourceScope {
+                    onRelease {
+                        notify(entries.clear().map { (key, gone) -> { cleanup(eviction(key, gone)) } })
+                    }
+                    onRelease { cleanup { accepted.forEach { finishing { it.finished.awaitValue() } } } }
+                    onRelease { cleanup { work.peek().workers.forEach { finishing { it.join() } } } }
+                    onRelease { cleanup { flights.closeAndJoin() } }
+                    onRelease { cleanup { cancelOperations(accepted) } }
+                    finishing { work.update { it.copy(closed = true) } }
+                    cleanup { close() }
+                }
+                finishing { completion.succeed(Unit) }
+            } catch (thrown: Throwable) {
+                finishing { completion.fail(thrown) }
+            }
+        } finally {
+            remember()
+            if (interrupted) Thread.currentThread().interrupt()
+        }
+    }
+
+    private fun cancelOperations(accepted: List<Operation<K>>) = resourceScope {
+        accepted.forEach { mine ->
+            onRelease {
+                admission.withLock {
+                    if (mine in operations && mine.finished.peek() == null) mine.thread.interrupt()
+                }
+            }
+        }
+    }
+
+    private fun ownWorker() {
+        val thread = Thread.currentThread()
+        // SingleFlight's outer bindings include terminal publication after load returns.
+        owners.attach(owners.get().filter { it() } + { thread.isAlive })
+    }
+
+    private fun <A> owned(mine: Operation<K>, block: () -> A): A =
+        owners.locally(owners.get() + { mine.finished.peek() == null }, block)
+
+    private fun <A> borrowed(block: (Operation<K>) -> A): A {
+        checkLayer()
+        val mine = Operation<K>(null)
+        admission.withLock {
+            check(closing == null && !closed) { "the cache has closed" }
+            operations += mine
+        }
+        return owned(mine) {
+            try {
+                block(mine)
+            } finally {
+                handoff(mine)
+            }
+        }
+    }
+
+    private fun handoff(mine: Operation<K>) {
+        finishing { mine.finished.succeed(Unit) }
+        admission.withLock { operations -= mine }
     }
 
     // How many keys are refreshed ahead now, for a test that waits for a key to be let go.
@@ -275,22 +383,32 @@ class Cache<K : Any, E, V>(
 
     // The lookup, run again on a failure for as long as [retry] carries on, sleeping on the cache's clock between.
     private fun retried(key: K): Either<E, V> {
-        loads.incrementAndGet()
-        var result = lookup(key)
+        var result = lookupNow(key)
         var next = retry?.step ?: return result
         while (result is Either.Left) {
+            checkLookup()
             when (val decision = next(result.value)) {
                 is Schedule.Decision.Done -> return result
 
                 is Schedule.Decision.Continue -> {
+                    checkLookup()
                     time.sleep(decision.delay)
                     next = decision.step
-                    loads.incrementAndGet()
-                    result = lookup(key)
+                    result = lookupNow(key)
                 }
             }
         }
         return result
+    }
+
+    private fun checkLookup() {
+        if (admission.withLock { closing != null }) throw InterruptedException("the cache is releasing")
+    }
+
+    private fun lookupNow(key: K): Either<E, V> {
+        checkLookup()
+        loads.incrementAndGet()
+        return lookup(key)
     }
 
     // Steps [refreshing] with [result], and sleeps until its delay to look [key] up again, if it was read meanwhile.
@@ -309,7 +427,10 @@ class Cache<K : Any, E, V>(
     private fun startAhead(key: K, mine: Ahead<E, V>, delay: Duration) {
         mine.sleeper = background {
             time.sleep(delay)
-            if (ahead[key] === mine && mine.read && !closed) flights.run(key) { load(key, refreshing = true) }
+            if (ahead[key] === mine && mine.read && !closed) flights.run(key) {
+                ownWorker()
+                load(key, refreshing = true)
+            }
             ahead.remove(key, mine)
         }
         if (mine.sleeper == null) ahead.remove(key, mine)
@@ -332,6 +453,7 @@ class Cache<K : Any, E, V>(
             }
             if (!accepted) return null
             surefoldFuture {
+                ownWorker()
                 worker.run {
                     try {
                         block()
@@ -404,18 +526,23 @@ class Cache<K : Any, E, V>(
         val mine = Operation(what)
         val before = admission.withLock {
             if (began != null && (stopped || generation != began)) return null
-            if (began == null) generation++
+            if (began == null) {
+                check(closing == null) { "the cache has closed" }
+                generation++
+            }
             operations.filter { it.released.peek() == null && conflicts(it.what, what) }.also { operations += mine }
         }
-        return resourceScope {
-            onRelease { admission.withLock { operations -= mine } }
-            onRelease { retire(mine, before, it) }
-            quiet { before.forEach { it.released.awaitValue() } }
-            val answer = block()
-            // Notifications may synchronously reenter the key whose mutation has finished.
-            finishing { mine.released.succeed(Unit) }
-            after(answer)
-            answer
+        return owned(mine) {
+            resourceScope {
+                onRelease { admission.withLock { operations -= mine } }
+                onRelease { retire(mine, before, it) }
+                quiet { before.forEach { it.released.awaitValue() } }
+                val answer = block()
+                // Notifications may synchronously reenter the key whose mutation has finished.
+                finishing { mine.released.succeed(Unit) }
+                after(answer)
+                answer
+            }
         }
     }
 
@@ -426,13 +553,12 @@ class Cache<K : Any, E, V>(
             mine.finished.succeed(Unit)
         }
 
-    private fun finishing(cancelled: Boolean = false, block: () -> Unit) {
+    private fun <A> finishing(cancelled: Boolean = false, block: () -> A): A {
         var interrupted = Thread.interrupted() || cancelled
         try {
             while (true) {
                 try {
-                    quiet(block)
-                    return
+                    return quiet(block)
                 } catch (_: InterruptedException) {
                     interrupted = true
                 }
@@ -442,8 +568,8 @@ class Cache<K : Any, E, V>(
         }
     }
 
-    private fun conflicts(left: Invalidation<K>, right: Invalidation<K>): Boolean =
-        left == Invalidation.All || right == Invalidation.All || left == right
+    private fun conflicts(left: Invalidation<K>?, right: Invalidation<K>): Boolean =
+        left != null && (left == Invalidation.All || right == Invalidation.All || left == right)
 
     /** Private completion must survive a failing metrics sink. */
     private fun <A> quiet(block: () -> A): A = metrics.locally(NoMetrics, block)
