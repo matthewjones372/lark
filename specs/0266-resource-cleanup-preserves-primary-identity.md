@@ -1,5 +1,12 @@
 # 0266 - Resource cleanup preserves primary identity and completes release
 
+**WITHDRAWN, 31 October 2026. Do not merge or implement this proposal.**
+The proposed missing guard was refuted by actual baseline qualification: all13 ResourceTest cases passed,
+including two private same-instance/three-release cases, on unchanged Resource source. Compiled ResourceKt
+calls Kotlin's addSuppressed extension, whose identity guard already avoids Java self-suppression.
+No runtime change, bug fix or manufactured RED occurred. The original proposal remains below solely to
+preserve the public history of the corrected inference; it is not a prerequisite for key retention work.
+
 Approved under delegated P04 root/KMS review of private draftc36e8dc8; no implementation or shipped fix claimed.
 Checked main e7af9df77565b76c18624ffee6398dde74b0414c and Maven0.17.0 sources.
 Resource.kt is byte-identical there, SHA256f83e8caf103d77e5d32cafd93486f96c28fd59ac2fd8c58dae949c9169108196.
