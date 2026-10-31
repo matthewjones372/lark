@@ -84,8 +84,7 @@ forgotten live valid views remain reachable for later revoke. Notice/release int
 returns normally and Ack commits. Action or uncommitted-Ack failure stays Pending; committed Ack persists despite a
 post-commit instrumentation error. Never resurrect acknowledged IDs or overwrite another/newer record; preserve primary/
 suppressed failure identity. Each drain snapshots owed IDs once and attempts every snapshot action once despite errors;
-failed actions remain Pending, with no same-call loop over new/restored IDs. Baseline e7af Resource self-suppression
-can abort later releases: a separate reviewed core correction is prerequisite to consuming this all-release guarantee.
+failed actions remain Pending, with no same-call loop over new/restored IDs.
 closeAndJoin closes admission, revokes views, cancels/joins accepted loaders and waits admitted using callbacks;
 idle handles need not close. It completes cleanup despite interruption, restores interruption and retains failures.
 Calling it from its own loader/using is refused by fixed IllegalStateException before changing admission.
@@ -101,7 +100,6 @@ Alternative: a general retained-resource cache; broader than this key requiremen
 
 - [x] **`codex/key-view-contract-20261031`** — reviewed spec on main, PR956.
 - [x] **`codex/key-view-ownership`** — identity/private material/view guards, PR957/main e7af.
-- [ ] **Core Resource prerequisite** — separate reviewed identity-safe cleanup correction; no guarantee assumed from e7af.
 - [ ] **`codex/key-view-retention`** — terminal notices/acknowledgements; no cache/public activation; ~50 main/spec lines.
 - [ ] **`codex/key-view-retention-ledger`** — internal receipts/release ledger; legacy class unchanged; ~175 main lines.
 - [ ] **`codex/key-view-retention-policy`** — shared owner LRU, modes, success tickets and epochs; no public lease; ~175 main lines.
