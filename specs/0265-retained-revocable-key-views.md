@@ -1,7 +1,7 @@
 # 0265 — Retained keys with revocable owned views
 
-Approved contract: identity/private material ownership is on main (PR957), unreleased; retention/release remain incomplete.
-Checked maine7af9df7 / published0.17.0. The initial spec-main gate is complete; no consumer adoption is enabled.
+Approved contract: identity/private material ownership (PR957) and terminal notices (PR958) are on main, unreleased.
+Checked main9e9aec92 / published0.17.0; R1 main41187438809 passed. Retention/release remain incomplete; no consumer adoption.
 
 ## Problem
 
@@ -100,8 +100,9 @@ Alternative: a general retained-resource cache; broader than this key requiremen
 
 - [x] **`codex/key-view-contract-20261031`** — reviewed spec on main, PR956.
 - [x] **`codex/key-view-ownership`** — identity/private material/view guards, PR957/main e7af.
-- [ ] **`codex/key-view-retention`** — terminal notices/acknowledgements; no cache/public activation; ~50 main/spec lines.
-- [ ] **`codex/key-view-retention-ledger`** — internal receipts/release ledger; legacy class unchanged; ~175 main lines.
+- [x] **`codex/key-view-retention`** — terminal notices/acknowledgements, PR958/main9e9aec92; no cache/public activation.
+- [ ] **`codex/key-view-retention-ledger`** — pending release intents/acknowledgements; legacy class unchanged; ~78 main/spec lines.
+- [ ] **`codex/key-view-retention-groups`** — internal enrolment/frozen outcomes/source anchors in the SAME ledger; ~180 main/spec lines.
 - [ ] **`codex/key-view-retention-policy`** — shared owner LRU, modes, success tickets and epochs; no public lease; ~175 main lines.
 - [ ] **`codex/key-view-retention-legacy`** — old get/evict integration and protective Unavailable cutoff; ~185 changed main lines.
 - [ ] **`codex/key-view-retention-leases`** — lease/revoke/revokeAll, all caller handoffs and array exits; ~180 main lines.
