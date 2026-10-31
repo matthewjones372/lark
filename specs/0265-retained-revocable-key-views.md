@@ -40,6 +40,15 @@ Freezing a load group's Value or original Thrown outcome closes NEW enrolment; o
 A delayed enrolled caller after SingleFlight key removal replays it without reloading; a fresh caller starts a new group,
 never a negative-cache hit. Explicitly record/replay the original Throwable, including CancellationException; Resource's
 Completed exit alone cannot classify outcomes. Loader and ALL enrolled copy/view handoffs or cancellations own the source.
+Enrolment holds a receipt, never a loader anchor. Worker entry claims it; final receipt retires an unentered group.
+A late worker for a retired group throws private CancellationException("the key load is no longer admitted"), without loading.
+Closed/start-failed SingleFlight before entry has no loader anchor; caller Resource releases its receipt. Pre-registered
+loader finish covers every entered exit; before outcome commit it closes with the original throw, then releases its anchor.
+Committed Frozen outcome is immutable/source-owned. Captured loader outcomes replay; later local bookkeeping failures
+still propagate with cleanup suppressed. Current SingleFlight waiters may see such a post-commit throw while a delayed
+accepted receipt replays committed Value; uniform instrumentation-failure replay is not promised.
+Scoped inherited active-group bindings refuse direct/indirect reentry of that group with fixed IllegalStateException
+("recursive key load") before waiting; distinct group epochs are allowed. No general SingleFlight change is introduced.
 Both modes share ONE owner LRU at the instance capacity (default1000), evict/revoke retention and one retained tagged value per logical slot
 (owner,purpose,requested version; the legacy active alias keeps its existing null version). Revision variants add
 no retained map entries. Each accepted load has a monotonic slot ticket; only the highest-ticket successful Right
@@ -89,7 +98,8 @@ closeAndJoin closes admission, revokes views, cancels/joins accepted loaders and
 idle handles need not close. It completes cleanup despite interruption, restores interruption and retains failures.
 Calling it from its own loader/using is refused by fixed IllegalStateException before changing admission.
 Later lease returns fixed Denied; old internal get after close throws fixed IllegalStateException. No forced timeout.
-Use existing SingleFlight/Shared/Resource only; no effects in retryable Shared callbacks or new executor/scheduler.
+Use existing SingleFlight/Shared/Resource and scoped SurefoldLocal bindings; no effects in retryable Shared callbacks
+or new executor/scheduler.
 
 ## Why this shape
 
