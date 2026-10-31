@@ -40,6 +40,15 @@ Freezing a load group's Value or original Thrown outcome closes NEW enrolment; o
 A delayed enrolled caller after SingleFlight key removal replays it without reloading; a fresh caller starts a new group,
 never a negative-cache hit. Explicitly record/replay the original Throwable, including CancellationException; Resource's
 Completed exit alone cannot classify outcomes. Loader and ALL enrolled copy/view handoffs or cancellations own the source.
+Enrolment holds a receipt, never a loader anchor. Worker entry claims it; final receipt retires an unentered group.
+A late worker for a retired group throws private CancellationException("the key load is no longer admitted"), without loading.
+Closed/start-failed SingleFlight before entry has no loader anchor; caller Resource releases its receipt. Pre-registered
+loader finish covers every entered exit; before outcome commit it closes with the original throw, then releases its anchor.
+Committed Frozen outcome is immutable/source-owned. Captured loader outcomes replay; later local bookkeeping failures
+still propagate with cleanup suppressed. Current SingleFlight waiters may see such a post-commit throw while a delayed
+accepted receipt replays committed Value; uniform instrumentation-failure replay is not promised.
+Scoped inherited active-group bindings refuse direct/indirect reentry of that group with fixed IllegalStateException
+("recursive key load") before waiting; distinct group epochs are allowed. No general SingleFlight change is introduced.
 Both modes share ONE owner LRU at the instance capacity (default1000), evict/revoke retention and one retained tagged value per logical slot
 (owner,purpose,requested version; the legacy active alias keeps its existing null version). Revision variants add
 no retained map entries. Each accepted load has a monotonic slot ticket; only the highest-ticket successful Right
@@ -79,6 +88,9 @@ their owned copies; it drops both modes' retention but cannot revoke legacy copi
 across revoke returns fixed Denied, unkept; a legacy load may still return its old-style independent copy, unkept.
 Forgetting across a load suppresses retention but may answer accepted borrowers. Every unretained transferred
 array has a terminal owner and wipe: no onEvict-only assumption, abandoned flight copy or orphaned view.
+A prepared Copy/View is provisional until ALL receipt cleanup returns normally. An outer Resource owns raw copied
+bytes or the exact borrowed handle before further fallible work, disarming only at final return; failed abort remains
+an exact owned obligation. The groups-only increment exposes no delivery; its separate return seam must prove this boundary.
 Private terminal notices follow wipe when forgotten material has no views/uses, or revoked material has no uses;
 forgotten live valid views remain reachable for later revoke. Notice/release intents stay Pending until outside cleanup
 returns normally and Ack commits. Action or uncommitted-Ack failure stays Pending; committed Ack persists despite a
@@ -89,7 +101,8 @@ closeAndJoin closes admission, revokes views, cancels/joins accepted loaders and
 idle handles need not close. It completes cleanup despite interruption, restores interruption and retains failures.
 Calling it from its own loader/using is refused by fixed IllegalStateException before changing admission.
 Later lease returns fixed Denied; old internal get after close throws fixed IllegalStateException. No forced timeout.
-Use existing SingleFlight/Shared/Resource only; no effects in retryable Shared callbacks or new executor/scheduler.
+Use existing SingleFlight/Shared/Resource and scoped SurefoldLocal bindings; no effects in retryable Shared callbacks
+or new executor/scheduler.
 
 ## Why this shape
 
@@ -101,8 +114,9 @@ Alternative: a general retained-resource cache; broader than this key requiremen
 - [x] **`codex/key-view-contract-20261031`** — reviewed spec on main, PR956.
 - [x] **`codex/key-view-ownership`** — identity/private material/view guards, PR957/main e7af.
 - [x] **`codex/key-view-retention`** — terminal notices/acknowledgements, PR958/main9e9aec92; no cache/public activation.
-- [ ] **`codex/key-view-retention-ledger`** — pending release intents/acknowledgements; legacy class unchanged; ~78 main/spec lines.
-- [ ] **`codex/key-view-retention-groups`** — internal enrolment/frozen outcomes/source anchors in the SAME ledger; ~180 main/spec lines.
+- [x] **`codex/key-view-retention-ledger`** — pending release intents/acknowledgements, PR959/main80f3873b; legacy class unchanged; ~78 main/spec lines.
+- [ ] **`codex/key-view-retention-groups`** — internal groups/outcomes/source anchors, NO deliveries; ~180 main/spec lines.
+- [ ] **`codex/key-view-retention-delivery`** — safe copy/view return owning ALL receipt cleanup and abort obligations; ~90 main/spec lines.
 - [ ] **`codex/key-view-retention-policy`** — shared owner LRU, modes, success tickets and epochs; no public lease; ~175 main lines.
 - [ ] **`codex/key-view-retention-legacy`** — old get/evict integration and protective Unavailable cutoff; ~185 changed main lines.
 - [ ] **`codex/key-view-retention-leases`** — lease/revoke/revokeAll, all caller handoffs and array exits; ~180 main lines.
@@ -132,4 +146,5 @@ owned Promise gates always release/join. No sleeps, lowered coverage/dependency 
 Resolved after independent review: extend KeyCache rather than add a second cache; close joins accepted work,
 not idle handles; material access is callback-bounded, with no escaped-copy/JVM-erasure guarantee. Tagged modes,
 one retained identity per slot, successful-ticket publication, original hard expiry and benign close versus
-revoke follow the Shape above. There are no remaining implementation choices within this bounded contract.
+revoke follow the Shape above. The delivery entry's pre-acquisition abort ownership needs its own reviewed
+implementation plan before code; the groups-only entry exposes no delivery.
