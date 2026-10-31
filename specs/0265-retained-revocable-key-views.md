@@ -88,6 +88,9 @@ their owned copies; it drops both modes' retention but cannot revoke legacy copi
 across revoke returns fixed Denied, unkept; a legacy load may still return its old-style independent copy, unkept.
 Forgetting across a load suppresses retention but may answer accepted borrowers. Every unretained transferred
 array has a terminal owner and wipe: no onEvict-only assumption, abandoned flight copy or orphaned view.
+A prepared Copy/View is provisional until ALL receipt cleanup returns normally. An outer Resource owns raw copied
+bytes or the exact borrowed handle before further fallible work, disarming only at final return; failed abort remains
+an exact owned obligation. The groups-only increment exposes no delivery; its separate return seam must prove this boundary.
 Private terminal notices follow wipe when forgotten material has no views/uses, or revoked material has no uses;
 forgotten live valid views remain reachable for later revoke. Notice/release intents stay Pending until outside cleanup
 returns normally and Ack commits. Action or uncommitted-Ack failure stays Pending; committed Ack persists despite a
@@ -111,8 +114,9 @@ Alternative: a general retained-resource cache; broader than this key requiremen
 - [x] **`codex/key-view-contract-20261031`** — reviewed spec on main, PR956.
 - [x] **`codex/key-view-ownership`** — identity/private material/view guards, PR957/main e7af.
 - [x] **`codex/key-view-retention`** — terminal notices/acknowledgements, PR958/main9e9aec92; no cache/public activation.
-- [ ] **`codex/key-view-retention-ledger`** — pending release intents/acknowledgements; legacy class unchanged; ~78 main/spec lines.
-- [ ] **`codex/key-view-retention-groups`** — internal enrolment/frozen outcomes/source anchors in the SAME ledger; ~180 main/spec lines.
+- [x] **`codex/key-view-retention-ledger`** — pending release intents/acknowledgements, PR959/main80f3873b; legacy class unchanged; ~78 main/spec lines.
+- [ ] **`codex/key-view-retention-groups`** — internal groups/outcomes/source anchors, NO deliveries; ~180 main/spec lines.
+- [ ] **`codex/key-view-retention-delivery`** — safe copy/view return owning ALL receipt cleanup and abort obligations; ~90 main/spec lines.
 - [ ] **`codex/key-view-retention-policy`** — shared owner LRU, modes, success tickets and epochs; no public lease; ~175 main lines.
 - [ ] **`codex/key-view-retention-legacy`** — old get/evict integration and protective Unavailable cutoff; ~185 changed main lines.
 - [ ] **`codex/key-view-retention-leases`** — lease/revoke/revokeAll, all caller handoffs and array exits; ~180 main lines.
@@ -142,4 +146,5 @@ owned Promise gates always release/join. No sleeps, lowered coverage/dependency 
 Resolved after independent review: extend KeyCache rather than add a second cache; close joins accepted work,
 not idle handles; material access is callback-bounded, with no escaped-copy/JVM-erasure guarantee. Tagged modes,
 one retained identity per slot, successful-ticket publication, original hard expiry and benign close versus
-revoke follow the Shape above. There are no remaining implementation choices within this bounded contract.
+revoke follow the Shape above. The delivery entry's pre-acquisition abort ownership needs its own reviewed
+implementation plan before code; the groups-only entry exposes no delivery.
